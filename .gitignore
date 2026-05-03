@@ -1,0 +1,28 @@
+# Agent runtime state and caches
+agent/sessions/
+agent/intercom/
+agent/mcp-oauth/
+agent/mcp-cache.json
+agent/mcp-npx-cache.json
+agent/run-history.jsonl
+
+# Local auth and sensitive local-only files
+agent/auth.json
+agent/settings.json.bak
+agent/mcp-onboarding.json
+
+# Local working dirs and logs
+tmp/
+scratch/
+logs/
+context-mode/
+context7/
+.pi/
+.rtk/
+
+# Local misc files
+note.txt
+exa-usage.json
+
+# Code Review Graph local db/cache
+.code-review-graph/

@@ -1,0 +1,34 @@
+{
+  "lastChangelogVersion": "0.72.1",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.3-codex",
+  "defaultThinkingLevel": "medium",
+  "theme": "dark",
+  "transport": "auto",
+  "compaction": {
+    "enabled": true
+  },
+  "packages": [
+    "npm:context-mode",
+    "npm:pi-mcp-adapter",
+    "npm:pi-btw",
+    "npm:pi-web-access",
+    "npm:pi-cursor-provider",
+    "npm:@sherif-fanous/pi-rtk",
+    "npm:pi-claude-bridge",
+    "npm:pi-skill-palette"
+  ],
+  "enabledModels": [
+    "claude-bridge/claude-haiku-4-5",
+    "claude-bridge/claude-sonnet-4-6",
+    "claude-bridge/claude-opus-4-6",
+    "google/gemini-3.1-flash-lite-preview",
+    "google/gemini-3.1-pro-preview",
+    "minimax/MiniMax-M2.7",
+    "openai-codex/gpt-5.3-codex",
+    "openai-codex/gpt-5.5",
+    "cursor/default",
+    "cursor/claude-4.5-sonnet",
+    "cursor/claude-4.6-sonnet-thinking"
+  ]
+}
