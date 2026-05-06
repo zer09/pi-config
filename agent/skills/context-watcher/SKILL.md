@@ -31,23 +31,23 @@ triggers:
  - "context-watcher troubleshooting"
 compatibility:
   requires:
- - context-mode (MCP server via npx or global install)
- - rtk (Rust binary via brew or cargo)
- - code-review-graph (Python package via pip or Claude plugin)
+    - context-mode (MCP server via npx or global install)
+    - rtk (Rust binary via brew or cargo)
+    - code-review-graph (Python package via pip or Claude plugin)
   optional:
- - uv (for code-review-graph MCP server)
- - sentence-transformers (for semantic search in code-review-graph)
+    - uv (for code-review-graph MCP server)
+    - sentence-transformers (for semantic search in code-review-graph)
   platforms:
- - Claude Code
- - ChatGPT / Codex
- - Gemini CLI
- - Cursor
- - Windsurf
- - Cline / Roo Code
- - VS Code Copilot
- - OpenCode
- - MiniMax
- - Any MCP-compatible AI agent
+    - Claude Code
+    - ChatGPT / Codex
+    - Gemini CLI
+    - Cursor
+    - Windsurf
+    - Cline / Roo Code
+    - VS Code Copilot
+    - OpenCode
+    - MiniMax
+    - Any MCP-compatible AI agent
 ---
 
 # Context Watcher
