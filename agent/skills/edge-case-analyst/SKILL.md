@@ -27,9 +27,9 @@ Trace data flow to find "impossible" states or unhandled input ranges.
 
 1. **Trace Impacts**: Use `code_review_graph_get_affected_flows_tool` on recent changes to see how state transitions ripple through the system.
 2. **Boundary Audit**: For every input parameter in an identified flow, evaluate the following:
-   - **Numeric**: Check for 0, negative values, MAX_INT, and floating-point precision issues.
-   - **Strings**: Test empty strings, excessively long inputs, special characters, and injection patterns.
-   - **Objects**: Explicitly handle `null`, `undefined`, missing keys, or incorrect types.
+ - **Numeric**: Check for 0, negative values, MAX_INT, and floating-point precision issues.
+ - **Strings**: Test empty strings, excessively long inputs, special characters, and injection patterns.
+ - **Objects**: Explicitly handle `null`, `undefined`, missing keys, or incorrect types.
 3. **Blast Radius**: Use `code_review_graph_get_impact_radius_tool` to find distant files that may rely on implicit assumptions of the code being changed.
 
 ### Phase 3: Runtime Anomaly Detection

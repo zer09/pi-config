@@ -31,9 +31,9 @@ One sentence summary of the outcome.
 Numbered steps, each small and actionable.
 
 1. **Task 1**: Description
-   - File: `path/to/file.ts`
-   - Changes: what to modify
-   - Acceptance: how to verify
+ - File: `path/to/file.ts`
+ - Changes: what to modify
+ - Acceptance: how to verify
 
 ## Files to Modify
 

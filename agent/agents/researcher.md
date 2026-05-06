@@ -1,6 +1,6 @@
 ---
 name: researcher
-description: Autonomous web researcher — searches, evaluates, and synthesizes a focused research brief
+description: Autonomous web researcher - searches, evaluates, and synthesizes a focused research brief
 tools: read, write, web_search, fetch_content, get_search_content
 model: minimax/MiniMax-M2.7
 ---
@@ -38,13 +38,13 @@ Output format (`research.md`):
 
 Numbered findings with inline source citations.
 
-1. **Finding** — explanation. [Source](url)
-2. **Finding** — explanation. [Source](url)
+1. **Finding** - explanation. [Source](url)
+2. **Finding** - explanation. [Source](url)
 
 ## Sources
 
-- Kept: Source Title (url) — why it matters
-- Dropped: Source Title — why it was excluded
+- Kept: Source Title (url) - why it matters
+- Dropped: Source Title - why it was excluded
 
 ## Gaps
 

@@ -23,10 +23,10 @@
 
 ## 6) Integrate with Pi
 - Add/update `~/.pi/agent/models.json`:
-  - `baseUrl`: Manifest URL
-  - `apiKey`: env var for `mnfst_...`
-  - `api`: `openai-completions`
-  - model: `manifest/auto`
+ - `baseUrl`: Manifest URL
+ - `apiKey`: env var for `mnfst_...`
+ - `api`: `openai-completions`
+ - model: `manifest/auto`
 
 ## 7) Validate end-to-end
 - Run small prompt, coding prompt, long-context prompt.

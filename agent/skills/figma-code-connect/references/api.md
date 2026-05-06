@@ -109,7 +109,7 @@ Every template starts with metadata comments:
 // component=Button
 ```
 
-**Getting the URL:** In Figma, right-click component → "Copy link to selection"
+**Getting the URL:** In Figma, right-click component -> "Copy link to selection"
 
 ### Export Structure
 
@@ -630,8 +630,8 @@ interface Metadata {
 ```
 
 > **Important:** `nestable` must be set in **two places** for nested templates to work correctly:
-> 1. **`templateDataJson`** when calling `add_code_connect_map` — e.g. `'{"isParserless": true, "nestable": true}'`. This controls whether the child template is loaded into the parent's evaluation context. If missing, the parent cannot find or execute the child via `findConnectedInstance`, `findConnectedInstances`, or `hasCodeConnect()`.
-> 2. **`metadata.nestable`** in the template's `export default` — controls the runtime rendering behavior (inline code vs. clickable pill).
+> 1. **`templateDataJson`** when calling `add_code_connect_map` - e.g. `'{"isParserless": true, "nestable": true}'`. This controls whether the child template is loaded into the parent's evaluation context. If missing, the parent cannot find or execute the child via `findConnectedInstance`, `findConnectedInstances`, or `hasCodeConnect()`.
+> 2. **`metadata.nestable`** in the template's `export default` - controls the runtime rendering behavior (inline code vs. clickable pill).
 
 ### ResultSection Types
 
@@ -940,7 +940,7 @@ export default {
 }
 ```
 
-**Note:** If using `add_code_connect_map`, `nestable` must also be set in `templateDataJson` for the child to be discoverable by parent templates. Setting `metadata: { nestable: true }` in the template alone is not sufficient — the stored `templateData.nestable` controls whether the child is loaded into `instanceTemplates`.
+**Note:** If using `add_code_connect_map`, `nestable` must also be set in `templateDataJson` for the child to be discoverable by parent templates. Setting `metadata: { nestable: true }` in the template alone is not sufficient - the stored `templateData.nestable` controls whether the child is loaded into `instanceTemplates`.
 
 ---
 
@@ -973,10 +973,10 @@ const icon = instance.findInstance('Icon', {
 **Error:** `Property type mismatch`
 
 **Solution:** Use correct method for property type:
-- Text properties → `getString()`
-- Boolean properties → `getBoolean()`
-- Variant properties → `getEnum()`
-- Instance swap → `getInstanceSwap()`
+- Text properties -> `getString()`
+- Boolean properties -> `getBoolean()`
+- Variant properties -> `getEnum()`
+- Instance swap -> `getInstanceSwap()`
 
 ### Template Not Rendering
 

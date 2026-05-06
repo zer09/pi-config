@@ -3,9 +3,9 @@
 ## Contents
 - [Basic component property retrieval](#basic-component-property-retrieval)
 - [Descendants and recursive templating](#descendants-and-recursive-templating)
-  - [instance.metadata](#instancemetadata)
-  - [instance.example](#instanceexample)
-  - [Descendant methods](#descendant-methods)
+ - [instance.metadata](#instancemetadata)
+ - [instance.example](#instanceexample)
+ - [Descendant methods](#descendant-methods)
 
 ## Basic component property retrieval
 
@@ -56,13 +56,13 @@ If `node.hasCodeConnect()`, these can be accessed with `const { example, metadat
 
 Any string value can be stored in props. This is additional information to the example snippet. Handy for scenarios where you want single values to be referenced in parent contexts instead of an entire snippet.
 
-> **Important:** For a child template to be discoverable by parent templates (via `findConnectedInstance`, `findConnectedInstances`, or `hasCodeConnect()`), `nestable: true` must be set in **both** the template's `metadata` export **and** in `templateDataJson` when registering via `add_code_connect_map` — e.g. `'{"isParserless": true, "nestable": true}'`. If `nestable` is missing from `templateDataJson`, the child template will not be loaded into the parent's evaluation context.
+> **Important:** For a child template to be discoverable by parent templates (via `findConnectedInstance`, `findConnectedInstances`, or `hasCodeConnect()`), `nestable: true` must be set in **both** the template's `metadata` export **and** in `templateDataJson` when registering via `add_code_connect_map` - e.g. `'{"isParserless": true, "nestable": true}'`. If `nestable` is missing from `templateDataJson`, the child template will not be loaded into the parent's evaluation context.
 
 ```js
 export default {
   example: figma.html`<ds-child>normal stuff</ds-child>`,
   id: "child",
-  metadata: { nestable: true, props: { special: "Special Stuff!!! 🤩" } },
+  metadata: { nestable: true, props: { special: "Special Stuff!!! " } },
 };
 ```
 
@@ -84,7 +84,7 @@ The output of these templates would be:
 <ds-child>normal stuff</ds-child>
 
 <!-- Parent snippet bringing in child metadata -->
-<ds-parent>Special Stuff!!! 🤩</ds-parent>
+<ds-parent>Special Stuff!!! </ds-parent>
 ```
 
 ### `instance.example`
@@ -149,7 +149,7 @@ if (example?.type === "CODE") {
 - `instance.codeConnectId()`: String to identify the connected component, set in code connect docs, usefule in filtering or finding the component via methods below.
 - `instance.findInstance()`: Only returns a single instance, found by layer name.
 - `instance.findText()`: Only returns a single text node, found by layer name.
-- `instance.findConnectedInstance()`: Can use the `id` of a descendant (defined in the descendant's export) to remove any variability (layer naming, etc) and find a single instance of a specific component. Returns `ErrorHandle` on failure — check `result.type === 'INSTANCE'` before use.
+- `instance.findConnectedInstance()`: Can use the `id` of a descendant (defined in the descendant's export) to remove any variability (layer naming, etc) and find a single instance of a specific component. Returns `ErrorHandle` on failure - check `result.type === 'INSTANCE'` before use.
 - `instance.findConnectedInstances()`: To filter or find a list of connected instance descendants. `node.type` and `instance.hasCodeConnect()` are already enforced in this. `node.name` and `instance.codeConnectId()` can be used to filter in the handler.
 - `instance.findLayers()`: To filter or find a list of any text or instance descendants. Instances do not have to be connected. `instance.hasCodeConnect()`, `node.type`, `node.name`, and `instance.codeConnectId()` can be used to filter in the handler.
 
@@ -264,7 +264,7 @@ const figma = require("figma");
 export default {
   example: figma.html`<ds-child>normal stuff</ds-child>`,
   id: "child",
-  metadata: { nestable: true, props: { special: "Special Stuff!!! 🤩" } },
+  metadata: { nestable: true, props: { special: "Special Stuff!!! " } },
 };
 ```
 
@@ -279,8 +279,8 @@ export default {
 
 <!-- Grandparent snippet: -->
 <ds-grandparent>
-  <wow-special>Special Stuff!!! 🤩</wow-special> index: 0
-  <wow-special>Special Stuff!!! 🤩</wow-special> index: 1
-  <wow-special>Special Stuff!!! 🤩</wow-special> index: 2
+  <wow-special>Special Stuff!!! </wow-special> index: 0
+  <wow-special>Special Stuff!!! </wow-special> index: 1
+  <wow-special>Special Stuff!!! </wow-special> index: 2
 </ds-grandparent>
 ```

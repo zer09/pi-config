@@ -40,12 +40,12 @@ Parse from request:
 1. **Fetch Issue Details** via Linear MCP tools
 2. **Display Current State**: Show issue details and description
 3. **Analyze for Gaps**: Evaluate against criteria:
-   - Clarity: Is the problem/goal clearly stated?
-   - Context: Is there sufficient background information?
-   - Scope: Are boundaries clearly defined?
-   - Acceptance Criteria: Are success conditions defined?
-   - Technical Details: Are implementation hints provided?
-   - Dependencies: Are related tasks/blockers mentioned?
+ - Clarity: Is the problem/goal clearly stated?
+ - Context: Is there sufficient background information?
+ - Scope: Are boundaries clearly defined?
+ - Acceptance Criteria: Are success conditions defined?
+ - Technical Details: Are implementation hints provided?
+ - Dependencies: Are related tasks/blockers mentioned?
 
 ### Phase 2: Research Codebase Context
 
