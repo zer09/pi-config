@@ -11,6 +11,9 @@ agent/auth.json
 agent/settings.json.bak
 agent/mcp-onboarding.json
 agent/.skills-update-stamp
+agent/agents-enforcer.log
+agent/claude-bridge.log
+agent/cc-cli-logs/
 
 # Local working dirs and logs
 tmp/
