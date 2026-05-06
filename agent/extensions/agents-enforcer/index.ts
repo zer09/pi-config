@@ -80,7 +80,10 @@ function getProviderModel(ctx: any): { provider: string; model: string } {
 // Extension
 // ---------------------------------------------------------------------------
 
-export default function (pi: ExtensionAPI) {
+export default function (_pi: ExtensionAPI) {
+  // Temporarily disabled.
+  return;
+
   ensureLogDir();
 
   // Track the last provider/model that received the visible reminder.
