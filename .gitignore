@@ -14,6 +14,9 @@ agent/.skills-update-stamp
 agent/agents-enforcer.log
 agent/claude-bridge.log
 agent/cc-cli-logs/
+agent/cursor-debug.jsonl
+agent/cursor-model-cache.json
+agent/cursor-proxy.json
 
 # Local working dirs and logs
 tmp/

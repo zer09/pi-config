@@ -1,7 +1,7 @@
 {
   "lastChangelogVersion": "0.73.0",
-  "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.3-codex-spark",
+  "defaultProvider": "cursor",
+  "defaultModel": "claude-4.5-haiku",
   "defaultThinkingLevel": "medium",
   "theme": "dark",
   "transport": "auto",
@@ -13,10 +13,10 @@
     "npm:pi-mcp-adapter",
     "npm:pi-btw",
     "npm:pi-web-access",
-    "npm:pi-cursor-provider",
     "npm:@sherif-fanous/pi-rtk",
     "npm:pi-claude-bridge",
-    "npm:pi-skill-palette"
+    "npm:pi-skill-palette",
+    "npm:@schultzp2020/pi-cursor"
   ],
   "enabledModels": [
     "claude-bridge/claude-haiku-4-5",
