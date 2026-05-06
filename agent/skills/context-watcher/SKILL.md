@@ -1,15 +1,15 @@
 ---
 name: context-watcher
-version: 1.0.0
+version: 1.1.0
 description: >
   Unified orchestration of Context Mode, RTK Token Optimizer, and Code Review Graph. Context Mode
-  gatekeeps all execution — RTK commands and graph queries run inside its sandbox for 60–99% token
+  gatekeeps all execution -- RTK commands and graph queries run inside its sandbox for 60-99% token
   savings with structural codebase awareness. Use for: shell commands, code review, blast radius
   analysis, graph-first exploration, test runs, git history, log analysis, web doc fetching,
   Playwright snapshots, CI/CD output, infrastructure inspection, and dependency management.
   Errors inside the sandbox trigger automatic fallback to direct execution with logging to
   ~/.pi/logs/. Works with Claude Code, ChatGPT/Codex, Gemini CLI, Cursor, Windsurf, Cline,
-  VS Code Copilot, OpenCode, and any MCP-compatible AI agent.
+  VS Code Copilot, OpenCode, MiniMax, and any MCP-compatible AI agent.
 triggers:
   - "set up context watcher"
   - "install context-watcher"
@@ -46,50 +46,99 @@ compatibility:
     - Cline / Roo Code
     - VS Code Copilot
     - OpenCode
+    - MiniMax
     - Any MCP-compatible AI agent
 ---
 
 # Context Watcher
 
-Context Watcher is the unified orchestration layer that makes **Context Mode**, **RTK Token Optimizer**, and **Code Review Graph** work together seamlessly. Context Mode is the gatekeeper — every RTK command and every Code Review Graph query runs inside its sandbox so raw output never floods your context window. When something fails inside the sandbox, the command falls back to direct execution and the error is logged to `~/.pi/logs/` for post-mortem debugging.
+Context Watcher is the unified orchestration layer that makes **Context Mode**, **RTK Token Optimizer**, and **Code Review Graph** work together seamlessly. Context Mode is the gatekeeper -- every RTK command and every Code Review Graph query runs inside its sandbox so raw output never floods your context window. When something fails inside the sandbox, the command falls back to direct execution and the error is logged to `~/.pi/logs/` for post-mortem debugging.
 
-The result: structural codebase awareness (graph), compressed CLI output (RTK), and sandboxed execution (Context Mode) — all in one skill, across any AI agent.
+The result: structural codebase awareness (graph), compressed CLI output (RTK), and sandboxed execution (Context Mode) -- all in one skill, across any AI agent.
 
 ---
 
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     AI Agent                            │
-│  (Claude, ChatGPT, Gemini, Cursor, Windsurf, etc.)     │
-└──────────────────────┬──────────────────────────────────┘
-                       │ Command / Query
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│              CONTEXT MODE (Gatekeeper)                  │
-│  ctx_execute · ctx_execute_file · ctx_batch_execute     │
-│  ctx_fetch_and_index · ctx_index · ctx_search           │
-│                                                         │
-│  ┌───────────────────┐   ┌────────────────────────────┐ │
-│  │  RTK Token        │   │  Code Review Graph         │ │
-│  │  Optimizer        │   │  (MCP Tools)               │ │
-│  │                   │   │                            │ │
-│  │  rtk git status   │   │  detect_changes            │ │
-│  │  rtk cargo test   │   │  get_impact_radius         │ │
-│  │  rtk pytest       │   │  get_review_context        │ │
-│  │  rtk ls / grep    │   │  query_graph               │ │
-│  │  rtk gh pr view   │   │  semantic_search_nodes     │ │
-│  └───────────────────┘   └────────────────────────────┘ │
-│                                                         │
-│  Sandbox: raw output never enters context window        │
-│  SQLite FTS5: session continuity after compaction       │
-└──────────────────────┬──────────────────────────────────┘
-                       │ Compressed summary only
-                       ▼
++-----------------------------------------------------------+
+|                      AI Agent                             |
+|  (Claude, ChatGPT, Gemini, Cursor, Windsurf, MiniMax)    |
++-----------------------------+-----------------------------+
+                              | Command / Query
+                              v
++-----------------------------------------------------------+
+|              CONTEXT MODE (Gatekeeper)                    |
+|  ctx_execute . ctx_execute_file . ctx_batch_execute       |
+|  ctx_fetch_and_index . ctx_index . ctx_search             |
+|                                                           |
+|  +---------------------+   +---------------------------+  |
+|  |  RTK Token          |   |  Code Review Graph        |  |
+|  |  Optimizer          |   |  (MCP Tools)              |  |
+|  |                     |   |                           |  |
+|  |  rtk git status     |   |  detect_changes           |  |
+|  |  rtk cargo test     |   |  get_impact_radius        |  |
+|  |  rtk pytest         |   |  get_review_context       |  |
+|  |  rtk ls / grep      |   |  query_graph              |  |
+|  |  rtk gh pr view     |   |  semantic_search_nodes    |  |
+|  +---------------------+   +---------------------------+  |
+|                                                           |
+|  Sandbox: raw output never enters context window          |
+|  SQLite FTS5: session continuity after compaction         |
++-----------------------------+-----------------------------+
+                              | Compressed summary only
+                              v
                   Agent Context Window
                   (~1-5 KB instead of ~300+ KB)
 ```
+
+---
+
+## Think in Code -- MANDATORY
+
+When you need to analyze, count, filter, compare, search, parse, transform, or process data: **write code** that does the work via `ctx_execute(language, code)` and `console.log()` only the answer. Do NOT read raw data into context to process mentally. Your role is to PROGRAM the analysis, not to COMPUTE it.
+
+Write robust, pure JavaScript (or Python/shell as needed) -- no npm dependencies, only built-ins (`fs`, `path`, `child_process`). Always use `try/catch`, handle `null`/`undefined`. One script replaces ten tool calls and saves 100x context.
+
+```
+# WRONG: reading a 500-line log into context to count errors mentally
+ctx_execute_file({ path: "app.log" })
+# then scanning the text in your head...
+
+# RIGHT: programmatic analysis, only the answer enters context
+ctx_execute({
+  language: "javascript",
+  code: "const fs=require('fs'); const lines=fs.readFileSync('app.log','utf8').split('\\n'); const errors=lines.filter(l=>l.includes('ERROR')); console.log(`${errors.length} errors found`); errors.slice(0,5).forEach(e=>console.log(e));"
+})
+```
+
+---
+
+## BLOCKED Commands -- FORBIDDEN
+
+These commands are forbidden in direct bash. They dump raw output into your context window and bypass the sandbox.
+
+### curl / wget -- FORBIDDEN
+
+Do NOT use `curl` or `wget` in any bash command. Pi's hooks block these at the tool level on platforms that support hooks.
+
+Instead use:
+- `ctx_fetch_and_index(url, source)` to fetch and index web pages
+- `ctx_execute(language: "javascript", code: "const r = await fetch(...)")` to run HTTP calls in sandbox
+
+### Inline HTTP -- FORBIDDEN
+
+Do NOT run inline HTTP calls via `node -e "fetch(..."`, `python -c "requests.get(..."`, or similar patterns. They bypass the sandbox and flood context.
+
+Instead use:
+- `ctx_execute(language, code)` to run HTTP calls in sandbox -- only stdout enters context
+
+### Direct web fetching -- FORBIDDEN
+
+Do NOT use any direct URL fetching tool that dumps raw HTML into context. Raw HTML can exceed 100 KB.
+
+Instead use:
+- `ctx_fetch_and_index(url, source)` then `ctx_search(queries)` to query the indexed content
 
 ---
 
@@ -114,52 +163,59 @@ These commands produce minimal output and are safe to run directly:
 
 **Everything else runs through Context Mode.** This includes all RTK commands, all Code Review Graph queries, all CLI tools, all test runners, all build tools, all infrastructure commands.
 
+### REDIRECTED Tools -- Use Sandbox Equivalents
+
+**bash (>20 lines output)**: bash is ONLY for the whitelist above and other short-output commands. For everything else, use `ctx_batch_execute(commands, queries)` or `ctx_execute(language: "shell", code: "...")`.
+
+**read (for analysis)**: If you are reading a file to **edit** it, direct read is correct (edit needs content in context). If you are reading to **analyze, explore, or summarize**, use `ctx_execute_file(path, language, code)` instead.
+
+**grep / find (large results)**: Search results can flood context. Use `ctx_execute(language: "shell", code: "grep ...")` to run in sandbox.
+
 ### Decision Tree
 
 ```
 About to run a command?
-│
-├── On the Bash whitelist (mutations, git writes, navigation, echo)?
-│   └── Use direct Bash
-│
-├── Is it a read-only command (git log, ls, grep, test, build, lint, etc.)?
-│   └── Wrap with RTK, execute inside ctx_execute
-│   │   Example: ctx_execute({ command: "rtk git status" })
-│   │
-│   ├── Did ctx_execute succeed?
-│   │   └── Use the compressed result
-│   │
-│   └── Did ctx_execute fail?
-│       └── FALLBACK: Run "rtk git status" directly in Bash
-│       └── LOG ERROR: append to ~/.pi/logs/context-watcher.log
-│
-├── Is it a codebase exploration or review task?
-│   └── Use Code Review Graph tools FIRST (inside Context Mode)
-│   │   Example: ctx_execute({ command: "code-review-graph status" })
-│   │
-│   ├── Did the graph tool succeed?
-│   │   └── Use the structural result
-│   │
-│   └── Did the graph tool fail?
-│       └── FALLBACK: Run the graph command directly
-│       └── LOG ERROR: append to ~/.pi/logs/context-watcher.log
-│       └── Fall back to rtk grep / rtk find for exploration
-│
-├── Is it a web fetch or API call?
-│   └── Use ctx_fetch_and_index → ctx_search
-│
-├── Is it a Playwright/browser operation?
-│   └── ALWAYS use filename parameter → ctx_index(path) → ctx_search
-│
-└── Is it a large file read for analysis (not editing)?
-    └── Use ctx_execute_file
+|
++-- On the Bash whitelist (mutations, git writes, navigation, echo)?
+|   +-- Use direct Bash
+|
++-- Is it a read-only command (git log, ls, grep, test, build, lint)?
+|   +-- Wrap with RTK, execute inside ctx_execute
+|   |   Example: ctx_execute({ command: "rtk git status" })
+|   |
+|   +-- Did ctx_execute succeed?
+|   |   +-- Use the compressed result
+|   |
+|   +-- Did ctx_execute fail?
+|       +-- FALLBACK: Run "rtk git status" directly in Bash
+|       +-- LOG ERROR: append to ~/.pi/logs/context-watcher.log
+|
++-- Is it a codebase exploration or review task?
+|   +-- Use Code Review Graph tools FIRST (inside Context Mode)
+|   |
+|   +-- Did the graph tool succeed?
+|   |   +-- Use the structural result
+|   |
+|   +-- Did the graph tool fail?
+|       +-- FALLBACK: Run the graph command directly
+|       +-- LOG ERROR
+|       +-- Fall back to rtk grep / rtk find
+|
++-- Is it a web fetch or API call?
+|   +-- Use ctx_fetch_and_index -> ctx_search
+|
++-- Is it a Playwright/browser operation?
+|   +-- ALWAYS use filename parameter -> ctx_index(path) -> ctx_search
+|
++-- Is it a large file read for analysis (not editing)?
+    +-- Use ctx_execute_file
 ```
 
 ---
 
 ## RTK Inside Context Mode
 
-RTK compresses shell output by 60–90%. Running RTK inside Context Mode stacks the savings: RTK compresses the raw output, and Context Mode sandboxes it so only a summary enters context.
+RTK compresses shell output by 60-90%. Running RTK inside Context Mode stacks the savings: RTK compresses the raw output, and Context Mode sandboxes it so only a summary enters context.
 
 ### How to Run RTK Commands Inside Context Mode
 
@@ -180,7 +236,7 @@ ctx_execute({ language: "shell", code: "rtk vitest run" })
 
 ### Batch Operations
 
-Use `ctx_batch_execute` for multiple RTK commands in a single context entry:
+Use `ctx_batch_execute` for multiple RTK commands in a single context entry. The optional `queries` parameter auto-searches the indexed output:
 
 ```
 ctx_batch_execute({
@@ -188,9 +244,12 @@ ctx_batch_execute({
     { label: "Git status", command: "rtk git status" },
     { label: "Recent commits", command: "rtk git log -n 10" },
     { label: "Current diff", command: "rtk git diff" }
-  ]
+  ],
+  queries: ["uncommitted changes", "recent feature work"]
 })
 ```
+
+Labels become FTS5 chunk titles -- descriptive labels improve search accuracy.
 
 ### RTK Command Chaining Inside Context Mode
 
@@ -205,15 +264,16 @@ ctx_execute({
 
 ### RTK Token Savings Reference
 
-| Category         | Commands                               | Typical Savings |
-| ---------------- | -------------------------------------- | --------------- |
-| Tests            | vitest, playwright, cargo test, pytest | 90–99%          |
-| Build            | next build, tsc, lint, prettier        | 70–87%          |
-| Git              | status, log, diff, add, commit         | 59–80%          |
-| GitHub CLI       | gh pr, gh run, gh issue                | 26–87%          |
-| Package Managers | pnpm, npm, pip                         | 70–90%          |
-| Files            | ls, read, grep, find                   | 60–75%          |
-| Infrastructure   | docker, kubectl                        | 85%             |
+| Category         | Commands                                        | Typical Savings |
+| ---------------- | ----------------------------------------------- | --------------- |
+| Tests            | vitest, playwright, cargo test, pytest, rspec   | 60-99%          |
+| Build            | next build, tsc, lint, prettier                 | 70-87%          |
+| Git              | status, log, diff, add, commit                  | 59-80%          |
+| GitHub CLI       | gh pr, gh run, gh issue                         | 26-87%          |
+| Package Managers | pnpm, npm, pip, bundle install                  | 70-90%          |
+| Files            | ls, read, grep, find                            | 60-75%          |
+| Infrastructure   | docker, docker compose, kubectl                 | 85%             |
+| Linters          | ruff check, golangci-lint, rubocop, cargo clippy| 60-85%          |
 
 ### RTK Global Flags
 
@@ -229,6 +289,8 @@ rtk smart <file>      # 2-line heuristic code summary
 ```
 ctx_execute({ language: "shell", code: "rtk gain" })
 ctx_execute({ language: "shell", code: "rtk gain --graph" })
+ctx_execute({ language: "shell", code: "rtk gain --history" })
+ctx_execute({ language: "shell", code: "rtk gain --daily" })
 ctx_execute({ language: "shell", code: "rtk discover" })
 ctx_execute({ language: "shell", code: "rtk session" })
 ```
@@ -237,7 +299,7 @@ ctx_execute({ language: "shell", code: "rtk session" })
 
 ## Code Review Graph Inside Context Mode
 
-Code Review Graph builds a persistent structural map of your codebase using Tree-sitter. When running inside Context Mode, the graph query results are sandboxed — only compact summaries enter your context window.
+Code Review Graph builds a persistent structural map of your codebase using Tree-sitter. When running inside Context Mode, the graph query results are sandboxed -- only compact summaries enter your context window.
 
 ### Supported Languages
 
@@ -251,7 +313,9 @@ If the repository language is supported, graph-first workflow is mandatory. If u
 ctx_execute({ language: "shell", code: "code-review-graph build" })
 ```
 
-Or use the Claude Code slash command: `/code-review-graph:build-graph`
+Or via Claude Code plugin: `/code-review-graph:build-graph`
+
+Or install as plugin: `claude plugin marketplace add tirth8205/code-review-graph`
 
 First build parses the full codebase (~10 seconds for 500 files). Subsequent updates are incremental (<2 seconds).
 
@@ -319,6 +383,21 @@ migrations/**
 
 ---
 
+## Context Mode Management Commands
+
+These commands manage the context-mode knowledge base and health:
+
+| Command       | Action |
+| ------------- | ------ |
+| `ctx stats`   | Call the `stats` MCP tool and display full output verbatim |
+| `ctx doctor`  | Call the `doctor` MCP tool, run the returned shell command, display as checklist |
+| `ctx upgrade` | Call the `upgrade` MCP tool, run the returned shell command, display as checklist |
+| `ctx purge`   | Call the `purge` MCP tool with confirm: true. Warns before wiping the knowledge base |
+
+After conversation compaction (`/clear`, `/compact`, or platform-triggered): the knowledge base and session stats are preserved. Use `ctx_search` to recover prior state. Use `ctx purge` only if you want to start completely fresh.
+
+---
+
 ## Error Handling and Fallback Protocol
 
 When RTK or Code Review Graph commands fail inside Context Mode, the skill follows a strict fallback protocol that ensures work continues while errors are captured for debugging.
@@ -327,57 +406,30 @@ When RTK or Code Review Graph commands fail inside Context Mode, the skill follo
 
 ```
 ctx_execute({ command: "rtk cargo test" })
-│
-├── SUCCESS → use compressed result (normal path)
-│
-└── FAILURE (exit code != 0 or ctx_execute itself errors)
-    │
-    ├── Step 1: Execute the command directly (outside Context Mode)
-    │   Run: rtk cargo test
-    │   (The command still uses RTK for compression, just not sandboxed)
-    │
-    ├── Step 2: Log the error
-    │   Append to: ~/.pi/logs/context-watcher.log
-    │   Format:
-    │   [ISO-8601 timestamp] [FALLBACK] command="rtk cargo test"
-    │   [ISO-8601 timestamp] [ERROR] reason="ctx_execute timeout / MCP connection lost / ..."
-    │   [ISO-8601 timestamp] [RESULT] exit_code=0 (fallback succeeded)
-    │
-    └── Step 3: Continue with the direct result
-```
-
-### Error Logging Script
-
-Use this pattern for fallback with logging:
-
-```bash
-# Attempt inside Context Mode first
-# If ctx_execute fails, run directly and log
-
-COMMAND="rtk cargo test"
-LOG_FILE="$HOME/.pi/logs/context-watcher.log"
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-mkdir -p "$(dirname "$LOG_FILE")"
-
-# Direct execution (fallback)
-OUTPUT=$($COMMAND 2>&1)
-EXIT_CODE=$?
-
-# Log the fallback event
-echo "[$TIMESTAMP] [FALLBACK] command=\"$COMMAND\"" >> "$LOG_FILE"
-echo "[$TIMESTAMP] [ERROR] reason=\"ctx_execute_failed\"" >> "$LOG_FILE"
-echo "[$TIMESTAMP] [RESULT] exit_code=$EXIT_CODE" >> "$LOG_FILE"
-echo "---" >> "$LOG_FILE"
-
-echo "$OUTPUT"
+|
++-- SUCCESS -> use compressed result (normal path)
+|
++-- FAILURE (exit code != 0 or ctx_execute itself errors)
+    |
+    +-- Step 1: Execute the command directly (outside Context Mode)
+    |   Run: rtk cargo test
+    |   (The command still uses RTK for compression, just not sandboxed)
+    |
+    +-- Step 2: Log the error
+    |   Append to: ~/.pi/logs/context-watcher.log
+    |   Format:
+    |   [ISO-8601 timestamp] [FALLBACK] command="rtk cargo test"
+    |   [ISO-8601 timestamp] [ERROR] reason="ctx_execute timeout / MCP connection lost / ..."
+    |   [ISO-8601 timestamp] [RESULT] exit_code=0 (fallback succeeded)
+    |
+    +-- Step 3: Continue with the direct result
 ```
 
 ### When Fallback Triggers
 
 Fallback from Context Mode to direct execution happens when:
 
-1. **MCP server unreachable**: `context-mode` process crashed or wasn't started
+1. **MCP server unreachable**: `context-mode` process crashed or was not started
 2. **Sandbox timeout**: command took too long inside the subprocess
 3. **Hook misconfiguration**: PreToolUse/PostToolUse hooks not firing
 4. **SQLite lock**: FTS5 database locked by another process
@@ -401,7 +453,7 @@ grep "\[FALLBACK\]" ~/.pi/logs/context-watcher.log | sort | uniq -c | sort -rn
 
 ## Context Mode Sandbox Tools Reference
 
-### ctx_execute — Run a command in sandbox
+### ctx_execute -- Run a command in sandbox
 
 ```
 ctx_execute({ language: "shell", code: "rtk git status" })
@@ -409,13 +461,13 @@ ctx_execute({ language: "javascript", code: "const r = await fetch('http://local
 ctx_execute({ language: "python", code: "import json; print(json.dumps({'status': 'ok'}))" })
 ```
 
-### ctx_execute_file — Read and analyze a file in sandbox
+### ctx_execute_file -- Read and analyze a file in sandbox
 
 ```
 ctx_execute_file({ path: "./logs/access.log", language: "python", code: "print(len(FILE_CONTENT.splitlines()))" })
 ```
 
-### ctx_batch_execute — Multiple commands, one context entry
+### ctx_batch_execute -- Multiple commands, one context entry
 
 ```
 ctx_batch_execute({
@@ -423,33 +475,46 @@ ctx_batch_execute({
     { label: "Git status", command: "rtk git status" },
     { label: "Test results", command: "rtk cargo test" },
     { label: "Lint check", command: "rtk cargo clippy" }
-  ]
+  ],
+  queries: ["failing tests", "clippy warnings"]
 })
 ```
 
-### ctx_fetch_and_index — Fetch and sandbox a URL
+### ctx_fetch_and_index -- Fetch and sandbox a URL
 
 ```
 ctx_fetch_and_index({ url: "https://docs.example.com/api", source: "API docs" })
 ```
 
-### ctx_index — Index content for later search
+### ctx_index -- Index content for later search
 
 ```
 ctx_index({ path: "/tmp/playwright-snapshot.md", source: "Playwright snapshot" })
 ```
 
-### ctx_search — Query indexed content via BM25
+### ctx_search -- Query indexed content via BM25
 
 ```
 ctx_search({ queries: ["authentication error 401", "login flow"], source: "API docs" })
 ```
 
-### ctx_purge — Clear indexed content
+### ctx_purge -- Clear indexed content
 
 ```
 ctx_purge({ confirm: true })
 ```
+
+---
+
+## Tool Selection Hierarchy
+
+When deciding which tool to use, follow this priority:
+
+1. **GATHER**: `ctx_batch_execute(commands, queries)` -- Primary tool. Runs all commands, auto-indexes output, returns search results. ONE call replaces 30+ individual calls.
+2. **FOLLOW-UP**: `ctx_search(queries)` -- Query indexed content. Pass ALL questions as array in ONE call.
+3. **PROCESSING**: `ctx_execute(language, code)` | `ctx_execute_file(path, language, code)` -- Sandbox execution. Only stdout enters context.
+4. **WEB**: `ctx_fetch_and_index(url, source)` then `ctx_search(queries)` -- Fetch, chunk, index, query. Raw HTML never enters context.
+5. **INDEX**: `ctx_index(content, source)` -- Store content in FTS5 knowledge base for later search.
 
 ---
 
@@ -476,7 +541,8 @@ ctx_batch_execute({
     { label: "Payment processor", command: "rtk read src/payments/processor.py" },
     { label: "Payment tests", command: "rtk read tests/test_payments.py" },
     { label: "API views", command: "rtk read src/api/views.py" }
-  ]
+  ],
+  queries: ["payment validation", "error handling"]
 })
 
 # Result: ~15 files read at ~15K tokens instead of full codebase at ~739K tokens
@@ -494,7 +560,7 @@ query_graph({ pattern: "callers_of", target: "validate_input" })
 # 3. Read the failing file with aggressive compression
 ctx_execute({ language: "shell", code: "rtk read src/validator.rs -l aggressive" })
 
-# 4. Fix the code (direct Bash — it's a mutation)
+# 4. Fix the code (direct Bash -- it is a mutation)
 # ... edit file ...
 
 # 5. Re-run tests
@@ -524,6 +590,7 @@ ctx_batch_execute({
   commands: [
     { label: "Containers", command: "rtk docker ps" },
     { label: "Images", command: "rtk docker images" },
+    { label: "Compose services", command: "rtk docker compose ps" },
     { label: "Pod status", command: "rtk kubectl pods" },
     { label: "Services", command: "rtk kubectl services" }
   ]
@@ -533,7 +600,7 @@ ctx_batch_execute({
 ### Pattern 5: Web Documentation Lookup
 
 ```
-# Fetch and index docs (sandboxed — raw HTML never enters context)
+# Fetch and index docs (sandboxed -- raw HTML never enters context)
 ctx_fetch_and_index({ url: "https://docs.example.com/api/v2", source: "API v2 docs" })
 
 # Search indexed docs
@@ -549,22 +616,38 @@ ctx_search({ queries: ["unresolved errors last session"] })
 ctx_search({ queries: ["pending tasks"] })
 ```
 
+### Pattern 7: Data Analysis (Think in Code)
+
+```
+# WRONG: reading CSV into context and counting manually
+ctx_execute_file({ path: "data.csv" })
+
+# RIGHT: programmatic analysis
+ctx_execute({
+  language: "javascript",
+  code: "const fs=require('fs'); const rows=fs.readFileSync('data.csv','utf8').trim().split('\\n'); console.log('Total rows:', rows.length-1); const headers=rows[0].split(','); console.log('Columns:', headers.join(', '));"
+})
+```
+
 ---
 
 ## Anti-Patterns (What NOT to Do)
 
-| Anti-Pattern                            | Why It's Wrong                           | Correct Approach                                                 |
+| Anti-Pattern                            | Why It Is Wrong                          | Correct Approach                                                 |
 | --------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------- |
 | `bash: git log`                         | Raw output floods context (~2000 tokens) | `ctx_execute({ code: "rtk git log" })` (~200 tokens)             |
-| `bash: curl http://api/endpoint`        | Raw HTTP response in context (~50KB)     | `ctx_fetch_and_index({ url: "..." })` then `ctx_search`          |
+| `bash: curl http://api/endpoint`        | FORBIDDEN. Raw HTTP response (~50KB)     | `ctx_fetch_and_index({ url: "..." })` then `ctx_search`          |
+| `bash: node -e "fetch(...)"`            | FORBIDDEN. Bypasses sandbox              | `ctx_execute({ language: "javascript", code: "..." })`           |
+| `bash: python -c "requests.get(...)"`   | FORBIDDEN. Bypasses sandbox              | `ctx_execute({ language: "python", code: "..." })`               |
 | `bash: cat large-file.json`             | Entire file in context                   | `ctx_execute_file({ path: "..." })`                              |
 | `bash: npm test`                        | Full test output in context              | `ctx_execute({ code: "rtk vitest run" })`                        |
 | `grep pattern src/` as first step       | Misses structural context                | `semantic_search_nodes` or `query_graph` first                   |
-| Reading entire codebase for review      | Wastes ~739K tokens                      | `get_impact_radius` → read only blast radius (~15K)              |
-| `browser_snapshot()` without filename   | 135K tokens flood context                | `browser_snapshot(filename: "/tmp/snap.md")` → `ctx_index(path)` |
-| `ctx_index(content: large_data)`        | Data enters context as parameter         | `ctx_index(path: "/tmp/data.json")` — reads server-side          |
+| Reading entire codebase for review      | Wastes ~739K tokens                      | `get_impact_radius` -> read only blast radius (~15K)             |
+| `browser_snapshot()` without filename   | 135K tokens flood context                | `browser_snapshot(filename: "/tmp/snap.md")` -> `ctx_index(path)`|
+| `ctx_index(content: large_data)`        | Data enters context as parameter         | `ctx_index(path: "/tmp/data.json")` -- reads server-side         |
 | Running `git status` without rtk prefix | Uncompressed output                      | Always use `rtk git status`                                      |
 | Skipping graph for supported languages  | Misses callers/dependents/test gaps      | Graph-first is mandatory for supported languages                 |
+| Reading file to count/filter/aggregate  | Wastes context on raw data               | Write code in ctx_execute, print only the answer                 |
 
 ---
 
@@ -574,7 +657,7 @@ ctx_search({ queries: ["pending tasks"] })
 
 ```bash
 rtk init --show           # Check hook status
-rtk --version             # Verify installation (should be 0.28.2+)
+rtk --version             # Verify installation
 rtk gain --history        # Verify savings are tracked
 ```
 
@@ -594,12 +677,17 @@ cargo install --git https://github.com/rtk-ai/rtk
 ctx_doctor
 ```
 
-Verify hooks are registered and routing file exists (`CLAUDE.md`, `GEMINI.md`, etc.). Without hooks, routing compliance drops to ~60%.
+Verify hooks are registered and routing file exists (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, etc.). Without hooks, routing compliance drops to ~60%.
 
 ### Code Review Graph not connecting
 
 ```bash
-code-review-graph install    # Re-register MCP server
+# Claude Code plugin install (simplest)
+claude plugin marketplace add tirth8205/code-review-graph
+claude plugin install code-review-graph
+
+# Or manual MCP registration
+code-review-graph install
 claude mcp list              # Verify registration
 code-review-graph status     # Check graph health
 ```
@@ -669,13 +757,15 @@ ctx_execute({ code: "rtk cargo test" })
 ctx_execute({ code: "rtk pytest" })
 ctx_execute({ code: "rtk vitest run" })
 
-# Build & Lint
+# Build and Lint
 ctx_execute({ code: "rtk tsc" })
 ctx_execute({ code: "rtk cargo clippy" })
 ctx_execute({ code: "rtk next build" })
+ctx_execute({ code: "rtk ruff check" })
+ctx_execute({ code: "rtk golangci-lint run" })
 
 # Code Review (graph-first)
-detect_changes() → get_impact_radius() → get_review_context()
+detect_changes() -> get_impact_radius() -> get_review_context()
 ctx_execute({ code: "rtk read <file>" })
 
 # Files
@@ -684,11 +774,19 @@ ctx_execute({ code: "rtk grep 'pattern' src/" })
 ctx_execute_file({ path: "./large-file.log" })
 
 # Web docs
-ctx_fetch_and_index({ url: "https://..." }) → ctx_search({ queries: [...] })
+ctx_fetch_and_index({ url: "https://..." }) -> ctx_search({ queries: [...] })
+
+# Package managers
+ctx_execute({ code: "rtk pip list" })
+ctx_execute({ code: "rtk pip outdated" })
+ctx_execute({ code: "rtk bundle install" })
 
 # Analytics
 ctx_execute({ code: "rtk gain --graph" })
 ctx_execute({ code: "rtk discover" })
+
+# Management
+ctx stats / ctx doctor / ctx upgrade / ctx purge
 
 # === DIRECT BASH (mutations only) ===
 git add . && git commit -m "msg" && git push
@@ -712,6 +810,7 @@ npm install
 | Cline / Roo Code | `rtk init --agent cline`     | MCP + hooks   | MCP server        |
 | VS Code Copilot  | `rtk init -g`                | MCP + hooks   | MCP server        |
 | OpenCode         | `rtk init -g --opencode`     | MCP + plugin  | MCP server        |
+| MiniMax          | `rtk init -g`                | MCP server    | MCP server        |
 
 All three tools work on any platform that supports MCP servers and shell hooks. The agent-specific configuration handles the differences in hook format and instruction file placement.
 
@@ -739,6 +838,7 @@ All three tools work on any platform that supports MCP servers and shell hooks. 
 
 - GitHub: https://github.com/nicobailon/code-review-graph
 - Skill (Aradotso): https://github.com/Aradotso/trending-skills/blob/main/skills/code-review-graph/SKILL.md
+- Plugin: `claude plugin marketplace add tirth8205/code-review-graph`
 - Generated from `code-review-graph init`
 
 ### Project Documents (Custom)

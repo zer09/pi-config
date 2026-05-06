@@ -1,0 +1,196 @@
+{
+  "_comment": "Context window limits for models accessible via Pi terminal harness (pi.dev). Values are total context in tokens. Organized by Pi built-in provider name. Update periodically -- run /model in Pi to see current available models.",
+  "_updated": "2026-05-06",
+  "_source": "https://pi.dev/models, provider docs, OpenRouter",
+
+  "defaults": {
+    "conservative": 128000,
+    "minimum_safe": 32000
+  },
+
+  "detection": {
+    "how_to_determine_your_limit": [
+      "1. In Pi, check bottom-right of TUI for active model name.",
+      "2. Run: node -e \"const d=require('./model-context-limits.json'); const m=process.argv[1]; const v=Object.values(d.providers).flatMap(p=>Object.entries(p)).find(([k])=>m.includes(k)); console.log(v?v[1]:d.defaults.conservative)\" YOUR_MODEL",
+      "3. If no match, use defaults.conservative (128000).",
+      "4. Regardless of limit, always prefer context-mode sandbox for large outputs."
+    ]
+  },
+
+  "providers": {
+
+    "anthropic": {
+      "_comment": "Direct Anthropic API. Pi provider: anthropic. Login: /login or ANTHROPIC_API_KEY",
+      "claude-mythos-preview": 1000000,
+      "claude-opus-4-7": 1000000,
+      "claude-opus-4-6": 1000000,
+      "claude-sonnet-4-6": 1000000,
+      "claude-sonnet-4-5": 200000,
+      "claude-opus-4-5": 200000,
+      "claude-sonnet-4": 200000,
+      "claude-opus-4-1": 200000,
+      "claude-opus-4": 200000,
+      "claude-haiku-4-5": 200000,
+      "claude-sonnet-3-7": 200000,
+      "claude-sonnet-3-5-v2": 200000,
+      "claude-sonnet-3-5": 200000,
+      "claude-haiku-3-5": 200000,
+      "claude-haiku-3": 200000
+    },
+
+    "openai": {
+      "_comment": "OpenAI API. Pi provider: openai. Login: /login or OPENAI_API_KEY",
+      "gpt-5.5": 1000000,
+      "gpt-5.5-pro": 1000000,
+      "gpt-5.4": 1050000,
+      "gpt-5.4-pro": 1050000,
+      "gpt-5.4-mini": 1050000,
+      "gpt-5.4-nano": 1050000,
+      "gpt-5.3": 128000,
+      "gpt-4.1": 1000000,
+      "gpt-4.1-mini": 1000000,
+      "gpt-4.1-nano": 1000000,
+      "gpt-4o": 128000,
+      "gpt-4o-mini": 128000,
+      "o3": 200000,
+      "o4-mini": 200000,
+      "o3-mini": 200000,
+      "o1": 200000
+    },
+
+    "openai-codex": {
+      "_comment": "OpenAI Codex models. Pi provider: openai-codex. Login: /login",
+      "gpt-5.5": 1000000,
+      "gpt-5.5-codex": 400000,
+      "gpt-5.4": 1050000,
+      "gpt-5.4-mini": 1050000,
+      "gpt-5.3-codex": 192000,
+      "gpt-5.3-codex-spark": 128000,
+      "gpt-5.2-codex": 192000,
+      "gpt-5.1-codex": 192000,
+      "gpt-5.1-codex-max": 192000
+    },
+
+    "google": {
+      "_comment": "Google Gemini API. Pi provider: google. Login: /login or GEMINI_API_KEY",
+      "gemini-3.1-pro-preview": 1000000,
+      "gemini-3.1-pro-preview-customtools": 1000000,
+      "gemini-3-pro-preview": 1000000,
+      "gemini-3-flash-preview": 1000000,
+      "gemini-3.1-flash-lite-preview": 1000000,
+      "gemini-2.5-pro": 1048576,
+      "gemini-2.5-flash": 1048576,
+      "gemini-2.0-flash": 1048576
+    },
+
+    "minimax": {
+      "_comment": "MiniMax API. Pi provider: minimax. MINIMAX_API_KEY",
+      "MiniMax-M2.7": 204800,
+      "MiniMax-M2.7-highspeed": 204800,
+      "MiniMax-M2.5": 204800,
+      "MiniMax-M2.5-highspeed": 204800,
+      "MiniMax-M2.1": 204800,
+      "MiniMax-M2.1-lightning": 204800,
+      "MiniMax-M2": 204800
+    },
+
+    "cursor": {
+      "_comment": "Cursor provider. Pi provider: cursor. Login: /login",
+      "cursor/default": 128000,
+      "cursor/claude-sonnet-4-5": 200000,
+      "cursor/claude-sonnet-4-6": 1000000,
+      "cursor/claude-4.6-sonnet-thinking": 1000000,
+      "cursor/gpt-5.5": 1000000,
+      "cursor/gpt-5.4": 1050000,
+      "cursor/gpt-5.4-mini": 1050000
+    },
+
+    "github-copilot": {
+      "_comment": "GitHub Copilot provider. Pi provider: github-copilot. Login: /login",
+      "claude-sonnet-4-6": 1000000,
+      "claude-sonnet-4-5": 200000,
+      "gpt-5.5": 1000000,
+      "gpt-5.4": 1050000,
+      "gpt-5.4-mini": 1050000,
+      "gemini-2.5-pro": 1048576,
+      "o3": 200000,
+      "o4-mini": 200000
+    },
+
+    "openrouter": {
+      "_comment": "OpenRouter aggregator. Pi provider: openrouter. OPENROUTER_API_KEY. Context values from openrouter.ai",
+      "anthropic/claude-opus-4-7": 1000000,
+      "anthropic/claude-opus-4-6": 1000000,
+      "anthropic/claude-sonnet-4-6": 1000000,
+      "anthropic/claude-sonnet-4-5": 200000,
+      "anthropic/claude-haiku-4-5": 200000,
+      "openai/gpt-5.5": 1000000,
+      "openai/gpt-5.4": 1050000,
+      "openai/gpt-5.4-mini": 1050000,
+      "openai/gpt-4.1": 1000000,
+      "openai/gpt-4.1-mini": 1000000,
+      "openai/o3": 200000,
+      "openai/o4-mini": 200000,
+      "google/gemini-3.1-pro-preview": 1000000,
+      "google/gemini-3-flash-preview": 1000000,
+      "google/gemini-2.5-pro": 1048576,
+      "google/gemini-2.5-flash": 1048576,
+      "minimax/minimax-m2.7": 204800,
+      "deepseek/deepseek-r1": 163840,
+      "deepseek/deepseek-chat-v3": 163840,
+      "mistralai/mistral-large": 131072,
+      "mistralai/codestral": 262144,
+      "x-ai/grok-3": 131072,
+      "x-ai/grok-3-mini": 131072
+    },
+
+    "deepseek": {
+      "_comment": "DeepSeek API. Pi provider: deepseek. DEEPSEEK_API_KEY",
+      "deepseek-r1": 163840,
+      "deepseek-chat": 163840,
+      "deepseek-reasoner": 163840
+    },
+
+    "mistral": {
+      "_comment": "Mistral API. Pi provider: mistral. MISTRAL_API_KEY",
+      "mistral-large-latest": 131072,
+      "codestral-latest": 262144,
+      "mistral-small-latest": 131072,
+      "mistral-medium-latest": 131072
+    },
+
+    "xai": {
+      "_comment": "xAI Grok API. Pi provider: xai. XAI_API_KEY",
+      "grok-3": 131072,
+      "grok-3-mini": 131072,
+      "grok-3-fast": 131072
+    },
+
+    "fireworks": {
+      "_comment": "Fireworks AI. Pi provider: fireworks. FIREWORKS_API_KEY",
+      "accounts/fireworks/models/deepseek-r1": 163840,
+      "accounts/fireworks/models/qwen3-235b-a22b": 131072
+    },
+
+    "groq": {
+      "_comment": "Groq API. Pi provider: groq. GROQ_API_KEY",
+      "llama-4-maverick-17b-128e": 131072,
+      "llama-4-scout-17b-16e": 131072,
+      "deepseek-r1-distill-llama-70b": 131072,
+      "qwen-qwq-32b": 131072
+    },
+
+    "cerebras": {
+      "_comment": "Cerebras API. Pi provider: cerebras. CEREBRAS_API_KEY",
+      "llama-4-scout-17b-16e-instruct": 131072,
+      "qwen-3-32b": 131072
+    },
+
+    "claude-bridge": {
+      "_comment": "Pi bridge aliases for routing Claude models through custom providers",
+      "claude-bridge/claude-haiku-4-5": 200000,
+      "claude-bridge/claude-sonnet-4-6": 1000000,
+      "claude-bridge/claude-opus-4-6": 1000000
+    }
+  }
+}
