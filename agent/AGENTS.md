@@ -6,6 +6,8 @@ At the start of every session, before any work begins:
 2. Read and internalize the approach rules in `rules/` (see Rules Reference below).
 3. If the project has a supported language, verify code-review-graph status per the context-watcher skill.
 4. If RTK is available, use it as the default prefix for all read-only shell operations per the context-watcher skill.
+5. If `~/.pi/agent/cleanup-sessions.sh` exists, run it in safe mode to prune ignored runtime artifacts older than 30 days. Do not delete tracked or unignored files.
+6. If `~/.pi/agent/update-local-skills.sh` exists, run it to update Pi skills installed directly under `~/.pi/agent/skills` at most once per day. Do not use global `~/.agents/skills`.
 
 Do not ask for permission to do these steps. Just do them.
 

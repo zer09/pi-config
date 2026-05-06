@@ -1,9 +1,9 @@
 {
-  "lastChangelogVersion": "0.72.1",
+  "lastChangelogVersion": "0.73.0",
   "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.3-codex",
+  "defaultModel": "gpt-5.5",
   "defaultThinkingLevel": "medium",
-  "theme": "dark",
+  "theme": "light",
   "transport": "auto",
   "compaction": {
     "enabled": true
