@@ -1,7 +1,7 @@
 {
   "lastChangelogVersion": "0.73.0",
-  "defaultProvider": "cursor",
-  "defaultModel": "claude-4.5-haiku",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.3-codex",
   "defaultThinkingLevel": "medium",
   "theme": "dark",
   "transport": "auto",
@@ -20,16 +20,22 @@
   ],
   "enabledModels": [
     "claude-bridge/claude-haiku-4-5",
-    "claude-bridge/claude-sonnet-4-6",
     "claude-bridge/claude-opus-4-6",
+    "claude-bridge/claude-sonnet-4-6",
+    "cursor/claude-4.6-sonnet",
+    "cursor/default",
+    "cursor/gpt-5.4",
     "google/gemini-3.1-flash-lite-preview",
     "google/gemini-3.1-pro-preview",
     "minimax/MiniMax-M2.7",
+    "openai-codex/gpt-5.1-codex",
+    "openai-codex/gpt-5.1-codex-max",
+    "openai-codex/gpt-5.2-codex",
     "openai-codex/gpt-5.3-codex",
-    "cursor/default",
-    "openai-codex/gpt-5.4",
     "openai-codex/gpt-5.3-codex-spark",
-    "cursor/claude-4.6-sonnet",
-    "cursor/gpt-5.4"
+    "openai-codex/gpt-5.4",
+    "openai-codex/gpt-5.4-mini",
+    "openai-codex/gpt-5.5",
+    "openai-codex/gpt-5.5-codex"
   ]
 }
