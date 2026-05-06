@@ -2,7 +2,7 @@
 
 At the start of every session, before any work begins:
 
-1. Read `skills/context-watcher/SKILL.md` and internalize its rules. Context Watcher must be ready before any work starts.
+1. Read `~/.pi/agent/skills/context-watcher/SKILL.md` and internalize its rules. Context Watcher must be ready before any work starts.
 2. Read and internalize the approach rules in `rules/` (see Rules Reference below).
 3. If the project has a supported language, verify code-review-graph status per the context-watcher skill.
 4. If RTK is available, use it as the default prefix for all read-only shell operations per the context-watcher skill.
@@ -72,7 +72,7 @@ Select the approach based on the primary action of the task. Read the correspond
 
 **Mixed tasks**: use the primary action to select. "Analyze this code and fix the bug" = Coding (the fix is the primary action). "Research these metrics" = Analysis.
 
-All approaches inherit and must follow General Approach Rules (below). Freedom to Disagree (`rules/freedom.md`) is always active regardless of approach. Context Watcher (`skills/context-watcher/SKILL.md`) applies to all approaches whenever executing commands.
+All approaches inherit and must follow General Approach Rules (below). Freedom to Disagree (`rules/freedom.md`) is always active regardless of approach. Context Watcher (`~/.pi/agent/skills/context-watcher/SKILL.md`) applies to all approaches whenever executing commands.
 
 # Rules Reference
 
@@ -89,7 +89,7 @@ All rule files live in `rules/` relative to this file. Read the relevant file(s)
 
 | Skill | Location | Load when |
 |-------|----------|-----------|
-| Context Watcher | `skills/context-watcher/SKILL.md` | Always. Session startup. Before any work. |
+| Context Watcher | `~/.pi/agent/skills/context-watcher/SKILL.md` | Always. Session startup. Before any work. |
 
 Context Watcher is the unified orchestration of Context Mode, RTK Token Optimizer, and Code Review Graph. It defines how to sandbox commands, compress output, and explore codebases structurally. All command execution during work must follow the context-watcher skill's routing rules (decision tree, bash whitelist, fallback protocol).
 

@@ -11,7 +11,7 @@ import { homedir } from "node:os";
 const LOG_DIR = join(homedir(), ".pi", "logs");
 const LOG = join(LOG_DIR, "agents-enforcer.log");
 
-const REMINDER = `Before doing any task, follow ~/.pi/agent/AGENTS.md Session Startup rules. First read skills/context-watcher/SKILL.md, then read rules/, then use Context Watcher command routing.`;
+const REMINDER = `Before doing any task, follow ~/.pi/agent/AGENTS.md Session Startup rules. First read ~/.pi/agent/skills/context-watcher/SKILL.md, then read rules/, then use Context Watcher command routing.`;
 
 const SYSTEM_REMINDER = `\n\n# Mandatory startup reminder\n\n${REMINDER}\n`;
 
