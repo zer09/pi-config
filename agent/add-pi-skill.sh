@@ -22,6 +22,18 @@ shift
 SKILLS=("$@")
 TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 TMP_DIR="$(mktemp -d)"
+
+validate_skill_name() {
+    local name="$1"
+    if ! [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        echo "Invalid skill name: $name" >&2
+        exit 2
+    fi
+}
+
+for skill in "${SKILLS[@]}"; do
+    validate_skill_name "$skill"
+done
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 mkdir -p "$PI_SKILLS_DIR"
