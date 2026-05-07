@@ -6,8 +6,8 @@
 
 ## 2) Create Manifest account and agent key
 - Sign in.
-- Create one Agent key (`mnfst_...`).
-- Keep key in env var, do not hardcode.
+- Create one Agent key.
+- Keep key in an env var, do not hardcode.
 
 ## 3) Configure providers inside Manifest
 - Add your upstream providers (OpenAI/Anthropic/local/custom).
@@ -24,7 +24,7 @@
 ## 6) Integrate with Pi
 - Add/update `~/.pi/agent/models.json`:
  - `baseUrl`: Manifest URL
- - `apiKey`: env var for `mnfst_...`
+ - `apiKey`: env var for the Manifest agent key
  - `api`: `openai-completions`
  - model: `manifest/auto`
 
