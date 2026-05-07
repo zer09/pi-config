@@ -11,6 +11,7 @@ agent/auth.json
 agent/settings.json.bak
 agent/mcp-onboarding.json
 agent/.skills-update-stamp
+agent/.update-local-skills.last
 agent/agents-enforcer.log
 agent/claude-bridge.log
 agent/cc-cli-logs/
