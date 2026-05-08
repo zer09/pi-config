@@ -6,7 +6,6 @@
     "upstash/context7": ["context7-cli"],
     "schpet/linear-cli": ["linear-cli"],
     "github/awesome-copilot": ["gh-cli"],
-    "vercel-labs/skills": ["find-skills"],
     "firebase/skills": [
       "developing-genkit-dart",
       "developing-genkit-go",
