@@ -95,7 +95,7 @@
 
     "manifest": {
       "_comment": "Manifest cloud router via app.manifest.build. Pi provider: manifest. Uses Manifest agent key via MANIFEST_API_KEY.",
-      "auto": 128000
+      "auto": 204800
     },
 
     "cursor": {
