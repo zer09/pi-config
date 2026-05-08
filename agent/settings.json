@@ -1,7 +1,7 @@
 {
-  "lastChangelogVersion": "0.73.0",
-  "defaultProvider": "manifest",
-  "defaultModel": "auto",
+  "lastChangelogVersion": "0.74.0",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.3-codex",
   "defaultThinkingLevel": "medium",
   "theme": "light",
   "transport": "auto",
@@ -38,4 +38,3 @@
     "openai-codex/gpt-5.5"
   ]
 }
-
