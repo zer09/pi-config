@@ -4,15 +4,12 @@
       "baseUrl": "https://app.manifest.build/v1",
       "api": "openai-completions",
       "apiKey": "MANIFEST_API_KEY",
-      "authHeader": true,
       "models": [
         {
           "id": "auto",
           "name": "Manifest Auto Router",
           "reasoning": true,
-          "input": ["text", "image"],
-          "contextWindow": 128000,
-          "maxTokens": 16384
+          "input": ["text", "image"]
         }
       ]
     }
