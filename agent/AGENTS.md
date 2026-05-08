@@ -1,3 +1,34 @@
+# MANDATORY PRE-FLIGHT CHECK -- EXECUTE BEFORE EVERY TOOL CALL
+
+Before any tool call, silently verify:
+
+1. **Is this command on the Bash whitelist?**
+   Only these are safe for direct bash: `mkdir`, `mv`, `cp`, `rm`, `touch`, `chmod`, `git add`, `git commit`, `git push`, `git checkout`, `git branch`, `git merge`, `cd`, `pwd`, `which`, `kill`, `pkill`, `npm install`, `pip install`, `echo`, `printf`.
+   If not on this list: use `ctx_batch_execute`, `ctx_execute`, or `ctx_execute_file`.
+
+2. **Is this a read-only operation?** (cat, grep, ls, find, node, python, git log/diff/status, test, build, etc.)
+   If yes: use `ctx_batch_execute` (primary tool) with `rtk` prefix, or `ctx_execute` with `rtk` prefix.
+
+3. **Am I analyzing data?** (count, filter, compare, aggregate, parse, transform)
+   If yes: write code inside `ctx_execute` with language:"javascript" or "python". Do not read raw data into context to process mentally.
+
+4. **Is this a file read for analysis?** (not for editing)
+   If yes: use `ctx_execute_file`. Not `read` tool.
+
+5. **Is this a web fetch or URL?**
+   If yes: use `ctx_fetch_and_index` then `ctx_search`.
+
+**Tool selection priority:**
+- `ctx_batch_execute` -- PRIMARY. One call replaces 30+ individual calls. Use for multiple commands + auto-index + search.
+- `ctx_search` -- Follow-up queries on indexed content.
+- `ctx_execute` / `ctx_execute_file` -- Single command or file processing.
+- `ctx_fetch_and_index` then `ctx_search` -- Web docs/URLs.
+- `ctx_index` -- Index content for later search.
+
+**Violation of these rules is a failure. No exceptions.**
+
+---
+
 # Session Startup
 
 At the start of every session, before any work begins:
