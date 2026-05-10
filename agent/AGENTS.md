@@ -18,18 +18,22 @@ Before any tool call, silently verify:
 5. **Is this a web fetch or URL?**
    If yes: use `ctx_fetch_and_index` then `ctx_search`.
 
-6. **Is this codebase exploration, code review, blast-radius analysis, caller/callee lookup, test discovery, architecture review, or refactor analysis?**
+6. **Is this third-party library/framework/API usage, version-specific behavior, or implementation work against an external package?**
+   If yes: use Context7 (`ctx7 library` then `ctx7 docs`) for current official docs before relying on memory. Use local installed source first when answering installed-package behavior on this machine. Use pi-web-access for broad web search, GitHub, articles, YouTube, or when Context7 has no good match.
+
+7. **Is this codebase exploration, code review, blast-radius analysis, caller/callee lookup, test discovery, architecture review, or refactor analysis?**
    If yes: use code-review-graph first, unless the graph is unavailable, empty, stale, or unsupported for the language. Fall back to Context Mode + RTK file/search commands only after graph-first exploration is not applicable.
 
-7. **Is this creating, using, or removing a worktree?**
+8. **Is this creating, using, or removing a worktree?**
    If yes: follow the grouped worktree + code-review-graph daemon rules. Create feature worktrees under `.worktrees/<feature>/<repo-name>/` when multiple repos are involved, build/query code-review-graph at `.worktrees/<feature>`, add the grouped feature root to the code-review-graph daemon watch list, and remove it from the daemon when the worktree group is removed.
 
-**Tool selection priority:**
-- `ctx_batch_execute` -- PRIMARY. One call replaces 30+ individual calls. Use for multiple commands + auto-index + search.
-- `ctx_search` -- Follow-up queries on indexed content.
+**Tool routing by intent:**
+- `ctx_batch_execute` -- PRIMARY for shell work. One call replaces 30+ individual calls. Use for multiple commands + auto-index + search.
+- `ctx_search` -- Follow-up queries on content already indexed by Context Mode.
 - `ctx_execute` / `ctx_execute_file` -- Single command or file processing.
-- `ctx_fetch_and_index` then `ctx_search` -- Web docs/URLs.
-- `ctx_index` -- Index content for later search.
+- `ctx_fetch_and_index` then `ctx_search` -- Fetch web docs/URLs and index them for search.
+- Context7 (`ctx7 library` -> `ctx7 docs`) -- Fetch current third-party library/framework/API docs.
+- `ctx_index` -- Index already-available documentation/content for later search. Do not treat it as a docs source.
 
 **Violation of these rules is a failure. No exceptions.**
 
@@ -139,6 +143,7 @@ Always followed. All other approaches inherit these rules.
 - Skip files over 100KB unless required.
 - No sycophantic openers or closing fluff.
 - Do not guess APIs, versions, flags, commit SHAs, or package names. Verify by reading code or docs before asserting.
+- Use Context7 for current third-party library/framework/API documentation when implementing or advising on external packages. Do not include secrets, personal data, or proprietary code in Context7 queries.
 
 ## Context Window Awareness
 

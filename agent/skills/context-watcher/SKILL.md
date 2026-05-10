@@ -56,6 +56,19 @@ Context Watcher is the unified orchestration layer that makes **Context Mode**, 
 
 The result: structural codebase awareness (graph), compressed CLI output (RTK), and sandboxed execution (Context Mode) -- all in one skill, across any AI agent.
 
+## Mandatory Context7 Docs Preflight
+
+Before implementing or advising on third-party library, framework, SDK, or API usage, ask: do I need current external documentation?
+
+If yes, use Context7 first: resolve the library with `ctx7 library <name> <query>`, then fetch docs with `ctx7 docs <libraryId> <query>`. Use the user's intent as the query, but never include secrets, personal data, credentials, or proprietary code.
+
+Routing rules:
+
+1. Local installed source wins for behavior of packages installed on this machine.
+2. Context7 wins for current third-party API signatures, framework docs, version-specific behavior, and implementation examples.
+3. pi-web-access wins for broad web search, GitHub repositories, articles, YouTube/video content, or when Context7 has no good match.
+4. Context Mode still gatekeeps shell execution and large output; run `ctx7` CLI commands through Context Mode with RTK when command output may be large.
+
 ## Mandatory Graph-First Preflight
 
 Before using grep, find, read, or broad file inspection for codebase exploration, code review, blast-radius analysis, caller/callee lookup, test discovery, architecture review, or refactor analysis, ask: can Code Review Graph answer this first?
@@ -228,6 +241,11 @@ About to run a command?
 |   +-- Did ctx_execute fail?
 |       +-- FALLBACK: Run "rtk git status" directly in Bash
 |       +-- LOG ERROR: append to ~/.pi/logs/context-watcher.log
+|
++-- Is it third-party library/framework/API usage?
+|   +-- Use local installed source if answering installed behavior
+|   +-- Otherwise use Context7 docs FIRST for current docs
+|   +-- Use pi-web-access for broad web/GitHub/article/video search or Context7 misses
 |
 +-- Is it a codebase exploration or review task?
 |   +-- Use Code Review Graph tools FIRST (inside Context Mode)
