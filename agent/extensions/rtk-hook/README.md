@@ -16,6 +16,12 @@ It works in every Pi project after Pi is restarted or `/reload` is run.
 
 It does not install hooks for Claude Code, Codex, Cursor, Windsurf, or other agents. Use `rtk init --help` and the appropriate `rtk init` target for those tools.
 
+## Policy relationship with Context Mode
+
+Context Mode remains mandatory for compliant agents. Read-only shell work should go through `ctx_execute`, `ctx_batch_execute`, or `ctx_execute_file` according to `AGENTS.md` and the context-watcher skill.
+
+This hook is only a fallback safety net for agents that ignore those rules and call Pi `bash` directly. It reduces token waste and avoids unsafe rewrites, but it does not make direct `bash` the preferred path.
+
 ## Safety behavior
 
 The extension only wraps single-command, read-only shell calls that match explicit command patterns and have an RTK-supported rewrite. It skips:

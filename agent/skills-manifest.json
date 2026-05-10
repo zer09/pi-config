@@ -1,11 +1,22 @@
 {
   "version": 1,
   "external": {
-    "MiniMax-AI/cli": ["mmx-cli"],
-    "softaworks/agent-toolkit": ["session-handoff", "humanizer"],
-    "upstash/context7": ["context7-cli"],
-    "schpet/linear-cli": ["linear-cli"],
-    "github/awesome-copilot": ["gh-cli"],
+    "MiniMax-AI/cli": [
+      "mmx-cli"
+    ],
+    "softaworks/agent-toolkit": [
+      "session-handoff",
+      "humanizer"
+    ],
+    "upstash/context7": [
+      "context7-cli"
+    ],
+    "schpet/linear-cli": [
+      "linear-cli"
+    ],
+    "github/awesome-copilot": [
+      "gh-cli"
+    ],
     "firebase/skills": [
       "developing-genkit-dart",
       "developing-genkit-go",
@@ -20,7 +31,11 @@
       "firebase-hosting-basics",
       "firebase-security-rules-auditor"
     ],
-    "astral-sh/claude-code-plugins": ["uv", "ruff", "ty"],
+    "astral-sh/claude-code-plugins": [
+      "uv",
+      "ruff",
+      "ty"
+    ],
     "chromedevtools/chrome-devtools-mcp": [
       "a11y-debugging",
       "chrome-devtools",
@@ -29,7 +44,10 @@
       "memory-leak-debugging",
       "troubleshooting"
     ],
-    "planetscale/database-skills": ["mysql", "postgres"]
+    "planetscale/database-skills": [
+      "mysql",
+      "postgres"
+    ]
   },
   "custom": [
     "context-watcher",
@@ -37,6 +55,7 @@
     "figma-code-connect",
     "figma-create-design-system-rules",
     "figma-implement-design",
+    "nlm-skill",
     "refine-linear-task"
   ]
 }
