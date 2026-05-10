@@ -1,6 +1,8 @@
 # Pi RTK hook
 
-Auto-wraps safe Pi `bash` tool calls with `rtk` before execution.
+Auto-wraps approved read-only Pi `bash` tool calls with `rtk` before execution.
+
+The allowlist is based on the generated RTK instructions section `RTK (Rust Token Killer) - Token-Optimized Commands`, then narrowed to commands that are safe to auto-wrap when an agent mistakenly uses direct `bash` instead of Context Mode. The extension also asks RTK itself to rewrite the command with `rtk rewrite`; the RTK rewrite output is used as the final command.
 
 ## Scope
 
@@ -16,14 +18,49 @@ It does not install hooks for Claude Code, Codex, Cursor, Windsurf, or other age
 
 ## Safety behavior
 
-The extension only wraps single-command, allowlisted shell calls. It skips:
+The extension only wraps single-command, read-only shell calls that match explicit command patterns and have an RTK-supported rewrite. It skips:
 
 - commands already starting with `rtk`
+- commands with leading environment assignments
 - multi-line commands
 - shell pipelines, redirects, command substitution, and chained commands
-- mutating git subcommands such as `commit`, `push`, `reset`, `checkout`, `merge`, and `rebase`
-- mutating package-manager subcommands such as `install`, `update`, and `publish`
+- commands that `rtk rewrite` does not support
+- broad executable matches that are not explicitly approved
+- mutating package-manager, git, Docker, Kubernetes, Prisma, AWS, and database commands
 - dangerous `find` flags such as `-delete` and `-exec`
+
+Examples that wrap:
+
+- `git status`
+- `git diff --stat`
+- `gh pr view 123`
+- `docker ps`
+- `kubectl get pods`
+- `pytest`
+- `cargo test`
+- `npm run test`
+- `npx tsc` -> `rtk tsc`
+- `rg TODO src` -> `rtk grep TODO src`
+- `cat package.json` -> `rtk read package.json`
+- `go test ./...`
+
+Examples that do not wrap:
+
+- `git push`
+- `docker compose up`
+- `kubectl apply -f app.yaml`
+- `npm install`
+- `prisma migrate deploy`
+- `psql -f migrate.sql`
+- `terraform plan`
+
+## Smoke test
+
+Run after editing the hook:
+
+```bash
+bun /home/gc/.pi/agent/extensions/rtk-hook/smoke.test.ts
+```
 
 ## Disable
 
