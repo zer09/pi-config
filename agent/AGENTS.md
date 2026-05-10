@@ -18,6 +18,12 @@ Before any tool call, silently verify:
 5. **Is this a web fetch or URL?**
    If yes: use `ctx_fetch_and_index` then `ctx_search`.
 
+6. **Is this codebase exploration, code review, blast-radius analysis, caller/callee lookup, test discovery, architecture review, or refactor analysis?**
+   If yes: use code-review-graph first, unless the graph is unavailable, empty, stale, or unsupported for the language. Fall back to Context Mode + RTK file/search commands only after graph-first exploration is not applicable.
+
+7. **Is this creating, using, or removing a worktree?**
+   If yes: follow the grouped worktree + code-review-graph daemon rules. Create feature worktrees under `.worktrees/<feature>/<repo-name>/` when multiple repos are involved, build/query code-review-graph at `.worktrees/<feature>`, add the grouped feature root to the code-review-graph daemon watch list, and remove it from the daemon when the worktree group is removed.
+
 **Tool selection priority:**
 - `ctx_batch_execute` -- PRIMARY. One call replaces 30+ individual calls. Use for multiple commands + auto-index + search.
 - `ctx_search` -- Follow-up queries on indexed content.

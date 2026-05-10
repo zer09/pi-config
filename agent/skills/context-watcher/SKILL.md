@@ -56,6 +56,45 @@ Context Watcher is the unified orchestration layer that makes **Context Mode**, 
 
 The result: structural codebase awareness (graph), compressed CLI output (RTK), and sandboxed execution (Context Mode) -- all in one skill, across any AI agent.
 
+## Mandatory Graph-First Preflight
+
+Before using grep, find, read, or broad file inspection for codebase exploration, code review, blast-radius analysis, caller/callee lookup, test discovery, architecture review, or refactor analysis, ask: can Code Review Graph answer this first?
+
+If yes, use Code Review Graph first. Fall back to Context Mode + RTK file/search commands only when the graph is unavailable, empty, stale, unsupported for the language, or insufficient for the specific question.
+
+## Mandatory Worktree Graph Protocol
+
+When creating feature worktrees, use a grouped feature root so Code Review Graph can index related repos in one graph database:
+
+```text
+.worktrees/<feature-name>/<repo-name>/
+```
+
+Examples:
+
+```text
+.worktrees/feature-a/webapp/
+.worktrees/feature-a/admin-dashboard/
+.worktrees/feature-a/core-frontend/
+```
+
+For grouped feature worktrees:
+
+1. Build or update Code Review Graph at the grouped feature root, not each repo separately, unless single-repo isolation is explicitly needed.
+2. Add the grouped feature root to the Code Review Graph daemon watch list after creating the worktree group.
+3. Before the first Code Review Graph query for a feature, check that the daemon is configured and running. Re-check periodically during long work, but do not check before every query.
+4. When removing a worktree group, remove the grouped feature root from the daemon watch list too.
+5. Prefer feature-scoped graph queries using `repo_root: ".worktrees/<feature-name>"`. Avoid global `cross_repo_search` for feature-scoped work unless explicitly requested.
+6. For Git diff/change detection inside grouped worktrees, collect changed files per nested repo and map them to grouped-root-relative paths before using graph impact tools.
+
+Daemon commands:
+
+```bash
+code-review-graph daemon add .worktrees/<feature-name> --alias <feature-name>
+code-review-graph daemon status
+code-review-graph daemon remove <feature-name>
+```
+
 ---
 
 ## Architecture Overview

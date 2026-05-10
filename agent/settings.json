@@ -1,9 +1,9 @@
 {
   "lastChangelogVersion": "0.74.0",
-  "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.5",
+  "defaultProvider": "cursor",
+  "defaultModel": "claude-4.5-sonnet",
   "defaultThinkingLevel": "medium",
-  "theme": "light",
+  "theme": "dark",
   "transport": "auto",
   "compaction": {
     "enabled": true
