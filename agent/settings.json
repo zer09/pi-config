@@ -1,7 +1,7 @@
 {
   "lastChangelogVersion": "0.74.0",
   "defaultProvider": "cursor",
-  "defaultModel": "claude-4.5-sonnet",
+  "defaultModel": "gpt-5.5",
   "defaultThinkingLevel": "medium",
   "theme": "dark",
   "transport": "auto",
@@ -26,7 +26,7 @@
     "cursor/claude-4.5-opus-thinking",
     "cursor/claude-4.5-sonnet",
     "cursor/claude-4.6-opus-thinking",
-    "cursor/claude-4.6-sonnet",
+    "cursor/claude-4.6-sonnet-thinking",
     "cursor/default",
     "cursor/gpt-5.3-codex",
     "cursor/gpt-5.4",
@@ -39,3 +39,4 @@
     "openai-codex/gpt-5.5"
   ]
 }
+
