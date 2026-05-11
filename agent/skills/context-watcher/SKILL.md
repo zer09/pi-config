@@ -91,14 +91,16 @@ Examples:
 .worktrees/feature-a/core-frontend/
 ```
 
-For grouped feature worktrees:
+For repo-scoped or grouped-root work:
 
-1. Build or update Code Review Graph at the grouped feature root, not each repo separately, unless single-repo isolation is explicitly needed.
-2. Add the grouped feature root to the Code Review Graph daemon watch list after creating the worktree group.
-3. Before the first Code Review Graph query for a feature, check that the daemon is configured and running. Re-check periodically during long work, but do not check before every query.
-4. When removing a worktree group, remove the grouped feature root from the daemon watch list too.
-5. Prefer feature-scoped graph queries using `repo_root: ".worktrees/<feature-name>"`. Avoid global `cross_repo_search` for feature-scoped work unless explicitly requested.
-6. For Git diff/change detection inside grouped worktrees, collect changed files per nested repo and map them to grouped-root-relative paths before using graph impact tools.
+1. Build or update Code Review Graph at the root that contains all relevant code. If sub repos are nested under a root repo or grouped feature root, treat them as part of that root graph database.
+2. Do not require every nested repo to be registered separately with the daemon. Register only the containing root/grouped root when daemon watching is useful.
+3. Daemon status is not graph availability. If `code-review-graph daemon status` reports stopped, unavailable, or 0 registered repos, do not treat that as permission to skip Code Review Graph. Build/query the current repo root or grouped feature root directly first.
+4. For grouped feature worktrees, add the grouped feature root to the Code Review Graph daemon watch list after creating the worktree group.
+5. Before the first daemon-backed query for a feature, check that the daemon is configured and running. Re-check periodically during long work, but do not check before every query.
+6. When removing a worktree group, remove the grouped feature root from the daemon watch list too.
+7. Prefer feature-scoped graph queries using `repo_root: ".worktrees/<feature-name>"` or the current containing root. Avoid global `cross_repo_search` for repo-scoped or feature-scoped work unless explicitly requested.
+8. For Git diff/change detection inside grouped worktrees, collect changed files per nested repo and map them to grouped-root-relative paths before using graph impact tools.
 
 Daemon commands:
 

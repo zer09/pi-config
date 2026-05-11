@@ -50,5 +50,8 @@ Analyze logs and test outputs for rare error patterns using context-mode.
 ## Reference Patterns
 
 - **Graph-First**: Always verify the code-review-graph is updated before starting an analysis. If the graph is stale, run `/code-review-graph:build-graph`.
+- **Root Graph Database**: For repo-scoped or grouped-root work, build/query the Code Review Graph database at the root that contains all relevant code. Nested sub repos are part of that root graph database. Do not require each sub repo to be registered separately.
+- **Daemon Status**: `0 registered repos` means the daemon has no global roots; it does not mean Code Review Graph is unavailable. If the daemon is stopped, unavailable, or empty, build/query the current repo root or grouped feature root directly before falling back.
+- **No Cross-Repo By Default**: Do not use global `cross_repo_search` for repo-scoped, root-scoped, or feature-scoped edge-case analysis unless the user explicitly asks to search unrelated registered repos.
 - **Sandbox-Only**: Adhere to the `filename` + `ctx_index` pattern for any data over 50KB to preserve the context window.
 - **RTK-Default**: Use `rtk` for all read-only operations (git, ls, find, grep) to maintain session speed and quality.
