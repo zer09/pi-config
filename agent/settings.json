@@ -13,7 +13,6 @@
     "npm:pi-mcp-adapter",
     "npm:pi-btw",
     "npm:pi-web-access",
-    "npm:@sherif-fanous/pi-rtk",
     "npm:pi-claude-bridge",
     "npm:pi-skill-palette",
     "npm:@schultzp2020/pi-cursor"
