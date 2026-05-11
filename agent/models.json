@@ -8,7 +8,7 @@
         "supportsDeveloperRole": false,
         "supportsReasoningEffort": false,
         "maxTokensField": "max_tokens",
-        "requiresThinkingAsText": true
+        "requiresReasoningContentOnAssistantMessages": true
       },
       "models": [
         {
