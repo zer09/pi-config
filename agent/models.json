@@ -6,7 +6,8 @@
       "apiKey": "MANIFEST_API_KEY",
       "compat": {
         "supportsDeveloperRole": false,
-        "supportsReasoningEffort": false,
+        "supportsReasoningEffort": true,
+        "thinkingFormat": "reasoning_effort",
         "maxTokensField": "max_tokens",
         "requiresReasoningContentOnAssistantMessages": true
       },

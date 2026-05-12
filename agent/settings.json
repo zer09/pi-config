@@ -1,9 +1,9 @@
 {
   "lastChangelogVersion": "0.74.0",
-  "defaultProvider": "cursor",
-  "defaultModel": "gpt-5.5",
-  "defaultThinkingLevel": "medium",
-  "theme": "dark",
+  "defaultProvider": "manifest",
+  "defaultModel": "deepseek-v4-pro",
+  "defaultThinkingLevel": "high",
+  "theme": "light",
   "transport": "auto",
   "compaction": {
     "enabled": true
@@ -39,4 +39,3 @@
     "openai-codex/gpt-5.5"
   ]
 }
-
