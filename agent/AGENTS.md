@@ -145,6 +145,17 @@ Always followed. All other approaches inherit these rules.
 - Do not guess APIs, versions, flags, commit SHAs, or package names. Verify by reading code or docs before asserting.
 - Use Context7 for current third-party library/framework/API documentation when implementing or advising on external packages. Do not include secrets, personal data, or proprietary code in Context7 queries.
 
+## Rule Writing Location
+
+When the user asks to "write rules", "add rules", "update rules", "remember this as a rule", "add guidelines", or similar wording without specifying a destination, treat it as a request to update project-level rules, not personal/global memory.
+
+Default destination rules:
+- Write to the current project's existing rule or guideline files, such as `AGENTS.md`, `AI_GUIDELINES.md`, `.agents/`, `agent/rules/`, `.cursor/rules/`, or equivalent project-local files.
+- Prefer the nearest repository or worktree root that contains the active task files.
+- If multiple project-level rule systems exist, update the one already used by that project or ask which one to use when ambiguity would cause conflicting guidance.
+- If no project root or project-level rule file can be identified, ask where to place the rule before writing.
+- Do not write to `~/.claude/memory`, global Claude memory, global agent memory, or other home-directory memory/rule files unless the user explicitly asks for personal/global memory or names that destination.
+
 ## Context Window Awareness
 
 Different models have different context window sizes. Know your limit so you can manage context proactively.
