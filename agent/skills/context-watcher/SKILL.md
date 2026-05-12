@@ -106,14 +106,18 @@ Examples:
 
 For repo-scoped or grouped-root work:
 
-1. Build or update Code Review Graph at the root that contains all relevant code. If sub repos are nested under a root repo, story root, feature root, or issue root, treat them as part of that containing root graph database.
-2. Do not require every nested repo to be registered separately with the daemon. Register only the containing story, feature, issue, or repo root when daemon watching is useful.
-3. Daemon status is not graph availability. If `code-review-graph daemon status` reports stopped, unavailable, or 0 registered repos, do not treat that as permission to skip Code Review Graph. Build/query the current repo root or containing worktree root directly first.
-4. For grouped worktrees, add the containing story, feature, or issue root to the Code Review Graph daemon watch list after creating the worktree group.
-5. Before the first daemon-backed query for a story/feature/issue, check that the daemon is configured and running. Re-check periodically during long work, but do not check before every query.
-6. When removing a worktree group, remove the containing story, feature, or issue root from the daemon watch list too.
-7. Prefer scoped graph queries using `repo_root: ".worktrees/<story>"`, `repo_root: ".worktrees/<story>/<feature-name>"`, `repo_root: ".worktrees/issues/<issue-number>"`, or the current containing root. Avoid global `cross_repo_search` for repo-scoped, story-scoped, feature-scoped, or issue-scoped work unless explicitly requested.
-8. For Git diff/change detection inside grouped worktrees, collect changed files per nested repo and map them to containing-root-relative paths before using graph impact tools.
+1. Prefer daemon-backed graphs for active work. Before the first graph query for a repo, story root, feature root, or issue root, check whether the Code Review Graph daemon is running.
+2. If the daemon is not running, start it before doing graph work unless the task is a one-off read-only check where starting a watcher would be wasteful.
+3. Check whether the containing root has `.code-review-graph/graph.db`. If the database is missing, build the graph for that root and add that root to the daemon watch list so future turns can query instead of rebuilding.
+4. If the database exists but the containing root is not registered or watched by the daemon, add that root to the daemon watch list. The goal is: active roots with graph databases should be daemon-maintained.
+5. Build or update Code Review Graph at the root that contains all relevant code. If sub repos are nested under a root repo, story root, feature root, or issue root, treat them as part of that containing root graph database.
+6. Do not require every nested repo to be registered separately with the daemon. Register/watch only the containing story, feature, issue, or repo root when daemon watching is useful.
+7. Daemon status is not graph availability. If `code-review-graph daemon status` reports stopped, unavailable, or 0 registered repos, do not treat that as permission to skip Code Review Graph. Ensure the daemon is running when useful, then build/query the current repo root or containing worktree root.
+8. For grouped worktrees, add the containing story, feature, or issue root to the Code Review Graph daemon watch list after creating the worktree group.
+9. Re-check daemon status periodically during long work, but do not check before every query.
+10. When removing a worktree group, remove the containing story, feature, or issue root from the daemon watch list too.
+11. Prefer scoped graph queries using `repo_root: ".worktrees/<story>"`, `repo_root: ".worktrees/<story>/<feature-name>"`, `repo_root: ".worktrees/issues/<issue-number>"`, or the current containing root. Avoid global `cross_repo_search` for repo-scoped, story-scoped, feature-scoped, or issue-scoped work unless explicitly requested.
+12. For Git diff/change detection inside grouped worktrees, collect changed files per nested repo and map them to containing-root-relative paths before using graph impact tools.
 
 Daemon commands:
 
