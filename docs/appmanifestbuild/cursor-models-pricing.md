@@ -111,4 +111,4 @@ Example:
 }
 ```
 
-See `/home/gc/.pi/docs/manifest-cursor-provider-template.json` for ready-to-use Manifest config.
+See `~/.pi/docs/manifest-cursor-provider-template.json` for ready-to-use Manifest config.

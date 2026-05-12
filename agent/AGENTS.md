@@ -217,6 +217,21 @@ Step 3: If neither method works, assume 128000 tokens.
 - Natural language characters (accented letters, CJK, etc.) are fine when the content requires them.
 - All strings must be safe for JSON serialization and copy-paste.
 
+# Sub-agent Orchestration
+
+Sub-agents are Pi child processes used to keep raw investigation output out of the parent context. They are orchestrated by the parent agent and must return compact structured findings only.
+
+- Use the Pi-native `subagent_run` tool when a task benefits from isolated context, such as focused investigation, review, testing, documentation research, or consistency checks.
+- Do not use `AskClaude` for this workflow unless the user explicitly asks for it.
+- Sub-agents must run with normal Pi extensions enabled so Context Mode, pi-mcp-adapter, rtk-hook, and Code Review Graph remain available.
+- Sub-agents must explicitly load and follow `~/.pi/agent/skills/context-watcher/SKILL.md` before tool use.
+- Sub-agents must use Context Mode for shell/read-only commands and large output, and Code Review Graph first for supported code exploration/review tasks.
+- Sub-agents must use isolated persistent sessions under `~/.pi/agent/subagent-sessions/<workstream>/<agent>/` and normally run with `--continue`. First run creates a session; later runs resume the same sub-agent workstream memory.
+- Default sub-agent mode is read-only. File edits or mutating commands require explicit `mode: "write"` and parent review.
+- Sub-agents must not return raw logs, full diffs, broad grep output, browser snapshots, test dumps, secrets, or environment variable values. Return structured JSON with summary, finding, evidence, tools used, confidence, blockers, and recommended next step.
+- Recursive sub-agent calls are disabled by default. Enable only when explicitly needed and bounded.
+- The parent agent remains responsible for final decisions, diff review, validation, commits, and user-facing reporting.
+
 # Cross-Platform Notes
 
 This configuration is used across multiple AI platforms: Claude Code, ChatGPT/Codex, Gemini CLI, Cursor, MiniMax, and others. Some platform-specific notes:

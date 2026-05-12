@@ -1,8 +1,8 @@
 {
   "lastChangelogVersion": "0.74.0",
-  "defaultProvider": "manifest",
-  "defaultModel": "deepseek-v4-pro",
-  "defaultThinkingLevel": "high",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.5",
+  "defaultThinkingLevel": "xhigh",
   "theme": "light",
   "transport": "auto",
   "compaction": {

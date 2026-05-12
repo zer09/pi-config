@@ -31,7 +31,7 @@
     },
     "chrome-devtools": {
       "command": "npx",
-      "args": ["-y", "chrome-devtools-mcp@latest", "--autoConnect", "--userDataDir", "/home/gc/.config/chromium"]
+      "args": ["-y", "chrome-devtools-mcp@latest", "--autoConnect"]
     }
   }
 }

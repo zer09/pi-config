@@ -65,7 +65,7 @@ Examples that do not wrap:
 Run after editing the hook:
 
 ```bash
-bun /home/gc/.pi/agent/extensions/rtk-hook/smoke.test.ts
+bun ~/.pi/agent/extensions/rtk-hook/smoke.test.ts
 ```
 
 ## Disable

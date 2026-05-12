@@ -75,6 +75,21 @@ Before using grep, find, read, or broad file inspection for codebase exploration
 
 If yes, use Code Review Graph first. Fall back to Context Mode + RTK file/search commands only when the graph is unavailable, empty, stale, unsupported for the language, or insufficient for the specific question.
 
+## Mandatory Sub-agent Protocol
+
+Sub-agents are scoped Pi child processes used to protect the parent context. They must follow the same Context Watcher routing as the parent agent.
+
+Rules:
+
+1. Sub-agents must read `~/.pi/agent/AGENTS.md` and this `context-watcher/SKILL.md` before tool use.
+2. Sub-agents must keep Context Mode, RTK, pi-mcp-adapter, and Code Review Graph available. Do not disable normal Pi extensions by default.
+3. Sub-agents must use Context Mode for shell/read-only commands, tests, logs, builds, git output, API calls, and any output that may exceed 20 lines.
+4. Sub-agents must use Code Review Graph first for supported code exploration, code review, blast-radius analysis, caller/callee lookup, test discovery, architecture review, and refactor analysis.
+5. Sub-agents must run in isolated persistent sessions under `~/.pi/agent/subagent-sessions/<workstream>/<agent>/` and normally use `--continue`. First run creates a session; later runs resume the same workstream memory.
+6. Sub-agents must return compact structured findings only. Do not return raw logs, full diffs, broad grep output, browser snapshots, test dumps, secrets, or environment variable values to the parent.
+7. Default sub-agent mode is read-only. Mutating commands and file edits require explicit write-mode authorization from the parent.
+8. Recursive sub-agent calls are disabled by default. Enable only when explicitly needed and bounded.
+
 ## Mandatory Worktree Graph Protocol
 
 When creating feature worktrees, use a story-grouped root so Code Review Graph can index related repos in one graph database:

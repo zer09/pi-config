@@ -1,0 +1,13 @@
+{
+  "name": "pi-subagent-runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pi extension that runs scoped child agents with persistent isolated sessions.",
+  "pi": {
+    "extensions": ["./index.ts"]
+  },
+  "scripts": {
+    "smoke": "bun run smoke.test.ts"
+  }
+}

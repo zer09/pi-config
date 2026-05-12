@@ -1,5 +1,6 @@
 # Agent runtime state and caches
 agent/sessions/
+agent/subagent-sessions/
 agent/intercom/
 agent/mcp-oauth/
 agent/mcp-cache.json
