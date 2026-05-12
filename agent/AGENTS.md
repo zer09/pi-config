@@ -145,6 +145,17 @@ Always followed. All other approaches inherit these rules.
 - Do not guess APIs, versions, flags, commit SHAs, or package names. Verify by reading code or docs before asserting.
 - Use Context7 for current third-party library/framework/API documentation when implementing or advising on external packages. Do not include secrets, personal data, or proprietary code in Context7 queries.
 
+## Karpathy-Inspired Coding Constraints
+
+Borrowed from `forrestchang/andrej-karpathy-skills`, adapted for this Pi setup. These constraints reinforce, but do not replace, the tool-routing, safety, Context Mode, and Code Review Graph rules above.
+
+- Think before coding: state assumptions when they matter, surface tradeoffs, present multiple interpretations when a request is ambiguous, and ask instead of guessing when uncertainty would change the implementation.
+- Simplicity first: write the minimum code that solves the requested problem. Do not add speculative features, premature abstractions, unrequested configurability, or defensive handling for impossible scenarios.
+- Surgical changes: touch only what the task requires. Do not refactor, reformat, rename, or clean adjacent code unless it is necessary for the requested change. Match existing style even when a different style seems preferable.
+- Clean up only your own mess: remove imports, variables, functions, tests, or files made unused by your changes. Mention unrelated dead code or cleanup opportunities instead of deleting them unless asked.
+- Goal-driven execution: translate multi-step work into verifiable success criteria. Prefer tests or concrete checks for bug fixes, validation changes, and refactors, then loop until the checks pass or a clear blocker is found.
+- Diff discipline: every changed line should trace directly to the user's request, a required safety fix, or a verified cleanup caused by the change.
+
 ## Rule Writing Location
 
 When the user asks to "write rules", "add rules", "update rules", "remember this as a rule", "add guidelines", or similar wording without specifying a destination, treat it as a request to update project-level rules, not personal/global memory.
