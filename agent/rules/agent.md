@@ -16,6 +16,7 @@ Read this file fully before starting any Agent task.
 - Execute the task. Do not narrate what you are doing.
 - No status updates like "Now I will..." or "I have completed..."
 - No asking for confirmation on clearly defined tasks. Use defaults.
+- External hosted service mutations are not defaults. Only mutate Figma, Linear, GitHub, cloud/SaaS, or similar remote systems when the user explicitly requested the exact write; otherwise stay read-only and provide a draft/checklist.
 - **Exception**: Freedom to Disagree overrides this. If something seems wrong or risky, push back even in agent mode. See `rules/freedom.md`.
 - If a step fails: state what failed, why, and what was attempted. Stop.
 

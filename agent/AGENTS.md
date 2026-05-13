@@ -2,32 +2,35 @@
 
 Before any tool call, silently verify:
 
-1. **Is this command on the Bash whitelist?**
+1. **Would this mutate an external hosted service?**
+   External hosted services include SaaS/cloud/vendor/org remote state such as Figma, Linear, GitHub/GitLab/Bitbucket, Notion, Slack, PostHog, Firebase/GCP/AWS/Azure, Stripe, Sentry, Jira, and similar systems reached through MCP, CLIs, APIs, SDKs, browser automation, or webhooks. Mutations include create, update, delete, post, comment, react, assign, label, close/reopen, merge, push, publish, deploy, invite, rotate keys, change quotas, or run jobs/workflows that change remote state. Default is read-only. If the user has not explicitly instructed the exact write/mutation in the current task or active session, do not call it; provide a draft, checklist, or read-only summary instead. If the user explicitly says to do it, for example "push that commit", "comment this on PR #12", "create the Linear issue", or "deploy now", the mutation is allowed; still follow secret, safety, destructive-action, and tool-routing rules.
+
+2. **Is this command on the Bash whitelist?**
    Only these are safe for direct bash: `mkdir`, `mv`, `cp`, `rm`, `touch`, `chmod`, `git add`, `git commit`, `git push`, `git checkout`, `git branch`, `git merge`, `cd`, `pwd`, `which`, `kill`, `pkill`, `npm install`, `pip install`, `echo`, `printf`.
    If not on this list: use `ctx_batch_execute`, `ctx_execute`, or `ctx_execute_file`.
 
-2. **Is this a read-only operation?** (cat, grep, ls, find, node, python, git log/diff/status, test, build, etc.)
+3. **Is this a read-only operation?** (cat, grep, ls, find, node, python, git log/diff/status, test, build, etc.)
    If yes: use `ctx_batch_execute` (primary tool) with `rtk` prefix, or `ctx_execute` with `rtk` prefix.
 
-3. **Am I analyzing data?** (count, filter, compare, aggregate, parse, transform)
+4. **Am I analyzing data?** (count, filter, compare, aggregate, parse, transform)
    If yes: write code inside `ctx_execute` with language:"javascript" or "python". Do not read raw data into context to process mentally.
 
-4. **Is this a file read for analysis?** (not for editing)
+5. **Is this a file read for analysis?** (not for editing)
    If yes: use `ctx_execute_file`. Not `read` tool.
 
-5. **Is this a GitHub repository, pull request, issue, review, comment, workflow, release, or any private GitHub data?**
+6. **Is this a GitHub repository, pull request, issue, review, comment, workflow, release, or any private GitHub data?**
    If yes: load and follow the `gh-cli` skill, then use authenticated `gh` CLI through Context Mode/RTK (`ctx_execute` or `ctx_batch_execute` with `rtk gh ...`). Do not open or fetch private GitHub URLs with browser/web tools to get data. Use browser/web tools only for visual inspection of public pages or when the user explicitly requests browser use.
 
-6. **Is this a web fetch or URL?**
+7. **Is this a web fetch or URL?**
    If yes: use `ctx_fetch_and_index` then `ctx_search`.
 
-7. **Is this third-party library/framework/API usage, version-specific behavior, or implementation work against an external package?**
+8. **Is this third-party library/framework/API usage, version-specific behavior, or implementation work against an external package?**
    If yes: use Context7 (`ctx7 library` then `ctx7 docs`) for current official docs before relying on memory. Use local installed source first when answering installed-package behavior on this machine. Use pi-web-access for broad web search, public GitHub research, articles, YouTube, or when Context7 has no good match.
 
-8. **Is this codebase exploration, code review, blast-radius analysis, caller/callee lookup, test discovery, architecture review, or refactor analysis?**
+9. **Is this codebase exploration, code review, blast-radius analysis, caller/callee lookup, test discovery, architecture review, or refactor analysis?**
    If yes: use code-review-graph first. An unavailable, empty, stale, or incomplete graph is not automatically an error and not automatically a reason to abandon graph-first. If build/update is authorized and appropriate, build or update the graph, then retry the graph query. Fall back to Context Mode + RTK file/search commands only when graph-first is not applicable, build/update is not authorized, building would be wasteful for a one-off check, the language is unsupported, or the graph remains insufficient after build/update.
 
-9. **Is this creating, using, or removing a worktree?**
+10. **Is this creating, using, or removing a worktree?**
    If yes: follow the story-grouped worktree + code-review-graph daemon rules. Create feature worktrees under `.worktrees/<story>/<feature>/<repo-name>/` when multiple repos are involved, for example `.worktrees/google-sso/feature-a/webapp/`. Put standalone fixes, hotfixes, and issue work under the common story `.worktrees/issues/<issue-number>/<repo-name>/`. Prefer daemon-backed graphs for active roots: check whether the daemon is running, start it when useful, build the graph if `.code-review-graph/graph.db` is missing or empty and build/update is authorized, add the containing story/feature/issue/repo root to the daemon watch list when missing, query instead of repeatedly rebuilding, and remove it from the daemon when the worktree group is removed.
 
 **Tool routing by intent:**
@@ -35,8 +38,9 @@ Before any tool call, silently verify:
 - `ctx_search` -- Follow-up queries on content already indexed by Context Mode.
 - `ctx_execute` / `ctx_execute_file` -- Single command or file processing.
 - `ctx_fetch_and_index` then `ctx_search` -- Fetch web docs/URLs and index them for search.
+- External hosted service mutation gate -- apply before all remote SaaS/cloud/vendor tools. Read-only by default; exact explicit user write instruction required for mutation.
 - Context7 (`ctx7 library` -> `ctx7 docs`) -- Fetch current third-party library/framework/API docs.
-- `gh-cli` skill + `rtk gh ...` -- GitHub repo/PR/issue/review/comment/workflow/release/private repo operations. Prefer this over browser/web tools for authenticated GitHub data.
+- `gh-cli` skill + `rtk gh ...` -- GitHub repo/PR/issue/review/comment/workflow/release/private repo operations. Prefer this over browser/web tools for authenticated GitHub data; writes still require explicit user instruction.
 - `ctx_index` -- Index already-available documentation/content for later search. Do not treat it as a docs source.
 
 **Violation of these rules is a failure. No exceptions.**
@@ -92,6 +96,15 @@ These rules apply to every approach, every task, every context. No other rule ca
 
 - Before executing any script from disk (`.sh`, `.py`, `.js`), verify it is tracked in version control: `git ls-files --error-unmatch <path>`. If the script is untracked or modified beyond what git shows, warn and do not execute.
 - Never execute scripts piped from the internet (`curl | sh`, `wget | bash`) unless the user explicitly requests it and you have warned about the risk.
+
+## External Hosted Service Mutation Gate
+
+- Treat third-party or remote hosted products as read-only by default: Figma, Linear, GitHub/GitLab/Bitbucket, Notion, Slack, PostHog, Firebase/GCP/AWS/Azure, Stripe, Sentry, Jira, and similar vendor/org services reached through MCP, CLIs, APIs, SDKs, browser automation, or webhooks.
+- Read-only actions are allowed: fetch, list, search, query, download, inspect, compare, and diff.
+- Mutating actions require explicit user instruction for that specific action: create, update, delete, post, comment, react, assign, label, close/reopen, merge, push, publish, deploy, invite, rotate keys, change quotas, or run jobs/workflows that change remote state.
+- If the user has not explicitly asked for the mutation, do not perform it. Provide a draft, checklist, or command for the user instead.
+- If the user explicitly asks for the mutation, execute it without extra confirmation unless another safety rule requires confirmation. Examples: "push that commit", "post this PR comment", "create the issue", "merge this PR", "deploy now".
+- Do not infer mutation permission from broad goals like "handle this PR", "review this issue", "sync with Linear", or "take care of the release". Ask or provide a draft if the write is not explicit.
 
 ## File Deletion Safety
 
@@ -154,6 +167,7 @@ Always followed. All other approaches inherit these rules.
 
 - For GitHub repositories, pull requests, issues, reviews, comments, workflows, releases, or private GitHub data, load and follow `~/.pi/agent/skills/gh-cli/SKILL.md` and use the authenticated `gh` CLI first.
 - Run GitHub CLI commands through Context Mode/RTK for read-only or potentially large output, for example `ctx_execute` or `ctx_batch_execute` with `rtk gh pr view <number> --comments`, `rtk gh issue view <number>`, or `rtk gh api ...`.
+- GitHub writes such as `git push`, PR creation, PR comments, reviews, merges, labels, workflow dispatches, and releases are external hosted service mutations. They require an explicit user instruction for that exact write.
 - Do not use browser automation, web fetch tools, or direct GitHub URLs to fetch private repository data unless the user explicitly requests browser inspection. These tools may not share the authenticated `gh` session.
 - Use browser/web tools only for visual inspection, public GitHub pages, or non-authenticated broad web research.
 
@@ -239,6 +253,7 @@ Sub-agents are Pi child processes used to keep raw investigation output out of t
 - Sub-agents must explicitly load and follow `~/.pi/agent/skills/context-watcher/SKILL.md` before tool use.
 - Sub-agents must use Context Mode for shell/read-only commands and large output, and Code Review Graph first for supported code exploration/review tasks.
 - Sub-agents must use the `gh-cli` skill and authenticated `gh` CLI through Context Mode/RTK for GitHub repo/PR/issue/review/comment/workflow/release/private data. Do not use browser/web tools for private GitHub data unless the parent explicitly requests browser inspection.
+- Sub-agents must treat external hosted services as read-only unless the parent task explicitly authorizes the exact mutation. Without explicit authorization, return a draft/checklist instead of mutating Figma, Linear, GitHub, cloud services, or similar remote systems.
 - Sub-agents must use isolated persistent sessions under `~/.pi/agent/subagent-sessions/<workstream>/<agent>/` and normally run with `--continue`. First run creates a session; later runs resume the same sub-agent workstream memory.
 - Default sub-agent mode is read-only. File edits or mutating commands require explicit `mode: "write"` and parent review.
 - Sub-agents must not return raw logs, full diffs, broad grep output, browser snapshots, test dumps, secrets, or environment variable values. Return structured JSON with summary, finding, evidence, tools used, confidence, blockers, and recommended next step.
