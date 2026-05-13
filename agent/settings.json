@@ -13,23 +13,13 @@
     "npm:pi-mcp-adapter",
     "npm:pi-btw",
     "npm:pi-web-access",
-    "npm:pi-claude-bridge",
-    "npm:@schultzp2020/pi-cursor"
+    "npm:pi-claude-bridge"
   ],
   "enabledModels": [
     "manifest/auto",
     "claude-bridge/claude-haiku-4-5",
     "claude-bridge/claude-opus-4-6",
     "claude-bridge/claude-sonnet-4-6",
-    "cursor/claude-4.5-haiku",
-    "cursor/claude-4.5-opus-thinking",
-    "cursor/claude-4.5-sonnet",
-    "cursor/claude-4.6-opus-thinking",
-    "cursor/claude-4.6-sonnet-thinking",
-    "cursor/default",
-    "cursor/gpt-5.3-codex",
-    "cursor/gpt-5.4",
-    "cursor/gpt-5.5",
     "google/gemini-3.1-flash-lite-preview",
     "google/gemini-3.1-pro-preview",
     "minimax/MiniMax-M2.7",
@@ -38,3 +28,4 @@
     "openai-codex/gpt-5.5"
   ]
 }
+
