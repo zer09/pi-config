@@ -21,6 +21,7 @@ const MAX_FIELD_CHARS = 1_200;
 const MAX_ARRAY_ITEMS = 40;
 const MAX_EVIDENCE_ITEMS = 20;
 const MAX_MODEL_SUGGESTIONS = 8;
+const MAX_RESULT_RETRIES = 1;
 const MODEL_THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
 const SUBAGENT_ROOT = join(homedir(), ".pi", "agent", "subagent-sessions");
 const AGENT_ROOT = join(homedir(), ".pi", "agent", "agents");
@@ -62,6 +63,20 @@ type ModelResolution = {
 	blockers: string[];
 	suggestions: string[];
 	command?: string;
+};
+
+type ChildRunResult = {
+	state: ObservedChildState;
+	code: number | null;
+	signal: NodeJS.Signals | null;
+	timedOut: boolean;
+	outputCapExceeded: boolean;
+	stderr: string;
+};
+
+type InvalidReportedPath = {
+	field: string;
+	path: string;
 };
 
 type Evidence = {
@@ -155,24 +170,31 @@ You are a scoped Pi sub-agent. The parent agent will use only your final structu
 
 ## Mandatory startup
 
-Before any work:
-1. Read and internalize \`~/.pi/agent/AGENTS.md\` (resolve \`~\` locally; do not print the resolved path).
-2. Read and internalize \`~/.pi/agent/skills/context-watcher/SKILL.md\` (resolve \`~\` locally; do not print the resolved path).
-3. Read any approach-specific rule files required by the task from \`~/.pi/agent/rules/\` (resolve \`~\` locally; do not look for these rule files in the subject repository unless the task explicitly asks).
+Before subject-matter work, use Context Mode file-processing tools to compactly read and internalize:
+1. \`~/.pi/agent/AGENTS.md\` (resolve \`~\` locally; do not print the resolved path).
+2. \`~/.pi/agent/skills/context-watcher/SKILL.md\` (resolve \`~\` locally; do not print the resolved path).
+3. Any approach-specific rule files required by the task from \`~/.pi/agent/rules/\` (resolve \`~\` locally; do not look for these rule files in the subject repository unless the task explicitly asks).
 4. Follow Context Watcher routing exactly.
+
+These startup reads are tool calls, and they are allowed and required. Use compact Context Mode processing for them; do not dump full rule files into your context with raw read unless you need exact text for editing. If the task text says "before any tool use," interpret that as "before subject-matter inspection"; do not block yourself from using tools for the startup reads.
+
+The parent session has already handled global session startup duties. Do not run cleanup/update startup scripts from the child unless the task explicitly asks for them.
 
 ## Mandatory tool routing
 
 - Use Context Mode for shell commands, read-only command execution, large output, logs, tests, builds, and data processing.
 - Context Mode file-processing tools do not expand literal \`~\`. When a Context Mode tool asks for a path, pass an absolute filesystem path that you resolved locally, then redact that path back to \`~\` in your final JSON.
 - Use Code Review Graph before grep, find, read, or broad file inspection for code exploration, code review, blast-radius analysis, caller/callee lookup, test discovery, architecture review, or refactor analysis.
+- For simple literal string searches, one graph availability/search check is enough. If it is empty, unregistered, unsupported, or clearly not useful, immediately use Context Mode fallback and then return final JSON.
 - An empty, stale, or incomplete graph is not automatically a graph error. If build/update is authorized by your mode and appropriate for the task, build or update the graph and retry the graph query before using Context Mode fallback. In read-only mode, do not build/update; use Context Mode fallback only after stating that fallback is because build/update was not authorized or would be wasteful for a one-off check.
 - Use RTK through Context Mode for read-only shell work when applicable.
 - Use direct bash only for whitelisted safe operations.
 - Keep raw command output inside Context Mode or this child session. Do not return raw large output to the parent.
 - Do not expose secrets, credentials, tokens, or environment variable values.
 - In read-only mode, you are already authorized to run read-only Context Mode and Code Review Graph checks. Do not ask the parent for permission before doing required read-only inspection.
-- Do not return \`blocked\` merely because no tool query has run yet; run the required read-only query instead. For code tasks, make at least one Code Review Graph or Context Mode tool call before final output unless the parent explicitly says not to use tools.
+- You have tools available. If you have not received at least one actual tool result in this child session, your next assistant response must be a tool call, not final JSON.
+- Do not return \`blocked\`, \`error\`, or \`ok\` merely because no tool query has run yet; run the required read-only query instead. For code tasks, make at least one Code Review Graph or Context Mode tool call before final output unless the parent explicitly says not to use tools.
+- Self-reporting tool names in \`toolsUsed\` is not enough. The parent runner observes actual tool call events and rejects final answers without observed tool calls.
 - Never return an empty object. If genuinely blocked after attempting the required read-only query, return a schema-compliant JSON object with status \`blocked\` and explain the blocker.
 - Do not write tool-call syntax, pseudo-code, or commentary in assistant text. Use actual tools when needed, then make your final assistant message only the required JSON object.
 - Only cite files, symbols, commands, and line numbers that were verified by actual tool output in this turn. Do not invent paths from memory. Before adding a file to evidence or filesRead, verify that it exists or was returned by a tool.
@@ -373,6 +395,17 @@ function extractAssistantText(message: unknown): string {
 		.join("");
 }
 
+function observeToolCallsFromContent(content: unknown, state: ObservedChildState): void {
+	if (!Array.isArray(content)) return;
+	for (const part of content) {
+		if (!part || typeof part !== "object") continue;
+		const record = part as Record<string, unknown>;
+		const type = typeof record.type === "string" ? record.type.toLowerCase() : "";
+		const name = typeof record.name === "string" ? record.name : typeof record.toolName === "string" ? record.toolName : undefined;
+		if (name && (type.includes("tool") || "arguments" in record)) state.toolsUsed.add(name);
+	}
+}
+
 export function observeJsonLine(line: string, state: ObservedChildState): void {
 	const trimmed = line.trim();
 	if (!trimmed) return;
@@ -387,6 +420,7 @@ export function observeJsonLine(line: string, state: ObservedChildState): void {
 	if (event?.type === "session" && typeof event.id === "string") state.sessionId = event.id;
 	if (typeof event?.toolName === "string") state.toolsUsed.add(event.toolName);
 	if (event?.toolCall && typeof event.toolCall.name === "string") state.toolsUsed.add(event.toolCall.name);
+	observeToolCallsFromContent(event?.message?.content, state);
 
 	if (event?.type === "message" && event.message?.role === "assistant") {
 		const text = extractAssistantText(event.message);
@@ -583,6 +617,68 @@ export function redactForReturn(value: unknown, key = ""): unknown {
 	return value;
 }
 
+export function shouldRetryNoToolResult(result: SubagentResult | null, observedToolCount = 0): boolean {
+	return Boolean(result && observedToolCount === 0);
+}
+
+export function shouldRetryNoToolBlockedResult(result: SubagentResult | null, observedToolCount = 0): boolean {
+	return shouldRetryNoToolResult(result, observedToolCount);
+}
+
+function resolveReportedPath(value: string, cwd: string): string | null {
+	const trimmed = value.trim();
+	if (!trimmed || /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) return null;
+	const withoutLine = trimmed.replace(/:\d+(?::\d+)?$/, "");
+	if (withoutLine.startsWith("~/")) return join(HOME_PREFIX, withoutLine.slice(2));
+	if (withoutLine.startsWith("/")) return withoutLine;
+	return resolve(cwd, withoutLine.replace(/^\.\//, ""));
+}
+
+export function findInvalidReportedPaths(result: SubagentResult | null, cwd: string): InvalidReportedPath[] {
+	if (!result) return [];
+	const invalid: InvalidReportedPath[] = [];
+	const check = (field: string, value: string) => {
+		const resolved = resolveReportedPath(value, cwd);
+		if (resolved && !existsSync(resolved)) invalid.push({ field, path: compactString(value, "", MAX_FIELD_CHARS) });
+	};
+	for (const item of result.evidence) {
+		if (item.file) check("evidence.file", item.file);
+	}
+	for (const file of result.filesRead) check("filesRead", file);
+	return invalid.slice(0, MAX_EVIDENCE_ITEMS);
+}
+
+export function buildNoToolRetryTask(originalTask: string): string {
+	return `Your previous sub-agent result was rejected because it returned final JSON without any observed tool calls.
+
+You are already authorized to run read-only inspection. Do not ask for permission. Do not answer that startup reads need to happen first; call the tools to do them. Your next assistant response must include an actual read-only Context Mode or Code Review Graph tool call, not final JSON. After receiving the tool result, return the required compact JSON object. If a tool call is genuinely impossible, return status "error" with blocker "child_did_not_execute_tools" and explain the concrete tool failure.
+
+Original task:
+${originalTask}`;
+}
+
+export function buildInvalidFinalRetryTask(originalTask: string): string {
+	return `Your previous sub-agent response was rejected because the final assistant message was missing, not parseable JSON, or did not match the required schema.
+
+Continue the task now. Use any required read-only tools, then return only the required compact JSON object. Do not include prose before or after the JSON.
+
+Original task:
+${originalTask}`;
+}
+
+export function buildInvalidPathRetryTask(originalTask: string, invalidPaths: InvalidReportedPath[]): string {
+	const details = invalidPaths.map((item) => `${item.field}: ${item.path}`).join("\n");
+	return `Your previous sub-agent result was rejected because it cited file paths that do not exist.
+
+Before final output, run actual read-only tools and verify every path you cite exists. Do not invent paths. Remove any unverified file from evidence and filesRead. Return status "error" with blocker "invalid_child_file_evidence" only if tool-based verification is impossible.
+
+Invalid cited paths:
+${details || "none"}
+
+Original task:
+${originalTask}`;
+}
+
 function makeError(params: Pick<SubagentParams, "agent">, summary: string, diagnostic: string, blockers: string[], extra: Partial<SubagentResult> = {}): SubagentResult {
 	return {
 		status: "error",
@@ -609,7 +705,7 @@ function logMetadata(record: Record<string, unknown>): void {
 	}
 }
 
-async function runChildPi(args: string[], options: { cwd: string; timeoutMs: number; signal?: AbortSignal; env: NodeJS.ProcessEnv }): Promise<{ state: ObservedChildState; code: number | null; signal: NodeJS.Signals | null; timedOut: boolean; outputCapExceeded: boolean; stderr: string }> {
+async function runChildPi(args: string[], options: { cwd: string; timeoutMs: number; signal?: AbortSignal; env: NodeJS.ProcessEnv }): Promise<ChildRunResult> {
 	const command = process.env.PI_SUBAGENT_PI_BIN || "pi";
 	const state: ObservedChildState = { finalText: "", currentAssistantText: "", inAssistantMessage: false, toolsUsed: new Set(), parseErrors: 0, skippedLargeLines: 0 };
 	let stdoutBuffer = "";
@@ -733,9 +829,6 @@ export async function runSubagent(params: SubagentParams, ctx?: ExtensionContext
 
 	const resolvedParams = { ...params, mode, timeoutMs, model: modelResolution?.model ?? params.model };
 	const bootstrapPrompt = buildBootstrapPrompt({ ...resolvedParams, task: params.task, agent: params.agent }, rolePrompt);
-	const args = buildPiArgs(resolvedParams, sessionDir, bootstrapPrompt);
-	onUpdate?.({ content: [{ type: "text", text: `Running ${params.agent} sub-agent for ${workstream}...` }] });
-
 	const env: NodeJS.ProcessEnv = {
 		...process.env,
 		PI_SUBAGENT_CHILD: "1",
@@ -743,28 +836,73 @@ export async function runSubagent(params: SubagentParams, ctx?: ExtensionContext
 		PI_SUBAGENT_ALLOW_RECURSIVE: params.allowRecursive ? "1" : "0",
 	};
 
-	const child = await runChildPi(args, { cwd, timeoutMs, signal, env });
-	const durationMs = Date.now() - startedAt;
-	const metadata = { workstream, sessionDir: replaceHome(sessionDir), durationMs };
+	let child: ChildRunResult | null = null;
+	let parsed: unknown | null = null;
+	let normalized: SubagentResult | null = null;
+	let metadata = { workstream, sessionDir: replaceHome(sessionDir), durationMs: 0 };
 
-	const parsed = child.state.finalText.trim() ? parseJsonObject(child.state.finalText) : null;
-	const normalized = validateAndNormalize(parsed, resolvedParams, child.state, metadata);
+	for (let attempt = 0; attempt <= MAX_RESULT_RETRIES; attempt += 1) {
+		const retry = attempt > 0;
+		let retryTask = params.task;
+		let retryMessage = `Running ${params.agent} sub-agent for ${workstream}...`;
+		if (retry) {
+			const invalidPaths = findInvalidReportedPaths(normalized, cwd);
+			const observedToolCount = child?.state.toolsUsed.size ?? 0;
+			const invalidFinal = Boolean(child && (!child.state.finalText.trim() || !parsed || !normalized));
+			retryTask = shouldRetryNoToolResult(normalized, observedToolCount) || (invalidFinal && observedToolCount === 0)
+				? buildNoToolRetryTask(params.task)
+				: invalidFinal
+					? buildInvalidFinalRetryTask(params.task)
+					: buildInvalidPathRetryTask(params.task, invalidPaths);
+			retryMessage = `Retrying ${params.agent} sub-agent for ${workstream} after rejected result...`;
+		}
 
-	if (child.timedOut && normalized) {
-		return normalized;
+		const attemptParams = retry ? { ...resolvedParams, task: retryTask, reset: false } : resolvedParams;
+		const args = buildPiArgs(attemptParams, sessionDir, bootstrapPrompt);
+		onUpdate?.({ content: [{ type: "text", text: retryMessage }] });
+
+		child = await runChildPi(args, { cwd, timeoutMs, signal, env });
+		metadata = { workstream, sessionDir: replaceHome(sessionDir), durationMs: Date.now() - startedAt };
+		parsed = child.state.finalText.trim() ? parseJsonObject(child.state.finalText) : null;
+		normalized = validateAndNormalize(parsed, attemptParams, child.state, metadata);
+
+		if (child.timedOut && normalized) return normalized;
+		if (child.timedOut) return makeError(params, "Sub-agent timed out.", `Child Pi exceeded ${timeoutMs} ms.`, ["timeout"], metadata);
+		if (child.outputCapExceeded) return makeError(params, "Sub-agent exceeded output cap.", "Child Pi emitted too much JSON stream output before finishing.", ["output_cap_exceeded"], metadata);
+		if (child.code !== 0) {
+			const stderr = compactString(redactForReturn(child.stderr), "", MAX_FIELD_CHARS);
+			const diagnostic = `Child Pi exited with code ${child.code ?? "null"}${child.signal ? ` signal ${child.signal}` : ""}.${stderr ? ` stderr: ${stderr}` : ""}`;
+			return makeError(params, "Sub-agent process failed.", diagnostic, ["child_process_failed"], metadata);
+		}
+
+		const invalidPaths = normalized?.status === "ok" ? findInvalidReportedPaths(normalized, cwd) : [];
+		const invalidFinalRetry = Boolean(child.state.finalText.trim() && (!parsed || !normalized));
+		const noToolRetry = child.state.toolsUsed.size === 0 && (!child.state.finalText.trim() || !parsed || !normalized || shouldRetryNoToolResult(normalized, child.state.toolsUsed.size));
+		const invalidPathRetry = invalidPaths.length > 0;
+		if (!noToolRetry && !invalidFinalRetry && !invalidPathRetry) break;
+		if (attempt === MAX_RESULT_RETRIES) {
+			if (noToolRetry) {
+				return makeError(params, "Sub-agent did not execute tools.", "Child returned no usable tool-grounded result after retry.", ["child_did_not_execute_tools"], {
+					...metadata,
+					evidence: [{ reason: "The child result had no observed tool calls and no usable verified final result on the initial attempt and retry." }],
+					recommendedNextStep: "Rerun with a narrower task or handle the read-only inspection in the parent session.",
+				});
+			}
+			if (invalidFinalRetry) {
+				return makeError(params, "Sub-agent returned invalid final JSON.", "Child used tools but still did not return parseable schema-compliant JSON after retry.", ["invalid_json"], {
+					...metadata,
+					recommendedNextStep: "Rerun with a narrower task or handle the read-only inspection in the parent session.",
+				});
+			}
+			return makeError(params, "Sub-agent cited invalid file paths.", "Child returned ok with file evidence that does not exist after retry.", ["invalid_child_file_evidence"], {
+				...metadata,
+				evidence: invalidPaths.map((item) => ({ file: item.path, reason: `${item.field} did not resolve to an existing path.` })),
+				recommendedNextStep: "Rerun with a narrower task or verify the reported paths in the parent session before trusting the result.",
+			});
+		}
 	}
-	if (child.timedOut) {
-		return makeError(params, "Sub-agent timed out.", `Child Pi exceeded ${timeoutMs} ms.`, ["timeout"], metadata);
-	}
-	if (child.outputCapExceeded) {
-		return makeError(params, "Sub-agent exceeded output cap.", "Child Pi emitted too much JSON stream output before finishing.", ["output_cap_exceeded"], metadata);
-	}
-	if (child.code !== 0) {
-		const stderr = compactString(redactForReturn(child.stderr), "", MAX_FIELD_CHARS);
-		const diagnostic = `Child Pi exited with code ${child.code ?? "null"}${child.signal ? ` signal ${child.signal}` : ""}.${stderr ? ` stderr: ${stderr}` : ""}`;
-		return makeError(params, "Sub-agent process failed.", diagnostic, ["child_process_failed"], metadata);
-	}
-	if (!child.state.finalText.trim()) {
+
+	if (!child?.state.finalText.trim()) {
 		return makeError(params, "Sub-agent returned no final text.", "No assistant final text was found in the JSON event stream.", ["missing_final_text"], metadata);
 	}
 	if (!parsed) {

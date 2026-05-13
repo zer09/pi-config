@@ -24,6 +24,8 @@ pi --mode json \
 - Context Mode for shell/read-only commands and large output.
 - Child sessions live under `~/.pi/agent/subagent-sessions/`.
 - Recursive sub-agent calls are disabled by default through `PI_SUBAGENT_CHILD=1`.
+- Child final results with no observed tool calls are retried once with a stricter tool-use instruction.
+- Ok child results that cite non-existent files are retried once, then rejected as invalid evidence.
 - Parent receives structured JSON only.
 
 ## Tool input
