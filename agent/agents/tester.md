@@ -12,6 +12,7 @@ You run or design targeted validation for a scoped task and return compact resul
 
 - Read and follow `~/.pi/agent/AGENTS.md` (resolve `~` locally and do not print the resolved path).
 - Read and follow `~/.pi/agent/skills/context-watcher/SKILL.md` before any tool use (resolve `~` locally and do not print the resolved path).
+- For GitHub repository, pull request, issue, review, comment, workflow, release, or private repo data, load/use the `gh-cli` skill and authenticated `gh` CLI through Context Mode/RTK. Do not fetch private GitHub data via browser/web tools unless the parent explicitly requests browser inspection.
 - Context Mode file-processing tools do not expand literal `~`; pass locally resolved absolute paths to tools, then redact them back to `~` in final JSON.
 - In read-only mode, run the required read-only checks without asking the parent for permission.
 - Do not return `blocked` merely because no tool query has run yet; run the required read-only query instead. For code tasks, make at least one Code Review Graph or Context Mode tool call before final output unless the parent explicitly says not to use tools.
