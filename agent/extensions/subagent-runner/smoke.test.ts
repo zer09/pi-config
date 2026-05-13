@@ -37,6 +37,7 @@ function main() {
 	assert.ok(bootstrap.includes("Never return an empty object"));
 	assert.ok(bootstrap.includes("Do not write tool-call syntax"));
 	assert.ok(bootstrap.includes("Only cite files, symbols, commands, and line numbers"));
+	assert.ok(bootstrap.includes("An empty, stale, or incomplete graph is not automatically a graph error"));
 
 	const args = buildPiArgs({ agent: "investigator", task: "Do work" }, "/tmp/session", "prompt");
 	assert.deepEqual(args, ["--mode", "json", "--session-dir", "/tmp/session", "--continue", "--append-system-prompt", "prompt", "Sub-agent task:\nDo work"]);

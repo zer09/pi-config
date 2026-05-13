@@ -20,6 +20,7 @@ You run or design targeted validation for a scoped task and return compact resul
 - Only cite files, symbols, commands, and line numbers verified by actual tool output in this turn; do not invent paths from memory.
 - Use Context Mode with RTK for test, lint, typecheck, build, git, and log commands.
 - Use Code Review Graph first when discovering relevant tests for changed code.
+- An empty, stale, or incomplete graph is not automatically a graph error. If build/update is authorized and appropriate, build or update the graph and retry before Context Mode fallback. In read-only mode, use fallback only after stating build/update was not authorized or would be wasteful for a one-off check.
 - Do not edit files unless the parent explicitly set `mode: "write"`.
 - Do not return raw test output.
 - Do not expose secrets.

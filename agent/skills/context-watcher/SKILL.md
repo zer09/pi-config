@@ -75,6 +75,8 @@ Before using grep, find, read, or broad file inspection for codebase exploration
 
 If yes, use Code Review Graph first. Fall back to Context Mode + RTK file/search commands only when the graph is unavailable, empty, stale, unsupported for the language, or insufficient for the specific question.
 
+An empty, stale, or incomplete graph is not itself a Code Review Graph error. Treat it as a graph maintenance condition. If build/update is authorized and appropriate for the task, build or update the graph, then retry the graph query before using Context Mode fallback. Use Context Mode fallback without rebuilding only when the task is explicitly read-only, build/update is not authorized, building would be wasteful for a one-off check, the language is unsupported, or the graph remains insufficient after build/update.
+
 ## Mandatory Sub-agent Protocol
 
 Sub-agents are scoped Pi child processes used to protect the parent context. They must follow the same Context Watcher routing as the parent agent.
@@ -126,13 +128,14 @@ For repo-scoped or grouped-root work:
 3. Check whether the containing root has `.code-review-graph/graph.db`. If the database is missing, build the graph for that root and add that root to the daemon watch list so future turns can query instead of rebuilding.
 4. If the database exists but the containing root is not registered or watched by the daemon, add that root to the daemon watch list. The goal is: active roots with graph databases should be daemon-maintained.
 5. Build or update Code Review Graph at the root that contains all relevant code. If sub repos are nested under a root repo, story root, feature root, or issue root, treat them as part of that containing root graph database.
-6. Do not require every nested repo to be registered separately with the daemon. Register/watch only the containing story, feature, issue, or repo root when daemon watching is useful.
-7. Daemon status is not graph availability. If `code-review-graph daemon status` reports stopped, unavailable, or 0 registered repos, do not treat that as permission to skip Code Review Graph. Ensure the daemon is running when useful, then build/query the current repo root or containing worktree root.
-8. For grouped worktrees, add the containing story, feature, or issue root to the Code Review Graph daemon watch list after creating the worktree group.
-9. Re-check daemon status periodically during long work, but do not check before every query.
-10. When removing a worktree group, remove the containing story, feature, or issue root from the daemon watch list too.
-11. Prefer scoped graph queries using `repo_root: ".worktrees/<story>"`, `repo_root: ".worktrees/<story>/<feature-name>"`, `repo_root: ".worktrees/issues/<issue-number>"`, or the current containing root. Avoid global `cross_repo_search` for repo-scoped, story-scoped, feature-scoped, or issue-scoped work unless explicitly requested.
-12. For Git diff/change detection inside grouped worktrees, collect changed files per nested repo and map them to containing-root-relative paths before using graph impact tools.
+6. If graph stats or queries show the graph is empty, stale, or incomplete, do not call that an error and do not immediately abandon graph-first. If build/update is authorized and appropriate, build/update the graph at the containing root and retry the graph query. Only fall back to Context Mode without rebuilding when the task is read-only, build/update is not authorized, building would be wasteful for a one-off check, the language is unsupported, or the graph remains insufficient after build/update.
+7. Do not require every nested repo to be registered separately with the daemon. Register/watch only the containing story, feature, issue, or repo root when daemon watching is useful.
+8. Daemon status is not graph availability. If `code-review-graph daemon status` reports stopped, unavailable, or 0 registered repos, do not treat that as permission to skip Code Review Graph. Ensure the daemon is running when useful, then build/query the current repo root or containing worktree root.
+9. For grouped worktrees, add the containing story, feature, or issue root to the Code Review Graph daemon watch list after creating the worktree group.
+10. Re-check daemon status periodically during long work, but do not check before every query.
+11. When removing a worktree group, remove the containing story, feature, or issue root from the daemon watch list too.
+12. Prefer scoped graph queries using `repo_root: ".worktrees/<story>"`, `repo_root: ".worktrees/<story>/<feature-name>"`, `repo_root: ".worktrees/issues/<issue-number>"`, or the current containing root. Avoid global `cross_repo_search` for repo-scoped, story-scoped, feature-scoped, or issue-scoped work unless explicitly requested.
+13. For Git diff/change detection inside grouped worktrees, collect changed files per nested repo and map them to containing-root-relative paths before using graph impact tools.
 
 Daemon commands:
 

@@ -138,6 +138,7 @@ Before any work:
 - Use Context Mode for shell commands, read-only command execution, large output, logs, tests, builds, and data processing.
 - Context Mode file-processing tools do not expand literal \`~\`. When a Context Mode tool asks for a path, pass an absolute filesystem path that you resolved locally, then redact that path back to \`~\` in your final JSON.
 - Use Code Review Graph before grep, find, read, or broad file inspection for code exploration, code review, blast-radius analysis, caller/callee lookup, test discovery, architecture review, or refactor analysis.
+- An empty, stale, or incomplete graph is not automatically a graph error. If build/update is authorized by your mode and appropriate for the task, build or update the graph and retry the graph query before using Context Mode fallback. In read-only mode, do not build/update; use Context Mode fallback only after stating that fallback is because build/update was not authorized or would be wasteful for a one-off check.
 - Use RTK through Context Mode for read-only shell work when applicable.
 - Use direct bash only for whitelisted safe operations.
 - Keep raw command output inside Context Mode or this child session. Do not return raw large output to the parent.
