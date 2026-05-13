@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
@@ -20,6 +20,8 @@ const MAX_FINDING_CHARS = 2_000;
 const MAX_FIELD_CHARS = 1_200;
 const MAX_ARRAY_ITEMS = 40;
 const MAX_EVIDENCE_ITEMS = 20;
+const MAX_MODEL_SUGGESTIONS = 8;
+const MODEL_THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
 const SUBAGENT_ROOT = join(homedir(), ".pi", "agent", "subagent-sessions");
 const AGENT_ROOT = join(homedir(), ".pi", "agent", "agents");
 const LOG_DIR = join(homedir(), ".pi", "logs");
@@ -35,6 +37,32 @@ type AgentName = (typeof AGENTS)[number];
 type Mode = (typeof MODES)[number];
 type Status = "ok" | "blocked" | "error";
 type Confidence = "low" | "medium" | "high";
+
+type AvailableModel = {
+	provider: string;
+	model: string;
+};
+
+type ModelSelector = {
+	raw: string;
+	provider?: string;
+	model: string;
+	thinkingSuffix: string;
+};
+
+type ModelResolution = {
+	ok: true;
+	requested: string;
+	model: string;
+	suggestions: string[];
+} | {
+	ok: false;
+	requested: string;
+	diagnostic: string;
+	blockers: string[];
+	suggestions: string[];
+	command?: string;
+};
 
 type Evidence = {
 	file?: string;
@@ -194,6 +222,135 @@ Required shape:
   "blockers": ["string"],
   "recommendedNextStep": "string"
 }`;
+}
+
+export function splitModelSelector(value: string): ModelSelector {
+	const raw = value.trim();
+	let base = raw;
+	let thinkingSuffix = "";
+	const suffixIndex = raw.lastIndexOf(":");
+	if (suffixIndex > 0) {
+		const suffix = raw.slice(suffixIndex + 1).trim();
+		if (MODEL_THINKING_LEVELS.has(suffix)) {
+			base = raw.slice(0, suffixIndex).trim();
+			thinkingSuffix = `:${suffix}`;
+		}
+	}
+
+	const slashIndex = base.indexOf("/");
+	if (slashIndex > 0 && slashIndex < base.length - 1) {
+		return {
+			raw,
+			provider: base.slice(0, slashIndex).trim(),
+			model: base.slice(slashIndex + 1).trim(),
+			thinkingSuffix,
+		};
+	}
+
+	return { raw, model: base, thinkingSuffix };
+}
+
+function formatModelSuggestion(model: AvailableModel, thinkingSuffix = ""): string {
+	return `${model.provider}/${model.model}${thinkingSuffix}`;
+}
+
+function uniqueSuggestions(models: AvailableModel[], thinkingSuffix = ""): string[] {
+	return [...new Set(models.map((model) => formatModelSuggestion(model, thinkingSuffix)))].slice(0, MAX_MODEL_SUGGESTIONS);
+}
+
+export function parseListModelsOutput(output: string): AvailableModel[] {
+	const models: AvailableModel[] = [];
+	let inTable = false;
+	for (const rawLine of output.split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (!line) continue;
+		if (/^provider\s+model\s+/i.test(line)) {
+			inTable = true;
+			continue;
+		}
+		if (!inTable || line.startsWith("[") || /^No models matching/i.test(line)) continue;
+		const match = line.match(/^(\S+)\s+(\S+)\s+/);
+		if (!match) continue;
+		models.push({ provider: match[1], model: match[2] });
+	}
+	return models;
+}
+
+export function resolveModelFromListOutput(requestedModel: string, listModelsOutput: string): ModelResolution {
+	const selector = splitModelSelector(requestedModel);
+	if (!selector.raw || !selector.model) {
+		return { ok: false, requested: requestedModel, diagnostic: "Sub-agent model is blank.", blockers: ["invalid_model"], suggestions: [] };
+	}
+
+	const candidates = parseListModelsOutput(listModelsOutput);
+	const sameModel = candidates.filter((candidate) => candidate.model === selector.model);
+	const matching = selector.provider
+		? sameModel.filter((candidate) => candidate.provider === selector.provider)
+		: sameModel;
+
+	if (matching.length === 1) {
+		return {
+			ok: true,
+			requested: requestedModel,
+			model: formatModelSuggestion(matching[0], selector.thinkingSuffix),
+			suggestions: uniqueSuggestions(candidates, selector.thinkingSuffix),
+		};
+	}
+
+	if (matching.length > 1) {
+		const suggestions = uniqueSuggestions(matching, selector.thinkingSuffix);
+		return {
+			ok: false,
+			requested: requestedModel,
+			diagnostic: `Sub-agent model "${requestedModel}" is ambiguous. Use a provider-qualified model id such as ${suggestions.join(", ")}.`,
+			blockers: ["ambiguous_model"],
+			suggestions,
+		};
+	}
+
+	const suggestions = uniqueSuggestions(sameModel.length ? sameModel : candidates, selector.thinkingSuffix);
+	const diagnostic = suggestions.length
+		? `Sub-agent model "${requestedModel}" is not an exact available model. Use a provider-qualified model id such as ${suggestions.join(", ")}.`
+		: `Sub-agent model "${requestedModel}" is not available according to Pi's model list.`;
+	return { ok: false, requested: requestedModel, diagnostic, blockers: ["invalid_model"], suggestions };
+}
+
+function resolveSubagentModel(model: string | undefined): ModelResolution | null {
+	if (!model?.trim()) return null;
+	const selector = splitModelSelector(model);
+	const command = process.env.PI_SUBAGENT_PI_BIN || "pi";
+	const args = ["--list-models", selector.model];
+	const result = spawnSync(command, args, {
+		encoding: "utf8",
+		env: process.env,
+		maxBuffer: 1024 * 1024,
+		timeout: 30_000,
+	});
+	const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+	if (result.error) {
+		return {
+			ok: false,
+			requested: model,
+			diagnostic: `Could not validate sub-agent model "${model}": ${replaceHome(result.error.message)}`,
+			blockers: ["model_validation_failed"],
+			suggestions: [],
+			command: `${command} --list-models ${selector.model}`,
+		};
+	}
+	if (typeof result.status === "number" && result.status !== 0) {
+		return {
+			ok: false,
+			requested: model,
+			diagnostic: `Could not validate sub-agent model "${model}" because \`${command} --list-models ${selector.model}\` exited with code ${result.status}.`,
+			blockers: ["model_validation_failed"],
+			suggestions: [],
+			command: `${command} --list-models ${selector.model}`,
+		};
+	}
+
+	const resolution = resolveModelFromListOutput(model, output);
+	if (!resolution.ok) return { ...resolution, command: `${command} --list-models ${selector.model}` };
+	return resolution;
 }
 
 export function buildPiArgs(params: SubagentParams, sessionDir: string, bootstrapPrompt: string): string[] {
@@ -452,13 +609,14 @@ function logMetadata(record: Record<string, unknown>): void {
 	}
 }
 
-async function runChildPi(args: string[], options: { cwd: string; timeoutMs: number; signal?: AbortSignal; env: NodeJS.ProcessEnv }): Promise<{ state: ObservedChildState; code: number | null; signal: NodeJS.Signals | null; timedOut: boolean; outputCapExceeded: boolean }> {
+async function runChildPi(args: string[], options: { cwd: string; timeoutMs: number; signal?: AbortSignal; env: NodeJS.ProcessEnv }): Promise<{ state: ObservedChildState; code: number | null; signal: NodeJS.Signals | null; timedOut: boolean; outputCapExceeded: boolean; stderr: string }> {
 	const command = process.env.PI_SUBAGENT_PI_BIN || "pi";
 	const state: ObservedChildState = { finalText: "", currentAssistantText: "", inAssistantMessage: false, toolsUsed: new Set(), parseErrors: 0, skippedLargeLines: 0 };
 	let stdoutBuffer = "";
 	let stdoutBufferBytes = 0;
 	let skippingStdoutLine = false;
 	let stderrBytes = 0;
+	let stderr = "";
 	let timedOut = false;
 	let outputCapExceeded = false;
 
@@ -520,6 +678,7 @@ async function runChildPi(args: string[], options: { cwd: string; timeoutMs: num
 
 		child.stderr?.on("data", (chunk: Buffer) => {
 			stderrBytes += chunk.length;
+			if (stderr.length < MAX_FIELD_CHARS) stderr += chunk.toString("utf8").slice(0, MAX_FIELD_CHARS - stderr.length);
 			if (stderrBytes > MAX_STDERR_BYTES) {
 				outputCapExceeded = true;
 				killChild();
@@ -528,13 +687,13 @@ async function runChildPi(args: string[], options: { cwd: string; timeoutMs: num
 
 		child.on("error", () => {
 			clearTimeout(timeout);
-			resolvePromise({ state, code: 127, signal: null, timedOut, outputCapExceeded });
+			resolvePromise({ state, code: 127, signal: null, timedOut, outputCapExceeded, stderr });
 		});
 
 		child.on("close", (code, signal) => {
 			clearTimeout(timeout);
 			if (stdoutBuffer.trim()) observeJsonLine(stdoutBuffer, state);
-			resolvePromise({ state, code, signal, timedOut, outputCapExceeded });
+			resolvePromise({ state, code, signal, timedOut, outputCapExceeded, stderr });
 		});
 	});
 }
@@ -560,8 +719,21 @@ export async function runSubagent(params: SubagentParams, ctx?: ExtensionContext
 		return makeError(params, "Missing sub-agent role prompt.", error instanceof Error ? replaceHome(error.message) : "Unknown role prompt error", ["missing_role_prompt"], { workstream, sessionDir: replaceHome(sessionDir) });
 	}
 
-	const bootstrapPrompt = buildBootstrapPrompt({ ...params, mode, task: params.task, agent: params.agent }, rolePrompt);
-	const args = buildPiArgs({ ...params, mode, timeoutMs }, sessionDir, bootstrapPrompt);
+	const modelResolution = resolveSubagentModel(params.model);
+	if (modelResolution && !modelResolution.ok) {
+		const durationMs = Date.now() - startedAt;
+		return makeError(params, "Invalid sub-agent model.", modelResolution.diagnostic, modelResolution.blockers, {
+			workstream,
+			sessionDir: replaceHome(sessionDir),
+			durationMs,
+			evidence: modelResolution.command ? [{ command: modelResolution.command, reason: "Pi model list did not contain an exact usable match for the requested sub-agent model." }] : [],
+			recommendedNextStep: modelResolution.suggestions.length ? `Use one of: ${modelResolution.suggestions.join(", ")}.` : "Run `pi --list-models <search>` and pass a provider-qualified model id.",
+		});
+	}
+
+	const resolvedParams = { ...params, mode, timeoutMs, model: modelResolution?.model ?? params.model };
+	const bootstrapPrompt = buildBootstrapPrompt({ ...resolvedParams, task: params.task, agent: params.agent }, rolePrompt);
+	const args = buildPiArgs(resolvedParams, sessionDir, bootstrapPrompt);
 	onUpdate?.({ content: [{ type: "text", text: `Running ${params.agent} sub-agent for ${workstream}...` }] });
 
 	const env: NodeJS.ProcessEnv = {
@@ -576,7 +748,7 @@ export async function runSubagent(params: SubagentParams, ctx?: ExtensionContext
 	const metadata = { workstream, sessionDir: replaceHome(sessionDir), durationMs };
 
 	const parsed = child.state.finalText.trim() ? parseJsonObject(child.state.finalText) : null;
-	const normalized = validateAndNormalize(parsed, params, child.state, metadata);
+	const normalized = validateAndNormalize(parsed, resolvedParams, child.state, metadata);
 
 	if (child.timedOut && normalized) {
 		return normalized;
@@ -588,7 +760,9 @@ export async function runSubagent(params: SubagentParams, ctx?: ExtensionContext
 		return makeError(params, "Sub-agent exceeded output cap.", "Child Pi emitted too much JSON stream output before finishing.", ["output_cap_exceeded"], metadata);
 	}
 	if (child.code !== 0) {
-		return makeError(params, "Sub-agent process failed.", `Child Pi exited with code ${child.code ?? "null"}${child.signal ? ` signal ${child.signal}` : ""}.`, ["child_process_failed"], metadata);
+		const stderr = compactString(redactForReturn(child.stderr), "", MAX_FIELD_CHARS);
+		const diagnostic = `Child Pi exited with code ${child.code ?? "null"}${child.signal ? ` signal ${child.signal}` : ""}.${stderr ? ` stderr: ${stderr}` : ""}`;
+		return makeError(params, "Sub-agent process failed.", diagnostic, ["child_process_failed"], metadata);
 	}
 	if (!child.state.finalText.trim()) {
 		return makeError(params, "Sub-agent returned no final text.", "No assistant final text was found in the JSON event stream.", ["missing_final_text"], metadata);
@@ -612,6 +786,7 @@ function registerSubagentTool(pi: ExtensionAPI): void {
 		promptGuidelines: [
 			"Use subagent_run when a scoped task would otherwise require broad searches, test output, logs, or documentation research that should not enter the parent context.",
 			"subagent_run defaults to read-only mode; pass mode: \"write\" only when file edits are explicitly authorized and parent review will follow.",
+			"When setting model, prefer a provider-qualified id from `pi --list-models <search>` such as `openai-codex/gpt-5.3-codex`; the runner validates and normalizes exact short ids before launch.",
 		],
 		parameters: Type.Object({
 			agent: StringEnum(AGENTS),
@@ -620,7 +795,7 @@ function registerSubagentTool(pi: ExtensionAPI): void {
 			workstream: Type.Optional(Type.String({ description: "Stable workstream slug for session reuse." })),
 			mode: Type.Optional(StringEnum(MODES)),
 			timeoutMs: Type.Optional(Type.Number({ minimum: 1_000, maximum: MAX_TIMEOUT_MS })),
-			model: Type.Optional(Type.String({ description: "Optional Pi model id for the child process." })),
+			model: Type.Optional(Type.String({ description: "Optional Pi model id for the child process. Prefer provider-qualified ids from `pi --list-models <search>`, for example `openai-codex/gpt-5.3-codex`. Exact short ids are validated and normalized when unambiguous." })),
 			reset: Type.Optional(Type.Boolean({ description: "Create a new session in the same isolated directory instead of continuing." })),
 			allowRecursive: Type.Optional(Type.Boolean({ description: "Allow the child process to use sub-agent tools recursively." })),
 		}),

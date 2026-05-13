@@ -7,7 +7,9 @@ import subagentRunnerExtension, {
 	deriveWorkstream,
 	observeJsonLine,
 	parseJsonObject,
+	parseListModelsOutput,
 	redactForReturn,
+	resolveModelFromListOutput,
 	sanitizeSlug,
 	validateAndNormalize,
 	type ObservedChildState,
@@ -44,6 +46,37 @@ function main() {
 
 	const resetArgs = buildPiArgs({ agent: "investigator", task: "Do work", reset: true, model: "provider/model" }, "/tmp/session", "prompt");
 	assert.deepEqual(resetArgs, ["--mode", "json", "--session-dir", "/tmp/session", "--append-system-prompt", "prompt", "--model", "provider/model", "Sub-agent task:\nDo work"]);
+
+	const listModelsOutput = `provider      model                      context  max-out  thinking  images
+openai-codex  gpt-5.3-codex              272K     128K     yes       yes
+openai-codex  gpt-5.3-codex-spark        128K     128K     yes       no
+openai        gpt-5.3-codex              128K     64K      yes       yes`;
+	assert.deepEqual(parseListModelsOutput(`[context-mode] warning ignored\n${listModelsOutput}`), [
+		{ provider: "openai-codex", model: "gpt-5.3-codex" },
+		{ provider: "openai-codex", model: "gpt-5.3-codex-spark" },
+		{ provider: "openai", model: "gpt-5.3-codex" },
+	]);
+	const qualifiedResolution = resolveModelFromListOutput("openai-codex/gpt-5.3-codex", listModelsOutput);
+	assert.equal(qualifiedResolution.ok, true);
+	assert.equal(qualifiedResolution.ok ? qualifiedResolution.model : "", "openai-codex/gpt-5.3-codex");
+	const thinkingResolution = resolveModelFromListOutput("openai-codex/gpt-5.3-codex:high", listModelsOutput);
+	assert.equal(thinkingResolution.ok, true);
+	assert.equal(thinkingResolution.ok ? thinkingResolution.model : "", "openai-codex/gpt-5.3-codex:high");
+	const ambiguousResolution = resolveModelFromListOutput("gpt-5.3-codex", listModelsOutput);
+	assert.equal(ambiguousResolution.ok, false);
+	assert.ok(!ambiguousResolution.ok && ambiguousResolution.blockers.includes("ambiguous_model"));
+	const exactCodexOutput = `provider      model                      context  max-out  thinking  images
+openai-codex  gpt-5.3-codex              272K     128K     yes       yes
+openai-codex  gpt-5.3-codex-spark        128K     128K     yes       no`;
+	const exactCodexResolution = resolveModelFromListOutput("gpt-5.3-codex", exactCodexOutput);
+	assert.equal(exactCodexResolution.ok, true);
+	assert.equal(exactCodexResolution.ok ? exactCodexResolution.model : "", "openai-codex/gpt-5.3-codex");
+	const exactShortResolution = resolveModelFromListOutput("gpt-5.3-codex-spark", listModelsOutput);
+	assert.equal(exactShortResolution.ok, true);
+	assert.equal(exactShortResolution.ok ? exactShortResolution.model : "", "openai-codex/gpt-5.3-codex-spark");
+	const missingResolution = resolveModelFromListOutput("gpt-5.3", listModelsOutput);
+	assert.equal(missingResolution.ok, false);
+	assert.ok(!missingResolution.ok && missingResolution.suggestions.includes("openai-codex/gpt-5.3-codex"));
 
 	assert.deepEqual(parseJsonObject('```json\n{"status":"ok"}\n```'), { status: "ok" });
 	assert.deepEqual(parseJsonObject('prefix {"status":"ok"} suffix'), { status: "ok" });

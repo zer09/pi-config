@@ -47,6 +47,16 @@ Supported agents:
 - `docs-researcher`
 - `oracle`
 
+## Model selection
+
+Prefer provider-qualified model ids from Pi's model list:
+
+```bash
+pi --list-models gpt-5.3-codex
+```
+
+Use the returned `provider/model` pair, for example `openai-codex/gpt-5.3-codex`. The runner validates `model` before launching a child. Exact short ids are normalized when they are unambiguous; ambiguous or unavailable model names fail before spawning Pi and return suggested provider-qualified ids.
+
 ## Smoke test
 
 ```bash
