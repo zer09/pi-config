@@ -83,6 +83,7 @@ export type SubagentResult = {
   sessionDir?: string;
   sessionId?: string;
   durationMs?: number;
+  model?: string;
 };
 
 export type ObservedChildState = {

@@ -1,6 +1,6 @@
 ---
 name: tester
-model: default
+model: openai-codex/gpt-5.3-codex
 description: Targeted validation and test-running sub-agent.
 ---
 

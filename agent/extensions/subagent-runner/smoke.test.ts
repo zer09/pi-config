@@ -5,6 +5,7 @@ import subagentRunnerExtension, {
 	buildPiArgs,
 	buildSessionDir,
 	deriveWorkstream,
+	extractRoleDefaultModel,
 	observeJsonLine,
 	parseJsonObject,
 	parseListModelsOutput,
@@ -12,6 +13,7 @@ import subagentRunnerExtension, {
 	resolveCwd,
 	resolveModelFromListOutput,
 	sanitizeSlug,
+	selectSubagentModel,
 	buildInvalidPathRetryTask,
 	buildNoToolRetryTask,
 	buildSuspiciousOkRetryTask,
@@ -39,6 +41,12 @@ function main() {
 	assert.ok(sessionDir.endsWith("/.pi/agent/subagent-sessions/pi-subagent/investigator"));
 
 	const rolePrompt = "# Investigator\n\nUse Context Watcher and return evidence.";
+	const modelFrontmatter = "---\nname: investigator\nmodel: openai-codex/gpt-5.3-codex\n---\n# Investigator";
+	assert.equal(extractRoleDefaultModel(modelFrontmatter), "openai-codex/gpt-5.3-codex");
+	assert.equal(extractRoleDefaultModel("---\nname: reviewer\nmodel: default\n---\n# Reviewer"), undefined);
+	assert.equal(extractRoleDefaultModel(rolePrompt), undefined);
+	assert.equal(selectSubagentModel(undefined, modelFrontmatter), "openai-codex/gpt-5.3-codex");
+	assert.equal(selectSubagentModel("provider/override", modelFrontmatter), "provider/override");
 	const bootstrap = buildBootstrapPrompt({ agent: "investigator", task: "Check something", mode: "read", cwd: "/tmp/repo" }, rolePrompt);
 	assert.ok(bootstrap.includes("Subject working directory"));
 	assert.ok(bootstrap.includes("Context Mode MCP tools can start from the MCP server directory"));
@@ -168,10 +176,11 @@ openai-codex  gpt-5.3-codex-spark        128K     128K     yes       no`;
 		{ status: "pass", finding: { roleCanStart: true }, evidence: ["role file reachable"], confidence: "high", recommended_next_steps: ["continue"] },
 		{ agent: "investigator", task: "check" },
 		{ finalText: "", currentAssistantText: "", inAssistantMessage: false, toolsUsed: new Set(["ctx_execute"]), parseErrors: 0, skippedLargeLines: 0 },
-		{ workstream: "work", sessionDir: "/tmp/session", durationMs: 1 },
+		{ workstream: "work", sessionDir: "/tmp/session", durationMs: 1, model: "openai-codex/gpt-5.3-codex" },
 	);
 	assert.ok(normalized);
 	assert.equal(normalized.status, "ok");
+	assert.equal(normalized.model, "openai-codex/gpt-5.3-codex");
 	assert.equal(normalized.summary, '{"roleCanStart":true}');
 	assert.equal(normalized.evidence[0]?.reason, "role file reachable");
 	assert.equal(normalized.recommendedNextStep, "continue");

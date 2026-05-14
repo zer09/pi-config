@@ -35,7 +35,9 @@ import {
 import {
   buildBootstrapPrompt,
   buildTaskPayload,
+  extractRoleDefaultModel,
   readRolePrompt,
+  selectSubagentModel,
 } from "./prompt.ts";
 import {
   parseListModelsOutput,
@@ -70,7 +72,11 @@ export {
   resolveCwd,
   sanitizeSlug,
 } from "./path-utils.ts";
-export { buildBootstrapPrompt } from "./prompt.ts";
+export {
+  buildBootstrapPrompt,
+  extractRoleDefaultModel,
+  selectSubagentModel,
+} from "./prompt.ts";
 export {
   parseListModelsOutput,
   resolveModelFromListOutput,
@@ -470,7 +476,12 @@ export function validateAndNormalize(
   value: unknown,
   params: SubagentParams,
   observed: ObservedChildState,
-  metadata: { workstream: string; sessionDir: string; durationMs: number },
+  metadata: {
+    workstream: string;
+    sessionDir: string;
+    durationMs: number;
+    model?: string;
+  },
 ): SubagentResult | null {
   if (!value || typeof value !== "object") return null;
   const input = value as Record<string, unknown>;
@@ -538,6 +549,7 @@ export function validateAndNormalize(
     sessionDir: replaceHome(metadata.sessionDir),
     sessionId: observed.sessionId,
     durationMs: metadata.durationMs,
+    model: metadata.model,
   };
 }
 
@@ -968,7 +980,8 @@ export async function runSubagent(
     );
   }
 
-  const modelResolution = resolveSubagentModel(params.model);
+  const requestedModel = selectSubagentModel(params.model, rolePrompt);
+  const modelResolution = resolveSubagentModel(requestedModel);
   if (modelResolution && !modelResolution.ok) {
     const durationMs = Date.now() - startedAt;
     return makeError(
@@ -1001,7 +1014,7 @@ export async function runSubagent(
     cwd,
     mode,
     timeoutMs,
-    model: modelResolution?.model ?? params.model,
+    model: modelResolution?.model ?? requestedModel,
   };
   const bootstrapPrompt = buildBootstrapPrompt(
     { ...resolvedParams, task: params.task, agent: params.agent },
@@ -1024,6 +1037,7 @@ export async function runSubagent(
     workstream,
     sessionDir: replaceHome(sessionDir),
     durationMs: 0,
+    model: resolvedParams.model,
   };
   const cumulativeToolsUsed = new Set<string>();
   const cumulativeToolUseTexts = new Set<string>();
@@ -1073,6 +1087,7 @@ export async function runSubagent(
       workstream,
       sessionDir: replaceHome(sessionDir),
       durationMs: Date.now() - startedAt,
+      model: resolvedParams.model,
     };
     parsed = child.state.finalText.trim()
       ? parseJsonObject(child.state.finalText)
@@ -1311,7 +1326,7 @@ function registerSubagentTool(pi: ExtensionAPI): void {
         cwd: replaceHome(loggedCwd),
         mode: params.mode ?? "read",
         timeoutMs: params.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-        model: params.model ?? null,
+        model: safeResult.model ?? params.model ?? null,
         sessionDir: safeResult.sessionDir,
         status: safeResult.status,
         toolsUsed: safeResult.toolsUsed,

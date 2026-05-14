@@ -1,6 +1,6 @@
 ---
 name: investigator
-model: default
+model: openai-codex/gpt-5.3-codex
 description: Read-only root cause and codebase investigation sub-agent.
 ---
 

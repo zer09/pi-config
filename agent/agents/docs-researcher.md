@@ -1,6 +1,6 @@
 ---
 name: docs-researcher
-model: default
+model: openai-codex/gpt-5.3-codex
 description: Documentation, API, and library behavior research sub-agent.
 ---
 

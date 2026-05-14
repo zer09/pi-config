@@ -9,6 +9,28 @@ export function readRolePrompt(agent: AgentName): string {
   return readFileSync(file, "utf8");
 }
 
+export function extractRoleDefaultModel(rolePrompt: string): string | undefined {
+  const frontmatter = rolePrompt.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!frontmatter) return undefined;
+  const modelLine = frontmatter[1]
+    .split(/\r?\n/)
+    .find((line) => /^model\s*:/.test(line.trim()));
+  if (!modelLine) return undefined;
+  const value = modelLine
+    .replace(/^\s*model\s*:\s*/, "")
+    .trim()
+    .replace(/^(["'])(.*)\1$/, "$2");
+  if (!value || value === "default") return undefined;
+  return value;
+}
+
+export function selectSubagentModel(
+  requestedModel: string | undefined,
+  rolePrompt: string,
+): string | undefined {
+  return requestedModel?.trim() || extractRoleDefaultModel(rolePrompt);
+}
+
 export function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
