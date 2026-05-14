@@ -248,6 +248,8 @@ Step 3: If neither method works, assume 128000 tokens.
 Sub-agents are Pi child processes used to keep raw investigation output out of the parent context. They are orchestrated by the parent agent and must return compact structured findings only.
 
 - Use the Pi-native `subagent_run` tool when a task benefits from isolated context, such as focused investigation, review, testing, documentation research, or consistency checks.
+- Do not use sub-agents just to think. The parent orchestrator should handle pure reasoning tasks directly unless isolated critique is explicitly requested.
+- If a sub-agent is used, require tool-grounded evidence for investigation, verification, file/repo facts, tests, logs, docs, or external data unless the task is explicitly a reasoning-only critique.
 - Do not use `AskClaude` for this workflow unless the user explicitly asks for it.
 - Sub-agents must run with normal Pi extensions enabled so Context Mode, pi-mcp-adapter, rtk-hook, and Code Review Graph remain available.
 - Sub-agents must explicitly load and follow `~/.pi/agent/skills/context-watcher/SKILL.md` before tool use.
