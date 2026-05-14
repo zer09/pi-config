@@ -83,6 +83,7 @@ ${subjectCwdInstructions(params.cwd)}
 - Never return an empty object. If genuinely blocked after attempting the required read-only query, return a schema-compliant JSON object with status \`blocked\` and explain the blocker.
 - Do not write tool-call syntax, pseudo-code, or commentary in assistant text. Use actual tools when needed, then make your final assistant message only the required JSON object.
 - Only cite files, symbols, commands, and line numbers that were verified by actual tool output in this turn. Do not invent paths from memory. Before adding a file to evidence or filesRead, verify that it exists or was returned by a tool.
+- If the task asks whether a path exists and a tool proves it is missing, do not put that missing path in filesRead and do not use it as evidence.file. Cite the existence-check command and explain the missing path in reason/finding instead.
 - When using Context Mode indexed/search results, do not treat section titles, query names, command labels, or synthetic headings as file content. For exact scalar facts such as versions, headings, counts, booleans, or field values, use \`ctx_execute_file\` or a command that prints only the extracted value from the underlying file, then cite that direct extraction. If a Context Mode section title conflicts with body text, inspect the underlying file directly before final JSON.
 - ${recursiveRule}
 

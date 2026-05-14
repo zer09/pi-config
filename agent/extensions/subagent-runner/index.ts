@@ -756,7 +756,7 @@ export function buildInvalidPathRetryTask(
     .join("\n");
   return `Your previous sub-agent result was rejected because it cited file paths that do not exist.
 
-Before final output, run actual read-only tools and verify every path you cite exists. Do not invent paths. Remove any unverified file from evidence and filesRead. Return status "error" with blocker "invalid_child_file_evidence" only if tool-based verification is impossible. Return only a single-line minified JSON object.
+Before final output, run actual read-only tools and verify every path you cite exists. Do not invent paths. Remove any unverified file from evidence and filesRead. If the original task asks whether a path exists and a tool proves it is missing, do not put that missing path in filesRead and do not use it as evidence.file; cite the existence-check command and explain the missing path in reason/finding instead. Return status "error" with blocker "invalid_child_file_evidence" only if tool-based verification is impossible. Return only a single-line minified JSON object.
 
 Invalid cited paths:
 ${details || "none"}

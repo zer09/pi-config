@@ -73,6 +73,7 @@ function main() {
 	assert.ok(bootstrap.includes("Never return an empty object"));
 	assert.ok(bootstrap.includes("Do not write tool-call syntax"));
 	assert.ok(bootstrap.includes("Only cite files, symbols, commands, and line numbers"));
+	assert.ok(bootstrap.includes("do not put that missing path in filesRead"));
 	assert.ok(bootstrap.includes("do not treat section titles, query names, command labels, or synthetic headings as file content"));
 	assert.ok(bootstrap.includes("For exact scalar facts such as versions, headings, counts, booleans, or field values"));
 	assert.ok(bootstrap.includes("inspect the underlying file directly before final JSON"));
@@ -225,6 +226,7 @@ openai-codex  gpt-5.3-codex-spark        128K     128K     yes       no`;
 	const invalidPaths = findInvalidReportedPaths(invalidPathResult, home);
 	assert.equal(invalidPaths.length, 2);
 	assert.ok(buildInvalidPathRetryTask("Find email", invalidPaths).includes("cited file paths that do not exist"));
+	assert.ok(buildInvalidPathRetryTask("Find email", invalidPaths).includes("do not put that missing path in filesRead"));
 
 	let registeredToolName = "";
 	subagentRunnerExtension({
