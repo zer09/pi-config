@@ -47,6 +47,11 @@
     "planetscale/database-skills": [
       "mysql",
       "postgres"
+    ],
+    "mattpocock/skills": [
+      "grill-with-docs",
+      "improve-codebase-architecture",
+      "tdd"
     ]
   },
   "custom": [
