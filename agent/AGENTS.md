@@ -33,6 +33,9 @@ Before any tool call, silently verify:
 10. **Is this creating, using, or removing a worktree?**
    If yes: follow the story-grouped worktree + code-review-graph daemon rules. Create feature worktrees under `.worktrees/<story>/<feature>/<repo-name>/` when multiple repos are involved, for example `.worktrees/google-sso/feature-a/webapp/`. Put standalone fixes, hotfixes, and issue work under the common story `.worktrees/issues/<issue-number>/<repo-name>/`. Prefer daemon-backed graphs for active roots: check whether the daemon is running, start it when useful, build the graph if `.code-review-graph/graph.db` is missing or empty and build/update is authorized, add the containing story/feature/issue/repo root to the daemon watch list when missing, query instead of repeatedly rebuilding, and remove it from the daemon when the worktree group is removed.
 
+11. **Will any content leave the local machine or be shown in a public/shared artifact?**
+   If yes: redact user-specific absolute home paths before sending, posting, saving, or displaying. Replace home directory prefixes with `~`, `$HOME`, `<home>`, or project-relative paths. This applies to GitHub/Linear issues and comments, public reports, handoffs, logs pasted into tickets, and final answers.
+
 **Tool routing by intent:**
 - `ctx_batch_execute` -- PRIMARY for shell work. One call replaces 30+ individual calls. Use for multiple commands + auto-index + search.
 - `ctx_search` -- Follow-up queries on content already indexed by Context Mode.
@@ -91,6 +94,12 @@ These rules apply to every approach, every task, every context. No other rule ca
 - When running `env`, `printenv`, or reading `.env` files, redact any value whose key name contains: KEY, TOKEN, SECRET, PASSWORD, CREDENTIAL, AUTH, BEARER, API_KEY, PRIVATE. Replace the value with `[REDACTED]`.
 - Never commit secrets to git. If you find a secret in staged changes, unstage the file and warn.
 - If a tool call would expose a secret in its output (e.g., `echo $API_KEY`), do not execute it. Warn instead.
+
+## Local Path Privacy
+
+- Treat user-specific absolute home paths as private in public or shared content. Do not include literal paths such as `/home/<user>/...`, `/Users/<user>/...`, or `C:\Users\<user>\...` in GitHub issues/comments, Linear tickets, public reports, handoffs, or final answers unless the user explicitly asks for exact local paths.
+- Before external hosted service mutations or publishing artifacts, scan the content for local home directory prefixes and replace them with `~`, `$HOME`, `<home>`, or project-relative paths.
+- Exact local paths may be used in local tool calls when required, but they must be normalized before being copied into external services or user-facing reports.
 
 ## Script Integrity
 
