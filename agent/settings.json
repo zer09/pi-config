@@ -3,8 +3,7 @@
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.5",
   "defaultThinkingLevel": "xhigh",
-  "theme": "light",
-  "transport": "auto",
+  "theme": "dark",
   "compaction": {
     "enabled": true
   },
@@ -28,3 +27,4 @@
     "openai-codex/gpt-5.5"
   ]
 }
+
