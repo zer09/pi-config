@@ -51,6 +51,79 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 mkdir -p "$PI_SKILLS_DIR"
 mkdir -p "$(dirname "$AUDIT_LOG")"
+INSTALL_LOG="$TMP_DIR/skills-install.log"
+
+extract_missing_skills() {
+  node -e '
+const fs = require("fs");
+const log = fs.readFileSync(process.argv[1], "utf8")
+  .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
+const requested = new Set(process.argv.slice(2));
+const missing = new Set();
+for (const line of log.split(/\r?\n/)) {
+  const match = line.match(/No matching skills found for:\s*(.+)$/);
+  if (!match) continue;
+  for (const raw of match[1].split(/[, ]+/)) {
+    const skill = raw.trim().replace(/[^A-Za-z0-9._-].*$/, "");
+    if (requested.has(skill)) missing.add(skill);
+  }
+}
+for (const skill of missing) console.log(skill);
+' "$INSTALL_LOG" "$@"
+}
+
+install_skills_from_repo() {
+  local repo="$1"
+  shift
+  local requested=("$@")
+  local missing=()
+  local next=()
+  local skill=""
+  local missing_skill=""
+  local skip=false
+
+  while [ "${#requested[@]}" -gt 0 ]; do
+    : >"$INSTALL_LOG"
+    if (cd "$TMP_DIR" && npx -y skills add "$repo" --skill "${requested[@]}" --agent '*' -y --copy </dev/null >"$INSTALL_LOG" 2>&1); then
+      return 0
+    fi
+
+    mapfile -t missing < <(extract_missing_skills "${requested[@]}")
+    if [ "${#missing[@]}" -eq 0 ]; then
+      return 1
+    fi
+
+    for missing_skill in "${missing[@]}"; do
+      if [ ! -d "$PI_SKILLS_DIR/$missing_skill" ]; then
+        echo "Error: $repo no longer provides skill '$missing_skill' and no local copy exists." >&2
+        return 1
+      fi
+      echo "Warning: $repo no longer provides skill '$missing_skill'; keeping existing local copy." >&2
+      echo "[$TIMESTAMP] [WARN] repo=$repo missing_skill=$missing_skill kept=local" >>"$AUDIT_LOG"
+    done
+
+    next=()
+    for skill in "${requested[@]}"; do
+      skip=false
+      for missing_skill in "${missing[@]}"; do
+        if [ "$skill" = "$missing_skill" ]; then
+          skip=true
+          break
+        fi
+      done
+      if [ "$skip" != true ]; then
+        next+=("$skill")
+      fi
+    done
+
+    if [ "${#next[@]}" -eq "${#requested[@]}" ]; then
+      return 1
+    fi
+    requested=("${next[@]}")
+  done
+
+  return 0
+}
 
 while read -r group; do
   mapfile -t parts < <(node -e 'const a=JSON.parse(process.argv[1]); for (const x of a) console.log(x)' "$group")
@@ -61,9 +134,9 @@ while read -r group; do
   done
   echo "Installing from $repo: ${skills[*]}"
   echo "[$TIMESTAMP] [INSTALL] repo=$repo skills=${skills[*]}" >>"$AUDIT_LOG"
-  (cd "$TMP_DIR" && npx -y skills add "$repo" --skill "${skills[@]}" --agent '*' -y --copy </dev/null >/tmp/pi-skills-install.log 2>&1) || {
+  install_skills_from_repo "$repo" "${skills[@]}" || {
     echo "[$TIMESTAMP] [ERROR] repo=$repo install failed" >>"$AUDIT_LOG"
-    cat /tmp/pi-skills-install.log >&2
+    cat "$INSTALL_LOG" >&2
     exit 1
   }
 done < <(node -e '
@@ -72,7 +145,7 @@ const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
 const external = manifest.external || manifest;
 for (const [repo, skills] of Object.entries(external)) {
   if (["version", "custom"].includes(repo)) continue;
-  if (!Array.isArray(skills) || skills.length === 0) throw new Error(`No skills for ${repo}`);
+  if (!Array.isArray(skills) || skills.length === 0) throw new Error("No skills for " + repo);
   console.log(JSON.stringify([repo, ...skills]));
 }
 ' "$MANIFEST")
@@ -98,7 +171,7 @@ done
 find "$STAGING_DIR" -mindepth 1 -maxdepth 1 -type d -print | while read -r staged_skill; do
   name="$(basename "$staged_skill")"
   validate_skill_name "$name"
-  rm -rf "$PI_SKILLS_DIR/$name"
+  rm -rf "${PI_SKILLS_DIR:?}/$name"
   mv "$staged_skill" "$PI_SKILLS_DIR/$name"
   echo "[$TIMESTAMP] [INSTALLED] skill=$name" >>"$AUDIT_LOG"
 done
