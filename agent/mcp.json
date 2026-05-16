@@ -5,14 +5,8 @@
       "directTools": true
     },
     "code-review-graph": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--project",
-        "/home/gc/development/code-review-graph",
-        "code-review-graph",
-        "serve"
-      ],
+      "command": "code-review-graph",
+      "args": ["serve"],
       "type": "stdio"
     },
     "figma": {
