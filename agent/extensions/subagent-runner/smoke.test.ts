@@ -12,8 +12,10 @@ import subagentRunnerExtension, {
 	redactForReturn,
 	resolveCwd,
 	resolveModelFromListOutput,
+	retryModelWithThinkingOff,
 	sanitizeSlug,
 	selectSubagentModel,
+	buildInvalidFinalRetryTask,
 	buildInvalidPathRetryTask,
 	buildNoToolRetryTask,
 	buildSuspiciousOkRetryTask,
@@ -48,9 +50,12 @@ function main() {
 	assert.equal(selectSubagentModel(undefined, modelFrontmatter), "openai-codex/gpt-5.3-codex");
 	assert.equal(selectSubagentModel("provider/override", modelFrontmatter), "provider/override");
 	const bootstrap = buildBootstrapPrompt({ agent: "investigator", task: "Check something", mode: "read", cwd: "/tmp/repo" }, rolePrompt);
-	assert.ok(bootstrap.includes("Subject working directory"));
+	assert.ok(bootstrap.includes("Subject working directory absolute path for tool arguments"));
+	assert.ok(bootstrap.includes("Redact it as `/tmp/repo` only in final JSON"));
 	assert.ok(bootstrap.includes("Context Mode MCP tools can start from the MCP server directory"));
 	assert.ok(bootstrap.includes("cd '/tmp/repo' && ..."));
+	assert.ok(bootstrap.includes("For Code Review Graph repo_root or any MCP path parameter"));
+	assert.ok(bootstrap.includes("do not explore the repository and do not call Code Review Graph"));
 	assert.ok(bootstrap.includes("override any bare `pwd`"));
 	assert.ok(bootstrap.includes("~/.pi/agent/skills/context-watcher/SKILL.md"));
 	assert.ok(bootstrap.includes("use Context Mode file-processing tools"));
@@ -64,6 +69,8 @@ function main() {
 	assert.ok(bootstrap.includes("For simple literal string searches, one graph availability/search check is enough"));
 	assert.ok(bootstrap.includes("Read-only mode is active"));
 	assert.ok(bootstrap.includes("Return only a single-line minified JSON object"));
+	assert.ok(bootstrap.includes("If the task asks for a different JSON object"));
+	assert.ok(bootstrap.includes("Preserve those requested marker values inside summary, finding, or evidence.reason"));
 	assert.ok(bootstrap.includes("never use pass"));
 	assert.ok(bootstrap.includes("do not expand literal `~`"));
 	assert.ok(bootstrap.includes("never `~/agent/...`"));
@@ -74,6 +81,10 @@ function main() {
 	assert.ok(bootstrap.includes("quoted tilde paths"));
 	assert.ok(bootstrap.includes("Use absolute paths under `/tmp/repo`"));
 	assert.ok(bootstrap.includes("~/.pi/agent/rules/"));
+	const homeBootstrap = buildBootstrapPrompt({ agent: "investigator", task: "Check something", mode: "read", cwd: `${home}/.pi` }, rolePrompt);
+	assert.ok(homeBootstrap.includes(`Subject working directory absolute path for tool arguments: \`${home}/.pi\``));
+	assert.ok(homeBootstrap.includes("not `~/.pi`"));
+	assert.ok(homeBootstrap.includes("not any `~/...` spelling"));
 	assert.ok(bootstrap.includes("Do not ask the parent for permission"));
 	assert.ok(bootstrap.includes("your next assistant response must be a tool call, not final JSON, reasoning-only text, or planning-only text"));
 	assert.ok(bootstrap.includes("Do not return `blocked`, `error`, or `ok` merely because no tool query has run yet"));
@@ -93,7 +104,7 @@ function main() {
 	const resetArgs = buildPiArgs({ agent: "investigator", task: "Do work", reset: true, model: "provider/model" }, "/tmp/session", "prompt");
 	assert.deepEqual(resetArgs, ["--mode", "json", "--session-dir", "/tmp/session", "--append-system-prompt", "prompt", "--model", "provider/model", "Sub-agent task:\nDo work"]);
 	const cwdArgs = buildPiArgs({ agent: "investigator", task: "Do work", cwd: "/tmp/repo" }, "/tmp/session", "prompt");
-	assert.ok(cwdArgs.at(-1)?.includes("Subject working directory: `/tmp/repo`"));
+	assert.ok(cwdArgs.at(-1)?.includes("Subject working directory absolute path for tool arguments: `/tmp/repo`"));
 	assert.ok(cwdArgs.at(-1)?.includes("cd '/tmp/repo' && ..."));
 	assert.ok(cwdArgs.at(-1)?.includes("do not write `rtk test ...`"));
 	assert.ok(cwdArgs.at(-1)?.includes("`rtk printf ...`"));
@@ -126,6 +137,9 @@ openai-codex  gpt-5.3-codex-spark        128K     128K     yes       no`;
 	const exactCodexResolution = resolveModelFromListOutput("gpt-5.3-codex", exactCodexOutput);
 	assert.equal(exactCodexResolution.ok, true);
 	assert.equal(exactCodexResolution.ok ? exactCodexResolution.model : "", "openai-codex/gpt-5.3-codex");
+	assert.equal(retryModelWithThinkingOff("openai-codex/gpt-5.3-codex"), "openai-codex/gpt-5.3-codex:off");
+	assert.equal(retryModelWithThinkingOff("openai-codex/gpt-5.3-codex:high"), "openai-codex/gpt-5.3-codex:high");
+	assert.equal(retryModelWithThinkingOff("openai/gpt-4.1"), "openai/gpt-4.1");
 	const exactShortResolution = resolveModelFromListOutput("gpt-5.3-codex-spark", listModelsOutput);
 	assert.equal(exactShortResolution.ok, false);
 	assert.ok(!exactShortResolution.ok && exactShortResolution.blockers.includes("banned_model"));
@@ -148,9 +162,11 @@ openai-codex  gpt-5.3-codex-spark        128K     128K     yes       no`;
 	observeJsonLine(JSON.stringify({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: '{"status":"ok"' } }), observed);
 	observeJsonLine(JSON.stringify({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "}" } }), observed);
 	observeJsonLine(JSON.stringify({ type: "message", message: { role: "assistant", content: [{ type: "toolCall", name: "context_mode_ctx_execute", arguments: {} }] } }), observed);
+	observeJsonLine(JSON.stringify({ type: "tool_execution_start", toolName: "context_mode_ctx_execute", args: { code: `cd '${home}/development/context-mode' && node -e "console.log(1)"` } }), observed);
 	assert.equal(observed.sessionId, "session-1");
 	assert.equal(observed.finalText, '{"status":"ok"}');
 	assert.equal(observed.toolsUsed.has("context_mode_ctx_execute"), true);
+	assert.ok(observed.toolUseTexts?.some((text) => text.includes("~/development/context-mode")));
 
 	const suspiciousObserved: ObservedChildState = { finalText: "", currentAssistantText: "", inAssistantMessage: false, toolsUsed: new Set(), parseErrors: 0, skippedLargeLines: 0 };
 	observeJsonLine(JSON.stringify({ type: "message", message: { role: "assistant", content: [{ type: "toolCall", name: "ctx_execute", arguments: { command: "cd '~/repo' && test -d tests" } }] } }), suspiciousObserved);
@@ -198,6 +214,18 @@ openai-codex  gpt-5.3-codex-spark        128K     128K     yes       no`;
 	assert.deepEqual(schemaLightResult.blockers, []);
 	assert.equal(schemaLightResult.recommendedNextStep, "continue");
 
+	const customOkResult = validateAndNormalize(
+		{ case: 1, phase: "fresh", nonce: "a1-q7-x0", ok: true },
+		{ agent: "tester", task: "smoke" },
+		{ finalText: "", currentAssistantText: "", inAssistantMessage: false, toolsUsed: new Set(["context_mode_ctx_execute_file"]), parseErrors: 0, skippedLargeLines: 0 },
+		{ workstream: "work", sessionDir: "/tmp/session", durationMs: 1 },
+	);
+	assert.ok(customOkResult);
+	assert.equal(customOkResult.status, "ok");
+	assert.equal(customOkResult.summary, '{"case":1,"phase":"fresh","nonce":"a1-q7-x0","ok":true}');
+	assert.equal(customOkResult.finding, '{"case":1,"phase":"fresh","nonce":"a1-q7-x0","ok":true}');
+	assert.deepEqual(customOkResult.toolsUsed, ["context_mode_ctx_execute_file"]);
+
 	const inferredBlocked = validateAndNormalize(
 		{ summary: "Blocked", finding: "Missing input", blockers: ["missing_input"] },
 		{ agent: "tester", task: "check" },
@@ -214,8 +242,11 @@ openai-codex  gpt-5.3-codex-spark        128K     128K     yes       no`;
 	assert.equal(shouldRetryNoToolResult({ ...normalized, status: "error", toolsUsed: [] }, 1), false);
 	assert.ok(buildNoToolRetryTask("Find email").includes("Original task:\nFind email"));
 	assert.ok(buildNoToolRetryTask("Find email").includes("Do not answer that startup reads need to happen first"));
-	assert.ok(buildNoToolRetryTask("Find email").includes("must include an actual read-only Context Mode or Code Review Graph tool call"));
+	assert.ok(buildNoToolRetryTask("Find email").includes("must be an actual read-only Context Mode or Code Review Graph tool call"));
+	assert.ok(buildNoToolRetryTask("Find email").includes("call Context Mode with a tiny JavaScript or shell check"));
 	assert.ok(buildNoToolRetryTask("Find email").includes("not final JSON, reasoning-only text, planning-only text"));
+	assert.ok(buildInvalidFinalRetryTask("Find email").includes("wrong top-level keys"));
+	assert.ok(buildInvalidFinalRetryTask("Find email").includes("do not repeat that shape at the top level"));
 	const suspiciousReasons = findSuspiciousOkResult({ ...normalized, finding: "tests does not exist as a directory", evidence: [{ command: "cd '~/repo' && test -d tests", reason: "Command returned no." }] }, suspiciousObserved, "verify tests exists and is a directory");
 	assert.ok(suspiciousReasons.length >= 2);
 	const unsupportedSubjectObserved: ObservedChildState = { finalText: "", currentAssistantText: "", inAssistantMessage: false, toolsUsed: new Set(["ctx_execute"]), parseErrors: 0, skippedLargeLines: 0, toolUseTexts: [JSON.stringify({ path: `${home}/.pi/agent/skills/context-watcher/SKILL.md` })] };

@@ -40,9 +40,9 @@ export function subjectCwdInstructions(cwd: string | undefined): string {
     return "No subject cwd was provided. Verify the current directory before subject-repo commands, and use absolute paths when in doubt.";
   const displayCwd = replaceHome(cwd);
   const quotedCwd = shellQuote(cwd);
-  return `Subject working directory: \`${displayCwd}\`.
+  return `Subject working directory absolute path for tool arguments: \`${cwd}\`. Redact it as \`${displayCwd}\` only in final JSON.
 
-The child Pi process is launched with that cwd, but Context Mode MCP tools can start from the MCP server directory instead. For every Context Mode shell command that targets the subject repo, prefix it with \`cd ${quotedCwd} && ...\` or use \`git -C ${quotedCwd} ...\`. Shell builtins are not RTK subcommands: use \`test -d ...\` directly after the \`cd\` prefix or use \`node -e "..."\`; do not write \`rtk test ...\`, \`rtk echo ...\`, \`rtk printf ...\`, or \`rtk cd ...\`. Never use quoted home shorthand in tool commands or tool path arguments, such as \`cd '~/repo'\`, \`test -d '~/repo/tests'\`, or \`path: "~/repo/file"\`; Context Mode treats that as a literal tilde. Use absolute paths under \`${cwd}\` in tool calls, then redact those paths back to \`${displayCwd}\` in final JSON. Do not use bare \`pwd\` as a subject-repo check; run \`cd ${quotedCwd} && pwd\`. These cwd instructions override any bare \`pwd\`, relative-path, or implicit-cwd wording in the task payload.`;
+The child Pi process is launched with that cwd, but Context Mode MCP tools can start from the MCP server directory instead. For every Context Mode shell command that targets the subject repo, prefix it with \`cd ${quotedCwd} && ...\` or use \`git -C ${quotedCwd} ...\`. For Code Review Graph repo_root or any MCP path parameter, pass \`${cwd}\`, not \`${displayCwd}\` and not any \`~/...\` spelling. Shell builtins are not RTK subcommands: use \`test -d ...\` directly after the \`cd\` prefix or use \`node -e "..."\`; do not write \`rtk test ...\`, \`rtk echo ...\`, \`rtk printf ...\`, or \`rtk cd ...\`. Never use quoted home shorthand in tool commands or tool path arguments, such as \`cd '~/repo'\`, \`test -d '~/repo/tests'\`, or \`path: "~/repo/file"\`; Context Mode treats that as a literal tilde. Use absolute paths under \`${cwd}\` in tool calls, then redact those paths back to \`${displayCwd}\` in final JSON. Do not use bare \`pwd\` as a subject-repo check; run \`cd ${quotedCwd} && pwd\`. These cwd instructions override any bare \`pwd\`, relative-path, redacted-cwd, or implicit-cwd wording in the task payload.`;
 }
 
 export function buildTaskPayload(params: SubagentParams): string {
@@ -92,6 +92,7 @@ ${subjectCwdInstructions(params.cwd)}
 - Context Mode file-processing tools do not expand literal \`~\`. When a Context Mode tool asks for a path, pass an absolute filesystem path that you resolved locally, then redact that path back to \`~\` in your final JSON. Never pass quoted or unquoted \`~/...\` paths in Context Mode tool arguments.
 - When redacting paths under the Pi home directory, preserve the full home-relative path: use \`~/.pi/agent/...\`, never \`~/agent/...\`.
 - Use Code Review Graph before grep, find, read, or broad file inspection for code exploration, code review, blast-radius analysis, caller/callee lookup, test discovery, architecture review, or refactor analysis.
+- For smoke, fuzz, marker, schema, or tool-harness tests that only ask you to prove tool execution and return a marker, do not explore the repository and do not call Code Review Graph. After mandatory startup reads, run one tiny read-only Context Mode marker check and return final JSON.
 - For simple literal string searches, one graph availability/search check is enough. If it is empty, unregistered, unsupported, or clearly not useful, immediately use Context Mode fallback and then return final JSON.
 - An empty, stale, or incomplete graph is not automatically a graph error. If build/update is authorized by your mode and appropriate for the task, build or update the graph and retry the graph query before using Context Mode fallback. In read-only mode, do not build/update; use Context Mode fallback only after stating that fallback is because build/update was not authorized or would be wasteful for a one-off check.
 - Use RTK through Context Mode for read-only shell work when applicable, but RTK is not a shell-builtin prefix. Do not run \`rtk test\`, \`rtk echo\`, \`rtk printf\`, or \`rtk cd\`; for filesystem checks use a Context Mode JavaScript/Python snippet or shell builtins after the subject \`cd\` prefix without RTK. Never run commands with quoted tilde paths such as \`cd '~/development/context-mode'\`; quote the absolute path instead.
@@ -125,6 +126,8 @@ ${rolePrompt.trim()}
 ## Final output contract
 
 Return only a single-line minified JSON object. Do not wrap it in markdown. Do not pretty-print it across multiple lines. Do not include raw logs, full diffs, broad search output, browser snapshots, or test dumps.
+
+If the task asks for a different JSON object, custom top-level keys, or an exact marker shape, do not use that custom shape as the final top-level object. Preserve those requested marker values inside summary, finding, or evidence.reason while keeping the required sub-agent result schema below.
 
 Schema requirements:
 - status must be exactly one of ok, blocked, or error. If checks pass, use ok; never use pass, passed, success, or booleans.

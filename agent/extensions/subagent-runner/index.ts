@@ -43,6 +43,7 @@ import {
   parseListModelsOutput,
   resolveModelFromListOutput,
   resolveSubagentModel,
+  splitModelSelector,
 } from "./models.ts";
 import {
   buildSessionDir,
@@ -149,7 +150,8 @@ function pushUnique(list: string[] | undefined, value: string): string[] {
 function stringifyUnknown(value: unknown): string {
   if (typeof value === "string") return value;
   try {
-    return JSON.stringify(value);
+    const json = JSON.stringify(value);
+    return json === undefined ? "" : json;
   } catch {
     return String(value);
   }
@@ -219,9 +221,38 @@ export function observeJsonLine(line: string, state: ObservedChildState): void {
 
   if (event?.type === "session" && typeof event.id === "string")
     state.sessionId = event.id;
-  if (typeof event?.toolName === "string") state.toolsUsed.add(event.toolName);
-  if (event?.toolCall && typeof event.toolCall.name === "string")
+  if (typeof event?.toolName === "string") {
+    state.toolsUsed.add(event.toolName);
+    const argumentsText = stringifyUnknown(event.args ?? event.arguments);
+    if (argumentsText.trim())
+      state.toolUseTexts = pushUnique(
+        state.toolUseTexts,
+        compactString(redactForReturn(argumentsText), "", MAX_FIELD_CHARS),
+      );
+    if (QUOTED_TILDE_PATH_PATTERN.test(argumentsText)) {
+      state.toolUseViolations = pushUnique(
+        state.toolUseViolations,
+        "A tool call used a literal `~/...` path. Context Mode tool arguments must use absolute paths; redact to `~` only in final JSON.",
+      );
+    }
+  }
+  if (event?.toolCall && typeof event.toolCall.name === "string") {
     state.toolsUsed.add(event.toolCall.name);
+    const argumentsText = stringifyUnknown(
+      event.toolCall.arguments ?? event.toolCall.args ?? event.toolCall.input,
+    );
+    if (argumentsText.trim())
+      state.toolUseTexts = pushUnique(
+        state.toolUseTexts,
+        compactString(redactForReturn(argumentsText), "", MAX_FIELD_CHARS),
+      );
+    if (QUOTED_TILDE_PATH_PATTERN.test(argumentsText)) {
+      state.toolUseViolations = pushUnique(
+        state.toolUseViolations,
+        "A tool call used a literal `~/...` path. Context Mode tool arguments must use absolute paths; redact to `~` only in final JSON.",
+      );
+    }
+  }
   observeToolCallsFromContent(event?.message?.content, state);
 
   if (event?.type === "message" && event.message?.role === "assistant") {
@@ -463,11 +494,25 @@ function hasBlockingValue(value: unknown): boolean {
   return asStringArray(value).length > 0;
 }
 
+function inferBooleanStatus(value: unknown): Status | null {
+  if (typeof value === "boolean") return value ? "ok" : "error";
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "yes") return "ok";
+  if (normalized === "false" || normalized === "no") return "error";
+  return normalizeStatus(value);
+}
+
 function inferStatus(input: Record<string, unknown>): Status | null {
   const explicit = normalizeStatus(input.status);
   if (explicit) return explicit;
   if (hasBlockingValue(input.blockers) || hasBlockingValue(input.blocker))
     return "blocked";
+  const booleanStatus =
+    inferBooleanStatus(input.ok) ??
+    inferBooleanStatus(input.success) ??
+    inferBooleanStatus(input.passed);
+  if (booleanStatus) return booleanStatus;
   if (input.summary !== undefined || input.finding !== undefined) return "ok";
   return null;
 }
@@ -495,13 +540,18 @@ export function validateAndNormalize(
     (Array.isArray(input.recommended_next_steps)
       ? input.recommended_next_steps[0]
       : input.recommended_next_steps);
+  const fallbackResultText = compactString(
+    input,
+    "Sub-agent returned a structured result.",
+    MAX_FINDING_CHARS,
+  );
   const summary = compactString(
-    input.summary ?? input.finding,
+    input.summary ?? input.finding ?? fallbackResultText,
     "Sub-agent returned a structured result.",
     MAX_SUMMARY_CHARS,
   );
   const finding = compactString(
-    input.finding ?? input.summary,
+    input.finding ?? input.summary ?? fallbackResultText,
     "No specific finding returned.",
     MAX_FINDING_CHARS,
   );
@@ -724,16 +774,16 @@ export function findSuspiciousOkResult(
 export function buildNoToolRetryTask(originalTask: string): string {
   return `Your previous sub-agent result was rejected because it returned final JSON without any observed tool calls.
 
-You are already authorized to run read-only inspection. Do not ask for permission. Do not answer that startup reads need to happen first; call the tools to do them. Your next assistant response must include an actual read-only Context Mode or Code Review Graph tool call, not final JSON, reasoning-only text, planning-only text, or prose that describes a tool you intend to use. After receiving the tool result, return the required single-line minified JSON object. If a tool call is genuinely impossible, return status "error" with blocker "child_did_not_execute_tools" and explain the concrete tool failure.
+You are already authorized to run read-only inspection. Do not ask for permission. Do not answer that startup reads need to happen first; call the tools to do them. Your very next assistant response must be an actual read-only Context Mode or Code Review Graph tool call, not final JSON, reasoning-only text, planning-only text, or prose that describes a tool you intend to use. If no subject-specific command is required, call Context Mode with a tiny JavaScript or shell check that prints a compact marker, then wait for the tool result. Do not claim a tool was used in toolsUsed or evidence unless you actually made a tool call in this child session. After receiving the tool result, return the required single-line minified JSON object. If a tool call is genuinely impossible, return status "error" with blocker "child_did_not_execute_tools" and explain the concrete tool failure.
 
 Original task:
 ${originalTask}`;
 }
 
 export function buildInvalidFinalRetryTask(originalTask: string): string {
-  return `Your previous sub-agent response was rejected because the final assistant message was missing, not parseable JSON, or did not match the required schema.
+  return `Your previous sub-agent response was rejected because the final assistant message was missing, not parseable JSON, or had the wrong top-level keys for the required sub-agent schema.
 
-Continue the task now. Use any required read-only tools, then return only a single-line minified JSON object. Do not include prose before or after the JSON.
+Continue the task now. Use any required read-only tools, then return only a single-line minified JSON object. Do not include prose before or after the JSON. The final JSON must use the sub-agent result schema with top-level status, summary, finding, evidence, toolsUsed, filesRead, filesChanged, confidence, blockers, and recommendedNextStep. If the original task requested a different custom JSON shape, do not repeat that shape at the top level; put those requested fields or marker values inside summary, finding, or evidence.reason.
 
 Original task:
 ${originalTask}`;
@@ -757,6 +807,14 @@ ${details || "none"}
 
 Original task:
 ${originalTask}`;
+}
+
+export function retryModelWithThinkingOff(model: string | undefined): string | undefined {
+  if (!model?.trim()) return model;
+  const selector = splitModelSelector(model);
+  if (selector.thinkingSuffix) return model;
+  if (selector.model !== "gpt-5.3-codex") return model;
+  return `${model}:off`;
 }
 
 export function buildInvalidPathRetryTask(
@@ -1045,6 +1103,7 @@ export async function runSubagent(
   for (let attempt = 0; attempt <= MAX_RESULT_RETRIES; attempt += 1) {
     const retry = attempt > 0;
     let retryTask = params.task;
+    let attemptModel = resolvedParams.model;
     let retryMessage = `Running ${params.agent} sub-agent for ${workstream}...`;
     if (retry) {
       const invalidPaths = findInvalidReportedPaths(normalized, cwd);
@@ -1055,20 +1114,23 @@ export async function runSubagent(
       const invalidFinal = Boolean(
         child && (!child.state.finalText.trim() || !parsed || !normalized),
       );
-      retryTask =
+      const retryBecauseNoTools =
         shouldRetryNoToolResult(normalized, observedToolCount) ||
-        (invalidFinal && observedToolCount === 0)
-          ? buildNoToolRetryTask(params.task)
-          : invalidFinal
-            ? buildInvalidFinalRetryTask(params.task)
-            : suspiciousOkReasons.length
-              ? buildSuspiciousOkRetryTask(params.task, suspiciousOkReasons)
-              : buildInvalidPathRetryTask(params.task, invalidPaths);
+        (invalidFinal && observedToolCount === 0);
+      if (retryBecauseNoTools)
+        attemptModel = retryModelWithThinkingOff(resolvedParams.model);
+      retryTask = retryBecauseNoTools
+        ? buildNoToolRetryTask(params.task)
+        : invalidFinal
+          ? buildInvalidFinalRetryTask(params.task)
+          : suspiciousOkReasons.length
+            ? buildSuspiciousOkRetryTask(params.task, suspiciousOkReasons)
+            : buildInvalidPathRetryTask(params.task, invalidPaths);
       retryMessage = `Retrying ${params.agent} sub-agent for ${workstream} after rejected result...`;
     }
 
     const attemptParams = retry
-      ? { ...resolvedParams, task: retryTask, reset: false }
+      ? { ...resolvedParams, task: retryTask, reset: false, model: attemptModel }
       : resolvedParams;
     const args = buildPiArgs(attemptParams, sessionDir, bootstrapPrompt);
     onUpdate?.({ content: [{ type: "text", text: retryMessage }] });
@@ -1087,7 +1149,7 @@ export async function runSubagent(
       workstream,
       sessionDir: replaceHome(sessionDir),
       durationMs: Date.now() - startedAt,
-      model: resolvedParams.model,
+      model: attemptParams.model,
     };
     parsed = child.state.finalText.trim()
       ? parseJsonObject(child.state.finalText)
