@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub CLI"
+  short_description: "Concise gh command reference"
+  default_prompt: "Use $gh-cli to find the right GitHub CLI command, flags, and reference file."

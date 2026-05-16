@@ -1,0 +1,44 @@
+# gh label
+
+Source: https://cli.github.com/manual/gh_label
+Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help label`.
+
+## Summary
+
+Work with GitHub labels.
+
+## Subcommands
+
+- `gh label clone` - Clones labels from one repository to another - [reference](label/clone.md)
+- `gh label create` - Create a new label - [reference](label/create.md)
+- `gh label delete` - Delete a label from a repository - [reference](label/delete.md)
+- `gh label edit` - Edit a label - [reference](label/edit.md)
+- `gh label list` - List labels in a repository - [reference](label/list.md)
+
+## Manual
+
+```text
+Work with GitHub labels.
+
+USAGE
+  gh label <command> [flags]
+
+AVAILABLE COMMANDS
+  clone:         Clones labels from one repository to another
+  create:        Create a new label
+  delete:        Delete a label from a repository
+  edit:          Edit a label
+  list:          List labels in a repository
+
+FLAGS
+  -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
+
+INHERITED FLAGS
+  --help   Show help for command
+
+LEARN MORE
+  Use `gh <command> <subcommand> --help` for more information about a command.
+  Read the manual at https://cli.github.com/manual
+  Learn about exit codes using `gh help exit-codes`
+  Learn about accessibility experiences using `gh help accessibility`
+```
