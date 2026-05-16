@@ -1,7 +1,6 @@
 ---
 name: figma-implement-design
 description: Translates Figma designs into production-ready application code with 1:1 visual fidelity. Use when implementing UI code from Figma files, when user mentions "implement design", "generate code", "implement component", provides Figma URLs, or asks to build components matching Figma specs. For Figma canvas writes via `use_figma`, use `figma-use`.
-disable-model-invocation: false
 ---
 
 # Implement Design
@@ -15,15 +14,15 @@ This skill provides a structured workflow for translating Figma designs into pro
 - Use this skill when the deliverable is code in the user's repository.
 - If the user asks to create/edit/delete nodes inside Figma itself, switch to [figma-use](../figma-use/SKILL.md).
 - If the user asks to build or update a full-page screen in Figma from code or a description, switch to [figma-generate-design](../figma-generate-design/SKILL.md).
-- If the user asks only for Code Connect mappings, switch to [figma-code-connect](../figma-code-connect/SKILL.md).
+- If the user asks only for Code Connect mappings, switch to [figma-code-connect-components](../figma-code-connect-components/SKILL.md).
 - If the user asks to author reusable agent rules (`CLAUDE.md`/`AGENTS.md`), switch to [figma-create-design-system-rules](../figma-create-design-system-rules/SKILL.md).
 
 ## Prerequisites
 
 - Figma MCP server must be connected and accessible
 - User must provide a Figma URL in the format: `https://figma.com/design/:fileKey/:fileName?node-id=1-2`
- - `:fileKey` is the file key
- - `1-2` is the node ID (the specific component or frame to implement)
+  - `:fileKey` is the file key
+  - `1-2` is the node ID (the specific component or frame to implement)
 - **OR** when using `figma-desktop` MCP: User can select a node directly in the Figma desktop app (no URL required)
 - Project should have an established design system or component library (preferred)
 
