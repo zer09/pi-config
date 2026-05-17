@@ -27,6 +27,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 - Keep `gh-cli-update-process.md` separate. The local `gh-cli` skill is generated from local `gh help`, not copied from OpenAI.
 - Keep the local Figma set focused on design-to-code. Do not install Figma canvas-writing or generation skills such as `figma-use`, `figma-generate-design`, `figma-generate-library`, or `figma-create-new-file` unless explicitly requested.
 - Figma, GitHub, and other hosted services remain read-only by default. Exact explicit user instruction is required for mutations.
+- For `figma-create-design-system-rules`, keep rule-file selection platform-neutral: prefer the active project's existing rule convention, treat platform-specific rule locations as examples only, and ask when the correct target is ambiguous.
 
 ## Update workflow
 

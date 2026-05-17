@@ -1,38 +1,25 @@
 # Humanizer
 
-A Claude Code skill that removes signs of AI-generated writing from text, making it sound more natural and human.
+A local skill that removes signs of AI-generated writing from text, making it sound more natural and human.
 
 ## Installation
 
-### Recommended (clone directly into Claude Code skills directory)
+This Pi config tracks the skill at `agent/skills/humanizer/`. No AI-platform-specific install path is required inside this repository.
 
-```bash
-mkdir -p ~/.claude/skills
-git clone https://github.com/blader/humanizer.git ~/.claude/skills/humanizer
-```
-
-### Manual install/update (only the skill file)
-
-If you already have this repo cloned (or you downloaded `SKILL.md`), copy the skill file into Claude Code’s skills directory:
-
-```bash
-mkdir -p ~/.claude/skills/humanizer
-cp SKILL.md ~/.claude/skills/humanizer/
-```
+To install the skill in another agent or harness, copy this skill directory to that tool's supported skill location and follow that tool's normal skill-loading process.
 
 ## Usage
 
-In Claude Code, invoke the skill:
+Invoke the `humanizer` skill in any agent that supports local skills, then provide the text to rewrite:
 
-```
-/humanizer
-
+```text
+Use the humanizer skill on this text:
 [paste your text here]
 ```
 
-Or ask Claude to humanize text directly:
+Or ask directly:
 
-```
+```text
 Please humanize this text: [your text]
 ```
 
@@ -98,7 +85,7 @@ Based on [Wikipedia's "Signs of AI writing"](https://en.wikipedia.org/wiki/Wikip
 ## Full Example
 
 **Before (AI-sounding):**
-> The new software update serves as a testament to the company's commitment to innovation. Moreover, it provides a seamless, intuitive, and powerful user experience—ensuring that users can accomplish their goals efficiently. It's not just an update, it's a revolution in how we think about productivity. Industry experts believe this will have a lasting impact on the entire sector, highlighting the company's pivotal role in the evolving technological landscape.
+> The new software update serves as a testament to the company's commitment to innovation. Moreover, it provides a seamless, intuitive, and powerful user experience-ensuring that users can accomplish their goals efficiently. It's not just an update, it's a revolution in how we think about productivity. Industry experts believe this will have a lasting impact on the entire sector, highlighting the company's pivotal role in the evolving technological landscape.
 
 **After (Humanized):**
 > The software update adds batch processing, keyboard shortcuts, and offline mode. Early feedback from beta testers has been positive, with most reporting faster task completion.

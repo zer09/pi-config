@@ -37,6 +37,15 @@ When updating or reinstalling `session-handoff`, apply these local overlays afte
 
 For a fresh install or reinstall from upstream, copy the upstream runtime resources first, then immediately apply the overlays above before validation or commit.
 
+## Humanizer local overlays
+
+When updating or reinstalling `humanizer`, keep `README.md` platform-neutral:
+
+- Do not restore Claude Code-only install paths such as `~/.claude/skills`.
+- Describe this repo's tracked location as `agent/skills/humanizer/`.
+- For installs outside this repo, tell users to copy the skill directory to their agent or harness-supported skill location.
+- Keep usage examples agent-neutral.
+
 ## Update workflow
 
 1. Load `skill-creator` and `gh-cli`, then read this file.

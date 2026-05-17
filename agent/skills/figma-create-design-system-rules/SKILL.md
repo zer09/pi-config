@@ -9,13 +9,9 @@ description: Generates custom design system rules for the user's codebase. Use w
 
 This skill helps you generate custom design system rules tailored to your project's specific needs. These rules guide AI coding agents to produce consistent, high-quality code when implementing Figma designs, ensuring that your team's conventions, component patterns, and architectural decisions are followed automatically.
 
-### Supported Rule Files
+### Rule File Selection
 
-| Agent | Rule File |
-|-------|-----------|
-| Claude Code | `CLAUDE.md` |
-| Codex CLI | `AGENTS.md` |
-| Cursor | `.cursor/rules/figma-design-system.mdc` |
+Do not assume a single AI platform. Prefer the project's existing rule convention. Common project-local locations include root-level Markdown rule files, tool-specific rule directories, or another documented team convention.
 
 ## What Are Design System Rules?
 
@@ -165,19 +161,19 @@ These rules define how to translate Figma inputs into code for this project and 
 - [Add any performance considerations]
 ```
 
-### Step 4: Save Rules to the Appropriate Rule File
+### Step 4: Save Rules to the Project's Rule Location
 
-Detect which AI coding agent the user is working with and save the generated rules to the corresponding file:
+Save the generated rules using the active project's existing convention:
 
-| Agent | Rule File | Notes |
-|-------|-----------|-------|
-| Claude Code | `CLAUDE.md` in project root | Markdown format. Can also use `.claude/rules/figma-design-system.md` for modular organization. |
-| Codex CLI | `AGENTS.md` in project root | Markdown format. Append as a new section if file already exists. 32 KiB combined size limit. |
-| Cursor | `.cursor/rules/figma-design-system.mdc` | Markdown with YAML frontmatter (`description`, `globs`, `alwaysApply`). |
+1. Check for existing project rule files or directories.
+2. Prefer the nearest repository or worktree root for the active task.
+3. If a rule file already exists, append a clearly named Figma/design-system section unless the project convention says otherwise.
+4. If multiple rule systems exist and the correct target is ambiguous, ask the user where to place the rules.
+5. If no convention exists, recommend a project-local Markdown rule file at the repository root.
 
-If unsure which agent the user is working with, check for existing rule files in the project or ask the user.
+Common examples are root-level Markdown rule files, hidden tool-specific rule directories, or team-defined docs/rules folders. Treat these as examples, not defaults.
 
-For Cursor, wrap the rules with YAML frontmatter:
+When writing to a rule format that requires frontmatter, include only the fields required by that tool. For example:
 
 ```markdown
 ---
@@ -189,9 +185,9 @@ alwaysApply: false
 [Generated rules here]
 ```
 
-Customize the `globs` pattern to match the directories where Figma-derived code will live in the project (e.g., `"src/**/*.tsx"` or `["src/components/**", "src/pages/**"]`).
+Customize any path globs to match the directories where Figma-derived code will live in the project, such as `"src/**/*.tsx"` or `["src/components/**", "src/pages/**"]`.
 
-After saving, the rules will be automatically loaded by the agent and applied to all Figma implementation tasks.
+After saving, tell the user where the rules were written and whether their current agent or tool needs a reload to pick them up.
 
 ### Step 5: Validate and Iterate
 
