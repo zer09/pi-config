@@ -5,6 +5,8 @@ Centralized maintenance notes for local Pi skills.
 - `gh-cli-update-process.md`: update workflow for the generated GitHub CLI skill and its command references.
 - `gh-address-comments-update-process.md`: update workflow for the GitHub PR comment handling skill.
 - `figma-update-process.md`: update workflow for the Figma design-to-code skill set.
+- `grill-with-docs-update-process.md`: update workflow for the plan-grilling and project language skill.
+- `grill-with-docs-usage.md`: usage reference for initializing CONTEXT.md and applying ADR guidance in other repos.
 - `nlm-skill-update-process.md`: update workflow for the NotebookLM CLI and MCP skill.
 - `refine-linear-task-update-process.md`: update workflow for the Linear task refinement skill.
 
