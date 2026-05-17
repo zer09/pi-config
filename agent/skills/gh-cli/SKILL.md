@@ -215,4 +215,4 @@ Help topic references live under `references/help/`:
 
 ## Maintenance reference
 
-For future updates to this generated skill, read `references/update-process.md`.
+For future updates to this generated skill, read `../../../docs/skills/gh-cli-update-process.md`.

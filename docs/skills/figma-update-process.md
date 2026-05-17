@@ -13,9 +13,9 @@ Purpose: keep the local Figma design-to-code skills aligned with OpenAI's curate
 
 Keep these active:
 
-- `figma`: lightweight Figma MCP setup/context helper.
-- `figma-implement-design`: main design-to-code workflow.
-- `figma-create-design-system-rules`: project-specific Figma-to-code rules.
+- `agent/skills/figma`: lightweight Figma MCP setup/context helper.
+- `agent/skills/figma-implement-design`: main design-to-code workflow.
+- `agent/skills/figma-create-design-system-rules`: project-specific Figma-to-code rules.
 
 Do not install or auto-enable these unless the user explicitly changes their workflow:
 
@@ -39,10 +39,10 @@ Do not install or auto-enable these unless the user explicitly changes their wor
 
 ## Validation checklist
 
-- `figma/SKILL.md` exists and references this update process.
-- `figma/references/figma-mcp-config.md` exists.
-- `figma/references/figma-tools-and-prompts.md` exists.
-- `figma-implement-design/SKILL.md` has no `disable-model-invocation: false` field.
-- `figma-create-design-system-rules/SKILL.md` has no `disable-model-invocation: false` field.
-- `figma-code-connect` is absent unless the user explicitly requests Code Connect support.
+- `agent/skills/figma/SKILL.md` exists and references this update process.
+- `agent/skills/figma/references/figma-mcp-config.md` exists.
+- `agent/skills/figma/references/figma-tools-and-prompts.md` exists.
+- `agent/skills/figma-implement-design/SKILL.md` has no `disable-model-invocation: false` field.
+- `agent/skills/figma-create-design-system-rules/SKILL.md` has no `disable-model-invocation: false` field.
+- `agent/skills/figma-code-connect` is absent unless the user explicitly requests Code Connect support.
 - No file contains a literal local home path or secret value.

@@ -53,4 +53,4 @@ These rules define how to translate Figma inputs into code for this project and 
 
 - `references/figma-mcp-config.md`: setup, verification, troubleshooting, and link-based usage reminders.
 - `references/figma-tools-and-prompts.md`: tool catalog and prompt patterns for selecting frameworks/components and fetching metadata.
-- `references/update-process.md`: source-of-truth and update workflow for future agents.
+- `../../../docs/skills/figma-update-process.md`: source-of-truth and update workflow for future agents.

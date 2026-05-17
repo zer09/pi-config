@@ -1,6 +1,6 @@
 # Updating the gh-cli skill
 
-Purpose: keep `SKILL.md` as a small command-family index and keep exact command syntax in one reference file per command/subcommand.
+Purpose: keep `agent/skills/gh-cli/SKILL.md` as a small command-family index and keep exact command syntax in one reference file per command or subcommand.
 
 ## Sources
 
@@ -10,25 +10,26 @@ Purpose: keep `SKILL.md` as a small command-family index and keep exact command 
 
 ## File model
 
-- `SKILL.md`: frontmatter, operating rules, prerequisites, common examples, and compact command structure. Keep it token-friendly.
-- `references/<command>.md`: top-level command manual, for example `references/auth.md`.
-- `references/<command>/<subcommand>.md`: subcommand manual, for example `references/auth/login.md` and `references/pr/create.md`.
-- `references/help/<topic>.md`: `gh help <topic>` pages, not command pages.
-- `agents/openai.yaml`: UI metadata only. Regenerate if SKILL.md trigger intent changes.
+- `agent/skills/gh-cli/SKILL.md`: frontmatter, operating rules, prerequisites, common examples, and compact command structure. Keep it token-friendly.
+- `agent/skills/gh-cli/references/<command>.md`: top-level command manual, for example `references/auth.md`.
+- `agent/skills/gh-cli/references/<command>/<subcommand>.md`: subcommand manual, for example `references/auth/login.md` and `references/pr/create.md`.
+- `agent/skills/gh-cli/references/help/<topic>.md`: `gh help <topic>` pages, not command pages.
+- `agent/skills/gh-cli/agents/openai.yaml`: UI metadata only. Regenerate if SKILL.md trigger intent changes.
 
 ## Update workflow for a future agent
 
-1. Load the skill-creator guidance and this file.
+1. Load the `skill-creator` and `gh-cli` skills, then read this file.
 2. Check the official manual and installed CLI version: `gh --version`, https://cli.github.com/manual/, and https://cli.github.com/manual/gh.
 3. Walk `gh help` recursively from the root command categories: Core commands, GitHub Actions commands, Alias commands, and Additional commands. Treat any `* COMMANDS` section inside a command help page as subcommands.
 4. For each command path, write exactly one reference file using this mapping:
-   - `gh auth` -> `references/auth.md`
-   - `gh auth login` -> `references/auth/login.md`
-   - `gh codespace ports forward` -> `references/codespace/ports/forward.md`
+   - `gh auth` -> `agent/skills/gh-cli/references/auth.md`
+   - `gh auth login` -> `agent/skills/gh-cli/references/auth/login.md`
+   - `gh codespace ports forward` -> `agent/skills/gh-cli/references/codespace/ports/forward.md`
 5. Keep generated reference files self-contained: source URL, generator version, summary, subcommand links, and full `gh help ...` manual text.
-6. Update `SKILL.md` only with compact command-family entries. Do not paste full manual text into SKILL.md.
-7. Preserve the GitHub mutation gate and secret-protection rules in SKILL.md.
-8. Validate with `uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/gh-cli` when PyYAML is not already installed.
+6. Update `SKILL.md` only with compact command-family entries. Do not paste full manual text into `SKILL.md`.
+7. Preserve the GitHub mutation gate and secret-protection rules in `SKILL.md`.
+8. Keep this central update process linked from `SKILL.md`; do not add a duplicate update-process file inside the skill bundle.
+9. Validate with `uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/gh-cli` when PyYAML is not already installed.
 
 ## Current generated command references
 
