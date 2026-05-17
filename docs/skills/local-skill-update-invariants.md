@@ -45,7 +45,6 @@ When installing a new Local Skill:
 - `interface.short_description` should be 25-64 characters.
 - Keep long-lived maintenance docs in `docs/skills/`.
 - Skill folders should contain runtime instructions, runtime references, scripts, assets, and lightweight maintenance pointers only.
-- Do not reintroduce `agent/skills-manifest.json` as a source of truth.
 
 ## Safety invariants
 
