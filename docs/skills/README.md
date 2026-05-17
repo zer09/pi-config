@@ -3,6 +3,7 @@
 Centralized maintenance notes for local Pi skills.
 
 - `gh-cli-update-process.md`: update workflow for the generated GitHub CLI skill and its command references.
+- `gh-address-comments-update-process.md`: update workflow for the GitHub PR comment handling skill.
 - `figma-update-process.md`: update workflow for the Figma design-to-code skill set.
 - `nlm-skill-update-process.md`: update workflow for the NotebookLM CLI and MCP skill.
 
