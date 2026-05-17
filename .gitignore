@@ -3,7 +3,7 @@ agent/sessions/
 agent/subagent-sessions/
 agent/intercom/
 agent/handoff/
-agent/handoffs/
+handoffs/
 agent/mcp-oauth/
 agent/mcp-cache.json
 agent/mcp-npx-cache.json
