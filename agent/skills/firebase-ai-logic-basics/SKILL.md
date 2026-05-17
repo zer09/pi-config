@@ -1,6 +1,6 @@
 ---
 name: firebase-ai-logic-basics
-description: "Official skill for integrating Firebase AI Logic (Gemini API) into web applications. Covers setup, multimodal inference, structured output, and security."
+description: "Official skill for integrating Firebase AI Logic (Gemini API) into web applications. Use when adding Firebase AI Logic, Gemini API calls, multimodal inference, structured output, or secure client-side AI features."
 ---
 
 # Firebase AI Logic Basics

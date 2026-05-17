@@ -75,6 +75,7 @@ Installing a new skill means:
 - `astral-python-tools-update-process.md`: update workflow for Astral uv, Ruff, and ty skills.
 - `chrome-devtools-skills-update-process.md`: update workflow for Chrome DevTools MCP skills.
 - `context7-cli-update-process.md`: update workflow for the Context7 CLI skill.
+- `custom-local-skills-update-process.md`: update workflow for custom Local Skills such as context-watcher and edge-case-analyst.
 - `firebase-skills-update-process.md`: update workflow for Firebase and Genkit skills.
 - `gh-cli-update-process.md`: update workflow for the generated GitHub CLI skill and its command references.
 - `grill-with-docs-usage.md`: usage reference for initializing CONTEXT.md and applying ADR guidance in other repos.

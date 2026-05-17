@@ -1,6 +1,6 @@
 ---
 name: edge-case-analyst
-description: "Systematically identifies unhandled states, boundary condition failures, and logic gaps in software by orchestrating code-review-graph and context-mode."
+description: "Systematically identifies unhandled states, boundary condition failures, and logic gaps by orchestrating code-review-graph and context-mode. Use when reviewing code for edge cases, blast radius, coverage gaps, race conditions, invalid inputs, or log anomalies."
 ---
 
 # Edge Case Analyst Skill
@@ -64,3 +64,7 @@ Analyze logs and test outputs for rare error patterns using context-mode.
 - **No Cross-Repo By Default**: Do not use global `cross_repo_search` for repo-scoped, root-scoped, or feature-scoped edge-case analysis unless the user explicitly asks to search unrelated registered repos.
 - **Sandbox-Only**: Adhere to the `filename` + `ctx_index` pattern for any data over 50KB to preserve the context window.
 - **RTK-Default**: Use `rtk` for all read-only operations (git, ls, find, grep) to maintain session speed and quality.
+
+## Maintenance
+
+For future updates to this custom Local Skill, read `../../../docs/skills/custom-local-skills-update-process.md`.

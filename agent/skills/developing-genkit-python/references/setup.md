@@ -11,7 +11,7 @@ uv venv --python 3.14 .venv
 # Unix: source .venv/bin/activate
 # Windows: .venv\Scripts\activate
 uv add genkit genkit-plugin-google-genai
-export GEMINI_API_KEY=your_key_here
+export GEMINI_API_KEY="<api-key>"
 ```
 
 `uv init` creates `pyproject.toml`. Add your app under something like `src/main.py` (or match whatever layout `uv` generated) and point `genkit start` at that entrypoint.

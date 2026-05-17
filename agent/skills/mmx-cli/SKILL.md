@@ -14,13 +14,13 @@ Use `mmx` to generate text, images, video, speech, music, and perform web search
 npm install -g mmx-cli
 
 # Auth (OAuth persists to ~/.mmx/credentials.json, API key persists to ~/.mmx/config.json)
-mmx auth login --api-key sk-xxxxx
+mmx auth login --api-key "<api-key>"
 
 # Verify active auth source
 mmx auth status
 
 # Or pass per-call
-mmx text chat --api-key sk-xxxxx --message "Hello"
+mmx text chat --api-key "<api-key>" --message "Hello"
 ```
 
 Region is auto-detected. Override with `--region global` or `--region cn`.

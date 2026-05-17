@@ -985,3 +985,7 @@ All three tools work on any platform that supports MCP servers and shell hooks. 
 - RTK Command Integration and Usage Protocols (project file)
 - RTK Token Optimization and Command Reference Guide (project file)
 - The Graph-First Protocol for Code Review Analysis (project file)
+
+## Maintenance
+
+For future updates to this custom Local Skill, read `../../../docs/skills/custom-local-skills-update-process.md`.

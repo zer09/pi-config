@@ -12,12 +12,16 @@ _Avoid_: dotfiles, random local settings
 A skill installed for this Pi environment and maintained as part of the Pi Config.
 _Avoid_: global skill, temporary skill
 
+**Custom Local Skill**:
+A Local Skill whose source of truth is this Pi Config rather than an Upstream Skill.
+_Avoid_: one-off skill, orphan skill
+
 **Upstream Skill**:
 A skill source maintained outside this repo and adapted into a Local Skill.
 _Avoid_: original copy, vendor file
 
 **Skill Maintenance Doc**:
-A central document that explains how to refresh a Local Skill from its Upstream Skill.
+A central document that explains how to refresh a Local Skill from its Upstream Skill or maintain a Custom Local Skill.
 _Avoid_: update note, migration note
 
 **Local Skill Update Invariant**:
@@ -39,7 +43,8 @@ _Avoid_: wrapper, logger
 ## Relationships
 
 - A **Local Skill** may be derived from an **Upstream Skill**.
-- A **Skill Maintenance Doc** records how to update one or more **Local Skills** from their **Upstream Skills**.
+- A **Custom Local Skill** is updated from the Pi Config source of truth instead of an Upstream Skill.
+- A **Skill Maintenance Doc** records how to update one or more **Local Skills** from their **Upstream Skills** or maintain **Custom Local Skills**.
 - A **Local Skill Update Invariant** constrains every skill update; upstream content is input, not final truth.
 - A **Runtime Reference** belongs to a **Local Skill** and supports task execution.
 - The **External Hosted Service Mutation Gate** applies whenever a task would modify GitHub, Linear, Figma, NotebookLM, Firebase, cloud services, or similar remote systems.
@@ -54,4 +59,5 @@ _Avoid_: wrapper, logger
 
 - "update process" is used as **Skill Maintenance Doc** in this repo.
 - "update the skill" means sync from upstream, then reapply **Local Skill Update Invariants** before validation.
+- "custom skill" means **Custom Local Skill** when it has no Upstream Skill source.
 - "reference" means **Runtime Reference** when it lives inside a skill, not long-lived maintenance guidance.
