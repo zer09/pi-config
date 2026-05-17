@@ -1,0 +1,4 @@
+interface:
+  display_name: "TDD"
+  short_description: "Use red-green-refactor development"
+  default_prompt: "Use $tdd to implement this change with one behavior-focused test at a time using red-green-refactor."

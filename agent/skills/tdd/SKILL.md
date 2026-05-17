@@ -107,3 +107,7 @@ After all tests pass, look for [refactor candidates](refactoring.md):
 [ ] Code is minimal for this test
 [ ] No speculative features added
 ```
+
+## Maintenance
+
+For future updates to this Matt Pocock-derived skill, read `../../../docs/skills/tdd-update-process.md`.
