@@ -120,6 +120,7 @@ Rules:
 - `git push` still requires exact explicit user instruction because it mutates GitHub.
 - Before `rm -rf` on a directory, verify the path is not a symlink outside the expected tree.
 - Never delete outside the project directory or `.pi/` without explicit user confirmation.
+- The whitelist allows filesystem operations; it does not allow writing file content through shell redirection or generated commands. Use native `write`/`edit` for content-bearing file creation or modification.
 - Read-only commands such as `ls`, `find`, `grep`, `rg`, `cat`, `git status`, `git log`, tests, builds, and scripts must use Context Mode.
 
 ## Tool routing table

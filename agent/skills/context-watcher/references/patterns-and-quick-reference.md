@@ -76,7 +76,7 @@ Avoid:
 ```text
 ctx_doctor
 ctx_stats
-code-review-graph list stats
+code_review_graph_list_graph_stats_tool
 ```
 
 ### Git reads

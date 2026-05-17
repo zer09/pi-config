@@ -38,7 +38,7 @@ Every sub-agent must be told to:
 Use isolated persistent sessions under:
 
 ```text
-.pi/agent/subagent-sessions/<workstream>/<agent>/
+~/.pi/agent/subagent-sessions/<workstream>/<agent>/
 ```
 
 Normally run with `--continue` so later calls resume the same sub-agent workstream memory.
