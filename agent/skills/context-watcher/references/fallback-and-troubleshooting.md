@@ -78,8 +78,11 @@ If writing a log file, use native file tools only when appropriate. Do not expos
 1. Check graph stats for the repo root.
 2. If missing/empty and authorized, build or update the graph.
 3. If daemon-backed work is useful, start the daemon and add the containing root.
-4. Retry the graph query.
-5. Fall back to Context Mode/RTK only if graph remains insufficient.
+4. Verify Pi MCP config uses `command: "code-review-graph"`, `args: ["serve"]`.
+5. Verify MCP tool schemas expose the documented parameters, such as `detail_level` on overview/review tools and bounded community parameters.
+6. If schemas are stale or missing, reinstall the configured Code Review Graph package and restart Pi before falling back.
+7. Retry the graph query.
+8. Fall back to Context Mode/RTK only if graph remains insufficient.
 
 ## Troubleshooting stale graph
 

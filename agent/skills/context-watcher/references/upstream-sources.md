@@ -40,7 +40,7 @@ Task intent -> Context Watcher routing -> Context Mode sandbox
 
 - RTK Token Optimizer: use local RTK help and installed documentation. Do not guess flags.
 - Context Mode: use `ctx_doctor`, `ctx_stats`, and installed Context Mode skill docs when troubleshooting.
-- Code Review Graph: use MCP tool descriptions and graph stats before relying on results.
+- Code Review Graph: use MCP tool descriptions, graph stats, and `code_review_graph_get_docs_section_tool(section_name="commands")` as the source of truth for current function signatures. If schemas do not match the documented parameters, restart Pi or reinstall the configured package.
 - GitHub CLI: load the local `gh-cli` skill before GitHub work.
 - Context7 CLI: load the local `context7-cli` skill when Context7 usage is unclear.
 
@@ -54,7 +54,7 @@ When updating this skill:
 4. Preserve GitHub routing through `gh-cli` and authenticated `gh` through Context Mode/RTK.
 5. Preserve Context Mode routing for shell commands, large output, file analysis, tests, builds, logs, and URLs.
 6. Preserve RTK as the default read-only shell prefix inside Context Mode.
-7. Preserve Code Review Graph first for supported code exploration/review tasks.
+7. Preserve Code Review Graph first for supported code exploration/review tasks. Keep detailed MCP parameter guidance in `code-review-graph-protocol.md`.
 8. Preserve worktree graph daemon/watch rules.
 9. Preserve sub-agent safety and compact-output rules.
 10. Prefer `uv run python <script.py>` or `uv run --with <package> python <script.py>` for Python script execution in docs.

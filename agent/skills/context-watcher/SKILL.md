@@ -174,7 +174,7 @@ For supported languages, graph-first is mandatory for codebase exploration and r
 
 Supported languages: Python, TypeScript, JavaScript, Vue, Go, Rust, Java, C#, Ruby, Kotlin, Swift, PHP, Solidity, C/C++.
 
-Use graph stats, semantic search, callers/callees, impact radius, review context, flows, communities, hub nodes, and architecture overview before broad grep/find/manual reading. If graph is unavailable or stale, build/update when authorized and appropriate, then retry.
+Use graph stats, minimal context, semantic search, callers/callees, impact radius, review context, flows, communities, hub nodes, and architecture overview before broad grep/find/manual reading. Prefer compact or minimal responses when a graph tool supports them, keep community queries bounded unless full members are explicitly needed, and use `code_review_graph_get_docs_section_tool(section_name="commands")` when MCP signatures are unclear. If graph is unavailable or stale, build/update when authorized and appropriate, then retry.
 
 ## GitHub core rule
 

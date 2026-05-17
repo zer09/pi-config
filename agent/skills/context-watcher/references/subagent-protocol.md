@@ -28,7 +28,7 @@ Every sub-agent must be told to:
 1. Load and follow `context-watcher` before using tools.
 2. Use Context Mode for shell commands, read-only operations, logs, tests, builds, and large output.
 3. Use RTK as the default prefix for read-only shell work when available.
-4. Use Code Review Graph first for supported code exploration/review tasks.
+4. Use Code Review Graph first for supported code exploration/review tasks, following `code-review-graph-protocol.md` for MCP parameters.
 5. Use the `gh-cli` skill and authenticated `gh` CLI through Context Mode/RTK for GitHub repo, PR, issue, workflow, release, review, comment, or private GitHub data.
 6. Treat external hosted services as read-only unless the parent task explicitly authorizes the exact mutation.
 7. Return compact structured findings only.

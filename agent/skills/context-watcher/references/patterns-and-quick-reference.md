@@ -23,9 +23,10 @@ This reference expands examples from `../SKILL.md`. Load it when examples are ne
 ## Pattern 3: codebase orientation
 
 1. Check graph stats.
-2. Use architecture overview, communities, flows, or hub nodes from Code Review Graph.
-3. Use Context Mode/RTK for compact file inventories if graph is insufficient.
-4. Avoid reading large files or broad search output into context.
+2. Use `code_review_graph_get_minimal_context_tool` or `code_review_graph_get_architecture_overview_tool` with `detail_level: "minimal"` for first-pass orientation.
+3. Use bounded communities, flow lists, hub nodes, bridge nodes, or suggested questions from Code Review Graph. Keep supported high-volume tools on `detail_level: "minimal"` until focused evidence is needed.
+4. Use Context Mode/RTK for compact file inventories if graph is insufficient.
+5. Avoid reading large files or broad search output into context.
 
 ## Pattern 4: infrastructure inspection
 
@@ -116,7 +117,13 @@ ctx_search({ queries: ["specific API option"] })
 
 ```text
 code_review_graph_list_graph_stats_tool
-code_review_graph_detect_changes_tool
-code_review_graph_get_impact_radius_tool
-code_review_graph_get_review_context_tool
+code_review_graph_get_minimal_context_tool
+code_review_graph_get_architecture_overview_tool(detail_level="minimal")
+code_review_graph_detect_changes_tool(detail_level="minimal", include_source=false)
+code_review_graph_get_impact_radius_tool(detail_level="minimal")
+code_review_graph_get_review_context_tool(detail_level="minimal", include_source=false)
+code_review_graph_get_affected_flows_tool
+code_review_graph_get_docs_section_tool(section_name="commands")
 ```
+
+Escalate supported tools to `detail_level="standard"` only after narrowing scope and only when examples or source context are required.

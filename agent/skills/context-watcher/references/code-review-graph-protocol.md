@@ -28,6 +28,18 @@ Use Code Review Graph before grep/find/manual file reading for:
 
 An unavailable, empty, stale, or incomplete graph is not automatically a reason to abandon graph-first. Build or update the graph when authorized and useful, then retry the graph query.
 
+## MCP function and parameter usage
+
+Use the MCP server documentation as the source of truth for current tool signatures. When a parameter or tool name is unclear, call `code_review_graph_get_docs_section_tool(section_name="commands")` before guessing.
+
+Default usage:
+
+- Use `code_review_graph_get_minimal_context_tool` or `code_review_graph_get_architecture_overview_tool(detail_level="minimal")` for broad first-pass orientation.
+- Use `detail_level="minimal"` for first-pass calls on high-volume tools that support it. Escalate only after narrowing scope and needing examples or source context.
+- Keep community queries bounded by default. Use `include_member_names`, `include_members`, or larger `members_sample_limit` only after selecting a specific community.
+- Do not use `code_review_graph_cross_repo_search_tool` for repo-scoped analysis unless the user explicitly asks to search unrelated registered repositories.
+- Treat `code_review_graph_apply_refactor_tool` as a local file mutation path. Its `dry_run` default is `false`; set `dry_run: true` for previews unless file edits are in scope, then review the diff before committing.
+
 ## Initial graph build
 
 Use Context Mode for graph CLI output:
@@ -36,15 +48,16 @@ Use Context Mode for graph CLI output:
 ctx_execute({ language: "shell", code: "code-review-graph build" })
 ```
 
-Or use the Code Review Graph MCP tools when available:
+Prefer Code Review Graph MCP tools when available.
 
-- `code_review_graph_build_or_update_graph_tool`
-- `code_review_graph_list_graph_stats_tool`
-- `code_review_graph_query_graph_tool`
-- `code_review_graph_semantic_search_nodes_tool`
-- `code_review_graph_get_review_context_tool`
-- `code_review_graph_get_impact_radius_tool`
-- `code_review_graph_detect_changes_tool`
+Primary MCP tools by workflow:
+
+- Build/status: `code_review_graph_build_or_update_graph_tool`, `code_review_graph_run_postprocess_tool`, `code_review_graph_list_graph_stats_tool`.
+- Query/review: `code_review_graph_get_minimal_context_tool`, `code_review_graph_detect_changes_tool`, `code_review_graph_query_graph_tool`, `code_review_graph_semantic_search_nodes_tool`, `code_review_graph_embed_graph_tool`, `code_review_graph_get_review_context_tool`. Use `detail_level: "minimal"` for first-pass calls where supported.
+- Impact/flows: `code_review_graph_get_impact_radius_tool`, `code_review_graph_list_flows_tool`, `code_review_graph_get_flow_tool`, `code_review_graph_get_affected_flows_tool`. Use `detail_level: "minimal"` for first-pass impact radius and flow lists.
+- Architecture/communities: `code_review_graph_get_architecture_overview_tool`, `code_review_graph_list_communities_tool`, `code_review_graph_get_community_tool`, `code_review_graph_get_hub_nodes_tool`, `code_review_graph_get_bridge_nodes_tool`, `code_review_graph_get_knowledge_gaps_tool`, `code_review_graph_get_surprising_connections_tool`, `code_review_graph_get_suggested_questions_tool`, `code_review_graph_traverse_graph_tool`. Use architecture and community lists with `detail_level: "minimal"`, then drill into one community with bounded defaults.
+- Docs/wiki/refactor: `code_review_graph_get_docs_section_tool`, `code_review_graph_generate_wiki_tool`, `code_review_graph_get_wiki_page_tool`, `code_review_graph_refactor_tool`, `code_review_graph_apply_refactor_tool`.
+- Registry/cross-repo: `code_review_graph_list_repos_tool`, `code_review_graph_cross_repo_search_tool`. Do not use cross-repo search for normal repo-scoped analysis.
 
 ## Graph-first exploration
 
@@ -52,17 +65,18 @@ Typical sequence:
 
 1. Check graph stats for the repo root.
 2. If graph is missing or empty and build/update is authorized, build or update it.
-3. Query graph for relevant files, functions, callers, callees, communities, or flows.
-4. Read only the narrow set of files needed for editing or verification.
-5. Use Context Mode/RTK fallback only if graph remains insufficient.
+3. For broad orientation, call `code_review_graph_get_minimal_context_tool` or `code_review_graph_get_architecture_overview_tool` with `detail_level: "minimal"`.
+4. Query graph for relevant files, functions, callers, callees, communities, or flows. Keep high-volume tools on `detail_level: "minimal"` until a focused evidence pass is needed.
+5. Read only the narrow set of files needed for editing or verification.
+6. Use Context Mode/RTK fallback only if graph remains insufficient.
 
 ## Code review workflow
 
 For review tasks:
 
-1. Detect changed files.
-2. Use graph impact radius for changed files.
-3. Get compact review context.
+1. Detect changed files with `code_review_graph_detect_changes_tool` and `detail_level: "minimal"`.
+2. Use graph impact radius for changed files with `detail_level: "minimal"`.
+3. Get compact review context; keep `include_source: false` for triage and enable source snippets only after narrowing scope.
 4. Inspect high-risk callers/callees and affected flows.
 5. Read only affected files or focused snippets.
 6. Validate claims with code, tests, or graph evidence.

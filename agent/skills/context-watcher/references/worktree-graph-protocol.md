@@ -77,4 +77,4 @@ When removing a worktree group:
 
 - Worktree creation and local branch operations are local mutations and may use whitelisted direct Bash when safe.
 - Remote branch pushes still require exact explicit user instruction.
-- Keep graph-first behavior active inside worktrees.
+- Keep graph-first behavior active inside worktrees and follow `code-review-graph-protocol.md` for MCP parameters.

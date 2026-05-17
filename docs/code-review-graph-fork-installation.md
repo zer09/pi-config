@@ -56,19 +56,24 @@ uv tool list | grep -A2 '^code-review-graph '
 Verify that the installed tool points at the local checkout:
 
 ```bash
-python3 - <<'PY'
-from importlib.metadata import distribution
+uv run python - <<'PY'
+from pathlib import Path
+import json
 
-dist = distribution("code-review-graph")
-print(dist.version)
-print(dist.read_text("direct_url.json"))
+tool_dir = Path.home() / ".local/share/uv/tools/code-review-graph"
+matches = list(tool_dir.glob("lib/python*/site-packages/code_review_graph-*.dist-info/direct_url.json"))
+if not matches:
+    raise SystemExit("direct_url.json not found for code-review-graph uv tool")
+for path in matches:
+    data = json.loads(path.read_text())
+    print(data)
 PY
 ```
 
 Expected `direct_url.json` shape:
 
 ```json
-{"url":"file:///home/USER/development/code-review-graph","dir_info":{"editable":true}}
+{"url":"file://<home>/development/code-review-graph","dir_info":{"editable":true}}
 ```
 
 The exact home directory will differ by machine.
@@ -99,6 +104,27 @@ command -v code-review-graph
 
 Restart Pi after changing `mcp.json`, then reconnect or list the Code Review Graph MCP server. It should expose the Code Review Graph tools.
 
+## MCP compatibility expectations
+
+The installed MCP server should expose these behavior-level contracts. Consumer-facing Pi skills should describe these contracts, not repository provenance:
+
+- `code_review_graph_get_minimal_context_tool` exists for compact orientation.
+- `code_review_graph_get_architecture_overview_tool` accepts `detail_level` and supports `"minimal"`.
+- Supported high-volume tools expose `detail_level` where documented by `code_review_graph_get_docs_section_tool(section_name="commands")`.
+- `code_review_graph_get_community_tool` accepts `include_member_names` and `members_sample_limit` for bounded community output.
+- `code_review_graph_apply_refactor_tool` defaults `dry_run` to `false`; use `dry_run: true` for previews unless edits are intended.
+
+Expected MCP tool count is 30 unless the installed Code Review Graph version intentionally adds or removes tools.
+
+## Install/update-only fork delta
+
+Keep fork/upstream details in this installation document, not in consumer-facing agent rules. The current local fork is based on upstream v2.3.3 and adds these MCP compatibility checks:
+
+- Bounded architecture overview responses with `detail_level` and minimal mode.
+- Bounded community detail responses with sampled members by default.
+- Schema-checked MCP docs via `docs/COMMANDS.md`, `docs/LLM-OPTIMIZED-REFERENCE.md`, and `code_review_graph_get_docs_section_tool(section_name="commands")`.
+- Fork diagnostic docs via `code_review_graph_get_docs_section_tool(section_name="fork-differences")`.
+
 ## Update after pulling fork changes
 
 ```bash
@@ -115,9 +141,13 @@ Reinstall after dependency, entry point, or packaging changes. Plain source edit
 
 ```bash
 code-review-graph --version
-python3 - <<'PY'
-from importlib.metadata import distribution
-print(distribution("code-review-graph").read_text("direct_url.json"))
+uv run python - <<'PY'
+from pathlib import Path
+import json
+
+tool_dir = Path.home() / ".local/share/uv/tools/code-review-graph"
+for path in tool_dir.glob("lib/python*/site-packages/code_review_graph-*.dist-info/direct_url.json"):
+    print(json.loads(path.read_text()))
 PY
 ```
 
@@ -126,4 +156,10 @@ Checklist:
 - `code-review-graph --version` prints the expected version.
 - `direct_url.json` points to `~/development/code-review-graph` and includes `"editable": true`.
 - `~/.pi/agent/mcp.json` uses `"command": "code-review-graph"` with `"args": ["serve"]`.
+- The Code Review Graph MCP server exposes 30 tools.
+- `code_review_graph_get_architecture_overview_tool` accepts `detail_level` and supports `"minimal"`.
+- Supported high-volume tools expose `detail_level` where documented by `code_review_graph_get_docs_section_tool(section_name="commands")`.
+- `code_review_graph_get_community_tool` accepts `include_member_names` and `members_sample_limit`.
+- `code_review_graph_get_docs_section_tool(section_name="commands")` returns compact current MCP signatures.
+- `code_review_graph_get_docs_section_tool(section_name="fork-differences")` returns the fork-differences summary.
 - Pi has been restarted after MCP configuration changes.
