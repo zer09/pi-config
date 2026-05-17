@@ -1,14 +1,12 @@
 # Pi Agent Rules
 
-These rules are the compact project entry point. Detailed command routing lives in `skills/context-watcher/SKILL.md`; do not duplicate it here.
-
 ## Startup
 
 Before work begins:
 
 1. Read `~/.pi/agent/skills/context-watcher/SKILL.md` and apply its preflight, routing, RTK, Code Review Graph, GitHub, Context7, worktree, sub-agent, and fallback rules.
-2. Read `rules/freedom.md` and the active approach file from `rules/`.
-3. If the task is Coding, read both `rules/coding.md` and `rules/agent.md`.
+2. Read `~/.pi/agent/rules/freedom.md` and the active approach file from `~/.pi/agent/rules/`.
+3. If the task is Coding, read both `~/.pi/agent/rules/coding.md` and `~/.pi/agent/rules/agent.md`.
 4. If the project has a supported language, verify Code Review Graph status per Context Watcher.
 5. Use RTK inside Context Mode for read-only shell work when available.
 6. If `~/.pi/agent/cleanup-sessions.sh` exists, is tracked, and is unmodified, run it with `--safe`. If not, skip and warn.
@@ -34,9 +32,9 @@ Silently check:
 ## Rule priority
 
 1. Safety and correctness: secrets, destructive actions, remote mutations, hallucination prevention.
-2. Freedom to Disagree: always active; see `rules/freedom.md`.
-3. General rules in this file.
-4. Approach-specific rules in `rules/`.
+2. Freedom to Disagree: always active; see `~/.pi/agent/rules/freedom.md`.
+3. General rules in `~/.pi/agent/AGENTS.md`.
+4. Approach-specific rules in `~/.pi/agent/rules/`.
 
 ## Safety rules
 
@@ -54,12 +52,12 @@ Silently check:
 
 ## Approach selection
 
-- Coding: code changes, debugging, refactoring, code review. Read `rules/coding.md` and `rules/agent.md`.
-- Analysis: read-only investigation, data analysis, reporting. Read `rules/analysis.md`.
-- Agent: automation, pipeline execution, multi-agent orchestration. Read `rules/agent.md`.
+- Coding: code changes, debugging, refactoring, code review. Read `~/.pi/agent/rules/coding.md` and `~/.pi/agent/rules/agent.md`.
+- Analysis: read-only investigation, data analysis, reporting. Read `~/.pi/agent/rules/analysis.md`.
+- Agent: automation, pipeline execution, multi-agent orchestration. Read `~/.pi/agent/rules/agent.md`.
 - Mixed tasks use the primary action. "Analyze and fix" is Coding.
 
-Every task follows this `AGENTS.md` file plus `rules/freedom.md`. Then apply only the matching approach file(s) above.
+Every task follows `~/.pi/agent/AGENTS.md` plus `~/.pi/agent/rules/freedom.md`. Then apply only the matching approach file(s) above.
 
 ## General behavior
 
@@ -82,7 +80,7 @@ Every task follows this `AGENTS.md` file plus `rules/freedom.md`. Then apply onl
 
 ## Rule writing location
 
-When the user asks to add or update rules without naming a destination, update project-level rules near the active work: `AGENTS.md`, `rules/`, tool-specific rule directories, or similar. Do not write global/personal memory unless explicitly requested.
+When the user asks to add or update rules without naming a destination, update the active project's rule system near the active work, such as the project's `AGENTS.md`, `rules/`, tool-specific rule directories, or similar. Do not update `~/.pi/agent/`, global memory, or personal memory unless explicitly requested or unless the active project is `~/.pi`.
 
 ## Formatting
 

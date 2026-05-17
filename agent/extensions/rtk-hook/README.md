@@ -18,7 +18,7 @@ It does not install hooks for Claude Code, Codex, Cursor, Windsurf, or other age
 
 ## Policy relationship with Context Mode
 
-Context Mode remains mandatory for compliant agents. Read-only shell work should go through `ctx_execute`, `ctx_batch_execute`, or `ctx_execute_file` according to `AGENTS.md` and the context-watcher skill.
+Context Mode remains mandatory for compliant agents. Read-only shell work should go through `ctx_execute`, `ctx_batch_execute`, or `ctx_execute_file` according to `~/.pi/agent/AGENTS.md` and the context-watcher skill.
 
 This hook is only a fallback safety net for agents that ignore those rules and call Pi `bash` directly. It reduces token waste and avoids unsafe rewrites, but it does not make direct `bash` the preferred path.
 

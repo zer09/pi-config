@@ -15,7 +15,7 @@ This skill provides a structured workflow for translating Figma designs into pro
 - If the user asks to create, edit, or delete nodes inside Figma itself, do not proceed with this skill. Explain that the local Figma setup is design-to-code only unless the user explicitly asks to install a write-oriented Figma skill.
 - If the user asks to build or update a full-page screen inside Figma from code or a description, do not proceed with this skill for the same reason.
 - If the user asks only for Code Connect mappings, explain that Code Connect is not installed in the local skill set unless the user explicitly asks for it.
-- If the user asks to author reusable agent rules (`CLAUDE.md`/`AGENTS.md`), switch to [figma-create-design-system-rules](../figma-create-design-system-rules/SKILL.md).
+- If the user asks to author reusable project rule files for Figma-to-code work, switch to [figma-create-design-system-rules](../figma-create-design-system-rules/SKILL.md).
 
 ## Prerequisites
 

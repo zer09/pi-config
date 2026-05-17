@@ -1,8 +1,8 @@
 # Coding Approach Rules
 
-Use for code changes, debugging, refactoring, and code review. Extends `AGENTS.md`, including its Safety rules, `rules/agent.md`, and `rules/freedom.md`.
+Use for code changes, debugging, refactoring, and code review. Extends `~/.pi/agent/AGENTS.md`, including its Safety rules, `~/.pi/agent/rules/agent.md`, and `~/.pi/agent/rules/freedom.md`.
 
-Read this file and `rules/agent.md` before Coding work. Coding rules win when they differ from Agent rules.
+Read `~/.pi/agent/rules/coding.md` and `~/.pi/agent/rules/agent.md` before Coding work. Coding rules win when they differ from Agent rules.
 
 ## Output
 

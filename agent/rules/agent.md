@@ -1,6 +1,6 @@
 # Agent Approach Rules
 
-Use for automation, pipelines, and multi-agent orchestration. Extends `AGENTS.md`, including its Safety rules, and `rules/freedom.md`.
+Use for automation, pipelines, and multi-agent orchestration. Extends `~/.pi/agent/AGENTS.md`, including its Safety rules, and `~/.pi/agent/rules/freedom.md`.
 
 ## Output
 

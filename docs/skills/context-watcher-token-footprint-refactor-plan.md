@@ -213,7 +213,7 @@ Target: 250-350 lines.
    - User intent to required tool route.
    - Keep this table concise and complete.
 5. Direct Bash whitelist
-   - Keep the exact whitelist aligned with `AGENTS.md`.
+   - Keep the exact whitelist aligned with `~/.pi/agent/AGENTS.md`.
 6. Context Mode core tools
    - One-line purpose for `ctx_batch_execute`, `ctx_execute`, `ctx_execute_file`, `ctx_fetch_and_index`, `ctx_search`, `ctx_index`.
 7. RTK core rule

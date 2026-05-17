@@ -1,6 +1,6 @@
 # Analysis Approach Rules
 
-Use for read-only investigation, data analysis, and reporting. Extends `AGENTS.md`, including its Safety rules, and `rules/freedom.md`.
+Use for read-only investigation, data analysis, and reporting. Extends `~/.pi/agent/AGENTS.md`, including its Safety rules, and `~/.pi/agent/rules/freedom.md`.
 
 ## Output
 
