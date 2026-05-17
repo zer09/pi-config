@@ -2,6 +2,10 @@
 
 Purpose: keep `agent/skills/nlm-skill` aligned with the upstream NotebookLM MCP CLI skill data while keeping the local skill token-friendly and compliant with the OpenAI skill-creator spec.
 
+## Local invariants
+
+Before and after syncing upstream, apply `local-skill-update-invariants.md`. Upstream content is input, not final truth; preserve local safety gates, routing, token footprint, and OpenAI skill compatibility.
+
 ## Source of truth
 
 - Upstream repository: https://github.com/jacob-bd/notebooklm-mcp-cli

@@ -2,6 +2,10 @@
 
 Purpose: keep `agent/skills/refine-linear-task` aligned with Uniswap's `refine-linear-task` skill while preserving local Pi routing, Linear mutation gates, and OpenAI skill-creator frontmatter rules.
 
+## Local invariants
+
+Before and after syncing upstream, apply `local-skill-update-invariants.md`. Upstream content is input, not final truth; preserve local safety gates, routing, token footprint, and OpenAI skill compatibility.
+
 ## Source of truth
 
 - Upstream repository: https://github.com/Uniswap/ai-toolkit

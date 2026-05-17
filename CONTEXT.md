@@ -20,6 +20,10 @@ _Avoid_: original copy, vendor file
 A central document that explains how to refresh a Local Skill from its Upstream Skill.
 _Avoid_: update note, migration note
 
+**Local Skill Update Invariant**:
+A repo-owned rule that must be reapplied after syncing a Local Skill from upstream so local safety, routing, token footprint, and OpenAI skill compatibility are preserved.
+_Avoid_: post-update cleanup, preference
+
 **Runtime Reference**:
 A bundled skill file that an agent reads during task execution for detailed commands, workflows, or troubleshooting.
 _Avoid_: maintenance doc, changelog
@@ -36,6 +40,7 @@ _Avoid_: wrapper, logger
 
 - A **Local Skill** may be derived from an **Upstream Skill**.
 - A **Skill Maintenance Doc** records how to update one or more **Local Skills** from their **Upstream Skills**.
+- A **Local Skill Update Invariant** constrains every skill update; upstream content is input, not final truth.
 - A **Runtime Reference** belongs to a **Local Skill** and supports task execution.
 - The **External Hosted Service Mutation Gate** applies whenever a task would modify GitHub, Linear, Figma, NotebookLM, Firebase, cloud services, or similar remote systems.
 - **Context Watcher** governs read-only shell work and large-output processing across the **Pi Config**.
@@ -48,4 +53,5 @@ _Avoid_: wrapper, logger
 ## Flagged ambiguities
 
 - "update process" is used as **Skill Maintenance Doc** in this repo.
+- "update the skill" means sync from upstream, then reapply **Local Skill Update Invariants** before validation.
 - "reference" means **Runtime Reference** when it lives inside a skill, not long-lived maintenance guidance.

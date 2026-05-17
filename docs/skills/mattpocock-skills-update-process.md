@@ -2,6 +2,10 @@
 
 Purpose: keep the Matt Pocock-derived engineering skills aligned with upstream while preserving local Pi conventions and OpenAI skill-creator compliance.
 
+## Local invariants
+
+Before and after syncing upstream, apply `local-skill-update-invariants.md`. Upstream content is input, not final truth; preserve local safety gates, routing, token footprint, and OpenAI skill compatibility.
+
 ## Source of truth
 
 - Upstream repository: https://github.com/mattpocock/skills

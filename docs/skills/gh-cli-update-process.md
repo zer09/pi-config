@@ -2,6 +2,10 @@
 
 Purpose: keep `agent/skills/gh-cli/SKILL.md` as a small command-family index and keep exact command syntax in one reference file per command or subcommand.
 
+## Local invariants
+
+Before and after regenerating local command references, apply `local-skill-update-invariants.md`. Generated command content is input, not final truth; preserve local safety gates, routing, token footprint, and OpenAI skill compatibility.
+
 ## Sources
 
 - Manual root: https://cli.github.com/manual/

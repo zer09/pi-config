@@ -2,6 +2,10 @@
 
 Purpose: keep database skills aligned with `planetscale/database-skills` while preserving local database safety gates and OpenAI skill-creator conventions.
 
+## Local invariants
+
+Before and after syncing upstream, apply `local-skill-update-invariants.md`. Upstream content is input, not final truth; preserve local safety gates, routing, token footprint, and OpenAI skill compatibility.
+
 ## Source of truth
 
 - Upstream repository: https://github.com/planetscale/database-skills

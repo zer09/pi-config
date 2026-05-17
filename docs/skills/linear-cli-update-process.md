@@ -2,6 +2,10 @@
 
 Purpose: keep `agent/skills/linear-cli` aligned with the Linear CLI upstream skill while preserving local Pi mutation gates and OpenAI skill-creator conventions.
 
+## Local invariants
+
+Before and after syncing upstream, apply `local-skill-update-invariants.md`. Upstream content is input, not final truth; preserve local safety gates, routing, token footprint, and OpenAI skill compatibility.
+
 ## Source of truth
 
 - Upstream repository: https://github.com/schpet/linear-cli
