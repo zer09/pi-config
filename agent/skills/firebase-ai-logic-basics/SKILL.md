@@ -5,6 +5,10 @@ description: "Official skill for integrating Firebase AI Logic (Gemini API) into
 
 # Firebase AI Logic Basics
 
+## Hosted service safety
+
+Firebase and Google Cloud actions can mutate hosted project state. List, inspect, and read configuration freely, but only enable APIs, initialize Firebase products, create apps, change console settings, deploy, or modify remote resources when the user explicitly asks for that exact action.
+
 ## Overview
 
 Firebase AI Logic is a product of Firebase that allows developers to add gen AI to their mobile and web apps using client-side SDKs. You can call Gemini models directly from your app without managing a dedicated backend. Firebase AI Logic, which was previously known as "Vertex AI for Firebase", represents the evolution of Google's AI integration platform for mobile and web developers.

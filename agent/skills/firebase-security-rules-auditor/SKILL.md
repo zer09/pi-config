@@ -4,6 +4,11 @@ description: A skill to evaluate how secure Firestore security rules are. Use th
 ---
 
 # Overview
+
+## Hosted service safety
+
+This skill is for auditing rules. Do not deploy, publish, or modify Firebase rules or hosted resources unless the user explicitly asks for that exact action.
+
 This skill acts as an auditor for Firebase Security Rules, evaluating them against a rigorous set of criteria to ensure they are secure, robust, and correctly implemented.
 
 # Scoring Criteria

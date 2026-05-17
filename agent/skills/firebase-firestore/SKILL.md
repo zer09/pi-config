@@ -5,6 +5,10 @@ description: "Sets up, manages, and executes queries against Cloud Firestore dat
 
 # Cloud Firestore Database and Operations
 
+## Hosted service safety
+
+Firestore and Firebase actions can mutate hosted project state. List, inspect, and query metadata freely, but only create databases, write data, deploy indexes or rules, delete resources, or modify remote resources when the user explicitly asks for that exact action.
+
 Before setting up dependencies, writing data models, or configuring security
 rules, you MUST always identify the Firestore instance edition.
 

@@ -236,7 +236,7 @@ async def chat(input: ChatInput, ctx: ActionRunContext) -> str:
 ## Run with Dev UI
 
 ```bash
-GEMINI_API_KEY=your-key genkit start -- uv run src/main.py
+GEMINI_API_KEY=<api-key> genkit start -- uv run src/main.py
 ```
 
 Leave the process running until the CLI prints something like:

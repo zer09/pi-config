@@ -20,7 +20,7 @@ SQL Connect provides three mechanisms for live data updates. Pick the right one 
 
 List queries require explicit `@refresh` to tell SQL Connect which mutations affect the result set.
 
-Clients consume all three using `subscribe()` instead of `execute()`. See [sdks.md](sdks.md) for per-platform subscribe patterns.
+Clients consume all three using `subscribe()` instead of `execute()`. See the per-platform SDK references for subscribe patterns: [Web](sdk_web.md), [Android](sdk_android.md), [iOS](sdk_ios.md), and [Flutter](sdk_flutter.md).
 
 ---
 

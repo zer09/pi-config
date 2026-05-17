@@ -5,6 +5,10 @@ description: Skill for working with Firebase Hosting (Classic). Use this when yo
 
 # hosting-basics
 
+## Hosted service safety
+
+Firebase Hosting actions can mutate hosted project state. List, inspect, emulate locally, and read configuration freely, but only create channels, deploy, roll back, connect GitHub, or modify remote resources when the user explicitly asks for that exact action.
+
 This skill provides instructions and references for working with Firebase Hosting, a fast and secure hosting service for your web app, static and dynamic content, and microservices.
 
 ## Overview

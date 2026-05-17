@@ -3,6 +3,10 @@ name: firebase-auth-basics
 description: "Guide for setting up and using Firebase Authentication. Use when an app requires user sign-in, user management, or secure data access using auth rules."
 ---
 
+## Hosted service safety
+
+Firebase Authentication actions can mutate hosted project state. List and inspect configuration freely, but only enable providers, create users, update auth settings, deploy rules, or modify remote resources when the user explicitly asks for that exact action.
+
 ## Prerequisites
 
 - **Firebase Project**: Created via `npx -y firebase-tools@latest projects:create` (see `firebase-basics`).

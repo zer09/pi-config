@@ -94,4 +94,7 @@ nlm flashcards create <notebook-id> --focus "Vocabulary" --confirm
 - `references/workflows.md`: end-to-end NotebookLM task sequences.
 - `references/troubleshooting.md`: auth, network, rate limit, syntax, and generation recovery.
 - `references/agents-section.md`: upstream AGENTS.md snippet adapted for local use.
-- `../../../docs/skills/nlm-skill-update-process.md`: source-of-truth and update workflow for future agents.
+
+## Maintenance
+
+For future updates to this NotebookLM skill, read `../../../docs/skills/nlm-skill-update-process.md`.

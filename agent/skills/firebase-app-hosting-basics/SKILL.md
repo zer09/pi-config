@@ -5,6 +5,10 @@ description: Deploy and manage web apps with Firebase App Hosting. Use this skil
 
 # App Hosting Basics
 
+## Hosted service safety
+
+Firebase and Google Cloud actions can mutate hosted project state. List, inspect, and read configuration freely, but only create backends, connect repositories, configure secrets, change billing, deploy, or modify remote resources when the user explicitly asks for that exact action.
+
 ## Description
 This skill enables the agent to deploy and manage modern, full-stack web applications (Next.js, Angular, etc.) using Firebase App Hosting. 
 

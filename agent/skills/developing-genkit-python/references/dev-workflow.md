@@ -22,12 +22,12 @@ If the developer doesn't have one:
 
 Open a terminal and run:
 ```bash
-export GEMINI_API_KEY=your-api-key-here
+export GEMINI_API_KEY=<api-key>
 ```
 
 To persist across sessions, add it to your shell profile:
 ```bash
-echo 'export GEMINI_API_KEY=your-api-key-here' >> ~/.zshrc && source ~/.zshrc
+echo 'export GEMINI_API_KEY=<api-key>' >> ~/.zshrc && source ~/.zshrc
 ```
 
 ---
@@ -51,7 +51,7 @@ Run this in your terminal. **It will block — that's expected.** Leave this ter
 
 ```bash
 cd /path/to/your-project
-GEMINI_API_KEY=your-api-key-here genkit start -- uv run src/main.py
+GEMINI_API_KEY=<api-key> genkit start -- uv run src/main.py
 ```
 
 You'll see output like:
@@ -84,7 +84,7 @@ To stop it: press `Ctrl+C` in the terminal.
 | Problem | Fix |
 |---------|-----|
 | `genkit: command not found` | Run: `npm install -g genkit-cli` |
-| `GEMINI_API_KEY not set` | Run: `export GEMINI_API_KEY=your-key` |
+| `GEMINI_API_KEY not set` | Run: `export GEMINI_API_KEY=<api-key>` |
 | Port 4000 already in use | Use: `genkit start --port 4001 -- uv run src/main.py` |
 | `uv: command not found` | Run: `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
 | Flow not showing in Dev UI | Make sure `genkit start` output shows no errors |

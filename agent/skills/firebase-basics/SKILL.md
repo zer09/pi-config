@@ -5,6 +5,10 @@ description: "Provides foundational setup, authentication, and project managemen
 
 # Prerequisites
 
+## Hosted service safety
+
+Firebase and Google Cloud actions can mutate hosted project state. List, inspect, and verify configuration freely, but only create projects, change active remote settings, initialize hosted products, deploy, or modify remote resources when the user explicitly asks for that exact action.
+
 Complete these setup steps before proceeding:
 
 1.  **Local Environment Setup:** Verify the environment is properly set up so we
