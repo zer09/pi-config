@@ -24,6 +24,19 @@ Prefer the `skills/` source paths over generated `dist/plugins/...` copies.
 - `agent/skills/humanizer/`: AI-writing cleanup workflow.
 - Each skill has local `agents/openai.yaml` UI metadata.
 
+## Session-handoff local overlays
+
+When updating or reinstalling `session-handoff`, apply these local overlays after copying upstream content:
+
+- Handoffs are project-local and platform-neutral: use `<project-root>/handoffs/`, not `.claude/handoffs/` or any other AI-platform-specific directory.
+- Runtime scripts must create, list, validate, and check staleness against `<project-root>/handoffs/`. Fallback project-root detection should go up from `handoffs/` to the project root.
+- Eval docs must use model capability tiers such as fast/lightweight, balanced, and high-capability. Do not reintroduce Claude-specific model names or Claude Code commands in generic session-handoff eval instructions.
+- Keep `results-high-capability-baseline.md` as the neutral baseline name. Do not restore `results-opus-baseline.md` unless a platform-specific eval suite is intentionally added.
+- Provider-specific secret detection patterns, such as OpenAI API key regexes, are security checks and may stay.
+- Keep the `SKILL.md` maintenance pointer to this file.
+
+For a fresh install or reinstall from upstream, copy the upstream runtime resources first, then immediately apply the overlays above before validation or commit.
+
 ## Update workflow
 
 1. Load `skill-creator` and `gh-cli`, then read this file.

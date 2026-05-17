@@ -1,6 +1,6 @@
 # Evaluation Test Scenarios
 
-Test these scenarios across Haiku, Sonnet, and Opus to verify skill effectiveness.
+Test these scenarios across model capability tiers to verify skill effectiveness.
 
 ## Test Setup
 
@@ -43,12 +43,12 @@ I can continue later.
 - [ ] Prompts user to complete TODO sections
 - [ ] Mentions validation step
 
-**Model-specific expectations:**
-| Model | Expectation |
-|-------|-------------|
-| Haiku | Should follow script instructions literally, may need prompting for details |
-| Sonnet | Should execute workflow smoothly, fill in reasonable context |
-| Opus | Should proactively add rich context, may suggest improvements |
+**Capability-tier expectations:**
+| Tier | Expectation |
+|------|-------------|
+| Fast/Lightweight | Should follow script instructions literally, may need prompting for details |
+| Balanced | Should execute workflow smoothly, fill in reasonable context |
+| High-Capability | Should proactively add rich context, may suggest improvements |
 
 ---
 
@@ -200,7 +200,7 @@ For each scenario, score:
 ## Test Results: [Model Name]
 
 Date: YYYY-MM-DD
-Model: [haiku/sonnet/opus]
+Model or tier: [fast-lightweight/balanced/high-capability]
 Skill version: session-handoff
 
 | Scenario | Score | Notes |

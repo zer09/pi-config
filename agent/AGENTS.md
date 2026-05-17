@@ -82,7 +82,7 @@ Every task follows this `AGENTS.md` file plus `rules/freedom.md`. Then apply onl
 
 ## Rule writing location
 
-When the user asks to add or update rules without naming a destination, update project-level rules near the active work: `AGENTS.md`, `rules/`, `.agents/`, `.cursor/rules/`, or similar. Do not write global/personal memory unless explicitly requested.
+When the user asks to add or update rules without naming a destination, update project-level rules near the active work: `AGENTS.md`, `rules/`, tool-specific rule directories, or similar. Do not write global/personal memory unless explicitly requested.
 
 ## Formatting
 

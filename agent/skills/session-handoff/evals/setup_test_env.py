@@ -408,7 +408,7 @@ def main():
         print(f"\nTest environment ready at: {args.path}")
         print(f"\nTo test, run:")
         print(f"  cd {args.path}")
-        print(f"  # Then use Claude Code with the session-handoff skill")
+        print(f"  # Then run the session-handoff skill with your target agent/model")
 
 
 if __name__ == "__main__":

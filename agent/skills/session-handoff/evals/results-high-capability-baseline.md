@@ -1,7 +1,7 @@
-# Test Results: Opus 4.5 (Baseline)
+# Test Results: High-Capability Baseline
 
 Date: 2025-11-27
-Model: claude-opus-4-5-20251101
+Model tier: high-capability
 Skill version: session-handoff v1.0
 
 ## Script Verification Tests
@@ -33,7 +33,7 @@ All scripts executed successfully against test environment:
 
 ## Detailed Observations
 
-### Strengths (Opus)
+### Strengths
 - Excellent at following multi-step workflows
 - Proactively runs validation after creation
 - Provides rich context when filling handoff sections
@@ -52,7 +52,7 @@ All scripts executed successfully against test environment:
 
 ## Test Environment
 
-```
+```text
 Location: /tmp/handoff-eval-project
 Git commits: 6
 Sample handoffs: 3 (fresh, stale, incomplete)
@@ -60,9 +60,9 @@ Sample handoffs: 3 (fresh, stale, incomplete)
 
 ## Recommendations
 
-1. **For Haiku testing**: Use more explicit trigger phrases
-2. **For Sonnet testing**: Should work well with current instructions
-3. **Skill is production-ready** for Opus usage
+1. **For fast/lightweight testing**: Use more explicit trigger phrases
+2. **For balanced testing**: Should work well with current instructions
+3. **Skill is production-ready** for high-capability model usage
 
 ---
 
@@ -73,10 +73,7 @@ Sample handoffs: 3 (fresh, stale, incomplete)
    uv run python ~/.pi/agent/skills/session-handoff/evals/setup_test_env.py
    ```
 
-2. Start Claude Code with desired model:
-   ```bash
-   claude --model haiku  # or sonnet
-   ```
+2. Start a fresh agent session with the desired model or model tier.
 
 3. Navigate to test project:
    ```bash
