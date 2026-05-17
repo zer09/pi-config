@@ -1,149 +1,108 @@
 ---
-description: Refine and enhance Linear task descriptions. Use when user says "refine this Linear task", "improve task description", "make this task clearer", "enhance Linear issue", or needs to improve clarity, completeness, and actionability of Linear issues.
-allowed-tools: Read(*), Glob(*), Grep(*), Task(subagent_type:Explore), WebSearch(*), WebFetch(*), mcp__linear__linear_search_issues(*), mcp__linear__linear_update_issue(*), mcp__linear__linear_add_comment(*)
+name: refine-linear-task
+description: Refine and enhance Linear issue descriptions. Use when the user asks to refine a Linear task, improve a task description, make a Linear issue clearer or more actionable, add acceptance criteria, enhance Linear issue scope/context, or prepare a Linear task for implementation.
 ---
 
-# Linear Task Refiner
+# Linear task refiner
 
-Analyze and refine Linear task descriptions to improve clarity, completeness, and actionability through AI-assisted enhancement.
+Use this skill to turn a vague or incomplete Linear issue into a clear, scoped, actionable task with testable acceptance criteria.
 
-## When to Activate
+## Rules
 
-- User wants to refine a Linear task
-- User mentions improving task descriptions
-- User asks to make a task clearer or more actionable
-- User wants to add acceptance criteria to a task
-- User mentions Linear issue refinement
-
-## Overview
-
-This skill takes a Linear issue identifier and refines its description by:
-
-1. **Analyzing** the current task description for gaps and ambiguities
-2. **Researching** relevant codebase context to inform the refinement
-3. **Generating** an improved description with clear structure
-4. **Presenting** the changes for user approval
-5. **Updating** the Linear issue (with user consent)
+- Load and follow `linear-cli` before interacting with Linear through the CLI.
+- Treat Linear as an external hosted service. Fetch/list/read issues freely, but do not update descriptions, add comments, change status, assign, label, or delete unless the user explicitly requests that exact write.
+- If the user asks to refine without explicitly asking to update Linear, produce a draft and ask before writing it back.
+- Use file-based flags from `linear-cli` for multi-line descriptions/comments, such as `--description-file` and `--body-file`, to avoid markdown escaping bugs.
+- If the task references code, research the relevant codebase first. Use code-review-graph when applicable, then Context Mode/RTK searches as needed.
+- Preserve the original intent. Clarify and strengthen; do not expand scope without labeling it as an assumption.
 
 ## Inputs
 
-Parse from request:
+Parse these from the request:
 
-- **issue_identifier**: The Linear issue ID (e.g., "DEV-123", "dai-456")
-- **--focus**: Optional focus for refinement (security, performance, testing, accessibility)
-- **--update**: Auto-update after approval (default: false)
+- `issue_identifier`: Linear issue ID, such as `DEV-123`.
+- `--focus`: optional refinement focus: `security`, `performance`, `testing`, or `accessibility`.
+- `--update`: update Linear only if the user explicitly requested it.
 
-## Quick Process
+## Workflow
 
-### Phase 1: Fetch and Analyze Current Task
+1. Fetch the issue title, description, status, assignee, labels, links, comments, and related issues when available.
+2. Show a short current-state summary.
+3. Analyze gaps:
+   - Clarity: is the goal specific?
+   - Context: is enough background included?
+   - Scope: are in-scope and out-of-scope boundaries clear?
+   - Acceptance criteria: are success conditions testable?
+   - Technical notes: are relevant files, patterns, and constraints included?
+   - Dependencies: are blockers or related issues captured?
+4. Research codebase context if the issue touches existing code.
+5. Draft the refined description.
+6. Present before/after summary and improvements made.
+7. Update Linear only after explicit approval for that update.
 
-1. **Fetch Issue Details** via Linear MCP tools
-2. **Display Current State**: Show issue details and description
-3. **Analyze for Gaps**: Evaluate against criteria:
- - Clarity: Is the problem/goal clearly stated?
- - Context: Is there sufficient background information?
- - Scope: Are boundaries clearly defined?
- - Acceptance Criteria: Are success conditions defined?
- - Technical Details: Are implementation hints provided?
- - Dependencies: Are related tasks/blockers mentioned?
+## Refined description template
 
-### Phase 2: Research Codebase Context
+```markdown
+## Problem
 
-If the task relates to existing code:
+<Clear statement of what needs to change and why.>
 
-1. **Identify Relevant Areas**: Search for mentioned files, functions, components
-2. **Gather Technical Context**: Use Explore agent for patterns, tests, architecture
-3. **Summarize Findings**: Document relevant files, patterns, considerations
+## Context
 
-### Phase 3: Generate Refined Description
+<Relevant product, user, technical, or design background.>
 
-Create comprehensive, well-structured description:
+## Scope
 
-- **Problem Statement**: Clear, specific description of what and why
-- **Context**: Background information, related decisions
-- **Scope**: In-scope and out-of-scope items explicitly listed
-- **Acceptance Criteria**: Specific, testable success conditions
-- **Technical Notes**: Implementation hints, relevant patterns
-- **Dependencies**: Related tasks, blockers
-- **References**: Documentation, design docs, related issues
+### In scope
 
-### Phase 4: Present and Confirm
+- <Specific included work>
 
-1. **Show Comparison**: Clear before/after comparison
-2. **Summarize Improvements**: List specific enhancements made
-3. **Request Approval**: Approve, Edit, or Cancel
+### Out of scope
 
-### Phase 5: Update Linear (with approval)
+- <Explicit non-goals>
 
-1. **Update Issue Description** via Linear MCP
-2. **Add Comment** (optional): Note the refinement
-3. **Confirm Success**: Provide issue URL
+## Acceptance criteria
 
-## Focus Areas
+- [ ] <Testable success condition>
+- [ ] <Testable success condition>
 
-### `--focus security`
+## Technical notes
 
-- Analyze for security implications
-- Add security-related acceptance criteria
-- Note potential vulnerabilities or risks
+- <Relevant files, patterns, APIs, constraints, or migration notes>
 
-### `--focus performance`
+## Dependencies and references
 
-- Consider performance impact
-- Add performance-related acceptance criteria
-- Include benchmarks or targets
+- <Related Linear issues, PRs, docs, designs, or blockers>
 
-### `--focus testing`
+## Assumptions
 
-- Emphasize test requirements
-- Add test-specific acceptance criteria
-- Note edge cases to cover
-
-### `--focus accessibility`
-
-- Consider a11y implications
-- Add accessibility acceptance criteria
-- Reference WCAG guidelines if applicable
-
-## Output Format
-
-Return structured summary:
-
-- **Issue**: Identifier and title
-- **Status**: Updated / Not Updated
-- **Improvements Made**: List of specific improvements
-- **Gap Analysis Summary**: Before/after comparison table
-- **Next Steps**: Review, assign, begin implementation
-
-## Best Practices
-
-1. **Start with Context**: Always fetch and display current state first
-2. **Research Before Refining**: Use codebase exploration for accuracy
-3. **Be Specific**: Replace vague language with concrete, actionable items
-4. **Make Criteria Testable**: Each acceptance criterion should be verifiable
-5. **Respect Original Intent**: Enhance and clarify, don't fundamentally change
-6. **Note Assumptions**: Explicitly note any assumptions made
-
-## Examples
-
-```
-"Refine Linear task DEV-123"
-"Improve the description for DAI-456"
-"Make task DEV-789 more actionable with acceptance criteria"
-"Refine DEV-104 with focus on security"
+- <Assumptions made while refining, if any>
 ```
 
-## Error Handling
+## Focus guidance
 
-- **Issue Not Found**: Verify identifier, access, and deletion status
-- **No Linear Access**: Check MCP server config and API key
-- **Update Failed**: Show error, offer manual copy option
+- `security`: include threat model notes, sensitive data handling, authz/authn boundaries, and security acceptance criteria.
+- `performance`: include expected impact, budgets, measurement approach, and benchmark criteria.
+- `testing`: emphasize unit/integration/e2e coverage, fixtures, regression cases, and edge cases.
+- `accessibility`: include keyboard, focus, semantic markup, labels, contrast, and WCAG-oriented criteria.
 
-## Integration
+## Output
 
-Works well with implementation workflow:
+Return:
 
-1. **Refine**: `/refine-linear-task DEV-123` - Clarify what needs to be done
-2. **Explore**: Understand the codebase
-3. **Plan**: Create implementation plan
-4. **Execute**: Implement the solution
+- Issue ID and title.
+- Status: draft only or updated.
+- Gap analysis summary.
+- Refined description.
+- Improvements made.
+- Next steps.
+
+## Error handling
+
+- Issue not found: verify identifier and access.
+- No Linear auth/access: ask the user to configure Linear auth; provide a manual draft if the current description was supplied in chat.
+- Update blocked or not authorized: provide a copy-paste-ready description and the exact command the user can run.
+
+## Maintenance
+
+For future updates to this Uniswap-derived skill, read `../../../docs/skills/refine-linear-task-update-process.md`.
