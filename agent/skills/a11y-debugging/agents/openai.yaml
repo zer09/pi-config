@@ -1,0 +1,4 @@
+interface:
+  display_name: "A11y Debugging"
+  short_description: "Debug web accessibility issues"
+  default_prompt: "Use $a11y-debugging to audit semantic HTML, ARIA labels, focus states, keyboard navigation, tap targets, and contrast with Chrome DevTools."

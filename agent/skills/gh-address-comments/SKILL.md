@@ -43,4 +43,4 @@ The script shells out to `gh pr view` and `gh api graphql`, resolves the PR for 
 
 ## Maintenance
 
-For future updates to this OpenAI-derived skill, read `../../../docs/skills/gh-address-comments-update-process.md`.
+For future updates to this OpenAI-derived skill, read `../../../docs/skills/openai-skills-update-process.md`.

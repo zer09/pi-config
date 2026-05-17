@@ -1,0 +1,4 @@
+interface:
+  display_name: "Firebase Basics"
+  short_description: "Initialize and configure Firebase"
+  default_prompt: "Use $firebase-basics to initialize Firebase, check Firebase CLI usage, authenticate, set active projects, or configure app files."

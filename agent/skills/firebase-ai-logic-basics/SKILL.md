@@ -1,7 +1,6 @@
 ---
 name: firebase-ai-logic-basics
-description: Official skill for integrating Firebase AI Logic (Gemini API) into web applications. Covers setup, multimodal inference, structured output, and security.
-version: 1.0.1
+description: "Official skill for integrating Firebase AI Logic (Gemini API) into web applications. Covers setup, multimodal inference, structured output, and security."
 ---
 
 # Firebase AI Logic Basics
@@ -118,6 +117,10 @@ Consider that you do not need to hardcode model names (e.g., `gemini-flash-lite-
 
 
 [Android (Kotlin) SDK usage patterns](references/usage_patterns_android.md)
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.
 
 
 

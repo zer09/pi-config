@@ -61,7 +61,7 @@ Most commands work without login. Exceptions: `skills generate` always requires 
 Set an API key via environment variable to skip interactive login entirely:
 
 ```bash
-export CONTEXT7_API_KEY=your_key
+export CONTEXT7_API_KEY=<api-key>
 ```
 
 ## Common Mistakes
@@ -70,3 +70,7 @@ export CONTEXT7_API_KEY=your_key
 - Always run `ctx7 library` first — `ctx7 docs react "hooks"` will fail without a valid ID
 - Repository format for skills is `/owner/repo` — e.g., `ctx7 skills install /anthropics/skills`
 - `skills generate` requires login — run `ctx7 login` first
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/context7-cli-update-process.md`.

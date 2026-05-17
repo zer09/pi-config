@@ -1,6 +1,6 @@
 ---
 name: figma-implement-design
-description: Translates Figma designs into production-ready application code with 1:1 visual fidelity. Use when implementing UI code from Figma files, when user mentions "implement design", "generate code", "implement component", provides Figma URLs, or asks to build components matching Figma specs. For Figma canvas writes via `use_figma`, use `figma-use`.
+description: "Translates Figma designs into production-ready application code with 1:1 visual fidelity. Use when implementing UI code from Figma files, when user mentions implement design, generate code, implement component, provides Figma URLs, or asks to build components matching Figma specs. Do not use for Figma canvas writes, design generation inside Figma, or Code Connect mapping tasks."
 ---
 
 # Implement Design
@@ -12,9 +12,9 @@ This skill provides a structured workflow for translating Figma designs into pro
 ## Skill Boundaries
 
 - Use this skill when the deliverable is code in the user's repository.
-- If the user asks to create/edit/delete nodes inside Figma itself, switch to [figma-use](../figma-use/SKILL.md).
-- If the user asks to build or update a full-page screen in Figma from code or a description, switch to [figma-generate-design](../figma-generate-design/SKILL.md).
-- If the user asks only for Code Connect mappings, switch to [figma-code-connect-components](../figma-code-connect-components/SKILL.md).
+- If the user asks to create, edit, or delete nodes inside Figma itself, do not proceed with this skill. Explain that the local Figma setup is design-to-code only unless the user explicitly asks to install a write-oriented Figma skill.
+- If the user asks to build or update a full-page screen inside Figma from code or a description, do not proceed with this skill for the same reason.
+- If the user asks only for Code Connect mappings, explain that Code Connect is not installed in the local skill set unless the user explicitly asks for it.
 - If the user asks to author reusable agent rules (`CLAUDE.md`/`AGENTS.md`), switch to [figma-create-design-system-rules](../figma-create-design-system-rules/SKILL.md).
 
 ## Prerequisites
@@ -256,3 +256,7 @@ By following this workflow, you ensure that every Figma design is implemented wi
 - [Figma MCP Server Documentation](https://developers.figma.com/docs/figma-mcp-server/)
 - [Figma MCP Server Tools and Prompts](https://developers.figma.com/docs/figma-mcp-server/tools-and-prompts/)
 - [Figma Variables and Design Tokens](https://help.figma.com/hc/en-us/articles/15339657135383-Guide-to-variables-in-Figma)
+
+## Maintenance
+
+For future updates to this OpenAI-derived Figma skill set, read `../../../docs/skills/openai-skills-update-process.md`.

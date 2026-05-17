@@ -72,4 +72,4 @@ Side effects happen inline as decisions crystallize:
 
 ## Maintenance
 
-For future updates to this Matt Pocock-derived skill, read `../../../docs/skills/improve-codebase-architecture-update-process.md`.
+For future updates to this Matt Pocock-derived skill, read `../../../docs/skills/mattpocock-skills-update-process.md`.

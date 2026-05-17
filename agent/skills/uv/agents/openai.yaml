@@ -1,0 +1,4 @@
+interface:
+  display_name: "uv"
+  short_description: "Use the uv Python package manager"
+  default_prompt: "Use $uv to manage Python projects, scripts, packages, dependencies, and tools with uv."

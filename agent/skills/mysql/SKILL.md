@@ -81,3 +81,7 @@ References:
 - Prefer measured evidence over blanket rules of thumb.
 - Note MySQL-version-specific behavior when giving advice.
 - Ask for explicit human approval before destructive data operations (drops/deletes/truncates).
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/planetscale-database-skills-update-process.md`.

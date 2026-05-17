@@ -1,0 +1,4 @@
+interface:
+  display_name: "Genkit Go"
+  short_description: "Build Genkit apps in Go"
+  default_prompt: "Use $developing-genkit-go to build Genkit flows, tools, streaming, model provider integrations, or AI features in Go."

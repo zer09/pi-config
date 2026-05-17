@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chrome DevTools Troubleshooting"
+  short_description: "Fix DevTools connection issues"
+  default_prompt: "Use $troubleshooting to diagnose Chrome DevTools MCP connection, target, list_pages, new_page, navigate_page, or server initialization failures."

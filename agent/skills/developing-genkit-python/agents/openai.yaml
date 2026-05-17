@@ -1,0 +1,4 @@
+interface:
+  display_name: "Genkit Python"
+  short_description: "Build Genkit apps in Python"
+  default_prompt: "Use $developing-genkit-python to build or debug Genkit agents, flows, tools, imports, and AI integrations in Python."

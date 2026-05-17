@@ -1,0 +1,4 @@
+interface:
+  display_name: "Memory Leak Debugging"
+  short_description: "Find JavaScript memory leaks"
+  default_prompt: "Use $memory-leak-debugging to diagnose Node.js or JavaScript memory leaks, high memory usage, OOM errors, heap snapshots, or memlab output."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Genkit JS"
+  short_description: "Build Genkit apps in JavaScript"
+  default_prompt: "Use $developing-genkit-js to build or debug Genkit agents, flows, tools, prompts, streaming, and model integrations in JavaScript or TypeScript."

@@ -96,3 +96,7 @@ If https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/troubles
 `gh issue list --repo ChromeDevTools/chrome-devtools-mcp --search "<error snippet>" --state all`
 
 Alternatively, you can recommend that the user checks https://github.com/ChromeDevTools/chrome-devtools-mcp/issues and https://github.com/ChromeDevTools/chrome-devtools-mcp/discussions for help.
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/chrome-devtools-skills-update-process.md`.

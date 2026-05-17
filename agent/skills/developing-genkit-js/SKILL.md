@@ -1,8 +1,6 @@
 ---
 name: developing-genkit-js
-description: Develop AI-powered applications using Genkit in Node.js/TypeScript. Use when the user asks about Genkit, AI agents, flows, or tools in JavaScript/TypeScript, or when encountering Genkit errors, validation issues, type errors, or API problems.
-metadata:
-  genkit-managed: true
+description: "Develop AI-powered applications using Genkit in Node.js/TypeScript. Use when the user asks about Genkit, AI agents, flows, or tools in JavaScript/TypeScript, or when encountering Genkit errors, validation issues, type errors, or API problems."
 ---
 
 # Genkit JS
@@ -110,3 +108,7 @@ The `genkit` CLI is your primary tool for development and documentation.
 -   [Common Errors](references/common-errors.md): Critical "gotchas", migration guide, and troubleshooting.
 -   [Setup Guide](references/setup.md): Manual setup instructions for new projects.
 -   [Examples](references/examples.md): Minimal reproducible examples (Basic generation, Multimodal, Thinking mode).
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.

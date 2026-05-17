@@ -1,8 +1,6 @@
 ---
 name: ruff
-description:
-  Guide for using ruff, the extremely fast Python linter and formatter. Use this
-  when linting, formatting, or fixing Python code.
+description: "Guide for using ruff, the extremely fast Python linter and formatter. Use this when linting, formatting, or fixing Python code."
 ---
 
 # ruff
@@ -132,3 +130,7 @@ ruff check --fix --unsafe-fixes .         # Apply changes
 For detailed information, read the official documentation:
 
 - https://docs.astral.sh/ruff/
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/astral-python-tools-update-process.md`.

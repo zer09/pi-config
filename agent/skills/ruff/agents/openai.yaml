@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ruff"
+  short_description: "Lint and format Python code"
+  default_prompt: "Use $ruff to lint, format, or fix Python code with Ruff while avoiding broad formatting churn."

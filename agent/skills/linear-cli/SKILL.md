@@ -1,7 +1,6 @@
 ---
 name: linear-cli
-description: Manage Linear issues from the command line using the linear cli. This skill allows automating linear management.
-allowed-tools: Bash(linear:*), Bash(curl:*)
+description: "Manage Linear issues from the command line using the linear cli. Use for reading, searching, refining, creating, and updating Linear issues with the local Linear CLI; mutations require explicit user approval."
 ---
 
 # Linear CLI
@@ -263,3 +262,7 @@ curl -s -X POST https://api.linear.app/graphql \
   -H "Authorization: $(linear auth token)" \
   -d '{"query": "{ viewer { id } }"}'
 ```
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/linear-cli-update-process.md`.

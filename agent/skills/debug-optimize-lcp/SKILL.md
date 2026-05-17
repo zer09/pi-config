@@ -119,3 +119,7 @@ The HTML document itself takes too long to arrive.
 - **Emulation**: Lab measurements differ from real-world experience. Use `emulate` to test under constraints:
   - `emulate` with `networkConditions: "Fast 3G"` and `cpuThrottlingRate: 4`.
   - This surfaces issues visible only on slower connections/devices.
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/chrome-devtools-skills-update-process.md`.

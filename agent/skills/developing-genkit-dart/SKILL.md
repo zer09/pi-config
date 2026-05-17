@@ -1,8 +1,6 @@
 ---
 name: developing-genkit-dart
-description: Generates code and provides documentation for the Genkit Dart SDK. Use when the user asks to build AI agents in Dart, use Genkit flows, or integrate LLMs into Dart/Flutter applications.
-metadata:
-  genkit-managed: true
+description: "Generates code and provides documentation for the Genkit Dart SDK. Use when the user asks to build AI agents in Dart, use Genkit flows, or integrate LLMs into Dart/Flutter applications."
 ---
 
 # Genkit Dart
@@ -55,3 +53,7 @@ To learn how to use schemantic, ensure you read [references/schemantic.md](refer
 ## Best Practices
 - Always check that code cleanly compiles using `dart analyze` before generating the final response.
 - Always use the Genkit CLI for local development and debugging.
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.

@@ -1,11 +1,20 @@
 ---
 name: edge-case-analyst
-description: Systematically identifies unhandled states, boundary condition failures, and logic gaps in software by orchestrating code-review-graph and context-mode.
-version: 1.1.0
-tags: [testing, quality-assurance, logic-audit, security]
+description: "Systematically identifies unhandled states, boundary condition failures, and logic gaps in software by orchestrating code-review-graph and context-mode."
 ---
 
 # Edge Case Analyst Skill
+
+## Local metadata
+
+Local version: 1.1.0
+
+Focus areas:
+
+- testing
+- quality assurance
+- logic audit
+- security
 
 ## Purpose
 

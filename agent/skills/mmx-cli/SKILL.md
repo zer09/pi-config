@@ -412,7 +412,7 @@ mmx config set --key region --value cn
 mmx config show
 
 # Environment
-export MINIMAX_API_KEY=sk-xxxxx
+export MINIMAX_API_KEY=<api-key>
 export MINIMAX_REGION=cn
 ```
 
@@ -438,3 +438,7 @@ mmx text chat --model MiniMax-M2.7 --message "Hello"
 ```
 
 **Resolution priority**: `--model` flag > config default > hardcoded fallback.
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/minimax-cli-update-process.md`.

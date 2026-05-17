@@ -43,3 +43,7 @@ Return your assessment in JSON format using the following structure:
     }
   ]
 }
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.

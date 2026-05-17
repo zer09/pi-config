@@ -1,9 +1,6 @@
 ---
 name: ty
-description:
-  Guide for using ty, the extremely fast Python type checker and language
-  server. Use this when type checking Python code or setting up type checking in
-  Python projects.
+description: "Guide for using ty, the extremely fast Python type checker and language server. Use this when type checking Python code or setting up type checking in Python projects."
 ---
 
 # ty
@@ -133,3 +130,7 @@ x = undefined_var  # type: ignore
 For detailed information, read the official documentation:
 
 - https://docs.astral.sh/ty/
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/astral-python-tools-update-process.md`.

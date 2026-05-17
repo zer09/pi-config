@@ -1,56 +1,62 @@
 ---
 name: context-watcher
-version: 1.1.0
-description: >
-  Unified orchestration of Context Mode, RTK Token Optimizer, and Code Review Graph. Context Mode
-  gatekeeps all execution -- RTK commands and graph queries run inside its sandbox for 60-99% token
-  savings with structural codebase awareness. Use for: shell commands, code review, blast radius
-  analysis, graph-first exploration, test runs, git history, log analysis, web doc fetching,
-  Playwright snapshots, CI/CD output, infrastructure inspection, and dependency management.
-  Errors inside the sandbox trigger automatic fallback to direct execution with logging to
-  ~/.pi/logs/. Works with Claude Code, ChatGPT/Codex, Gemini CLI, Cursor, Windsurf, Cline,
-  VS Code Copilot, OpenCode, MiniMax, and any MCP-compatible AI agent.
-triggers:
- - "set up context watcher"
- - "install context-watcher"
- - "reduce token usage"
- - "optimize context window"
- - "run command with rtk in context mode"
- - "review code changes with graph"
- - "blast radius analysis"
- - "sandbox tool calls"
- - "context mode rtk setup"
- - "code review graph in context mode"
- - "rtk not working inside context mode"
- - "run tests with token savings"
- - "analyze logs efficiently"
- - "fetch and index documentation"
- - "compact shell output"
- - "review my PR with graph"
- - "set up hooks for AI agent"
- - "context-watcher troubleshooting"
-compatibility:
-  requires:
-    - context-mode (MCP server via npx or global install)
-    - rtk (Rust binary via brew or cargo)
-    - code-review-graph (Python package via pip or Claude plugin)
-  optional:
-    - uv (for code-review-graph MCP server)
-    - sentence-transformers (for semantic search in code-review-graph)
-  platforms:
-    - Claude Code
-    - ChatGPT / Codex
-    - Gemini CLI
-    - Cursor
-    - Windsurf
-    - Cline / Roo Code
-    - VS Code Copilot
-    - OpenCode
-    - MiniMax
-    - Any MCP-compatible AI agent
+description: "Unified orchestration of Context Mode, RTK Token Optimizer, and Code Review Graph. Use for shell commands, code review, blast radius analysis, graph-first exploration, test runs, git history, log analysis, web doc fetching, Playwright snapshots, CI/CD output, infrastructure inspection, and dependency management."
 ---
 
 # Context Watcher
+
+## Local metadata
+
+Local version: 1.1.0
+
+### Trigger phrases
+
+Use this skill for:
+
+- set up context watcher
+- install context-watcher
+- reduce token usage
+- optimize context window
+- run command with rtk in context mode
+- review code changes with graph
+- blast radius analysis
+- sandbox tool calls
+- context mode rtk setup
+- code review graph in context mode
+- rtk not working inside context mode
+- run tests with token savings
+- analyze logs efficiently
+- fetch and index documentation
+- compact shell output
+- review my PR with graph
+- set up hooks for AI agent
+- context-watcher troubleshooting
+
+### Compatibility
+
+Requires:
+
+- context-mode (MCP server via npx or global install)
+- rtk (Rust binary via brew or cargo)
+- code-review-graph (Python package via pip or Claude plugin)
+
+Optional:
+
+- uv (for code-review-graph MCP server)
+- sentence-transformers (for semantic search in code-review-graph)
+
+Platforms:
+
+- Claude Code
+- ChatGPT / Codex
+- Gemini CLI
+- Cursor
+- Windsurf
+- Cline / Roo Code
+- VS Code Copilot
+- OpenCode
+- MiniMax
+- Any MCP-compatible AI agent
 
 Context Watcher is the unified orchestration layer that makes **Context Mode**, **RTK Token Optimizer**, and **Code Review Graph** work together seamlessly. Context Mode is the gatekeeper -- every RTK command and every Code Review Graph query runs inside its sandbox so raw output never floods your context window. When something fails inside the sandbox, the command falls back to direct execution and the error is logged to `~/.pi/logs/` for post-mortem debugging.
 

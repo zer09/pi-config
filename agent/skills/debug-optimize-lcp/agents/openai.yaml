@@ -1,0 +1,4 @@
+interface:
+  display_name: "Optimize LCP"
+  short_description: "Debug Largest Contentful Paint"
+  default_prompt: "Use $debug-optimize-lcp to investigate and optimize Largest Contentful Paint, slow page loads, Core Web Vitals, hero images, and main content rendering."

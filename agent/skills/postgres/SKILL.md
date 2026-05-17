@@ -1,10 +1,6 @@
 ---
 name: postgres
-description: PostgreSQL best practices, query optimization, connection troubleshooting, and performance improvement. Load when working with Postgres databases.
-license: MIT
-metadata:
-  author: planetscale
-  version: "1.0.0"
+description: "PostgreSQL best practices, query optimization, connection troubleshooting, and performance improvement. Load when working with Postgres databases."
 ---
 
 # PlanetScale Postgres
@@ -47,3 +43,7 @@ metadata:
 | Insights           | [references/ps-insights.md](https://raw.githubusercontent.com/planetscale/database-skills/main/skills/postgres/references/ps-insights.md)                       | Slow queries, MCP server, pscale CLI                  |
 | CLI Commands       | [references/ps-cli-commands.md](https://raw.githubusercontent.com/planetscale/database-skills/main/skills/postgres/references/ps-cli-commands.md)               | pscale CLI reference, branches, deploy requests, auth |
 | CLI API Insights   | [references/ps-cli-api-insights.md](https://raw.githubusercontent.com/planetscale/database-skills/main/skills/postgres/references/ps-cli-api-insights.md)       | Query insights via `pscale api`, schema analysis      |
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/planetscale-database-skills-update-process.md`.

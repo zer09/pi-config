@@ -1,8 +1,6 @@
 ---
 name: uv
-description:
-  Guide for using uv, the Python package and project manager. Use this when
-  working with Python projects, scripts, packages, or tools.
+description: "Guide for using uv, the Python package and project manager. Use this when working with Python projects, scripts, packages, or tools."
 ---
 
 # uv
@@ -180,3 +178,7 @@ For detailed information, read the official documentation:
 - https://docs.astral.sh/uv/llms.txt
 
 The documentation links to specific pages for each of these workflows.
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/astral-python-tools-update-process.md`.

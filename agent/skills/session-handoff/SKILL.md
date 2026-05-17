@@ -187,3 +187,7 @@ Example: `2024-01-15-143022-implementing-auth.md`
 
 - [handoff-template.md](references/handoff-template.md) - Complete template structure with guidance
 - [resume-checklist.md](references/resume-checklist.md) - Verification checklist for resuming agents
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/agent-toolkit-skills-update-process.md`.

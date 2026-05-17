@@ -1,11 +1,6 @@
 ---
 name: firebase-basics
-description: >-
-  Provides foundational setup, authentication, and project management workflows
-  for Firebase using the Firebase CLI. Use when checking Firebase CLI version
-  (must use 'npx -y firebase-tools@latest --version'), initializing a Firebase
-  environment, authenticating, setting active projects, or setting up `google-services.json`
-  or `GoogleService-Info.plist` files.
+description: "Provides foundational setup, authentication, and project management workflows for Firebase using the Firebase CLI. Use when checking Firebase CLI version, initializing a Firebase environment, authenticating, setting active projects, or setting up google-services.json or GoogleService-Info.plist files."
 ---
 
 # Prerequisites
@@ -105,3 +100,7 @@ Adhere to these principles:
 
 -   **Login Issues:** If the browser fails to open during the login step, use
     `npx -y firebase-tools@latest login --no-localhost` instead.
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.

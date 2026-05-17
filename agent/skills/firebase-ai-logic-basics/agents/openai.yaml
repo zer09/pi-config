@@ -1,0 +1,4 @@
+interface:
+  display_name: "Firebase AI Logic"
+  short_description: "Integrate Firebase AI Logic"
+  default_prompt: "Use $firebase-ai-logic-basics to integrate Firebase AI Logic and Gemini API features with setup, multimodal inference, structured output, and security."

@@ -1,12 +1,6 @@
 ---
 name: firebase-firestore
-description: >-
-  Sets up, manages, and executes queries against Cloud Firestore database
-  instances. You MUST unconditionally activate this skill if you plan to use
-  Firestore in any way. Use when listing or creating Firestore databases,
-  configuring security rules, designing data models, writing client SDK
-  queries, or checking indexes.
-compatibility: This skill is best used with the Firebase CLI, but does not require it. Firebase CLI can be accessed through `npx -y firebase-tools@latest`.
+description: "Sets up, manages, and executes queries against Cloud Firestore database instances. You MUST unconditionally activate this skill if you plan to use Firestore in any way. Use when listing or creating Firestore databases, configuring security rules, designing data models, writing client SDK queries, or checking indexes."
 ---
 
 # Cloud Firestore Database and Operations
@@ -64,3 +58,7 @@ corresponding reference guides:
 -   **Security Rules**: Read [security_rules.md](references/enterprise/security_rules.md)
 -   **SDK Usage**: Read [web_sdk_usage.md](references/enterprise/web_sdk_usage.md), [python_sdk_usage.md](references/enterprise/python_sdk_usage.md), [android_sdk_usage.md](references/enterprise/android_sdk_usage.md), [ios_setup.md](references/enterprise/ios_setup.md), or [flutter_setup.md](references/enterprise/flutter_setup.md)
 -   **Indexes**: Read [indexes.md](references/enterprise/indexes.md)
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.

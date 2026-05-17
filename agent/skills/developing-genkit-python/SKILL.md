@@ -1,8 +1,6 @@
 ---
 name: developing-genkit-python
-description: Develop AI-powered applications using Genkit in Python. Use when the user asks about Genkit, AI agents, flows, or tools in Python, or when encountering Genkit errors, import issues, or API problems.
-metadata:
-  genkit-managed: true
+description: "Develop AI-powered applications using Genkit in Python. Use when the user asks about Genkit, AI agents, flows, or tools in Python, or when encountering Genkit errors, import issues, or API problems."
 ---
 
 # Genkit Python
@@ -54,3 +52,7 @@ The Python SDK changes often — verify imports and APIs against the references 
 - [Dotprompt](references/dotprompt.md): `.prompt` files and helpers.
 - [Evals](references/evals.md): Evaluators and datasets.
 - [Dev Workflow](references/dev-workflow.md): `genkit start`, Dev UI, checklist.
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.

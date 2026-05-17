@@ -1,0 +1,4 @@
+interface:
+  display_name: "Firebase Auth"
+  short_description: "Set up Firebase Authentication"
+  default_prompt: "Use $firebase-auth-basics to set up Firebase Authentication, user sign-in, user management, or auth-backed data access."

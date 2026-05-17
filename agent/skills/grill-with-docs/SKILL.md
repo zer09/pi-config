@@ -89,4 +89,4 @@ If any of the three is missing, skip the ADR. Use the format in [ADR-FORMAT.md](
 
 ## Maintenance
 
-For future updates to this Matt Pocock-derived skill, read `../../../docs/skills/grill-with-docs-update-process.md`.
+For future updates to this Matt Pocock-derived skill, read `../../../docs/skills/mattpocock-skills-update-process.md`.

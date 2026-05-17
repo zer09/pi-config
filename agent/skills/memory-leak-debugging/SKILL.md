@@ -48,3 +48,7 @@ node skills/memory-leak-debugging/references/compare_snapshots.js <baseline.heap
 ```
 
 The script will analyze and output the top growing objects by size and highlight the 3 most common types of memory leaks (e.g., Detached DOM nodes, closures, Contexts) if they are present.
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/chrome-devtools-skills-update-process.md`.

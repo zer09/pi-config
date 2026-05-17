@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chrome DevTools"
+  short_description: "Debug pages with Chrome DevTools"
+  default_prompt: "Use $chrome-devtools to inspect, debug, automate, and troubleshoot web pages with the Chrome DevTools MCP server."

@@ -1,7 +1,6 @@
 ---
 name: firebase-auth-basics
-description: Guide for setting up and using Firebase Authentication. Use this skill when the user's app requires user sign-in, user management, or secure data access using auth rules.
-compatibility: This skill is best used with the Firebase CLI, but does not require it. Firebase CLI can be accessed through `npx -y firebase-tools@latest`.
+description: "Guide for setting up and using Firebase Authentication. Use when an app requires user sign-in, user management, or secure data access using auth rules."
 ---
 
 ## Prerequisites
@@ -94,3 +93,7 @@ See [references/client_sdk_android.md](references/client_sdk_android.md).
 Secure your data using `request.auth` in Firestore/Storage rules.
 
 See [references/security_rules.md](references/security_rules.md).
+
+## Maintenance
+
+For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chrome DevTools CLI"
+  short_description: "Automate Chrome DevTools by CLI"
+  default_prompt: "Use $chrome-devtools-cli to write shell scripts or commands that automate browser tasks through Chrome DevTools."
