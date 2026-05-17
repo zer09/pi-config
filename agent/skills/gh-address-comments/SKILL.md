@@ -31,7 +31,7 @@ Use this skill to find the open PR for the current branch, collect all conversat
 Run from the target repository root:
 
 ```bash
-python ~/.pi/agent/skills/gh-address-comments/scripts/fetch_comments.py
+uv run python ~/.pi/agent/skills/gh-address-comments/scripts/fetch_comments.py
 ```
 
 The script shells out to `gh pr view` and `gh api graphql`, resolves the PR for the current branch, and prints JSON with:

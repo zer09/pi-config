@@ -98,29 +98,29 @@ Each handoff links to its predecessor, providing context breadcrumbs for new age
 
 **Basic handoff creation:**
 ```bash
-python scripts/create_handoff.py implementing-user-auth
+uv run python scripts/create_handoff.py implementing-user-auth
 ```
 
 **Continuation handoff (linked to previous):**
 ```bash
-python scripts/create_handoff.py "auth-part-2" --continues-from 2024-01-15-auth.md
+uv run python scripts/create_handoff.py "auth-part-2" --continues-from 2024-01-15-auth.md
 ```
 
 **Validate before finalizing:**
 ```bash
-python scripts/validate_handoff.py .claude/handoffs/2024-01-15-143022-implementing-auth.md
+uv run python scripts/validate_handoff.py .claude/handoffs/2024-01-15-143022-implementing-auth.md
 ```
 
 ### Resuming from a Handoff
 
 **List available handoffs:**
 ```bash
-python scripts/list_handoffs.py
+uv run python scripts/list_handoffs.py
 ```
 
 **Check if handoff is current:**
 ```bash
-python scripts/check_staleness.py .claude/handoffs/2024-01-15-143022-implementing-auth.md
+uv run python scripts/check_staleness.py .claude/handoffs/2024-01-15-143022-implementing-auth.md
 ```
 
 **Load and continue work:**
@@ -157,10 +157,10 @@ Example: `2024-01-15-143022-implementing-auth.md`
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
-| `create_handoff.py` | Generate new handoff with smart scaffolding | `python scripts/create_handoff.py [slug] [--continues-from <file>]` |
-| `list_handoffs.py` | List available handoffs in a project | `python scripts/list_handoffs.py [path]` |
-| `validate_handoff.py` | Check completeness, quality, and security | `python scripts/validate_handoff.py <file>` |
-| `check_staleness.py` | Assess if handoff context is still current | `python scripts/check_staleness.py <file>` |
+| `create_handoff.py` | Generate new handoff with smart scaffolding | `uv run python scripts/create_handoff.py [slug] [--continues-from <file>]` |
+| `list_handoffs.py` | List available handoffs in a project | `uv run python scripts/list_handoffs.py [path]` |
+| `validate_handoff.py` | Check completeness, quality, and security | `uv run python scripts/validate_handoff.py <file>` |
+| `check_staleness.py` | Assess if handoff context is still current | `uv run python scripts/check_staleness.py <file>` |
 
 ## Quality Standards
 

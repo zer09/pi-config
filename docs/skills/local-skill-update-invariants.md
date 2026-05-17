@@ -57,6 +57,14 @@ When installing a new Local Skill:
 - Use `<api-key>` or environment variable names as placeholders. Do not use realistic secret-looking values.
 - Do not print, commit, or document secrets, cookies, tokens, private keys, OAuth headers, or user-specific home paths.
 
+## Python execution invariants
+
+- Prefer `uv run python <script.py>` in skill instructions, examples, and helper output when documenting Python script execution.
+- Use `uv run --with <package> python <script.py>` when a script needs runtime dependencies that may not exist in the ambient interpreter.
+- Use `uvx <tool>` for one-off Python CLI tools that are not project dependencies.
+- Avoid bare `python <script.py>`, `python3 <script.py>`, and `pip install ...` in Local Skill runtime docs unless they are intentional bad examples, upstream quotations, or language/version metadata.
+- Keep Python script shebangs such as `#!/usr/bin/env python3` when they are useful for direct executable use; the runtime docs should still prefer `uv run python ...`.
+
 ## Figma invariants
 
 - Keep the local Figma skill set focused on design-to-code.
@@ -99,6 +107,7 @@ Then verify:
 - No local markdown links are broken outside intentional examples in fenced code blocks.
 - No literal home paths or secret-looking values appear in changed files.
 - No tracked or untracked cache artifacts are present in skill folders.
+- Python script execution examples prefer `uv run python ...` or `uv run --with ... python ...` over bare `python ...`.
 - Update docs referenced from `docs/skills/README.md` still exist.
 - Removed or grouped maintenance docs have no stale references.
 

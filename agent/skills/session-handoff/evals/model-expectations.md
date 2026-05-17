@@ -150,7 +150,7 @@ These should always work regardless of model:
 
 1. **Run setup script:**
    ```bash
-   python evals/setup_test_env.py
+   uv run python evals/setup_test_env.py
    cd /tmp/handoff-eval-project
    ```
 

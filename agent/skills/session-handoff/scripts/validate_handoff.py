@@ -10,8 +10,8 @@ Checks:
 - Quality scoring
 
 Usage:
-    python validate_handoff.py <handoff-file>
-    python validate_handoff.py .claude/handoffs/2024-01-15-143022-auth.md
+    uv run python validate_handoff.py <handoff-file>
+    uv run python validate_handoff.py .claude/handoffs/2024-01-15-143022-auth.md
 """
 
 import os
@@ -301,8 +301,8 @@ def print_report(result: dict):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python validate_handoff.py <handoff-file>")
-        print("Example: python validate_handoff.py .claude/handoffs/2024-01-15-auth.md")
+        print("Usage: uv run python validate_handoff.py <handoff-file>")
+        print("Example: uv run python validate_handoff.py .claude/handoffs/2024-01-15-auth.md")
         sys.exit(1)
 
     filepath = sys.argv[1]

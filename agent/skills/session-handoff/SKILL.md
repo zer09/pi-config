@@ -27,14 +27,14 @@ Determine which mode applies:
 Run the smart scaffold script to create a pre-filled handoff document:
 
 ```bash
-python scripts/create_handoff.py [task-slug]
+uv run python scripts/create_handoff.py [task-slug]
 ```
 
-Example: `python scripts/create_handoff.py implementing-user-auth`
+Example: `uv run python scripts/create_handoff.py implementing-user-auth`
 
 **For continuation handoffs** (linking to previous work):
 ```bash
-python scripts/create_handoff.py "auth-part-2" --continues-from 2024-01-15-auth.md
+uv run python scripts/create_handoff.py "auth-part-2" --continues-from 2024-01-15-auth.md
 ```
 
 The script will:
@@ -60,7 +60,7 @@ Use the template structure in [references/handoff-template.md](references/handof
 Run the validation script to check completeness and security:
 
 ```bash
-python scripts/validate_handoff.py <handoff-file>
+uv run python scripts/validate_handoff.py <handoff-file>
 ```
 
 The validator checks:
@@ -87,7 +87,7 @@ Report to user:
 List handoffs in the current project:
 
 ```bash
-python scripts/list_handoffs.py
+uv run python scripts/list_handoffs.py
 ```
 
 This shows all handoffs with dates, titles, and completion status.
@@ -97,7 +97,7 @@ This shows all handoffs with dates, titles, and completion status.
 Before loading, check how current the handoff is:
 
 ```bash
-python scripts/check_staleness.py <handoff-file>
+uv run python scripts/check_staleness.py <handoff-file>
 ```
 
 Staleness levels:
@@ -176,12 +176,12 @@ Example: `2024-01-15-143022-implementing-auth.md`
 
 ### scripts/
 
-| Script | Purpose |
-|--------|---------|
-| `create_handoff.py [slug] [--continues-from <file>]` | Generate new handoff with smart scaffolding |
-| `list_handoffs.py [path]` | List available handoffs in a project |
-| `validate_handoff.py <file>` | Check completeness, quality, and security |
-| `check_staleness.py <file>` | Assess if handoff context is still current |
+| Command | Purpose |
+|---------|---------|
+| `uv run python create_handoff.py [slug] [--continues-from <file>]` | Generate new handoff with smart scaffolding |
+| `uv run python list_handoffs.py [path]` | List available handoffs in a project |
+| `uv run python validate_handoff.py <file>` | Check completeness, quality, and security |
+| `uv run python check_staleness.py <file>` | Assess if handoff context is still current |
 
 ### references/
 

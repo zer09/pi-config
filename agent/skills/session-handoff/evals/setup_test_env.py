@@ -8,8 +8,8 @@ Creates a mock project with:
 - Sample handoffs (fresh and stale)
 
 Usage:
-    python setup_test_env.py [--path /tmp/handoff-test]
-    python setup_test_env.py --clean  # Remove test environment
+    uv run python setup_test_env.py [--path /tmp/handoff-test]
+    uv run python setup_test_env.py --clean  # Remove test environment
 """
 
 import argparse

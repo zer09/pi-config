@@ -54,7 +54,7 @@ done
 9. Compile or test bundled scripts when they change. For example:
 
 ```bash
-python3 -m py_compile ~/.pi/agent/skills/gh-address-comments/scripts/fetch_comments.py
+uv run python -m py_compile ~/.pi/agent/skills/gh-address-comments/scripts/fetch_comments.py
 ```
 
 10. Scan changed files for literal home paths and secret values before committing.

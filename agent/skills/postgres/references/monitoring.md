@@ -42,7 +42,7 @@ Key settings: `log_min_duration_statement` (OLTP: 1–3s, analytics: 30–60s, d
 
 ## pg_activity
 
-Interactive top-like tool (pip install pg_activity). Run on DB host for OS metrics alongside PG metrics. Combines `pg_stat_activity` with CPU/memory/I/O context.
+Interactive top-like tool (`uvx pg_activity`). Run on DB host for OS metrics alongside PG metrics. Combines `pg_stat_activity` with CPU/memory/I/O context.
 
 ## Host Metrics — Critical
 
