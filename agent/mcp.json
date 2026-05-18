@@ -42,7 +42,7 @@
     "directus": {
       "url": "https://dev-directus-tmn.globalswitchboard.io/mcp",
       "auth": "bearer",
-      "bearerToken": "${DIRECTUS_DEV_API_KEY}"
+      "bearerTokenEnv": "DIRECTUS_DEV_API_KEY"
     }
   }
 }
