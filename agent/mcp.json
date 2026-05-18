@@ -39,10 +39,15 @@
         "/home/gc/.config/chromium"
       ]
     },
-    "directus": {
+    "directus_dev": {
       "url": "https://dev-directus-tmn.globalswitchboard.io/mcp",
       "auth": "bearer",
       "bearerTokenEnv": "DIRECTUS_DEV_API_KEY"
+    },
+    "directus_prod": {
+      "url": "https://directus.globalswitchboard.io/mcp",
+      "auth": "bearer",
+      "bearerTokenEnv": "DIRECTUS_API_KEY"
     }
   }
 }
