@@ -9,8 +9,10 @@ import simpleSubagentExtension, {
 	applyJsonEventLine,
 	buildPiArgs,
 	buildSystemPrompt,
+	buildTaskPrompt,
 	createTempRunFiles,
 	discoverAgents,
+	getSubagentSessionDir,
 	normalizeParams,
 	parseAgentFile,
 	parseFrontmatter,
@@ -127,6 +129,15 @@ test("tool resolution is read-only and uses only Context Mode tools", () => {
 	assert.equal(readTools.includes("write"), false);
 });
 
+test("session dir maps cwd under the subagent sessions root", () => {
+	const agentRoot = makeTempDir("pi-simple-subagent-agent-root-");
+	assert.equal(
+		getSubagentSessionDir("/home/gc/development/code-review-graph", agentRoot),
+		path.join(agentRoot, "subagent-sessions", "home", "gc", "development", "code-review-graph"),
+	);
+	assert.equal(getSubagentSessionDir("/", agentRoot), path.join(agentRoot, "subagent-sessions", "_root"));
+});
+
 test("model and thinking precedence is call, agent, then extension default", () => {
 	const cwd = makeTempDir("pi-simple-subagent-cwd-");
 	const params = normalizeParams({ agent: "a", task: "t" }, cwd);
@@ -158,7 +169,25 @@ test("prompt assembly contains boundary, mode contracts, agent prompt, and outpu
 	assert.match(readPrompt, /## Result/);
 });
 
-test("argument builder uses json, no-session, model, thinking, prompt file, tools, and task file", async () => {
+test("task prompt includes requested cwd with a concise Context Mode prefix hint", () => {
+	const cwd = makeTempDir("pi-simple-subagent-cwd-'");
+	const params = normalizeParams({ agent: "a", task: "inspect files" }, cwd);
+	const resolved = resolveInvocation(params, [sampleAgent({ name: "a" })]);
+	assert.notEqual(typeof resolved, "string");
+
+	const taskPrompt = buildTaskPrompt(resolved as any);
+	assert.match(taskPrompt, /Requested cwd:/);
+	assert.ok(taskPrompt.includes(params.cwd));
+	assert.match(taskPrompt, /Before repo work, start Context Mode shell commands with: cd '/);
+	assert.match(taskPrompt, /'\\''/);
+	assert.doesNotMatch(taskPrompt, /Use Context Mode tools for shell work/);
+	assert.doesNotMatch(taskPrompt, /direct bash is not available/);
+	assert.doesNotMatch(taskPrompt, /command string passed to Context Mode tools/);
+	assert.doesNotMatch(taskPrompt, /Context Mode command strings may start/);
+	assert.doesNotMatch(taskPrompt, /When a Context Mode shell command reads repo files/);
+});
+
+test("argument builder uses json, session-dir, continue, model, thinking, prompt file, tools, and task file", async () => {
 	const cwd = makeTempDir("pi-simple-subagent-cwd-");
 	const params = normalizeParams({ agent: "a", task: "t" }, cwd);
 	const resolved = resolveInvocation(params, [sampleAgent({ name: "a" })]);
@@ -166,7 +195,12 @@ test("argument builder uses json, no-session, model, thinking, prompt file, tool
 	const files = await createTempRunFiles(resolved as any);
 	try {
 		const args = buildPiArgs(resolved as any, files);
-		assert.deepEqual(args.slice(0, 4), ["--mode", "json", "-p", "--no-session"]);
+		assert.deepEqual(args.slice(0, 3), ["--mode", "json", "-p"]);
+		assert.equal(args.includes("--no-session"), false);
+		const sessionIndex = args.indexOf("--session-dir");
+		assert.notEqual(sessionIndex, -1);
+		assert.equal(args[sessionIndex + 1], (resolved as any).sessionDir);
+		assert.equal(args.includes("--continue"), true);
 		assert.ok(args.includes("--model"));
 		assert.ok(args.includes(DEFAULT_MODEL));
 		assert.ok(args.includes("--thinking"));
@@ -239,6 +273,11 @@ test("runSubagent uses fake Pi, redacts output, counts tools, and cleans temp fi
 			assert.equal(result.content[0].text.includes("TOKEN=<redaction-test-value>"), false);
 
 			const args = JSON.parse(fs.readFileSync(argsOut, "utf8"));
+			const sessionDir = args[args.indexOf("--session-dir") + 1];
+			assert.equal(sessionDir, getSubagentSessionDir(cwd, agentRoot));
+			assert.equal(fs.existsSync(sessionDir), true);
+			assert.equal(args.includes("--no-session"), false);
+			assert.equal(args.includes("--continue"), true);
 			const promptPath = args[args.indexOf("--append-system-prompt") + 1];
 			const taskPath = args.find((arg: string) => arg.startsWith("@")).slice(1);
 			assert.equal(fs.existsSync(promptPath), false);

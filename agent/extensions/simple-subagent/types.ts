@@ -46,6 +46,7 @@ export interface ResolvedInvocation {
 	model: string;
 	thinking: ThinkingLevel;
 	tools: string[];
+	sessionDir: string;
 }
 
 export interface SubagentToolDetails {

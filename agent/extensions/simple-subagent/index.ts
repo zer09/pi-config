@@ -30,6 +30,7 @@ export const DEFAULT_MAX_RESULT_BYTES = 24_000;
 export const MIN_MAX_RESULT_BYTES = 1_000;
 export const MAX_MAX_RESULT_BYTES = 1_000_000;
 export const STDERR_TAIL_BYTES = 4_000;
+export const SUBAGENT_SESSION_DIR_NAME = "subagent-sessions";
 
 export const READ_TOOLS = [
 	"ctx_execute",
@@ -78,6 +79,18 @@ const SubagentParamsSchema = Type.Object({
 
 function getAgentRoot(): string {
 	return process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
+}
+
+function cwdSessionSegments(cwd: string): string[] {
+	const resolved = path.resolve(cwd);
+	const root = path.parse(resolved).root;
+	const relative = path.relative(root, resolved);
+	const segments = relative.split(path.sep).filter(Boolean);
+	return segments.length > 0 ? segments : ["_root"];
+}
+
+export function getSubagentSessionDir(cwd: string, agentRoot = getAgentRoot()): string {
+	return path.join(agentRoot, SUBAGENT_SESSION_DIR_NAME, ...cwdSessionSegments(cwd));
 }
 
 function stripOptionalQuotes(value: string): string {
@@ -273,6 +286,7 @@ export function resolveInvocation(params: NormalizedSubagentParams, agents: Agen
 		model: params.model ?? agent.model ?? DEFAULT_MODEL,
 		thinking: params.thinking ?? agent.thinking ?? DEFAULT_THINKING,
 		tools: resolveTools(),
+		sessionDir: getSubagentSessionDir(params.cwd),
 	};
 }
 
@@ -324,9 +338,14 @@ export function buildSystemPrompt(agent: AgentConfig): string {
 }
 
 export function buildTaskPrompt(invocation: ResolvedInvocation): string {
+	const cwd = invocation.params.cwd;
+	const cdPrefix = `cd '${cwd.replace(/'/g, `'\\''`)}' &&`;
+
 	return [
 		"# Delegated Read-only Task",
 		`Agent: ${invocation.agent.name}`,
+		`Requested cwd: ${cwd}`,
+		`Before repo work, start Context Mode shell commands with: ${cdPrefix}`,
 		"The parent did not authorize file edits. Return findings only.",
 		"",
 		"## Task",
@@ -359,7 +378,9 @@ export function buildPiArgs(invocation: ResolvedInvocation, files: TempRunFiles)
 		"--mode",
 		"json",
 		"-p",
-		"--no-session",
+		"--session-dir",
+		invocation.sessionDir,
+		"--continue",
 		"--model",
 		invocation.model,
 		"--thinking",
@@ -684,6 +705,7 @@ export async function runSubagent(params: SubagentParams, defaultCwd: string, si
 
 	let tempFiles: TempRunFiles | undefined;
 	try {
+		await fs.promises.mkdir(resolved.sessionDir, { recursive: true });
 		tempFiles = await createTempRunFiles(resolved);
 		const args = buildPiArgs(resolved, tempFiles);
 		const invocation = getPiInvocation(args);

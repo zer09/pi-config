@@ -68,6 +68,10 @@ The extension ignores agent-file tool allowlists and always uses only Context Mo
 
 The child system prompt requires Context Watcher, Context Mode/RTK, Code Review Graph when applicable, GitHub routing through `gh-cli`, and the external hosted service mutation gate.
 
+Each target `cwd` also gets a persistent Pi session directory under `~/.pi/agent/subagent-sessions/<absolute-cwd-segments>`. The child is launched with `--session-dir` and `--continue` instead of `--no-session` so Pi and Context Mode can retain per-target session memory and indexes.
+
+The delegated task prompt includes the requested `cwd` plus one concise Context Mode shell prefix hint: `cd '<cwd>' &&`.
+
 ## Validation
 
 Unit and fake-child integration checks:
