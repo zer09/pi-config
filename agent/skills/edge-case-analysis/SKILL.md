@@ -1,9 +1,9 @@
 ---
-name: edge-case-analyst
+name: edge-case-analysis
 description: "Systematically identifies unhandled states, boundary condition failures, and logic gaps by orchestrating code-review-graph and context-mode. Use when reviewing code for edge cases, blast radius, coverage gaps, race conditions, invalid inputs, or log anomalies."
 ---
 
-# Edge Case Analyst Skill
+# Edge Case Analysis Skill
 
 ## Local metadata
 

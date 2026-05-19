@@ -1,4 +1,0 @@
-interface:
-  display_name: "Edge Case Analyst"
-  short_description: "Find unhandled edge cases"
-  default_prompt: "Use $edge-case-analyst to find unhandled states, boundary failures, race conditions, null paths, logic gaps, and security-relevant edge cases with graph-first analysis."

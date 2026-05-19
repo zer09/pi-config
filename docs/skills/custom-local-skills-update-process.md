@@ -5,7 +5,7 @@ Use this Skill Maintenance Doc for Custom Local Skills whose source of truth is 
 Current scope:
 
 - `context-watcher`
-- `edge-case-analyst`
+- `edge-case-analysis`
 - Any new custom Local Skill with no dedicated upstream source
 
 ## Update workflow
@@ -31,9 +31,9 @@ When updating it:
 - Preserve the rule that large output and file analysis must stay in Context Mode.
 - Avoid broad rewrites unless the user explicitly asks for a token-footprint reduction pass.
 
-## Edge Case Analyst rules
+## Edge Case Analysis rules
 
-When updating `edge-case-analyst`:
+When updating `edge-case-analysis`:
 
 - Preserve graph-first structural analysis.
 - Preserve Context Mode handling for logs, test output, and large files.
