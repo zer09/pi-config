@@ -82,8 +82,13 @@ function getAgentRoot(): string {
 
 function stripOptionalQuotes(value: string): string {
 	const trimmed = value.trim();
-	if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
-		return trimmed.slice(1, -1);
+	const len = trimmed.length;
+	if (len >= 2) {
+		const first = trimmed[0];
+		const last = trimmed[len - 1];
+		if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+			return trimmed.slice(1, -1);
+		}
 	}
 	return trimmed;
 }
@@ -93,25 +98,19 @@ export function parseFrontmatter(content: string): FrontmatterParseResult {
 		return { frontmatter: {}, body: content.trim() };
 	}
 
-	const lines = content.split(/\r?\n/);
-	if (lines[0].trim() !== "---") {
+	// Surgically extract the frontmatter block and the optional body in one pass.
+	const match = content.match(/^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n([\s\S]*))?$/);
+	if (!match) {
 		return { frontmatter: {}, body: content.trim() };
 	}
 
-	let endIndex = -1;
-	for (let index = 1; index < lines.length; index += 1) {
-		if (lines[index].trim() === "---") {
-			endIndex = index;
-			break;
-		}
-	}
-
-	if (endIndex === -1) {
-		return { frontmatter: {}, body: content.trim() };
-	}
-
+	const frontmatterBlock = match[1];
+	const body = match[2] || "";
 	const frontmatter: Record<string, string> = {};
-	for (const line of lines.slice(1, endIndex)) {
+
+	// Only split lines inside the isolated frontmatter configuration block.
+	const lines = frontmatterBlock.split(/\r?\n/);
+	for (const line of lines) {
 		const trimmed = line.trim();
 		if (!trimmed || trimmed.startsWith("#")) continue;
 		const separator = trimmed.indexOf(":");
@@ -121,7 +120,7 @@ export function parseFrontmatter(content: string): FrontmatterParseResult {
 		if (key) frontmatter[key] = value;
 	}
 
-	return { frontmatter, body: lines.slice(endIndex + 1).join("\n").trim() };
+	return { frontmatter, body: body.trim() };
 }
 
 function parseModel(value: string | undefined): string | undefined {
@@ -159,17 +158,23 @@ export function parseAgentFile(filePath: string, content: string): AgentConfig {
 	};
 }
 
-export function discoverAgents(agentRoot = getAgentRoot()): DiscoveredAgents {
+export async function discoverAgents(agentRoot = getAgentRoot()): Promise<DiscoveredAgents> {
 	const agentsDir = path.join(agentRoot, "agents");
 	const agents: AgentConfig[] = [];
-	if (!fs.existsSync(agentsDir)) return { agents, agentsDir };
 
-	const entries = fs.readdirSync(agentsDir, { withFileTypes: true });
+	try {
+		const stat = await fs.promises.stat(agentsDir);
+		if (!stat.isDirectory()) return { agents, agentsDir };
+	} catch {
+		return { agents, agentsDir };
+	}
+
+	const entries = await fs.promises.readdir(agentsDir, { withFileTypes: true });
 	for (const entry of entries) {
 		if (!entry.name.endsWith(".md")) continue;
 		if (!entry.isFile() && !entry.isSymbolicLink()) continue;
 		const filePath = path.join(agentsDir, entry.name);
-		const content = fs.readFileSync(filePath, "utf8");
+		const content = await fs.promises.readFile(filePath, "utf8");
 		agents.push(parseAgentFile(filePath, content));
 	}
 
@@ -184,7 +189,10 @@ export function discoverAgents(agentRoot = getAgentRoot()): DiscoveredAgents {
 		byName.set(agent.name, agent);
 	}
 
-	return { agents: agents.sort((a, b) => a.name.localeCompare(b.name)), agentsDir };
+	return {
+		agents: agents.sort((a, b) => a.name.localeCompare(b.name)),
+		agentsDir,
+	};
 }
 
 function normalizeNonEmptyString(value: unknown, field: string): string {
@@ -334,7 +342,10 @@ export async function createTempRunFiles(invocation: ResolvedInvocation): Promis
 		encoding: "utf8",
 		mode: 0o600,
 	});
-	await fs.promises.writeFile(taskPath, buildTaskPrompt(invocation), { encoding: "utf8", mode: 0o600 });
+	await fs.promises.writeFile(taskPath, buildTaskPrompt(invocation), {
+		encoding: "utf8",
+		mode: 0o600,
+	});
 	return { dir, promptPath, taskPath };
 }
 
@@ -488,7 +499,7 @@ async function runChildProcess(
 	const state = emptyEventState();
 	let stderrTail = "";
 	let lineBuffer = "";
-	let forcedStatus: RunStatus | undefined;
+	let forcedStatus: ChildProcessResult["status"] | undefined;
 
 	if (signal?.aborted) {
 		return { status: "aborted", exitCode: null, stderrTail: "", state };
@@ -525,9 +536,12 @@ async function runChildProcess(
 
 		proc.stdout?.on("data", (chunk) => {
 			lineBuffer += chunk.toString("utf8");
-			if (Buffer.byteLength(lineBuffer, "utf8") > 128_000) {
-				lineBuffer = appendTail("", lineBuffer, 128_000);
+
+			// Protect memory and guard event thread if line sizes swell unexpectedly.
+			if (lineBuffer.length > 128_000) {
+				lineBuffer = "";
 			}
+
 			const lines = lineBuffer.split("\n");
 			lineBuffer = lines.pop() ?? "";
 			for (const line of lines) applyJsonEventLine(line, state);
@@ -571,17 +585,18 @@ export function redactSensitiveText(text: string): string {
 	return redacted;
 }
 
-export function truncateMiddleByBytes(text: string, maxBytes: number): { text: string; truncated: boolean } {
-	const buffer = Buffer.from(text, "utf8");
-	if (buffer.byteLength <= maxBytes) return { text, truncated: false };
+export function truncateMiddleByChars(text: string, maxChars: number): { text: string; truncated: boolean } {
+	if (text.length <= maxChars) return { text, truncated: false };
+	if (maxChars <= 0) return { text: "", truncated: true };
 
-	const marker = `\n\n[truncated child result to ${maxBytes} bytes]\n\n`;
-	const markerBytes = Buffer.byteLength(marker, "utf8");
-	const available = Math.max(0, maxBytes - markerBytes);
-	const headBytes = Math.floor(available * 0.7);
-	const tailBytes = available - headBytes;
-	const head = buffer.subarray(0, headBytes).toString("utf8");
-	const tail = buffer.subarray(buffer.byteLength - tailBytes).toString("utf8");
+	const marker = `\n\n[truncated child result to ${maxChars} characters]\n\n`;
+	if (marker.length >= maxChars) return { text: marker.slice(0, maxChars), truncated: true };
+
+	const available = maxChars - marker.length;
+	const headChars = Math.floor(available * 0.7);
+	const tailChars = available - headChars;
+	const head = text.slice(0, headChars);
+	const tail = tailChars > 0 ? text.slice(-tailChars) : "";
 	return { text: head + marker + tail, truncated: true };
 }
 
@@ -606,14 +621,13 @@ function buildFailureText(child: ChildProcessResult, includeDiagnostics: boolean
 	return parts.join("\n");
 }
 
-function makeToolResult(
-	invocation: ResolvedInvocation,
-	child: ChildProcessResult,
-	durationMs: number,
-): SubagentToolResult {
-	const rawText = child.status === "completed" ? resultTextFromChild(child) || "(no output)" : buildFailureText(child, invocation.params.includeDiagnostics);
+function makeToolResult(invocation: ResolvedInvocation, child: ChildProcessResult, durationMs: number): SubagentToolResult {
+	const rawText =
+		child.status === "completed"
+			? resultTextFromChild(child) || "(no output)"
+			: buildFailureText(child, invocation.params.includeDiagnostics);
 	const redacted = redactSensitiveText(rawText);
-	const truncated = truncateMiddleByBytes(redacted, invocation.params.maxResultBytes);
+	const truncated = truncateMiddleByChars(redacted, invocation.params.maxResultBytes);
 	const stderr = child.stderrTail ? redactSensitiveText(child.stderrTail) : undefined;
 
 	return {
@@ -641,7 +655,7 @@ function makeImmediateFailure(
 	durationMs: number,
 ): SubagentToolResult {
 	const redacted = redactSensitiveText(message);
-	const truncated = truncateMiddleByBytes(redacted, params.maxResultBytes);
+	const truncated = truncateMiddleByChars(redacted, params.maxResultBytes);
 	return {
 		content: [{ type: "text", text: truncated.text }],
 		details: {
@@ -659,14 +673,10 @@ function makeImmediateFailure(
 	};
 }
 
-export async function runSubagent(
-	params: SubagentParams,
-	defaultCwd: string,
-	signal?: AbortSignal,
-): Promise<SubagentToolResult> {
+export async function runSubagent(params: SubagentParams, defaultCwd: string, signal?: AbortSignal): Promise<SubagentToolResult> {
 	const started = Date.now();
 	const normalized = normalizeParams(params, defaultCwd);
-	const discovery = discoverAgents();
+	const discovery = await discoverAgents();
 	const resolved = resolveInvocation(normalized, discovery.agents);
 	if (typeof resolved === "string") {
 		return makeImmediateFailure(normalized, normalized.agent, resolved, Date.now() - started);

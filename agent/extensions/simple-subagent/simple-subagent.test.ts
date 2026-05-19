@@ -18,7 +18,7 @@ import simpleSubagentExtension, {
 	resolveInvocation,
 	resolveTools,
 	runSubagent,
-	truncateMiddleByBytes,
+	truncateMiddleByChars,
 } from "./index.ts";
 import type { AgentConfig } from "./types.ts";
 
@@ -76,14 +76,26 @@ test("frontmatter parser only treats the leading block as metadata", () => {
 	assert.match(parsed.body, /still body/);
 });
 
-test("agent discovery parses supported fields and rejects duplicates", () => {
+test("frontmatter parser handles an empty body without trailing newline", () => {
+	const parsed = parseFrontmatter(`---\nname: empty\n---`);
+	assert.equal(parsed.frontmatter.name, "empty");
+	assert.equal(parsed.body, "");
+
+	const spaced = parseFrontmatter(`---\t\nname: spaced\n---   `);
+	assert.equal(spaced.frontmatter.name, "spaced");
+	assert.equal(spaced.body, "");
+
+	assert.throws(() => parseAgentFile("/tmp/empty.md", `---\nname: empty\n---`), /empty prompt body/);
+});
+
+test("agent discovery parses supported fields and rejects duplicates", async () => {
 	const root = makeTempDir("pi-simple-subagent-agents-");
 	writeAgent(
 		root,
 		"investigator",
 		`---\nname: investigator\ndescription: Reads code\nmodel: model-a\nthinking: high\ntools: read, grep, find\nsystemPromptMode: append\n---\n# Role`,
 	);
-	const discovery = discoverAgents(root);
+	const discovery = await discoverAgents(root);
 	assert.equal(discovery.agents.length, 1);
 	assert.equal(discovery.agents[0].name, "investigator");
 	assert.equal(discovery.agents[0].model, "model-a");
@@ -91,7 +103,7 @@ test("agent discovery parses supported fields and rejects duplicates", () => {
 	assert.equal(parseAgentFile("default.md", `---\nname: reviewer\nmodel: default\n---\n# Role`).model, undefined);
 
 	writeAgent(root, "duplicate", `---\nname: investigator\n---\n# Duplicate`);
-	assert.throws(() => discoverAgents(root), /Duplicate agent name/);
+	await assert.rejects(() => discoverAgents(root), /Duplicate agent name/);
 });
 
 test("tool resolution is read-only and uses only Context Mode tools", () => {
@@ -189,10 +201,14 @@ test("redaction and middle truncation keep output bounded", () => {
 	assert.match(redacted, /API_KEY=<redacted>/);
 	assert.match(redacted, /Bearer <redacted>/);
 
-	const truncated = truncateMiddleByBytes("a".repeat(200), 80);
+	const truncated = truncateMiddleByChars("a".repeat(200), 80);
 	assert.equal(truncated.truncated, true);
-	assert.ok(Buffer.byteLength(truncated.text, "utf8") <= 80);
+	assert.ok(truncated.text.length <= 80);
 	assert.match(truncated.text, /truncated child result/);
+
+	const tiny = truncateMiddleByChars("a".repeat(200), 10);
+	assert.equal(tiny.truncated, true);
+	assert.ok(tiny.text.length <= 10);
 });
 
 test("runSubagent uses fake Pi, redacts output, counts tools, and cleans temp files", async () => {
