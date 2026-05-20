@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as cp from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -28,6 +29,7 @@ import delegatesExtension, {
 	writerProfile,
 } from "./index.ts";
 import { WRITER_DIFF_MAX_PREVIEW_LINES } from "./constants.ts";
+import { redactSensitiveText } from "./redaction.ts";
 import { writerDiffDetailFields } from "./writer-diff.ts";
 import type { AgentConfig } from "./types.ts";
 
@@ -44,8 +46,12 @@ function todo(name: string): void {
 }
 
 async function withEnv<T>(values: Record<string, string | undefined>, fn: () => Promise<T> | T): Promise<T> {
+	const merged = { ...values };
+	if (merged.CAPTURE_PATH !== undefined && merged.PI_DELEGATE_INHERIT_ENV_KEYS === undefined) {
+		merged.PI_DELEGATE_INHERIT_ENV_KEYS = "CAPTURE_PATH,PI_FAKE_WRITER_MUTATION";
+	}
 	const previous: Record<string, string | undefined> = {};
-	for (const [key, value] of Object.entries(values)) {
+	for (const [key, value] of Object.entries(merged)) {
 		previous[key] = process.env[key];
 		if (value === undefined) delete process.env[key];
 		else process.env[key] = value;
@@ -151,6 +157,7 @@ function makeFakeWriterHarness(finalText = "## Result\nChanged"): {
 		fakePi,
 		`#!/usr/bin/env node
 const fs = require("node:fs");
+const path = require("node:path");
 const args = process.argv.slice(2);
 const promptPath = args[args.indexOf("--append-system-prompt") + 1];
 const taskArg = args.find((arg) => arg.startsWith("@"));
@@ -161,6 +168,9 @@ fs.writeFileSync(process.env.CAPTURE_PATH, JSON.stringify({
   childMarker: process.env.PI_DELEGATE_CHILD,
   kind: process.env.PI_DELEGATE_KIND,
   allowedPaths: process.env.PI_DELEGATE_ALLOWED_PATHS,
+  secretToken: process.env.SECRET_TOKEN,
+  allowedSecret: process.env.ALLOWED_SECRET_TOKEN,
+  piCodingAgentDir: process.env.PI_CODING_AGENT_DIR,
   promptPath,
   taskPath,
   prompt: fs.readFileSync(promptPath, "utf8"),
@@ -177,6 +187,7 @@ if (process.env.PI_FAKE_WRITER_MUTATION === "truncate-multi") {
 if (process.env.PI_FAKE_WRITER_MUTATION === "many") {
   allowedPaths.forEach((file, index) => fs.writeFileSync(file, "value " + index + String.fromCharCode(10), "utf8"));
 }
+if (process.env.PI_FAKE_WRITER_MUTATION === "outside") fs.writeFileSync(path.join(process.cwd(), "outside.ts"), "export const outside = true;\\n", "utf8");
 console.log(JSON.stringify({ type: "tool_execution_start" }));
 console.log(JSON.stringify({ type: "message_end", message: { role: "assistant", model: "writer-child-model", content: [{ type: "text", text: ${JSON.stringify(finalText)} }] } }));
 `,
@@ -212,6 +223,9 @@ fs.writeFileSync(process.env.CAPTURE_PATH, JSON.stringify({
   cwd: process.cwd(),
   childMarker: process.env.PI_DELEGATE_CHILD,
   kind: process.env.PI_DELEGATE_KIND,
+  secretToken: process.env.SECRET_TOKEN,
+  allowedSecret: process.env.ALLOWED_SECRET_TOKEN,
+  piCodingAgentDir: process.env.PI_CODING_AGENT_DIR,
   promptPath,
   taskPath,
   prompt: fs.readFileSync(promptPath, "utf8"),
@@ -260,6 +274,19 @@ test("reader tool schema rejects writer-only parameters such as allowedPaths", a
 		const [reader] = captureRegisteredTools();
 		assert.equal(reader.parameters?.properties?.allowedPaths, undefined);
 		assert.equal(reader.parameters?.additionalProperties, false);
+	});
+});
+
+test("delegate catch-all failures redact details", async () => {
+	await withEnv({ [DELEGATE_CHILD_MARKER]: undefined }, async () => {
+		const reader = captureRegisteredTools().find((tool) => tool.name === "reader");
+		const result: any = await reader?.execute?.("tool-call", { agent: "", task: "Fail" }, undefined, undefined, {
+			cwd: "/tmp/SECRET_TOKEN=<fixture-secret>",
+		});
+		assert.ok(result);
+		assert.doesNotMatch(result.content[0].text, /fixture-secret/);
+		assert.doesNotMatch(result.details.cwd, /fixture-secret/);
+		assert.match(result.details.cwd, /SECRET_TOKEN=<redacted>/);
 	});
 });
 
@@ -342,16 +369,20 @@ test("writer normalization deduplicates duplicate allowed paths before diff capt
 });
 
 test("reader invocation resolves defaults and overrides without exposing writer capability", () => {
-	const cwd = "/tmp/delegates-project";
+	const cwd = makeTempDir("pi-delegates-reader-cwd-");
 	const normalized = normalizeReaderParams({ agent: "investigator", task: "Map the auth flow", cwd }, "/tmp/parent-cwd");
 	assert.deepEqual(normalized, {
 		agent: "investigator",
 		task: "Map the auth flow",
-		cwd,
+		cwd: fs.realpathSync(cwd),
 		timeoutMs: DEFAULT_TIMEOUT_MS,
 		maxResultBytes: DEFAULT_MAX_RESULT_BYTES,
 		includeDiagnostics: false,
 	});
+	assert.throws(
+		() => normalizeReaderParams({ agent: "investigator", task: "Missing cwd", cwd: path.join(cwd, "missing") }, "/tmp/parent-cwd"),
+		/cwd must resolve to an existing directory/,
+	);
 
 	const profileDefault = resolveInvocation(normalized, [sampleAgent()]);
 	assert.notEqual(typeof profileDefault, "string");
@@ -371,7 +402,7 @@ test("reader invocation resolves defaults and overrides without exposing writer 
 		"context_mode_ctx_fetch_and_index",
 		"context_mode_ctx_index",
 	]);
-	assert.equal((profileDefault as any).sessionDir, getReaderSessionDir(cwd));
+	assert.equal((profileDefault as any).sessionDir, getReaderSessionDir(fs.realpathSync(cwd)));
 
 	const agentOverride = resolveInvocation(normalized, [sampleAgent({ model: "model-agent", thinking: "high" })]);
 	assert.notEqual(typeof agentOverride, "string");
@@ -542,7 +573,10 @@ test("writer launches Pi with fresh session, exact allowed path env, restricted 
 		{
 			PI_CODING_AGENT_DIR: harness.agentRoot,
 			PI_DELEGATE_BIN: harness.fakePi,
+			PI_DELEGATE_INHERIT_ENV_KEYS: "CAPTURE_PATH,ALLOWED_SECRET_TOKEN",
 			CAPTURE_PATH: harness.capturePath,
+			SECRET_TOKEN: `ghp_${"1".repeat(36)}`,
+			ALLOWED_SECRET_TOKEN: "allowed-for-test",
 		},
 		async () => {
 			const result = await runWriter(
@@ -558,6 +592,9 @@ test("writer launches Pi with fresh session, exact allowed path env, restricted 
 			assert.equal(capture.cwd, fs.realpathSync(harness.project));
 			assert.equal(capture.childMarker, "1");
 			assert.equal(capture.kind, "writer");
+			assert.equal(capture.secretToken, undefined);
+			assert.equal(capture.allowedSecret, "allowed-for-test");
+			assert.equal(capture.piCodingAgentDir, harness.agentRoot);
 			assert.deepEqual(JSON.parse(capture.allowedPaths), [fs.realpathSync(harness.allowedFile)]);
 			assert.equal(capture.args.includes("--continue"), false);
 			assert.deepEqual(capture.args.slice(0, 5), ["--mode", "json", "-p", "--session-dir", capture.args[4]]);
@@ -660,6 +697,29 @@ test("writer computes created-file diff previews for missing allowed files", asy
 			assert.equal(result.details.changedFiles?.[0]?.status, "created");
 			assert.match(result.details.diffPreview ?? "", /write src\/app\.ts/);
 			assert.match(result.details.diffPreview ?? "", /\+ # Created/);
+		},
+	);
+});
+
+test("writer reports outside-scope git changes as failures", async () => {
+	const harness = makeFakeWriterHarness();
+	cp.execFileSync("git", ["init"], { cwd: harness.project, stdio: "ignore" });
+	await withEnv(
+		{
+			PI_CODING_AGENT_DIR: harness.agentRoot,
+			PI_DELEGATE_BIN: harness.fakePi,
+			CAPTURE_PATH: harness.capturePath,
+			PI_FAKE_WRITER_MUTATION: "outside",
+		},
+		async () => {
+			const result = await runWriter(
+				{ agent: "implementer", task: "Stay in scope", cwd: harness.project, allowedPaths: ["src/app.ts"], timeoutMs: 5_000 },
+				"/tmp/parent",
+			);
+			assert.equal(result.details.status, "failed");
+			assert.match(result.content[0].text, /outside allowedPaths/);
+			assert.match(result.content[0].text, /outside\.ts/);
+			assert.match(result.details.error ?? "", /outside\.ts/);
 		},
 	);
 });
@@ -808,6 +868,23 @@ test("writer diff redacts secret-looking relative paths in summaries and details
 	assert.doesNotMatch(diff.changedFiles[0].path, /fixture-secret/);
 	assert.doesNotMatch(diff.diffPreview, /fixture-secret/);
 	assert.match(diff.changedFiles[0].path, /SECRET_TOKEN=<redacted>/);
+});
+
+test("redaction covers common bare provider tokens and quoted secret values", () => {
+	const githubClassic = `ghp_${"1".repeat(36)}`;
+	const githubFineGrained = `github_pat_${"2".repeat(36)}`;
+	const googleKey = `AIza${"A".repeat(32)}`;
+	const slackToken = `xoxb-${"1".repeat(12)}-${"2".repeat(12)}-${"a".repeat(16)}`;
+	const npmToken = `npm_${"3".repeat(32)}`;
+	const redacted = redactSensitiveText(
+		`github=${githubClassic} fine=${githubFineGrained} google=${googleKey} slack=${slackToken} npm=${npmToken} {"apiKey":"${googleKey}"}`,
+	);
+	assert.doesNotMatch(redacted, new RegExp(githubClassic));
+	assert.doesNotMatch(redacted, new RegExp(githubFineGrained));
+	assert.doesNotMatch(redacted, new RegExp(googleKey));
+	assert.doesNotMatch(redacted, new RegExp(slackToken));
+	assert.doesNotMatch(redacted, new RegExp(npmToken));
+	assert.match(redacted, /<redacted>/);
 });
 
 test("writer diff details prioritize changed files over unchanged allowed paths", async () => {

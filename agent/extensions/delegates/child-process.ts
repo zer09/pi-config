@@ -29,6 +29,53 @@ function killChild(proc: ReturnType<typeof spawn>): void {
 	}, 5_000).unref?.();
 }
 
+const DEFAULT_INHERITED_ENV_KEYS = new Set([
+	"HOME",
+	"PATH",
+	"SHELL",
+	"TERM",
+	"COLORTERM",
+	"LANG",
+	"LC_ALL",
+	"LC_CTYPE",
+	"TMPDIR",
+	"TEMP",
+	"TMP",
+	"USER",
+	"LOGNAME",
+	"NO_COLOR",
+	"FORCE_COLOR",
+	"PI_CODING_AGENT_DIR",
+	"PI_RTK_HOOK",
+]);
+const SECRET_ENV_NAME_PATTERN = /(?:^|_)(?:API_?KEY|KEY|TOKEN|SECRET|PASSWORD|PASS|PWD|CREDENTIALS?|AUTH|BEARER|PRIVATE)(?:_|$)/i;
+const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function envList(name: string): string[] {
+	return (process.env[name] ?? "")
+		.split(/[,:\s]+/)
+		.map((entry) => entry.trim())
+		.filter((entry) => ENV_NAME_PATTERN.test(entry));
+}
+
+function shouldInheritByDefault(name: string): boolean {
+	if (SECRET_ENV_NAME_PATTERN.test(name)) return false;
+	if (name.startsWith("PI_DELEGATE_")) return false;
+	return DEFAULT_INHERITED_ENV_KEYS.has(name) || name.startsWith("LC_") || name.startsWith("PI_");
+}
+
+function buildChildEnv(kind: "reader" | "writer", extraEnv: Record<string, string>): NodeJS.ProcessEnv {
+	const childEnv: NodeJS.ProcessEnv = {};
+	for (const [name, value] of Object.entries(process.env)) {
+		if (value !== undefined && shouldInheritByDefault(name)) childEnv[name] = value;
+	}
+	for (const name of [...envList("PI_DELEGATE_INHERIT_ENV_KEYS"), ...envList("PI_DELEGATE_INHERIT_ENV")]) {
+		const value = process.env[name];
+		if (value !== undefined) childEnv[name] = value;
+	}
+	return { ...childEnv, ...extraEnv, [DELEGATE_CHILD_MARKER]: "1", [DELEGATE_KIND_ENV]: kind };
+}
+
 export async function runChildProcess(
 	invocation: { command: string; args: string[] },
 	cwd: string,
@@ -51,7 +98,7 @@ export async function runChildProcess(
 			cwd,
 			shell: false,
 			stdio: ["ignore", "pipe", "pipe"],
-			env: { ...process.env, ...extraEnv, [DELEGATE_CHILD_MARKER]: "1", [DELEGATE_KIND_ENV]: kind },
+			env: buildChildEnv(kind, extraEnv),
 		});
 
 		const timeout = setTimeout(() => {

@@ -121,7 +121,7 @@ export function normalizeReaderParams(params: ReaderParams, defaultCwd: string):
 	const normalized: NormalizedReaderParams = {
 		agent: normalizeNonEmptyString(params.agent, "agent"),
 		task: normalizeNonEmptyString(params.task, "task"),
-		cwd: normalizeOptionalString(params.cwd, "cwd") ?? defaultCwd,
+		cwd: normalizeExistingCwd(params.cwd, defaultCwd),
 		timeoutMs: normalizeBoundedNumber(params.timeoutMs, "timeoutMs", DEFAULT_TIMEOUT_MS, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS),
 		maxResultBytes: normalizeBoundedNumber(
 			params.maxResultBytes,
