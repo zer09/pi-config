@@ -1,7 +1,7 @@
 import { Text } from "@earendil-works/pi-tui";
 
 import { WRITER_DIFF_COLLAPSED_PREVIEW_LINES } from "./constants.ts";
-import { previewTask } from "./progress.ts";
+import { previewTask, progressPhaseLabel } from "./progress.ts";
 import type { ReaderToolResult, WriterFileChange, WriterToolDetails, WriterToolResult } from "./types.ts";
 
 function color(theme: any, name: string, value: string): string {
@@ -90,7 +90,7 @@ function renderToolResult(
 	const text = (context?.lastComponent as Text | undefined) ?? new Text("", 0, 0);
 	const details = result?.details;
 	if (options?.isPartial) {
-		const phase = typeof (details as any)?.phase === "string" ? (details as any).phase : "running";
+		const phase = typeof (details as any)?.phase === "string" ? progressPhaseLabel((details as any).phase) : "running...";
 		let partial = color(theme, "warning", `${tool} ${phase}`);
 		if (tool === "writer" && typeof (details as any)?.diffPreview === "string" && (details as any).diffPreview) {
 			partial += `\n${colorDiffPreview((details as any).diffPreview, theme)}`;

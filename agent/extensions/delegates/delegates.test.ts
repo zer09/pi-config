@@ -635,7 +635,8 @@ test("writer computes UI-only diff preview for modified allowed files", async ()
 
 	const diffUpdate = updates.find((update) => update.details?.phase === "diff_ready");
 	assert.ok(diffUpdate);
-	assert.match(diffUpdate.content?.[0]?.text ?? "", /writer diff_ready: 1 file changed/);
+	assert.match(diffUpdate.content?.[0]?.text ?? "", /writer diff ready\.\.\.: 1 file changed/);
+	assert.doesNotMatch(diffUpdate.content?.[0]?.text ?? "", /diff_ready/);
 	assert.doesNotMatch(diffUpdate.content?.[0]?.text ?? "", /export const/);
 	assert.match(diffUpdate.details?.diffPreview ?? "", /\+ export const before = false;/);
 });
@@ -1081,6 +1082,16 @@ test("writer custom renderers are writer-labeled and hide raw child stdout or st
 		assert.match(collapsedRendered, /\+ new/);
 		assert.doesNotMatch(collapsedRendered, /tools: 2/);
 		assert.doesNotMatch(collapsedRendered, /raw writer final summary/);
+
+		const partial = writer.renderResult(
+			{ ...resultPayload, details: { ...resultPayload.details, phase: "launching_child" } },
+			{ expanded: false, isPartial: true } as any,
+			theme as any,
+			context as any,
+		);
+		const partialRendered = partial.render(120).join("\n");
+		assert.match(partialRendered, /writer launching child\.\.\./);
+		assert.doesNotMatch(partialRendered, /launching_child/);
 
 		const result = writer.renderResult(resultPayload, { expanded: true, isPartial: false } as any, theme as any, context as any);
 		const rendered = result.render(120).join("\n");

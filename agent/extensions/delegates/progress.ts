@@ -11,6 +11,10 @@ export function previewTask(task: string, maxChars = DEFAULT_TASK_PREVIEW_CHARS)
 	return `${compact.slice(0, maxChars - 3)}...`;
 }
 
+export function progressPhaseLabel(phase: string): string {
+	return `${phase.replace(/_/g, " ")}...`;
+}
+
 export function emitDelegateProgress(
 	onUpdate: DelegateUpdate | undefined,
 	phase: DelegateProgressPhase,
@@ -20,7 +24,7 @@ export function emitDelegateProgress(
 	const tool = info.tool ?? "reader";
 	const message = info.message ?? `${info.agent} - ${previewTask(info.task)}`;
 	onUpdate({
-		content: [{ type: "text", text: `${tool} ${phase}: ${message}` }],
+		content: [{ type: "text", text: `${tool} ${progressPhaseLabel(phase)}: ${message}` }],
 		details: {
 			tool,
 			phase,
