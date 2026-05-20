@@ -56,7 +56,7 @@ When updating this skill:
 6. Preserve RTK as the default read-only shell prefix inside Context Mode.
 7. Preserve Code Review Graph first for supported code exploration/review tasks. Keep detailed MCP parameter guidance in `code-review-graph-protocol.md`.
 8. Preserve worktree graph daemon/watch rules.
-9. Preserve sub-agent safety and compact-output rules.
+9. Preserve reader delegate safety and compact-output rules.
 10. Prefer `uv run python <script.py>` or `uv run --with <package> python <script.py>` for Python script execution in docs.
 11. Avoid realistic secret-looking values and user-specific home paths.
 
@@ -64,4 +64,4 @@ When updating this skill:
 
 Keep `SKILL.md` compact and load-bearing. References may be longer, but each reference must have a visible load trigger in `SKILL.md`.
 
-Do not move mandatory behavior only into references. An agent that loads only `SKILL.md` must still choose safe routes for shell, files, URLs, GitHub, Context7, Code Review Graph, worktrees, sub-agents, and fallback.
+Do not move mandatory behavior only into references. An agent that loads only `SKILL.md` must still choose safe routes for shell, files, URLs, GitHub, Context7, Code Review Graph, worktrees, reader delegates, and fallback.

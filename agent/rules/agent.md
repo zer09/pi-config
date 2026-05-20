@@ -13,4 +13,4 @@ Use for automation, pipelines, and multi-agent orchestration. Extends `~/.pi/age
 - Execute clearly defined tasks without asking for confirmation.
 - If a step fails, state what failed, why, and what was attempted, then stop.
 - Never invent paths, endpoints, fields, function names, files, or resources. Use `UNKNOWN` or `null` when unknown.
-- Cap parallel sub-agents at 3 unless explicitly instructed otherwise.
+- Cap parallel `reader` delegates at 3 unless explicitly instructed otherwise.

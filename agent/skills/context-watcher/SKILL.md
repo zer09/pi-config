@@ -5,7 +5,7 @@ description: "Unified orchestration of Context Mode, RTK Token Optimizer, and Co
 
 # Context Watcher
 
-Context Watcher protects the context window and enforces safe routing for shell work, file reads, web/docs access, GitHub data, Code Review Graph, RTK, worktrees, sub-agents, and large output.
+Context Watcher protects the context window and enforces safe routing for shell work, file reads, web/docs access, GitHub data, Code Review Graph, RTK, worktrees, reader delegates, and large output.
 
 Use this skill for commands, codebase exploration, code review, tests, builds, logs, data analysis, web docs, GitHub operations, infrastructure inspection, dependency checks, and any task where raw output could exceed 20 lines.
 
@@ -20,7 +20,7 @@ Load and apply this skill for:
 - URL fetching, documentation lookup, API reference checks, and current third-party library behavior.
 - Browser/page snapshots, accessibility trees, Playwright output, and other large structured outputs.
 - Worktree creation/use/removal and multi-repo feature roots.
-- Sub-agent orchestration and parallel investigation.
+- Reader delegate orchestration and parallel investigation.
 - Context recovery after compaction or resume.
 
 ## Compatibility
@@ -96,10 +96,11 @@ Before any tool call, silently verify this checklist.
     - Prefer daemon-backed graph roots for active work.
     - Remove daemon watch entries when removing worktree groups.
 
-14. Is this delegating to a sub-agent?
-    - Require the sub-agent to load Context Watcher.
-    - Keep default mode read-only.
+14. Is this delegating to a `reader` delegate?
+    - Require the reader delegate to load Context Watcher.
+    - Keep the task read-only.
     - Require compact structured findings and no raw logs, secrets, or broad dumps.
+    - Do not ask the delegate to route or recommend other delegates.
 
 15. Did Context Mode, RTK, or Graph fail?
     - Follow the fallback protocol.
@@ -139,7 +140,7 @@ Rules:
 | GitHub/private repo data | `gh-cli` skill plus authenticated `gh` through Context Mode/RTK |
 | Code review/exploration in supported languages | Code Review Graph first |
 | Worktree create/use/remove | story-grouped roots plus graph daemon/watch protocol |
-| Sub-agent delegation | Pi sub-agent with Context Watcher, Context Mode, RTK, Graph, and mutation gates |
+| Reader delegation | Pi `reader` delegate with Context Watcher, Context Mode, RTK, Graph, and mutation gates |
 | Context Mode/RTK/Graph failure | explicit fallback protocol |
 
 ## Context Mode core tools
@@ -200,11 +201,11 @@ Use story-grouped worktree roots:
 
 For active roots, prefer daemon-backed Code Review Graph. Build/update the containing root when authorized and useful, add it to the daemon watch list, and query the graph instead of repeatedly rebuilding. When removing the group, remove the watch entry and verify deletion safety.
 
-## Sub-agent core rule
+## Reader delegate core rule
 
-Use sub-agents only for isolated tool-grounded investigation, review, testing, documentation research, consistency checks, or bounded parallel work.
+Use `reader` delegates only for isolated tool-grounded investigation, review, testing, documentation research, consistency checks, or bounded parallel work.
 
-Sub-agents must load Context Watcher, use Context Mode and RTK, use Code Review Graph first when applicable, use `gh-cli` for GitHub data, preserve hosted-service mutation gates, and return compact structured findings only. The parent remains responsible for final decisions, validation, diffs, commits, and user-facing reporting.
+Reader delegates must load Context Watcher, use Context Mode and RTK, use Code Review Graph first when applicable, use `gh-cli` for GitHub data, preserve hosted-service mutation gates, and return compact structured findings only. Do not ask reader delegates to route or recommend other delegates. The parent remains responsible for orchestration, final decisions, validation, diffs, commits, and user-facing reporting.
 
 ## Fallback core rule
 
@@ -228,7 +229,7 @@ Load references only when their trigger applies. If a rule is needed for safe ro
 | [`references/code-review-graph-protocol.md`](references/code-review-graph-protocol.md) | Code review, codebase exploration, graph build/update, stale graph, graph daemon, or graph fallback details matter. |
 | [`references/github-and-context7-routing.md`](references/github-and-context7-routing.md) | GitHub/private GitHub data or current third-party library/API docs are involved. |
 | [`references/worktree-graph-protocol.md`](references/worktree-graph-protocol.md) | Creating, using, watching, or removing worktrees. |
-| [`references/subagent-protocol.md`](references/subagent-protocol.md) | Delegating to Pi sub-agents or orchestrating parallel investigations. |
+| [`references/reader-protocol.md`](references/reader-protocol.md) | Delegating to Pi `reader` delegates or orchestrating parallel investigations. |
 | [`references/fallback-and-troubleshooting.md`](references/fallback-and-troubleshooting.md) | Context Mode, RTK, or Code Review Graph is unavailable, failing, stale, or producing unexpected output. |
 | [`references/patterns-and-quick-reference.md`](references/patterns-and-quick-reference.md) | Examples are needed for PR review, test-debug-fix, orientation, infrastructure inspection, docs lookup, recovery, or data analysis. |
 | [`references/upstream-sources.md`](references/upstream-sources.md) | Updating this skill, checking provenance, compatibility, or maintenance rules. |
@@ -246,7 +247,7 @@ Before committing changes to this skill, verify an agent that reads only this fi
 - Broad PR handling remains read-only unless the user explicitly asks to comment, push, merge, or otherwise mutate.
 - URLs use `ctx_fetch_and_index` then `ctx_search`.
 - Worktrees use story-grouped roots and graph daemon/watch rules.
-- Sub-agents inherit Context Watcher, Context Mode, RTK, Graph, `gh-cli`, and mutation gates.
+- Reader delegates inherit Context Watcher, Context Mode, RTK, Graph, `gh-cli`, and mutation gates.
 - Context Mode, RTK, or Graph failures use explicit fallback.
 - Resumed sessions search indexed state before asking the user to repeat context.
 
