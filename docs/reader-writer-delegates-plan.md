@@ -9,7 +9,7 @@ Create two separate Pi delegation tools with shared infrastructure and separate 
 
 Delegates exist to reduce parent-agent memory/tool-call noise. They should perform bounded work and return compact results. The parent agent owns orchestration and decides whether to call another delegate or take the next action.
 
-The design must avoid a single mode-heavy tool such as `subagent({ mode: "reader" | "writer" })`. Instead, the runner should be generic and profile-driven. Reader and writer behavior should live in separate modules so each delegate has a clear responsibility and can evolve independently.
+The runner should be generic and profile-driven. Reader and writer behavior should live in separate modules so each delegate has a clear responsibility and can evolve independently.
 
 ## Non-goals
 
@@ -54,18 +54,6 @@ agent/extensions/delegates/
   README.md
 ```
 
-A smaller first step can keep the current folder and move later:
-
-```text
-agent/extensions/simple-subagent/
-  index.ts
-  constants.ts
-  types.ts
-  ...same module split...
-```
-
-Then rename the directory to `delegates` or `reader-writer-delegates` after behavior is stable.
-
 ## Core design rule
 
 The shared runner must not ask "am I reader or writer?". It should call profile hooks.
@@ -88,7 +76,7 @@ If future behavior differs enough, add a new profile module instead of adding an
 
 ### Reader
 
-Reader is for read-only work. Reader may use an explicit `cwd` outside the parent cwd as long as it resolves to an existing directory, matching the current subagent flexibility for cross-repo and worktree investigation.
+Reader is for read-only work. Reader may use an explicit `cwd` outside the parent cwd as long as it resolves to an existing directory, matching the current reader delegate flexibility for cross-repo and worktree investigation.
 
 Recommended tools:
 
@@ -197,7 +185,7 @@ export const DELEGATE_KIND_ENV = "PI_DELEGATE_KIND";
 export const DELEGATE_ALLOWED_PATHS_ENV = "PI_DELEGATE_ALLOWED_PATHS";
 ```
 
-Do not add legacy delegate aliases or legacy marker compatibility unless a user explicitly asks for a compatibility migration. Keep the new delegate surface clean.
+Register only the documented delegate tools and keep the delegate surface clean.
 
 Child behavior:
 
@@ -845,7 +833,7 @@ Rules:
 - Add `--continue` only when `invocation.profile.sessionMode === "persistent"`.
 - Do not add `--continue` for writer/fresh sessions.
 - Use `PI_DELEGATE_BIN` override first.
-- Do not fall back to old simple-subagent override env names.
+- Use only documented delegate environment variable names.
 - Avoid shell interpolation. Return command and args array.
 
 ### child-process.ts
@@ -1059,7 +1047,7 @@ Recommended visual form:
 ```text
 Reader
 agent: investigator
-task: Analyze agent/extensions/simple-subagent/index.ts and report risks...
+task: Analyze agent/extensions/delegates/index.ts and report risks...
 status: running - 2 tool calls - 18s
 ```
 
@@ -1170,11 +1158,10 @@ Required safety:
 ### Phase 0: Baseline
 
 1. Run current tests.
-2. Record current public behavior:
-   - `subagent` tool name.
-   - `PI_SIMPLE_SUBAGENT_CHILD` marker.
-   - `PI_SIMPLE_SUBAGENT_BIN` test override.
-   - `subagent-sessions` session dir.
+2. Record baseline public behavior:
+   - `PI_DELEGATE_CHILD` marker.
+   - `PI_DELEGATE_BIN` test override.
+   - `delegate-sessions` session dir.
    - Current JSON parsing and redaction behavior.
 3. Keep a focused diff. Do not refactor unrelated files.
 
@@ -1212,7 +1199,7 @@ Validation:
 1. Add `DelegateProfile` type.
 2. Add `profiles/reader.ts` matching the current read-only behavior.
 3. Change `index.ts` to register `readerProfile` through `registerDelegateTool`.
-4. Remove the `subagent` tool registration instead of keeping a compatibility alias.
+4. Register only the `reader` tool for Milestone A.
 5. Keep tests passing after updating expected tool names.
 6. Add shared progress details and renderers while preserving the final `content` shape.
 7. Validate that `reader` works end-to-end before adding any writer capability.
@@ -1271,21 +1258,21 @@ This milestone proves the runner is profile-driven, validates the public rename,
    - Child guard blocks recursive delegate tool calls.
    - Child guard blocks deletion tools or deletion-like tool calls if they appear.
 
-### Phase 5: Cleanup old simple-subagent reference
+### Phase 5: Cleanup reference material
 
 After the reader implementation validates:
 
 1. Ensure the implementation lives in `agent/extensions/delegates`.
 2. Update README paths and validation commands.
-3. Do not keep compatibility env names such as `PI_SIMPLE_SUBAGENT_BIN`; use clean delegate env names only.
-4. Do not keep a `subagent` alias. Update local prompts/rules that still mention the old tool name to use `reader` only after the `reader` tool exists and passes validation. Do not update rules early, because that would make active guidance reference a tool that does not exist yet.
-5. Delete `agent/extensions/simple-subagent` after reader validates. The folder is no longer needed as a live extension once the reference implementation has been copied/refactored into delegates.
+3. Use only documented delegate environment variable names.
+4. Keep only the documented delegate tool names. Update local prompts/rules to use `reader` only after the `reader` tool exists and passes validation. Do not update rules early, because that would make active guidance reference a tool that does not exist yet.
+5. Delete temporary reference material after reader validates.
 
 ## Testing plan
 
 ### Unit tests
 
-Milestone A should keep tests in one `delegates.test.ts` file for speed and continuity with the current simple-subagent test style. Split tests into focused files only if Milestone B makes the test file too large or hard to navigate.
+Milestone A should keep tests in one `delegates.test.ts` file for speed and continuity. Split tests into focused files only if Milestone B makes the test file too large or hard to navigate.
 
 Add or update tests for each exported shared function.
 
@@ -1412,7 +1399,7 @@ Required scenarios:
 - Child final answer is redacted and truncated.
 - Diagnostics are not imported unless allowed.
 - Child marker prevents tool registration in child mode.
-- No `subagent` compatibility alias is registered.
+- Only documented delegate tool names are registered.
 
 ### Manual validation commands
 
@@ -1434,7 +1421,6 @@ Create an ADR when Milestone B starts or completes, not before. The decision is 
 - Separate `reader` and `writer` tools instead of one mode-heavy delegate.
 - Exact-file writer scope.
 - Writer fresh sessions and reader persistent per-cwd sessions.
-- No legacy `subagent` alias.
 - Parent-owned orchestration.
 - Prompt-level generated-file caution and guard-level objective path/text safety.
 
@@ -1459,7 +1445,6 @@ The README should explain:
 - Why writer does not get shell tools by default.
 - How to use reader for investigation.
 - How to use writer for scoped edits.
-- That there is no legacy `subagent` alias; use `reader` for read-only delegation.
 - How child process recursion is prevented.
 - How child guards enforce writer path scope.
 - Validation commands.
@@ -1478,7 +1463,7 @@ Use writer with agent "implementer", allowedPaths ["src/auth/login.ts", "src/aut
 
 Milestone A - reader replacement:
 
-1. Extract constants and toolsets into the new `agent/extensions/delegates` implementation, using `simple-subagent` only as reference material.
+1. Extract constants and toolsets into the new `agent/extensions/delegates` implementation.
 2. Extract parser, path, param, JSON event, process, redaction, truncation, text-file helper stubs if needed, and result helpers.
 3. Add shared `DelegateProfile` architecture and type definitions that anticipate writer, including `DelegateToolName = "reader" | "writer"`, but do not expose writer publicly yet.
 4. Register `readerProfile` as the clean replacement for the old tool.
@@ -1486,7 +1471,7 @@ Milestone A - reader replacement:
 6. Add only the child recursion guard in Milestone A: `PI_DELEGATE_CHILD` prevents delegate tools from registering in child processes.
 7. Do not add writer path/text guards until Milestone B.
 8. Do not register `writer` in Milestone A.
-9. Do not register old `subagent` as an alias.
+9. Do not register extra aliases.
 10. Add/update README for Milestone A because `reader` is user-facing.
 11. Validate `reader` end-to-end before adding writer capability.
 
@@ -1497,9 +1482,9 @@ Milestone B - writer addition:
 13. Add writer child path/text guard tests.
 14. Update README for writer additions.
 15. Create or update the ADR when Milestone B starts or completes.
-16. Implement directly in `agent/extensions/delegates`; do not implement new work in `agent/extensions/simple-subagent`.
-17. Treat `agent/extensions/simple-subagent` as temporary reference material only, and delete it after the delegates implementation is validated.
-18. After `reader` is implemented and validated, update local rules/prompts that mention the old `subagent` tool to use `reader`.
+16. Implement directly in `agent/extensions/delegates`.
+17. Delete temporary reference material after the delegates implementation is validated.
+18. After `reader` is implemented and validated, update local rules/prompts to use `reader`.
 19. Run all tests and build checks.
 
 ## Complexity control checklist
@@ -1540,7 +1525,7 @@ Use this checklist during implementation:
 ## Open decisions
 
 1. Extension directory name:
-   - Decision: implement directly in `agent/extensions/delegates`. Do not implement new work in `agent/extensions/simple-subagent`; that folder is temporary reference material and should be deleted after delegates are validated.
+   - Decision: implement directly in `agent/extensions/delegates`.
 
 2. Old tool-name compatibility:
    - Recommended: do not create it. Keep the delegate surface to `reader` and `writer` only.
@@ -1555,7 +1540,7 @@ Use this checklist during implementation:
    - Recommended: add a separate `validator` profile if child-side test execution becomes necessary.
 
 6. Rules and prompt migration timing:
-   - Recommended: do not update rules/prompts from `subagent` to `reader` before the `reader` tool exists and passes validation. Update those references in the same implementation change after the tool rename is functional.
+   - Recommended: update rules/prompts to `reader` only after the `reader` tool exists and passes validation.
 
 7. ADR timing:
    - Recommended: create an ADR when Milestone B starts or completes, using this plan as source material. Milestone A should still include README docs for the user-facing `reader` rename.
@@ -1569,7 +1554,7 @@ Milestone A success:
 - `reader` is available and behaves like the current read-only delegation behavior.
 - Milestone A may include writer-ready shared types, including `DelegateToolName = "reader" | "writer"`, but it does not register or expose `writer`.
 - Progress UI and renderers work without changing final model-visible content.
-- The old `subagent` tool is not registered.
+- Only documented delegate tools are registered.
 - Child recursion guard prevents delegate tools from registering in child processes.
 - Writer path/text guards are not included until Milestone B.
 
@@ -1584,7 +1569,7 @@ Milestone B success:
 - The shared runner has no reader/writer conditionals.
 - Child processes cannot recursively register delegate tools.
 - Live progress shows delegate title, agent, task preview, status, elapsed time, and tool count without changing final model-visible content.
-- Unit and fake-Pi integration tests cover reader, writer, and progress rendering without old alias behavior.
-- Implementation lives in `agent/extensions/delegates`; restored `agent/extensions/simple-subagent` is removed after validation.
+- Unit and fake-Pi integration tests cover reader, writer, and progress rendering.
+- Implementation lives in `agent/extensions/delegates`.
 - README explains the safety model, progress UI, compact file-level writer summaries, explicit validation status, and usage clearly.
 - ADR records the reader/writer split and safety trade-offs once Milestone B starts or completes.

@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The old `simple-subagent` extension mixed delegation responsibilities behind one tool shape. The refactor needs two explicit delegate tools:
+The extension provides two explicit delegate tools:
 
 - `reader`: read-only investigation, review, validation planning, and documentation research.
 - `writer`: tightly scoped local file changes.
@@ -20,8 +20,6 @@ Provide separate `reader` and `writer` tools backed by shared delegate infrastru
 `reader` uses persistent cwd-scoped sessions and read-oriented tools only.
 
 `writer` uses fresh sessions per invocation, exact-file `allowedPaths`, restricted read/write tools, child process recursion guards, and writer-specific child guards. Writer is text-only in v1 and cannot delete, commit, push, deploy, comment on hosted services, or run broad shell/Context Mode commands.
-
-There is no `subagent` compatibility alias.
 
 ## Consequences
 

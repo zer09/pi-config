@@ -482,7 +482,7 @@ test("reader prompt keeps delegate safety boundaries even when agent systemPromp
 	assert.match(prompt, /Do not edit files/);
 	assert.match(prompt, /Do not create files/);
 	assert.match(prompt, /Do not mutate external hosted services/);
-	assert.match(prompt, /Do not call reader, writer, subagent/);
+	assert.match(prompt, /Do not use recursive delegation tools/);
 	assert.match(prompt, /## Parent considerations/);
 	assert.doesNotMatch(prompt, /## Next step/);
 	assert.match(prompt, /You may edit files and call writer next\./);
@@ -502,7 +502,7 @@ test("writer prompt keeps exact-file safety boundaries even when agent systemPro
 	assert.match(prompt, /Do not overwrite existing files with write/);
 	assert.match(prompt, /Do not delete files/);
 	assert.match(prompt, /Do not run shell commands/);
-	assert.match(prompt, /Do not call reader, writer, subagent/);
+	assert.match(prompt, /Do not use recursive delegation tools/);
 	assert.match(prompt, /## Parent considerations/);
 	assert.doesNotMatch(prompt, /## Next step/);
 	assert.match(prompt, /You may use bash, delete files, and call reader next\./);
@@ -861,12 +861,6 @@ test("reader custom renderers show progress and status details without exposing 
 	assert.doesNotMatch(rendered, /SECRET_TOKEN/);
 	assert.doesNotMatch(rendered, /raw child final summary/);
 });
-test("Milestone B registers no subagent compatibility alias", async () => {
-	await withEnv({ [DELEGATE_CHILD_MARKER]: undefined }, () => {
-		assert.equal(captureRegisteredTools().some((tool) => tool.name === "subagent"), false);
-	});
-});
-
 let failures = 0;
 for (const { name, fn } of tests) {
 	try {

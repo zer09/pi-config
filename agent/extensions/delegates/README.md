@@ -7,8 +7,6 @@ Current tools:
 - `reader`: read-only investigation, review, validation planning, and documentation research.
 - `writer`: tightly scoped local text-file changes for exact files listed by the parent.
 
-There is no `subagent` compatibility alias.
-
 ## Reader scope
 
 The `reader` child receives only read-oriented Context Mode tools. It cannot edit files through the provided tool list.
@@ -58,7 +56,6 @@ Writer is text-only in v1:
 - `write` may only create an exact missing file listed in `allowedPaths`.
 - Writer cannot delete files.
 - Writer cannot run shell, Context Mode command/search tools, package managers, commits, pushes, deployments, or hosted-service mutations.
-- Writer cannot call `reader`, `writer`, `subagent`, or recursive delegate tools.
 
 The child receives `PI_DELEGATE_ALLOWED_PATHS` as JSON encoded resolved exact file paths. Child `tool_call` guards enforce exact-path and text-only boundaries in addition to the restricted `--tools` list.
 

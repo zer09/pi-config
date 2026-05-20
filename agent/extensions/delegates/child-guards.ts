@@ -56,7 +56,7 @@ function inputHasBinaryLookingText(input: Record<string, unknown> | undefined): 
 
 function writerToolGuard(event: ToolCallEvent): BlockResult | undefined {
 	const toolName = event.toolName;
-	if (toolName === "reader" || toolName === "writer" || toolName === "subagent" || toolName === "delegate_subagent") {
+	if (toolName === "reader" || toolName === "writer") {
 		return block("writer cannot call delegate tools");
 	}
 	if (toolName === "bash" || toolName?.startsWith("ctx_") || toolName?.startsWith("context_mode_ctx_")) {
