@@ -2,6 +2,8 @@
 
 Blocks hosted-service mutations at Pi `tool_call` time unless the current user prompt or a one-time command authorizes the exact operation.
 
+Context Mode tools are excluded from this guard because they are part of the default agent execution path. The excluded tools are `ctx_execute`, `context_mode_ctx_execute`, `ctx_batch_execute`, and `context_mode_ctx_batch_execute`.
+
 ## Exact prompt authorization
 
 Tier 1 comment/message mutations can be authorized by exact prompt text.

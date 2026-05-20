@@ -52,6 +52,7 @@ const MAX_CODE_SCAN_CHARS = 50_000;
 const MAX_QUOTED_STRINGS = 80;
 const MAX_JSON_STRING_LENGTH = 50_000;
 const JSON_STRING_FIELDS = new Set(["args", "payload", "request", "body", "input", "data", "variables"]);
+const CONTEXT_MODE_TOOL_NAMES = new Set(["ctx_execute", "context_mode_ctx_execute", "ctx_batch_execute", "context_mode_ctx_batch_execute"]);
 
 const HOSTED_SERVICE_WORDS = [
 	"github",
@@ -556,17 +557,14 @@ export function classifyShellCommand(command: string, source: MutationSource = "
 	return intents;
 }
 
+function isContextModeTool(toolName: string): boolean {
+	return CONTEXT_MODE_TOOL_NAMES.has(toolName);
+}
+
 export function extractShellCommands(toolName: string, input: unknown): ShellCommand[] {
+	if (isContextModeTool(toolName)) return [];
 	const value = input as any;
 	if (toolName === "bash" && typeof value?.command === "string") return [{ command: value.command, source: "bash" }];
-	if ((toolName === "ctx_execute" || toolName === "context_mode_ctx_execute") && value?.language === "shell" && typeof value?.code === "string") {
-		return [{ command: value.code, source: "ctx_execute" }];
-	}
-	if ((toolName === "ctx_batch_execute" || toolName === "context_mode_ctx_batch_execute") && Array.isArray(value?.commands)) {
-		return value.commands
-			.map((command: any) => (typeof command?.command === "string" ? { command: command.command, source: "ctx_batch_execute" as const } : undefined))
-			.filter((command: ShellCommand | undefined): command is ShellCommand => command !== undefined);
-	}
 	return [];
 }
 
@@ -683,13 +681,10 @@ function classifyMcpTool(toolName: string, input: unknown): MutationIntent[] {
 }
 
 export function classifyToolCall(toolName: string, input: unknown): MutationIntent[] {
+	if (isContextModeTool(toolName)) return [];
 	const shellCommands = extractShellCommands(toolName, input);
 	if (shellCommands.length > 0) {
 		return shellCommands.flatMap((command) => classifyShellCommand(command.command, command.source));
-	}
-	const value = input as any;
-	if ((toolName === "ctx_execute" || toolName === "context_mode_ctx_execute") && typeof value?.code === "string") {
-		return classifyCodeText(value.code, "ctx_execute");
 	}
 	return classifyMcpTool(toolName, input);
 }

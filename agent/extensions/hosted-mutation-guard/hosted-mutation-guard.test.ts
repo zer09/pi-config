@@ -141,42 +141,36 @@ test("classifier blocks mutating hosted HTTP requests but not localhost", () => 
 	assert.deepEqual(classifyShellCommand("curl -X POST http://localhost:3000/test"), []);
 });
 
-test("classifier inspects Context Mode shell tools", () => {
-	const intents = classifyToolCall("ctx_execute", { language: "shell", code: "firebase deploy" });
-	assert.equal(intents.length, 1);
-	assert.equal(intents[0].source, "ctx_execute");
+test("classifier ignores Context Mode tools", () => {
+	assert.deepEqual(classifyToolCall("ctx_execute", { language: "shell", code: "firebase deploy" }), []);
+	assert.deepEqual(classifyToolCall("context_mode_ctx_execute", { language: "javascript", code: "require('child_process').execSync('gh pr merge 123')" }), []);
+	assert.deepEqual(classifyToolCall("ctx_batch_execute", { commands: [{ command: "gh pr merge 1" }] }), []);
+	assert.deepEqual(classifyToolCall("context_mode_ctx_batch_execute", { commands: [{ command: "gh pr merge 1" }] }), []);
 });
 
-test("classifier inspects embedded commands in Context Mode code", () => {
-	const intents = classifyToolCall("ctx_execute", { language: "javascript", code: "require('child_process').execSync('gh pr merge 123')" });
-	assert.equal(intents.length, 1);
-	assert.equal(intents[0].action, "pr-merge");
-});
-
-test("classifier inspects execution sinks beyond the code sample window", () => {
-	const paddedCode = `${"x".repeat(60_000)}\nrequire('child_process').execSync('gh pr merge 123')`;
-	const intents = classifyToolCall("ctx_execute", { language: "javascript", code: paddedCode });
+test("classifier inspects embedded commands in direct shell code", () => {
+	const intents = classifyShellCommand("node -e \"require('child_process').execSync('gh pr merge 123')\"");
 	assert.equal(intents.length, 1);
 	assert.equal(intents[0].action, "pr-merge");
 });
 
-test("classifier ignores inert hosted mutation-looking string literals in code", () => {
-	const code = 'const example = "gh pr merge 123"; console.log(example);';
-	assert.deepEqual(classifyToolCall("ctx_execute", { language: "javascript", code }), []);
+test("classifier inspects direct shell execution sinks beyond the code sample window", () => {
+	const paddedCommand = `node -e \"${"x".repeat(60_000)}\nrequire('child_process').execSync('gh pr merge 123')\"`;
+	const intents = classifyShellCommand(paddedCommand);
+	assert.equal(intents.length, 1);
+	assert.equal(intents[0].action, "pr-merge");
 });
 
-test("classifier inspects hosted HTTP methods in Context Mode code", () => {
-	const intents = classifyToolCall("ctx_execute", { language: "javascript", code: "fetch('https://api.github.com/repos/o/r', { method: 'DELETE' })" });
+test("classifier ignores inert hosted mutation-looking string literals in direct shell code", () => {
+	const command = 'node -e "const example = \\\"gh pr merge 123\\\"; console.log(example);"';
+	assert.deepEqual(classifyShellCommand(command), []);
+});
+
+test("classifier inspects hosted HTTP methods in direct shell code", () => {
+	const intents = classifyShellCommand("node -e \"fetch('https://api.github.com/repos/o/r', { method: 'DELETE' })\"");
 	assert.equal(intents.length, 1);
 	assert.equal(intents[0].service, "github");
 	assert.equal(intents[0].action, "http-delete");
-});
-
-test("classifier inspects Context Mode batch commands", () => {
-	const intents = classifyToolCall("ctx_batch_execute", { commands: [{ command: "gh pr view 1" }, { command: "gh pr merge 1" }] });
-	assert.equal(intents.length, 1);
-	assert.equal(intents[0].action, "pr-merge");
-	assert.equal(intents[0].source, "ctx_batch_execute");
 });
 
 test("prompt parser accepts exact GitHub PR comments", () => {
@@ -281,10 +275,10 @@ test("extension allows one command-authorized tier 3 mutation", async () => {
 	assertBlocked(await harness.call("bash", { command: "gh pr merge 123" }));
 });
 
-test("extension blocks batch when any hosted mutation lacks authorization", async () => {
+test("extension ignores Context Mode batch tool calls", async () => {
 	const harness = makeHarness();
 	const result = await harness.call("ctx_batch_execute", { commands: [{ command: "gh pr view 123" }, { command: "gh pr merge 123" }] });
-	assertBlocked(result);
+	assert.equal(result, undefined);
 });
 
 test("extension allows local tools", async () => {
