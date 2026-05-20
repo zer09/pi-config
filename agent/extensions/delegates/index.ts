@@ -7,6 +7,8 @@ export {
 	DEFAULT_TIMEOUT_MS,
 	DEFAULT_WRITER_MODEL,
 	DELEGATE_CHILD_MARKER,
+	WRITER_DIFF_MAX_CHANGED_FILES,
+	WRITER_DIFF_MAX_FILE_BYTES,
 } from "./constants.ts";
 export { getReaderSessionDir } from "./paths.ts";
 export { normalizeReaderParams, normalizeWriterParams, resolveInvocation } from "./params.ts";
@@ -15,6 +17,7 @@ export { writerProfile } from "./profiles/writer.ts";
 export { buildReaderSystemPrompt, buildReaderTaskPrompt, buildWriterSystemPrompt, buildWriterTaskPrompt } from "./prompts.ts";
 export { renderDelegateCall, renderDelegateResult, renderWriterCall, renderWriterResult } from "./renderers.ts";
 export { runReader, runWriter } from "./runner.ts";
+export { buildWriterDiffPreview, captureWriterFileSnapshots } from "./writer-diff.ts";
 
 import { registerDelegateChildGuards } from "./child-guards.ts";
 import { DEFAULT_MAX_RESULT_BYTES, DEFAULT_READER_MODEL, DEFAULT_THINKING, DEFAULT_TIMEOUT_MS, DELEGATE_CHILD_MARKER } from "./constants.ts";

@@ -1,6 +1,7 @@
 import { DEFAULT_READER_MODEL, DEFAULT_THINKING, DEFAULT_WRITER_MODEL } from "./constants.ts";
 import { redactSensitiveText } from "./redaction.ts";
 import { truncateMiddleByChars } from "./truncation.ts";
+import { compactWriterChangeSummary, writerDiffDetailFields } from "./writer-diff.ts";
 import type {
 	ChildProcessResult,
 	NormalizedReaderParams,
@@ -8,6 +9,7 @@ import type {
 	ReaderToolResult,
 	ResolvedInvocation,
 	ResolvedWriterInvocation,
+	WriterDiffPreview,
 	WriterToolResult,
 } from "./types.ts";
 
@@ -51,8 +53,16 @@ export function makeReaderToolResult(invocation: ResolvedInvocation, child: Chil
 	};
 }
 
-export function makeWriterToolResult(invocation: ResolvedWriterInvocation, child: ChildProcessResult, durationMs: number): WriterToolResult {
-	const rawText = child.status === "completed" ? resultTextFromChild(child) || "(no output)" : buildFailureText(child, invocation.params.includeDiagnostics, "Writer");
+export function makeWriterToolResult(
+	invocation: ResolvedWriterInvocation,
+	child: ChildProcessResult,
+	durationMs: number,
+	writerDiff?: WriterDiffPreview,
+): WriterToolResult {
+	const rawText =
+		child.status === "completed"
+			? compactWriterChangeSummary(writerDiff)
+			: `${buildFailureText(child, invocation.params.includeDiagnostics, "Writer")}\n\n${compactWriterChangeSummary(writerDiff, "Writer file changes")}`;
 	const redacted = redactSensitiveText(rawText);
 	const truncated = truncateMiddleByChars(redacted, invocation.params.maxResultBytes);
 	const stderr = child.stderrTail ? redactSensitiveText(child.stderrTail) : undefined;
@@ -68,6 +78,7 @@ export function makeWriterToolResult(invocation: ResolvedWriterInvocation, child
 			durationMs,
 			toolCallCount: child.state.toolCallCount,
 			truncated: truncated.truncated,
+			...writerDiffDetailFields(writerDiff),
 			...(invocation.params.includeDiagnostics && stderr ? { stderrTail: stderr } : {}),
 			...(child.error ? { error: redactSensitiveText(child.error) } : {}),
 		},

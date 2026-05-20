@@ -1,5 +1,6 @@
 # Agent runtime state and caches
 agent/sessions/
+agent/delegate-sessions/
 agent/intercom/
 agent/handoff/
 handoffs/

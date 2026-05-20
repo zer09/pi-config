@@ -109,16 +109,17 @@ Both tools emit progress through `onUpdate` with compact details for phases such
 - `starting`
 - `launching_child`
 - `child_event`
+- `diff_ready` for writer
 - `finishing`
 
-Progress details include a redacted task preview and do not include raw child stdout, stderr, tool arguments, or diffs. Progress text is not appended to the final model-visible `content`.
+Progress details include a redacted task preview and do not include raw child stdout, stderr, or tool arguments. Writer diff previews are parent-computed, capped, redacted, and carried in UI `details` for rendering rather than final model-visible `content`. The writer renderer shows the capped diff preview in the collapsed result row and when expanded. The preview uses four context lines to match Pi's native `edit` diff context.
 
 ## Result shape
 
 Delegates return:
 
-- `content`: the redacted and truncated child final answer
-- `details`: compact metadata including agent, model, thinking, cwd, status, exit code, duration, tool-call count, and truncation status
+- `content`: model-visible text. Reader returns the redacted and truncated child final answer. Writer returns a compact changed-file summary, not the full diff or child stdout/stderr.
+- `details`: compact metadata including agent, model, thinking, cwd, status, exit code, duration, tool-call count, and truncation status. Writer details may include capped `changedFiles`, `changedFileCount`, `skippedDiffCount`, `changedFilesTruncated`, `diffPreview`, and `diffTruncated` for TUI rendering.
 
 Diagnostics are bounded and redacted. They are included only when `includeDiagnostics` is true.
 

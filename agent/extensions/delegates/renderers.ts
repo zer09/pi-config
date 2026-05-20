@@ -1,7 +1,8 @@
 import { Text } from "@earendil-works/pi-tui";
 
+import { WRITER_DIFF_COLLAPSED_PREVIEW_LINES } from "./constants.ts";
 import { previewTask } from "./progress.ts";
-import type { ReaderToolResult, WriterToolResult } from "./types.ts";
+import type { ReaderToolResult, WriterFileChange, WriterToolDetails, WriterToolResult } from "./types.ts";
 
 function color(theme: any, name: string, value: string): string {
 	return typeof theme?.fg === "function" ? theme.fg(name, value) : value;
@@ -26,6 +27,59 @@ function renderToolCall(tool: "reader" | "writer", args: any, theme: any, contex
 	return text;
 }
 
+function changedCount(files: WriterFileChange[] | undefined): number {
+	return (files ?? []).filter((file) => file.status === "created" || file.status === "modified" || file.status === "deleted").length;
+}
+
+function skippedCount(files: WriterFileChange[] | undefined): number {
+	return (files ?? []).filter((file) => file.status === "skipped").length;
+}
+
+function formatWriterChangeSummary(details: WriterToolDetails): string {
+	const changed = details.changedFileCount ?? changedCount(details.changedFiles);
+	const skipped = details.skippedDiffCount ?? skippedCount(details.changedFiles);
+	if (changed === 0 && skipped === 0) return "no file changes";
+	const parts: string[] = [];
+	if (changed > 0) parts.push(`${changed} changed`);
+	if (skipped > 0) parts.push(`${skipped} skipped`);
+	return parts.join(", ");
+}
+
+function clippedDiffPreview(preview: string, maxLines: number): string {
+	const lines = preview.split("\n");
+	if (lines.length <= maxLines) return preview;
+	return [...lines.slice(0, maxLines - 1), "[writer diff preview clipped; expand for more]"].join("\n");
+}
+
+function colorDiffPreview(preview: string, theme: any): string {
+	return preview
+		.split("\n")
+		.map((line) => {
+			if (line.startsWith("+")) return color(theme, "success", line);
+			if (line.startsWith("-")) return color(theme, "error", line);
+			if (line.startsWith("write ") || line.startsWith("edit ") || line.startsWith("delete ")) return color(theme, "toolTitle", line);
+			if (line.startsWith("skip ") || line.startsWith("[writer diff preview truncated]")) return color(theme, "warning", line);
+			return color(theme, "dim", line);
+		})
+		.join("\n");
+}
+
+function appendWriterExpandedDetails(output: string, details: WriterToolDetails, theme: any): string {
+	if (details.changedFiles?.length) {
+		output += "\nfiles:";
+		for (const file of details.changedFiles) {
+			const marker = file.status === "skipped" ? ` (${file.reason ?? "diff unavailable"})` : "";
+			output += `\n  ${file.status} ${file.path}${marker}`;
+		}
+		if (details.changedFilesTruncated) output += "\n  ... additional files omitted from UI details";
+	}
+	if (details.diffPreview) {
+		output += `\n${colorDiffPreview(details.diffPreview, theme)}`;
+		if (details.diffTruncated) output += `\n${color(theme, "warning", "diff preview truncated")}`;
+	}
+	return output;
+}
+
 function renderToolResult(
 	tool: "reader" | "writer",
 	result: ReaderToolResult | WriterToolResult,
@@ -34,12 +88,17 @@ function renderToolResult(
 	context: any,
 ): Text {
 	const text = (context?.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+	const details = result?.details;
 	if (options?.isPartial) {
-		text.setText(color(theme, "warning", `${tool} running`));
+		const phase = typeof (details as any)?.phase === "string" ? (details as any).phase : "running";
+		let partial = color(theme, "warning", `${tool} ${phase}`);
+		if (tool === "writer" && typeof (details as any)?.diffPreview === "string" && (details as any).diffPreview) {
+			partial += `\n${colorDiffPreview((details as any).diffPreview, theme)}`;
+		}
+		text.setText(partial);
 		return text;
 	}
 
-	const details = result?.details;
 	if (!details) {
 		text.setText(color(theme, "muted", `${tool} finished`));
 		return text;
@@ -48,6 +107,14 @@ function renderToolResult(
 	const status = statusLabel(details.status);
 	const statusColor = status === "completed" ? "success" : status === "timeout" || status === "aborted" ? "warning" : "error";
 	let output = `${color(theme, statusColor, `${tool} ${status}`)} ${color(theme, "muted", details.agent)}`;
+	if (tool === "writer") {
+		const writerDetails = details as WriterToolDetails;
+		output += ` ${color(theme, "dim", formatWriterChangeSummary(writerDetails))}`;
+		if (!options?.expanded && writerDetails.diffPreview) {
+			output += `\n${colorDiffPreview(clippedDiffPreview(writerDetails.diffPreview, WRITER_DIFF_COLLAPSED_PREVIEW_LINES), theme)}`;
+			if (writerDetails.diffTruncated) output += `\n${color(theme, "warning", "diff preview truncated")}`;
+		}
+	}
 	if (options?.expanded) {
 		output += `\nmodel: ${details.model}`;
 		output += `\nthinking: ${details.thinking}`;
@@ -56,6 +123,7 @@ function renderToolResult(
 		output += `\nduration: ${details.durationMs}ms`;
 		if (details.truncated) output += "\ntruncated: true";
 		if (details.error) output += `\nerror: ${details.error}`;
+		if (tool === "writer") output = appendWriterExpandedDetails(output, details as WriterToolDetails, theme);
 	}
 	text.setText(output);
 	return text;

@@ -10,6 +10,7 @@ import { getWriterSessionBaseDir } from "./paths.ts";
 import { emitDelegateProgress, type DelegateUpdate } from "./progress.ts";
 import { makeImmediateFailure, makeImmediateWriterFailure, makeReaderToolResult, makeWriterToolResult } from "./results.ts";
 import { cleanupTempRunFiles, createTempRunFiles, createWriterTempRunFiles } from "./temp-files.ts";
+import { buildWriterDiffPreview, captureWriterFileSnapshots, summarizeWriterDiff, writerDiffDetailFields } from "./writer-diff.ts";
 import type { ReaderParams, ReaderToolResult, TempRunFiles, WriterParams, WriterToolResult } from "./types.ts";
 
 async function makeFreshWriterSessionDir(cwd: string): Promise<string> {
@@ -71,6 +72,7 @@ export async function runWriter(
 	let tempFiles: TempRunFiles | undefined;
 	let cleanupSession = true;
 	try {
+		const beforeFiles = await captureWriterFileSnapshots(normalized.allowedPaths, normalized.cwd);
 		tempFiles = await createWriterTempRunFiles(resolved);
 		const args = buildWriterPiArgs(resolved, tempFiles);
 		const invocation = getPiInvocation(args);
@@ -90,8 +92,17 @@ export async function runWriter(
 			{ [DELEGATE_ALLOWED_PATHS_ENV]: JSON.stringify(normalized.allowedPaths) },
 		);
 		cleanupSession = child.status === "completed" || !normalized.includeDiagnostics;
+		const writerDiff = await buildWriterDiffPreview(beforeFiles, normalized.allowedPaths, normalized.cwd);
+		emitDelegateProgress(onUpdate, "diff_ready", {
+			agent: normalized.agent,
+			task: normalized.task,
+			cwd: normalized.cwd,
+			tool: "writer",
+			message: summarizeWriterDiff(writerDiff),
+			details: writerDiffDetailFields(writerDiff),
+		});
 		emitDelegateProgress(onUpdate, "finishing", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd, tool: "writer" });
-		return makeWriterToolResult(resolved, child, Date.now() - started);
+		return makeWriterToolResult(resolved, child, Date.now() - started, writerDiff);
 	} finally {
 		await cleanupTempRunFiles(tempFiles);
 		if (cleanupSession) await fs.promises.rm(sessionDir, { recursive: true, force: true });

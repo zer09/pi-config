@@ -10,8 +10,12 @@ import delegatesExtension, {
 	DEFAULT_WRITER_MODEL,
 	DEFAULT_TIMEOUT_MS,
 	DELEGATE_CHILD_MARKER,
+	WRITER_DIFF_MAX_CHANGED_FILES,
+	WRITER_DIFF_MAX_FILE_BYTES,
 	buildReaderSystemPrompt,
+	buildWriterDiffPreview,
 	buildWriterSystemPrompt,
+	captureWriterFileSnapshots,
 	getReaderSessionDir,
 	normalizeReaderParams,
 	normalizeWriterParams,
@@ -23,6 +27,8 @@ import delegatesExtension, {
 	readerProfile,
 	writerProfile,
 } from "./index.ts";
+import { WRITER_DIFF_MAX_PREVIEW_LINES } from "./constants.ts";
+import { writerDiffDetailFields } from "./writer-diff.ts";
 import type { AgentConfig } from "./types.ts";
 
 type TestFn = () => void | Promise<void>;
@@ -160,6 +166,17 @@ fs.writeFileSync(process.env.CAPTURE_PATH, JSON.stringify({
   prompt: fs.readFileSync(promptPath, "utf8"),
   task: fs.readFileSync(taskPath, "utf8")
 }, null, 2));
+const allowedPaths = JSON.parse(process.env.PI_DELEGATE_ALLOWED_PATHS || "[]");
+if (process.env.PI_FAKE_WRITER_MUTATION === "edit") fs.writeFileSync(allowedPaths[0], ${JSON.stringify("export const before = false;\n")}, "utf8");
+if (process.env.PI_FAKE_WRITER_MUTATION === "create") fs.writeFileSync(allowedPaths[0], ${JSON.stringify("# Created\n\nhello\n")}, "utf8");
+if (process.env.PI_FAKE_WRITER_MUTATION === "large") fs.writeFileSync(allowedPaths[0], "x".repeat(${WRITER_DIFF_MAX_FILE_BYTES} + 1), "utf8");
+if (process.env.PI_FAKE_WRITER_MUTATION === "truncate-multi") {
+  fs.writeFileSync(allowedPaths[0], Array.from({ length: 1000 }, (_, index) => "line " + index).join(String.fromCharCode(10)) + String.fromCharCode(10), "utf8");
+  fs.writeFileSync(allowedPaths[1], ${JSON.stringify("export const second = false;\n")}, "utf8");
+}
+if (process.env.PI_FAKE_WRITER_MUTATION === "many") {
+  allowedPaths.forEach((file, index) => fs.writeFileSync(file, "value " + index + String.fromCharCode(10), "utf8"));
+}
 console.log(JSON.stringify({ type: "tool_execution_start" }));
 console.log(JSON.stringify({ type: "message_end", message: { role: "assistant", model: "writer-child-model", content: [{ type: "text", text: ${JSON.stringify(finalText)} }] } }));
 `,
@@ -311,6 +328,17 @@ test("writer normalizes allowed paths as exact text file scope inside cwd", () =
 		() => normalizeWriterParams({ agent: "implementer", task: "Outside", cwd: project, allowedPaths: ["../outside.ts"] }, "/tmp/parent"),
 		/allowedPaths entries must stay inside cwd/,
 	);
+});
+
+test("writer normalization deduplicates duplicate allowed paths before diff capture", () => {
+	const project = makeTempDir("pi-delegates-duplicate-paths-");
+	const filePath = path.join(project, "app.ts");
+	fs.writeFileSync(filePath, "export const value = 1;\n", "utf8");
+	const normalized = normalizeWriterParams(
+		{ agent: "implementer", task: "Duplicate path scope", cwd: project, allowedPaths: ["app.ts", "./app.ts", filePath] },
+		"/tmp/parent",
+	);
+	assert.deepEqual(normalized.allowedPaths, [fs.realpathSync(filePath)]);
 });
 
 test("reader invocation resolves defaults and overrides without exposing writer capability", () => {
@@ -521,7 +549,7 @@ test("writer launches Pi with fresh session, exact allowed path env, restricted 
 				{ agent: "implementer", task: "Change the exported value only", cwd: harness.project, allowedPaths: ["src/app.ts"], timeoutMs: 5_000 },
 				"/tmp/parent",
 			);
-			assert.equal(result.content[0].text, "## Result\nChanged");
+			assert.equal(result.content[0].text, "Writer completed: no file changes detected.");
 			assert.equal(result.details.agent, "implementer");
 			assert.equal(result.details.model, "writer-child-model");
 			assert.equal(result.details.status, "completed");
@@ -564,16 +592,252 @@ test("writer streams writer-labeled progress updates without appending progress 
 				undefined,
 				(update: any) => updates.push(update),
 			);
-			assert.equal(result.content[0].text, "## Result\nWriter progress-safe final answer");
-			assert.doesNotMatch(result.content[0].text, /launching|child_event|finishing/);
+			assert.equal(result.content[0].text, "Writer completed: no file changes detected.");
+			assert.doesNotMatch(result.content[0].text, /launching|child_event|diff_ready|finishing/);
 		},
 	);
 
-	assert.deepEqual(updates.map((update) => update.details?.phase).filter(Boolean), ["starting", "launching_child", "child_event", "finishing"]);
+	assert.deepEqual(updates.map((update) => update.details?.phase).filter(Boolean), ["starting", "launching_child", "child_event", "diff_ready", "finishing"]);
 	assert.deepEqual([...new Set(updates.map((update) => update.details?.tool))], ["writer"]);
 	for (const update of updates) {
 		assert.match(update.content?.[0]?.text ?? "", /^writer /);
 		assert.doesNotMatch(update.content?.[0]?.text ?? "", /Writer progress-safe final answer/);
+	}
+});
+
+test("writer computes UI-only diff preview for modified allowed files", async () => {
+	const harness = makeFakeWriterHarness("## Result\nChild summary should stay out of parent content");
+	const updates: any[] = [];
+	await withEnv(
+		{
+			PI_CODING_AGENT_DIR: harness.agentRoot,
+			PI_DELEGATE_BIN: harness.fakePi,
+			CAPTURE_PATH: harness.capturePath,
+			PI_FAKE_WRITER_MUTATION: "edit",
+		},
+		async () => {
+			const result = await runWriter(
+				{ agent: "implementer", task: "Flip the exported value", cwd: harness.project, allowedPaths: ["src/app.ts"], timeoutMs: 5_000 },
+				"/tmp/parent",
+				undefined,
+				(update: any) => updates.push(update),
+			);
+			assert.equal(result.content[0].text, "Writer completed: 1 file changed: modified src/app.ts.");
+			assert.doesNotMatch(result.content[0].text, /Child summary|export const|^[-+]/m);
+			assert.equal(result.details.changedFiles?.[0]?.status, "modified");
+			assert.equal(result.details.changedFiles?.[0]?.additions, 1);
+			assert.equal(result.details.changedFiles?.[0]?.deletions, 1);
+			assert.match(result.details.diffPreview ?? "", /edit src\/app\.ts/);
+			assert.match(result.details.diffPreview ?? "", /- export const before = true;/);
+			assert.match(result.details.diffPreview ?? "", /\+ export const before = false;/);
+		},
+	);
+
+	const diffUpdate = updates.find((update) => update.details?.phase === "diff_ready");
+	assert.ok(diffUpdate);
+	assert.match(diffUpdate.content?.[0]?.text ?? "", /writer diff_ready: 1 file changed/);
+	assert.doesNotMatch(diffUpdate.content?.[0]?.text ?? "", /export const/);
+	assert.match(diffUpdate.details?.diffPreview ?? "", /\+ export const before = false;/);
+});
+
+test("writer computes created-file diff previews for missing allowed files", async () => {
+	const harness = makeFakeWriterHarness();
+	fs.rmSync(harness.allowedFile);
+	await withEnv(
+		{
+			PI_CODING_AGENT_DIR: harness.agentRoot,
+			PI_DELEGATE_BIN: harness.fakePi,
+			CAPTURE_PATH: harness.capturePath,
+			PI_FAKE_WRITER_MUTATION: "create",
+		},
+		async () => {
+			const result = await runWriter(
+				{ agent: "implementer", task: "Create the allowed file", cwd: harness.project, allowedPaths: ["src/app.ts"], timeoutMs: 5_000 },
+				"/tmp/parent",
+			);
+			assert.equal(result.content[0].text, "Writer completed: 1 file changed: created src/app.ts.");
+			assert.equal(result.details.changedFiles?.[0]?.status, "created");
+			assert.match(result.details.diffPreview ?? "", /write src\/app\.ts/);
+			assert.match(result.details.diffPreview ?? "", /\+ # Created/);
+		},
+	);
+});
+
+test("writer skips oversized diff previews without putting file bodies in content", async () => {
+	const harness = makeFakeWriterHarness();
+	fs.rmSync(harness.allowedFile);
+	await withEnv(
+		{
+			PI_CODING_AGENT_DIR: harness.agentRoot,
+			PI_DELEGATE_BIN: harness.fakePi,
+			CAPTURE_PATH: harness.capturePath,
+			PI_FAKE_WRITER_MUTATION: "large",
+		},
+		async () => {
+			const result = await runWriter(
+				{ agent: "implementer", task: "Create a large file", cwd: harness.project, allowedPaths: ["src/app.ts"], timeoutMs: 5_000 },
+				"/tmp/parent",
+			);
+			assert.equal(result.content[0].text, "Writer completed: 1 diff skipped.");
+			assert.equal(result.details.changedFiles?.[0]?.status, "skipped");
+			assert.match(result.details.changedFiles?.[0]?.reason ?? "", /file exceeds/);
+			assert.match(result.details.diffPreview ?? "", /skip src\/app\.ts: file exceeds/);
+			assert.doesNotMatch(result.content[0].text, /xxx/);
+		},
+	);
+});
+
+test("writer keeps full change accounting after diff preview truncates", async () => {
+	const harness = makeFakeWriterHarness();
+	const secondFile = path.join(harness.project, "src", "second.ts");
+	fs.writeFileSync(secondFile, "export const second = true;\n", "utf8");
+	await withEnv(
+		{
+			PI_CODING_AGENT_DIR: harness.agentRoot,
+			PI_DELEGATE_BIN: harness.fakePi,
+			CAPTURE_PATH: harness.capturePath,
+			PI_FAKE_WRITER_MUTATION: "truncate-multi",
+		},
+		async () => {
+			const result = await runWriter(
+				{
+					agent: "implementer",
+					task: "Change both allowed files",
+					cwd: harness.project,
+					allowedPaths: ["src/app.ts", "src/second.ts"],
+					timeoutMs: 5_000,
+				},
+				"/tmp/parent",
+			);
+			assert.equal(result.content[0].text, "Writer completed: 2 files changed: modified src/app.ts, modified src/second.ts.");
+			assert.equal(result.details.changedFileCount, 2);
+			assert.equal(result.details.changedFiles?.length, 2);
+			assert.deepEqual(result.details.changedFiles?.map((file) => file.path), ["src/app.ts", "src/second.ts"]);
+			assert.equal(result.details.diffTruncated, true);
+			assert.match(result.details.diffPreview ?? "", /writer diff preview truncated/);
+		},
+	);
+});
+
+test("writer bounds changed file details while preserving total changed count", async () => {
+	const harness = makeFakeWriterHarness();
+	fs.rmSync(harness.allowedFile);
+	const updates: any[] = [];
+	const relativePaths = Array.from({ length: WRITER_DIFF_MAX_CHANGED_FILES + 5 }, (_, index) => `src/many-${index}.txt`);
+	await withEnv(
+		{
+			PI_CODING_AGENT_DIR: harness.agentRoot,
+			PI_DELEGATE_BIN: harness.fakePi,
+			CAPTURE_PATH: harness.capturePath,
+			PI_FAKE_WRITER_MUTATION: "many",
+		},
+		async () => {
+			const result = await runWriter(
+				{ agent: "implementer", task: "Create many files", cwd: harness.project, allowedPaths: relativePaths, timeoutMs: 5_000 },
+				"/tmp/parent",
+				undefined,
+				(update: any) => updates.push(update),
+			);
+			assert.equal(result.details.changedFileCount, WRITER_DIFF_MAX_CHANGED_FILES + 5);
+			assert.equal(result.details.changedFiles?.length, WRITER_DIFF_MAX_CHANGED_FILES);
+			assert.equal(result.details.changedFilesTruncated, true);
+			assert.match(result.content[0].text, new RegExp(`${WRITER_DIFF_MAX_CHANGED_FILES + 5} files changed`));
+			assert.match(result.content[0].text, new RegExp(`and ${WRITER_DIFF_MAX_CHANGED_FILES} more`));
+			const diffUpdate = updates.find((update) => update.details?.phase === "diff_ready");
+			assert.equal(diffUpdate?.details?.changedFileCount, WRITER_DIFF_MAX_CHANGED_FILES + 5);
+			assert.equal(diffUpdate?.details?.changedFiles?.length, WRITER_DIFF_MAX_CHANGED_FILES);
+			assert.equal(diffUpdate?.details?.changedFilesTruncated, true);
+		},
+	);
+});
+
+test("writer snapshot order stays deterministic above snapshot concurrency", async () => {
+	const project = makeTempDir("pi-delegates-snapshot-order-");
+	const filePaths = Array.from({ length: 12 }, (_, index) => path.join(project, `ordered-${index}.txt`));
+	for (const filePath of filePaths) fs.writeFileSync(filePath, `${path.basename(filePath)}\n`, "utf8");
+	const snapshots = await captureWriterFileSnapshots(filePaths, project);
+	assert.deepEqual(snapshots.map((snapshot) => snapshot.displayPath), filePaths.map((filePath) => path.basename(filePath)));
+});
+
+test("writer diff LCS fallback remains bounded for very large changed regions", async () => {
+	const project = makeTempDir("pi-delegates-lcs-fallback-");
+	const filePath = path.join(project, "large.txt");
+	const oldLines = ["prefix", ...Array.from({ length: 2050 }, (_, index) => (index % 2 === 0 ? `old-${index}` : `shared-${index}`)), "suffix"];
+	const newLines = ["prefix", ...Array.from({ length: 2050 }, (_, index) => (index % 2 === 0 ? `new-${index}` : `shared-${index}`)), "suffix"];
+	fs.writeFileSync(filePath, `${oldLines.join("\n")}\n`, "utf8");
+	const before = await captureWriterFileSnapshots([filePath], project);
+	fs.writeFileSync(filePath, `${newLines.join("\n")}\n`, "utf8");
+	const diff = await buildWriterDiffPreview(before, [filePath], project);
+	assert.equal(diff.changedFiles[0].status, "modified");
+	assert.equal(diff.changedFiles[0].additions, 2049);
+	assert.equal(diff.changedFiles[0].deletions, 2049);
+	assert.equal(diff.diffTruncated, true);
+	assert.ok(diff.diffPreview.split("\n").length <= WRITER_DIFF_MAX_PREVIEW_LINES);
+	assert.match(diff.diffPreview, /writer diff preview truncated/);
+});
+
+test("writer diff counts separated edits without treating unchanged middle lines as changed", async () => {
+	const project = makeTempDir("pi-delegates-separated-diff-");
+	const filePath = path.join(project, "sample.txt");
+	fs.writeFileSync(filePath, "a\nb-old\nc\nd\ne\nf-old\ng\n", "utf8");
+	const before = await captureWriterFileSnapshots([filePath], project);
+	fs.writeFileSync(filePath, "a\nb-new\nc\nd\ne\nf-new\ng\n", "utf8");
+	const diff = await buildWriterDiffPreview(before, [filePath], project);
+	assert.equal(diff.changedFiles[0].additions, 2);
+	assert.equal(diff.changedFiles[0].deletions, 2);
+	assert.match(diff.diffPreview, /- b-old/);
+	assert.match(diff.diffPreview, /\+ b-new/);
+	assert.match(diff.diffPreview, /- f-old/);
+	assert.match(diff.diffPreview, /\+ f-new/);
+	assert.doesNotMatch(diff.diffPreview, /- c/);
+	assert.doesNotMatch(diff.diffPreview, /\+ c/);
+	assert.doesNotMatch(diff.diffPreview, /- d/);
+	assert.doesNotMatch(diff.diffPreview, /\+ d/);
+});
+
+test("writer diff redacts secret-looking relative paths in summaries and details", async () => {
+	const project = makeTempDir("pi-delegates-secret-path-");
+	const redactionFixtureDir = path.join(project, "SECRET_TOKEN=<fixture-secret>");
+	fs.mkdirSync(redactionFixtureDir);
+	const filePath = path.join(redactionFixtureDir, "app.txt");
+	fs.writeFileSync(filePath, "old\n", "utf8");
+	const before = await captureWriterFileSnapshots([filePath], project);
+	fs.writeFileSync(filePath, "new\n", "utf8");
+	const diff = await buildWriterDiffPreview(before, [filePath], project);
+	assert.doesNotMatch(diff.changedFiles[0].path, /fixture-secret/);
+	assert.doesNotMatch(diff.diffPreview, /fixture-secret/);
+	assert.match(diff.changedFiles[0].path, /SECRET_TOKEN=<redacted>/);
+});
+
+test("writer diff details prioritize changed files over unchanged allowed paths", async () => {
+	const project = makeTempDir("pi-delegates-detail-priority-");
+	const filePaths = Array.from({ length: WRITER_DIFF_MAX_CHANGED_FILES + 5 }, (_, index) => path.join(project, `file-${index}.txt`));
+	for (const filePath of filePaths) fs.writeFileSync(filePath, "same\n", "utf8");
+	const before = await captureWriterFileSnapshots(filePaths, project);
+	fs.writeFileSync(filePaths[filePaths.length - 1], "changed\n", "utf8");
+	const diff = await buildWriterDiffPreview(before, filePaths, project);
+	const details = writerDiffDetailFields(diff);
+	assert.equal(details.changedFileCount, 1);
+	assert.equal(details.changedFilesTruncated, false);
+	assert.deepEqual(details.changedFiles?.map((file) => file.path), [`file-${WRITER_DIFF_MAX_CHANGED_FILES + 4}.txt`]);
+});
+
+test("writer snapshot degrades to skipped diff when file read fails after stat", async () => {
+	const project = makeTempDir("pi-delegates-read-race-");
+	const filePath = path.join(project, "race.txt");
+	fs.writeFileSync(filePath, "old\n", "utf8");
+	const originalOpen = fs.promises.open;
+	try {
+		(fs.promises as any).open = async () => {
+			const error = new Error("forced read failure") as NodeJS.ErrnoException;
+			error.code = "EACCES";
+			throw error;
+		};
+		const snapshots = await captureWriterFileSnapshots([filePath], project);
+		assert.equal(snapshots[0].exists, true);
+		assert.equal(snapshots[0].skipReason, "read failed");
+	} finally {
+		(fs.promises as any).open = originalOpen;
 	}
 });
 
@@ -792,30 +1056,39 @@ test("writer custom renderers are writer-labeled and hide raw child stdout or st
 		const call = writer.renderCall({ agent: "implementer", task: "Change\nexact file", allowedPaths: ["src/app.ts"] }, theme as any, context as any);
 		assert.match(call.render(120).join("\n"), /writer implementer Change exact file/);
 
-		const result = writer.renderResult(
-			{
-				content: [{ type: "text", text: "raw writer final summary" }],
-				details: {
-					agent: "implementer",
-					model: "writer-model",
-					thinking: "medium",
-					cwd: "/tmp/project",
-					status: "completed",
-					exitCode: 0,
-					durationMs: 42,
-					toolCallCount: 2,
-					truncated: false,
-					stderrTail: "SECRET_TOKEN=<fixture-secret>",
-				},
+		const resultPayload = {
+			content: [{ type: "text", text: "raw writer final summary" }],
+			details: {
+				agent: "implementer",
+				model: "writer-model",
+				thinking: "medium",
+				cwd: "/tmp/project",
+				status: "completed",
+				exitCode: 0,
+				durationMs: 42,
+				toolCallCount: 2,
+				truncated: false,
+				changedFiles: [{ path: "src/app.ts", status: "modified", oldSize: 1, newSize: 1, additions: 1, deletions: 1 }],
+				diffPreview: "edit src/app.ts\n- old\n+ new",
+				diffTruncated: false,
+				stderrTail: "SECRET_TOKEN=<fixture-secret>",
 			},
-			{ expanded: true, isPartial: false } as any,
-			theme as any,
-			context as any,
-		);
+		};
+		const collapsed = writer.renderResult(resultPayload, { expanded: false, isPartial: false } as any, theme as any, context as any);
+		const collapsedRendered = collapsed.render(120).join("\n");
+		assert.match(collapsedRendered, /writer completed/);
+		assert.match(collapsedRendered, /edit src\/app\.ts/);
+		assert.match(collapsedRendered, /\+ new/);
+		assert.doesNotMatch(collapsedRendered, /tools: 2/);
+		assert.doesNotMatch(collapsedRendered, /raw writer final summary/);
+
+		const result = writer.renderResult(resultPayload, { expanded: true, isPartial: false } as any, theme as any, context as any);
 		const rendered = result.render(120).join("\n");
 		assert.match(rendered, /writer completed/);
 		assert.match(rendered, /implementer/);
 		assert.match(rendered, /tools: 2/);
+		assert.match(rendered, /edit src\/app\.ts/);
+		assert.match(rendered, /\+ new/);
 		assert.doesNotMatch(rendered, /SECRET_TOKEN/);
 		assert.doesNotMatch(rendered, /raw writer final summary/);
 	});

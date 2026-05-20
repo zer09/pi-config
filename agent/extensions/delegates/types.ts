@@ -141,7 +141,32 @@ export interface ReaderToolResult {
 	details: ReaderToolDetails;
 }
 
-export type WriterToolDetails = ReaderToolDetails;
+export type WriterFileChangeStatus = "created" | "modified" | "unchanged" | "deleted" | "skipped";
+
+export interface WriterFileChange {
+	path: string;
+	status: WriterFileChangeStatus;
+	oldSize: number | null;
+	newSize: number | null;
+	additions: number;
+	deletions: number;
+	reason?: string;
+}
+
+export interface WriterDiffPreview {
+	changedFiles: WriterFileChange[];
+	diffPreview: string;
+	diffTruncated: boolean;
+}
+
+export interface WriterToolDetails extends ReaderToolDetails {
+	changedFiles?: WriterFileChange[];
+	changedFileCount?: number;
+	skippedDiffCount?: number;
+	changedFilesTruncated?: boolean;
+	diffPreview?: string;
+	diffTruncated?: boolean;
+}
 
 export interface WriterToolResult {
 	content: Array<{ type: "text"; text: string }>;

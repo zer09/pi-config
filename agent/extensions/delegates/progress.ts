@@ -1,7 +1,7 @@
 import { DEFAULT_TASK_PREVIEW_CHARS } from "./constants.ts";
 import { redactSensitiveText } from "./redaction.ts";
 
-export type DelegateProgressPhase = "starting" | "launching_child" | "child_event" | "finishing";
+export type DelegateProgressPhase = "starting" | "launching_child" | "child_event" | "diff_ready" | "finishing";
 export type DelegateUpdate = (update: { content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }) => void;
 
 export function previewTask(task: string, maxChars = DEFAULT_TASK_PREVIEW_CHARS): string {
@@ -14,18 +14,20 @@ export function previewTask(task: string, maxChars = DEFAULT_TASK_PREVIEW_CHARS)
 export function emitDelegateProgress(
 	onUpdate: DelegateUpdate | undefined,
 	phase: DelegateProgressPhase,
-	info: { agent: string; task: string; cwd: string; tool?: "reader" | "writer" },
+	info: { agent: string; task: string; cwd: string; tool?: "reader" | "writer"; message?: string; details?: Record<string, unknown> },
 ): void {
 	if (!onUpdate) return;
 	const tool = info.tool ?? "reader";
+	const message = info.message ?? `${info.agent} - ${previewTask(info.task)}`;
 	onUpdate({
-		content: [{ type: "text", text: `${tool} ${phase}: ${info.agent} - ${previewTask(info.task)}` }],
+		content: [{ type: "text", text: `${tool} ${phase}: ${message}` }],
 		details: {
 			tool,
 			phase,
 			agent: info.agent,
 			cwd: redactSensitiveText(info.cwd),
 			taskPreview: previewTask(info.task),
+			...(info.details ?? {}),
 		},
 	});
 }
