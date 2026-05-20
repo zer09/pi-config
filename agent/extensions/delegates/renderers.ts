@@ -1,7 +1,7 @@
 import { Text } from "@earendil-works/pi-tui";
 
 import { previewTask } from "./progress.ts";
-import type { ReaderToolResult } from "./types.ts";
+import type { ReaderToolResult, WriterToolResult } from "./types.ts";
 
 function color(theme: any, name: string, value: string): string {
 	return typeof theme?.fg === "function" ? theme.fg(name, value) : value;
@@ -18,30 +18,36 @@ function statusLabel(status: string): string {
 	return "failed";
 }
 
-export function renderDelegateCall(args: any, theme: any, context: any): Text {
+function renderToolCall(tool: "reader" | "writer", args: any, theme: any, context: any): Text {
 	const text = (context?.lastComponent as Text | undefined) ?? new Text("", 0, 0);
 	const agent = typeof args?.agent === "string" ? args.agent : "unknown";
 	const task = typeof args?.task === "string" ? previewTask(args.task) : "";
-	text.setText(`${color(theme, "toolTitle", bold(theme, "reader"))} ${color(theme, "muted", agent)}${task ? ` ${color(theme, "dim", task)}` : ""}`);
+	text.setText(`${color(theme, "toolTitle", bold(theme, tool))} ${color(theme, "muted", agent)}${task ? ` ${color(theme, "dim", task)}` : ""}`);
 	return text;
 }
 
-export function renderDelegateResult(result: ReaderToolResult, options: { expanded?: boolean; isPartial?: boolean }, theme: any, context: any): Text {
+function renderToolResult(
+	tool: "reader" | "writer",
+	result: ReaderToolResult | WriterToolResult,
+	options: { expanded?: boolean; isPartial?: boolean },
+	theme: any,
+	context: any,
+): Text {
 	const text = (context?.lastComponent as Text | undefined) ?? new Text("", 0, 0);
 	if (options?.isPartial) {
-		text.setText(color(theme, "warning", "reader running"));
+		text.setText(color(theme, "warning", `${tool} running`));
 		return text;
 	}
 
 	const details = result?.details;
 	if (!details) {
-		text.setText(color(theme, "muted", "reader finished"));
+		text.setText(color(theme, "muted", `${tool} finished`));
 		return text;
 	}
 
 	const status = statusLabel(details.status);
 	const statusColor = status === "completed" ? "success" : status === "timeout" || status === "aborted" ? "warning" : "error";
-	let output = `${color(theme, statusColor, `reader ${status}`)} ${color(theme, "muted", details.agent)}`;
+	let output = `${color(theme, statusColor, `${tool} ${status}`)} ${color(theme, "muted", details.agent)}`;
 	if (options?.expanded) {
 		output += `\nmodel: ${details.model}`;
 		output += `\nthinking: ${details.thinking}`;
@@ -53,4 +59,20 @@ export function renderDelegateResult(result: ReaderToolResult, options: { expand
 	}
 	text.setText(output);
 	return text;
+}
+
+export function renderDelegateCall(args: any, theme: any, context: any): Text {
+	return renderToolCall("reader", args, theme, context);
+}
+
+export function renderWriterCall(args: any, theme: any, context: any): Text {
+	return renderToolCall("writer", args, theme, context);
+}
+
+export function renderDelegateResult(result: ReaderToolResult, options: { expanded?: boolean; isPartial?: boolean }, theme: any, context: any): Text {
+	return renderToolResult("reader", result, options, theme, context);
+}
+
+export function renderWriterResult(result: WriterToolResult, options: { expanded?: boolean; isPartial?: boolean }, theme: any, context: any): Text {
+	return renderToolResult("writer", result, options, theme, context);
 }

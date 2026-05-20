@@ -12,9 +12,9 @@ import {
 } from "./constants.ts";
 import { THINKING_LEVELS } from "./types.ts";
 
-export const ReaderParamsSchema = Type.Object({
+const BaseParamsProperties = {
 	agent: Type.String({ description: "Name of a user-level agent in ~/.pi/agent/agents/*.md" }),
-	task: Type.String({ description: "Self-contained read-only task to delegate to the child agent" }),
+	task: Type.String({ description: "Self-contained task to delegate to the child agent" }),
 	model: Type.Optional(Type.String({ description: "Optional Pi model override, passed as --model" })),
 	thinking: Type.Optional(
 		StringEnum(THINKING_LEVELS, {
@@ -40,4 +40,18 @@ export const ReaderParamsSchema = Type.Object({
 	includeDiagnostics: Type.Optional(
 		Type.Boolean({ description: "Include bounded child diagnostics in failure results. Default false.", default: false }),
 	),
+};
+
+export const ReaderParamsSchema = Type.Object({
+	...BaseParamsProperties,
+	task: Type.String({ description: "Self-contained read-only task to delegate to the child agent" }),
+}, { additionalProperties: false });
+
+export const WriterParamsSchema = Type.Object({
+	...BaseParamsProperties,
+	task: Type.String({ description: "Implementation-ready change brief for exact allowed files" }),
+	allowedPaths: Type.Array(Type.String({ description: "Exact file path the writer may read or modify" }), {
+		description: "Non-empty exact file paths. Directory scopes are not allowed.",
+		minItems: 1,
+	}),
 }, { additionalProperties: false });

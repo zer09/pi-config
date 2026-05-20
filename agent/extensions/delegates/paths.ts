@@ -18,3 +18,7 @@ export function cwdSessionSegments(cwd: string): string[] {
 export function getReaderSessionDir(cwd: string, agentRoot = getAgentRoot()): string {
 	return path.join(agentRoot, DELEGATE_SESSION_DIR_NAME, "reader", ...cwdSessionSegments(cwd));
 }
+
+export function getWriterSessionBaseDir(cwd: string, agentRoot = getAgentRoot()): string {
+	return path.join(agentRoot, DELEGATE_SESSION_DIR_NAME, "writer", ...cwdSessionSegments(cwd));
+}

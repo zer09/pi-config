@@ -28,6 +28,10 @@ export interface BaseDelegateParams {
 
 export type ReaderParams = BaseDelegateParams;
 
+export interface WriterParams extends BaseDelegateParams {
+	allowedPaths: string[];
+}
+
 export interface NormalizedBaseDelegateParams {
 	agent: string;
 	task: string;
@@ -40,6 +44,10 @@ export interface NormalizedBaseDelegateParams {
 }
 
 export type NormalizedReaderParams = NormalizedBaseDelegateParams;
+
+export interface NormalizedWriterParams extends NormalizedBaseDelegateParams {
+	allowedPaths: string[];
+}
 
 export interface DelegateProfile<
 	TParams extends BaseDelegateParams = BaseDelegateParams,
@@ -60,7 +68,7 @@ export interface DelegateProfile<
 	normalizeParams(params: TParams, defaultCwd: string): TNormalized;
 }
 
-export interface ResolvedInvocation {
+export interface ResolvedReaderInvocation {
 	agent: AgentConfig;
 	params: NormalizedReaderParams;
 	model: string;
@@ -68,6 +76,17 @@ export interface ResolvedInvocation {
 	tools: string[];
 	sessionDir: string;
 }
+
+export interface ResolvedWriterInvocation {
+	agent: AgentConfig;
+	params: NormalizedWriterParams;
+	model: string;
+	thinking: ThinkingLevel;
+	tools: string[];
+	sessionDir: string;
+}
+
+export type ResolvedInvocation = ResolvedReaderInvocation | ResolvedWriterInvocation;
 
 export interface DiscoveredAgents {
 	agents: AgentConfig[];
@@ -120,4 +139,11 @@ export interface ReaderToolDetails {
 export interface ReaderToolResult {
 	content: Array<{ type: "text"; text: string }>;
 	details: ReaderToolDetails;
+}
+
+export type WriterToolDetails = ReaderToolDetails;
+
+export interface WriterToolResult {
+	content: Array<{ type: "text"; text: string }>;
+	details: WriterToolDetails;
 }

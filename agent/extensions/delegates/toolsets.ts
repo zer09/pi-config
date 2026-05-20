@@ -12,3 +12,5 @@ export const READER_TOOLS = [
 	"context_mode_ctx_fetch_and_index",
 	"context_mode_ctx_index",
 ] as const;
+
+export const WRITER_TOOLS = ["read", "edit", "write"] as const;

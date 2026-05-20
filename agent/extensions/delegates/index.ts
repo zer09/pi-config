@@ -5,23 +5,30 @@ export {
 	DEFAULT_READER_MODEL,
 	DEFAULT_THINKING,
 	DEFAULT_TIMEOUT_MS,
+	DEFAULT_WRITER_MODEL,
 	DELEGATE_CHILD_MARKER,
 } from "./constants.ts";
 export { getReaderSessionDir } from "./paths.ts";
-export { normalizeReaderParams, resolveInvocation } from "./params.ts";
+export { normalizeReaderParams, normalizeWriterParams, resolveInvocation } from "./params.ts";
 export { readerProfile } from "./profiles/reader.ts";
-export { buildReaderSystemPrompt, buildReaderTaskPrompt } from "./prompts.ts";
-export { renderDelegateCall, renderDelegateResult } from "./renderers.ts";
-export { runReader } from "./runner.ts";
+export { writerProfile } from "./profiles/writer.ts";
+export { buildReaderSystemPrompt, buildReaderTaskPrompt, buildWriterSystemPrompt, buildWriterTaskPrompt } from "./prompts.ts";
+export { renderDelegateCall, renderDelegateResult, renderWriterCall, renderWriterResult } from "./renderers.ts";
+export { runReader, runWriter } from "./runner.ts";
 
+import { registerDelegateChildGuards } from "./child-guards.ts";
 import { DEFAULT_MAX_RESULT_BYTES, DEFAULT_READER_MODEL, DEFAULT_THINKING, DEFAULT_TIMEOUT_MS, DELEGATE_CHILD_MARKER } from "./constants.ts";
 import { readerProfile } from "./profiles/reader.ts";
-import { renderDelegateCall, renderDelegateResult } from "./renderers.ts";
-import { runReader } from "./runner.ts";
-import type { ReaderParams } from "./types.ts";
+import { writerProfile } from "./profiles/writer.ts";
+import { renderDelegateCall, renderDelegateResult, renderWriterCall, renderWriterResult } from "./renderers.ts";
+import { runReader, runWriter } from "./runner.ts";
+import type { ReaderParams, WriterParams } from "./types.ts";
 
 export default function delegatesExtension(pi: ExtensionAPI): void {
-	if (process.env[DELEGATE_CHILD_MARKER]) return;
+	if (process.env[DELEGATE_CHILD_MARKER]) {
+		registerDelegateChildGuards(pi);
+		return;
+	}
 
 	pi.registerTool({
 		name: readerProfile.name,
@@ -52,6 +59,39 @@ export default function delegatesExtension(pi: ExtensionAPI): void {
 						error: message,
 						timeoutMs: DEFAULT_TIMEOUT_MS,
 						maxResultBytes: DEFAULT_MAX_RESULT_BYTES,
+					},
+				};
+			}
+		},
+	});
+
+	pi.registerTool({
+		name: writerProfile.name,
+		label: writerProfile.label,
+		description: writerProfile.description,
+		promptSnippet: writerProfile.promptSnippet,
+		promptGuidelines: writerProfile.promptGuidelines,
+		parameters: writerProfile.parameters,
+		renderCall: renderWriterCall,
+		renderResult: renderWriterResult,
+		async execute(_toolCallId, params, signal, onUpdate, ctx) {
+			try {
+				return await runWriter(params as WriterParams, ctx.cwd, signal, onUpdate);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return {
+					content: [{ type: "text", text: message }],
+					details: {
+						agent: typeof (params as WriterParams).agent === "string" ? (params as WriterParams).agent : "unknown",
+						model: writerProfile.defaultModel,
+						thinking: writerProfile.defaultThinking,
+						cwd: ctx.cwd,
+						status: "failed",
+						exitCode: null,
+						durationMs: 0,
+						toolCallCount: 0,
+						truncated: false,
+						error: message,
 					},
 				};
 			}

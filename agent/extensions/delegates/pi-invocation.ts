@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { DELEGATE_BIN_ENV } from "./constants.ts";
-import type { ResolvedInvocation, TempRunFiles } from "./types.ts";
+import type { ResolvedInvocation, ResolvedWriterInvocation, TempRunFiles } from "./types.ts";
 
 export function buildReaderPiArgs(invocation: ResolvedInvocation, files: TempRunFiles): string[] {
 	return [
@@ -12,6 +12,25 @@ export function buildReaderPiArgs(invocation: ResolvedInvocation, files: TempRun
 		"--session-dir",
 		invocation.sessionDir,
 		"--continue",
+		"--model",
+		invocation.model,
+		"--thinking",
+		invocation.thinking,
+		"--append-system-prompt",
+		files.promptPath,
+		"--tools",
+		invocation.tools.join(","),
+		`@${files.taskPath}`,
+	];
+}
+
+export function buildWriterPiArgs(invocation: ResolvedWriterInvocation, files: TempRunFiles): string[] {
+	return [
+		"--mode",
+		"json",
+		"-p",
+		"--session-dir",
+		invocation.sessionDir,
 		"--model",
 		invocation.model,
 		"--thinking",

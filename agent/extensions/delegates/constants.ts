@@ -17,3 +17,4 @@ export const MAX_MAX_RESULT_BYTES = 1_000_000;
 export const STDERR_TAIL_BYTES = 4_000;
 export const DELEGATE_SESSION_DIR_NAME = "delegate-sessions";
 export const DEFAULT_TASK_PREVIEW_CHARS = 120;
+export const MAX_STRINGIFIED_EDITS_GUARD_BYTES = 64_000;

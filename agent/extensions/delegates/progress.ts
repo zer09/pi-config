@@ -14,13 +14,14 @@ export function previewTask(task: string, maxChars = DEFAULT_TASK_PREVIEW_CHARS)
 export function emitDelegateProgress(
 	onUpdate: DelegateUpdate | undefined,
 	phase: DelegateProgressPhase,
-	info: { agent: string; task: string; cwd: string },
+	info: { agent: string; task: string; cwd: string; tool?: "reader" | "writer" },
 ): void {
 	if (!onUpdate) return;
+	const tool = info.tool ?? "reader";
 	onUpdate({
-		content: [{ type: "text", text: `reader ${phase}: ${info.agent} - ${previewTask(info.task)}` }],
+		content: [{ type: "text", text: `${tool} ${phase}: ${info.agent} - ${previewTask(info.task)}` }],
 		details: {
-			tool: "reader",
+			tool,
 			phase,
 			agent: info.agent,
 			cwd: redactSensitiveText(info.cwd),

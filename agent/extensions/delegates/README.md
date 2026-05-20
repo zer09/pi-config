@@ -2,16 +2,12 @@
 
 Registers delegate tools that run user-level Pi agents in child processes with isolated context windows.
 
-Milestone A exposes only the `reader` tool. `writer` is intentionally not registered yet.
+Current tools:
 
-## Current tool surface
+- `reader`: read-only investigation, review, validation planning, and documentation research.
+- `writer`: tightly scoped local text-file changes for exact files listed by the parent.
 
-- `reader`: runs one synchronous read-only child task and returns the child final summary plus compact metadata.
-
-Not registered in Milestone A:
-
-- `writer`
-- `subagent` compatibility alias
+There is no `subagent` compatibility alias.
 
 ## Reader scope
 
@@ -45,9 +41,55 @@ Defaults and precedence:
 - `maxResultBytes`: `24000`, clamped to `1000..1000000`
 - `includeDiagnostics`: `false`
 
+## Writer scope
+
+The `writer` child receives only `read`, `edit`, and `write`.
+
+Writer uses fresh sessions per invocation and does not pass `--continue`. The session directory is deleted on success. On failure, the session is preserved only when `includeDiagnostics` is true.
+
+Writer is text-only in v1:
+
+- `allowedPaths` must be non-empty.
+- Each `allowedPaths` entry is one exact file path, not a directory.
+- Existing allowed paths must be text files.
+- Relative allowed paths resolve against normalized `cwd`.
+- Allowed paths must stay inside `cwd` and must not escape through symlinks.
+- Existing files must be changed with `edit`.
+- `write` may only create an exact missing file listed in `allowedPaths`.
+- Writer cannot delete files.
+- Writer cannot run shell, Context Mode command/search tools, package managers, commits, pushes, deployments, or hosted-service mutations.
+- Writer cannot call `reader`, `writer`, `subagent`, or recursive delegate tools.
+
+The child receives `PI_DELEGATE_ALLOWED_PATHS` as JSON encoded resolved exact file paths. Child `tool_call` guards enforce exact-path and text-only boundaries in addition to the restricted `--tools` list.
+
+## Writer parameters
+
+```ts
+{
+  agent: string;
+  task: string;
+  allowedPaths: string[];
+  model?: string;
+  thinking?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+  cwd?: string;
+  timeoutMs?: number;
+  maxResultBytes?: number;
+  includeDiagnostics?: boolean;
+}
+```
+
+Defaults and precedence:
+
+- `model`: call param, then agent file, then `openai-codex/gpt-5.3-codex-spark`
+- `thinking`: call param, then agent file, then `medium`
+- `cwd`: parent tool context cwd, normalized to an existing real directory
+- `timeoutMs`: `600000`, clamped to `1000..3600000`
+- `maxResultBytes`: `24000`, clamped to `1000..1000000`
+- `includeDiagnostics`: `false`
+
 ## Agent files
 
-Reader loads agents from:
+Delegates load agents from:
 
 ```text
 ~/.pi/agent/agents/*.md
@@ -61,11 +103,11 @@ Supported frontmatter fields:
 - `thinking`: optional
 - `systemPromptMode`: `append` or `replace`
 
-Delegate safety boundaries always remain in the child system prompt. `systemPromptMode` affects only the agent role text and cannot remove reader safety rules.
+Delegate safety boundaries always remain in the child system prompt. `systemPromptMode` affects only the agent role text and cannot remove reader or writer safety rules.
 
 ## Progress UI
 
-The tool emits progress through `onUpdate` with compact details for phases such as:
+Both tools emit progress through `onUpdate` with compact details for phases such as:
 
 - `starting`
 - `launching_child`
@@ -76,7 +118,7 @@ Progress details include a redacted task preview and do not include raw child st
 
 ## Result shape
 
-Reader returns:
+Delegates return:
 
 - `content`: the redacted and truncated child final answer
 - `details`: compact metadata including agent, model, thinking, cwd, status, exit code, duration, tool-call count, and truncation status
@@ -91,7 +133,3 @@ bun build agent/extensions/delegates/index.ts --target=node --external @earendil
 node --check /tmp/delegates-check.js
 PI_OFFLINE=1 PI_SKIP_VERSION_CHECK=1 pi --no-extensions -e agent/extensions/delegates/index.ts --list-models definitely-no-such-model-filter
 ```
-
-## Milestone B preview
-
-Milestone B will add `writer` with exact-file `allowedPaths`, fresh sessions, restricted write tools, and child path/text guards. It is not available in Milestone A.

@@ -35,6 +35,8 @@ export async function runChildProcess(
 	signal: AbortSignal | undefined,
 	timeoutMs: number,
 	onChildEvent?: () => void,
+	kind: "reader" | "writer" = "reader",
+	extraEnv: Record<string, string> = {},
 ): Promise<ChildProcessResult> {
 	const state = emptyEventState();
 	let stderrTail = "";
@@ -49,7 +51,7 @@ export async function runChildProcess(
 			cwd,
 			shell: false,
 			stdio: ["ignore", "pipe", "pipe"],
-			env: { ...process.env, [DELEGATE_CHILD_MARKER]: "1", [DELEGATE_KIND_ENV]: "reader" },
+			env: { ...process.env, ...extraEnv, [DELEGATE_CHILD_MARKER]: "1", [DELEGATE_KIND_ENV]: kind },
 		});
 
 		const timeout = setTimeout(() => {

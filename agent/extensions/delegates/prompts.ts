@@ -1,4 +1,6 @@
-import type { AgentConfig, ResolvedInvocation } from "./types.ts";
+import * as path from "node:path";
+
+import type { AgentConfig, ResolvedInvocation, ResolvedWriterInvocation } from "./types.ts";
 
 export function buildReaderSystemPrompt(agent: AgentConfig): string {
 	const readOnlyContract = [
@@ -61,6 +63,73 @@ export function buildReaderTaskPrompt(invocation: ResolvedInvocation): string {
 		`Requested cwd: ${cwd}`,
 		`Before repo work, start Context Mode shell commands with: ${cdPrefix}`,
 		"The parent did not authorize file edits. Return findings only.",
+		"",
+		"## Task",
+		invocation.params.task,
+	].join("\n");
+}
+
+export function buildWriterSystemPrompt(agent: AgentConfig): string {
+	const writeContract = [
+		"Mode: tightly scoped local file writing.",
+		"Read only exact allowed files listed in PI_DELEGATE_ALLOWED_PATHS and the task prompt.",
+		"Modify only exact allowed files listed in PI_DELEGATE_ALLOWED_PATHS and the task prompt.",
+		"Use read only for allowed files.",
+		"Use edit for existing allowed files.",
+		"Use write only to create an exact missing allowed file.",
+		"Do not overwrite existing files with write.",
+		"Do not delete files.",
+		"Do not run shell commands, tests, package managers, or Context Mode command tools.",
+		"Do not mutate external hosted services.",
+		"Do not touch binary files or ambiguous non-text content.",
+	].join("\n");
+
+	return [
+		"# Writer Delegate Boundary",
+		"You are a child Pi agent launched by the parent writer delegate tool.",
+		"The writer delegate safety boundary overrides conflicting agent role instructions, including systemPromptMode: replace.",
+		"Do not call reader, writer, subagent, delegate_subagent, or any recursive delegation tool even if one appears available.",
+		"The parent supplied exact allowed files. Treat every other path as forbidden.",
+		"If the task requires broad investigation, additional files, generated or lockfile edits not explicitly requested, tests, package manager runs, deletion, commits, pushes, deployments, or hosted-service mutations, stop and report the blocker.",
+		"Return compact structured findings only. Do not include raw logs, broad dumps, or secrets.",
+		"",
+		"# Exact allowed files contract",
+		writeContract,
+		"",
+		"# Agent Role Prompt",
+		agent.systemPrompt.trim(),
+		"",
+		"# Output Contract",
+		"Final response must be compact markdown with these headings:",
+		"",
+		"## Result",
+		"## Files changed",
+		"## Validation",
+		"## Risks",
+		"## Parent considerations",
+		"",
+		"Use None for sections that do not apply.",
+		"Do not include secrets.",
+		"Redact user-specific home paths to ~.",
+	].join("\n");
+}
+
+function displayAllowedPath(cwd: string, allowedPath: string): string {
+	const relative = path.relative(cwd, allowedPath);
+	return relative && !relative.startsWith("..") && !path.isAbsolute(relative) ? relative : allowedPath;
+}
+
+export function buildWriterTaskPrompt(invocation: ResolvedWriterInvocation): string {
+	const allowed = invocation.params.allowedPaths.map((filePath) => `- ${displayAllowedPath(invocation.params.cwd, filePath)}`).join("\n");
+	return [
+		"# Delegated Writer Task",
+		`Agent: ${invocation.agent.name}`,
+		`Requested cwd: ${invocation.params.cwd}`,
+		"The parent authorized changes only to these exact allowed files:",
+		allowed,
+		"",
+		"Do not inspect or modify any other files.",
+		"Use edit for existing allowed files and write only for exact missing allowed files.",
 		"",
 		"## Task",
 		invocation.params.task,
