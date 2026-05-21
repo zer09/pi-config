@@ -724,7 +724,7 @@ export function parsePromptAuthorizations(prompt: string, now = Date.now()): Hos
 
 export function parseOneTimeAuthorization(args: string, now = Date.now()): HostedMutationAuthorization | { error: string } {
 	const tokens = shellSplit(args);
-	if (tokens.length < 3) return { error: "Usage: /authorize-hosted-mutation <service> <action> <target> [body-sha256:<hash>]" };
+	if (tokens.length < 3) return { error: "Usage: /authorize-hosted-mutation <service> <action> <target> [body-sha256:<hash>]. Example: /authorize-hosted-mutation git git-push remote" };
 	const [service, action, ...rest] = tokens;
 	let bodySha256: string | undefined;
 	const targetParts: string[] = [];
@@ -734,7 +734,7 @@ export function parseOneTimeAuthorization(args: string, now = Date.now()): Hoste
 		else targetParts.push(token);
 	}
 	const target = targetParts.join(" ").trim();
-	if (!target) return { error: "Missing target for hosted-service mutation authorization" };
+	if (!target) return { error: "Missing target for hosted-service mutation authorization. Provide the exact target shown in the blocked warning. For plain git push, that target is \"remote\"." };
 	return {
 		service: normalizeWord(service),
 		action: normalizeWord(action),
@@ -796,16 +796,22 @@ function formatAction(action: string): string {
 	return action.replace(/-/g, " ");
 }
 
+function authorizationCommandForIntent(intent: MutationIntent, includeBodyHash = false): string {
+	const target = intent.target || "<target>";
+	const bodyHash = includeBodyHash ? ` body-sha256:${intent.body === undefined ? "<hash>" : sha256(normalizeBody(intent.body))}` : "";
+	return `/authorize-hosted-mutation ${intent.service} ${intent.action} ${target}${bodyHash}`;
+}
+
 function blockReason(intent: MutationIntent): string {
 	const service = intent.service === "gcloud" ? "GCP" : intent.service.charAt(0).toUpperCase() + intent.service.slice(1);
 	const target = intent.target ? ` on ${intent.target}` : "";
 	if (intent.tier === 3) {
-		return `Hosted-service mutation blocked: ${service} ${formatAction(intent.action)}${target} is high risk and requires /authorize-hosted-mutation ${intent.service} ${intent.action} <target>.`;
+		return `Hosted-service mutation blocked: ${service} ${formatAction(intent.action)}${target} is high risk. Run ${authorizationCommandForIntent(intent)}, then retry the blocked command within 10 minutes.`;
 	}
 	if (intent.tier === 1) {
-		return `Hosted-service mutation blocked: ${service} ${formatAction(intent.action)}${target} requires exact user authorization for target and body.`;
+		return `Hosted-service mutation blocked: ${service} ${formatAction(intent.action)}${target} requires exact authorization for target and body. Run ${authorizationCommandForIntent(intent, true)}, then retry the blocked command within 10 minutes.`;
 	}
-	return `Hosted-service mutation blocked: ${service} ${formatAction(intent.action)}${target} requires exact user authorization for target and fields.`;
+	return `Hosted-service mutation blocked: ${service} ${formatAction(intent.action)}${target} requires exact authorization for target and changed fields. Run ${authorizationCommandForIntent(intent)}, then retry the blocked command within 10 minutes.`;
 }
 
 function auditFromIntent(toolName: string, intent: MutationIntent, reason: string): AuditEntry {
@@ -844,7 +850,10 @@ export default function hostedMutationGuard(pi: ExtensionAPI): void {
 				return;
 			}
 			commandAuthorizations.push(authorization);
-			ctx.ui.notify(`Authorized one ${authorization.service} ${authorization.action} mutation for target ${authorization.target}`, "warning");
+			ctx.ui.notify(
+				`Authorized for 10 minutes: one matching ${authorization.service} ${authorization.action} command can now run for target ${authorization.target}. Retry the blocked command to use this authorization.`,
+				"warning",
+			);
 		},
 	});
 
@@ -868,7 +877,7 @@ export default function hostedMutationGuard(pi: ExtensionAPI): void {
 				ctx.ui.notify("Hosted mutation guard one-time authorizations and audit log cleared.", "info");
 				return;
 			}
-			ctx.ui.notify("Usage: /hosted-mutation-guard [status|audit|clear]", "error");
+			ctx.ui.notify("Usage: /hosted-mutation-guard [status|audit|clear]. Try /hosted-mutation-guard status.", "error");
 		},
 	});
 
