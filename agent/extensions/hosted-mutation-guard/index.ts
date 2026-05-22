@@ -139,6 +139,11 @@ function normalizeTarget(value: string | undefined): string | undefined {
 	return value.trim().replace(/^#/, "").toLowerCase();
 }
 
+function executableName(value: string | undefined): string | undefined {
+	if (!value) return undefined;
+	return value.split(/[\\/]/).pop() || value;
+}
+
 function sha256(value: string): string {
 	return createHash("sha256").update(value).digest("hex");
 }
@@ -219,11 +224,13 @@ function splitCommandSegments(command: string): string[] {
 			current += char;
 			continue;
 		}
-		if (char === "\n" || char === ";" || (char === "&" && next === "&") || (char === "|" && next === "|")) {
+		const previous = command[i - 1];
+		const isSeparator = char === "\n" || char === ";" || char === "|" || (char === "&" && previous !== ">" && next !== ">");
+		if (isSeparator) {
 			const trimmed = current.trim();
 			if (trimmed) segments.push(trimmed);
 			current = "";
-			if ((char === "&" && next === "&") || (char === "|" && next === "|")) i++;
+			if ((char === "&" && next === "&") || (char === "|" && (next === "|" || next === "&"))) i++;
 			continue;
 		}
 		current += char;
@@ -236,11 +243,12 @@ function splitCommandSegments(command: string): string[] {
 function stripShellWrappers(tokens: string[]): string[] {
 	let current = [...tokens];
 	while (current.length > 0) {
-		if (current[0] === "rtk" || current[0] === "sudo" || current[0] === "command") {
+		const executable = executableName(current[0]);
+		if (executable === "rtk" || executable === "sudo" || executable === "command") {
 			current = current.slice(1);
 			continue;
 		}
-		if (current[0] === "env") {
+		if (executable === "env") {
 			current = current.slice(1);
 			while (current[0] && /^[A-Za-z_][A-Za-z0-9_]*=.*/.test(current[0])) current = current.slice(1);
 			continue;
@@ -255,7 +263,7 @@ function stripShellWrappers(tokens: string[]): string[] {
 }
 
 function getShellWrapperCommand(tokens: string[]): string | undefined {
-	const executable = tokens[0]?.split("/").pop();
+	const executable = executableName(tokens[0]);
 	if (!executable || !["bash", "sh", "zsh", "fish", "dash"].includes(executable)) return undefined;
 	for (let i = 1; i < tokens.length; i++) {
 		const token = tokens[i];
@@ -557,30 +565,32 @@ export function classifyShellCommand(command: string, source: MutationSource = "
 			intents.push(...classifyShellCommand(wrappedCommand, source));
 			continue;
 		}
-		const executable = tokens[0];
-		const commandTokens = executable === "git" ? skipGitGlobalOptions(tokens) : tokens;
+		const executable = executableName(tokens[0]);
+		if (!executable) continue;
+		const executableTokens = [executable, ...tokens.slice(1)];
+		const commandTokens = executable === "git" ? skipGitGlobalOptions(executableTokens) : executableTokens;
 		if (executable === "git" && commandTokens[1] === "push") {
 			intents.push(makeIntent({ service: "git", action: "git-push", tier: 3, target: commandTokens.slice(2).join(" ") || "remote", source, reason: "git push mutates a remote repository" }));
 			continue;
 		}
 		if (executable === "gh") {
-			intents.push(...classifyGhCommand(tokens, source));
+			intents.push(...classifyGhCommand(executableTokens, source));
 			continue;
 		}
 		if (executable === "firebase") {
-			intents.push(...classifyFirebaseCommand(tokens, source));
+			intents.push(...classifyFirebaseCommand(executableTokens, source));
 			continue;
 		}
 		if (executable === "gcloud" || executable === "aws") {
-			intents.push(...classifyCloudCommand(tokens, source, executable));
+			intents.push(...classifyCloudCommand(executableTokens, source, executable));
 			continue;
 		}
 		if (executable === "linear") {
-			intents.push(...classifyLinearCommand(tokens, source));
+			intents.push(...classifyLinearCommand(executableTokens, source));
 			continue;
 		}
 		if (executable === "curl" || executable === "http" || executable === "wget") {
-			intents.push(...classifyHttpCommand(tokens, source));
+			intents.push(...classifyHttpCommand(executableTokens, source));
 			continue;
 		}
 		if (scanEmbedded) intents.push(...classifyCodeText(segment, source));
@@ -779,7 +789,7 @@ export function parsePromptAuthorizations(prompt: string, now = Date.now()): Hos
 
 export function parseOneTimeAuthorization(args: string, now = Date.now()): HostedMutationAuthorization | { error: string } {
 	const tokens = shellSplit(args);
-	if (tokens.length < 3) return { error: "Usage: /authorize-hosted-mutation <service> <action> <target> [body-sha256:<hash>]. Example: /authorize-hosted-mutation git git-push remote" };
+	if (tokens.length < 3) return { error: "Usage: /authorize-hosted-mutation <service> <action> <target> [body-sha256:<hash>]. Tier 1 and tier 2 mutations require body-sha256. Example: /authorize-hosted-mutation git git-push remote" };
 	const [service, action, ...rest] = tokens;
 	let bodySha256: string | undefined;
 	const targetParts: string[] = [];
@@ -790,9 +800,13 @@ export function parseOneTimeAuthorization(args: string, now = Date.now()): Hoste
 	}
 	const target = targetParts.join(" ").trim();
 	if (!target) return { error: "Missing target for hosted-service mutation authorization. Provide the exact target shown in the blocked warning. For plain git push, that target is \"remote\"." };
+	const normalizedAction = normalizeWord(action);
+	if (tierForAction(normalizedAction) !== 3 && bodySha256 === undefined) {
+		return { error: `One-time authorization for ${normalizedAction} requires body-sha256:<hash> so the exact payload is bound to the approval.` };
+	}
 	return {
 		service: normalizeWord(service),
-		action: normalizeWord(action),
+		action: normalizedAction,
 		target,
 		bodySha256,
 		source: "command",
@@ -836,7 +850,7 @@ export function matchesAuthorization(intent: MutationIntent, authorization: Host
 	if (authorization.bodySha256 !== undefined) {
 		return intent.body !== undefined && sha256(normalizeBody(intent.body)) === authorization.bodySha256;
 	}
-	return true;
+	return intent.tier === 3;
 }
 
 function findAuthorization(intent: MutationIntent, authorizations: HostedMutationAuthorization[], used: Set<number>, now: number): number | undefined {
@@ -866,7 +880,7 @@ function blockReason(intent: MutationIntent): string {
 	if (intent.tier === 1) {
 		return `Hosted-service mutation blocked: ${service} ${formatAction(intent.action)}${target} requires exact authorization for target and body. Run ${authorizationCommandForIntent(intent, true)}, then retry the blocked command within 10 minutes.`;
 	}
-	return `Hosted-service mutation blocked: ${service} ${formatAction(intent.action)}${target} requires exact authorization for target and changed fields. Run ${authorizationCommandForIntent(intent)}, then retry the blocked command within 10 minutes.`;
+	return `Hosted-service mutation blocked: ${service} ${formatAction(intent.action)}${target} requires exact authorization for target and changed fields. Run ${authorizationCommandForIntent(intent, true)}, then retry the blocked command within 10 minutes.`;
 }
 
 function auditFromIntent(toolName: string, intent: MutationIntent, reason: string): AuditEntry {

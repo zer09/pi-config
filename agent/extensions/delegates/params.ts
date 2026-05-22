@@ -79,14 +79,6 @@ function resolveCwd(value: unknown, defaultCwd: string): string {
 	return raw === undefined ? base : path.resolve(base, raw);
 }
 
-function normalizeReaderCwd(value: unknown, defaultCwd: string): string {
-	const resolved = resolveCwd(value, defaultCwd);
-	if (!fs.existsSync(resolved)) return resolved;
-	const stats = fs.statSync(resolved);
-	if (!stats.isDirectory()) throw new Error("cwd must resolve to an existing directory");
-	return fs.realpathSync(resolved);
-}
-
 function normalizeExistingCwd(value: unknown, defaultCwd: string): string {
 	const resolved = resolveCwd(value, defaultCwd);
 	let stats: fs.Stats;

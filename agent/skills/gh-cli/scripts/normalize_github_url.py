@@ -170,7 +170,7 @@ def parse_url(url: str) -> dict:
         )
 
     if head == "tree" and len(rest) >= 2:
-        ref = rest[1]
+        ref = "/".join(rest[1:])
         return route(["references/api.md"], ["gh", "api", f"repos/{slug}/git/trees/{ref}", "--paginate"])
 
     if head == "compare" and len(rest) >= 2:

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 
 import hostedMutationGuard, {
 	classifyShellCommand,
@@ -82,6 +83,10 @@ function assertBlocked(result: any): void {
 	assert.match(result.reason, /Hosted-service mutation blocked/);
 }
 
+function sha256(value: string): string {
+	return createHash("sha256").update(value).digest("hex");
+}
+
 test("shellSplit keeps quoted bodies together", () => {
 	assert.deepEqual(shellSplit('gh pr comment 123 --body "Fixed in 98fb768."'), ["gh", "pr", "comment", "123", "--body", "Fixed in 98fb768."]);
 });
@@ -103,6 +108,11 @@ test("classifier blocks git push after git global options", () => {
 	assert.equal(intents[0].target, "origin security/audit");
 });
 
+test("classifier normalizes executable paths before classification", () => {
+	assert.equal(classifyShellCommand("/usr/bin/git push origin main")[0].action, "git-push");
+	assert.equal(classifyShellCommand("/opt/homebrew/bin/gh pr merge 123")[0].action, "pr-merge");
+});
+
 test("classifier blocks GitHub PR merge", () => {
 	const intents = classifyShellCommand("gh pr merge 123");
 	assert.equal(intents.length, 1);
@@ -116,6 +126,11 @@ test("classifier unwraps common shell -c launchers", () => {
 	assert.equal(classifyShellCommand("bash -lc 'gh pr merge 123'")[0].action, "pr-merge");
 	assert.equal(classifyShellCommand("sh -c 'git push origin main'")[0].action, "git-push");
 	assert.equal(classifyShellCommand("env FOO=1 command bash -lc \"sh -c 'gh pr merge 123'\"")[0].action, "pr-merge");
+});
+
+test("classifier blocks mutations after pipeline and background separators", () => {
+	assert.equal(classifyShellCommand("echo ok | gh pr merge 123")[0].action, "pr-merge");
+	assert.equal(classifyShellCommand("echo ok & gh pr merge 123")[0].action, "pr-merge");
 });
 
 test("classifier blocks GitHub PR comment and captures body", () => {
@@ -229,12 +244,41 @@ test("one-time authorization parses target and optional body hash", () => {
 	assert.equal(auth.bodySha256, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 });
 
+test("one-time authorization requires payload hash for tier 1 and tier 2", () => {
+	assert.match((parseOneTimeAuthorization("github pr-comment 123") as any).error, /requires body-sha256/);
+	assert.match((parseOneTimeAuthorization("github pr-edit 123") as any).error, /requires body-sha256/);
+	assert.ok(!("error" in parseOneTimeAuthorization("github pr-merge 123")));
+});
+
+test("command authorization without payload never matches tier 1 or tier 2", () => {
+	const [comment] = classifyShellCommand('gh pr comment 123 --body "Done."');
+	const [edit] = classifyShellCommand('gh pr edit 123 --body "Done."');
+	const now = Date.now();
+	assert.equal(matchesAuthorization(comment, { service: "github", action: "pr-comment", target: "123", source: "command", createdAt: now }), false);
+	assert.equal(matchesAuthorization(edit, { service: "github", action: "pr-edit", target: "123", source: "command", createdAt: now }), false);
+});
+
+test("command authorization body hash matches only the exact payload", () => {
+	const [right] = classifyShellCommand('gh pr comment 123 --body "Done."');
+	const [wrong] = classifyShellCommand('gh pr comment 123 --body "Changed."');
+	const auth: HostedMutationAuthorization = { service: "github", action: "pr-comment", target: "123", bodySha256: sha256("Done."), source: "command", createdAt: Date.now() };
+	assert.equal(matchesAuthorization(right, auth), true);
+	assert.equal(matchesAuthorization(wrong, auth), false);
+});
+
 test("extension blocks GitHub PR comment without exact authorization", async () => {
 	const harness = makeHarness();
 	const result = await harness.call("bash", { command: 'gh pr comment 123 --body "Done."' });
 	assertBlocked(result);
 	assert.equal(harness.entries.length, 1);
 	assert.equal(harness.entries[0].type, "hosted-mutation-guard");
+});
+
+test("extension allows one body-hash command-authorized GitHub PR comment", async () => {
+	const harness = makeHarness();
+	await harness.runCommand("authorize-hosted-mutation", `github pr-comment 123 body-sha256:${sha256("Done.")}`);
+	assert.equal(await harness.call("bash", { command: 'gh pr comment 123 --body "Done."' }), undefined);
+	assertBlocked(await harness.call("bash", { command: 'gh pr comment 123 --body "Done."' }));
 });
 
 test("extension redacts URL userinfo in block reasons and audit entries", async () => {
