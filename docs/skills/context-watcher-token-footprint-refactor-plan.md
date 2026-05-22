@@ -6,7 +6,7 @@ Current measured size: `agent/skills/context-watcher/SKILL.md` is 991 lines and 
 
 ## Purpose
 
-Reduce `context-watcher` from a large always-loaded skill into a compact foundational `SKILL.md` plus load-on-demand references, without weakening any safety, routing, graph-first, RTK, GitHub, Context Mode, worktree, or sub-agent behavior.
+Reduce `context-watcher` from a large always-loaded skill into a compact foundational `SKILL.md` plus load-on-demand references, without weakening any safety, routing, graph-first, RTK, GitHub, Context Mode, worktree, or reader delegate behavior.
 
 The goal is not to make the skill short at any cost. The goal is to make always-on rules impossible to miss while moving examples, recipes, troubleshooting, and provenance out of the hot path.
 
@@ -18,7 +18,7 @@ The goal is not to make the skill short at any cost. The goal is to make always-
 - Do not change graph-first exploration for supported codebase work.
 - Do not change private GitHub routing through authenticated `gh` CLI.
 - Do not change worktree grouping rules.
-- Do not change sub-agent safety rules.
+- Do not change reader delegate safety rules.
 - Do not edit `agent/settings.json`.
 - Do not push commits.
 
@@ -51,7 +51,7 @@ After the refactor, an agent that only loads `SKILL.md` must still know:
 7. Context7 is required for current third-party library/framework/API docs before implementation or advice.
 8. GitHub repo, PR, issue, review, workflow, release, or private data uses the `gh-cli` skill and authenticated `gh` CLI through Context Mode/RTK.
 9. Codebase exploration, review, caller/callee lookup, blast radius, refactor analysis, and test discovery use Code Review Graph first when applicable.
-10. Sub-agents follow Context Mode, RTK, Code Review Graph, `gh-cli`, and external-service mutation rules.
+10. Reader delegates follow Context Mode, RTK, Code Review Graph, `gh-cli`, and external-service mutation rules.
 11. Worktrees use story-grouped roots and graph daemon/watch rules when applicable.
 12. Fallbacks are explicit and logged or summarized, not silent behavior changes.
 13. `context-watcher` itself is a Custom Local Skill and is maintained through `custom-local-skills-update-process.md`.
@@ -124,13 +124,13 @@ These rules are load-bearing. They should stay in the compact `SKILL.md`, not on
 - Do not send secrets, personal data, or proprietary code in Context7 queries.
 - Use web/content tools only for broad public web research or when Context7 is insufficient.
 
-### Sub-agent protocol
+### Reader-protocol
 
 - Parent remains responsible for final decisions, validation, commits, and user-facing report.
-- Sub-agents must use Context Mode and Code Review Graph first when applicable.
-- Sub-agents must use `gh-cli` and authenticated `gh` CLI for GitHub data.
-- Sub-agents treat remote services as read-only unless exact mutation is authorized.
-- Sub-agents return compact structured findings, not raw logs or large diffs.
+- Reader delegates must use Context Mode and Code Review Graph first when applicable.
+- Reader delegates must use `gh-cli` and authenticated `gh` CLI for GitHub data.
+- Reader delegates treat remote services as read-only unless exact mutation is authorized.
+- Reader delegates return compact structured findings, not raw logs or large diffs.
 
 ### Worktree graph protocol
 
@@ -150,7 +150,7 @@ This map is based on the current 991-line file. During implementation, re-run th
 | 80-91 | Mandatory External Hosted Service Mutation Gate | 12 | Core | Keep in `SKILL.md`. |
 | 92-101 | Mandatory GitHub CLI Preflight | 10 | Core | Keep in `SKILL.md`, with details in GitHub reference. |
 | 102-109 | Mandatory Graph-First Preflight | 8 | Core | Keep in `SKILL.md`. |
-| 110-126 | Mandatory Sub-agent Protocol | 17 | Split | Keep core bullets in `SKILL.md`; move expanded checklist to sub-agent reference. |
+| 110-126 | Mandatory Reader-protocol | 17 | Split | Keep core bullets in `SKILL.md`; move expanded checklist to reader delegate reference. |
 | 127-183 | Mandatory Worktree Graph Protocol | 57 | Split | Keep story-root rule in `SKILL.md`; move daemon/watch details to worktree reference. |
 | 184-219 | Architecture Overview | 36 | Reference | Move to `references/architecture-and-tool-roles.md` or merge into quick reference. |
 | 220-239 | Think in Code examples | 20 | Split | Keep rule in `SKILL.md`; move wrong/right examples to patterns reference. |
@@ -183,7 +183,7 @@ agent/skills/context-watcher/
     ├── code-review-graph-protocol.md
     ├── github-and-context7-routing.md
     ├── worktree-graph-protocol.md
-    ├── subagent-protocol.md
+    ├── reader-protocol.md
     ├── fallback-and-troubleshooting.md
     ├── patterns-and-quick-reference.md
     └── upstream-sources.md
@@ -196,7 +196,7 @@ Target: 250-350 lines.
 1. Frontmatter
    - Preserve `name` and `description` only.
 2. Mission and non-negotiables
-   - State that this skill governs shell work, Context Mode, RTK, Code Review Graph, GitHub routing, worktrees, sub-agents, and large-output protection.
+   - State that this skill governs shell work, Context Mode, RTK, Code Review Graph, GitHub routing, worktrees, reader delegates, and large-output protection.
 3. Mandatory preflight checklist
    - External hosted service mutation gate.
    - Bash whitelist.
@@ -208,7 +208,7 @@ Target: 250-350 lines.
    - Context7 route.
    - Code Review Graph route.
    - Worktree route.
-   - Sub-agent route.
+   - Reader delegate route.
 4. Routing table
    - User intent to required tool route.
    - Keep this table concise and complete.
@@ -222,7 +222,7 @@ Target: 250-350 lines.
    - Graph-first plus fallback conditions.
 9. GitHub core rule
    - `gh-cli` skill plus authenticated `gh` through Context Mode/RTK.
-10. Sub-agent core rule
+10. Reader delegate core rule
     - Short mandatory checklist and reference pointer.
 11. Worktree core rule
     - Story-root structure, issue structure, graph daemon/watch requirement, reference pointer.
@@ -244,7 +244,7 @@ Each reference must be mentioned in `SKILL.md` with a precise trigger. If the tr
 | `code-review-graph-protocol.md` | Code review, codebase exploration, graph build/update, stale graph, graph daemon, or graph fallback details matter. |
 | `github-and-context7-routing.md` | GitHub/private GitHub data or current third-party library/API docs are involved. |
 | `worktree-graph-protocol.md` | Creating, using, watching, or removing worktrees. |
-| `subagent-protocol.md` | Delegating to Pi sub-agents or orchestrating parallel investigations. |
+| `reader-protocol.md` | Delegating to Pi reader delegates or orchestrating parallel investigations. |
 | `fallback-and-troubleshooting.md` | Context Mode, RTK, or Code Review Graph is unavailable, failing, stale, or producing unexpected output. |
 | `patterns-and-quick-reference.md` | The agent needs examples for PR review, test-debug-fix, orientation, infrastructure inspection, docs lookup, recovery, or data analysis. |
 | `upstream-sources.md` | Updating the skill or checking provenance. |
@@ -290,7 +290,7 @@ Before editing, extract every line containing these terms and track its destinat
 - `code-review-graph`
 - `Graph-First`
 - `worktree`
-- `sub-agent`
+- `reader delegate`
 - `fallback`
 
 For each extracted line, record:
@@ -333,7 +333,7 @@ Create a temporary analysis artifact, not committed unless useful, that lists:
 - Destination file.
 - Disposition.
 - Whether the content is mandatory.
-- Whether the content mentions safety, GitHub, Graph, RTK, Context Mode, Context7, worktrees, sub-agents, or fallback.
+- Whether the content mentions safety, GitHub, Graph, RTK, Context Mode, Context7, worktrees, reader delegates, or fallback.
 
 The ledger is the guardrail against losing a needle in the haystack.
 
@@ -350,7 +350,7 @@ Preferred order:
 5. `context-mode-routing.md`
 6. `code-review-graph-protocol.md`
 7. `worktree-graph-protocol.md`
-8. `subagent-protocol.md`
+8. `reader-protocol.md`
 9. `github-and-context7-routing.md`
 
 This order moves low-risk reference content first and leaves mandatory core rules until the compact `SKILL.md` rewrite.
@@ -368,7 +368,7 @@ The compact `SKILL.md` must include:
 - Code Review Graph first rule.
 - GitHub CLI/private GitHub route.
 - Context7 docs route.
-- Sub-agent rule summary.
+- Reader delegate rule summary.
 - Worktree rule summary.
 - Fallback rule summary.
 - Reference loading table.
@@ -406,7 +406,7 @@ Manually inspect the compact `SKILL.md` and references against these scenarios.
 | User asks to handle a PR without saying comment/push/merge | Read-only by default; draft mutations instead. |
 | User gives a URL | `ctx_fetch_and_index`, then `ctx_search`. |
 | User asks to create a feature worktree | Story-grouped `.worktrees/<story>/<feature>/<repo-name>/` and graph daemon/watch rules. |
-| Parent delegates to sub-agent | Sub-agent must load Context Watcher, use Context Mode, graph-first, `gh-cli`, and return compact findings. |
+| Parent delegates to reader delegate | Reader delegate must load Context Watcher, use Context Mode, graph-first, `gh-cli`, and return compact findings. |
 | Context Mode or RTK fails | Follow fallback protocol, do not silently bypass routing. |
 | Session resumes after compaction | Use `ctx_search(sort: "timeline")` or indexed state before asking the user. |
 
@@ -469,7 +469,7 @@ Do not combine this with unrelated skill updates.
 | Graph-first rule weakened | Code reviews may fall back to grep too early. | Keep graph-first rule and fallback conditions in core. |
 | Context Mode bypass | Raw output can flood context. | Keep command-routing checklist and Bash whitelist in core. |
 | Worktree daemon details lost | Multi-repo work can become fragmented. | Move detail to reference but keep story-root rule in core. |
-| Sub-agent rules diluted | Child processes may leak raw logs or mutate services. | Keep parent responsibility and child safety rules in core. |
+| Reader delegate rules diluted | Reader delegates may leak raw logs or mutate services. | Keep parent responsibility and child safety rules in core. |
 | Reference sprawl | Too many small files become hard to navigate. | Use 8-9 references max with explicit load triggers. |
 | Token savings too small | Refactor may not justify risk. | Measure before/after line count and bytes. |
 | Over-compression | Skill becomes terse but ambiguous. | Behavioral simulation matrix must pass before commit. |
@@ -478,9 +478,9 @@ Do not combine this with unrelated skill updates.
 
 1. Target size: I recommend 300 lines for `SKILL.md`, with 400 as the hard ceiling. Is that acceptable?
 2. Refactor style: I recommend preserving wording in references first, then doing any prose compression in a later commit. Is that acceptable?
-3. Reference granularity: I recommend separate references for Context Mode, RTK, Graph, Worktrees, Sub-agents, Troubleshooting, Patterns, GitHub/Context7, and Upstream Sources. Is that too many, too few, or right?
+3. Reference granularity: I recommend separate references for Context Mode, RTK, Graph, Worktrees, Reader delegates, Troubleshooting, Patterns, GitHub/Context7, and Upstream Sources. Is that too many, too few, or right?
 4. Quick reference: I recommend keeping a tiny route table in `SKILL.md` and moving the long quick-reference card to `patterns-and-quick-reference.md`. Is that acceptable?
-5. Worktree and sub-agent policies: I recommend keeping concise summaries in core because they are safety-sensitive. Do you want the full text preserved verbatim in references?
+5. Worktree and reader delegate policies: I recommend keeping concise summaries in core because they are safety-sensitive. Do you want the full text preserved verbatim in references?
 
 ## Recommended next step
 

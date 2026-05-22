@@ -40,6 +40,18 @@ _Avoid_: permission prompt, safety check
 The command-routing and context-management layer that keeps shell output, searches, and large files token-efficient.
 _Avoid_: wrapper, logger
 
+**Reader Delegate**:
+A child Pi agent launched for one bounded investigation task with an isolated context window and a compact result returned to the parent.
+_Avoid_: background worker, autonomous swarm
+
+**Writer Delegate**:
+A child Pi agent launched for one bounded implementation task with an isolated context window and a compact result returned to the parent.
+_Avoid_: unconstrained delegate, broad mutation scope
+
+**Delegates Extension**:
+The repo-owned Pi extension that registers the reader and writer delegates, discovers user-level delegate definitions, and runs scoped child Pi processes.
+_Avoid_: orchestrator
+
 ## Relationships
 
 - A **Local Skill** may be derived from an **Upstream Skill**.
@@ -49,6 +61,7 @@ _Avoid_: wrapper, logger
 - A **Runtime Reference** belongs to a **Local Skill** and supports task execution.
 - The **External Hosted Service Mutation Gate** applies whenever a task would modify GitHub, Linear, Figma, NotebookLM, Firebase, cloud services, or similar remote systems.
 - **Context Watcher** governs read-only shell work and large-output processing across the **Pi Config**.
+- The **Delegates Extension** launches **reader and writer delegates** with Context Watcher-aware prompt boundaries and no recursive delegation.
 
 ## Example dialogue
 

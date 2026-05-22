@@ -1,6 +1,6 @@
 # Agent runtime state and caches
 agent/sessions/
-agent/subagent-sessions/
+agent/delegate-sessions/
 agent/intercom/
 agent/handoff/
 handoffs/
@@ -11,6 +11,7 @@ agent/run-history.jsonl
 
 # Local auth and sensitive local-only files
 agent/auth.json
+agent/settings.json
 agent/settings.json.bak
 agent/mcp-onboarding.json
 agent/agents-enforcer.log
@@ -21,6 +22,7 @@ agent/cursor-model-cache.json
 agent/cursor-proxy.json
 
 # Local working dirs and logs
+agent/npm/
 tmp/
 scratch/
 logs/
