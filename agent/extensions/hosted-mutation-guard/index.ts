@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 import type { ExtensionAPI, ToolCallEvent, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
 
@@ -51,6 +53,7 @@ const MAX_AUDIT_ENTRIES = 50;
 const MAX_CODE_SCAN_CHARS = 50_000;
 const MAX_QUOTED_STRINGS = 80;
 const MAX_JSON_STRING_LENGTH = 50_000;
+const MAX_BODY_FILE_BYTES = 50_000;
 const JSON_STRING_FIELDS = new Set(["args", "payload", "request", "body", "input", "data", "variables"]);
 const CONTEXT_MODE_TOOL_NAMES = new Set(["ctx_execute", "context_mode_ctx_execute", "ctx_batch_execute", "context_mode_ctx_batch_execute", "ctx_execute_file", "context_mode_ctx_execute_file"]);
 const LOCAL_FILE_TOOL_NAMES = new Set(["read", "write", "edit"]);
@@ -284,6 +287,122 @@ function getOptionValue(tokens: string[], names: string[]): string | undefined {
 	return undefined;
 }
 
+const OPTION_VALUE_FLAGS = new Set([
+	"-a",
+	"--add-assignee",
+	"--add-label",
+	"--add-project",
+	"--assignee",
+	"-b",
+	"-B",
+	"--base",
+	"--body",
+	"--body-file",
+	"-c",
+	"-F",
+	"-f",
+	"--field",
+	"-H",
+	"--head",
+	"--hostname",
+	"-J",
+	"--jq",
+	"--json",
+	"-l",
+	"--label",
+	"-L",
+	"--limit",
+	"-m",
+	"--milestone",
+	"--method",
+	"-p",
+	"--project",
+	"--raw-field",
+	"-R",
+	"--reason",
+	"--remove-assignee",
+	"--remove-label",
+	"--remove-project",
+	"--repo",
+	"-r",
+	"--reviewer",
+	"--search",
+	"--sort",
+	"--state",
+	"-t",
+	"--template",
+	"--title",
+	"-X",
+]);
+
+function optionConsumesValue(token: string): boolean {
+	if (token.includes("=")) return false;
+	return OPTION_VALUE_FLAGS.has(token);
+}
+
+function positionalArgs(tokens: string[], startIndex: number): string[] {
+	const args: string[] = [];
+	for (let i = startIndex; i < tokens.length; i++) {
+		const token = tokens[i];
+		if (token === "--") {
+			args.push(...tokens.slice(i + 1));
+			break;
+		}
+		if (token.startsWith("-")) {
+			if (optionConsumesValue(token)) i++;
+			continue;
+		}
+		args.push(token);
+	}
+	return args;
+}
+
+function targetFromPositionals(tokens: string[], startIndex: number, fallback?: string): string | undefined {
+	return positionalArgs(tokens, startIndex).join(" ") || fallback;
+}
+
+function readGhBodyFile(value: string | undefined): string | undefined {
+	if (!value || value === "-") return undefined;
+	try {
+		const resolved = path.resolve(value);
+		const stats = fs.statSync(resolved);
+		if (!stats.isFile() || stats.size > MAX_BODY_FILE_BYTES) return undefined;
+		return normalizeBody(fs.readFileSync(resolved, "utf8"));
+	} catch {
+		return undefined;
+	}
+}
+
+function getGhBody(tokens: string[]): string | undefined {
+	const inline = getOptionValue(tokens, ["--body", "-b"]);
+	if (inline !== undefined) return inline;
+	return readGhBodyFile(getOptionValue(tokens, ["--body-file", "-F"]));
+}
+
+function bodyFilePayloadValue(value: string | undefined): string {
+	const body = readGhBodyFile(value);
+	if (body !== undefined) return `body-file-sha256:${sha256(body)}`;
+	return `body-file:${value ?? "<missing>"}`;
+}
+
+function ghMutationPayload(tokens: string[], startIndex: number): string {
+	const payload: string[] = [];
+	for (let i = startIndex; i < tokens.length; i++) {
+		const token = tokens[i];
+		if ((token === "--body-file" || token === "-F") && i + 1 < tokens.length) {
+			payload.push(token, bodyFilePayloadValue(tokens[i + 1]));
+			i++;
+			continue;
+		}
+		if (token.startsWith("--body-file=")) {
+			payload.push(`--body-file=${bodyFilePayloadValue(token.slice("--body-file=".length))}`);
+			continue;
+		}
+		payload.push(token);
+	}
+	return JSON.stringify(payload);
+}
+
 function getFieldValue(tokens: string[], fieldName: string): string | undefined {
 	for (let i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
@@ -298,11 +417,36 @@ function getFieldValue(tokens: string[], fieldName: string): string | undefined 
 }
 
 function firstNonOption(tokens: string[], startIndex: number): string | undefined {
-	for (let i = startIndex; i < tokens.length; i++) {
-		if (!tokens[i].startsWith("-")) return tokens[i];
-		if (["--body", "-b", "--title", "--repo", "-R", "--method", "-X"].includes(tokens[i])) i++;
+	return positionalArgs(tokens, startIndex)[0];
+}
+
+function ghCommandParts(tokens: string[]): { group: string; sub?: string; subIndex: number } | undefined {
+	let index = 1;
+	let group: string | undefined;
+	while (index < tokens.length) {
+		const token = tokens[index];
+		if (token === "--") return undefined;
+		if (token.startsWith("-")) {
+			if (optionConsumesValue(token)) index += 2;
+			else index++;
+			continue;
+		}
+		group = token;
+		index++;
+		break;
 	}
-	return undefined;
+	if (!group) return undefined;
+	while (index < tokens.length) {
+		const token = tokens[index];
+		if (token === "--") return { group, subIndex: index };
+		if (token.startsWith("-")) {
+			if (optionConsumesValue(token)) index += 2;
+			else index++;
+			continue;
+		}
+		return { group, sub: token, subIndex: index };
+	}
+	return { group, subIndex: index };
 }
 
 function makeIntent(intent: Omit<MutationIntent, "target"> & { target?: string }): MutationIntent {
@@ -310,34 +454,39 @@ function makeIntent(intent: Omit<MutationIntent, "target"> & { target?: string }
 }
 
 function classifyGhCommand(tokens: string[], source: MutationSource): MutationIntent[] {
-	const group = tokens[1];
-	const sub = tokens[2];
-	if (!group) return [];
+	const parts = ghCommandParts(tokens);
+	if (!parts) return [];
+	const { group, sub, subIndex } = parts;
 
 	if (group === "pr") {
 		if (["view", "list", "checks", "diff"].includes(sub ?? "")) return [];
-		const target = firstNonOption(tokens, 3);
+		const target = targetFromPositionals(tokens, subIndex + 1, sub === "create" ? "new pull request" : "current pull request");
+		if (sub === "create") {
+			return [makeIntent({ service: "github", action: "pr-create", tier: 2, target, body: ghMutationPayload(tokens, subIndex + 1), source, reason: "GitHub PR create" })];
+		}
 		if (sub === "comment") {
-			return [makeIntent({ service: "github", action: "pr-comment", tier: 1, target, body: getOptionValue(tokens, ["--body", "-b"]), source, reason: "GitHub PR comment" })];
+			return [makeIntent({ service: "github", action: "pr-comment", tier: 1, target, body: getGhBody(tokens), source, reason: "GitHub PR comment" })];
 		}
 		if (sub === "merge") {
 			return [makeIntent({ service: "github", action: "pr-merge", tier: 3, target, source, reason: "GitHub PR merge" })];
 		}
 		if (["review", "edit", "close", "reopen", "ready", "lock", "unlock"].includes(sub ?? "")) {
 			const tier: MutationTier = sub === "review" || sub === "edit" ? 2 : 3;
-			return [makeIntent({ service: "github", action: `pr-${sub}`, tier, target, body: getOptionValue(tokens, ["--body", "-b"]), source, reason: `GitHub PR ${sub}` })];
+			const body = tier === 2 ? ghMutationPayload(tokens, subIndex + 1) : undefined;
+			return [makeIntent({ service: "github", action: `pr-${sub}`, tier, target, body, source, reason: `GitHub PR ${sub}` })];
 		}
 	}
 
 	if (group === "issue") {
 		if (["view", "list"].includes(sub ?? "")) return [];
-		const target = firstNonOption(tokens, 3);
+		const target = targetFromPositionals(tokens, subIndex + 1, sub === "create" ? "new issue" : undefined);
 		if (sub === "comment") {
-			return [makeIntent({ service: "github", action: "issue-comment", tier: 1, target, body: getOptionValue(tokens, ["--body", "-b"]), source, reason: "GitHub issue comment" })];
+			return [makeIntent({ service: "github", action: "issue-comment", tier: 1, target, body: getGhBody(tokens), source, reason: "GitHub issue comment" })];
 		}
-		if (["create", "edit", "close", "reopen", "delete", "transfer", "pin", "unpin"].includes(sub ?? "")) {
+		if (["create", "edit", "close", "reopen", "delete", "transfer", "pin", "unpin", "lock", "unlock"].includes(sub ?? "")) {
 			const tier: MutationTier = ["create", "edit"].includes(sub ?? "") ? 2 : 3;
-			return [makeIntent({ service: "github", action: `issue-${sub}`, tier, target, body: getOptionValue(tokens, ["--body", "-b"]), source, reason: `GitHub issue ${sub}` })];
+			const body = tier === 2 ? ghMutationPayload(tokens, subIndex + 1) : undefined;
+			return [makeIntent({ service: "github", action: `issue-${sub}`, tier, target, body, source, reason: `GitHub issue ${sub}` })];
 		}
 	}
 
@@ -696,7 +845,7 @@ function serviceFromWords(words: string[], serialized: string): string {
 
 function tierForAction(action: string): MutationTier {
 	if (/comment|message|reply/.test(action)) return 1;
-	if (/delete|remove|merge|deploy|publish|push|release|workflow|rerun|cancel|invite|upload/.test(action)) return 3;
+	if (/delete|remove|merge|deploy|publish|push|release|workflow|rerun|cancel|invite|upload|close|reopen|lock|unlock|ready|transfer|pin|unpin/.test(action)) return 3;
 	return 2;
 }
 
@@ -789,7 +938,7 @@ export function parsePromptAuthorizations(prompt: string, now = Date.now()): Hos
 
 export function parseOneTimeAuthorization(args: string, now = Date.now()): HostedMutationAuthorization | { error: string } {
 	const tokens = shellSplit(args);
-	if (tokens.length < 3) return { error: "Usage: /authorize-hosted-mutation <service> <action> <target> [body-sha256:<hash>]. Tier 1 and tier 2 mutations require body-sha256. Example: /authorize-hosted-mutation git git-push remote" };
+	if (tokens.length < 3) return { error: "Usage: /authorize-hosted-mutation <service> <action> <target> [body-sha256:<hash>]. Tier 1 mutations require body-sha256; tier 2 uses body-sha256 when the blocked warning includes it. Example: /authorize-hosted-mutation git git-push remote" };
 	const [service, action, ...rest] = tokens;
 	let bodySha256: string | undefined;
 	const targetParts: string[] = [];
@@ -801,7 +950,7 @@ export function parseOneTimeAuthorization(args: string, now = Date.now()): Hoste
 	const target = targetParts.join(" ").trim();
 	if (!target) return { error: "Missing target for hosted-service mutation authorization. Provide the exact target shown in the blocked warning. For plain git push, that target is \"remote\"." };
 	const normalizedAction = normalizeWord(action);
-	if (tierForAction(normalizedAction) !== 3 && bodySha256 === undefined) {
+	if (tierForAction(normalizedAction) === 1 && bodySha256 === undefined) {
 		return { error: `One-time authorization for ${normalizedAction} requires body-sha256:<hash> so the exact payload is bound to the approval.` };
 	}
 	return {
@@ -850,7 +999,7 @@ export function matchesAuthorization(intent: MutationIntent, authorization: Host
 	if (authorization.bodySha256 !== undefined) {
 		return intent.body !== undefined && sha256(normalizeBody(intent.body)) === authorization.bodySha256;
 	}
-	return intent.tier === 3;
+	return intent.tier === 3 || (intent.tier === 2 && intent.body === undefined);
 }
 
 function findAuthorization(intent: MutationIntent, authorizations: HostedMutationAuthorization[], used: Set<number>, now: number): number | undefined {
@@ -879,6 +1028,9 @@ function blockReason(intent: MutationIntent): string {
 	}
 	if (intent.tier === 1) {
 		return `Hosted-service mutation blocked: ${service} ${formatAction(intent.action)}${target} requires exact authorization for target and body. Run ${authorizationCommandForIntent(intent, true)}, then retry the blocked command within 10 minutes.`;
+	}
+	if (intent.body === undefined) {
+		return `Hosted-service mutation blocked: ${service} ${formatAction(intent.action)}${target} requires exact authorization for target and action. Run ${authorizationCommandForIntent(intent)}, then retry the blocked command within 10 minutes.`;
 	}
 	return `Hosted-service mutation blocked: ${service} ${formatAction(intent.action)}${target} requires exact authorization for target and changed fields. Run ${authorizationCommandForIntent(intent, true)}, then retry the blocked command within 10 minutes.`;
 }

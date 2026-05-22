@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 
 import hostedMutationGuard, {
 	classifyShellCommand,
@@ -142,6 +145,51 @@ test("classifier blocks GitHub PR comment and captures body", () => {
 	assert.equal(intents[0].tier, 1);
 });
 
+test("classifier reads GitHub body-file payloads", () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hosted-guard-body-file-"));
+	const bodyPath = path.join(dir, "body.md");
+	fs.writeFileSync(bodyPath, "hello from file\n", "utf8");
+	const intents = classifyShellCommand(`gh pr comment 123 --body-file ${bodyPath}`);
+	assert.equal(intents.length, 1);
+	assert.equal(intents[0].body, "hello from file\n");
+});
+
+test("classifier blocks PR creation and implicit-target PR review", () => {
+	const [create] = classifyShellCommand('gh pr create --title "T" --body "B"');
+	assert.equal(create.action, "pr-create");
+	assert.equal(create.target, "new pull request");
+	assert.equal(create.tier, 2);
+	assert.ok(create.body?.includes("--title"));
+
+	const [review] = classifyShellCommand("gh pr review --approve");
+	assert.equal(review.action, "pr-review");
+	assert.equal(review.target, "current pull request");
+	assert.equal(review.tier, 2);
+	assert.ok(review.body?.includes("--approve"));
+});
+
+test("classifier handles gh repo flags before groups and subcommands", () => {
+	assert.equal(classifyShellCommand("gh pr -R owner/repo merge")[0].action, "pr-merge");
+	assert.equal(classifyShellCommand("gh -R owner/repo pr close 3")[0].action, "pr-close");
+	assert.equal(classifyShellCommand("gh pr --repo owner/repo unlock")[0].action, "pr-unlock");
+	const [edit] = classifyShellCommand("gh issue -R owner/repo edit 101 --title New");
+	assert.equal(edit.action, "issue-edit");
+	assert.equal(edit.target, "101");
+});
+
+test("classifier scopes issue edit to every positional issue", () => {
+	const [edit] = classifyShellCommand("gh issue edit 23 34 --add-label bug");
+	assert.equal(edit.action, "issue-edit");
+	assert.equal(edit.target, "23 34");
+	assert.equal(edit.tier, 2);
+	assert.ok(edit.body?.includes("--add-label"));
+});
+
+test("classifier blocks issue lock and unlock", () => {
+	assert.equal(classifyShellCommand("gh issue lock 123")[0].action, "issue-lock");
+	assert.equal(classifyShellCommand("gh issue unlock 123")[0].action, "issue-unlock");
+});
+
 test("classifier allows GitHub read-only commands", () => {
 	assert.deepEqual(classifyShellCommand("gh pr view 123"), []);
 	assert.deepEqual(classifyShellCommand("gh issue list"), []);
@@ -244,13 +292,13 @@ test("one-time authorization parses target and optional body hash", () => {
 	assert.equal(auth.bodySha256, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 });
 
-test("one-time authorization requires payload hash for tier 1 and tier 2", () => {
+test("one-time authorization requires payload hash for tier 1 only", () => {
 	assert.match((parseOneTimeAuthorization("github pr-comment 123") as any).error, /requires body-sha256/);
-	assert.match((parseOneTimeAuthorization("github pr-edit 123") as any).error, /requires body-sha256/);
+	assert.ok(!("error" in parseOneTimeAuthorization("github pr-edit 123")));
 	assert.ok(!("error" in parseOneTimeAuthorization("github pr-merge 123")));
 });
 
-test("command authorization without payload never matches tier 1 or tier 2", () => {
+test("command authorization without payload never matches tier 1 or payload-bearing tier 2", () => {
 	const [comment] = classifyShellCommand('gh pr comment 123 --body "Done."');
 	const [edit] = classifyShellCommand('gh pr edit 123 --body "Done."');
 	const now = Date.now();
@@ -264,6 +312,29 @@ test("command authorization body hash matches only the exact payload", () => {
 	const auth: HostedMutationAuthorization = { service: "github", action: "pr-comment", target: "123", bodySha256: sha256("Done."), source: "command", createdAt: Date.now() };
 	assert.equal(matchesAuthorization(right, auth), true);
 	assert.equal(matchesAuthorization(wrong, auth), false);
+});
+
+test("command authorization permits implicit-target tier 2 with exact payload hash", () => {
+	const [intent] = classifyShellCommand("gh pr review --approve");
+	const auth = parseOneTimeAuthorization(`github pr-review current pull request body-sha256:${sha256(intent.body ?? "")}`);
+	assert.ok(!("error" in auth));
+	assert.equal(matchesAuthorization(intent, auth), true);
+});
+
+test("command authorization permits tier 2 field edits with exact payload hash", () => {
+	const [intent] = classifyShellCommand("gh issue edit 23 --add-label bug");
+	const [wrong] = classifyShellCommand("gh issue edit 23 --add-label security");
+	const auth = parseOneTimeAuthorization(`github issue-edit 23 body-sha256:${sha256(intent.body ?? "")}`);
+	assert.ok(!("error" in auth));
+	assert.equal(matchesAuthorization(intent, auth), true);
+	assert.equal(matchesAuthorization(wrong, auth), false);
+});
+
+test("command authorization permits bodyless tier 2 when no payload exists", () => {
+	const intent = { service: "github", action: "api-patch", tier: 2 as const, target: "repos/o/r/settings", source: "mcp" as const, reason: "GitHub API PATCH" };
+	const auth = parseOneTimeAuthorization("github api-patch repos/o/r/settings");
+	assert.ok(!("error" in auth));
+	assert.equal(matchesAuthorization(intent, auth), true);
 });
 
 test("extension blocks GitHub PR comment without exact authorization", async () => {
