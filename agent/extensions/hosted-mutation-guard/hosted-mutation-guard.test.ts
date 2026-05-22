@@ -131,6 +131,13 @@ test("classifier unwraps common shell -c launchers", () => {
 	assert.equal(classifyShellCommand("env FOO=1 command bash -lc \"sh -c 'gh pr merge 123'\"")[0].action, "pr-merge");
 });
 
+test("classifier blocks shell command substitutions", () => {
+	assert.equal(classifyShellCommand("echo $(gh pr merge 123)")[0].action, "pr-merge");
+	assert.equal(classifyShellCommand("bash -lc \"echo $(git push origin main)\"")[0].action, "git-push");
+	assert.equal(classifyShellCommand("echo `gh issue close 5`")[0].action, "issue-close");
+	assert.deepEqual(classifyShellCommand("echo '$(gh pr merge 123)'"), []);
+});
+
 test("classifier blocks mutations after pipeline and background separators", () => {
 	assert.equal(classifyShellCommand("echo ok | gh pr merge 123")[0].action, "pr-merge");
 	assert.equal(classifyShellCommand("echo ok & gh pr merge 123")[0].action, "pr-merge");
@@ -208,16 +215,115 @@ test("classifier blocks Firebase and GCP deploys", () => {
 	assert.equal(classifyShellCommand("gcloud run deploy service")[0].service, "gcloud");
 });
 
+test("classifier blocks expanded cloud CLI mutations", () => {
+	assert.equal(classifyShellCommand("aws iam attach-role-policy --role-name r --policy-arn arn:x")[0].action, "attach-role-policy");
+	assert.equal(classifyShellCommand("aws lambda update-function-code --function-name f --zip-file fileb://x.zip")[0].action, "update-function-code");
+	assert.equal(classifyShellCommand("aws s3 rm s3://bucket/key")[0].action, "rm");
+	assert.equal(classifyShellCommand("gcloud services enable run.googleapis.com")[0].action, "enable");
+	assert.deepEqual(classifyShellCommand("aws s3 ls"), []);
+	assert.deepEqual(classifyShellCommand("aws s3 cp s3://bucket/key ."), []);
+});
+
 test("classifier blocks mutating hosted HTTP requests but not localhost", () => {
 	assert.equal(classifyShellCommand("curl -X DELETE https://api.github.com/repos/o/r/issues/1")[0].service, "github");
 	assert.deepEqual(classifyShellCommand("curl -X POST http://localhost:3000/test"), []);
 });
 
-test("classifier ignores Context Mode tools", () => {
-	assert.deepEqual(classifyToolCall("ctx_execute", { language: "shell", code: "firebase deploy" }), []);
-	assert.deepEqual(classifyToolCall("context_mode_ctx_execute", { language: "javascript", code: "require('child_process').execSync('gh pr merge 123')" }), []);
-	assert.deepEqual(classifyToolCall("ctx_batch_execute", { commands: [{ command: "gh pr merge 1" }] }), []);
-	assert.deepEqual(classifyToolCall("context_mode_ctx_batch_execute", { commands: [{ command: "gh pr merge 1" }] }), []);
+test("classifier blocks ctx_execute shell hosted mutations", () => {
+	const intents = classifyToolCall("ctx_execute", { language: "shell", code: "firebase deploy" });
+	assert.equal(intents.length, 1);
+	assert.equal(intents[0].service, "firebase");
+	assert.equal(intents[0].action, "deploy");
+	assert.equal(intents[0].source, "ctx_execute");
+
+	const prefixed = classifyToolCall("context_mode_ctx_execute", { language: "bash", code: "git push origin main" });
+	assert.equal(prefixed.length, 1);
+	assert.equal(prefixed[0].action, "git-push");
+	assert.equal(prefixed[0].source, "ctx_execute");
+});
+
+test("classifier allows ctx_execute read-only shell commands", () => {
+	assert.deepEqual(classifyToolCall("ctx_execute", { language: "shell", code: "git status" }), []);
+	assert.deepEqual(classifyToolCall("context_mode_ctx_execute", { language: "shell", code: "gh pr view 123" }), []);
+});
+
+test("classifier blocks Context Mode batch hosted mutations", () => {
+	const intents = classifyToolCall("ctx_batch_execute", { commands: [{ command: "gh pr view 1" }, { command: "gh pr merge 1" }] });
+	assert.equal(intents.length, 1);
+	assert.equal(intents[0].service, "github");
+	assert.equal(intents[0].action, "pr-merge");
+	assert.equal(intents[0].source, "ctx_batch_execute");
+
+	const prefixed = classifyToolCall("context_mode_ctx_batch_execute", { commands: [{ command: "gh issue close 2" }] });
+	assert.equal(prefixed.length, 1);
+	assert.equal(prefixed[0].action, "issue-close");
+	assert.equal(prefixed[0].source, "ctx_batch_execute");
+});
+
+test("classifier allows Context Mode batch read-only commands", () => {
+	assert.deepEqual(classifyToolCall("ctx_batch_execute", { commands: [{ command: "gh pr view 1" }, { command: "git status" }] }), []);
+	assert.deepEqual(classifyToolCall("context_mode_ctx_batch_execute", { commands: [{ command: "gh issue list" }] }), []);
+});
+
+test("classifier blocks ctx_execute code execution sinks", () => {
+	const intents = classifyToolCall("ctx_execute", { language: "javascript", code: "require('child_process').execSync('gh pr merge 123')" });
+	assert.equal(intents.length, 1);
+	assert.equal(intents[0].action, "pr-merge");
+	assert.equal(intents[0].source, "ctx_execute");
+
+	const escaped = classifyToolCall("ctx_execute_file", { path: "README.md", language: "javascript", code: String.raw`require('child_process').execSync(\"gh pr merge 123\")` });
+	assert.equal(escaped[0].action, "pr-merge");
+
+	const escapedSingle = classifyToolCall("ctx_execute", { language: "javascript", code: String.raw`require(\'child_process\').execSync(\'gh pr merge 123\')` });
+	assert.equal(escapedSingle.length, 1);
+	assert.equal(escapedSingle[0].target, "123");
+
+	const unicodeEscapedSpaces = classifyToolCall("ctx_execute", { language: "javascript", code: String.raw`require(\"child_process\").execSync(\"gh\u0020pr\u0020merge\u0020123\")` });
+	assert.equal(unicodeEscapedSpaces.length, 1);
+	assert.equal(unicodeEscapedSpaces[0].target, "123");
+});
+
+test("classifier blocks ctx_execute hosted HTTP code", () => {
+	const intents = classifyToolCall("context_mode_ctx_execute", { language: "typescript", code: "await fetch('https://api.github.com/repos/o/r', { method: 'DELETE' })" });
+	assert.equal(intents.length, 1);
+	assert.equal(intents[0].service, "github");
+	assert.equal(intents[0].action, "http-delete");
+	assert.equal(intents[0].source, "ctx_execute");
+
+	const axios = classifyToolCall("ctx_execute", { language: "javascript", code: "await axios.delete('https://api.github.com/repos/o/r')" });
+	assert.equal(axios[0].action, "http-delete");
+
+	const requests = classifyToolCall("ctx_execute", { language: "python", code: "import requests\nrequests.delete('https://api.github.com/repos/o/r')" });
+	assert.equal(requests[0].action, "http-delete");
+});
+
+test("classifier blocks Context Mode execution sinks across runtimes", () => {
+	const cases: Array<[string, string, string]> = [
+		["python", "import subprocess\nsubprocess.run(['git', 'push', 'origin', 'main'])", "git-push"],
+		["ruby", "system('gh pr merge 123')", "pr-merge"],
+		["perl", "system('gh pr merge 123')", "pr-merge"],
+		["go", "exec.Command('git', 'push', 'origin', 'main').Run()", "git-push"],
+		["rust", "Command::new('gh').arg('pr').arg('merge').arg('123').status()", "pr-merge"],
+		["php", "shell_exec('gh pr merge 123');", "pr-merge"],
+		["csharp", "Process.Start('git', 'push origin main');", "git-push"],
+	];
+	for (const [language, code, action] of cases) {
+		const intents = classifyToolCall("ctx_execute", { language, code });
+		assert.equal(intents[0]?.action, action, language);
+		assert.equal(intents[0]?.source, "ctx_execute");
+		const fileIntents = classifyToolCall("context_mode_ctx_execute_file", { path: "README.md", language, code });
+		assert.equal(fileIntents[0]?.action, action, language);
+		assert.equal(fileIntents[0]?.source, "ctx_execute_file");
+	}
+});
+
+test("classifier blocks ctx_execute_file code without inspecting path or file contents", () => {
+	const intents = classifyToolCall("ctx_execute_file", { path: "README.md", language: "javascript", code: "require('child_process').execSync('git push origin main')" });
+	assert.equal(intents.length, 1);
+	assert.equal(intents[0].service, "git");
+	assert.equal(intents[0].action, "git-push");
+	assert.equal(intents[0].source, "ctx_execute_file");
+
 	assert.deepEqual(classifyToolCall("ctx_execute_file", { path: "docs/directus-production-schema.md", language: "javascript", code: "console.log(FILE_CONTENT)", intent: "Directus production schema update" }), []);
 	assert.deepEqual(classifyToolCall("context_mode_ctx_execute_file", { path: "docs/directus-production-schema.md", language: "javascript", code: "console.log(FILE_CONTENT)", intent: "Directus production schema update" }), []);
 });
@@ -408,10 +514,25 @@ test("extension allows one command-authorized tier 3 mutation", async () => {
 	assertBlocked(await harness.call("bash", { command: "gh pr merge 123" }));
 });
 
-test("extension ignores Context Mode batch tool calls", async () => {
+test("extension blocks Context Mode batch mutations before execution", async () => {
 	const harness = makeHarness();
 	const result = await harness.call("ctx_batch_execute", { commands: [{ command: "gh pr view 123" }, { command: "gh pr merge 123" }] });
-	assert.equal(result, undefined);
+	assertBlocked(result);
+	assert.equal((harness.entries[0].data as { toolName?: string }).toolName, "ctx_batch_execute");
+});
+
+test("extension allows Context Mode read-only calls", async () => {
+	const harness = makeHarness();
+	assert.equal(await harness.call("ctx_execute", { language: "shell", code: "git status" }), undefined);
+	assert.equal(await harness.call("ctx_batch_execute", { commands: [{ command: "gh pr view 123" }] }), undefined);
+	assert.equal(await harness.call("ctx_execute_file", { path: "README.md", language: "javascript", code: "console.log(FILE_CONTENT.length)" }), undefined);
+});
+
+test("extension allows one command-authorized Context Mode mutation", async () => {
+	const harness = makeHarness();
+	await harness.runCommand("authorize-hosted-mutation", "github pr-merge 123");
+	assert.equal(await harness.call("ctx_execute", { language: "shell", code: "gh pr merge 123" }), undefined);
+	assertBlocked(await harness.call("ctx_execute", { language: "shell", code: "gh pr merge 123" }));
 });
 
 test("extension allows local tools", async () => {
@@ -420,6 +541,30 @@ test("extension allows local tools", async () => {
 	assert.equal(await harness.call("write", { path: "tmp.txt", content: "hello" }), undefined);
 	assert.equal(await harness.call("write", { path: "tmp/tool-hook-issue/tool-hook-block-report.md", content: "Directus production schema update report. Linear SB-5219 mutation notes." }), undefined);
 	assert.equal(await harness.call("edit", { path: "tmp.txt", edits: [] }), undefined);
+});
+
+test("classifier allows non-executable Context Mode tools", () => {
+	const tools = [
+		"ctx_search",
+		"context_mode_ctx_search",
+		"ctx_index",
+		"context_mode_ctx_index",
+		"ctx_fetch_and_index",
+		"context_mode_ctx_fetch_and_index",
+		"ctx_stats",
+		"context_mode_ctx_stats",
+		"ctx_doctor",
+		"context_mode_ctx_doctor",
+		"ctx_upgrade",
+		"context_mode_ctx_upgrade",
+		"ctx_purge",
+		"context_mode_ctx_purge",
+		"ctx_insight",
+		"context_mode_ctx_insight",
+	];
+	for (const toolName of tools) {
+		assert.deepEqual(classifyToolCall(toolName, { query: "delete GitHub issue", content: "Directus update notes", url: "https://github.com/example/repo" }), [], toolName);
+	}
 });
 
 test("MCP classifier blocks hosted mutation tool names", () => {
@@ -446,6 +591,11 @@ test("MCP classifier parses gateway JSON args for mutation signals", () => {
 	assert.equal(intents[0].service, "github");
 	assert.equal(intents[0].action, "api-delete");
 	assert.equal(intents[0].target, "/repos/o/r/issues/1");
+
+	const largeArgs = JSON.stringify({ method: "PATCH", url: "https://api.github.com/repos/o/r/issues/1", filler: "x".repeat(60_000) });
+	const large = classifyToolCall("mcp", { server: "posthog", tool: "request", args: largeArgs });
+	assert.equal(large[0].service, "github");
+	assert.equal(large[0].action, "api-patch");
 });
 
 test("MCP classifier blocks hosted mutating HTTP methods", () => {
@@ -464,8 +614,21 @@ test("MCP classifier blocks hosted action mutations but allows hosted reads", ()
 	assert.equal(intents[0].target, "block_richtext");
 });
 
+test("MCP classifier covers configured hosted MCP servers", () => {
+	assert.deepEqual(classifyToolCall("mcp", { server: "chrome-devtools", tool: "navigate_page", args: '{"url":"https://example.com"}' }), []);
+	assert.deepEqual(classifyToolCall("mcp", { server: "chrome-devtools", tool: "update_item", args: '{"id":"1"}' }), []);
+	assert.deepEqual(classifyToolCall("mcp", { server: "code-review-graph", tool: "code_review_graph_semantic_search_nodes_tool", query: "mutation update schema" }), []);
+	assert.deepEqual(classifyToolCall("mcp", { server: "context-mode", tool: "update_item", args: '{"id":"1"}' }), []);
+	assert.equal(classifyToolCall("mcp", { server: "notion", tool: "notion_update_page", args: '{"id":"page-1"}' })[0].action, "update");
+	assert.equal(classifyToolCall("mcp", { server: "figma", tool: "figma_create_component", args: '{"nodeId":"1:2"}' })[0].action, "create");
+	assert.equal(classifyToolCall("mcp", { server: "firebase", tool: "firebase_delete_app", args: '{"project":"p"}' })[0].action, "delete");
+	assert.equal(classifyToolCall("mcp", { server: "posthog", tool: "posthog_create_feature_flag", args: '{"name":"flag"}' })[0].action, "create");
+	assert.equal(classifyToolCall("mcp", { server: "directus_prod", tool: "directus_prod_items", args: '{"action":"delete","collection":"articles"}' })[0].action, "delete");
+});
+
 test("MCP classifier ignores non-hosted query text", () => {
 	assert.deepEqual(classifyToolCall("mcp", { server: "code-review-graph", tool: "code_review_graph_semantic_search_nodes_tool", query: "Directus mutation update schema" }), []);
+	assert.deepEqual(classifyToolCall("mcp", { server: "code-review-graph", tool: "request", args: '{"method":"GET","url":"https://api.github.com/repos/o/r/issues/1"}' }), []);
 });
 
 test("MCP classifier blocks GraphQL mutations but allows queries", () => {

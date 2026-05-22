@@ -4,7 +4,7 @@ import * as path from "node:path";
 
 import type { ExtensionAPI, ToolCallEvent, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
 
-export type MutationSource = "bash" | "ctx_execute" | "ctx_batch_execute" | "mcp";
+export type MutationSource = "bash" | "ctx_execute" | "ctx_batch_execute" | "ctx_execute_file" | "mcp";
 export type AuthorizationSource = "prompt" | "command";
 export type MutationTier = 1 | 2 | 3;
 
@@ -52,10 +52,18 @@ const ONE_TIME_AUTHORIZATION_TTL_MS = 10 * 60 * 1000;
 const MAX_AUDIT_ENTRIES = 50;
 const MAX_CODE_SCAN_CHARS = 50_000;
 const MAX_QUOTED_STRINGS = 80;
+const MAX_SHELL_RECURSION_DEPTH = 50;
 const MAX_JSON_STRING_LENGTH = 50_000;
 const MAX_BODY_FILE_BYTES = 50_000;
 const JSON_STRING_FIELDS = new Set(["args", "payload", "request", "body", "input", "data", "variables"]);
-const CONTEXT_MODE_TOOL_NAMES = new Set(["ctx_execute", "context_mode_ctx_execute", "ctx_batch_execute", "context_mode_ctx_batch_execute", "ctx_execute_file", "context_mode_ctx_execute_file"]);
+const CONTEXT_MODE_EXECUTE_TOOL_NAMES = new Set(["ctx_execute", "context_mode_ctx_execute"]);
+const CONTEXT_MODE_BATCH_TOOL_NAMES = new Set(["ctx_batch_execute", "context_mode_ctx_batch_execute"]);
+const CONTEXT_MODE_EXECUTE_FILE_TOOL_NAMES = new Set(["ctx_execute_file", "context_mode_ctx_execute_file"]);
+const CONTEXT_MODE_TOOL_NAMES = new Set([
+	...CONTEXT_MODE_EXECUTE_TOOL_NAMES,
+	...CONTEXT_MODE_BATCH_TOOL_NAMES,
+	...CONTEXT_MODE_EXECUTE_FILE_TOOL_NAMES,
+]);
 const LOCAL_FILE_TOOL_NAMES = new Set(["read", "write", "edit"]);
 
 const HOSTED_SERVICE_WORDS = [
@@ -274,6 +282,94 @@ function getShellWrapperCommand(tokens: string[]): string | undefined {
 		if (/^-[A-Za-z]*c[A-Za-z]*$/.test(token)) return tokens[i + 1];
 	}
 	return undefined;
+}
+
+function readShellCommandSubstitution(text: string, openParenIndex: number): { value: string; endIndex: number } | undefined {
+	let depth = 1;
+	let quote: "'" | '"' | undefined;
+	let escaping = false;
+	for (let i = openParenIndex + 1; i < text.length; i++) {
+		const char = text[i];
+		if (escaping) {
+			escaping = false;
+			continue;
+		}
+		if (char === "\\" && quote !== "'") {
+			escaping = true;
+			continue;
+		}
+		if (quote) {
+			if (char === quote) quote = undefined;
+			continue;
+		}
+		if (char === "'" || char === '"') {
+			quote = char;
+			continue;
+		}
+		if (char === "$" && text[i + 1] === "(") {
+			depth++;
+			i++;
+			continue;
+		}
+		if (char === ")") {
+			depth--;
+			if (depth === 0) return { value: text.slice(openParenIndex + 1, i), endIndex: i };
+		}
+	}
+	return undefined;
+}
+
+function extractShellCommandSubstitutions(text: string): string[] {
+	const values: string[] = [];
+	let quote: "'" | '"' | undefined;
+	let escaping = false;
+	for (let i = 0; i < text.length && values.length < MAX_QUOTED_STRINGS; i++) {
+		const char = text[i];
+		if (escaping) {
+			escaping = false;
+			continue;
+		}
+		if (char === "\\" && quote !== "'") {
+			escaping = true;
+			continue;
+		}
+		if (quote === "'") {
+			if (char === "'") quote = undefined;
+			continue;
+		}
+		if (char === "'") {
+			quote = "'";
+			continue;
+		}
+		if (char === '"') {
+			quote = quote === '"' ? undefined : '"';
+			continue;
+		}
+		if (char === "$" && text[i + 1] === "(") {
+			const substitution = readShellCommandSubstitution(text, i + 1);
+			if (substitution?.value.trim()) values.push(substitution.value);
+			if (substitution) i = substitution.endIndex;
+			continue;
+		}
+		if (char === "`") {
+			let current = "";
+			for (let j = i + 1; j < text.length; j++) {
+				const nested = text[j];
+				if (nested === "\\" && j + 1 < text.length) {
+					current += text[j + 1];
+					j++;
+					continue;
+				}
+				if (nested === "`") {
+					if (current.trim()) values.push(current);
+					i = j;
+					break;
+				}
+				current += nested;
+			}
+		}
+	}
+	return values;
 }
 
 function getOptionValue(tokens: string[], names: string[]): string | undefined {
@@ -525,8 +621,56 @@ function classifyFirebaseCommand(tokens: string[], source: MutationSource): Muta
 	return [makeIntent({ service: "firebase", action, tier: 3, target: commandText || action, source, reason: `Firebase ${action}` })];
 }
 
+const CLOUD_MUTATION_COMMANDS = new Set([
+	"add-iam-policy-binding",
+	"cancel",
+	"copy-snapshot",
+	"deploy",
+	"remove-iam-policy-binding",
+	"rm",
+	"run-instances",
+	"set-iam-policy",
+	"start",
+	"stop",
+	"sync",
+	"tag-resource",
+	"terminate",
+	"untag-resource",
+]);
+const CLOUD_MUTATION_PREFIXES = new Set(["attach", "create", "delete", "deploy", "detach", "disable", "enable", "invoke", "publish", "put", "remove", "send", "terminate", "update", "upload"]);
+const CLOUD_STORAGE_TRANSFER_COMMANDS = new Set(["cp", "copy", "mv", "rm", "sync"]);
+
+function isCloudStorageUri(value: string | undefined): boolean {
+	return /^(?:s3|gs):\/\//i.test(value ?? "");
+}
+
+function isCloudStorageMutation(tokens: string[], command: string, index: number): boolean {
+	if (command === "rm") return true;
+	if (command === "mv") return tokens.slice(index + 1).some(isCloudStorageUri);
+	if (command === "cp" || command === "copy" || command === "sync") {
+		const args = positionalArgs(tokens, index + 1);
+		return isCloudStorageUri(args.at(-1));
+	}
+	return true;
+}
+
+function findCloudMutation(tokens: string[]): string | undefined {
+	for (let i = 1; i < tokens.length; i++) {
+		const token = tokens[i].toLowerCase();
+		if (token.startsWith("-")) continue;
+		if (CLOUD_STORAGE_TRANSFER_COMMANDS.has(token)) {
+			if (isCloudStorageMutation(tokens, token, i)) return token;
+			continue;
+		}
+		if (CLOUD_MUTATION_COMMANDS.has(token)) return token;
+		const prefix = token.split(/[-:]/)[0];
+		if (CLOUD_MUTATION_PREFIXES.has(prefix)) return token.replace(/:/g, "-");
+	}
+	return undefined;
+}
+
 function classifyCloudCommand(tokens: string[], source: MutationSource, service: "gcloud" | "aws"): MutationIntent[] {
-	const mutation = tokens.find((token, index) => index > 0 && /^(create|put|update|delete|deploy|terminate|run-instances|start|stop|tag-resource|untag-resource|set-iam-policy|add-iam-policy-binding|remove-iam-policy-binding)$/.test(token));
+	const mutation = findCloudMutation(tokens);
 	if (!mutation) return [];
 	return [makeIntent({ service, action: mutation, tier: 3, target: tokens.slice(1).join(" "), source, reason: `${service} ${mutation}` })];
 }
@@ -626,44 +770,97 @@ function sampleCodeText(code: string): string {
 }
 
 function shouldScanCodeText(code: string): boolean {
-	return /\b(exec|execSync|execFile|execFileSync|spawn|spawnSync|fetch|axios|request|graphql|mutation|curl|gh|firebase|gcloud|aws|linear)\b|https?:\/\//i.test(code);
+	return /\b(exec|execSync|execFile|execFileSync|spawn|spawnSync|subprocess|system|shell_exec|passthru|proc_open|popen|Process|ProcessBuilder|Command|fetch|axios|request|requests|httpx|urllib|graphql|mutation|curl|git|gh|firebase|gcloud|aws|linear)\b|https?:\/\//i.test(code);
 }
 
 function hasNetworkSink(code: string): boolean {
-	return /\b(fetch|axios|request|graphql)\b|\bhttps?\.request\b/i.test(code);
+	return /\b(fetch|axios|request|requests|httpx|urllib|graphql|reqwest|HttpClient|Net::HTTP)\b|\bhttps?\.request\b|\bcurl_(?:exec|setopt)\b/i.test(code);
+}
+
+function httpMethodFromCode(code: string): string | undefined {
+	const explicit = code.match(/\bmethod\s*[:=]\s*["'`](POST|PUT|PATCH|DELETE)["'`]/i)?.[1];
+	if (explicit) return explicit.toUpperCase();
+	const methodCall = code.match(/\b(?:axios|requests|httpx|reqwest|Net::HTTP)\.(post|put|patch|delete)\s*\(/i)?.[1];
+	if (methodCall) return methodCall.toUpperCase();
+	return code.match(/\bCURLOPT_CUSTOMREQUEST\b[\s\S]{0,120}["'`](POST|PUT|PATCH|DELETE)["'`]/i)?.[1]?.toUpperCase();
+}
+
+function pushExecutionSinkStrings(values: string[], window: string): void {
+	const quoted = extractQuotedStrings(window, MAX_QUOTED_STRINGS - values.length);
+	if (quoted.length > 1 && values.length < MAX_QUOTED_STRINGS) {
+		const joined = quoted.join(" ");
+		if (!values.includes(joined)) values.push(joined);
+	}
+	for (const value of quoted) {
+		if (values.length >= MAX_QUOTED_STRINGS) break;
+		if (!values.includes(value)) values.push(value);
+	}
 }
 
 function extractExecutionSinkStrings(code: string): string[] {
 	const values: string[] = [];
-	const sinkPattern = /\b(?:exec|execSync|execFile|execFileSync|spawn|spawnSync)\s*\(/g;
+	const sinkPattern = /\b(?:exec|execSync|execFile|execFileSync|spawn|spawnSync|system|shell_exec|passthru|proc_open|popen|subprocess\.(?:run|call|check_call|check_output|Popen)|os\.system|Open3\.(?:capture2|capture3|popen3)|Process\.Start|ProcessStartInfo|ProcessBuilder|exec\.Command|Command::new)\s*\(/g;
 	let match: RegExpExecArray | null;
 	while ((match = sinkPattern.exec(code)) && values.length < MAX_QUOTED_STRINGS) {
 		const window = code.slice(match.index, Math.min(code.length, match.index + 4_000));
-		const quoted = extractQuotedStrings(window, MAX_QUOTED_STRINGS - values.length);
-		if (quoted.length > 1 && values.length < MAX_QUOTED_STRINGS) values.push(quoted.join(" "));
-		for (const value of quoted) {
+		pushExecutionSinkStrings(values, window);
+		for (const variant of embeddedCommandVariants(window)) {
 			if (values.length >= MAX_QUOTED_STRINGS) break;
-			values.push(value);
+			if (variant !== window) pushExecutionSinkStrings(values, variant);
 		}
 	}
 	return values;
+}
+
+function codePointFromEscape(match: string, hex: string): string {
+	const value = Number.parseInt(hex, 16);
+	if (!Number.isFinite(value) || value > 0x10ffff) return match;
+	return String.fromCodePoint(value);
+}
+
+function decodeEscapedCommandText(value: string): string {
+	return value
+		.replace(/\\+u\{([0-9a-fA-F]{1,6})\}/g, codePointFromEscape)
+		.replace(/\\+u([0-9a-fA-F]{4})/g, codePointFromEscape)
+		.replace(/\\+x([0-9a-fA-F]{2})/g, codePointFromEscape)
+		.replace(/\\+n/g, "\n")
+		.replace(/\\+r/g, "\r")
+		.replace(/\\+t/g, "\t");
 }
 
 function embeddedCommandVariants(value: string): string[] {
 	const variants = [value];
 	let current = value;
 	for (let i = 0; i < 3; i++) {
-		current = current.replace(/\\(["'`\\])/g, "$1");
+		current = decodeEscapedCommandText(current.replace(/\\(["'`\\])/g, "$1"));
 		if (!variants.includes(current)) variants.push(current);
 	}
 	return variants;
+}
+
+function nestedIntentTargetKey(target: string | undefined): string {
+	return (target ?? "").replace(/[)\\]+$/, "");
+}
+
+function nestedIntentTargetJunkLength(target: string | undefined): number {
+	return (target ?? "").match(/[)\\]+$/)?.[0].length ?? 0;
+}
+
+function dedupeCodeTextIntents(intents: MutationIntent[]): MutationIntent[] {
+	const deduped = new Map<string, MutationIntent>();
+	for (const intent of intents) {
+		const key = `${intent.service}\0${intent.action}\0${intent.source}\0${nestedIntentTargetKey(intent.target)}`;
+		const existing = deduped.get(key);
+		if (!existing || nestedIntentTargetJunkLength(existing.target) > nestedIntentTargetJunkLength(intent.target)) deduped.set(key, intent);
+	}
+	return [...deduped.values()];
 }
 
 function classifyCodeText(code: string, source: MutationSource): MutationIntent[] {
 	if (!shouldScanCodeText(code)) return [];
 	const scanText = sampleCodeText(code);
 	const intents: MutationIntent[] = [];
-	const method = code.match(/\bmethod\s*[:=]\s*["'`](POST|PUT|PATCH|DELETE)["'`]/i)?.[1]?.toUpperCase();
+	const method = httpMethodFromCode(code);
 	if (method && includesHostedService(code) && hasNetworkSink(code)) {
 		const service = serviceFromWords(wordParts(scanText), code);
 		intents.push(makeIntent({ service, action: `http-${method.toLowerCase()}`, tier: method === "DELETE" ? 3 : 2, source, reason: `embedded hosted HTTP ${method}` }));
@@ -680,7 +877,7 @@ function classifyCodeText(code: string, source: MutationSource): MutationIntent[
 			break;
 		}
 	}
-	return intents;
+	return dedupeCodeTextIntents(intents);
 }
 
 function skipGitGlobalOptions(tokens: string[]): string[] {
@@ -704,14 +901,20 @@ function skipGitGlobalOptions(tokens: string[]): string[] {
 	return [tokens[0], ...tokens.slice(index)];
 }
 
-export function classifyShellCommand(command: string, source: MutationSource = "bash", scanEmbedded = true): MutationIntent[] {
+export function classifyShellCommand(command: string, source: MutationSource = "bash", scanEmbedded = true, depth = 0): MutationIntent[] {
 	const intents: MutationIntent[] = [];
+	const canRecurse = depth < MAX_SHELL_RECURSION_DEPTH;
 	for (const segment of splitCommandSegments(command)) {
+		if (scanEmbedded && canRecurse) {
+			for (const substitution of extractShellCommandSubstitutions(segment)) {
+				intents.push(...classifyShellCommand(substitution, source, true, depth + 1));
+			}
+		}
 		const tokens = stripShellWrappers(shellSplit(segment));
 		if (tokens.length === 0) continue;
 		const wrappedCommand = getShellWrapperCommand(tokens);
 		if (wrappedCommand) {
-			intents.push(...classifyShellCommand(wrappedCommand, source));
+			if (canRecurse) intents.push(...classifyShellCommand(wrappedCommand, source, scanEmbedded, depth + 1));
 			continue;
 		}
 		const executable = executableName(tokens[0]);
@@ -755,8 +958,29 @@ function isLocalFileTool(toolName: string): boolean {
 	return LOCAL_FILE_TOOL_NAMES.has(toolName);
 }
 
+function classifyContextModeCode(language: unknown, code: unknown, source: MutationSource): MutationIntent[] {
+	if (typeof code !== "string") return [];
+	const lang = typeof language === "string" ? language.toLowerCase() : "";
+	if (lang === "shell" || lang === "bash" || lang === "sh") return classifyShellCommand(code, source);
+	return classifyCodeText(code, source);
+}
+
+function classifyContextModeTool(toolName: string, input: unknown): MutationIntent[] {
+	const value = input as any;
+	if (CONTEXT_MODE_EXECUTE_TOOL_NAMES.has(toolName)) return classifyContextModeCode(value?.language, value?.code, "ctx_execute");
+	if (CONTEXT_MODE_EXECUTE_FILE_TOOL_NAMES.has(toolName)) return classifyContextModeCode(value?.language, value?.code, "ctx_execute_file");
+	if (CONTEXT_MODE_BATCH_TOOL_NAMES.has(toolName)) {
+		if (!Array.isArray(value?.commands)) return [];
+		return value.commands.flatMap((entry: unknown) => {
+			const command = (entry as any)?.command;
+			if (typeof command !== "string") return [];
+			return classifyShellCommand(command, "ctx_batch_execute");
+		});
+	}
+	return [];
+}
+
 export function extractShellCommands(toolName: string, input: unknown): ShellCommand[] {
-	if (isContextModeTool(toolName)) return [];
 	const value = input as any;
 	if (toolName === "bash" && typeof value?.command === "string") return [{ command: value.command, source: "bash" }];
 	return [];
@@ -783,6 +1007,22 @@ function parseInspectionJson(key: string, value: string): unknown | undefined {
 	}
 }
 
+function regexEscape(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function findJsonStringField(value: string, names: Set<string>): string | undefined {
+	const trimmed = value.trim();
+	if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return undefined;
+	const half = Math.floor(MAX_JSON_STRING_LENGTH / 2);
+	const scanText = trimmed.length <= MAX_JSON_STRING_LENGTH ? trimmed : `${trimmed.slice(0, half)}\n${trimmed.slice(-half)}`;
+	for (const name of names) {
+		const match = scanText.match(new RegExp(`["']${regexEscape(name)}["']\\s*:\\s*["']([^"'\\\\]*(?:\\\\.[^"'\\\\]*)*)["']`, "i"));
+		if (match) return match[1].replace(/\\(["'\\\\/bfnrt])/g, "$1");
+	}
+	return undefined;
+}
+
 function findInputString(input: unknown, names: string[]): string | undefined {
 	if (!input || typeof input !== "object") return undefined;
 	const stack: unknown[] = [input];
@@ -797,6 +1037,8 @@ function findInputString(input: unknown, names: string[]): string | undefined {
 			const loweredKey = key.toLowerCase();
 			if (loweredNames.has(loweredKey) && typeof value === "string") return value;
 			if (typeof value === "string") {
+				const extracted = findJsonStringField(value, loweredNames);
+				if (extracted !== undefined) return extracted;
 				const parsed = parseInspectionJson(key, value);
 				if (parsed && typeof parsed === "object") stack.push(parsed);
 				continue;
@@ -886,7 +1128,7 @@ function classifyMcpTool(toolName: string, input: unknown): MutationIntent[] {
 	const firstNonServiceWord = words.find((word) => !HOSTED_SERVICE_WORDS.includes(word) && word !== "mcp");
 	const readOnly = firstNonServiceWord !== undefined && READONLY_WORDS.has(firstNonServiceWord);
 	if (!method && !graphqlMutation && !mutationWord && !inputAction && readOnly) return [];
-	if (method && !MUTATING_HTTP_METHODS.has(method) && !graphqlMutation && !mutationWord && !inputAction) return [];
+	if (method && !MUTATING_HTTP_METHODS.has(method) && !graphqlMutation && !inputAction) return [];
 	if (!method && !graphqlMutation && !mutationWord && !inputAction) return [];
 
 	const service = serviceFromWords(words, endpointService ?? "");
@@ -895,7 +1137,8 @@ function classifyMcpTool(toolName: string, input: unknown): MutationIntent[] {
 }
 
 export function classifyToolCall(toolName: string, input: unknown): MutationIntent[] {
-	if (isContextModeTool(toolName) || isLocalFileTool(toolName)) return [];
+	if (isLocalFileTool(toolName)) return [];
+	if (isContextModeTool(toolName)) return classifyContextModeTool(toolName, input);
 	const shellCommands = extractShellCommands(toolName, input);
 	if (shellCommands.length > 0) {
 		return shellCommands.flatMap((command) => classifyShellCommand(command.command, command.source));
