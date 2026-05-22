@@ -114,6 +114,19 @@ Both tools emit progress through `onUpdate` with compact details. Partial progre
 
 Progress details include a redacted task preview and do not include raw child stdout, stderr, or tool arguments. Writer diff previews are parent-computed, capped, redacted, and carried in UI `details` for rendering rather than final model-visible `content`. The writer renderer shows the capped diff preview in the collapsed result row and when expanded. The preview uses four context lines to match Pi's native `edit` diff context.
 
+Final delegate rows and expanded writer file rows use Nerd Font icons with theme-dependent colors:
+
+| Status | Icon | Color |
+|---|---:|---|
+| `completed` | `󰸞` | success / green |
+| `timeout` | `󰔟` | warning / amber |
+| `aborted` | `󰅖` | best-effort ANSI orange |
+| `failed` | `󰅙` | error / red |
+| `created` | `󰝒` | success / green |
+| `modified` | `󰷈` | best-effort ANSI blue |
+| `deleted` | `󰩹` | error / red |
+| `skipped` | `󰒭` | muted / gray |
+
 ## Result shape
 
 Delegates return:

@@ -12,6 +12,24 @@ function bold(theme: any, value: string): string {
 	return typeof theme?.bold === "function" ? theme.bold(value) : value;
 }
 
+function ansi256(colorCode: number, value: string): string {
+	return `\x1b[38;5;${colorCode}m${value}\x1b[0m`;
+}
+
+function colorOrAnsi(theme: any, themeColor: string | undefined, ansi256Color: number | undefined, value: string): string {
+	if (typeof ansi256Color === "number") return ansi256(ansi256Color, value);
+	return themeColor ? color(theme, themeColor, value) : value;
+}
+
+function renderStatusWithIcon(
+	label: string,
+	icon: string,
+	theme: any,
+	style: { themeColor?: string; ansi256Color?: number },
+): string {
+	return colorOrAnsi(theme, style.themeColor, style.ansi256Color, `${icon} ${label}`);
+}
+
 const LOADING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const LOADING_INTERVAL_MS = 80;
 const LOADING_STATE_KEY = "delegateLoadingText";
@@ -81,6 +99,22 @@ function statusLabel(status: string): string {
 	return displayLabel(normalizedStatus(status));
 }
 
+function renderFinalStatus(status: string, theme: any): string {
+	const normalized = normalizedStatus(status);
+	if (normalized === "completed") return renderStatusWithIcon(statusLabel(status), "󰸞", theme, { themeColor: "success" });
+	if (normalized === "timeout") return renderStatusWithIcon(statusLabel(status), "󰔟", theme, { themeColor: "warning" });
+	if (normalized === "aborted") return renderStatusWithIcon(statusLabel(status), "󰅖", theme, { ansi256Color: 208 });
+	return renderStatusWithIcon(statusLabel(status), "󰅙", theme, { themeColor: "error" });
+}
+
+function renderWriterFileStatus(status: WriterFileChange["status"], theme: any): string {
+	if (status === "created") return renderStatusWithIcon(displayLabel(status), "󰝒", theme, { themeColor: "success" });
+	if (status === "modified") return renderStatusWithIcon(displayLabel(status), "󰷈", theme, { ansi256Color: 33 });
+	if (status === "deleted") return renderStatusWithIcon(displayLabel(status), "󰩹", theme, { themeColor: "error" });
+	if (status === "skipped") return renderStatusWithIcon(displayLabel(status), "󰒭", theme, { themeColor: "muted" });
+	return color(theme, "muted", displayLabel(status));
+}
+
 function agentLabel(agent: unknown, fallback: "reader" | "writer"): string {
 	const value = typeof agent === "string" && agent.trim() ? agent.trim() : fallback;
 	return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
@@ -139,7 +173,7 @@ function appendWriterExpandedDetails(output: string, details: WriterToolDetails,
 		output += "\nfiles:";
 		for (const file of details.changedFiles) {
 			const marker = file.status === "skipped" ? ` (${file.reason ?? "diff unavailable"})` : "";
-			output += `\n  ${displayLabel(file.status)} ${file.path}${marker}`;
+			output += `\n  ${renderWriterFileStatus(file.status, theme)} ${file.path}${marker}`;
 		}
 		if (details.changedFilesTruncated) output += "\n  ... additional files omitted from UI details";
 	}
@@ -183,10 +217,7 @@ function renderToolResult(
 		return text;
 	}
 
-	const status = normalizedStatus(details.status);
-	const displayStatus = statusLabel(details.status);
-	const statusColor = status === "completed" ? "success" : status === "timeout" || status === "aborted" ? "warning" : "error";
-	let output = `${renderAgentLabel(details.agent, tool, theme)} ${color(theme, statusColor, displayStatus)}`;
+	let output = `${renderAgentLabel(details.agent, tool, theme)} ${renderFinalStatus(details.status, theme)}`;
 	if (tool === "writer") {
 		const writerDetails = details as WriterToolDetails;
 		output += ` ${color(theme, "dim", formatWriterChangeSummary(writerDetails))}`;

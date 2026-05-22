@@ -1273,7 +1273,14 @@ test("writer custom renderers emphasize agent labels and hide raw child stdout o
 				durationMs: 42,
 				toolCallCount: 2,
 				truncated: false,
-				changedFiles: [{ path: "src/app.ts", status: "modified", oldSize: 1, newSize: 1, additions: 1, deletions: 1 }],
+				changedFiles: [
+					{ path: "src/new.ts", status: "created", oldSize: null, newSize: 1, additions: 1, deletions: 0 },
+					{ path: "src/app.ts", status: "modified", oldSize: 1, newSize: 1, additions: 1, deletions: 1 },
+					{ path: "src/old.ts", status: "deleted", oldSize: 1, newSize: null, additions: 0, deletions: 1 },
+					{ path: "src/large.bin", status: "skipped", oldSize: 1024, newSize: 1024, additions: 0, deletions: 0, reason: "file exceeds max diff size" },
+				],
+				changedFileCount: 3,
+				skippedDiffCount: 1,
 				diffPreview: "edit src/app.ts\n- old\n+ new",
 				diffTruncated: false,
 				stderrTail: "SECRET_TOKEN=<fixture-secret>",
@@ -1281,7 +1288,8 @@ test("writer custom renderers emphasize agent labels and hide raw child stdout o
 		};
 		const collapsed = writer.renderResult(resultPayload, { expanded: false, isPartial: false } as any, theme as any, context as any);
 		const collapsedRendered = collapsed.render(120).join("\n");
-		assert.match(collapsedRendered, /Implementer Completed/);
+		assert.match(collapsedRendered, /Implementer/);
+		assert.match(collapsedRendered, /󰸞 Completed/);
 		assert.doesNotMatch(collapsedRendered, /writer completed/);
 		assert.match(collapsedRendered, /edit src\/app\.ts/);
 		assert.match(collapsedRendered, /\+ new/);
@@ -1302,9 +1310,18 @@ test("writer custom renderers emphasize agent labels and hide raw child stdout o
 
 		const result = writer.renderResult(resultPayload, { expanded: true, isPartial: false } as any, theme as any, context as any);
 		const rendered = result.render(120).join("\n");
-		assert.match(rendered, /Implementer Completed/);
+		assert.match(rendered, /Implementer/);
+		assert.match(rendered, /󰸞 Completed/);
 		assert.doesNotMatch(rendered, /writer completed/);
 		assert.match(rendered, /tools: 2/);
+		assert.match(rendered, /󰝒 Created/);
+		assert.match(rendered, /src\/new\.ts/);
+		assert.match(rendered, /󰷈 Modified/);
+		assert.match(rendered, /src\/app\.ts/);
+		assert.match(rendered, /󰩹 Deleted/);
+		assert.match(rendered, /src\/old\.ts/);
+		assert.match(rendered, /󰒭 Skipped/);
+		assert.match(rendered, /src\/large\.bin \(file exceeds max diff size\)/);
 		assert.match(rendered, /edit src\/app\.ts/);
 		assert.match(rendered, /\+ new/);
 		assert.doesNotMatch(rendered, /SECRET_TOKEN/);
@@ -1348,12 +1365,57 @@ test("reader custom renderers show progress and status details without exposing 
 		context as any,
 	);
 	const rendered = result.render(120).join("\n");
-	assert.match(rendered, /Investigator Completed/);
+	assert.match(rendered, /Investigator/);
+	assert.match(rendered, /󰸞 Completed/);
 	assert.doesNotMatch(rendered, /reader completed/);
 	assert.match(rendered, /tools: 2/);
 	assert.doesNotMatch(rendered, /SECRET_TOKEN/);
 	assert.doesNotMatch(rendered, /raw child final summary/);
 });
+
+test("delegate final status renderer uses selected icons", () => {
+	const theme = {
+		fg(_name: string, text: string) {
+			return text;
+		},
+		bold(text: string) {
+			return text;
+		},
+	};
+	const statuses = [
+		["completed", "󰸞 Completed"],
+		["timeout", "󰔟 Timeout"],
+		["aborted", "󰅖 Aborted"],
+		["failed", "󰅙 Failed"],
+	] as const;
+
+	for (const [status, expected] of statuses) {
+		const result = renderDelegateResult(
+			{
+				content: [{ type: "text", text: "raw child final summary" }],
+				details: {
+					agent: "investigator",
+					model: "child-model",
+					thinking: "medium",
+					cwd: "/tmp/project",
+					status,
+					exitCode: status === "completed" ? 0 : 1,
+					durationMs: 42,
+					toolCallCount: 2,
+					truncated: false,
+				},
+			},
+			{ expanded: false, isPartial: false } as any,
+			theme as any,
+			{ state: {}, cwd: "/tmp/project" } as any,
+		);
+		const rendered = result.render(120).join("\n");
+		assert.ok(rendered.includes("Investigator"), rendered);
+		assert.ok(rendered.includes(expected), rendered);
+		assert.doesNotMatch(rendered, /raw child final summary/);
+	}
+});
+
 let failures = 0;
 for (const { name, fn } of tests) {
 	try {
