@@ -146,6 +146,8 @@ test("classifier ignores Context Mode tools", () => {
 	assert.deepEqual(classifyToolCall("context_mode_ctx_execute", { language: "javascript", code: "require('child_process').execSync('gh pr merge 123')" }), []);
 	assert.deepEqual(classifyToolCall("ctx_batch_execute", { commands: [{ command: "gh pr merge 1" }] }), []);
 	assert.deepEqual(classifyToolCall("context_mode_ctx_batch_execute", { commands: [{ command: "gh pr merge 1" }] }), []);
+	assert.deepEqual(classifyToolCall("ctx_execute_file", { path: "docs/directus-production-schema.md", language: "javascript", code: "console.log(FILE_CONTENT)", intent: "Directus production schema update" }), []);
+	assert.deepEqual(classifyToolCall("context_mode_ctx_execute_file", { path: "docs/directus-production-schema.md", language: "javascript", code: "console.log(FILE_CONTENT)", intent: "Directus production schema update" }), []);
 });
 
 test("classifier inspects embedded commands in direct shell code", () => {
@@ -285,6 +287,7 @@ test("extension allows local tools", async () => {
 	const harness = makeHarness();
 	assert.equal(await harness.call("read", { path: "agent/mcp.json" }), undefined);
 	assert.equal(await harness.call("write", { path: "tmp.txt", content: "hello" }), undefined);
+	assert.equal(await harness.call("write", { path: "tmp/tool-hook-issue/tool-hook-block-report.md", content: "Directus production schema update report. Linear SB-5219 mutation notes." }), undefined);
 	assert.equal(await harness.call("edit", { path: "tmp.txt", edits: [] }), undefined);
 });
 
@@ -321,9 +324,40 @@ test("MCP classifier blocks hosted mutating HTTP methods", () => {
 	assert.equal(intents[0].action, "api-delete");
 });
 
+test("MCP classifier blocks hosted action mutations but allows hosted reads", () => {
+	assert.deepEqual(classifyToolCall("mcp", { server: "directus_prod", tool: "directus_prod_fields", args: '{"action":"read","collection":"block_richtext"}' }), []);
+	const intents = classifyToolCall("mcp", { server: "directus_prod", tool: "directus_prod_fields", args: '{"action":"update","collection":"block_richtext"}' });
+	assert.equal(intents.length, 1);
+	assert.equal(intents[0].service, "directus");
+	assert.equal(intents[0].action, "update");
+	assert.equal(intents[0].target, "block_richtext");
+});
+
+test("MCP classifier ignores non-hosted query text", () => {
+	assert.deepEqual(classifyToolCall("mcp", { server: "code-review-graph", tool: "code_review_graph_semantic_search_nodes_tool", query: "Directus mutation update schema" }), []);
+});
+
 test("MCP classifier blocks GraphQL mutations but allows queries", () => {
 	assert.equal(classifyToolCall("github_graphql", { query: "mutation { closeIssue(input:{}) { clientMutationId } }" }).length, 1);
+	assert.equal(classifyToolCall("github_graphql", { query: "mutation CloseIssue($id: ID!) { closeIssue(input:{issueId:$id}) { clientMutationId } }" }).length, 1);
 	assert.deepEqual(classifyToolCall("github_graphql", { query: "query { viewer { login } }" }), []);
+});
+
+test("MCP classifier allows docs search with natural-language mutation wording", () => {
+	const docsSearchInput = {
+		query: "How to read feature flag status without update mutation or delete operations?",
+		context: "Search docs for safe read-only approaches when checking a feature flag status without making any update or delete operations in production.",
+	};
+
+	assert.deepEqual(classifyToolCall("posthog_docs-search", docsSearchInput), []);
+	assert.deepEqual(classifyToolCall("mcp", { tool: "posthog_docs-search", args: JSON.stringify(docsSearchInput) }), []);
+	assert.deepEqual(
+		classifyToolCall("mcp", {
+			tool: "posthog_docs-search",
+			args: JSON.stringify({ ...docsSearchInput, query: "mutation update delete operations in docs search" }),
+		}),
+		[],
+	);
 });
 
 test("extension command exposes guard status and clear", async () => {

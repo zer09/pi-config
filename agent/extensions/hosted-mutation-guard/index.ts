@@ -52,7 +52,8 @@ const MAX_CODE_SCAN_CHARS = 50_000;
 const MAX_QUOTED_STRINGS = 80;
 const MAX_JSON_STRING_LENGTH = 50_000;
 const JSON_STRING_FIELDS = new Set(["args", "payload", "request", "body", "input", "data", "variables"]);
-const CONTEXT_MODE_TOOL_NAMES = new Set(["ctx_execute", "context_mode_ctx_execute", "ctx_batch_execute", "context_mode_ctx_batch_execute"]);
+const CONTEXT_MODE_TOOL_NAMES = new Set(["ctx_execute", "context_mode_ctx_execute", "ctx_batch_execute", "context_mode_ctx_batch_execute", "ctx_execute_file", "context_mode_ctx_execute_file"]);
+const LOCAL_FILE_TOOL_NAMES = new Set(["read", "write", "edit"]);
 
 const HOSTED_SERVICE_WORDS = [
 	"github",
@@ -148,14 +149,6 @@ function cleanTarget(target: string | undefined): string | undefined {
 		.replace(/\b([a-z][a-z0-9+.-]*:\/\/)([^\s/@?#]+@|[^\s/@?#]+:[^\s/@?#]+@)/gi, "$1<redacted>@")
 		.replace(/(\bhttps?:\/\/[^\s?#]+)[?#][^\s]*/gi, "$1")
 		.slice(0, 160);
-}
-
-function safeStringify(input: unknown): string {
-	try {
-		return JSON.stringify(input ?? {}).slice(0, 20_000);
-	} catch {
-		return "";
-	}
 }
 
 export function shellSplit(input: string): string[] {
@@ -418,6 +411,7 @@ function serviceFromUrl(url: string | undefined): { service: string; target: str
 			: host.includes("stripe") ? "stripe"
 			: host.includes("sentry") ? "sentry"
 			: host.includes("atlassian") || host.includes("jira") ? "jira"
+			: host.includes("directus") ? "directus"
 			: "http";
 		return { service, target: host };
 	} catch {
@@ -561,6 +555,10 @@ function isContextModeTool(toolName: string): boolean {
 	return CONTEXT_MODE_TOOL_NAMES.has(toolName);
 }
 
+function isLocalFileTool(toolName: string): boolean {
+	return LOCAL_FILE_TOOL_NAMES.has(toolName);
+}
+
 export function extractShellCommands(toolName: string, input: unknown): ShellCommand[] {
 	if (isContextModeTool(toolName)) return [];
 	const value = input as any;
@@ -618,9 +616,28 @@ function findInputMethod(input: unknown): string | undefined {
 	return method?.toUpperCase();
 }
 
+function isGraphqlMutationQuery(value: string): boolean {
+	const trimmed = value.trimStart();
+	return /^mutation\b(?:\s+[A-Za-z_][A-Za-z0-9_]*)?(?:\s*\([^)]*\))?\s*\{/i.test(trimmed);
+}
+
 function hasGraphqlMutation(input: unknown): boolean {
 	const query = findInputString(input, ["query", "mutation"]);
-	return /\bmutation\b/i.test(query ?? "");
+	return typeof query === "string" && isGraphqlMutationQuery(query);
+}
+
+function mutationActionFromInput(input: unknown): string | undefined {
+	const action = findInputString(input, ["action", "operation", "op"]);
+	if (!action) return undefined;
+	const words = wordParts(action);
+	if (words.length === 0) return undefined;
+	if (READONLY_WORDS.has(words[0])) return undefined;
+	return words.find((word) => MUTATION_WORDS.includes(word));
+}
+
+function serviceFromExplicitTarget(input: unknown): string | undefined {
+	const target = findInputString(input, ["url", "endpoint"]);
+	return serviceFromUrl(target)?.service;
 }
 
 function serviceFromWords(words: string[], serialized: string): string {
@@ -644,14 +661,14 @@ function actionFromMcp(service: string, words: string[], input: unknown): string
 	const method = findInputMethod(input);
 	if (method && MUTATING_HTTP_METHODS.has(method)) return `api-${method.toLowerCase()}`;
 	if (hasGraphqlMutation(input)) return "graphql-mutation";
-	return words.find((word) => MUTATION_WORDS.includes(word)) ?? "mutation";
+	return mutationActionFromInput(input) ?? words.find((word) => MUTATION_WORDS.includes(word)) ?? "mutation";
 }
 
 function targetFromMcp(service: string, input: unknown): string | undefined {
 	if (service === "github") return findInputString(input, ["prNumber", "pullNumber", "pull_request_number", "issueNumber", "number", "target", "path", "url", "endpoint", "id"]);
 	if (service === "linear") return findInputString(input, ["issueId", "issueKey", "key", "id", "target", "path", "url"]);
 	if (service === "slack") return findInputString(input, ["channel", "channelId", "target"]);
-	return findInputString(input, ["target", "path", "url", "endpoint", "id", "nodeId", "project", "name"]);
+	return findInputString(input, ["target", "path", "url", "endpoint", "id", "nodeId", "project", "name", "collection"]);
 }
 
 function bodyFromMcp(input: unknown): string | undefined {
@@ -661,27 +678,28 @@ function bodyFromMcp(input: unknown): string | undefined {
 function classifyMcpTool(toolName: string, input: unknown): MutationIntent[] {
 	const value = input as any;
 	const effectiveName = toolName === "mcp" && typeof value?.tool === "string" ? `${value?.server ?? "mcp"}_${value.tool}` : toolName;
-	const serialized = safeStringify(input);
+	const endpointService = serviceFromExplicitTarget(input);
 	const words = wordParts(effectiveName);
-	const hosted = includesHostedService(effectiveName) || includesHostedService(serialized);
+	const hosted = includesHostedService(effectiveName) || endpointService !== undefined;
 	if (!hosted) return [];
 
 	const method = findInputMethod(input);
 	const graphqlMutation = hasGraphqlMutation(input);
 	const mutationWord = words.find((word) => MUTATION_WORDS.includes(word));
+	const inputAction = mutationActionFromInput(input);
 	const firstNonServiceWord = words.find((word) => !HOSTED_SERVICE_WORDS.includes(word) && word !== "mcp");
 	const readOnly = firstNonServiceWord !== undefined && READONLY_WORDS.has(firstNonServiceWord);
-	if (!method && !graphqlMutation && !mutationWord && readOnly) return [];
-	if (method && !MUTATING_HTTP_METHODS.has(method) && !graphqlMutation && !mutationWord) return [];
-	if (!method && !graphqlMutation && !mutationWord) return [];
+	if (!method && !graphqlMutation && !mutationWord && !inputAction && readOnly) return [];
+	if (method && !MUTATING_HTTP_METHODS.has(method) && !graphqlMutation && !mutationWord && !inputAction) return [];
+	if (!method && !graphqlMutation && !mutationWord && !inputAction) return [];
 
-	const service = serviceFromWords(words, serialized);
+	const service = serviceFromWords(words, endpointService ?? "");
 	const action = actionFromMcp(service, words, input);
 	return [makeIntent({ service, action, tier: tierForAction(action), target: targetFromMcp(service, input), body: bodyFromMcp(input), source: "mcp", reason: `${service} ${action} tool`, toolName: effectiveName })];
 }
 
 export function classifyToolCall(toolName: string, input: unknown): MutationIntent[] {
-	if (isContextModeTool(toolName)) return [];
+	if (isContextModeTool(toolName) || isLocalFileTool(toolName)) return [];
 	const shellCommands = extractShellCommands(toolName, input);
 	if (shellCommands.length > 0) {
 		return shellCommands.flatMap((command) => classifyShellCommand(command.command, command.source));
