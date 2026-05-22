@@ -667,14 +667,14 @@ test("writer streams writer-labeled progress updates without appending progress 
 				(update: any) => updates.push(update),
 			);
 			assert.equal(result.content[0].text, "Writer completed: no file changes detected.");
-			assert.doesNotMatch(result.content[0].text, /launching|child_event|diff_ready|finishing/);
+			assert.doesNotMatch(result.content[0].text, /launching|working|diff_ready|finishing/);
 		},
 	);
 
-	assert.deepEqual(updates.map((update) => update.details?.phase).filter(Boolean), ["starting", "launching_child", "child_event", "diff_ready", "finishing"]);
+	assert.deepEqual(updates.map((update) => update.details?.phase).filter(Boolean), ["starting", "launching_subagent", "working", "diff_ready", "finishing"]);
 	assert.deepEqual([...new Set(updates.map((update) => update.details?.tool))], ["writer"]);
 	for (const update of updates) {
-		assert.match(update.content?.[0]?.text ?? "", /^writer /);
+		assert.match(update.content?.[0]?.text ?? "", /^Writer /);
 		assert.doesNotMatch(update.content?.[0]?.text ?? "", /Writer progress-safe final answer/);
 	}
 });
@@ -709,7 +709,7 @@ test("writer computes UI-only diff preview for modified allowed files", async ()
 
 	const diffUpdate = updates.find((update) => update.details?.phase === "diff_ready");
 	assert.ok(diffUpdate);
-	assert.match(diffUpdate.content?.[0]?.text ?? "", /writer diff ready\.\.\.: 1 file changed/);
+	assert.match(diffUpdate.content?.[0]?.text ?? "", /Writer Diff Ready\.\.\.: 1 file changed/);
 	assert.doesNotMatch(diffUpdate.content?.[0]?.text ?? "", /diff_ready/);
 	assert.doesNotMatch(diffUpdate.content?.[0]?.text ?? "", /export const/);
 	assert.match(diffUpdate.details?.diffPreview ?? "", /\+ export const before = false;/);
@@ -1084,12 +1084,12 @@ test("reader streams progress updates through onUpdate without appending progres
 				(update: any) => updates.push(update),
 			);
 			assert.equal(result.content[0].text, "## Result\nProgress-safe final answer");
-			assert.doesNotMatch(result.content[0].text, /launching|child_event|finishing/);
+			assert.doesNotMatch(result.content[0].text, /launching|working|finishing/);
 		},
 	);
 
 	const phases = updates.map((update) => update.details?.phase).filter(Boolean);
-	assert.deepEqual(phases, ["starting", "launching_child", "child_event", "finishing"]);
+	assert.deepEqual(phases, ["starting", "launching_subagent", "working", "finishing"]);
 	for (const update of updates) {
 		const text = update.content?.[0]?.text ?? "";
 		assert.doesNotMatch(text, /Progress-safe final answer/);
@@ -1281,7 +1281,7 @@ test("writer custom renderers emphasize agent labels and hide raw child stdout o
 		};
 		const collapsed = writer.renderResult(resultPayload, { expanded: false, isPartial: false } as any, theme as any, context as any);
 		const collapsedRendered = collapsed.render(120).join("\n");
-		assert.match(collapsedRendered, /Implementer completed/);
+		assert.match(collapsedRendered, /Implementer Completed/);
 		assert.doesNotMatch(collapsedRendered, /writer completed/);
 		assert.match(collapsedRendered, /edit src\/app\.ts/);
 		assert.match(collapsedRendered, /\+ new/);
@@ -1289,19 +1289,20 @@ test("writer custom renderers emphasize agent labels and hide raw child stdout o
 		assert.doesNotMatch(collapsedRendered, /raw writer final summary/);
 
 		const partial = writer.renderResult(
-			{ ...resultPayload, details: { ...resultPayload.details, phase: "launching_child" } },
+			{ ...resultPayload, details: { ...resultPayload.details, phase: "launching_subagent" } },
 			{ expanded: false, isPartial: true } as any,
 			theme as any,
 			context as any,
 		);
 		const partialRendered = partial.render(120).join("\n");
-		assert.match(partialRendered, /Implementer launching child\.\.\./);
-		assert.doesNotMatch(partialRendered, /writer launching child/);
-		assert.doesNotMatch(partialRendered, /launching_child/);
+		assert.match(partialRendered, /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Launching Subagent\.\.\./);
+		assert.doesNotMatch(partialRendered, /Implementer Launching Subagent/);
+		assert.doesNotMatch(partialRendered, /writer launching subagent/);
+		assert.doesNotMatch(partialRendered, /launching_subagent/);
 
 		const result = writer.renderResult(resultPayload, { expanded: true, isPartial: false } as any, theme as any, context as any);
 		const rendered = result.render(120).join("\n");
-		assert.match(rendered, /Implementer completed/);
+		assert.match(rendered, /Implementer Completed/);
 		assert.doesNotMatch(rendered, /writer completed/);
 		assert.match(rendered, /tools: 2/);
 		assert.match(rendered, /edit src\/app\.ts/);
@@ -1347,7 +1348,7 @@ test("reader custom renderers show progress and status details without exposing 
 		context as any,
 	);
 	const rendered = result.render(120).join("\n");
-	assert.match(rendered, /Investigator completed/);
+	assert.match(rendered, /Investigator Completed/);
 	assert.doesNotMatch(rendered, /reader completed/);
 	assert.match(rendered, /tools: 2/);
 	assert.doesNotMatch(rendered, /SECRET_TOKEN/);

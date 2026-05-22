@@ -104,13 +104,13 @@ Delegate safety boundaries always remain in the child system prompt. `systemProm
 
 ## Progress UI
 
-Both tools emit progress through `onUpdate` with compact details for phases such as:
+Both tools emit progress through `onUpdate` with compact details. Partial progress rows render with Pi's animated loading indicator plus phase labels such as:
 
-- `starting`
-- `launching_child`
-- `child_event`
-- `diff_ready` for writer
-- `finishing`
+- `starting` displays as `{spinner} Starting...`
+- `launching_subagent` displays as `{spinner} Launching Subagent...`
+- `working` displays as `{spinner} Working...`
+- `diff_ready` for writer displays as `{spinner} Diff Ready...`
+- `finishing` displays as `{spinner} Finishing...`
 
 Progress details include a redacted task preview and do not include raw child stdout, stderr, or tool arguments. Writer diff previews are parent-computed, capped, redacted, and carried in UI `details` for rendering rather than final model-visible `content`. The writer renderer shows the capped diff preview in the collapsed result row and when expanded. The preview uses four context lines to match Pi's native `edit` diff context.
 
