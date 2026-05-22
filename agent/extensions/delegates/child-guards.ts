@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { DELEGATE_ALLOWED_PATHS_ENV, DELEGATE_CHILD_MARKER, DELEGATE_KIND_ENV, MAX_STRINGIFIED_EDITS_GUARD_BYTES } from "./constants.ts";
+import { DELEGATE_ALLOWED_PATHS_ENV, DELEGATE_CHILD_MARKER, DELEGATE_KIND_ENV } from "./constants.ts";
 import { containsBinaryLookingText } from "./text-files.ts";
 
 interface ToolCallEvent {
@@ -28,9 +28,15 @@ function loadAllowedPaths(): Set<string> {
 	}
 }
 
+function stripPathReferencePrefix(value: string): string {
+	return value.startsWith("@") ? value.slice(1) : value;
+}
+
 function targetPathFromInput(input: Record<string, unknown> | undefined): string | undefined | "ambiguous" {
 	if (!input) return undefined;
-	const candidates = [input.path, input.file_path].filter((value): value is string => typeof value === "string" && value.trim() !== "");
+	const candidates = [input.path, input.file_path]
+		.filter((value): value is string => typeof value === "string" && value.trim() !== "")
+		.map(stripPathReferencePrefix);
 	if (candidates.length === 0) return undefined;
 	if (new Set(candidates).size > 1) return "ambiguous";
 	return candidates[0];
@@ -41,17 +47,25 @@ function normalizeTarget(target: string): string {
 	return fs.existsSync(resolved) ? fs.realpathSync(resolved) : resolved;
 }
 
+function editsHaveBinaryLookingText(edits: unknown): boolean {
+	if (!Array.isArray(edits)) return false;
+	for (const edit of edits) {
+		if (!edit || typeof edit !== "object") continue;
+		for (const field of ["oldText", "newText"] as const) {
+			const value = (edit as Record<string, unknown>)[field];
+			if (typeof value === "string" && containsBinaryLookingText(value)) return true;
+		}
+	}
+	return false;
+}
+
 function inputHasBinaryLookingText(input: Record<string, unknown> | undefined): boolean {
 	if (!input) return false;
 	for (const field of ["content", "oldText", "newText"] as const) {
 		const value = input[field];
 		if (typeof value === "string" && containsBinaryLookingText(value)) return true;
 	}
-	if (input.edits !== undefined) {
-		const serialized = JSON.stringify(input.edits);
-		if (serialized && serialized.length <= MAX_STRINGIFIED_EDITS_GUARD_BYTES && containsBinaryLookingText(serialized)) return true;
-	}
-	return false;
+	return editsHaveBinaryLookingText(input.edits);
 }
 
 function writerToolGuard(event: ToolCallEvent): BlockResult | undefined {

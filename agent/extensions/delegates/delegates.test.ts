@@ -330,6 +330,34 @@ test("writer normalizes allowed paths as exact text file scope inside cwd", () =
 	);
 });
 
+test("delegate cwd overrides resolve relative to the tool default cwd", () => {
+	const parent = makeTempDir("pi-delegates-parent-cwd-");
+	const project = path.join(parent, "project");
+	fs.mkdirSync(path.join(project, "src"), { recursive: true });
+	fs.writeFileSync(path.join(project, "src", "app.ts"), "export const ok = true;\n", "utf8");
+
+	const reader = normalizeReaderParams({ agent: "investigator", task: "Read", cwd: "project" }, parent);
+	const writer = normalizeWriterParams({ agent: "implementer", task: "Write", cwd: "project", allowedPaths: ["src/app.ts"] }, parent);
+
+	assert.equal(reader.cwd, fs.realpathSync(project));
+	assert.equal(writer.cwd, fs.realpathSync(project));
+	assert.deepEqual(writer.allowedPaths, [fs.realpathSync(path.join(project, "src", "app.ts"))]);
+});
+
+test("writer strips Pi file-reference prefixes from allowed paths", () => {
+	const project = makeTempDir("pi-delegates-at-paths-");
+	fs.mkdirSync(path.join(project, "src"));
+	const existing = path.join(project, "src", "app.ts");
+	fs.writeFileSync(existing, "export const ok = true;\n", "utf8");
+
+	const normalized = normalizeWriterParams(
+		{ agent: "implementer", task: "Update exact files", cwd: project, allowedPaths: ["@src/app.ts"] },
+		"/tmp/parent",
+	);
+
+	assert.deepEqual(normalized.allowedPaths, [fs.realpathSync(existing)]);
+});
+
 test("writer normalization deduplicates duplicate allowed paths before diff capture", () => {
 	const project = makeTempDir("pi-delegates-duplicate-paths-");
 	const filePath = path.join(project, "app.ts");
@@ -412,6 +440,13 @@ test("writer rejects binary existing files and binary-looking write or edit cont
 				block: true,
 				reason: "writer is text-only",
 			});
+			assert.deepEqual(
+				await guard({ toolName: "edit", input: { path: missing, edits: [{ oldText: "a".repeat(70_000), newText: "world\u0000" }] } }),
+				{
+					block: true,
+					reason: "writer is text-only",
+				},
+			);
 		},
 	);
 });
@@ -934,6 +969,47 @@ test("reader streams progress updates through onUpdate without appending progres
 		assert.doesNotMatch(text, /Progress-safe final answer/);
 	}
 });
+test("reader keeps oversized JSON event lines", async () => {
+	const finalText = `## Result\n${"x".repeat(140_000)}`;
+	const harness = makeFakeReaderHarness(finalText);
+	await withEnv(
+		{
+			PI_CODING_AGENT_DIR: harness.agentRoot,
+			PI_DELEGATE_BIN: harness.fakePi,
+			CAPTURE_PATH: harness.capturePath,
+		},
+		async () => {
+			const result = await runReader(
+				{ agent: "investigator", task: "Inspect large event", cwd: harness.project, timeoutMs: 5_000, maxResultBytes: 200_000 },
+				"/tmp/parent",
+			);
+			assert.equal(result.details.status, "completed");
+			assert.equal(result.content[0].text, finalText);
+			assert.equal(result.details.truncated, false);
+		},
+	);
+});
+
+test("reader truncates maxResultBytes as UTF-8 bytes for multibyte output", async () => {
+	const harness = makeFakeReaderHarness(`## Result\n${"漢".repeat(600)}`);
+	await withEnv(
+		{
+			PI_CODING_AGENT_DIR: harness.agentRoot,
+			PI_DELEGATE_BIN: harness.fakePi,
+			CAPTURE_PATH: harness.capturePath,
+		},
+		async () => {
+			const result = await runReader(
+				{ agent: "investigator", task: "Inspect multibyte", cwd: harness.project, timeoutMs: 5_000, maxResultBytes: 1_000 },
+				"/tmp/parent",
+			);
+			assert.equal(result.details.truncated, true);
+			assert.ok(Buffer.byteLength(result.content[0].text, "utf8") <= 1_000);
+			assert.match(result.content[0].text, /truncated child result to 1000 bytes/);
+		},
+	);
+});
+
 test("reader final result returns only redacted truncated child summary plus compact metadata", async () => {
 	const harness = makeFakeReaderHarness(
 		`## Result\nSECRET_TOKEN=<fixture-secret> should redact. ${"Long output. ".repeat(300)}`,
@@ -951,7 +1027,7 @@ test("reader final result returns only redacted truncated child summary plus com
 			);
 			assert.match(result.content[0].text, /SECRET_TOKEN=<redacted>/);
 			assert.doesNotMatch(result.content[0].text, /<fixture-secret>/);
-			assert.match(result.content[0].text, /truncated child result to 1000 characters/);
+			assert.match(result.content[0].text, /truncated child result to 1000 bytes/);
 			assert.equal(result.details.truncated, true);
 			assert.deepEqual(Object.keys(result.details).sort(), [
 				"agent",
