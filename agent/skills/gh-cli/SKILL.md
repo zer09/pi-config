@@ -10,6 +10,7 @@ GitHub CLI, or `gh`, works with GitHub from the terminal and from scripts. This 
 ## Operating rules
 
 - Prefer authenticated `gh` CLI for GitHub repositories, pull requests, issues, reviews, workflows, releases, and private GitHub data.
+- For GitHub HTTPS or SSH URLs, run `uv run python ~/.pi/agent/skills/gh-cli/scripts/normalize_github_url.py <url>` and read the returned `references` before using or adapting the single primary `gh.argv`.
 - For read-only shell operations in Pi, run `gh` through Context Mode/RTK when available, for example `ctx_execute` or `ctx_batch_execute` with `rtk gh ...`.
 - Treat GitHub writes as external hosted service mutations. Do not create, update, delete, comment, label, merge, dispatch workflows, publish releases, or push unless the user explicitly asked for that exact write.
 - Do not expose tokens. Refer to token environment variables by name only, for example `GITHUB_TOKEN` or `GH_ENTERPRISE_TOKEN`.
@@ -29,6 +30,7 @@ GitHub CLI, or `gh`, works with GitHub from the terminal and from scripts. This 
 
 ```bash
 gh auth status
+uv run python ~/.pi/agent/skills/gh-cli/scripts/normalize_github_url.py https://github.com/OWNER/REPO/pull/123
 gh repo view OWNER/REPO --json name,description,url
 gh issue list --repo OWNER/REPO --state open --json number,title,author,state
 gh issue view 123 --repo OWNER/REPO --comments

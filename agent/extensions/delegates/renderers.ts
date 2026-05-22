@@ -19,11 +19,19 @@ function statusLabel(status: string): string {
 	return "failed";
 }
 
+function agentLabel(agent: unknown, fallback: "reader" | "writer"): string {
+	const value = typeof agent === "string" && agent.trim() ? agent.trim() : fallback;
+	return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+}
+
+function renderAgentLabel(agent: unknown, fallback: "reader" | "writer", theme: any): string {
+	return color(theme, "toolTitle", bold(theme, agentLabel(agent, fallback)));
+}
+
 function renderToolCall(tool: "reader" | "writer", args: any, theme: any, context: any): Text {
 	const text = (context?.lastComponent as Text | undefined) ?? new Text("", 0, 0);
-	const agent = typeof args?.agent === "string" ? args.agent : "unknown";
 	const task = typeof args?.task === "string" ? previewTask(args.task) : "";
-	text.setText(`${color(theme, "toolTitle", bold(theme, tool))} ${color(theme, "muted", agent)}${task ? ` ${color(theme, "dim", task)}` : ""}`);
+	text.setText(`${renderAgentLabel(args?.agent, tool, theme)}${task ? ` ${color(theme, "dim", task)}` : ""}`);
 	return text;
 }
 
@@ -91,7 +99,7 @@ function renderToolResult(
 	const details = result?.details;
 	if (options?.isPartial) {
 		const phase = typeof (details as any)?.phase === "string" ? progressPhaseLabel((details as any).phase) : "running...";
-		let partial = color(theme, "warning", `${tool} ${phase}`);
+		let partial = `${renderAgentLabel((details as any)?.agent, tool, theme)} ${color(theme, "warning", phase)}`;
 		if (tool === "writer" && typeof (details as any)?.diffPreview === "string" && (details as any).diffPreview) {
 			partial += `\n${colorDiffPreview((details as any).diffPreview, theme)}`;
 		}
@@ -100,13 +108,13 @@ function renderToolResult(
 	}
 
 	if (!details) {
-		text.setText(color(theme, "muted", `${tool} finished`));
+		text.setText(`${renderAgentLabel(undefined, tool, theme)} ${color(theme, "muted", "finished")}`);
 		return text;
 	}
 
 	const status = statusLabel(details.status);
 	const statusColor = status === "completed" ? "success" : status === "timeout" || status === "aborted" ? "warning" : "error";
-	let output = `${color(theme, statusColor, `${tool} ${status}`)} ${color(theme, "muted", details.agent)}`;
+	let output = `${renderAgentLabel(details.agent, tool, theme)} ${color(theme, statusColor, status)}`;
 	if (tool === "writer") {
 		const writerDetails = details as WriterToolDetails;
 		output += ` ${color(theme, "dim", formatWriterChangeSummary(writerDetails))}`;

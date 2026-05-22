@@ -6,6 +6,8 @@ Purpose: keep `agent/skills/gh-cli/SKILL.md` as a small command-family index and
 
 Before and after regenerating local command references, apply `local-skill-update-invariants.md`. Generated command content is input, not final truth; preserve local safety gates, routing, token footprint, and OpenAI skill compatibility.
 
+Preserve the local GitHub URL normalization rule: when a user supplies a GitHub HTTPS repository URL such as `https://github.com/zer09/pi-config`, the runtime skill must route through authenticated `gh` instead of web/HTTPS browsing. Normalize the URL to `OWNER/REPO` for `gh --repo OWNER/REPO ...` and to `git@github.com:OWNER/REPO.git` when using `gh repo clone` or Git remote operations. Keep `scripts/normalize_github_url.py` as the deterministic parser for GitHub HTTPS and SSH URL shapes, and keep its compact JSON output limited to one primary `gh.argv` plus top-level `references` for valid routes.
+
 ## Sources
 
 - Manual root: https://cli.github.com/manual/
@@ -18,6 +20,7 @@ Before and after regenerating local command references, apply `local-skill-updat
 - `agent/skills/gh-cli/references/<command>.md`: top-level command manual, for example `references/auth.md`.
 - `agent/skills/gh-cli/references/<command>/<subcommand>.md`: subcommand manual, for example `references/auth/login.md` and `references/pr/create.md`.
 - `agent/skills/gh-cli/references/help/<topic>.md`: `gh help <topic>` pages, not command pages.
+- `agent/skills/gh-cli/scripts/normalize_github_url.py`: single-argument, network-free parser for GitHub HTTPS and SSH URLs. It emits compact JSON with one primary `gh.argv` and top-level `references` entries that point back into `agent/skills/gh-cli/references/`.
 - `agent/skills/gh-cli/agents/openai.yaml`: UI metadata only. Regenerate if SKILL.md trigger intent changes.
 
 ## Update workflow for a future agent
@@ -31,9 +34,11 @@ Before and after regenerating local command references, apply `local-skill-updat
    - `gh codespace ports forward` -> `agent/skills/gh-cli/references/codespace/ports/forward.md`
 5. Keep generated reference files self-contained: source URL, generator version, summary, subcommand links, and full `gh help ...` manual text.
 6. Update `SKILL.md` only with compact command-family entries. Do not paste full manual text into `SKILL.md`.
-7. Preserve the GitHub mutation gate and secret-protection rules in `SKILL.md`.
-8. Keep this central update process linked from `SKILL.md`; do not add a duplicate update-process file inside the skill bundle.
-9. Validate with `uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/gh-cli` when PyYAML is not already installed.
+7. Preserve the GitHub mutation gate, secret-protection rules, and HTTPS-repository-URL normalization rule in `SKILL.md`.
+8. Preserve `scripts/normalize_github_url.py`; when adding URL kinds, return one primary argv array rather than shell strings, avoid alternate argv fields such as `clone_argv`, and include the exact top-level `references/...` files an agent should read before running `gh`.
+9. Keep this central update process linked from `SKILL.md`; do not add a duplicate update-process file inside the skill bundle.
+10. Validate with `uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/gh-cli` when PyYAML is not already installed.
+11. Smoke-test the URL normalizer with at least HTTPS repo, SSH repo, pull request, issue comment, review comment, action run, release, and file blob URLs. Verify valid outputs have top-level `references`, `gh.argv`, no `gh.references`, and no `clone_argv`; verify `http://github.com/...` and malformed URLs with decoded path, query, or fragment control characters are rejected as unsupported.
 
 ## Current generated command references
 

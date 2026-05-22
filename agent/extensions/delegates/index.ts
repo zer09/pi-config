@@ -23,6 +23,7 @@ import { registerDelegateChildGuards } from "./child-guards.ts";
 import { DEFAULT_MAX_RESULT_BYTES, DEFAULT_READER_MODEL, DEFAULT_THINKING, DEFAULT_TIMEOUT_MS, DELEGATE_CHILD_MARKER } from "./constants.ts";
 import { readerProfile } from "./profiles/reader.ts";
 import { writerProfile } from "./profiles/writer.ts";
+import { redactSensitiveText } from "./redaction.ts";
 import { renderDelegateCall, renderDelegateResult, renderWriterCall, renderWriterResult } from "./renderers.ts";
 import { runReader, runWriter } from "./runner.ts";
 import type { ReaderParams, WriterParams } from "./types.ts";
@@ -46,14 +47,14 @@ export default function delegatesExtension(pi: ExtensionAPI): void {
 			try {
 				return await runReader(params as ReaderParams, ctx.cwd, signal, onUpdate);
 			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
+				const message = redactSensitiveText(error instanceof Error ? error.message : String(error));
 				return {
 					content: [{ type: "text", text: message }],
 					details: {
 						agent: typeof (params as ReaderParams).agent === "string" ? (params as ReaderParams).agent : "unknown",
 						model: DEFAULT_READER_MODEL,
 						thinking: DEFAULT_THINKING,
-						cwd: ctx.cwd,
+						cwd: redactSensitiveText(ctx.cwd),
 						status: "failed",
 						exitCode: null,
 						durationMs: 0,
@@ -81,14 +82,14 @@ export default function delegatesExtension(pi: ExtensionAPI): void {
 			try {
 				return await runWriter(params as WriterParams, ctx.cwd, signal, onUpdate);
 			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
+				const message = redactSensitiveText(error instanceof Error ? error.message : String(error));
 				return {
 					content: [{ type: "text", text: message }],
 					details: {
 						agent: typeof (params as WriterParams).agent === "string" ? (params as WriterParams).agent : "unknown",
 						model: writerProfile.defaultModel,
 						thinking: writerProfile.defaultThinking,
-						cwd: ctx.cwd,
+						cwd: redactSensitiveText(ctx.cwd),
 						status: "failed",
 						exitCode: null,
 						durationMs: 0,

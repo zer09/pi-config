@@ -4,7 +4,7 @@
 
 Before work begins:
 
-1. Read `~/.pi/agent/skills/context-watcher/SKILL.md` and apply its preflight, routing, RTK, Code Review Graph, GitHub, Context7, worktree, reader delegate, and fallback rules.
+1. Read `~/.pi/agent/skills/context-watcher/SKILL.md` and apply its preflight, routing, RTK, Code Review Graph, GitHub, Context7, worktree, delegate, and fallback rules.
 2. Read `~/.pi/agent/rules/freedom.md` and the active approach file from `~/.pi/agent/rules/`.
 3. If the task is Coding, read both `~/.pi/agent/rules/coding.md` and `~/.pi/agent/rules/agent.md`.
 4. If the project has a supported language, verify Code Review Graph status per Context Watcher.
@@ -72,7 +72,7 @@ Every task follows `~/.pi/agent/AGENTS.md` plus `~/.pi/agent/rules/freedom.md`. 
 
 ## Tool routing summary
 
-- Context Watcher is authoritative for shell, large output, RTK, Code Review Graph, GitHub, Context7, worktrees, reader delegates, and fallbacks.
+- Context Watcher is authoritative for shell, large output, RTK, Code Review Graph, GitHub, Context7, worktrees, delegates, and fallbacks.
 - Use native `read` only for files you intend to edit. Use `ctx_execute_file` for analysis reads.
 - Use native `write` or `edit` for all file creation/modification.
 - Use `ctx_search(sort: "timeline")` after resume/compaction before asking the user to repeat context.
@@ -95,9 +95,23 @@ When the user asks to add or update rules without naming a destination, update t
 - Use `uv run <tool>` for project dependencies, `uvx <tool>` for one-off tools.
 - Use `ruff` for lint/format and `ty` for type checking. Preview broad formatting diffs and scope checks to changed files when practical.
 
-## Reader delegates
+## Delegates
 
-Use Pi `reader` delegates only for isolated, tool-grounded investigation, review, testing, documentation research, consistency checks, or bounded parallel work. Reader delegates are read-only. Require Context Watcher, Context Mode/RTK, Code Review Graph when applicable, hosted-service mutation gates, and compact structured findings. Do not ask delegates to route or recommend other delegates. The parent owns orchestration, final decisions, edits, validation, commits, and user-facing reporting.
+Pi provides spawnable delegate tools that launch child Pi processes with isolated context windows.
+
+- `reader`: read-only child Pi process for isolated, tool-grounded investigation, review, testing, documentation research, consistency checks, broad audits, or bounded parallel work.
+- `writer`: tightly scoped child Pi process for implementation-ready local file changes on exact `allowedPaths`.
+
+Use delegates when their startup overhead is justified, especially for deep searches, broad audits, independent second passes, parallel investigation, or consistency checks.
+
+Delegate rules:
+
+- The parent owns orchestration, final decisions, validation, edits outside the delegate scope, commits, hosted-service mutation gates, and user-facing reporting.
+- Do not ask delegates to route to or recommend other delegates.
+- Do not use delegates recursively. Child sessions disable delegate tools with `PI_DELEGATE_CHILD=1`.
+- Reader delegates are read-only. Require Context Watcher, Context Mode/RTK, Code Review Graph when applicable, hosted-service mutation gates, and compact structured findings.
+- Writer delegates may read or modify only exact allowed files. They must not run shell or Context Mode tools, delete files, commit, push, deploy, or mutate hosted services.
+- For user requests described as "deep", "comprehensive", "broad", "audit", or "consistency check", consider at least one `reader` delegate as an independent pass unless a single scripted scan is clearly sufficient.
 
 ## Handoffs
 
