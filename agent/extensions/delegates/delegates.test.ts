@@ -188,6 +188,8 @@ if (process.env.PI_FAKE_WRITER_MUTATION === "many") {
   allowedPaths.forEach((file, index) => fs.writeFileSync(file, "value " + index + String.fromCharCode(10), "utf8"));
 }
 if (process.env.PI_FAKE_WRITER_MUTATION === "outside") fs.writeFileSync(path.join(process.cwd(), "outside.ts"), "export const outside = true;\\n", "utf8");
+if (process.env.PI_FAKE_WRITER_MUTATION === "outside-dirty") fs.writeFileSync(path.join(process.cwd(), "dirty.ts"), "export const dirty = false;\\n", "utf8");
+if (process.env.PI_FAKE_WRITER_MUTATION === "ignored") fs.writeFileSync(path.join(process.cwd(), "ignored.env"), "IGNORED_VALUE=changed\\n", "utf8");
 console.log(JSON.stringify({ type: "tool_execution_start" }));
 console.log(JSON.stringify({ type: "message_end", message: { role: "assistant", model: "writer-child-model", content: [{ type: "text", text: ${JSON.stringify(finalText)} }] } }));
 `,
@@ -755,6 +757,53 @@ test("writer reports outside-scope git changes as failures", async () => {
 			assert.match(result.content[0].text, /outside allowedPaths/);
 			assert.match(result.content[0].text, /outside\.ts/);
 			assert.match(result.details.error ?? "", /outside\.ts/);
+		},
+	);
+});
+
+test("writer reports edits to pre-existing dirty out-of-scope files", async () => {
+	const harness = makeFakeWriterHarness();
+	cp.execFileSync("git", ["init"], { cwd: harness.project, stdio: "ignore" });
+	fs.writeFileSync(path.join(harness.project, "dirty.ts"), "export const dirty = true;\n", "utf8");
+	await withEnv(
+		{
+			PI_CODING_AGENT_DIR: harness.agentRoot,
+			PI_DELEGATE_BIN: harness.fakePi,
+			CAPTURE_PATH: harness.capturePath,
+			PI_FAKE_WRITER_MUTATION: "outside-dirty",
+		},
+		async () => {
+			const result = await runWriter(
+				{ agent: "implementer", task: "Stay in scope", cwd: harness.project, allowedPaths: ["src/app.ts"], timeoutMs: 5_000 },
+				"/tmp/parent",
+			);
+			assert.equal(result.details.status, "failed");
+			assert.match(result.content[0].text, /dirty\.ts/);
+			assert.match(result.details.error ?? "", /dirty\.ts/);
+		},
+	);
+});
+
+test("writer reports ignored out-of-scope file changes", async () => {
+	const harness = makeFakeWriterHarness();
+	cp.execFileSync("git", ["init"], { cwd: harness.project, stdio: "ignore" });
+	fs.writeFileSync(path.join(harness.project, ".gitignore"), "ignored.env\n", "utf8");
+	cp.execFileSync("git", ["add", ".gitignore"], { cwd: harness.project, stdio: "ignore" });
+	await withEnv(
+		{
+			PI_CODING_AGENT_DIR: harness.agentRoot,
+			PI_DELEGATE_BIN: harness.fakePi,
+			CAPTURE_PATH: harness.capturePath,
+			PI_FAKE_WRITER_MUTATION: "ignored",
+		},
+		async () => {
+			const result = await runWriter(
+				{ agent: "implementer", task: "Stay in scope", cwd: harness.project, allowedPaths: ["src/app.ts"], timeoutMs: 5_000 },
+				"/tmp/parent",
+			);
+			assert.equal(result.details.status, "failed");
+			assert.match(result.content[0].text, /ignored\.env/);
+			assert.match(result.details.error ?? "", /ignored\.env/);
 		},
 	);
 });

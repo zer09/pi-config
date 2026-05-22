@@ -251,17 +251,22 @@ function splitCommandSegments(command: string): string[] {
 	return segments;
 }
 
+function stripShellOptionTerminator(tokens: string[]): string[] {
+	return tokens[0] === "--" ? tokens.slice(1) : tokens;
+}
+
 function stripShellWrappers(tokens: string[]): string[] {
 	let current = [...tokens];
 	while (current.length > 0) {
 		const executable = executableName(current[0]);
 		if (executable === "rtk" || executable === "sudo" || executable === "command") {
-			current = current.slice(1);
+			current = stripShellOptionTerminator(current.slice(1));
 			continue;
 		}
 		if (executable === "env") {
-			current = current.slice(1);
+			current = stripShellOptionTerminator(current.slice(1));
 			while (current[0] && /^[A-Za-z_][A-Za-z0-9_]*=.*/.test(current[0])) current = current.slice(1);
+			current = stripShellOptionTerminator(current);
 			continue;
 		}
 		if (/^[A-Za-z_][A-Za-z0-9_]*=.*/.test(current[0])) {
@@ -403,6 +408,7 @@ const OPTION_VALUE_FLAGS = new Set([
 	"--hostname",
 	"-J",
 	"--jq",
+	"--input",
 	"--json",
 	"-l",
 	"--label",
@@ -481,6 +487,12 @@ function bodyFilePayloadValue(value: string | undefined): string {
 	return `body-file:${value ?? "<missing>"}`;
 }
 
+function inputPayloadValue(value: string | undefined): string {
+	const body = readGhBodyFile(value);
+	if (body !== undefined) return `input-sha256:${sha256(body)}`;
+	return `input:${value ?? "<missing>"}`;
+}
+
 function ghMutationPayload(tokens: string[], startIndex: number): string {
 	const payload: string[] = [];
 	for (let i = startIndex; i < tokens.length; i++) {
@@ -510,6 +522,56 @@ function getFieldValue(tokens: string[], fieldName: string): string | undefined 
 		if (token.startsWith(`--raw-field=${fieldName}=`)) return token.slice(`--raw-field=${fieldName}=`.length);
 	}
 	return undefined;
+}
+
+function isGhApiFieldFlag(token: string): boolean {
+	return token === "-f" || token === "-F" || token === "--field" || token === "--raw-field";
+}
+
+function isInlineGhApiFieldFlag(token: string): boolean {
+	return token.startsWith("--field=") || token.startsWith("--raw-field=");
+}
+
+function hasGhApiRequestPayload(tokens: string[]): boolean {
+	for (let i = 0; i < tokens.length; i++) {
+		const token = tokens[i];
+		if (isGhApiFieldFlag(token) && tokens[i + 1]) return true;
+		if (isInlineGhApiFieldFlag(token)) return true;
+		if (token === "--input" && tokens[i + 1]) return true;
+		if (token.startsWith("--input=")) return true;
+	}
+	return false;
+}
+
+function ghApiMethod(tokens: string[]): string {
+	const explicit = getOptionValue(tokens, ["-X", "--method"]);
+	if (explicit) return explicit.toUpperCase();
+	return hasGhApiRequestPayload(tokens) ? "POST" : "GET";
+}
+
+function ghApiRequestPayload(tokens: string[]): string | undefined {
+	const payload: string[] = [];
+	for (let i = 0; i < tokens.length; i++) {
+		const token = tokens[i];
+		if (isGhApiFieldFlag(token) && i + 1 < tokens.length) {
+			payload.push(token, tokens[i + 1]);
+			i++;
+			continue;
+		}
+		if (isInlineGhApiFieldFlag(token)) {
+			payload.push(token);
+			continue;
+		}
+		if (token === "--input" && i + 1 < tokens.length) {
+			payload.push(token, inputPayloadValue(tokens[i + 1]));
+			i++;
+			continue;
+		}
+		if (token.startsWith("--input=")) {
+			payload.push(`--input=${inputPayloadValue(token.slice("--input=".length))}`);
+		}
+	}
+	return payload.length > 0 ? JSON.stringify(payload) : undefined;
 }
 
 function firstNonOption(tokens: string[], startIndex: number): string | undefined {
@@ -587,15 +649,15 @@ function classifyGhCommand(tokens: string[], source: MutationSource): MutationIn
 	}
 
 	if (group === "api") {
-		const method = (getOptionValue(tokens, ["-X", "--method"]) ?? "GET").toUpperCase();
+		const method = ghApiMethod(tokens);
 		if (!MUTATING_HTTP_METHODS.has(method)) return [];
 		const endpoint = firstNonOption(tokens, 2);
-		const body = getFieldValue(tokens, "body");
+		const payload = ghApiRequestPayload(tokens);
 		const issueComments = endpoint?.match(/issues\/(\d+)\/comments/);
 		if (method === "POST" && issueComments) {
-			return [makeIntent({ service: "github", action: "issue-comment", tier: 1, target: issueComments[1], body, source, reason: "GitHub issue comment API mutation" })];
+			return [makeIntent({ service: "github", action: "issue-comment", tier: 1, target: issueComments[1], body: getFieldValue(tokens, "body") ?? payload, source, reason: "GitHub issue comment API mutation" })];
 		}
-		return [makeIntent({ service: "github", action: `api-${method.toLowerCase()}`, tier: method === "DELETE" ? 3 : 2, target: endpoint, body, source, reason: `GitHub API ${method}` })];
+		return [makeIntent({ service: "github", action: `api-${method.toLowerCase()}`, tier: method === "DELETE" ? 3 : 2, target: endpoint, body: payload, source, reason: `GitHub API ${method}` })];
 	}
 
 	if (group === "release" && ["create", "edit", "delete", "upload"].includes(sub ?? "")) {
@@ -691,9 +753,23 @@ function classifyLinearCommand(tokens: string[], source: MutationSource): Mutati
 	return [];
 }
 
+const CURL_POST_BODY_FLAGS = new Set(["-d", "--data", "--data-raw", "--data-binary", "--data-urlencode", "--json", "-F", "--form", "--form-string"]);
+
+function hasCurlPostBodyFlag(tokens: string[]): boolean {
+	for (const token of tokens) {
+		if (CURL_POST_BODY_FLAGS.has(token)) return true;
+		if (/^-(?:d|F).+/.test(token)) return true;
+		if (/^--(?:data|data-raw|data-binary|data-urlencode|json|form|form-string)=/.test(token)) return true;
+	}
+	return false;
+}
+
 function methodFromHttpCommand(tokens: string[]): string | undefined {
 	if (tokens[0] === "http" && tokens[1] && MUTATING_HTTP_METHODS.has(tokens[1].toUpperCase())) return tokens[1].toUpperCase();
-	return (getOptionValue(tokens, ["-X", "--request", "--method"]) ?? undefined)?.toUpperCase();
+	const explicit = (getOptionValue(tokens, ["-X", "--request", "--method"]) ?? undefined)?.toUpperCase();
+	if (explicit) return explicit;
+	if (tokens[0] === "curl" && !tokens.includes("-G") && !tokens.includes("--get") && hasCurlPostBodyFlag(tokens)) return "POST";
+	return undefined;
 }
 
 function serviceFromUrl(url: string | undefined): { service: string; target: string } | undefined {
@@ -880,19 +956,51 @@ function classifyCodeText(code: string, source: MutationSource): MutationIntent[
 	return dedupeCodeTextIntents(intents);
 }
 
+const GIT_GLOBAL_VALUE_OPTIONS = new Set([
+	"-C",
+	"-c",
+	"--attr-source",
+	"--config-env",
+	"--exec-path",
+	"--git-dir",
+	"--list-cmds",
+	"--namespace",
+	"--path-format",
+	"--super-prefix",
+	"--work-tree",
+]);
+const GIT_GLOBAL_BOOL_OPTIONS = new Set([
+	"-P",
+	"-p",
+	"--bare",
+	"--glob-pathspecs",
+	"--icase-pathspecs",
+	"--literal-pathspecs",
+	"--no-lazy-fetch",
+	"--no-optional-locks",
+	"--no-pager",
+	"--no-replace-objects",
+	"--noglob-pathspecs",
+	"--paginate",
+]);
+
+function isInlineGitGlobalValueOption(token: string): boolean {
+	return /^(?:-C.+|-c.+|--(?:attr-source|config-env|exec-path|git-dir|list-cmds|namespace|path-format|super-prefix|work-tree)=.+)$/.test(token);
+}
+
 function skipGitGlobalOptions(tokens: string[]): string[] {
 	let index = 1;
 	while (index < tokens.length) {
 		const token = tokens[index];
-		if (["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"].includes(token)) {
-			index += 2;
-			continue;
-		}
-		if (/^(?:-C.+|-c.+|--(?:git-dir|work-tree|namespace|exec-path|config-env)=.+)$/.test(token)) {
+		if (token === "--") {
 			index++;
 			continue;
 		}
-		if (["--bare", "--no-pager", "--paginate", "--literal-pathspecs", "--no-optional-locks", "--no-replace-objects"].includes(token)) {
+		if (GIT_GLOBAL_VALUE_OPTIONS.has(token)) {
+			index += 2;
+			continue;
+		}
+		if (isInlineGitGlobalValueOption(token) || GIT_GLOBAL_BOOL_OPTIONS.has(token)) {
 			index++;
 			continue;
 		}

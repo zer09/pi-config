@@ -109,6 +109,10 @@ test("classifier blocks git push after git global options", () => {
 	assert.equal(intents[0].action, "git-push");
 	assert.equal(intents[0].tier, 3);
 	assert.equal(intents[0].target, "origin security/audit");
+	assert.equal(classifyShellCommand("git --literal-pathspecs push origin main")[0].action, "git-push");
+	assert.equal(classifyShellCommand("git --glob-pathspecs push origin main")[0].action, "git-push");
+	assert.equal(classifyShellCommand("git --noglob-pathspecs push origin main")[0].action, "git-push");
+	assert.equal(classifyShellCommand("git --icase-pathspecs push origin main")[0].action, "git-push");
 });
 
 test("classifier normalizes executable paths before classification", () => {
@@ -129,6 +133,8 @@ test("classifier unwraps common shell -c launchers", () => {
 	assert.equal(classifyShellCommand("bash -lc 'gh pr merge 123'")[0].action, "pr-merge");
 	assert.equal(classifyShellCommand("sh -c 'git push origin main'")[0].action, "git-push");
 	assert.equal(classifyShellCommand("env FOO=1 command bash -lc \"sh -c 'gh pr merge 123'\"")[0].action, "pr-merge");
+	assert.equal(classifyShellCommand("env -- git push origin main")[0].action, "git-push");
+	assert.equal(classifyShellCommand("command -- gh pr merge 123")[0].action, "pr-merge");
 });
 
 test("classifier blocks shell command substitutions", () => {
@@ -173,6 +179,11 @@ test("classifier blocks PR creation and implicit-target PR review", () => {
 	assert.equal(review.target, "current pull request");
 	assert.equal(review.tier, 2);
 	assert.ok(review.body?.includes("--approve"));
+
+	const [issue] = classifyShellCommand('gh issue create --title "T" --body "B"');
+	assert.equal(issue.action, "issue-create");
+	assert.equal(issue.target, "new issue");
+	assert.equal(issue.tier, 2);
 });
 
 test("classifier handles gh repo flags before groups and subcommands", () => {
@@ -208,6 +219,16 @@ test("classifier blocks gh api mutating methods", () => {
 	assert.equal(intents.length, 1);
 	assert.equal(intents[0].service, "github");
 	assert.equal(intents[0].action, "api-patch");
+	assert.equal(intents[0].body, JSON.stringify(["-f", "title=New"]));
+
+	const [implicitPost] = classifyShellCommand("gh api repos/o/r/issues/1/comments -f body=Done");
+	assert.equal(implicitPost.action, "issue-comment");
+	assert.equal(implicitPost.target, "1");
+	assert.equal(implicitPost.body, "Done");
+
+	const [fieldPost] = classifyShellCommand("gh api repos/o/r/issues/1 -F title=New --raw-field state=open");
+	assert.equal(fieldPost.action, "api-post");
+	assert.equal(fieldPost.body, JSON.stringify(["-F", "title=New", "--raw-field", "state=open"]));
 });
 
 test("classifier blocks Firebase and GCP deploys", () => {
@@ -226,6 +247,9 @@ test("classifier blocks expanded cloud CLI mutations", () => {
 
 test("classifier blocks mutating hosted HTTP requests but not localhost", () => {
 	assert.equal(classifyShellCommand("curl -X DELETE https://api.github.com/repos/o/r/issues/1")[0].service, "github");
+	assert.equal(classifyShellCommand("curl -d body=Done https://api.github.com/repos/o/r/issues/1/comments")[0].action, "http-post");
+	assert.equal(classifyShellCommand("curl --form file=@a.txt https://api.github.com/repos/o/r/releases/assets")[0].action, "http-post");
+	assert.deepEqual(classifyShellCommand("curl -G -d q=test https://api.github.com/search/issues"), []);
 	assert.deepEqual(classifyShellCommand("curl -X POST http://localhost:3000/test"), []);
 });
 
@@ -425,12 +449,26 @@ test("command authorization permits implicit-target tier 2 with exact payload ha
 	const auth = parseOneTimeAuthorization(`github pr-review current pull request body-sha256:${sha256(intent.body ?? "")}`);
 	assert.ok(!("error" in auth));
 	assert.equal(matchesAuthorization(intent, auth), true);
+
+	const [issue] = classifyShellCommand('gh issue create --title "T" --body "B"');
+	const issueAuth = parseOneTimeAuthorization(`github issue-create new issue body-sha256:${sha256(issue.body ?? "")}`);
+	assert.ok(!("error" in issueAuth));
+	assert.equal(matchesAuthorization(issue, issueAuth), true);
 });
 
 test("command authorization permits tier 2 field edits with exact payload hash", () => {
 	const [intent] = classifyShellCommand("gh issue edit 23 --add-label bug");
 	const [wrong] = classifyShellCommand("gh issue edit 23 --add-label security");
 	const auth = parseOneTimeAuthorization(`github issue-edit 23 body-sha256:${sha256(intent.body ?? "")}`);
+	assert.ok(!("error" in auth));
+	assert.equal(matchesAuthorization(intent, auth), true);
+	assert.equal(matchesAuthorization(wrong, auth), false);
+});
+
+test("command authorization binds gh api mutations to request fields", () => {
+	const [intent] = classifyShellCommand("gh api repos/o/r/issues/1 -f title=New");
+	const [wrong] = classifyShellCommand("gh api repos/o/r/issues/1 -f title=Different");
+	const auth = parseOneTimeAuthorization(`github api-post repos/o/r/issues/1 body-sha256:${sha256(intent.body ?? "")}`);
 	assert.ok(!("error" in auth));
 	assert.equal(matchesAuthorization(intent, auth), true);
 	assert.equal(matchesAuthorization(wrong, auth), false);

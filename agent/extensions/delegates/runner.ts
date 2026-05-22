@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { promisify } from "node:util";
@@ -19,8 +20,10 @@ const execFileAsync = promisify(execFile);
 
 interface GitScopeSnapshot {
 	root: string;
-	changedPaths: Set<string>;
+	changedPaths: Map<string, string>;
 }
+
+const MAX_SCOPE_FINGERPRINT_BYTES = 10 * 1024 * 1024;
 
 async function makeFreshWriterSessionDir(cwd: string): Promise<string> {
 	const base = getWriterSessionBaseDir(cwd);
@@ -42,17 +45,39 @@ function resolveGitPath(root: string, relativePath: string): string {
 	return fs.existsSync(resolved) ? fs.realpathSync(resolved) : resolved;
 }
 
-function parseGitStatusPaths(output: string, root: string): Set<string> {
-	const changedPaths = new Set<string>();
+function fingerprintGitPath(filePath: string): string {
+	try {
+		const stats = fs.lstatSync(filePath);
+		if (stats.isSymbolicLink()) return `symlink:${fs.readlinkSync(filePath)}`;
+		if (stats.isFile()) {
+			if (stats.size <= MAX_SCOPE_FINGERPRINT_BYTES) {
+				return `file:${createHash("sha256").update(fs.readFileSync(filePath)).digest("hex")}`;
+			}
+			return `large-file:${stats.size}:${stats.mtimeMs}:${stats.ctimeMs}`;
+		}
+		const type = stats.isDirectory() ? "dir" : "other";
+		return `${type}:${stats.size}:${stats.mtimeMs}:${stats.ctimeMs}`;
+	} catch {
+		return "missing";
+	}
+}
+
+function addGitStatusPath(changedPaths: Map<string, string>, root: string, relativePath: string, status: string): void {
+	if (!relativePath) return;
+	const resolved = resolveGitPath(root, relativePath);
+	changedPaths.set(resolved, `${status}:${fingerprintGitPath(resolved)}`);
+}
+
+function parseGitStatusPaths(output: string, root: string): Map<string, string> {
+	const changedPaths = new Map<string, string>();
 	const entries = output.split("\0").filter(Boolean);
 	for (let index = 0; index < entries.length; index += 1) {
 		const entry = entries[index];
 		const status = entry.slice(0, 2);
-		const relativePath = entry.slice(3);
-		if (relativePath) changedPaths.add(resolveGitPath(root, relativePath));
+		addGitStatusPath(changedPaths, root, entry.slice(3), status);
 		if ((status[0] === "R" || status[0] === "C") && entries[index + 1]) {
 			index += 1;
-			changedPaths.add(resolveGitPath(root, entries[index]));
+			addGitStatusPath(changedPaths, root, entries[index], status);
 		}
 	}
 	return changedPaths;
@@ -63,7 +88,8 @@ async function captureGitScope(cwd: string): Promise<GitScopeSnapshot | undefine
 	const root = rootOutput?.trim();
 	if (!root) return undefined;
 	const realRoot = fs.existsSync(root) ? fs.realpathSync(root) : path.resolve(root);
-	const statusOutput = await gitOutput(cwd, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
+	let statusOutput = await gitOutput(cwd, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"]);
+	statusOutput ??= await gitOutput(cwd, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored"]);
 	if (statusOutput === undefined) return undefined;
 	return { root: realRoot, changedPaths: parseGitStatusPaths(statusOutput, realRoot) };
 }
@@ -72,8 +98,9 @@ function newOutsideAllowedPathChanges(before: GitScopeSnapshot | undefined, afte
 	if (!before || !after || before.root !== after.root) return [];
 	const allowed = new Set(allowedPaths);
 	const outside: string[] = [];
-	for (const changedPath of after.changedPaths) {
-		if (before.changedPaths.has(changedPath) || allowed.has(changedPath)) continue;
+	for (const [changedPath, afterFingerprint] of after.changedPaths) {
+		if (allowed.has(changedPath)) continue;
+		if (before.changedPaths.get(changedPath) === afterFingerprint) continue;
 		outside.push(path.relative(after.root, changedPath) || changedPath);
 	}
 	return outside;
