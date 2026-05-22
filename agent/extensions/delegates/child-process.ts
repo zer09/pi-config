@@ -123,7 +123,6 @@ export async function runChildProcess(
 
 		proc.stdout?.on("data", (chunk) => {
 			lineBuffer += chunk.toString("utf8");
-			if (lineBuffer.length > 128_000) lineBuffer = "";
 			const lines = lineBuffer.split("\n");
 			lineBuffer = lines.pop() ?? "";
 			for (const line of lines) {

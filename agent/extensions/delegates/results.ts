@@ -1,6 +1,6 @@
 import { DEFAULT_READER_MODEL, DEFAULT_THINKING, DEFAULT_WRITER_MODEL } from "./constants.ts";
 import { redactSensitiveText } from "./redaction.ts";
-import { truncateMiddleByChars } from "./truncation.ts";
+import { truncateMiddleByBytes } from "./truncation.ts";
 import { compactWriterChangeSummary, writerDiffDetailFields } from "./writer-diff.ts";
 import type {
 	ChildProcessResult,
@@ -33,7 +33,7 @@ function buildFailureText(child: ChildProcessResult, includeDiagnostics: boolean
 export function makeReaderToolResult(invocation: ResolvedInvocation, child: ChildProcessResult, durationMs: number): ReaderToolResult {
 	const rawText = child.status === "completed" ? resultTextFromChild(child) || "(no output)" : buildFailureText(child, invocation.params.includeDiagnostics, "Reader");
 	const redacted = redactSensitiveText(rawText);
-	const truncated = truncateMiddleByChars(redacted, invocation.params.maxResultBytes);
+	const truncated = truncateMiddleByBytes(redacted, invocation.params.maxResultBytes);
 	const stderr = child.stderrTail ? redactSensitiveText(child.stderrTail) : undefined;
 	return {
 		content: [{ type: "text", text: truncated.text }],
@@ -64,7 +64,7 @@ export function makeWriterToolResult(
 			? compactWriterChangeSummary(writerDiff)
 			: `${buildFailureText(child, invocation.params.includeDiagnostics, "Writer")}\n\n${compactWriterChangeSummary(writerDiff, "Writer file changes")}`;
 	const redacted = redactSensitiveText(rawText);
-	const truncated = truncateMiddleByChars(redacted, invocation.params.maxResultBytes);
+	const truncated = truncateMiddleByBytes(redacted, invocation.params.maxResultBytes);
 	const stderr = child.stderrTail ? redactSensitiveText(child.stderrTail) : undefined;
 	return {
 		content: [{ type: "text", text: truncated.text }],
@@ -87,7 +87,7 @@ export function makeWriterToolResult(
 
 export function makeImmediateFailure(params: NormalizedReaderParams, agentName: string, message: string, durationMs: number): ReaderToolResult {
 	const redacted = redactSensitiveText(message);
-	const truncated = truncateMiddleByChars(redacted, params.maxResultBytes);
+	const truncated = truncateMiddleByBytes(redacted, params.maxResultBytes);
 	return {
 		content: [{ type: "text", text: truncated.text }],
 		details: {
@@ -107,7 +107,7 @@ export function makeImmediateFailure(params: NormalizedReaderParams, agentName: 
 
 export function makeImmediateWriterFailure(params: NormalizedWriterParams, agentName: string, message: string, durationMs: number): WriterToolResult {
 	const redacted = redactSensitiveText(message);
-	const truncated = truncateMiddleByChars(redacted, params.maxResultBytes);
+	const truncated = truncateMiddleByBytes(redacted, params.maxResultBytes);
 	return {
 		content: [{ type: "text", text: truncated.text }],
 		details: {

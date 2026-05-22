@@ -56,6 +56,10 @@ function normalizeBoolean(value: unknown, field: string, defaultValue: boolean):
 	return value;
 }
 
+function stripPathReferencePrefix(value: string): string {
+	return value.startsWith("@") ? value.slice(1) : value;
+}
+
 function normalizeBoundedNumber(value: unknown, field: string, defaultValue: number, min: number, max: number): number {
 	if (value === undefined) return defaultValue;
 	if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${field} must be a finite number`);
@@ -69,9 +73,22 @@ function isPathInside(base: string, candidate: string): boolean {
 	return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
+function resolveCwd(value: unknown, defaultCwd: string): string {
+	const base = path.resolve(defaultCwd);
+	const raw = normalizeOptionalString(value, "cwd");
+	return raw === undefined ? base : path.resolve(base, raw);
+}
+
+function normalizeReaderCwd(value: unknown, defaultCwd: string): string {
+	const resolved = resolveCwd(value, defaultCwd);
+	if (!fs.existsSync(resolved)) return resolved;
+	const stats = fs.statSync(resolved);
+	if (!stats.isDirectory()) throw new Error("cwd must resolve to an existing directory");
+	return fs.realpathSync(resolved);
+}
+
 function normalizeExistingCwd(value: unknown, defaultCwd: string): string {
-	const raw = normalizeOptionalString(value, "cwd") ?? defaultCwd;
-	const resolved = path.resolve(raw);
+	const resolved = resolveCwd(value, defaultCwd);
 	let stats: fs.Stats;
 	try {
 		stats = fs.statSync(resolved);
@@ -97,8 +114,9 @@ function normalizeAllowedPaths(value: unknown, cwd: string): string[] {
 	if (!Array.isArray(value) || value.length === 0) throw new Error("allowedPaths must contain at least one exact file path");
 	const normalized: string[] = [];
 	for (const entry of value) {
-		const raw = normalizeNonEmptyString(entry, "allowedPaths entry");
-		const resolved = path.resolve(path.isAbsolute(raw) ? raw : path.join(cwd, raw));
+		const raw = stripPathReferencePrefix(normalizeNonEmptyString(entry, "allowedPaths entry"));
+		if (raw.trim() === "") throw new Error("allowedPaths entry must be a non-empty string");
+		const resolved = path.resolve(cwd, raw);
 		if (!isPathInside(cwd, resolved)) throw new Error("allowedPaths entries must stay inside cwd");
 		let exactPath = resolved;
 		if (fs.existsSync(resolved)) {
