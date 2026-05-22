@@ -492,6 +492,16 @@ function extractExecutionSinkStrings(code: string): string[] {
 	return values;
 }
 
+function embeddedCommandVariants(value: string): string[] {
+	const variants = [value];
+	let current = value;
+	for (let i = 0; i < 3; i++) {
+		current = current.replace(/\\(["'`\\])/g, "$1");
+		if (!variants.includes(current)) variants.push(current);
+	}
+	return variants;
+}
+
 function classifyCodeText(code: string, source: MutationSource): MutationIntent[] {
 	if (!shouldScanCodeText(code)) return [];
 	const scanText = sampleCodeText(code);
@@ -506,9 +516,35 @@ function classifyCodeText(code: string, source: MutationSource): MutationIntent[
 		intents.push(makeIntent({ service, action: "graphql-mutation", tier: 2, source, reason: "embedded GraphQL mutation" }));
 	}
 	for (const quoted of extractExecutionSinkStrings(code)) {
-		intents.push(...classifyShellCommand(quoted, source, false));
+		for (const variant of embeddedCommandVariants(quoted)) {
+			const nestedIntents = classifyShellCommand(variant, source, false);
+			if (nestedIntents.length === 0) continue;
+			intents.push(...nestedIntents);
+			break;
+		}
 	}
 	return intents;
+}
+
+function skipGitGlobalOptions(tokens: string[]): string[] {
+	let index = 1;
+	while (index < tokens.length) {
+		const token = tokens[index];
+		if (["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"].includes(token)) {
+			index += 2;
+			continue;
+		}
+		if (/^(?:-C.+|-c.+|--(?:git-dir|work-tree|namespace|exec-path|config-env)=.+)$/.test(token)) {
+			index++;
+			continue;
+		}
+		if (["--bare", "--no-pager", "--paginate", "--literal-pathspecs", "--no-optional-locks", "--no-replace-objects"].includes(token)) {
+			index++;
+			continue;
+		}
+		break;
+	}
+	return [tokens[0], ...tokens.slice(index)];
 }
 
 export function classifyShellCommand(command: string, source: MutationSource = "bash", scanEmbedded = true): MutationIntent[] {
@@ -522,8 +558,9 @@ export function classifyShellCommand(command: string, source: MutationSource = "
 			continue;
 		}
 		const executable = tokens[0];
-		if (executable === "git" && tokens[1] === "push") {
-			intents.push(makeIntent({ service: "git", action: "git-push", tier: 3, target: tokens.slice(2).join(" ") || "remote", source, reason: "git push mutates a remote repository" }));
+		const commandTokens = executable === "git" ? skipGitGlobalOptions(tokens) : tokens;
+		if (executable === "git" && commandTokens[1] === "push") {
+			intents.push(makeIntent({ service: "git", action: "git-push", tier: 3, target: commandTokens.slice(2).join(" ") || "remote", source, reason: "git push mutates a remote repository" }));
 			continue;
 		}
 		if (executable === "gh") {

@@ -94,6 +94,15 @@ test("classifier blocks git push as tier 3", () => {
 	assert.equal(intents[0].tier, 3);
 });
 
+test("classifier blocks git push after git global options", () => {
+	const intents = classifyShellCommand("git -C /tmp/pi-config push origin security/audit");
+	assert.equal(intents.length, 1);
+	assert.equal(intents[0].service, "git");
+	assert.equal(intents[0].action, "git-push");
+	assert.equal(intents[0].tier, 3);
+	assert.equal(intents[0].target, "origin security/audit");
+});
+
 test("classifier blocks GitHub PR merge", () => {
 	const intents = classifyShellCommand("gh pr merge 123");
 	assert.equal(intents.length, 1);
@@ -154,6 +163,13 @@ test("classifier inspects embedded commands in direct shell code", () => {
 	const intents = classifyShellCommand("node -e \"require('child_process').execSync('gh pr merge 123')\"");
 	assert.equal(intents.length, 1);
 	assert.equal(intents[0].action, "pr-merge");
+});
+
+test("classifier inspects embedded git push with quoted git global option path", () => {
+	const intents = classifyShellCommand(String.raw`node -e "require('child_process').execSync(\"git -C \\\"/tmp/work tree\\\" push origin main\")"`);
+	assert.equal(intents.length, 1);
+	assert.equal(intents[0].service, "git");
+	assert.equal(intents[0].action, "git-push");
 });
 
 test("classifier inspects direct shell execution sinks beyond the code sample window", () => {
