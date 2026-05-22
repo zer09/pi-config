@@ -1117,7 +1117,7 @@ process.exit(2);
 		assert.match(withDiagnostics.details.stderrTail ?? "", /SECRET_TOKEN=<redacted>/);
 	});
 });
-test("writer custom renderers are writer-labeled and hide raw child stdout or stderr", async () => {
+test("writer custom renderers emphasize agent labels and hide raw child stdout or stderr", async () => {
 	const theme = {
 		fg(_name: string, text: string) {
 			return text;
@@ -1132,7 +1132,9 @@ test("writer custom renderers are writer-labeled and hide raw child stdout or st
 		assert.ok(writer?.renderCall);
 		assert.ok(writer?.renderResult);
 		const call = writer.renderCall({ agent: "implementer", task: "Change\nexact file", allowedPaths: ["src/app.ts"] }, theme as any, context as any);
-		assert.match(call.render(120).join("\n"), /writer implementer Change exact file/);
+		const renderedCall = call.render(120).join("\n");
+		assert.match(renderedCall, /Implementer Change exact file/);
+		assert.doesNotMatch(renderedCall, /writer implementer/);
 
 		const resultPayload = {
 			content: [{ type: "text", text: "raw writer final summary" }],
@@ -1154,7 +1156,8 @@ test("writer custom renderers are writer-labeled and hide raw child stdout or st
 		};
 		const collapsed = writer.renderResult(resultPayload, { expanded: false, isPartial: false } as any, theme as any, context as any);
 		const collapsedRendered = collapsed.render(120).join("\n");
-		assert.match(collapsedRendered, /writer completed/);
+		assert.match(collapsedRendered, /Implementer completed/);
+		assert.doesNotMatch(collapsedRendered, /writer completed/);
 		assert.match(collapsedRendered, /edit src\/app\.ts/);
 		assert.match(collapsedRendered, /\+ new/);
 		assert.doesNotMatch(collapsedRendered, /tools: 2/);
@@ -1167,13 +1170,14 @@ test("writer custom renderers are writer-labeled and hide raw child stdout or st
 			context as any,
 		);
 		const partialRendered = partial.render(120).join("\n");
-		assert.match(partialRendered, /writer launching child\.\.\./);
+		assert.match(partialRendered, /Implementer launching child\.\.\./);
+		assert.doesNotMatch(partialRendered, /writer launching child/);
 		assert.doesNotMatch(partialRendered, /launching_child/);
 
 		const result = writer.renderResult(resultPayload, { expanded: true, isPartial: false } as any, theme as any, context as any);
 		const rendered = result.render(120).join("\n");
-		assert.match(rendered, /writer completed/);
-		assert.match(rendered, /implementer/);
+		assert.match(rendered, /Implementer completed/);
+		assert.doesNotMatch(rendered, /writer completed/);
 		assert.match(rendered, /tools: 2/);
 		assert.match(rendered, /edit src\/app\.ts/);
 		assert.match(rendered, /\+ new/);
@@ -1193,7 +1197,9 @@ test("reader custom renderers show progress and status details without exposing 
 	};
 	const context = { state: {}, cwd: "/tmp/project" };
 	const call = renderDelegateCall({ agent: "investigator", task: "Inspect\nwith noisy whitespace" }, theme as any, context as any);
-	assert.match(call.render(120).join("\n"), /reader investigator Inspect with noisy whitespace/);
+	const renderedCall = call.render(120).join("\n");
+	assert.match(renderedCall, /Investigator Inspect with noisy whitespace/);
+	assert.doesNotMatch(renderedCall, /reader investigator/);
 
 	const result = renderDelegateResult(
 		{
@@ -1216,8 +1222,8 @@ test("reader custom renderers show progress and status details without exposing 
 		context as any,
 	);
 	const rendered = result.render(120).join("\n");
-	assert.match(rendered, /reader completed/);
-	assert.match(rendered, /investigator/);
+	assert.match(rendered, /Investigator completed/);
+	assert.doesNotMatch(rendered, /reader completed/);
 	assert.match(rendered, /tools: 2/);
 	assert.doesNotMatch(rendered, /SECRET_TOKEN/);
 	assert.doesNotMatch(rendered, /raw child final summary/);
