@@ -1288,7 +1288,7 @@ test("writer custom renderers emphasize agent labels and hide raw child stdout o
 		};
 		const collapsed = writer.renderResult(resultPayload, { expanded: false, isPartial: false } as any, theme as any, context as any);
 		const collapsedRendered = collapsed.render(120).join("\n");
-		assert.match(collapsedRendered, /Implementer/);
+		assert.doesNotMatch(collapsedRendered, /Implementer/);
 		assert.match(collapsedRendered, /󰸞 Completed/);
 		assert.doesNotMatch(collapsedRendered, /writer completed/);
 		assert.match(collapsedRendered, /edit src\/app\.ts/);
@@ -1310,7 +1310,7 @@ test("writer custom renderers emphasize agent labels and hide raw child stdout o
 
 		const result = writer.renderResult(resultPayload, { expanded: true, isPartial: false } as any, theme as any, context as any);
 		const rendered = result.render(120).join("\n");
-		assert.match(rendered, /Implementer/);
+		assert.doesNotMatch(rendered, /Implementer/);
 		assert.match(rendered, /󰸞 Completed/);
 		assert.doesNotMatch(rendered, /writer completed/);
 		assert.match(rendered, /tools: 2/);
@@ -1365,7 +1365,7 @@ test("reader custom renderers show progress and status details without exposing 
 		context as any,
 	);
 	const rendered = result.render(120).join("\n");
-	assert.match(rendered, /Investigator/);
+	assert.doesNotMatch(rendered, /Investigator/);
 	assert.match(rendered, /󰸞 Completed/);
 	assert.doesNotMatch(rendered, /reader completed/);
 	assert.match(rendered, /tools: 2/);
@@ -1410,7 +1410,7 @@ test("delegate final status renderer uses selected icons", () => {
 			{ state: {}, cwd: "/tmp/project" } as any,
 		);
 		const rendered = result.render(120).join("\n");
-		assert.ok(rendered.includes("Investigator"), rendered);
+		assert.ok(!rendered.includes("Investigator"), rendered);
 		assert.ok(rendered.includes(expected), rendered);
 		assert.doesNotMatch(rendered, /raw child final summary/);
 	}

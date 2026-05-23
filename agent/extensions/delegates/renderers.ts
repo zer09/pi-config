@@ -217,7 +217,7 @@ function renderToolResult(
 		return text;
 	}
 
-	let output = `${renderAgentLabel(details.agent, tool, theme)} ${renderFinalStatus(details.status, theme)}`;
+	let output = renderFinalStatus(details.status, theme);
 	if (tool === "writer") {
 		const writerDetails = details as WriterToolDetails;
 		output += ` ${color(theme, "dim", formatWriterChangeSummary(writerDetails))}`;
