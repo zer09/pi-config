@@ -15,6 +15,8 @@ The child receives `PI_DELEGATE_CHILD=1` and `PI_DELEGATE_KIND=reader`, so deleg
 
 The parent agent remains the orchestrator. Reader output uses `## Parent considerations` rather than telling the child or parent to call another delegate next.
 
+Delegate session directories use Pi's safe cwd naming, for example `/home/gc/.pi` maps to `--home-gc-.pi--` under `~/.pi/agent/delegate-sessions/{reader,writer}/`.
+
 ## Reader parameters
 
 ```ts

@@ -29,6 +29,7 @@ import delegatesExtension, {
 	writerProfile,
 } from "./index.ts";
 import { WRITER_DIFF_MAX_PREVIEW_LINES } from "./constants.ts";
+import { getWriterSessionBaseDir } from "./paths.ts";
 import { redactSensitiveText } from "./redaction.ts";
 import { writerDiffDetailFields } from "./writer-diff.ts";
 import type { AgentConfig } from "./types.ts";
@@ -373,6 +374,44 @@ test("delegate cwd overrides resolve relative to the tool default cwd", () => {
 	assert.deepEqual(writer.allowedPaths, [fs.realpathSync(path.join(project, "src", "app.ts"))]);
 });
 
+test("delegate session directories use Pi-style safe cwd names", () => {
+	assert.equal(getReaderSessionDir("/home/gc/.pi", "/agent-root"), path.join("/agent-root", "delegate-sessions", "reader", "--home-gc-.pi--"));
+	assert.equal(getReaderSessionDir("/", "/agent-root"), path.join("/agent-root", "delegate-sessions", "reader", "----"));
+});
+
+test("delegate session safe cwd names match Pi-style encoding across fuzzed paths", () => {
+	let seed = 0x5eed_1234;
+	const next = () => {
+		seed = (seed * 1664525 + 1013904223) >>> 0;
+		return seed;
+	};
+	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._- :\\";
+	const expectedName = (cwd: string) => `--${path.resolve(cwd).replace(/^[\\/]/, "").replace(/[\\/:]/g, "-")}--`;
+	const samples = ["/", "/home/gc/.pi", "/tmp/with spaces", "/tmp/colon:name", "/tmp/back\\slash"];
+	for (let sampleIndex = 0; sampleIndex < 500; sampleIndex++) {
+		const segmentCount = 1 + (next() % 8);
+		const segments: string[] = [];
+		for (let segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++) {
+			const length = 1 + (next() % 18);
+			let segment = "";
+			for (let charIndex = 0; charIndex < length; charIndex++) segment += chars[next() % chars.length];
+			segments.push(segment);
+		}
+		samples.push(`/${segments.join("/")}`);
+	}
+
+	for (const cwd of samples) {
+		const expected = expectedName(cwd);
+		for (const sessionDir of [getReaderSessionDir(cwd, "/agent-root"), getWriterSessionBaseDir(cwd, "/agent-root")]) {
+			const actual = path.basename(sessionDir);
+			assert.equal(actual, expected);
+			assert.doesNotMatch(actual, /[\\/:]/);
+			assert.equal(actual.startsWith("--"), true);
+			assert.equal(actual.endsWith("--"), true);
+		}
+	}
+});
+
 test("writer strips Pi file-reference prefixes from allowed paths", () => {
 	const project = makeTempDir("pi-delegates-at-paths-");
 	fs.mkdirSync(path.join(project, "src"));
@@ -636,6 +675,8 @@ test("writer launches Pi with fresh session, exact allowed path env, restricted 
 			assert.equal(capture.args.includes("--continue"), false);
 			assert.deepEqual(capture.args.slice(0, 5), ["--mode", "json", "-p", "--session-dir", capture.args[4]]);
 			assert.match(capture.args[4], /delegate-sessions\/writer/);
+			const safeProjectDir = `--${fs.realpathSync(harness.project).replace(/^[\\/]/, "").replace(/[\\/:]/g, "-")}--`;
+			assert.equal(path.basename(path.dirname(capture.args[4])), safeProjectDir);
 			assert.equal(capture.args[capture.args.indexOf("--model") + 1], DEFAULT_WRITER_MODEL);
 			assert.equal(capture.args[capture.args.indexOf("--thinking") + 1], DEFAULT_THINKING);
 			assert.equal(capture.args[capture.args.indexOf("--tools") + 1], "read,edit,write");
