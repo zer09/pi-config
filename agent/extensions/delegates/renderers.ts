@@ -16,8 +16,18 @@ function ansi256(colorCode: number, value: string): string {
 	return `\x1b[38;5;${colorCode}m${value}\x1b[0m`;
 }
 
+function supportsAnsi256Color(theme: any): boolean {
+	if (typeof theme?.getColorMode !== "function") return false;
+	try {
+		const colorMode = theme.getColorMode();
+		return colorMode === "256color" || colorMode === "truecolor";
+	} catch {
+		return false;
+	}
+}
+
 function colorOrAnsi(theme: any, themeColor: string | undefined, ansi256Color: number | undefined, value: string): string {
-	if (typeof ansi256Color === "number") return ansi256(ansi256Color, value);
+	if (typeof ansi256Color === "number" && supportsAnsi256Color(theme)) return ansi256(ansi256Color, value);
 	return themeColor ? color(theme, themeColor, value) : value;
 }
 
@@ -103,13 +113,13 @@ function renderFinalStatus(status: string, theme: any): string {
 	const normalized = normalizedStatus(status);
 	if (normalized === "completed") return renderStatusWithIcon(statusLabel(status), "󰸞", theme, { themeColor: "success" });
 	if (normalized === "timeout") return renderStatusWithIcon(statusLabel(status), "󰔟", theme, { themeColor: "warning" });
-	if (normalized === "aborted") return renderStatusWithIcon(statusLabel(status), "󰅖", theme, { ansi256Color: 208 });
+	if (normalized === "aborted") return renderStatusWithIcon(statusLabel(status), "󰅖", theme, { themeColor: "warning", ansi256Color: 208 });
 	return renderStatusWithIcon(statusLabel(status), "󰅙", theme, { themeColor: "error" });
 }
 
 function renderWriterFileStatus(status: WriterFileChange["status"], theme: any): string {
 	if (status === "created") return renderStatusWithIcon(displayLabel(status), "󰝒", theme, { themeColor: "success" });
-	if (status === "modified") return renderStatusWithIcon(displayLabel(status), "󰷈", theme, { ansi256Color: 33 });
+	if (status === "modified") return renderStatusWithIcon(displayLabel(status), "󰷈", theme, { themeColor: "accent", ansi256Color: 33 });
 	if (status === "deleted") return renderStatusWithIcon(displayLabel(status), "󰩹", theme, { themeColor: "error" });
 	if (status === "skipped") return renderStatusWithIcon(displayLabel(status), "󰒭", theme, { themeColor: "muted" });
 	return color(theme, "muted", displayLabel(status));

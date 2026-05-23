@@ -120,10 +120,10 @@ Final delegate rows and expanded writer file rows use Nerd Font icons with theme
 |---|---:|---|
 | `completed` | `󰸞` | success / green |
 | `timeout` | `󰔟` | warning / amber |
-| `aborted` | `󰅖` | best-effort ANSI orange |
+| `aborted` | `󰅖` | best-effort ANSI orange, fallback warning / amber |
 | `failed` | `󰅙` | error / red |
 | `created` | `󰝒` | success / green |
-| `modified` | `󰷈` | best-effort ANSI blue |
+| `modified` | `󰷈` | best-effort ANSI blue, fallback accent |
 | `deleted` | `󰩹` | error / red |
 | `skipped` | `󰒭` | muted / gray |
 

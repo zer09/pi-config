@@ -1329,6 +1329,69 @@ test("writer custom renderers emphasize agent labels and hide raw child stdout o
 	});
 });
 
+test("custom status colors fall back to theme colors for non-ANSI renderers", () => {
+	const theme = {
+		fg(name: string, text: string) {
+			return `[${name}]${text}[/${name}]`;
+		},
+		bold(text: string) {
+			return text;
+		},
+	};
+	const context = { state: {}, cwd: "/tmp/project" };
+
+	const aborted = renderDelegateResult(
+		{
+			content: [{ type: "text", text: "raw child final summary" }],
+			details: {
+				agent: "investigator",
+				model: "child-model",
+				thinking: "medium",
+				cwd: "/tmp/project",
+				status: "aborted",
+				exitCode: 1,
+				durationMs: 42,
+				toolCallCount: 2,
+				truncated: false,
+			},
+		},
+		{ expanded: false, isPartial: false } as any,
+		theme as any,
+		context as any,
+	);
+	const abortedRendered = aborted.render(120).join("\n");
+	assert.doesNotMatch(abortedRendered, /\x1b\[/);
+	assert.match(abortedRendered, /\[warning\]󰅖 Aborted\[\/warning\]/);
+
+	const writer = captureRegisteredTools().find((tool) => tool.name === "writer");
+	assert.ok(writer?.renderResult);
+	const modified = writer.renderResult(
+		{
+			content: [{ type: "text", text: "raw writer final summary" }],
+			details: {
+				agent: "implementer",
+				model: "writer-model",
+				thinking: "medium",
+				cwd: "/tmp/project",
+				status: "completed",
+				exitCode: 0,
+				durationMs: 42,
+				toolCallCount: 2,
+				truncated: false,
+				changedFiles: [{ path: "src/app.ts", status: "modified", oldSize: 1, newSize: 1, additions: 1, deletions: 1 }],
+				changedFileCount: 1,
+				skippedDiffCount: 0,
+			},
+		},
+		{ expanded: true, isPartial: false } as any,
+		theme as any,
+		context as any,
+	);
+	const modifiedRendered = modified.render(120).join("\n");
+	assert.doesNotMatch(modifiedRendered, /\x1b\[/);
+	assert.match(modifiedRendered, /\[accent\]󰷈 Modified\[\/accent\]/);
+});
+
 test("reader custom renderers show progress and status details without exposing raw child stdout or stderr", () => {
 	const theme = {
 		fg(_name: string, text: string) {
