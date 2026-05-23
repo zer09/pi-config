@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import * as cp from "node:child_process";
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -29,7 +30,7 @@ import delegatesExtension, {
 	writerProfile,
 } from "./index.ts";
 import { WRITER_DIFF_MAX_PREVIEW_LINES } from "./constants.ts";
-import { getWriterSessionBaseDir } from "./paths.ts";
+import { cwdSessionDirName, getWriterSessionBaseDir } from "./paths.ts";
 import { redactSensitiveText } from "./redaction.ts";
 import { writerDiffDetailFields } from "./writer-diff.ts";
 import type { AgentConfig } from "./types.ts";
@@ -109,6 +110,13 @@ function captureRegisteredToolNames(): string[] {
 
 function makeTempDir(prefix: string): string {
 	return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+function expectedCwdSessionDirName(cwd: string): string {
+	const resolvedCwd = path.resolve(cwd);
+	const name = `--${encodeURIComponent(resolvedCwd)}--`;
+	if (Buffer.byteLength(name, "utf8") <= 200) return name;
+	return `--cwd-${createHash("sha256").update(resolvedCwd).digest("hex")}--`;
 }
 
 function writeAgent(root: string, name: string, body: string): string {
@@ -374,19 +382,24 @@ test("delegate cwd overrides resolve relative to the tool default cwd", () => {
 	assert.deepEqual(writer.allowedPaths, [fs.realpathSync(path.join(project, "src", "app.ts"))]);
 });
 
-test("delegate session directories use Pi-style safe cwd names", () => {
-	assert.equal(getReaderSessionDir("/home/gc/.pi", "/agent-root"), path.join("/agent-root", "delegate-sessions", "reader", "--home-gc-.pi--"));
-	assert.equal(getReaderSessionDir("/", "/agent-root"), path.join("/agent-root", "delegate-sessions", "reader", "----"));
+test("delegate session directories use encoded collision-resistant cwd names", () => {
+	assert.equal(getReaderSessionDir("/home/gc/.pi", "/agent-root"), path.join("/agent-root", "delegate-sessions", "reader", "--%2Fhome%2Fgc%2F.pi--"));
+	assert.equal(getReaderSessionDir("/", "/agent-root"), path.join("/agent-root", "delegate-sessions", "reader", "--%2F--"));
+
+	const hyphenatedParent = path.basename(getReaderSessionDir("/tmp/foo-bar/baz", "/agent-root"));
+	const hyphenatedChild = path.basename(getReaderSessionDir("/tmp/foo/bar-baz", "/agent-root"));
+	assert.notEqual(hyphenatedParent, hyphenatedChild);
+	assert.equal(hyphenatedParent, "--%2Ftmp%2Ffoo-bar%2Fbaz--");
+	assert.equal(hyphenatedChild, "--%2Ftmp%2Ffoo%2Fbar-baz--");
 });
 
-test("delegate session safe cwd names match Pi-style encoding across fuzzed paths", () => {
+test("delegate session safe cwd names match reversible encoding across fuzzed paths", () => {
 	let seed = 0x5eed_1234;
 	const next = () => {
 		seed = (seed * 1664525 + 1013904223) >>> 0;
 		return seed;
 	};
 	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._- :\\";
-	const expectedName = (cwd: string) => `--${path.resolve(cwd).replace(/^[\\/]/, "").replace(/[\\/:]/g, "-")}--`;
 	const samples = ["/", "/home/gc/.pi", "/tmp/with spaces", "/tmp/colon:name", "/tmp/back\\slash"];
 	for (let sampleIndex = 0; sampleIndex < 500; sampleIndex++) {
 		const segmentCount = 1 + (next() % 8);
@@ -401,14 +414,27 @@ test("delegate session safe cwd names match Pi-style encoding across fuzzed path
 	}
 
 	for (const cwd of samples) {
-		const expected = expectedName(cwd);
+		const expected = expectedCwdSessionDirName(cwd);
 		for (const sessionDir of [getReaderSessionDir(cwd, "/agent-root"), getWriterSessionBaseDir(cwd, "/agent-root")]) {
 			const actual = path.basename(sessionDir);
 			assert.equal(actual, expected);
 			assert.doesNotMatch(actual, /[\\/:]/);
 			assert.equal(actual.startsWith("--"), true);
 			assert.equal(actual.endsWith("--"), true);
+			assert.ok(Buffer.byteLength(actual, "utf8") <= 200);
 		}
+	}
+});
+
+test("delegate session cwd names are hashed when a cwd is too long for one path segment", () => {
+	const cwd = path.join("/", ...Array.from({ length: 40 }, (_, index) => `segment-${index}-${"x".repeat(24)}`));
+	const expected = expectedCwdSessionDirName(cwd);
+	assert.match(expected, /^--cwd-[a-f0-9]{64}--$/);
+	assert.equal(cwdSessionDirName(cwd), expected);
+	for (const sessionDir of [getReaderSessionDir(cwd, "/agent-root"), getWriterSessionBaseDir(cwd, "/agent-root")]) {
+		const actual = path.basename(sessionDir);
+		assert.equal(actual, expected);
+		assert.ok(Buffer.byteLength(actual, "utf8") <= 200);
 	}
 });
 
@@ -675,8 +701,7 @@ test("writer launches Pi with fresh session, exact allowed path env, restricted 
 			assert.equal(capture.args.includes("--continue"), false);
 			assert.deepEqual(capture.args.slice(0, 5), ["--mode", "json", "-p", "--session-dir", capture.args[4]]);
 			assert.match(capture.args[4], /delegate-sessions\/writer/);
-			const safeProjectDir = `--${fs.realpathSync(harness.project).replace(/^[\\/]/, "").replace(/[\\/:]/g, "-")}--`;
-			assert.equal(path.basename(path.dirname(capture.args[4])), safeProjectDir);
+			assert.equal(path.basename(path.dirname(capture.args[4])), expectedCwdSessionDirName(fs.realpathSync(harness.project)));
 			assert.equal(capture.args[capture.args.indexOf("--model") + 1], DEFAULT_WRITER_MODEL);
 			assert.equal(capture.args[capture.args.indexOf("--thinking") + 1], DEFAULT_THINKING);
 			assert.equal(capture.args[capture.args.indexOf("--tools") + 1], "read,edit,write");
