@@ -1395,6 +1395,73 @@ test("writer custom renderers emphasize agent labels and hide raw child stdout o
 	});
 });
 
+test("partial loading renderer stores spinner state and avoids untracked intervals", () => {
+	const originalSetInterval = globalThis.setInterval;
+	const originalClearInterval = globalThis.clearInterval;
+	let nextTimerId = 0;
+	let clearCount = 0;
+	const activeTimers = new Set<number>();
+	(globalThis as any).setInterval = () => {
+		const id = ++nextTimerId;
+		activeTimers.add(id);
+		return { id, unref() {} };
+	};
+	(globalThis as any).clearInterval = (timer: { id?: number } | undefined) => {
+		clearCount += 1;
+		if (timer?.id) activeTimers.delete(timer.id);
+	};
+	try {
+		const theme = {
+			fg(_name: string, text: string) {
+				return text;
+			},
+			bold(text: string) {
+				return text;
+			},
+		};
+		const partialPayload = {
+			content: [{ type: "text", text: "raw child final summary" }],
+			details: {
+				agent: "investigator",
+				model: "child-model",
+				thinking: "medium",
+				cwd: "/tmp/project",
+				status: "completed",
+				exitCode: 0,
+				durationMs: 42,
+				toolCallCount: 2,
+				truncated: false,
+				phase: "working",
+			},
+		};
+
+		const stateless = renderDelegateResult(partialPayload, { expanded: false, isPartial: true } as any, theme as any, undefined as any);
+		assert.match(stateless.render(120).join("\n"), /Working\.\.\./);
+		assert.equal(nextTimerId, 0);
+
+		const context: any = { cwd: "/tmp/project" };
+		const first = renderDelegateResult(partialPayload, { expanded: false, isPartial: true } as any, theme as any, context);
+		const second = renderDelegateResult(partialPayload, { expanded: false, isPartial: true } as any, theme as any, context);
+		assert.equal(first, second);
+		assert.equal(typeof context.state, "object");
+		assert.equal(nextTimerId, 1);
+		assert.equal(activeTimers.size, 1);
+
+		renderDelegateResult(
+			{ ...partialPayload, details: { ...partialPayload.details, phase: undefined } },
+			{ expanded: false, isPartial: false } as any,
+			theme as any,
+			context,
+		);
+		assert.equal(clearCount, 1);
+		assert.equal(activeTimers.size, 0);
+		assert.equal(context.state.delegateLoadingText, undefined);
+	} finally {
+		globalThis.setInterval = originalSetInterval;
+		globalThis.clearInterval = originalClearInterval;
+	}
+});
+
 test("custom status colors fall back to theme colors for non-ANSI renderers", () => {
 	const theme = {
 		fg(name: string, text: string) {

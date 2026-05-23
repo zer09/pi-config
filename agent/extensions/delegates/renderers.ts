@@ -82,8 +82,20 @@ class AnimatedLoadingText extends Text {
 	}
 }
 
-function getLoadingComponent(context: any): AnimatedLoadingText {
-	const state = context?.state ?? {};
+function getLoadingState(context: any): Record<string, unknown> | undefined {
+	if (context?.state && typeof context.state === "object") return context.state;
+	if (!context || typeof context !== "object") return undefined;
+	try {
+		context.state = {};
+		return context.state;
+	} catch {
+		return undefined;
+	}
+}
+
+function getLoadingComponent(context: any): AnimatedLoadingText | undefined {
+	const state = getLoadingState(context);
+	if (!state) return undefined;
 	let component = state[LOADING_STATE_KEY] as AnimatedLoadingText | undefined;
 	if (!component) {
 		component = new AnimatedLoadingText();
@@ -93,9 +105,11 @@ function getLoadingComponent(context: any): AnimatedLoadingText {
 }
 
 function stopLoadingComponent(context: any): void {
-	const component = context?.state?.[LOADING_STATE_KEY] as AnimatedLoadingText | undefined;
+	const state = context?.state;
+	if (!state || typeof state !== "object") return;
+	const component = state[LOADING_STATE_KEY] as AnimatedLoadingText | undefined;
 	component?.stop();
-	if (context?.state) delete context.state[LOADING_STATE_KEY];
+	delete state[LOADING_STATE_KEY];
 }
 
 function normalizedStatus(status: string): "completed" | "timeout" | "aborted" | "failed" {
@@ -205,17 +219,16 @@ function renderToolResult(
 	if (options?.isPartial) {
 		const phase = typeof (details as any)?.phase === "string" ? progressPhaseLabel((details as any).phase) : "Running...";
 		const diffPreview = tool === "writer" && typeof (details as any)?.diffPreview === "string" ? (details as any).diffPreview : "";
+		const renderPartial = (frame: string) => {
+			let partial = `${color(theme, "accent", frame)} ${color(theme, "warning", phase)}`;
+			if (diffPreview) partial += `\n${colorDiffPreview(diffPreview, theme)}`;
+			return partial;
+		};
 		const loading = getLoadingComponent(context);
-		loading.configure(
-			(frame) => {
-				let partial = `${color(theme, "accent", frame)} ${color(theme, "warning", phase)}`;
-				if (diffPreview) partial += `\n${colorDiffPreview(diffPreview, theme)}`;
-				return partial;
-			},
-			() => {
-				if (typeof context?.invalidate === "function") context.invalidate();
-			},
-		);
+		if (!loading) return new Text(renderPartial(LOADING_FRAMES[0] ?? ""), 0, 0);
+		loading.configure(renderPartial, () => {
+			if (typeof context?.invalidate === "function") context.invalidate();
+		});
 		return loading;
 	}
 
