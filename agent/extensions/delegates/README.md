@@ -15,6 +15,8 @@ The child receives `PI_DELEGATE_CHILD=1` and `PI_DELEGATE_KIND=reader`, so deleg
 
 The parent agent remains the orchestrator. Reader output uses `## Parent considerations` rather than telling the child or parent to call another delegate next.
 
+Delegate session directories use reversible, collision-resistant cwd encoding, for example `/home/gc/.pi` maps to `--%2Fhome%2Fgc%2F.pi--` under `~/.pi/agent/delegate-sessions/{reader,writer}/`. Very long cwd values are stored as `--cwd-<sha256>--` to stay under per-segment filesystem limits.
+
 ## Reader parameters
 
 ```ts
@@ -104,15 +106,28 @@ Delegate safety boundaries always remain in the child system prompt. `systemProm
 
 ## Progress UI
 
-Both tools emit progress through `onUpdate` with compact details for phases such as:
+Both tools emit progress through `onUpdate` with compact details. Partial progress rows render with Pi's animated loading indicator plus phase labels such as:
 
-- `starting`
-- `launching_child`
-- `child_event`
-- `diff_ready` for writer
-- `finishing`
+- `starting` displays as `{spinner} Starting...`
+- `launching_subagent` displays as `{spinner} Launching Subagent...`
+- `working` displays as `{spinner} Working...`
+- `diff_ready` for writer displays as `{spinner} Diff Ready...`
+- `finishing` displays as `{spinner} Finishing...`
 
 Progress details include a redacted task preview and do not include raw child stdout, stderr, or tool arguments. Writer diff previews are parent-computed, capped, redacted, and carried in UI `details` for rendering rather than final model-visible `content`. The writer renderer shows the capped diff preview in the collapsed result row and when expanded. The preview uses four context lines to match Pi's native `edit` diff context.
+
+Final delegate rows and expanded writer file rows use Nerd Font icons with theme-dependent colors:
+
+| Status | Icon | Color |
+|---|---:|---|
+| `completed` | `󰸞` | success / green |
+| `timeout` | `󰔟` | warning / amber |
+| `aborted` | `󰅖` | best-effort ANSI orange, fallback warning / amber |
+| `failed` | `󰅙` | error / red |
+| `created` | `󰝒` | success / green |
+| `modified` | `󰷈` | best-effort ANSI blue, fallback accent |
+| `deleted` | `󰩹` | error / red |
+| `skipped` | `󰒭` | muted / gray |
 
 ## Result shape
 

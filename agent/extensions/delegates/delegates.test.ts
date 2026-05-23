@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import * as cp from "node:child_process";
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -29,6 +30,7 @@ import delegatesExtension, {
 	writerProfile,
 } from "./index.ts";
 import { WRITER_DIFF_MAX_PREVIEW_LINES } from "./constants.ts";
+import { cwdSessionDirName, getWriterSessionBaseDir } from "./paths.ts";
 import { redactSensitiveText } from "./redaction.ts";
 import { writerDiffDetailFields } from "./writer-diff.ts";
 import type { AgentConfig } from "./types.ts";
@@ -108,6 +110,13 @@ function captureRegisteredToolNames(): string[] {
 
 function makeTempDir(prefix: string): string {
 	return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+function expectedCwdSessionDirName(cwd: string): string {
+	const resolvedCwd = path.resolve(cwd);
+	const name = `--${encodeURIComponent(resolvedCwd)}--`;
+	if (Buffer.byteLength(name, "utf8") <= 200) return name;
+	return `--cwd-${createHash("sha256").update(resolvedCwd).digest("hex")}--`;
 }
 
 function writeAgent(root: string, name: string, body: string): string {
@@ -373,6 +382,62 @@ test("delegate cwd overrides resolve relative to the tool default cwd", () => {
 	assert.deepEqual(writer.allowedPaths, [fs.realpathSync(path.join(project, "src", "app.ts"))]);
 });
 
+test("delegate session directories use encoded collision-resistant cwd names", () => {
+	assert.equal(getReaderSessionDir("/home/gc/.pi", "/agent-root"), path.join("/agent-root", "delegate-sessions", "reader", "--%2Fhome%2Fgc%2F.pi--"));
+	assert.equal(getReaderSessionDir("/", "/agent-root"), path.join("/agent-root", "delegate-sessions", "reader", "--%2F--"));
+
+	const hyphenatedParent = path.basename(getReaderSessionDir("/tmp/foo-bar/baz", "/agent-root"));
+	const hyphenatedChild = path.basename(getReaderSessionDir("/tmp/foo/bar-baz", "/agent-root"));
+	assert.notEqual(hyphenatedParent, hyphenatedChild);
+	assert.equal(hyphenatedParent, "--%2Ftmp%2Ffoo-bar%2Fbaz--");
+	assert.equal(hyphenatedChild, "--%2Ftmp%2Ffoo%2Fbar-baz--");
+});
+
+test("delegate session safe cwd names match reversible encoding across fuzzed paths", () => {
+	let seed = 0x5eed_1234;
+	const next = () => {
+		seed = (seed * 1664525 + 1013904223) >>> 0;
+		return seed;
+	};
+	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._- :\\";
+	const samples = ["/", "/home/gc/.pi", "/tmp/with spaces", "/tmp/colon:name", "/tmp/back\\slash"];
+	for (let sampleIndex = 0; sampleIndex < 500; sampleIndex++) {
+		const segmentCount = 1 + (next() % 8);
+		const segments: string[] = [];
+		for (let segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++) {
+			const length = 1 + (next() % 18);
+			let segment = "";
+			for (let charIndex = 0; charIndex < length; charIndex++) segment += chars[next() % chars.length];
+			segments.push(segment);
+		}
+		samples.push(`/${segments.join("/")}`);
+	}
+
+	for (const cwd of samples) {
+		const expected = expectedCwdSessionDirName(cwd);
+		for (const sessionDir of [getReaderSessionDir(cwd, "/agent-root"), getWriterSessionBaseDir(cwd, "/agent-root")]) {
+			const actual = path.basename(sessionDir);
+			assert.equal(actual, expected);
+			assert.doesNotMatch(actual, /[\\/:]/);
+			assert.equal(actual.startsWith("--"), true);
+			assert.equal(actual.endsWith("--"), true);
+			assert.ok(Buffer.byteLength(actual, "utf8") <= 200);
+		}
+	}
+});
+
+test("delegate session cwd names are hashed when a cwd is too long for one path segment", () => {
+	const cwd = path.join("/", ...Array.from({ length: 40 }, (_, index) => `segment-${index}-${"x".repeat(24)}`));
+	const expected = expectedCwdSessionDirName(cwd);
+	assert.match(expected, /^--cwd-[a-f0-9]{64}--$/);
+	assert.equal(cwdSessionDirName(cwd), expected);
+	for (const sessionDir of [getReaderSessionDir(cwd, "/agent-root"), getWriterSessionBaseDir(cwd, "/agent-root")]) {
+		const actual = path.basename(sessionDir);
+		assert.equal(actual, expected);
+		assert.ok(Buffer.byteLength(actual, "utf8") <= 200);
+	}
+});
+
 test("writer strips Pi file-reference prefixes from allowed paths", () => {
 	const project = makeTempDir("pi-delegates-at-paths-");
 	fs.mkdirSync(path.join(project, "src"));
@@ -636,6 +701,7 @@ test("writer launches Pi with fresh session, exact allowed path env, restricted 
 			assert.equal(capture.args.includes("--continue"), false);
 			assert.deepEqual(capture.args.slice(0, 5), ["--mode", "json", "-p", "--session-dir", capture.args[4]]);
 			assert.match(capture.args[4], /delegate-sessions\/writer/);
+			assert.equal(path.basename(path.dirname(capture.args[4])), expectedCwdSessionDirName(fs.realpathSync(harness.project)));
 			assert.equal(capture.args[capture.args.indexOf("--model") + 1], DEFAULT_WRITER_MODEL);
 			assert.equal(capture.args[capture.args.indexOf("--thinking") + 1], DEFAULT_THINKING);
 			assert.equal(capture.args[capture.args.indexOf("--tools") + 1], "read,edit,write");
@@ -667,14 +733,14 @@ test("writer streams writer-labeled progress updates without appending progress 
 				(update: any) => updates.push(update),
 			);
 			assert.equal(result.content[0].text, "Writer completed: no file changes detected.");
-			assert.doesNotMatch(result.content[0].text, /launching|child_event|diff_ready|finishing/);
+			assert.doesNotMatch(result.content[0].text, /launching|working|diff_ready|finishing/);
 		},
 	);
 
-	assert.deepEqual(updates.map((update) => update.details?.phase).filter(Boolean), ["starting", "launching_child", "child_event", "diff_ready", "finishing"]);
+	assert.deepEqual(updates.map((update) => update.details?.phase).filter(Boolean), ["starting", "launching_subagent", "working", "diff_ready", "finishing"]);
 	assert.deepEqual([...new Set(updates.map((update) => update.details?.tool))], ["writer"]);
 	for (const update of updates) {
-		assert.match(update.content?.[0]?.text ?? "", /^writer /);
+		assert.match(update.content?.[0]?.text ?? "", /^Writer /);
 		assert.doesNotMatch(update.content?.[0]?.text ?? "", /Writer progress-safe final answer/);
 	}
 });
@@ -709,7 +775,7 @@ test("writer computes UI-only diff preview for modified allowed files", async ()
 
 	const diffUpdate = updates.find((update) => update.details?.phase === "diff_ready");
 	assert.ok(diffUpdate);
-	assert.match(diffUpdate.content?.[0]?.text ?? "", /writer diff ready\.\.\.: 1 file changed/);
+	assert.match(diffUpdate.content?.[0]?.text ?? "", /Writer Diff Ready\.\.\.: 1 file changed/);
 	assert.doesNotMatch(diffUpdate.content?.[0]?.text ?? "", /diff_ready/);
 	assert.doesNotMatch(diffUpdate.content?.[0]?.text ?? "", /export const/);
 	assert.match(diffUpdate.details?.diffPreview ?? "", /\+ export const before = false;/);
@@ -1084,12 +1150,12 @@ test("reader streams progress updates through onUpdate without appending progres
 				(update: any) => updates.push(update),
 			);
 			assert.equal(result.content[0].text, "## Result\nProgress-safe final answer");
-			assert.doesNotMatch(result.content[0].text, /launching|child_event|finishing/);
+			assert.doesNotMatch(result.content[0].text, /launching|working|finishing/);
 		},
 	);
 
 	const phases = updates.map((update) => update.details?.phase).filter(Boolean);
-	assert.deepEqual(phases, ["starting", "launching_child", "child_event", "finishing"]);
+	assert.deepEqual(phases, ["starting", "launching_subagent", "working", "finishing"]);
 	for (const update of updates) {
 		const text = update.content?.[0]?.text ?? "";
 		assert.doesNotMatch(text, /Progress-safe final answer/);
@@ -1273,7 +1339,14 @@ test("writer custom renderers emphasize agent labels and hide raw child stdout o
 				durationMs: 42,
 				toolCallCount: 2,
 				truncated: false,
-				changedFiles: [{ path: "src/app.ts", status: "modified", oldSize: 1, newSize: 1, additions: 1, deletions: 1 }],
+				changedFiles: [
+					{ path: "src/new.ts", status: "created", oldSize: null, newSize: 1, additions: 1, deletions: 0 },
+					{ path: "src/app.ts", status: "modified", oldSize: 1, newSize: 1, additions: 1, deletions: 1 },
+					{ path: "src/old.ts", status: "deleted", oldSize: 1, newSize: null, additions: 0, deletions: 1 },
+					{ path: "src/large.bin", status: "skipped", oldSize: 1024, newSize: 1024, additions: 0, deletions: 0, reason: "file exceeds max diff size" },
+				],
+				changedFileCount: 3,
+				skippedDiffCount: 1,
 				diffPreview: "edit src/app.ts\n- old\n+ new",
 				diffTruncated: false,
 				stderrTail: "SECRET_TOKEN=<fixture-secret>",
@@ -1281,7 +1354,8 @@ test("writer custom renderers emphasize agent labels and hide raw child stdout o
 		};
 		const collapsed = writer.renderResult(resultPayload, { expanded: false, isPartial: false } as any, theme as any, context as any);
 		const collapsedRendered = collapsed.render(120).join("\n");
-		assert.match(collapsedRendered, /Implementer completed/);
+		assert.doesNotMatch(collapsedRendered, /Implementer/);
+		assert.match(collapsedRendered, /󰸞 Completed/);
 		assert.doesNotMatch(collapsedRendered, /writer completed/);
 		assert.match(collapsedRendered, /edit src\/app\.ts/);
 		assert.match(collapsedRendered, /\+ new/);
@@ -1289,26 +1363,166 @@ test("writer custom renderers emphasize agent labels and hide raw child stdout o
 		assert.doesNotMatch(collapsedRendered, /raw writer final summary/);
 
 		const partial = writer.renderResult(
-			{ ...resultPayload, details: { ...resultPayload.details, phase: "launching_child" } },
+			{ ...resultPayload, details: { ...resultPayload.details, phase: "launching_subagent" } },
 			{ expanded: false, isPartial: true } as any,
 			theme as any,
 			context as any,
 		);
 		const partialRendered = partial.render(120).join("\n");
-		assert.match(partialRendered, /Implementer launching child\.\.\./);
-		assert.doesNotMatch(partialRendered, /writer launching child/);
-		assert.doesNotMatch(partialRendered, /launching_child/);
+		assert.match(partialRendered, /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Launching Subagent\.\.\./);
+		assert.doesNotMatch(partialRendered, /Implementer Launching Subagent/);
+		assert.doesNotMatch(partialRendered, /writer launching subagent/);
+		assert.doesNotMatch(partialRendered, /launching_subagent/);
 
 		const result = writer.renderResult(resultPayload, { expanded: true, isPartial: false } as any, theme as any, context as any);
 		const rendered = result.render(120).join("\n");
-		assert.match(rendered, /Implementer completed/);
+		assert.doesNotMatch(rendered, /Implementer/);
+		assert.match(rendered, /󰸞 Completed/);
 		assert.doesNotMatch(rendered, /writer completed/);
 		assert.match(rendered, /tools: 2/);
+		assert.match(rendered, /󰝒 Created/);
+		assert.match(rendered, /src\/new\.ts/);
+		assert.match(rendered, /󰷈 Modified/);
+		assert.match(rendered, /src\/app\.ts/);
+		assert.match(rendered, /󰩹 Deleted/);
+		assert.match(rendered, /src\/old\.ts/);
+		assert.match(rendered, /󰒭 Skipped/);
+		assert.match(rendered, /src\/large\.bin \(file exceeds max diff size\)/);
 		assert.match(rendered, /edit src\/app\.ts/);
 		assert.match(rendered, /\+ new/);
 		assert.doesNotMatch(rendered, /SECRET_TOKEN/);
 		assert.doesNotMatch(rendered, /raw writer final summary/);
 	});
+});
+
+test("partial loading renderer stores spinner state and avoids untracked intervals", () => {
+	const originalSetInterval = globalThis.setInterval;
+	const originalClearInterval = globalThis.clearInterval;
+	let nextTimerId = 0;
+	let clearCount = 0;
+	const activeTimers = new Set<number>();
+	(globalThis as any).setInterval = () => {
+		const id = ++nextTimerId;
+		activeTimers.add(id);
+		return { id, unref() {} };
+	};
+	(globalThis as any).clearInterval = (timer: { id?: number } | undefined) => {
+		clearCount += 1;
+		if (timer?.id) activeTimers.delete(timer.id);
+	};
+	try {
+		const theme = {
+			fg(_name: string, text: string) {
+				return text;
+			},
+			bold(text: string) {
+				return text;
+			},
+		};
+		const partialPayload = {
+			content: [{ type: "text", text: "raw child final summary" }],
+			details: {
+				agent: "investigator",
+				model: "child-model",
+				thinking: "medium",
+				cwd: "/tmp/project",
+				status: "completed",
+				exitCode: 0,
+				durationMs: 42,
+				toolCallCount: 2,
+				truncated: false,
+				phase: "working",
+			},
+		};
+
+		const stateless = renderDelegateResult(partialPayload, { expanded: false, isPartial: true } as any, theme as any, undefined as any);
+		assert.match(stateless.render(120).join("\n"), /Working\.\.\./);
+		assert.equal(nextTimerId, 0);
+
+		const context: any = { cwd: "/tmp/project" };
+		const first = renderDelegateResult(partialPayload, { expanded: false, isPartial: true } as any, theme as any, context);
+		const second = renderDelegateResult(partialPayload, { expanded: false, isPartial: true } as any, theme as any, context);
+		assert.equal(first, second);
+		assert.equal(typeof context.state, "object");
+		assert.equal(nextTimerId, 1);
+		assert.equal(activeTimers.size, 1);
+
+		renderDelegateResult(
+			{ ...partialPayload, details: { ...partialPayload.details, phase: undefined } },
+			{ expanded: false, isPartial: false } as any,
+			theme as any,
+			context,
+		);
+		assert.equal(clearCount, 1);
+		assert.equal(activeTimers.size, 0);
+		assert.equal(context.state.delegateLoadingText, undefined);
+	} finally {
+		globalThis.setInterval = originalSetInterval;
+		globalThis.clearInterval = originalClearInterval;
+	}
+});
+
+test("custom status colors fall back to theme colors for non-ANSI renderers", () => {
+	const theme = {
+		fg(name: string, text: string) {
+			return `[${name}]${text}[/${name}]`;
+		},
+		bold(text: string) {
+			return text;
+		},
+	};
+	const context = { state: {}, cwd: "/tmp/project" };
+
+	const aborted = renderDelegateResult(
+		{
+			content: [{ type: "text", text: "raw child final summary" }],
+			details: {
+				agent: "investigator",
+				model: "child-model",
+				thinking: "medium",
+				cwd: "/tmp/project",
+				status: "aborted",
+				exitCode: 1,
+				durationMs: 42,
+				toolCallCount: 2,
+				truncated: false,
+			},
+		},
+		{ expanded: false, isPartial: false } as any,
+		theme as any,
+		context as any,
+	);
+	const abortedRendered = aborted.render(120).join("\n");
+	assert.doesNotMatch(abortedRendered, /\x1b\[/);
+	assert.match(abortedRendered, /\[warning\]󰅖 Aborted\[\/warning\]/);
+
+	const writer = captureRegisteredTools().find((tool) => tool.name === "writer");
+	assert.ok(writer?.renderResult);
+	const modified = writer.renderResult(
+		{
+			content: [{ type: "text", text: "raw writer final summary" }],
+			details: {
+				agent: "implementer",
+				model: "writer-model",
+				thinking: "medium",
+				cwd: "/tmp/project",
+				status: "completed",
+				exitCode: 0,
+				durationMs: 42,
+				toolCallCount: 2,
+				truncated: false,
+				changedFiles: [{ path: "src/app.ts", status: "modified", oldSize: 1, newSize: 1, additions: 1, deletions: 1 }],
+				changedFileCount: 1,
+				skippedDiffCount: 0,
+			},
+		},
+		{ expanded: true, isPartial: false } as any,
+		theme as any,
+		context as any,
+	);
+	const modifiedRendered = modified.render(120).join("\n");
+	assert.doesNotMatch(modifiedRendered, /\x1b\[/);
+	assert.match(modifiedRendered, /\[accent\]󰷈 Modified\[\/accent\]/);
 });
 
 test("reader custom renderers show progress and status details without exposing raw child stdout or stderr", () => {
@@ -1347,12 +1561,57 @@ test("reader custom renderers show progress and status details without exposing 
 		context as any,
 	);
 	const rendered = result.render(120).join("\n");
-	assert.match(rendered, /Investigator completed/);
+	assert.doesNotMatch(rendered, /Investigator/);
+	assert.match(rendered, /󰸞 Completed/);
 	assert.doesNotMatch(rendered, /reader completed/);
 	assert.match(rendered, /tools: 2/);
 	assert.doesNotMatch(rendered, /SECRET_TOKEN/);
 	assert.doesNotMatch(rendered, /raw child final summary/);
 });
+
+test("delegate final status renderer uses selected icons", () => {
+	const theme = {
+		fg(_name: string, text: string) {
+			return text;
+		},
+		bold(text: string) {
+			return text;
+		},
+	};
+	const statuses = [
+		["completed", "󰸞 Completed"],
+		["timeout", "󰔟 Timeout"],
+		["aborted", "󰅖 Aborted"],
+		["failed", "󰅙 Failed"],
+	] as const;
+
+	for (const [status, expected] of statuses) {
+		const result = renderDelegateResult(
+			{
+				content: [{ type: "text", text: "raw child final summary" }],
+				details: {
+					agent: "investigator",
+					model: "child-model",
+					thinking: "medium",
+					cwd: "/tmp/project",
+					status,
+					exitCode: status === "completed" ? 0 : 1,
+					durationMs: 42,
+					toolCallCount: 2,
+					truncated: false,
+				},
+			},
+			{ expanded: false, isPartial: false } as any,
+			theme as any,
+			{ state: {}, cwd: "/tmp/project" } as any,
+		);
+		const rendered = result.render(120).join("\n");
+		assert.ok(!rendered.includes("Investigator"), rendered);
+		assert.ok(rendered.includes(expected), rendered);
+		assert.doesNotMatch(rendered, /raw child final summary/);
+	}
+});
+
 let failures = 0;
 for (const { name, fn } of tests) {
 	try {

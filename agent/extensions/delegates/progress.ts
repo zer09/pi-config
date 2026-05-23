@@ -1,7 +1,7 @@
 import { DEFAULT_TASK_PREVIEW_CHARS } from "./constants.ts";
 import { redactSensitiveText } from "./redaction.ts";
 
-export type DelegateProgressPhase = "starting" | "launching_child" | "child_event" | "diff_ready" | "finishing";
+export type DelegateProgressPhase = "starting" | "launching_subagent" | "working" | "diff_ready" | "finishing";
 export type DelegateUpdate = (update: { content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }) => void;
 
 export function previewTask(task: string, maxChars = DEFAULT_TASK_PREVIEW_CHARS): string {
@@ -11,8 +11,17 @@ export function previewTask(task: string, maxChars = DEFAULT_TASK_PREVIEW_CHARS)
 	return `${compact.slice(0, maxChars - 3)}...`;
 }
 
+export function displayLabel(value: string): string {
+	return value
+		.replace(/_/g, " ")
+		.split(" ")
+		.filter(Boolean)
+		.map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+		.join(" ");
+}
+
 export function progressPhaseLabel(phase: string): string {
-	return `${phase.replace(/_/g, " ")}...`;
+	return `${displayLabel(phase)}...`;
 }
 
 export function emitDelegateProgress(
@@ -24,7 +33,7 @@ export function emitDelegateProgress(
 	const tool = info.tool ?? "reader";
 	const message = info.message ?? `${info.agent} - ${previewTask(info.task)}`;
 	onUpdate({
-		content: [{ type: "text", text: `${tool} ${progressPhaseLabel(phase)}: ${message}` }],
+		content: [{ type: "text", text: `${displayLabel(tool)} ${progressPhaseLabel(phase)}: ${message}` }],
 		details: {
 			tool,
 			phase,

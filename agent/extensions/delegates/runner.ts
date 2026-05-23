@@ -133,12 +133,12 @@ export async function runReader(
 		tempFiles = await createTempRunFiles(resolved);
 		const args = buildReaderPiArgs(resolved, tempFiles);
 		const invocation = getPiInvocation(args);
-		emitDelegateProgress(onUpdate, "launching_child", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd });
+		emitDelegateProgress(onUpdate, "launching_subagent", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd });
 		let emittedChildEvent = false;
 		const child = await runChildProcess(invocation, normalized.cwd, signal, normalized.timeoutMs, () => {
 			if (emittedChildEvent) return;
 			emittedChildEvent = true;
-			emitDelegateProgress(onUpdate, "child_event", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd });
+			emitDelegateProgress(onUpdate, "working", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd });
 		});
 		emitDelegateProgress(onUpdate, "finishing", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd });
 		return makeReaderToolResult(resolved, child, Date.now() - started);
@@ -172,7 +172,7 @@ export async function runWriter(
 		tempFiles = await createWriterTempRunFiles(resolved);
 		const args = buildWriterPiArgs(resolved, tempFiles);
 		const invocation = getPiInvocation(args);
-		emitDelegateProgress(onUpdate, "launching_child", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd, tool: "writer" });
+		emitDelegateProgress(onUpdate, "launching_subagent", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd, tool: "writer" });
 		let emittedChildEvent = false;
 		const child = await runChildProcess(
 			invocation,
@@ -182,7 +182,7 @@ export async function runWriter(
 			() => {
 				if (emittedChildEvent) return;
 				emittedChildEvent = true;
-				emitDelegateProgress(onUpdate, "child_event", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd, tool: "writer" });
+				emitDelegateProgress(onUpdate, "working", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd, tool: "writer" });
 			},
 			"writer",
 			{ [DELEGATE_ALLOWED_PATHS_ENV]: JSON.stringify(normalized.allowedPaths) },
