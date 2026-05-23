@@ -1,6 +1,6 @@
 ---
 name: reviewer
-model: default
+model: openai-codex/gpt-5.5
 description: Read-only correctness, safety, and scope review reader delegate.
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: writer
-model: default
+model: openai-codex/gpt-5.3-codex
 description: Tightly scoped file-editing reader/writer delegate for exact allowed paths.
 ---
 

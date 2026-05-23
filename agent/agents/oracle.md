@@ -1,6 +1,6 @@
 ---
 name: oracle
-model: default
+model: openai-codex/gpt-5.5
 description: Rule, decision, and consistency-checking reader delegate.
 ---
 

@@ -106,6 +106,7 @@ Use delegates when their startup overhead is justified, especially for deep sear
 
 Delegate rules:
 
+- Available delegates only: `reader` = `docs-researcher|investigator|oracle|reviewer|tester` for read-only work; `writer` = `writer` for exact `allowedPaths` edits.
 - The parent owns orchestration, final decisions, validation, edits outside the delegate scope, commits, hosted-service mutation gates, and user-facing reporting.
 - Do not ask delegates to route to or recommend other delegates.
 - Do not use delegates recursively. Child sessions disable delegate tools with `PI_DELEGATE_CHILD=1`.
