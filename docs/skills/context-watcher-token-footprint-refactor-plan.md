@@ -50,9 +50,9 @@ After the refactor, an agent that only loads `SKILL.md` must still know:
 6. Web URLs use `ctx_fetch_and_index` then `ctx_search`.
 7. Context7 is required for current third-party library/framework/API docs before implementation or advice.
 8. GitHub repo, PR, issue, review, workflow, release, or private data uses the `gh-cli` skill and authenticated `gh` CLI through Context Mode/RTK.
-9. Codebase exploration, review, caller/callee lookup, blast radius, refactor analysis, and test discovery use Code Review Graph first when applicable.
-10. Reader delegates follow Context Mode, RTK, Code Review Graph, `gh-cli`, and external-service mutation rules.
-11. Worktrees use story-grouped roots and graph daemon/watch rules when applicable.
+9. Codebase exploration, review, caller/callee lookup, blast radius, refactor analysis, and test discovery use codebase-memory-mcp first when applicable.
+10. Reader delegates follow Context Mode, RTK, codebase-memory-mcp, `gh-cli`, and external-service mutation rules.
+11. Worktrees use story-grouped roots and codebase-memory project/index lifecycle rules when applicable.
 12. Fallbacks are explicit and logged or summarized, not silent behavior changes.
 13. `context-watcher` itself is a Custom Local Skill and is maintained through `custom-local-skills-update-process.md`.
 
@@ -104,11 +104,11 @@ These rules are load-bearing. They should stay in the compact `SKILL.md`, not on
 - RTK should be used inside Context Mode, not as a reason to bypass Context Mode.
 - RTK output compression does not replace programmed analysis.
 
-### Code Review Graph
+### codebase-memory-mcp
 
 - Graph-first for codebase exploration, review, blast-radius analysis, caller/callee lookup, test discovery, architecture review, and refactor analysis.
-- An empty, stale, unavailable, or incomplete graph is not automatically a reason to abandon graph-first.
-- Build or update the graph when authorized and appropriate, then retry graph query.
+- A missing, stale, unavailable, or incomplete project index is not automatically a reason to abandon graph-first.
+- Index or update the matching project when authorized and appropriate, then retry the graph query.
 - Fall back only after graph-first is not applicable or remains insufficient.
 
 ### GitHub
@@ -127,7 +127,7 @@ These rules are load-bearing. They should stay in the compact `SKILL.md`, not on
 ### Reader-protocol
 
 - Parent remains responsible for final decisions, validation, commits, and user-facing report.
-- Reader delegates must use Context Mode and Code Review Graph first when applicable.
+- Reader delegates must use Context Mode and codebase-memory-mcp first when applicable.
 - Reader delegates must use `gh-cli` and authenticated `gh` CLI for GitHub data.
 - Reader delegates treat remote services as read-only unless exact mutation is authorized.
 - Reader delegates return compact structured findings, not raw logs or large diffs.
@@ -136,7 +136,7 @@ These rules are load-bearing. They should stay in the compact `SKILL.md`, not on
 
 - Multi-repo feature worktrees go under `.worktrees/<story>/<feature>/<repo-name>/`.
 - Standalone fixes, hotfixes, and issue work go under `.worktrees/issues/<issue-number>/<repo-name>/`.
-- Prefer daemon-backed graphs for active roots when useful.
+- Prefer fresh codebase-memory project indexes for active roots when useful.
 - Add watched roots when missing and remove them when the worktree group is removed.
 
 ## Current section map and disposition
@@ -151,13 +151,13 @@ This map is based on the current 991-line file. During implementation, re-run th
 | 92-101 | Mandatory GitHub CLI Preflight | 10 | Core | Keep in `SKILL.md`, with details in GitHub reference. |
 | 102-109 | Mandatory Graph-First Preflight | 8 | Core | Keep in `SKILL.md`. |
 | 110-126 | Mandatory Reader-protocol | 17 | Split | Keep core bullets in `SKILL.md`; move expanded checklist to reader delegate reference. |
-| 127-183 | Mandatory Worktree Graph Protocol | 57 | Split | Keep story-root rule in `SKILL.md`; move daemon/watch details to worktree reference. |
+| 127-183 | Mandatory Worktree Graph Protocol | 57 | Split | Keep story-root rule in `SKILL.md`; move project/index lifecycle details to worktree reference. |
 | 184-219 | Architecture Overview | 36 | Reference | Move to `references/architecture-and-tool-roles.md` or merge into quick reference. |
 | 220-239 | Think in Code examples | 20 | Split | Keep rule in `SKILL.md`; move wrong/right examples to patterns reference. |
 | 240-267 | Blocked commands | 28 | Core | Keep concise forbidden fetch rules in `SKILL.md`. |
 | 268-354 | Gatekeeper and decision tree | 87 | Split | Keep compact decision tree in `SKILL.md`; move full tree and examples to routing reference. |
 | 355-438 | RTK inside Context Mode | 84 | Reference plus core summary | Keep RTK default rule in `SKILL.md`; move command examples, flags, analytics to RTK reference. |
-| 439-524 | Code Review Graph details and graph setup | 86 | Split | Keep graph-first rule in `SKILL.md`; move build/update/watch examples to graph reference. |
+| 439-524 | codebase-memory-mcp details and graph setup | 86 | Split | Keep graph-first rule in `SKILL.md`; move project/index examples to graph reference. |
 | 525-539 | Context Mode management commands | 15 | Reference | Move management commands to Context Mode reference. |
 | 540-580 | Error handling and fallback protocol | 41 | Split | Keep fallback principles in `SKILL.md`; move flow and log review commands to troubleshooting reference. |
 | 593-647 | Context Mode sandbox tools reference | 55 | Reference plus core summary | Keep tool hierarchy in `SKILL.md`; move per-tool examples to Context Mode reference. |
@@ -180,7 +180,7 @@ agent/skills/context-watcher/
 └── references/
     ├── context-mode-routing.md
     ├── rtk-usage.md
-    ├── code-review-graph-protocol.md
+    ├── codebase-memory-mcp-protocol.md
     ├── github-and-context7-routing.md
     ├── worktree-graph-protocol.md
     ├── reader-protocol.md
@@ -196,7 +196,7 @@ Target: 250-350 lines.
 1. Frontmatter
    - Preserve `name` and `description` only.
 2. Mission and non-negotiables
-   - State that this skill governs shell work, Context Mode, RTK, Code Review Graph, GitHub routing, worktrees, reader delegates, and large-output protection.
+   - State that this skill governs shell work, Context Mode, RTK, codebase-memory-mcp, GitHub routing, worktrees, reader delegates, and large-output protection.
 3. Mandatory preflight checklist
    - External hosted service mutation gate.
    - Bash whitelist.
@@ -206,7 +206,7 @@ Target: 250-350 lines.
    - GitHub route.
    - URL/docs route.
    - Context7 route.
-   - Code Review Graph route.
+   - codebase-memory-mcp route.
    - Worktree route.
    - Reader delegate route.
 4. Routing table
@@ -218,14 +218,14 @@ Target: 250-350 lines.
    - One-line purpose for `ctx_batch_execute`, `ctx_execute`, `ctx_execute_file`, `ctx_fetch_and_index`, `ctx_search`, `ctx_index`.
 7. RTK core rule
    - RTK default for read-only shell work inside Context Mode.
-8. Code Review Graph core rule
+8. codebase-memory-mcp core rule
    - Graph-first plus fallback conditions.
 9. GitHub core rule
    - `gh-cli` skill plus authenticated `gh` through Context Mode/RTK.
 10. Reader delegate core rule
     - Short mandatory checklist and reference pointer.
 11. Worktree core rule
-    - Story-root structure, issue structure, graph daemon/watch requirement, reference pointer.
+    - Story-root structure, issue structure, project/index lifecycle requirement, reference pointer.
 12. Fallback principles
     - Try correct route, record fallback reason, avoid silent bypass.
 13. Load-on-demand references
@@ -241,11 +241,11 @@ Each reference must be mentioned in `SKILL.md` with a precise trigger. If the tr
 |---|---|
 | `context-mode-routing.md` | Command routing is non-trivial, Context Mode tool choice is unclear, file/log/test/build output is involved, or a route needs examples. |
 | `rtk-usage.md` | RTK flags, compression behavior, analytics, or RTK failure modes matter. |
-| `code-review-graph-protocol.md` | Code review, codebase exploration, graph build/update, stale graph, graph daemon, or graph fallback details matter. |
+| `codebase-memory-mcp-protocol.md` | Code review, codebase exploration, project indexing, stale graph, Cypher, trace, or graph fallback details matter. |
 | `github-and-context7-routing.md` | GitHub/private GitHub data or current third-party library/API docs are involved. |
 | `worktree-graph-protocol.md` | Creating, using, watching, or removing worktrees. |
 | `reader-protocol.md` | Delegating to Pi reader delegates or orchestrating parallel investigations. |
-| `fallback-and-troubleshooting.md` | Context Mode, RTK, or Code Review Graph is unavailable, failing, stale, or producing unexpected output. |
+| `fallback-and-troubleshooting.md` | Context Mode, RTK, or codebase-memory-mcp is unavailable, failing, stale, or producing unexpected output. |
 | `patterns-and-quick-reference.md` | The agent needs examples for PR review, test-debug-fix, orientation, infrastructure inspection, docs lookup, recovery, or data analysis. |
 | `upstream-sources.md` | Updating the skill or checking provenance. |
 
@@ -287,7 +287,7 @@ Before editing, extract every line containing these terms and track its destinat
 - `ctx_fetch_and_index`
 - `ctx_search`
 - `rtk`
-- `code-review-graph`
+- `codebase-memory-mcp`
 - `Graph-First`
 - `worktree`
 - `reader delegate`
@@ -348,7 +348,7 @@ Preferred order:
 3. `fallback-and-troubleshooting.md`
 4. `rtk-usage.md`
 5. `context-mode-routing.md`
-6. `code-review-graph-protocol.md`
+6. `codebase-memory-mcp-protocol.md`
 7. `worktree-graph-protocol.md`
 8. `reader-protocol.md`
 9. `github-and-context7-routing.md`
@@ -365,7 +365,7 @@ The compact `SKILL.md` must include:
 - Mandatory preflight checklist.
 - Bash whitelist.
 - Tool routing table.
-- Code Review Graph first rule.
+- codebase-memory-mcp first rule.
 - GitHub CLI/private GitHub route.
 - Context7 docs route.
 - Reader delegate rule summary.
@@ -399,13 +399,13 @@ Manually inspect the compact `SKILL.md` and references against these scenarios.
 | User asks to inspect a large log | `ctx_execute_file`; do not read raw log. |
 | User asks to run tests | `ctx_execute` or `ctx_batch_execute` with `rtk`; summarize failures. |
 | User asks to edit a source file | Native read for the file being edited, native edit/write for mutation. |
-| User asks to analyze code architecture | Code Review Graph first, then Context Mode fallback if needed. |
+| User asks to analyze code architecture | codebase-memory-mcp first, then Context Mode fallback if needed. |
 | User asks about a third-party API | Context7 first, local installed source if relevant, web only if needed. |
 | User asks about a private GitHub PR | Load `gh-cli`, use `gh` through Context Mode/RTK. |
 | User asks to push a commit | Allowed only because exact GitHub mutation is explicit. |
 | User asks to handle a PR without saying comment/push/merge | Read-only by default; draft mutations instead. |
 | User gives a URL | `ctx_fetch_and_index`, then `ctx_search`. |
-| User asks to create a feature worktree | Story-grouped `.worktrees/<story>/<feature>/<repo-name>/` and graph daemon/watch rules. |
+| User asks to create a feature worktree | Story-grouped `.worktrees/<story>/<feature>/<repo-name>/` and codebase-memory project/index lifecycle rules. |
 | Parent delegates to reader delegate | Reader delegate must load Context Watcher, use Context Mode, graph-first, `gh-cli`, and return compact findings. |
 | Context Mode or RTK fails | Follow fallback protocol, do not silently bypass routing. |
 | Session resumes after compaction | Use `ctx_search(sort: "timeline")` or indexed state before asking the user. |
@@ -468,7 +468,7 @@ Do not combine this with unrelated skill updates.
 | GitHub mutation gate weakened | Could mutate remote state without exact permission. | Keep GitHub and external hosted service gate in core. |
 | Graph-first rule weakened | Code reviews may fall back to grep too early. | Keep graph-first rule and fallback conditions in core. |
 | Context Mode bypass | Raw output can flood context. | Keep command-routing checklist and Bash whitelist in core. |
-| Worktree daemon details lost | Multi-repo work can become fragmented. | Move detail to reference but keep story-root rule in core. |
+| Worktree project/index details lost | Multi-repo work can become fragmented. | Move detail to reference but keep story-root rule in core. |
 | Reader delegate rules diluted | Reader delegates may leak raw logs or mutate services. | Keep parent responsibility and child safety rules in core. |
 | Reference sprawl | Too many small files become hard to navigate. | Use 8-9 references max with explicit load triggers. |
 | Token savings too small | Refactor may not justify risk. | Measure before/after line count and bytes. |
@@ -478,7 +478,7 @@ Do not combine this with unrelated skill updates.
 
 1. Target size: I recommend 300 lines for `SKILL.md`, with 400 as the hard ceiling. Is that acceptable?
 2. Refactor style: I recommend preserving wording in references first, then doing any prose compression in a later commit. Is that acceptable?
-3. Reference granularity: I recommend separate references for Context Mode, RTK, Graph, Worktrees, Reader delegates, Troubleshooting, Patterns, GitHub/Context7, and Upstream Sources. Is that too many, too few, or right?
+3. Reference granularity: I recommend separate references for Context Mode, RTK, codebase-memory-mcp, Worktrees, Reader delegates, Troubleshooting, Patterns, GitHub/Context7, and Upstream Sources. Is that too many, too few, or right?
 4. Quick reference: I recommend keeping a tiny route table in `SKILL.md` and moving the long quick-reference card to `patterns-and-quick-reference.md`. Is that acceptable?
 5. Worktree and reader delegate policies: I recommend keeping concise summaries in core because they are safety-sensitive. Do you want the full text preserved verbatim in references?
 

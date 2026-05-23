@@ -1,13 +1,13 @@
 ---
 name: edge-case-analysis
-description: "Systematically identifies unhandled states, boundary condition failures, and logic gaps by orchestrating code-review-graph and context-mode. Use when reviewing code for edge cases, blast radius, coverage gaps, race conditions, invalid inputs, or log anomalies."
+description: "Systematically identifies unhandled states, boundary condition failures, and logic gaps by orchestrating codebase-memory-mcp and context-mode. Use when reviewing code for edge cases, blast radius, coverage gaps, race conditions, invalid inputs, or log anomalies."
 ---
 
 # Edge Case Analysis Skill
 
 ## Local metadata
 
-Local version: 1.1.2
+Local version: 1.1.3
 
 Focus areas:
 
@@ -18,53 +18,57 @@ Focus areas:
 
 ## Purpose
 
-To move beyond "happy-path" testing by identifying the hidden "blast radius" of code changes. This skill forces the analysis of null states, overflow conditions, race conditions, and unhandled exceptions that standard reviews often miss.
+Move beyond happy-path testing by identifying the hidden blast radius of code changes. Focus on null states, overflow conditions, race conditions, unhandled exceptions, missing tests, and implicit assumptions that standard reviews often miss.
 
-## Core Workflow
+## Core workflow
 
-### Phase 1: Structural Vulnerability Search
+### Phase 1: Structural vulnerability search
 
-Use the code-review-graph to locate high-risk areas based on complexity and lack of coverage.
+Use codebase-memory-mcp to locate high-risk areas based on architecture, connectivity, and test proximity.
 
-1. **Identify Complexity**: Execute `code_review_graph_find_large_functions_tool`. Focus on functions with high line counts, as these are statistically more likely to contain hidden logic bugs.
-2. **Audit Test Gaps**: Use `code_review_graph_query_graph_tool` with the `tests_for` pattern and `detail_level: "minimal"` for any complex function found. Escalate to `detail_level: "standard"` only when bounded evidence is needed. If a critical function lacks associated tests, mark it as a primary target for unhandled edge cases.
-3. **Architecture Overview**: Use `code_review_graph_get_architecture_overview_tool` with `detail_level: "minimal"` for first-pass high-level dependencies before diving into specific files. Escalate to `detail_level: "standard"` only when bounded edge examples are needed.
+1. **Project and schema**: Call `codebase_memory_mcp_list_projects`, select the project whose `root_path` matches the active repo, then call `codebase_memory_mcp_index_status` and `codebase_memory_mcp_get_graph_schema`.
+2. **Architecture overview**: Use `codebase_memory_mcp_get_architecture(project=...)` for first-pass high-level dependencies before diving into specific files.
+3. **High fan-in/fan-out**: Use `codebase_memory_mcp_query_graph` over `CALLS` edges to find functions with many callers or callees. These are common blast-radius and assumption hubs.
+4. **Test gaps**: Use `codebase_memory_mcp_search_graph(include_tests=true, query=...)` and `codebase_memory_mcp_search_code(mode="files", path_filter=...)` to look for nearby tests for critical symbols. Fall back to Context Mode searches when graph coverage is insufficient.
 
-### Phase 2: Logical Path & Boundary Analysis
+### Phase 2: Logical path and boundary analysis
 
-Trace data flow to find "impossible" states or unhandled input ranges.
+Trace data flow to find impossible states or unhandled input ranges.
 
-1. **Trace Impacts**: Use `code_review_graph_detect_changes_tool` with `detail_level: "minimal"`, then `code_review_graph_get_affected_flows_tool` on recent changes to see how state transitions ripple through the system.
-2. **Boundary Audit**: For every input parameter in an identified flow, evaluate the following:
- - **Numeric**: Check for 0, negative values, MAX_INT, and floating-point precision issues.
- - **Strings**: Test empty strings, excessively long inputs, special characters, and injection patterns.
- - **Objects**: Explicitly handle `null`, `undefined`, missing keys, or incorrect types.
-3. **Blast Radius**: Use `code_review_graph_get_impact_radius_tool` with `detail_level: "minimal"` to find distant files that may rely on implicit assumptions of the code being changed. Escalate to `"standard"` only for bounded edge examples.
+1. **Trace impacts**: Use `codebase_memory_mcp_detect_changes(project=..., since=... or base_branch=...)`, then `codebase_memory_mcp_trace_path(direction="both", depth=3, risk_labels=true)` on changed or critical symbols.
+2. **Data flow**: Use `codebase_memory_mcp_trace_path(mode="data_flow", parameter_name=...)` when a parameter, ID, auth value, or payload field must be tracked across calls.
+3. **Cross-service edges**: Use `trace_path(mode="cross_service")` or `query_graph` only when `get_graph_schema` shows HTTP, async, or cross-service edge types.
+4. **Boundary audit**: For every input in an identified flow, evaluate:
+   - **Numeric**: 0, negative values, max/min values, overflow, rounding, and precision.
+   - **Strings**: empty strings, long inputs, unicode, path separators, special characters, and injection patterns.
+   - **Objects**: `null`, `undefined`, missing keys, wrong types, extra keys, and circular or deeply nested data.
+   - **Collections**: empty lists, single item, very large lists, duplicates, and unstable ordering.
+   - **State**: concurrent writes, retries, partial failure, stale cache, and idempotency.
 
-### Phase 3: Runtime Anomaly Detection
+### Phase 3: Runtime anomaly detection
 
-Analyze logs and test outputs for rare error patterns using context-mode.
+Analyze logs and test outputs for rare error patterns using Context Mode.
 
-1. **Sandbox Processing**: For large test outputs or logs (>20 lines), NEVER read them directly into context. Use `ctx_execute_file` or `ctx_execute` to analyze the data within the sandbox.
-2. **Error Extraction**: Use `ctx_search` with a queries array (e.g., `["timeout", "deadlock", "retry", "race condition"]`) to find anomalies in indexed log files.
-3. **Token Efficiency**: Always prefix heavy shell commands (like `cargo test`, `pytest`, or `npm test`) with `rtk` to reduce token consumption by up to 90%.
+1. **Sandbox processing**: For large test outputs or logs over 20 lines, never read them directly into context. Use `ctx_execute_file` or `ctx_execute` to analyze data inside the sandbox.
+2. **Error extraction**: Use code to parse anomalies and print compact summaries. Use `ctx_search` with targeted queries such as `timeout`, `deadlock`, `retry`, `race condition`, `null`, or `panic` for indexed outputs.
+3. **Token efficiency**: Prefix heavy read-only shell commands such as `cargo test`, `pytest`, or `npm test` with `rtk` inside Context Mode.
 
-## Mandatory Commands
+## Mandatory command patterns
 
-- **"Find logic gaps in [feature]"**: Triggers `code_review_graph_detect_changes_tool(detail_level: "minimal")`, then `code_review_graph_get_affected_flows_tool`, followed by a boundary analysis of all inputs.
-- **"Audit blast radius"**: Triggers `code_review_graph_get_impact_radius_tool(detail_level: "minimal")` to identify ripple effects in the codebase.
-- **"Analyze log anomalies"**: Triggers `ctx_execute_file` to script a programmatic extraction of non-standard error patterns from log files.
-- **"Check test coverage for [function]"**: Uses `code_review_graph_query_graph_tool` with `tests_for` and `detail_level: "minimal"` to identify untested logic paths.
+- **"Find logic gaps in [feature]"**: Use `detect_changes`, `search_graph`, and `trace_path(mode="data_flow" or "calls")`, then perform boundary analysis of inputs and state transitions.
+- **"Audit blast radius"**: Use `trace_path(direction="both", risk_labels=true)` plus fan-in/fan-out Cypher to identify ripple effects.
+- **"Analyze log anomalies"**: Use `ctx_execute_file` or `ctx_execute` to script extraction of non-standard error patterns.
+- **"Check test coverage for [function]"**: Use codebase-memory symbol search plus graph/test file searches; fall back to Context Mode searches for test naming conventions not captured by the graph.
 
-## Reference Patterns
+## Reference patterns
 
-- **Graph-First**: Always verify the code-review-graph is updated before starting an analysis. If the graph is stale, use `code_review_graph_build_or_update_graph_tool` when MCP is available, or run `code-review-graph build` through Context Mode.
-- **Payload Safety**: Keep architecture overviews and supported high-volume review/query tools on `detail_level: "minimal"` for first-pass analysis. Keep `code_review_graph_get_community_tool` on bounded defaults, and opt into `include_member_names`, `include_members`, or larger `members_sample_limit` only when needed. Use `code_review_graph_get_docs_section_tool(section_name="commands")` when MCP signatures are unclear.
-- **Root Graph Database**: For repo-scoped or grouped-root work, build/query the Code Review Graph database at the root that contains all relevant code. Nested sub repos are part of that root graph database. Do not require each sub repo to be registered separately.
-- **Daemon Status**: `0 registered repos` means the daemon has no global roots; it does not mean Code Review Graph is unavailable. If the daemon is stopped, unavailable, or empty, build/query the current repo root or grouped feature root directly before falling back.
-- **No Cross-Repo By Default**: Do not use global `code_review_graph_cross_repo_search_tool` for repo-scoped, root-scoped, or feature-scoped edge-case analysis unless the user explicitly asks to search unrelated registered repos.
-- **Sandbox-Only**: Adhere to the `filename` + `ctx_index` pattern for any data over 50KB to preserve the context window.
-- **RTK-Default**: Use `rtk` for all read-only operations (git, ls, find, grep) to maintain session speed and quality.
+- **Graph-first**: Verify the codebase-memory project and index status before structural analysis. If the graph is stale or missing and indexing is useful, run `codebase_memory_mcp_index_repository(repo_path=...)`.
+- **Project required**: Most codebase-memory query tools require `project`. Get it from `list_projects`; do not guess.
+- **Focused source**: Use `get_code_snippet` only after `search_graph` finds an exact `qualified_name`. Use native `read` only for files you intend to edit.
+- **Cypher scope**: Inspect `get_graph_schema` before writing Cypher. Keep `max_rows` bounded.
+- **No graph mutation casually**: Treat indexing, ADR updates, trace ingestion, persistence, and project deletion as deliberate local memory operations.
+- **Sandbox-only**: Use Context Mode for any data over 20 lines and for all shell/test/log/build output.
+- **RTK-default**: Use `rtk` for read-only shell operations inside Context Mode.
 
 ## Maintenance
 

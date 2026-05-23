@@ -25,10 +25,10 @@ Current scope:
 
 When updating it:
 
-- Preserve Context Mode, RTK, and Code Review Graph routing rules.
+- Preserve Context Mode, RTK, and codebase-memory-mcp routing rules.
 - Preserve the external hosted service mutation gate.
 - Preserve the GitHub CLI preflight and private GitHub data routing.
-- Preserve graph-first exploration and worktree graph protocol rules.
+- Preserve graph-first structural exploration and worktree project/index lifecycle rules.
 - Preserve the rule that large output and file analysis must stay in Context Mode.
 - Avoid broad rewrites unless the user explicitly asks for a token-footprint reduction pass.
 
@@ -36,7 +36,7 @@ When updating it:
 
 When updating `edge-case-analysis`:
 
-- Preserve graph-first structural analysis.
+- Preserve codebase-memory-mcp structural analysis.
 - Preserve Context Mode handling for logs, test output, and large files.
 - Preserve RTK-default read-only shell guidance.
 - Keep the skill focused on boundary conditions, impossible states, blast radius, and logic gaps.

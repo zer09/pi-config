@@ -42,6 +42,7 @@ Notes:
 5. `ctx_execute_file(path, language, code)` for file/log/data analysis.
 6. `ctx_fetch_and_index` followed by `ctx_search` for URLs and web docs.
 7. Native `read`, `write`, and `edit` only for file editing and file creation.
+8. codebase-memory-mcp for structural code questions before grep/find/manual file reading.
 
 ## Context Mode tools
 
@@ -79,6 +80,7 @@ Do not use these routes for normal work:
 - Direct browser/web fetches for private GitHub data. Use authenticated `gh` through Context Mode/RTK.
 - Direct Bash for commands that may produce more than 20 lines.
 - Native `read` for analysis-only reads.
+- Grep/find/manual source reading before codebase-memory-mcp for structural code questions.
 
 ## Decision tree
 
@@ -98,9 +100,9 @@ Do not use these routes for normal work:
    - Use native `read`, then native `edit`.
 8. Is it a URL or web docs?
    - Use `ctx_fetch_and_index`, then `ctx_search`.
-9. Is it codebase exploration or review in a supported language?
-   - Use Code Review Graph first. See `code-review-graph-protocol.md`.
-10. If Context Mode, RTK, or Graph fails, follow `fallback-and-troubleshooting.md`.
+9. Is it codebase exploration, review, caller/callee lookup, architecture review, or impact analysis?
+   - Use codebase-memory-mcp first. See `codebase-memory-mcp-protocol.md`.
+10. If Context Mode, RTK, or codebase-memory-mcp fails, follow `fallback-and-troubleshooting.md`.
 
 ## Management command behavior
 

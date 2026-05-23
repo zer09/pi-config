@@ -1,4 +1,4 @@
 interface:
   display_name: "Context Watcher"
   short_description: "Route commands through Context Mode"
-  default_prompt: "Use $context-watcher to route shell work, large output, graph-first code exploration, tests, logs, docs, and GitHub operations through Context Mode, RTK, and Code Review Graph."
+  default_prompt: "Use $context-watcher to route shell work, large output, graph-first code exploration, tests, logs, docs, and GitHub operations through Context Mode, RTK, and codebase-memory-mcp."

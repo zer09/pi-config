@@ -1,6 +1,6 @@
 # Worktree graph protocol
 
-This reference expands the worktree rules in `../SKILL.md`. Load it when creating, using, watching, or removing worktrees.
+This reference expands the worktree rules in `../SKILL.md`. Load it when creating, using, indexing, or removing worktrees.
 
 ## Directory layout
 
@@ -31,50 +31,52 @@ Examples:
 .worktrees/issues/bug-login-timeout/api/
 ```
 
-## Graph root selection
+## Project selection
 
-Build or update Code Review Graph at the root that contains all relevant code:
+codebase-memory-mcp indexes repositories as projects. Select the graph project by matching `root_path` to the repository or worktree repo you are working in.
 
-- Repo root for single-repo work.
-- Story root for related multi-repo work.
-- Feature root when it contains all repos for the feature.
-- Issue root for issue-specific work.
+Use this sequence:
 
-If nested repositories live under a containing root, treat them as part of that containing root graph database when useful. Do not require every nested repo to be registered separately.
+1. Call `codebase_memory_mcp_list_projects`.
+2. Find the project whose `root_path` is the active worktree repo.
+3. Call `codebase_memory_mcp_index_status(project=...)`.
+4. If no matching project exists, call `codebase_memory_mcp_index_repository(repo_path=<worktree repo>)` when authorized and useful.
+5. Query that project for structural code work.
 
-## Daemon-backed graphs
+Do not assume a base-repo graph represents a worktree after branch-specific edits. Re-index the worktree repo when changed relationships matter.
 
-For active roots, prefer daemon-backed graphs:
+## Multi-repo feature roots
 
-1. Check whether the Code Review Graph daemon is running before the first graph query for a repo, story, feature, or issue root.
-2. If the daemon is not running, start it unless this is a one-off read-only check where a watcher would be wasteful.
-3. Check whether the containing root has `.code-review-graph/graph.db`.
-4. If the database is missing or empty and build/update is authorized, build the graph for that root.
-5. Add the containing root to the daemon watch list when useful.
-6. Query the daemon-maintained graph instead of repeatedly rebuilding.
+When a story or feature root contains multiple repositories:
 
-Daemon status is not graph availability. If daemon status reports stopped, unavailable, or zero registered repos, do not treat that as permission to skip graph-first. Start/build/query when appropriate.
+1. Index each repository as its own codebase-memory project.
+2. Use the project that matches the repo under investigation for repo-scoped work.
+3. Use `index_repository(mode="cross-repo-intelligence", target_projects=[...])` only when cross-repo route/channel links are needed and target projects already have fresh indexes.
+4. Use `trace_path(mode="cross_service")` or `query_graph` over cross-service edge types only if the schema shows those edges exist.
+
+Do not require every nested repo to be combined into one containing root. codebase-memory project boundaries are repository roots.
 
 ## Stale or incomplete graph
 
-If graph stats or queries show the graph is empty, stale, or incomplete:
+If project status, schema, or query results show the graph is missing, stale, empty, or incomplete:
 
-1. Do not call that an automatic error.
-2. Build or update if authorized and appropriate.
+1. Do not treat that as permission to skip graph-first automatically.
+2. Re-index the matching worktree repo if authorized and appropriate.
 3. Retry the graph query.
-4. Fall back to Context Mode/RTK only when graph remains insufficient or build/update is not appropriate.
+4. Fall back to Context Mode/RTK only when indexing is not appropriate or graph results remain insufficient.
 
 ## Removing worktrees
 
 When removing a worktree group:
 
-1. Remove the containing story/feature/issue root from the graph daemon watch list if it was added.
-2. Verify removal targets are inside the expected worktree tree.
-3. Before any `rm -rf`, verify the path is not a symlink to somewhere outside the expected tree.
-4. Never delete outside the project directory or `.pi/` without explicit user confirmation.
+1. Verify removal targets are inside the expected worktree tree.
+2. Before any `rm -rf`, verify the path is not a symlink to somewhere outside the expected tree.
+3. Never delete outside the project directory or `.pi/` without explicit user confirmation.
+4. Do not call `codebase_memory_mcp_delete_project` unless the user explicitly asks to delete the local graph project.
+5. If the user does request graph cleanup, list projects first and delete only the exact project whose `root_path` matches the removed worktree repo.
 
 ## Safety reminders
 
 - Worktree creation and local branch operations are local mutations and may use whitelisted direct Bash when safe.
 - Remote branch pushes still require exact explicit user instruction.
-- Keep graph-first behavior active inside worktrees and follow `code-review-graph-protocol.md` for MCP parameters.
+- Keep graph-first structural code behavior active inside worktrees and follow `codebase-memory-mcp-protocol.md` for MCP parameters.
