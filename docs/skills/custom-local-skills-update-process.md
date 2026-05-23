@@ -6,6 +6,7 @@ Current scope:
 
 - `context-watcher`
 - `edge-case-analysis`
+- `codebase-memory-mcp`
 - Any new custom Local Skill with no dedicated upstream source
 
 ## Update workflow
@@ -40,6 +41,16 @@ When updating `edge-case-analysis`:
 - Preserve RTK-default read-only shell guidance.
 - Keep the skill focused on boundary conditions, impossible states, blast radius, and logic gaps.
 - Do not turn it into a general code-review checklist; it should stay specialized.
+
+## Codebase Memory MCP rules
+
+When updating `codebase-memory-mcp`:
+
+- Verify the current `codebase-memory-mcp` MCP tool inventory and schemas before changing examples.
+- Preserve Pi-specific server/tool naming, especially the `codebase_memory_mcp_` tool prefix and required `project` parameter.
+- Preserve Context Watcher routing for shell work, large output, source edits, and explicit grep/search fallbacks.
+- Keep write-like local memory operations deliberate: indexing, persistent artifacts, ADR updates, trace ingestion, and project deletion.
+- Remove stale examples that omit required parameters or describe parameters not present in the current schema.
 
 ## Validation
 
