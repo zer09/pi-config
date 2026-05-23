@@ -7,6 +7,8 @@ description: Pi-safe guide for using the codebase-memory-mcp knowledge graph MCP
 
 Use `codebase-memory-mcp` as the local code knowledge graph for structural code discovery. It is best for symbols, relationships, architecture, call paths, data flow, cross-service links, and impact analysis.
 
+This standalone skill covers direct MCP usage and shared gotchas. For Context Watcher orchestration across Context Mode, RTK, worktrees, reader delegates, and fallback handling, use [`../context-watcher/references/codebase-memory-mcp-protocol.md`](../context-watcher/references/codebase-memory-mcp-protocol.md).
+
 ## Core routing rules
 
 - Obey Context Watcher first. Use Context Mode for shell, tests, logs, builds, git reads, and large output.
@@ -61,98 +63,36 @@ Most query tools require `project`. Do not omit it.
 4. `get_graph_schema(project=...)`
 5. Use `search_graph` for target symbols, then `get_code_snippet` for exact source.
 
-### Find an implementation
+### Discover and read source
 
-1. Try natural-language search:
-
-```json
-{"project":"my-project","query":"update cloud client settings","limit":10}
-```
-
-2. If names are known, use regex search without `query`:
-
-```json
-{"project":"my-project","label":"Function","name_pattern":".*Update.*Settings.*","limit":10}
-```
-
-3. For vocabulary mismatch, use semantic search as an array:
-
-```json
-{"project":"my-project","semantic_query":["send","pubsub","publish"],"limit":10}
-```
-
-4. Read source only after a precise hit:
-
-```json
-{"project":"my-project","qualified_name":"my-project.pkg.orders.OrderHandler","include_neighbors":true}
-```
+- Natural language: `search_graph(project="my-project", query="update cloud client settings", limit=10)`.
+- Known name: `search_graph(project="my-project", label="Function", name_pattern=".*Update.*Settings.*", limit=10)`.
+- Vocabulary mismatch: `search_graph(project="my-project", semantic_query=["send","pubsub","publish"], limit=10)`.
+- Source read: `get_code_snippet(project="my-project", qualified_name="exact.name", include_neighbors=true)`.
 
 ### Trace impact and dependencies
 
 1. Search first to identify the exact function or method.
-2. Use `trace_path`:
-
-```json
-{"project":"my-project","function_name":"OrderHandler","direction":"both","depth":3,"mode":"calls","risk_labels":true,"include_tests":false}
-```
-
-3. For data propagation, switch mode and optionally scope a parameter:
-
-```json
-{"project":"my-project","function_name":"HandleOrder","mode":"data_flow","parameter_name":"orderId","direction":"outbound","depth":4}
-```
-
-4. For local git changes, use:
-
-```json
-{"project":"my-project","since":"HEAD~1","depth":2}
-```
+2. Use `trace_path(project=..., function_name=..., direction="both", depth=3, mode="calls", risk_labels=true)` for callers and callees.
+3. Use `trace_path(mode="data_flow", parameter_name=...)` for value propagation.
+4. Use `detect_changes(project=..., since="HEAD~1", depth=2)` or set `base_branch` explicitly for git diff impact.
 
 ### Search literals or files
 
-Use `search_code` before shell grep when the target is code text:
-
-```json
-{"project":"my-project","pattern":"FEATURE_FLAG","mode":"compact","path_filter":"^src/","limit":20}
-```
-
-Use Context Mode plus grep/rg instead when searching config files, shell scripts, markdown, lockfiles, binary assets, or when graph results are incomplete.
+Use `search_code(project=..., pattern=..., mode="compact", path_filter=..., limit=20)` before shell grep when the target is code text. Use Context Mode plus grep/rg instead for config files, shell scripts, markdown, lockfiles, binary assets, or incomplete graph results.
 
 ### Analyze cross-service behavior
 
-1. Ensure each target project has a fresh index.
-2. Run `index_repository` with `mode="cross-repo-intelligence"` and `target_projects` when cross-repo links are needed.
-3. Use `trace_path(mode="cross_service")` or `query_graph` over `HTTP_CALLS`, `ASYNC_CALLS`, `CROSS_HTTP_CALLS`, or `CROSS_ASYNC_CALLS` if those edges exist in the schema.
+Ensure target projects have fresh indexes, run `index_repository(mode="cross-repo-intelligence", target_projects=[...])` when cross-repo links are needed, then use `trace_path(mode="cross_service")` or `query_graph` over route/channel edge types present in the schema.
 
 ## Cypher patterns
 
-Inspect the schema first, then use labels and edge types that exist in the current project.
+Inspect the schema first, then use labels and edge types that exist in the current project. For MCP JSON, one-line query strings are easiest to pass.
 
-```cypher
-MATCH (f:Function)-[:CALLS]->(g)
-RETURN f.name AS caller, g.name AS callee
-LIMIT 20
-```
-
-```cypher
-MATCH (f:Function)-[:CALLS]->(g)
-RETURN f.qualified_name AS function, count(g) AS fan_out
-ORDER BY fan_out DESC
-LIMIT 20
-```
-
-```cypher
-MATCH (caller)-[:CALLS]->(f:Function)
-RETURN f.qualified_name AS function, count(caller) AS fan_in
-ORDER BY fan_in DESC
-LIMIT 20
-```
-
-```cypher
-MATCH (a)-[r:HTTP_CALLS|ASYNC_CALLS|CROSS_HTTP_CALLS|CROSS_ASYNC_CALLS]->(b)
-RETURN a.qualified_name, type(r), b.qualified_name, r.url_path, r.callee
-LIMIT 20
-```
+- Call edges: `MATCH (f:Function)-[:CALLS]->(g) RETURN f.name AS caller, g.name AS callee LIMIT 20`
+- Fan-out: `MATCH (f:Function)-[:CALLS]->(g) RETURN f.qualified_name AS function, count(g) AS fan_out ORDER BY fan_out DESC LIMIT 20`
+- Fan-in: `MATCH (caller)-[:CALLS]->(f:Function) RETURN f.qualified_name AS function, count(caller) AS fan_in ORDER BY fan_in DESC LIMIT 20`
+- Cross-service edges: `MATCH (a)-[r:HTTP_CALLS|ASYNC_CALLS|CROSS_HTTP_CALLS|CROSS_ASYNC_CALLS]->(b) RETURN a.qualified_name, type(r), b.qualified_name, r.url_path, r.callee LIMIT 20`
 
 ## Gotchas
 
