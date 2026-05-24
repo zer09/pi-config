@@ -24,7 +24,7 @@ In Pi, call the MCP server named `codebase-memory-mcp`. Tool names are exposed w
 1. Call `codebase_memory_mcp_list_projects`.
 2. Pick the project whose `root_path` matches the active repository. Use that exact `name` as `project`.
 3. Call `codebase_memory_mcp_index_status` for the selected project.
-4. If the project is missing or stale enough to affect the task, call `codebase_memory_mcp_index_repository` on the repo path.
+4. If the project is missing or stale enough to affect the task, call `codebase_memory_mcp_index_repository` on the repo path only when indexing is authorized and useful; otherwise report an explicit degraded fallback.
    - Use `mode="fast"` for quick structure-only indexing.
    - Use `mode="moderate"` or `mode="full"` when semantic search is needed.
    - Use `persistence=false` by default. Set `persistence=true` only when the user wants a shared `.codebase-memory/graph.db.zst` artifact.
@@ -38,7 +38,7 @@ Most query tools require `project`. Do not omit it.
 |---|---|---|
 | List indexed repos | `list_projects` | Start here to discover project names. |
 | Check index state | `index_status` | Use before relying on graph data. |
-| Index repo | `index_repository` | Local graph write. Re-index after meaningful code changes. |
+| Index repo | `index_repository` | Local graph write. Re-index only when authorized and useful after meaningful code changes. |
 | Architecture overview | `get_architecture` | Use for orientation before file-by-file reading. |
 | Node and edge schema | `get_graph_schema` | Use before Cypher or unfamiliar repositories. |
 | Natural-language symbol discovery | `search_graph(query=...)` | BM25, camelCase-aware, structurally boosted. |
@@ -74,7 +74,7 @@ Most query tools require `project`. Do not omit it.
 
 1. Search first to identify the exact function or method.
 2. Use `trace_path(project=..., function_name=..., direction="both", depth=3, mode="calls", risk_labels=true)` for callers and callees.
-3. Use `trace_path(mode="data_flow", parameter_name=...)` for value propagation.
+3. Use `trace_path(project=..., function_name=..., mode="data_flow", parameter_name=...)` for value propagation.
 4. Use `detect_changes(project=..., since="HEAD~1", depth=2)` or set `base_branch` explicitly for git diff impact.
 
 ### Search literals or files
@@ -83,7 +83,7 @@ Use `search_code(project=..., pattern=..., mode="compact", path_filter=..., limi
 
 ### Analyze cross-service behavior
 
-Ensure target projects have fresh indexes, run `index_repository(mode="cross-repo-intelligence", target_projects=[...])` when cross-repo links are needed, then use `trace_path(mode="cross_service")` or `query_graph` over route/channel edge types present in the schema.
+Ensure target projects have fresh indexes, run `index_repository(repo_path=..., mode="cross-repo-intelligence", target_projects=[...])` only when cross-repo links are authorized and useful, then use `trace_path(project=..., function_name=..., mode="cross_service")` or `query_graph` over route/channel edge types present in the schema.
 
 ## Cypher patterns
 

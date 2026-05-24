@@ -51,8 +51,8 @@ When a story or feature root contains multiple repositories:
 
 1. Index each repository as its own codebase-memory project.
 2. Use the project that matches the repo under investigation for repo-scoped work.
-3. Use `index_repository(mode="cross-repo-intelligence", target_projects=[...])` only when cross-repo route/channel links are needed and target projects already have fresh indexes.
-4. Use `trace_path(mode="cross_service")` or `query_graph` over cross-service edge types only if the schema shows those edges exist.
+3. Use `index_repository(repo_path=<active repo>, mode="cross-repo-intelligence", target_projects=[...])` only when cross-repo route/channel links are authorized, useful, needed, and target projects already have fresh indexes.
+4. Use `trace_path(project=..., function_name=..., mode="cross_service")` or `query_graph` over cross-service edge types only if the schema shows those edges exist.
 
 Do not require every nested repo to be combined into one containing root. codebase-memory project boundaries are repository roots.
 

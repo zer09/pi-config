@@ -35,9 +35,9 @@ Use codebase-memory-mcp to locate high-risk areas based on architecture, connect
 
 Trace data flow to find impossible states or unhandled input ranges.
 
-1. **Trace impacts**: Use `codebase_memory_mcp_detect_changes(project=..., since=... or base_branch=...)`, then `codebase_memory_mcp_trace_path(direction="both", depth=3, risk_labels=true)` on changed or critical symbols.
-2. **Data flow**: Use `codebase_memory_mcp_trace_path(mode="data_flow", parameter_name=...)` when a parameter, ID, auth value, or payload field must be tracked across calls.
-3. **Cross-service edges**: Use `trace_path(mode="cross_service")` or `query_graph` only when `get_graph_schema` shows HTTP, async, or cross-service edge types.
+1. **Trace impacts**: Use `codebase_memory_mcp_detect_changes(project=..., since=... or base_branch=...)`, then `codebase_memory_mcp_trace_path(project=..., function_name=..., direction="both", depth=3, risk_labels=true)` on changed or critical symbols.
+2. **Data flow**: Use `codebase_memory_mcp_trace_path(project=..., function_name=..., mode="data_flow", parameter_name=...)` when a parameter, ID, auth value, or payload field must be tracked across calls.
+3. **Cross-service edges**: Use `codebase_memory_mcp_trace_path(project=..., function_name=..., mode="cross_service")` or `query_graph` only when `get_graph_schema` shows HTTP, async, or cross-service edge types.
 4. **Boundary audit**: For every input in an identified flow, evaluate:
    - **Numeric**: 0, negative values, max/min values, overflow, rounding, and precision.
    - **Strings**: empty strings, long inputs, unicode, path separators, special characters, and injection patterns.
@@ -55,14 +55,14 @@ Analyze logs and test outputs for rare error patterns using Context Mode.
 
 ## Mandatory command patterns
 
-- **"Find logic gaps in [feature]"**: Use `detect_changes`, `search_graph`, and `trace_path(mode="data_flow" or "calls")`, then perform boundary analysis of inputs and state transitions.
-- **"Audit blast radius"**: Use `trace_path(direction="both", risk_labels=true)` plus fan-in/fan-out Cypher to identify ripple effects.
+- **"Find logic gaps in [feature]"**: Use `detect_changes`, `search_graph`, and `trace_path(project=..., function_name=..., mode="data_flow" or "calls")`, then perform boundary analysis of inputs and state transitions.
+- **"Audit blast radius"**: Use `trace_path(project=..., function_name=..., direction="both", risk_labels=true)` plus fan-in/fan-out Cypher to identify ripple effects.
 - **"Analyze log anomalies"**: Use `ctx_execute_file` or `ctx_execute` to script extraction of non-standard error patterns.
 - **"Check test coverage for [function]"**: Use codebase-memory symbol search plus graph/test file searches; fall back to Context Mode searches for test naming conventions not captured by the graph.
 
 ## Reference patterns
 
-- **Graph-first**: Verify the codebase-memory project and index status before structural analysis. If the graph is stale or missing and indexing is useful, run `codebase_memory_mcp_index_repository(repo_path=...)`.
+- **Graph-first**: Verify the codebase-memory project and index status before structural analysis. If the graph is stale or missing and indexing is authorized and useful, run `codebase_memory_mcp_index_repository(repo_path=...)`.
 - **Project required**: Most codebase-memory query tools require `project`. Get it from `list_projects`; do not guess.
 - **Focused source**: Use `get_code_snippet` only after `search_graph` finds an exact `qualified_name`. Use native `read` only for files you intend to edit.
 - **Cypher scope**: Inspect `get_graph_schema` before writing Cypher. Keep `max_rows` bounded.
