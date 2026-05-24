@@ -5,113 +5,44 @@ description: "Unified orchestration of Context Mode, RTK Token Optimizer, and co
 
 # Context Watcher
 
-Context Watcher protects the context window and enforces safe routing for shell work, file reads, web/docs access, GitHub data, codebase-memory-mcp, RTK, worktrees, reader delegates, and large output.
+Context Watcher protects the context window and routes shell work, file reads, web/docs access, GitHub data, codebase-memory-mcp, RTK, worktrees, reader delegates, and large output.
 
-Use this skill for commands, codebase exploration, code review, tests, builds, logs, data analysis, web docs, GitHub operations, infrastructure inspection, dependency checks, and any task where raw output could exceed 20 lines.
+Load and apply it for shell commands, tests/builds/lints, git reads, GitHub CLI work, code review, codebase orientation, refactor or blast-radius analysis, caller/callee lookup, logs, JSON/CSV/data processing, URLs/docs/API checks, browser snapshots, dependency or infrastructure inspection, worktrees, reader delegates, and resume/compaction recovery.
 
-## Activation triggers
+## Runtime contract
 
-Load and apply this skill for:
-
-- Shell commands, test runs, builds, lint output, CI/CD output, and dependency inspection.
-- Git history, diffs, branch status, repository inspection, and GitHub CLI work.
-- Code review, codebase orientation, refactor analysis, blast-radius analysis, and caller/callee lookup.
-- Log analysis, JSON/CSV processing, data aggregation, and any task requiring counts or filters.
-- URL fetching, documentation lookup, API reference checks, and current third-party library behavior.
-- Browser/page snapshots, accessibility trees, Playwright output, and other large structured outputs.
-- Worktree creation/use/removal and multi-repo feature roots.
-- Reader delegate orchestration and parallel investigation.
-- Context recovery after compaction or resume.
-
-## Compatibility
-
-Prefer Context Mode MCP tools when available. If a platform lacks an exact tool, use the closest sandboxed equivalent while preserving the same routing rules: keep large output out of context, use RTK-style compression when available, use graph-first structural code exploration when available, and keep remote mutations behind explicit user instructions.
-
-## Non-negotiables
-
-- Context Mode is the default for read-only shell work and large output.
-- RTK is the default read-only shell prefix when available, used inside Context Mode.
-- codebase-memory-mcp is first for structural code exploration and review when available and applicable.
-- Native `read` is for editing; `ctx_execute_file` is for analysis.
-- Native `write` and `edit` are the only file-writing tools.
+- Context Mode is the default for read-only shell work and any output likely over 20 lines.
+- RTK is the default read-only shell prefix when available, and belongs inside Context Mode.
+- codebase-memory-mcp is first for structural code exploration, review, impact, caller/callee, worktree, and graph questions when available and applicable.
+- Native `read` is for files you intend to edit; `ctx_execute_file` is for analysis reads.
+- Native `write` and `edit` are the only tools for file creation or modification.
 - External hosted services are read-only unless the user explicitly requests the exact mutation.
 - GitHub repo/PR/issue/review/workflow/release/private data uses the `gh-cli` skill and authenticated `gh` through Context Mode/RTK.
-- Context7 is required for current third-party library/framework/API docs before implementation or advice.
-- Fallbacks must be explicit, not silent bypasses.
+- Context7 is required before relying on memory for current third-party library/framework/API behavior.
+- Fallbacks must be explicit degraded routes, never silent bypasses.
+- After resume or compaction, search indexed prior state before asking the user to repeat context.
 
-## Mandatory preflight checklist
+## Mandatory preflight
 
-Before any tool call, silently verify this checklist.
+Before every tool call, silently route by this checklist:
 
-1. Would this mutate an external hosted service?
-   - External hosted services include Figma, Linear, GitHub/GitLab/Bitbucket, Notion, Slack, PostHog, Firebase/GCP/AWS/Azure, Stripe, Sentry, Jira, and similar remote systems.
-   - Mutations include create, update, delete, post, comment, react, assign, label, close/reopen, merge, push, publish, deploy, invite, rotate keys, change quotas, or run jobs/workflows that change remote state.
-   - If the user did not explicitly request the exact mutation, do not perform it. Provide a draft, checklist, or read-only summary instead.
-
-2. Is this command on the direct Bash whitelist?
-   - If yes and it is safe/local, direct Bash is allowed.
-   - If no, use Context Mode.
-
-3. Is this read-only shell work?
-   - Use `ctx_batch_execute` by default, or `ctx_execute` for a single focused command.
-   - Prefix with `rtk` when available.
-
-4. Could output exceed 20 lines?
-   - Use Context Mode. Do not use raw Bash.
-
-5. Are you analyzing data?
-   - Write code inside `ctx_execute` or `ctx_execute_file` and print only the compact answer.
-   - Do not inspect raw output mentally.
-
-6. Is this a file read for analysis?
-   - Use `ctx_execute_file`.
-
-7. Is this a file read for editing?
-   - Use native `read`, then native `edit`.
-
-8. Is this file creation or modification?
-   - Use native `write` or `edit` only.
-   - Do not write files through Bash, `ctx_execute`, or `ctx_execute_file`.
-
-9. Is this GitHub repo, PR, issue, review, comment, workflow, release, or private GitHub data?
-   - Load `gh-cli`.
-   - Use authenticated `gh` through Context Mode/RTK.
-   - Do not fetch private GitHub data through browser/web tools unless the user explicitly requested browser inspection.
-
-10. Is this a URL or web document?
-    - Use `ctx_fetch_and_index`, then `ctx_search`.
-
-11. Is this third-party library/framework/API usage or version-specific behavior?
-    - Use local installed source first when relevant.
-    - Use Context7 (`ctx7 library`, then `ctx7 docs`) before relying on memory.
-    - Do not send secrets, personal data, or proprietary code to Context7.
-
-12. Is this codebase exploration, review, blast radius, caller/callee lookup, test discovery, architecture review, or refactor analysis?
-    - Use codebase-memory-mcp first for structural code questions when available and applicable.
-    - Start with `list_projects`, select the project whose `root_path` matches the active repo, then check `index_status`.
-    - If the project is missing, empty, stale, or incomplete, index or re-index when authorized and useful, then retry.
-    - Fall back only for literals/config/non-code, unavailable tooling, unauthorized or wasteful indexing, or still-insufficient graph results.
-
-13. Is this creating, using, or removing a worktree?
-    - Use story-grouped worktree roots.
-    - For each worktree repo, select or create the matching codebase-memory project by `root_path`.
-    - Re-index when missing or stale before relying on graph relationships.
-    - Do not delete codebase-memory projects unless the user explicitly asks for that local memory deletion.
-
-14. Is this delegating to a `reader` delegate?
-    - Require the reader delegate to load Context Watcher.
-    - Keep the task read-only.
-    - Require Context Mode, RTK, codebase-memory-mcp for structural code work, GitHub routing, and mutation gates when applicable.
-    - Require compact structured findings and no raw logs, secrets, or broad dumps.
-    - Do not ask the delegate to route or recommend other delegates.
-
-15. Did Context Mode, RTK, or codebase-memory-mcp fail?
-    - Follow the fallback protocol.
-    - Record or summarize the intended route, failure, fallback route, and degraded status.
+1. External hosted service mutation? Includes create, update, delete, post, comment, react, assign, label, close/reopen, merge, push, publish, deploy, invite, rotate keys, quota changes, or remote jobs on GitHub/GitLab/Bitbucket, Linear, Figma, Notion, Slack, PostHog, Firebase/GCP/AWS/Azure, Stripe, Sentry, Jira, and similar services. Do it only when the user requested that exact mutation.
+2. Direct Bash whitelist? If the command is not whitelisted, or is read-only output work, use Context Mode.
+3. Read-only shell, tests, builds, logs, git reads, searches, or output over 20 lines? Use `ctx_batch_execute` by default, `ctx_execute` for one focused command, with `rtk` when available.
+4. Counting, filtering, parsing, comparing, aggregating, or transforming? Write code in `ctx_execute` or `ctx_execute_file` and print only the compact result.
+5. File read? Use native `read` only before editing that file; otherwise use `ctx_execute_file`.
+6. File creation or modification? Use native `write` or `edit`; never write content through Bash or Context Mode.
+7. GitHub data or operations? Load `gh-cli`, use authenticated `gh` through Context Mode/RTK, and keep private data out of browser/web fetch tools unless explicitly requested.
+8. URL or web document? Use `ctx_fetch_and_index`, then `ctx_search`.
+9. Third-party API/library/framework behavior? Check local installed source when relevant, then Context7; do not guess APIs, flags, versions, package names, endpoints, or fields.
+10. Codebase exploration, review, test discovery, architecture, blast radius, caller/callee, data flow, or refactor analysis? Use codebase-memory-mcp first when applicable.
+11. Worktree work? Use story-grouped roots and the codebase-memory project whose `root_path` matches each repo.
+12. Reader delegate? Require Context Watcher, Context Mode, RTK, codebase-memory-mcp for structural code work, `gh-cli` for GitHub, mutation gates, compact findings, and no recursive delegation.
+13. Context Mode, RTK, or codebase-memory-mcp failed? Follow fallback protocol with intended route, failure, fallback route, and completeness/degraded status.
 
 ## Direct Bash whitelist
 
-Direct Bash is only for short safe commands on this whitelist:
+Direct Bash is only for short safe local commands on this list:
 
 ```text
 mkdir, mv, cp, rm, touch, chmod, git add, git commit, git push,
@@ -124,142 +55,80 @@ Rules:
 - `git push` still requires exact explicit user instruction because it mutates GitHub.
 - Before `rm -rf` on a directory, verify the path is not a symlink outside the expected tree.
 - Never delete outside the project directory or `.pi/` without explicit user confirmation.
-- The whitelist allows filesystem operations; it does not allow writing file content through shell redirection or generated commands. Use native `write`/`edit` for content-bearing file creation or modification.
+- Do not create or modify file content through shell redirection or generated commands.
 - Read-only commands such as `ls`, `find`, `grep`, `rg`, `cat`, `git status`, `git log`, tests, builds, and scripts must use Context Mode.
 
 ## Tool routing table
 
 | Intent | Required route |
 |---|---|
-| Multiple shell checks, tests, builds, git reads, searches | `ctx_batch_execute` with `rtk` prefix when available |
+| Multiple shell checks, tests, builds, git reads, searches | `ctx_batch_execute`, with `rtk` when available |
 | Single shell check or programmed analysis | `ctx_execute` |
 | Analyze a file, log, JSON, CSV, snapshot, or large source file | `ctx_execute_file` |
-| Edit an existing file | native `read` for the edited file, then native `edit` |
+| Edit an existing file | native `read`, then native `edit` |
 | Create or replace a file | native `write` |
 | Fetch a URL or web docs | `ctx_fetch_and_index`, then `ctx_search` |
 | Search indexed docs or prior session state | `ctx_search` |
 | Index already-available docs | `ctx_index` |
 | Third-party API/library docs | Context7 first; local installed source first when relevant |
-| GitHub/private repo data | `gh-cli` skill plus authenticated `gh` through Context Mode/RTK |
-| Code review/exploration | codebase-memory-mcp first for structural code questions |
+| GitHub/private repo data | `gh-cli` plus authenticated `gh` through Context Mode/RTK |
+| Code review/exploration | codebase-memory-mcp first for structural questions |
 | Worktree create/use/remove | story-grouped roots plus codebase-memory project/index lifecycle |
-| Reader delegation | Pi `reader` delegate with Context Watcher, Context Mode, RTK, codebase-memory-mcp, and mutation gates |
-| Context Mode/RTK/codebase-memory-mcp failure | explicit fallback protocol |
+| Reader delegation | `reader` with Context Watcher, Context Mode, RTK, codebase-memory-mcp, and mutation gates |
+| Tool failure | explicit fallback protocol |
 
-## Context Mode core tools
+## Core tool rules
 
-- `ctx_batch_execute`: primary shell research tool. Run commands, index output, and search in one call.
-- `ctx_execute`: one sandboxed command or programmed analysis.
-- `ctx_execute_file`: analyze a file in the sandbox.
-- `ctx_fetch_and_index`: fetch and index URL content.
-- `ctx_index`: index documentation or knowledge content already available.
-- `ctx_search`: search indexed content. Batch all questions in one call.
-- `ctx_stats`, `ctx_doctor`, `ctx_upgrade`, `ctx_purge`: management commands. Purge is destructive and needs explicit scope.
+### Context Mode and RTK
 
-## Think in code
+Use `ctx_batch_execute` as the primary shell research tool; use `ctx_execute` for one command or analysis, `ctx_execute_file` for file/log/data analysis, `ctx_fetch_and_index` for URLs, `ctx_search` for indexed state, and `ctx_index` for already-available docs. Use management tools only for their explicit purposes; `ctx_purge` is destructive and needs explicit scope.
 
-When you need to count, filter, compare, aggregate, parse, or transform, write code in `ctx_execute` or `ctx_execute_file`. Print only the result.
+Use RTK as the default prefix for read-only shell operations when available, inside Context Mode, for example `ctx_execute({ language: "shell", code: "rtk git status --short --branch" })`. RTK compresses output; it does not replace sandboxing, indexing, graph-first exploration, or programmed analysis.
 
-Do not read raw logs, command dumps, test output, snapshots, JSON, CSV, or large source files into context for mental processing.
+### Think in code
 
-## RTK core rule
+For counts, filters, diffs, parsing, aggregation, or transforms, program the analysis in Context Mode and print only the answer. Do not inspect raw logs, test output, snapshots, JSON, CSV, or large source mentally.
 
-Use RTK as the default prefix for read-only shell operations when available:
+### codebase-memory-mcp
 
-```text
-ctx_execute({ language: "shell", code: "rtk git status --short --branch" })
-```
-
-RTK belongs inside Context Mode. It compresses output; it does not replace sandboxing, indexing, graph-first exploration, or programmed analysis.
-
-## codebase-memory-mcp core rule
-
-Use codebase-memory-mcp for structural codebase work before grep/find/manual file reading.
-
-Default sequence:
+Start structural graph work with:
 
 1. `codebase_memory_mcp_list_projects`.
 2. Select the project whose `root_path` matches the active repository.
 3. `codebase_memory_mcp_index_status(project=...)`.
-4. Use `get_architecture` or `get_graph_schema` for orientation.
-5. Use `search_graph`, `trace_path`, `query_graph`, `detect_changes`, and `get_code_snippet` for focused evidence.
-6. Re-index with `index_repository` only when missing, stale, incomplete, authorized, and useful.
+4. `codebase_memory_mcp_get_architecture(project=...)` or `codebase_memory_mcp_get_graph_schema(project=...)`.
+5. Focused tools: `codebase_memory_mcp_search_graph`, `codebase_memory_mcp_trace_path`, `codebase_memory_mcp_query_graph`, `codebase_memory_mcp_detect_changes`, `codebase_memory_mcp_search_code`, and `codebase_memory_mcp_get_code_snippet`.
+6. Re-index with `codebase_memory_mcp_index_repository(repo_path=...)` only when missing, stale, incomplete, authorized, and useful.
 
-Most codebase-memory query tools require `project`; get it from `list_projects` and do not guess. Use `get_code_snippet` only after `search_graph` finds an exact `qualified_name`. Treat `delete_project`, `manage_adr(mode="update")`, `ingest_traces`, and persistent indexing as deliberate local memory mutations.
+Most query tools require `project`; get it from `codebase_memory_mcp_list_projects`. Use `codebase_memory_mcp_get_code_snippet` only after `codebase_memory_mcp_search_graph` finds an exact `qualified_name`. Treat `codebase_memory_mcp_delete_project(project=...)`, `codebase_memory_mcp_manage_adr(project=..., mode="update")`, `codebase_memory_mcp_ingest_traces(project=..., traces=...)`, and persistent indexing as deliberate local memory mutations.
 
-## GitHub core rule
+### GitHub, Context7, worktrees, readers, fallback
 
-For GitHub work:
-
-- Load `gh-cli`.
-- Use authenticated `gh` through Context Mode/RTK.
-- Keep private GitHub data out of browser/web fetch tools unless the user explicitly requests browser inspection.
-- Treat `git push`, PR creation, comments, reviews, labels, workflow dispatches, releases, and merges as external hosted service mutations requiring exact explicit user instruction.
-
-## Context7 core rule
-
-For current third-party library/framework/API docs, use Context7 before relying on memory. Do not guess APIs, flags, versions, or package names. Do not send secrets, personal data, or proprietary code to Context7.
-
-## Worktree core rule
-
-Use story-grouped worktree roots:
-
-```text
-.worktrees/<story>/<feature-name>/<repo-name>/
-.worktrees/issues/<issue-number>/<repo-name>/
-```
-
-For active worktrees, use the codebase-memory project whose `root_path` matches the repo. If missing or stale, index the worktree repo when authorized and useful, then query that project. For related multi-repo work, index each repo and use cross-repo intelligence only when the task requires it. When removing a worktree group, verify deletion safety and do not delete codebase-memory projects unless the user explicitly requests that local memory cleanup.
-
-## Reader delegate core rule
-
-Use `reader` delegates only for isolated tool-grounded investigation, review, testing, documentation research, consistency checks, or bounded parallel work.
-
-Reader delegates must load Context Watcher, use Context Mode and RTK, use codebase-memory-mcp for structural code work when applicable, use `gh-cli` for GitHub data, preserve hosted-service mutation gates, and return compact structured findings only. Do not ask reader delegates to route or recommend other delegates. The parent remains responsible for orchestration, final decisions, validation, diffs, commits, and user-facing reporting.
-
-## Fallback core rule
-
-Fallbacks are allowed only as explicit degraded routes. Record or summarize:
-
-- Intended route.
-- Failure reason.
-- Fallback route.
-- Whether results are complete or degraded.
-
-Do not silently bypass Context Mode, RTK, codebase-memory-mcp, GitHub routing, file-writing policy, or hosted-service mutation gates.
+- GitHub: load `gh-cli`; use authenticated `gh` through Context Mode/RTK; keep `git push`, PR creation, comments, reviews, labels, workflow dispatches, releases, and merges behind exact user instruction.
+- Context7: use before current third-party API/library/framework advice or implementation; do not send secrets, personal data, or proprietary code.
+- Worktrees: use `.worktrees/<story>/<feature-name>/<repo-name>/` or `.worktrees/issues/<issue-number>/<repo-name>/`; select/index the matching codebase-memory project by `root_path`; do not delete codebase-memory projects unless explicitly asked.
+- Reader delegates: use only for read-only bounded investigation/review/testing/docs/consistency work; require Context Watcher routing and compact structured findings; parent owns validation, edits, commits, hosted mutations, and final reporting.
+- Fallback: record intended route, failure reason, fallback route, and whether results are complete or degraded.
 
 ## Reference loading table
 
-Load references only when their trigger applies. If a rule is needed for safe routing, keep the core rule in this file too.
+Load references only when their trigger applies. If a rule is needed for safe routing, keep the core rule here too.
 
 | Reference | Load when |
 |---|---|
-| [`references/context-mode-routing.md`](references/context-mode-routing.md) | Command routing is non-trivial, Context Mode tool choice is unclear, file/log/test/build output is involved, or route examples are needed. |
+| [`references/context-mode-routing.md`](references/context-mode-routing.md) | Context Mode tool choice, command routing, file/log/test/build output, or examples matter. |
 | [`references/rtk-usage.md`](references/rtk-usage.md) | RTK flags, compression behavior, analytics, examples, or failure modes matter. |
-| [`references/codebase-memory-mcp-protocol.md`](references/codebase-memory-mcp-protocol.md) | Code review, codebase exploration, graph indexing, stale graph, project selection, Cypher, trace, or graph fallback details matter. |
+| [`references/codebase-memory-mcp-protocol.md`](references/codebase-memory-mcp-protocol.md) | Code review, exploration, graph indexing, stale graph, project selection, Cypher, trace, or graph fallback details matter. |
 | [`references/github-and-context7-routing.md`](references/github-and-context7-routing.md) | GitHub/private GitHub data or current third-party library/API docs are involved. |
 | [`references/worktree-graph-protocol.md`](references/worktree-graph-protocol.md) | Creating, using, indexing, or removing worktrees. |
-| [`references/reader-protocol.md`](references/reader-protocol.md) | Delegating to Pi `reader` delegates or orchestrating parallel investigations. |
-| [`references/fallback-and-troubleshooting.md`](references/fallback-and-troubleshooting.md) | Context Mode, RTK, or codebase-memory-mcp is unavailable, failing, stale, or producing unexpected output. |
-| [`references/patterns-and-quick-reference.md`](references/patterns-and-quick-reference.md) | Examples are needed for PR review, test-debug-fix, orientation, infrastructure inspection, docs lookup, recovery, or data analysis. |
+| [`references/reader-protocol.md`](references/reader-protocol.md) | Delegating to `reader` delegates or orchestrating parallel investigations. |
+| [`references/fallback-and-troubleshooting.md`](references/fallback-and-troubleshooting.md) | Context Mode, RTK, or codebase-memory-mcp is unavailable, failing, stale, or unexpected. |
+| [`references/patterns-and-quick-reference.md`](references/patterns-and-quick-reference.md) | Examples are needed for PR review, test-debug-fix, orientation, infrastructure, docs lookup, recovery, or data analysis. |
 | [`references/upstream-sources.md`](references/upstream-sources.md) | Updating this skill, checking provenance, compatibility, or maintenance rules. |
 
-## Behavioral simulation checklist
+## Behavioral self-check
 
-Before committing changes to this skill, verify an agent that reads only this file still routes these scenarios safely:
-
-- Large log inspection uses `ctx_execute_file`.
-- Tests/builds use Context Mode with RTK when available.
-- Source edits use native `read` plus native `edit`.
-- Code review uses codebase-memory-mcp first for structural code questions.
-- Third-party API work uses Context7 first.
-- Private GitHub PRs use `gh-cli` and authenticated `gh` through Context Mode/RTK.
-- Broad PR handling remains read-only unless the user explicitly asks to comment, push, merge, or otherwise mutate.
-- URLs use `ctx_fetch_and_index` then `ctx_search`.
-- Worktrees use story-grouped roots and codebase-memory project/index lifecycle.
-- Reader delegates inherit Context Watcher, Context Mode, RTK, codebase-memory-mcp, `gh-cli`, and mutation gates.
-- Context Mode, RTK, or codebase-memory-mcp failures use explicit fallback.
-- Resumed sessions search indexed state before asking the user to repeat context.
+Before committing changes to this skill, verify that base-only loading still routes: large logs to `ctx_execute_file`; tests/builds/git reads to Context Mode plus RTK; source edits to native `read`/`edit`; new files to `write`; structural review to codebase-memory-mcp first; third-party APIs to Context7; private GitHub to `gh-cli` plus authenticated `gh`; broad PR handling as read-only unless exact mutation is requested; URLs to `ctx_fetch_and_index`/`ctx_search`; worktrees to story roots plus graph lifecycle; readers with inherited routing and mutation gates; failures to explicit fallback; resumed sessions to `ctx_search(sort: "timeline")` before asking the user.
 
 ## Maintenance
 
