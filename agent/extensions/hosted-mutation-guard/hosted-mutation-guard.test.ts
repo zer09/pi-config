@@ -655,7 +655,7 @@ test("MCP classifier blocks hosted action mutations but allows hosted reads", ()
 test("MCP classifier covers configured hosted MCP servers", () => {
 	assert.deepEqual(classifyToolCall("mcp", { server: "chrome-devtools", tool: "navigate_page", args: '{"url":"https://example.com"}' }), []);
 	assert.deepEqual(classifyToolCall("mcp", { server: "chrome-devtools", tool: "update_item", args: '{"id":"1"}' }), []);
-	assert.deepEqual(classifyToolCall("mcp", { server: "code-review-graph", tool: "code_review_graph_semantic_search_nodes_tool", query: "mutation update schema" }), []);
+	assert.deepEqual(classifyToolCall("mcp", { server: "codebase-memory-mcp", tool: "codebase_memory_mcp_search_graph", query: "mutation update schema" }), []);
 	assert.deepEqual(classifyToolCall("mcp", { server: "context-mode", tool: "update_item", args: '{"id":"1"}' }), []);
 	assert.equal(classifyToolCall("mcp", { server: "notion", tool: "notion_update_page", args: '{"id":"page-1"}' })[0].action, "update");
 	assert.equal(classifyToolCall("mcp", { server: "figma", tool: "figma_create_component", args: '{"nodeId":"1:2"}' })[0].action, "create");
@@ -665,8 +665,8 @@ test("MCP classifier covers configured hosted MCP servers", () => {
 });
 
 test("MCP classifier ignores non-hosted query text", () => {
-	assert.deepEqual(classifyToolCall("mcp", { server: "code-review-graph", tool: "code_review_graph_semantic_search_nodes_tool", query: "Directus mutation update schema" }), []);
-	assert.deepEqual(classifyToolCall("mcp", { server: "code-review-graph", tool: "request", args: '{"method":"GET","url":"https://api.github.com/repos/o/r/issues/1"}' }), []);
+	assert.deepEqual(classifyToolCall("mcp", { server: "codebase-memory-mcp", tool: "codebase_memory_mcp_search_graph", query: "Directus mutation update schema" }), []);
+	assert.deepEqual(classifyToolCall("mcp", { server: "codebase-memory-mcp", tool: "request", args: '{"method":"GET","url":"https://api.github.com/repos/o/r/issues/1"}' }), []);
 });
 
 test("MCP classifier blocks GraphQL mutations but allows queries", () => {

@@ -26,7 +26,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 2. Fetch upstream with authenticated `gh` CLI through Context Mode/RTK, for example `rtk gh api repos/Uniswap/ai-toolkit/contents/packages/plugins/uniswap-integrations/skills/refine-linear-task/SKILL.md?ref=next`.
 3. Compare upstream `SKILL.md` with local `SKILL.md`.
 4. Preserve useful upstream workflow content: gap analysis, codebase research, refined-description structure, focus areas, and update phase.
-5. Keep local `SKILL.md` concise. Preserve local rules requiring `linear-cli`, file-based markdown flags, codebase research through code-review-graph/Context Mode, Linear mutation gating, and no scope expansion without assumptions.
+5. Keep local `SKILL.md` concise. Preserve local rules requiring `linear-cli`, file-based markdown flags, codebase research through codebase-memory-mcp/Context Mode, Linear mutation gating, and no scope expansion without assumptions.
 6. Keep `SKILL.md` frontmatter limited to `name` and `description`; do not copy upstream extra metadata such as `allowed-tools`.
 7. Keep `agents/openai.yaml` valid YAML with only `display_name`, `short_description`, and `default_prompt` unless additional UI assets are intentionally installed.
 8. Update the upstream commit SHA in this file when source content changes.

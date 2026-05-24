@@ -35,7 +35,8 @@ context7/
 note.txt
 exa-usage.json
 
-# Code Review Graph local db/cache
+# Local code graph db/cache
+.codebase-memory/
 .code-review-graph/
 
 # Skills CLI project-local install/cache targets

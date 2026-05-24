@@ -1,13 +1,10 @@
 {
   "mcpServers": {
     "context-mode": {
-      "command": "context-mode",
-      "directTools": true
+      "command": "context-mode"
     },
-    "code-review-graph": {
-      "command": "code-review-graph",
-      "args": ["serve"],
-      "type": "stdio"
+    "codebase-memory-mcp": {
+      "command": "codebase-memory-mcp"
     },
     "figma": {
       "command": "npx",

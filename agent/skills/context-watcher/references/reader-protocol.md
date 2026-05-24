@@ -28,7 +28,7 @@ Every reader delegate must be told to:
 1. Load and follow `context-watcher` before using tools.
 2. Use Context Mode for shell commands, read-only operations, logs, tests, builds, and large output.
 3. Use RTK as the default prefix for read-only shell work when available.
-4. Use Code Review Graph first for supported code exploration/review tasks, following `code-review-graph-protocol.md` for MCP parameters.
+4. Use codebase-memory-mcp first for structural code exploration/review tasks when available and applicable, following `codebase-memory-mcp-protocol.md` for MCP parameters.
 5. Use the `gh-cli` skill and authenticated `gh` CLI through Context Mode/RTK for GitHub repo, PR, issue, workflow, release, review, comment, or private GitHub data.
 6. Treat external hosted services as read-only unless the parent task explicitly authorizes the exact mutation.
 7. Return compact structured findings only.
@@ -67,7 +67,7 @@ Prefer compact JSON with these fields:
       "confidence": "high|medium|low"
     }
   ],
-  "tools_used": ["Context Mode", "Code Review Graph"],
+  "tools_used": ["Context Mode", "RTK", "codebase-memory-mcp"],
   "blockers": [],
   "recommended_next_step": "specific action"
 }

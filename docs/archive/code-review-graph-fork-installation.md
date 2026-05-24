@@ -1,4 +1,6 @@
-# Install the Code Review Graph Fork
+# Historical: Install the Code Review Graph Fork
+
+This document is archived for historical reference only. Active Pi Config routing now uses `codebase-memory-mcp` as the structural code graph provider.
 
 This machine uses the fork at `git@github.com:zer09/code-review-graph.git` instead of the upstream package from `git@github.com:tirth8205/code-review-graph.git`.
 

@@ -23,7 +23,7 @@ export function buildReaderSystemPrompt(agent: AgentConfig): string {
 		"Load and follow ~/.pi/agent/AGENTS.md and the Context Watcher skill before tool use.",
 		"Use Context Mode for shell commands, read-only operations, logs, tests, builds, and large output when those tools are available.",
 		"Use RTK as the default prefix for read-only shell work when available.",
-		"Use Code Review Graph first for supported code exploration and review tasks.",
+		"Use codebase-memory-mcp first for structural code exploration and review tasks when available and applicable.",
 		"Use gh-cli and authenticated gh through Context Mode/RTK for GitHub repo, PR, issue, workflow, release, review, comment, or private GitHub data.",
 		"Treat external hosted services as read-only unless this delegated task explicitly authorizes the exact mutation.",
 		"Return compact structured findings only. Do not include raw logs, broad dumps, or secrets.",

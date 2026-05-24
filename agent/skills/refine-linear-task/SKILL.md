@@ -13,7 +13,7 @@ Use this skill to turn a vague or incomplete Linear issue into a clear, scoped, 
 - Treat Linear as an external hosted service. Fetch/list/read issues freely, but do not update descriptions, add comments, change status, assign, label, or delete unless the user explicitly requests that exact write.
 - If the user asks to refine without explicitly asking to update Linear, produce a draft and ask before writing it back.
 - Use file-based flags from `linear-cli` for multi-line descriptions/comments, such as `--description-file` and `--body-file`, to avoid markdown escaping bugs.
-- If the task references code, research the relevant codebase first. Use code-review-graph when applicable, then Context Mode/RTK searches as needed.
+- If the task references code, research the relevant codebase first. Use codebase-memory-mcp for structural code questions when applicable, then Context Mode/RTK searches as needed.
 - Preserve the original intent. Clarify and strengthen; do not expand scope without labeling it as an assumption.
 
 ## Inputs
