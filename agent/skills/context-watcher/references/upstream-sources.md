@@ -10,7 +10,6 @@ Maintenance docs:
 
 - `../../../../docs/skills/custom-local-skills-update-process.md`
 - `../../../../docs/skills/local-skill-update-invariants.md`
-- `../../../../docs/skills/context-watcher-token-footprint-refactor-plan.md`
 
 ## Architecture overview
 
