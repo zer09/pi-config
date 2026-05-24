@@ -442,15 +442,26 @@ function optionConsumesValue(token: string): boolean {
 	return OPTION_VALUE_FLAGS.has(token);
 }
 
-function positionalArgs(tokens: string[], startIndex: number): string[] {
+function shellRedirectionSkipCount(token: string): 0 | 1 | 2 {
+	if (/^(?:\d+)?(?:<<<|<<-|<<|<>|>>|>|<)$/.test(token) || /^&>>?$/.test(token)) return 2;
+	if (/^(?:\d+)?(?:<<<|<<-|<<|<>|>>|>|<).+/.test(token) || /^&>>?.+/.test(token) || /^(?:\d+)?[<>]&\d+$/.test(token)) return 1;
+	return 0;
+}
+
+function positionalArgs(tokens: string[], startIndex: number, afterOptionTerminator = false): string[] {
 	const args: string[] = [];
 	for (let i = startIndex; i < tokens.length; i++) {
 		const token = tokens[i];
-		if (token === "--") {
-			args.push(...tokens.slice(i + 1));
+		if (!afterOptionTerminator && token === "--") {
+			args.push(...positionalArgs(tokens, i + 1, true));
 			break;
 		}
-		if (token.startsWith("-")) {
+		const redirectionSkipCount = shellRedirectionSkipCount(token);
+		if (redirectionSkipCount > 0) {
+			if (redirectionSkipCount === 2) i++;
+			continue;
+		}
+		if (!afterOptionTerminator && token.startsWith("-")) {
 			if (optionConsumesValue(token)) i++;
 			continue;
 		}
@@ -618,7 +629,7 @@ function classifyGhCommand(tokens: string[], source: MutationSource): MutationIn
 
 	if (group === "pr") {
 		if (["view", "list", "checks", "diff"].includes(sub ?? "")) return [];
-		const target = targetFromPositionals(tokens, subIndex + 1, sub === "create" ? "new pull request" : "current pull request");
+		const target = sub === "create" ? "new pull request" : targetFromPositionals(tokens, subIndex + 1, "current pull request");
 		if (sub === "create") {
 			return [makeIntent({ service: "github", action: "pr-create", tier: 2, target, body: ghMutationPayload(tokens, subIndex + 1), source, reason: "GitHub PR create" })];
 		}
@@ -637,7 +648,7 @@ function classifyGhCommand(tokens: string[], source: MutationSource): MutationIn
 
 	if (group === "issue") {
 		if (["view", "list"].includes(sub ?? "")) return [];
-		const target = targetFromPositionals(tokens, subIndex + 1, sub === "create" ? "new issue" : undefined);
+		const target = sub === "create" ? "new issue" : targetFromPositionals(tokens, subIndex + 1);
 		if (sub === "comment") {
 			return [makeIntent({ service: "github", action: "issue-comment", tier: 1, target, body: getGhBody(tokens), source, reason: "GitHub issue comment" })];
 		}

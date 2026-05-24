@@ -158,6 +158,20 @@ test("classifier blocks GitHub PR comment and captures body", () => {
 	assert.equal(intents[0].tier, 1);
 });
 
+test("classifier does not use heredoc delimiter as issue comment target", () => {
+	const [issue] = classifyShellCommand("gh issue comment 123 --body-file - <<'EOF'\nbody\nEOF");
+	assert.equal(issue.action, "issue-comment");
+	assert.equal(issue.target, "123");
+	assert.doesNotMatch(issue.target ?? "", /EOF|<</);
+});
+
+test("classifier does not use heredoc delimiter as pr comment target", () => {
+	const [pr] = classifyShellCommand("gh pr comment 123 --body-file - <<'EOF'\nbody\nEOF");
+	assert.equal(pr.action, "pr-comment");
+	assert.equal(pr.target, "123");
+	assert.doesNotMatch(pr.target ?? "", /EOF|<</);
+});
+
 test("classifier reads GitHub body-file payloads", () => {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hosted-guard-body-file-"));
 	const bodyPath = path.join(dir, "body.md");
@@ -184,6 +198,50 @@ test("classifier blocks PR creation and implicit-target PR review", () => {
 	assert.equal(issue.action, "issue-create");
 	assert.equal(issue.target, "new issue");
 	assert.equal(issue.tier, 2);
+});
+
+test("classifier does not use heredoc delimiter as issue create target", () => {
+	const [issue] = classifyShellCommand("gh issue create --repo DeusData/codebase-memory-mcp --title T --body-file - <<'EOF'\nbody\nEOF");
+	assert.equal(issue.action, "issue-create");
+	assert.equal(issue.target, "new issue");
+	assert.doesNotMatch(issue.target ?? "", /EOF/);
+});
+
+test("classifier does not use heredoc delimiter as pr create target", () => {
+	const [pr] = classifyShellCommand("gh pr create --title T --body-file - <<'EOF'\nbody\nEOF");
+	assert.equal(pr.action, "pr-create");
+	assert.equal(pr.target, "new pull request");
+	assert.doesNotMatch(pr.target ?? "", /EOF/);
+});
+
+test("classifier fuzzes create commands with stdin redirection without executing them", () => {
+	const createCommands = [
+		{ prefix: "gh issue create", action: "issue-create", target: "new issue" },
+		{ prefix: "gh pr create", action: "pr-create", target: "new pull request" },
+	];
+	const repoFlags = ["", " --repo owner/repo", " -R owner/repo"];
+	const titleFlags = [" --title T", ' --title "T with spaces"'];
+	const stdinForms = [
+		" --body-file - <<'EOF'\nbody\nEOF",
+		" --body-file - <<EOF\nbody\nEOF",
+		" --body-file=- <<EOF\nbody\nEOF",
+		" --body-file - <<-EOF\n\tbody\nEOF",
+		' --body-file - << "EOT"\nbody\nEOT',
+		" --body-file - <<< 'body'",
+	];
+
+	for (const createCommand of createCommands) {
+		for (const repoFlag of repoFlags) {
+			for (const titleFlag of titleFlags) {
+				for (const stdinForm of stdinForms) {
+					const [intent] = classifyShellCommand(`${createCommand.prefix}${repoFlag}${titleFlag}${stdinForm}`);
+					assert.equal(intent.action, createCommand.action);
+					assert.equal(intent.target, createCommand.target);
+					assert.doesNotMatch(intent.target ?? "", /EOF|EOT|<<|body/);
+				}
+			}
+		}
+	}
 });
 
 test("classifier handles gh repo flags before groups and subcommands", () => {
@@ -487,6 +545,30 @@ test("extension blocks GitHub PR comment without exact authorization", async () 
 	assertBlocked(result);
 	assert.equal(harness.entries.length, 1);
 	assert.equal(harness.entries[0].type, "hosted-mutation-guard");
+});
+
+test("extension issue create heredoc block reason uses new issue target", async () => {
+	const harness = makeHarness();
+	const result = await harness.call("bash", { command: "gh issue create --repo DeusData/codebase-memory-mcp --title T --body-file - <<'EOF'\nbody\nEOF" });
+	assertBlocked(result);
+	assert.match(result.reason, /github issue-create new issue/i);
+	assert.doesNotMatch(result.reason, /<<'?EOF'?/);
+});
+
+test("extension pr create heredoc block reason uses new pull request target", async () => {
+	const harness = makeHarness();
+	const result = await harness.call("bash", { command: "gh pr create --title T --body-file - <<'EOF'\nbody\nEOF" });
+	assertBlocked(result);
+	assert.match(result.reason, /github pr-create new pull request/i);
+	assert.doesNotMatch(result.reason, /<<'?EOF'?/);
+});
+
+test("extension issue comment heredoc block reason uses issue target", async () => {
+	const harness = makeHarness();
+	const result = await harness.call("bash", { command: "gh issue comment 123 --body-file - <<'EOF'\nbody\nEOF" });
+	assertBlocked(result);
+	assert.match(result.reason, /github issue-comment 123/i);
+	assert.doesNotMatch(result.reason, /<<'?EOF'?/);
 });
 
 test("extension allows one body-hash command-authorized GitHub PR comment", async () => {
