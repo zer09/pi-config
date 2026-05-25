@@ -58,7 +58,7 @@ Do not require every nested repo to be combined into one containing root. codeba
 
 ## Stale or incomplete graph
 
-If project status, schema, or query results show the graph is missing, stale, empty, or incomplete:
+If project status, schema, or query results show the graph is missing, stale, empty, incomplete, or failed:
 
 1. Do not treat that as permission to skip graph-first automatically.
 2. Re-index the matching worktree repo with `mode="full"` and `persistence=false` only when indexing is authorized and useful, and when graph accuracy matters.
