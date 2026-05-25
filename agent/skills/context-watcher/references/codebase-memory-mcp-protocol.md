@@ -23,18 +23,19 @@ Use Context Mode/RTK instead for string literals, error messages, config values,
 Start every graph session with:
 
 1. `codebase_memory_mcp_list_projects`.
-2. Select the project whose `root_path` matches the active repository or worktree repo.
-3. `codebase_memory_mcp_index_status(project=...)`.
-4. If needed, `codebase_memory_mcp_get_graph_schema(project=...)`.
-5. If broad orientation is needed, `codebase_memory_mcp_get_architecture(project=...)`.
+2. Match the active repository or worktree root to a project by `root_path`.
+3. If a project matches, call `codebase_memory_mcp_index_status(project=...)`; if none matches, skip status and treat the project as missing.
+4. Rebuild with `codebase_memory_mcp_index_repository(repo_path=<active repository or worktree root>, mode="full", persistence=false)` when the project is missing, status is empty/stale/incomplete/failed, the branch/worktree state changed, code was edited and graph accuracy matters, or deep/semantic graph accuracy is required. Then repeat project selection and status checks.
+5. If needed, `codebase_memory_mcp_get_graph_schema(project=...)`.
+6. If broad orientation is needed, `codebase_memory_mcp_get_architecture(project=...)`.
 
-If the project is missing, empty, stale, or incomplete, call `codebase_memory_mcp_index_repository(repo_path=...)` only when indexing is authorized and useful. Then retry the graph query.
+If needed indexing fails or the project remains missing, empty, stale, or incomplete, follow the fallback protocol and state that graph results are degraded.
 
 Index modes:
 
-- `fast`: structure only; good for quick symbol and relationship discovery.
-- `moderate`: structure plus semantic support; use when `semantic_query` is needed.
-- `full`: complete indexing; use when the added cost is justified.
+- `full`: default rebuild mode when graph freshness or deep/semantic accuracy matters.
+- `fast`: structure only; use for quick degraded routing when full indexing is not appropriate.
+- `moderate`: structure plus semantic support; use when semantic search is needed but full indexing is not justified.
 - `cross-repo-intelligence`: create cross-repo route/channel edges after target projects are already indexed.
 
 Set `persistence=false` by default. Use `persistence=true` only when the user wants a shared `.codebase-memory/graph.db.zst` artifact.

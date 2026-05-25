@@ -38,12 +38,12 @@ codebase-memory-mcp indexes repositories as projects. Select the graph project b
 Use this sequence:
 
 1. Call `codebase_memory_mcp_list_projects`.
-2. Find the project whose `root_path` is the active worktree repo.
-3. Call `codebase_memory_mcp_index_status(project=...)`.
-4. If no matching project exists, call `codebase_memory_mcp_index_repository(repo_path=<worktree repo>)` when authorized and useful.
+2. Match the active worktree repo to a project by `root_path`.
+3. If a project matches, call `codebase_memory_mcp_index_status(project=...)`; if none matches, skip status and treat the project as missing.
+4. Rebuild the active worktree graph with `codebase_memory_mcp_index_repository(repo_path=<worktree repo>, mode="full", persistence=false)` when the project is missing, status is stale/incomplete/failed, the branch/worktree state changed, code was edited and graph accuracy matters, or deep/semantic graph accuracy is required. Then repeat project selection and status checks.
 5. Query that project for structural code work.
 
-Do not assume a base-repo graph represents a worktree after branch-specific edits. Re-index the worktree repo when changed relationships matter.
+Do not assume a base-repo graph represents a worktree after branch-specific edits. Re-index the worktree repo with `mode="full"` when branch-specific edits or changed relationships matter.
 
 ## Multi-repo feature roots
 
@@ -61,9 +61,9 @@ Do not require every nested repo to be combined into one containing root. codeba
 If project status, schema, or query results show the graph is missing, stale, empty, or incomplete:
 
 1. Do not treat that as permission to skip graph-first automatically.
-2. Re-index the matching worktree repo if authorized and appropriate.
+2. Re-index the matching worktree repo with `mode="full"` and `persistence=false` when graph accuracy matters.
 3. Retry the graph query.
-4. Fall back to Context Mode/RTK only when indexing is not appropriate or graph results remain insufficient.
+4. Fall back to Context Mode/RTK only when needed indexing fails or graph results remain insufficient.
 
 ## Removing worktrees
 
