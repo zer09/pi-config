@@ -100,7 +100,7 @@ Start structural graph work with:
 5. `codebase_memory_mcp_get_architecture(project=...)` or `codebase_memory_mcp_get_graph_schema(project=...)`.
 6. Focused tools: `codebase_memory_mcp_search_graph`, `codebase_memory_mcp_trace_path`, `codebase_memory_mcp_query_graph`, `codebase_memory_mcp_detect_changes`, `codebase_memory_mcp_search_code`, and `codebase_memory_mcp_get_code_snippet`.
 
-Most query tools require `project`; get it from `codebase_memory_mcp_list_projects`. Use `codebase_memory_mcp_get_code_snippet` only after `codebase_memory_mcp_search_graph` finds an exact `qualified_name`. If needed indexing fails or remains incomplete, follow the fallback protocol and state that graph results are degraded. Treat `codebase_memory_mcp_delete_project(project=...)`, `codebase_memory_mcp_manage_adr(project=..., mode="update")`, `codebase_memory_mcp_ingest_traces(project=..., traces=...)`, and persistent indexing as deliberate local memory mutations.
+Most query tools require `project`; get it from `codebase_memory_mcp_list_projects`. Use `codebase_memory_mcp_get_code_snippet` only after `codebase_memory_mcp_search_graph` finds an exact `qualified_name`. If needed indexing fails or the project remains missing, empty, stale, incomplete, or failed, follow the fallback protocol and state that graph results are degraded. Treat `codebase_memory_mcp_delete_project(project=...)`, `codebase_memory_mcp_manage_adr(project=..., mode="update")`, `codebase_memory_mcp_ingest_traces(project=..., traces=...)`, and persistent indexing as deliberate local memory mutations.
 
 ### GitHub, Context7, worktrees, readers, fallback
 

@@ -29,7 +29,7 @@ Start every graph session with:
 5. If needed, `codebase_memory_mcp_get_graph_schema(project=...)`.
 6. If broad orientation is needed, `codebase_memory_mcp_get_architecture(project=...)`.
 
-If needed indexing fails or the project remains missing, empty, stale, or incomplete, follow the fallback protocol and state that graph results are degraded.
+If needed indexing fails or the project remains missing, empty, stale, incomplete, or failed, follow the fallback protocol and state that graph results are degraded.
 
 Index modes:
 
