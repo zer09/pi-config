@@ -40,7 +40,7 @@ Use this sequence:
 1. Call `codebase_memory_mcp_list_projects`.
 2. Match the active worktree repo to a project by `root_path`.
 3. If a project matches, call `codebase_memory_mcp_index_status(project=...)`; if none matches, skip status and treat the project as missing.
-4. Rebuild the active worktree graph with `codebase_memory_mcp_index_repository(repo_path=<worktree repo>, mode="full", persistence=false)` when the project is missing, status is stale/incomplete/failed, the branch/worktree state changed, code was edited and graph accuracy matters, or deep/semantic graph accuracy is required. Then repeat project selection and status checks.
+4. Rebuild the active worktree graph with `codebase_memory_mcp_index_repository(repo_path=<worktree repo>, mode="full", persistence=false)` when the project is missing, status is empty/stale/incomplete/failed, the branch/worktree state changed, code was edited and graph accuracy matters, or deep/semantic graph accuracy is required. Then repeat project selection and status checks.
 5. Query that project for structural code work.
 
 Do not assume a base-repo graph represents a worktree after branch-specific edits. Re-index the worktree repo with `mode="full"` when branch-specific edits or changed relationships matter.
