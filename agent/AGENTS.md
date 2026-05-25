@@ -4,7 +4,7 @@
 
 Before work begins:
 
-1. Read `~/.pi/agent/skills/context-watcher/SKILL.md` and apply its preflight, routing, RTK, codebase-memory-mcp, GitHub, Context7, worktree, delegate, and fallback rules.
+1. Load the `context-watcher` skill from `~/.pi/agent/skills/context-watcher/SKILL.md` and treat it as active for the whole session. Apply its preflight, routing, RTK, codebase-memory-mcp, GitHub, Context7, worktree, delegate, and fallback rules; do not merely read the file without activating the skill.
 2. Read `~/.pi/agent/rules/freedom.md` and the active approach file from `~/.pi/agent/rules/`.
 3. If the task is Coding, read both `~/.pi/agent/rules/coding.md` and `~/.pi/agent/rules/agent.md`.
 4. If the task involves code exploration or review, verify codebase-memory-mcp project/index status per Context Watcher.
