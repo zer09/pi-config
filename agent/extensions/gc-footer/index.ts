@@ -11,6 +11,10 @@ let requestRender: (() => void) | undefined;
 const THINKING_OUTLINE_CIRCLE = "\uf10c";
 const THINKING_FILLED_CIRCLE = "\uf111";
 
+type FooterData = {
+	getGitBranch(): string | null;
+};
+
 export default function gcFooter(pi: ExtensionAPI): void {
 	pi.on("session_start", async (_event, ctx) => {
 		if (!ctx.hasUI) return;
@@ -28,7 +32,7 @@ export default function gcFooter(pi: ExtensionAPI): void {
 				},
 				invalidate() {},
 				render(width: number): string[] {
-					return [renderFooterLine(width, pi, ctx, theme)];
+					return [renderFooterLine(width, pi, ctx, theme, footerData)];
 				},
 			};
 		});
@@ -53,8 +57,12 @@ function renderFooterLine(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	theme: Theme,
+	footerData: FooterData,
 ): string {
-	const left = theme.fg("dim", formatCwd(ctx.cwd));
+	const left = joinSegments([
+		theme.fg("dim", formatCwd(ctx.cwd)),
+		formatGitBranch(footerData.getGitBranch(), theme),
+	]);
 	const right = [
 		theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id)),
 		formatThinkingDot(pi.getThinkingLevel(), theme),
@@ -68,6 +76,14 @@ function formatCwd(cwd: string): string {
 	if (!home) return cwd;
 	if (cwd === home) return "~";
 	return cwd.startsWith(`${home}/`) ? `~${cwd.slice(home.length)}` : cwd;
+}
+
+function formatGitBranch(branch: string | null, theme: Theme): string | undefined {
+	return branch ? theme.fg("muted", `(${branch})`) : undefined;
+}
+
+function joinSegments(segments: Array<string | undefined>): string {
+	return segments.filter((segment) => segment && visibleWidth(segment) > 0).join(" ");
 }
 
 function thinkingColor(level: string): ThemeColor {
