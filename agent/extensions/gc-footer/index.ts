@@ -13,6 +13,8 @@ let requestRender: (() => void) | undefined;
 
 const THINKING_OUTLINE_CIRCLE = "\uf10c";
 const THINKING_FILLED_CIRCLE = "\uf111";
+const FALLBACK_THINKING_OUTLINE_CIRCLE = "\u25cb";
+const FALLBACK_THINKING_FILLED_CIRCLE = "\u25cf";
 const CONFIG_PATH = join(dirname(fileURLToPath(import.meta.url)), "config.json");
 
 const SEGMENT_KEYS = [
@@ -30,6 +32,7 @@ type SegmentConfig = Record<SegmentName, boolean>;
 
 type FooterConfig = {
 	segments: SegmentConfig;
+	nerdFont: boolean;
 };
 
 type FooterData = {
@@ -47,6 +50,7 @@ const DEFAULT_CONFIG: FooterConfig = {
 		model: true,
 		thinking: true,
 	},
+	nerdFont: true,
 };
 
 export default function gcFooter(pi: ExtensionAPI): void {
@@ -111,7 +115,7 @@ function renderFooterLine(
 		config.segments.tokens ? formatSessionTokenTotals(ctx, theme) : undefined,
 		config.segments.context ? formatContextUsage(ctx, theme) : undefined,
 		config.segments.model ? theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id)) : undefined,
-		config.segments.thinking ? formatThinkingDot(pi.getThinkingLevel(), theme) : undefined,
+		config.segments.thinking ? formatThinkingDot(pi.getThinkingLevel(), theme, config.nerdFont) : undefined,
 	]);
 
 	return joinFooterSections(left, middle, right, width);
@@ -124,11 +128,15 @@ function loadConfig(): FooterConfig {
 
 	try {
 		const parsed = JSON.parse(readFileSync(configPath, "utf8"));
-		if (!isRecord(parsed) || !isRecord(parsed.segments)) return config;
+		if (!isRecord(parsed)) return config;
 
-		for (const key of SEGMENT_KEYS) {
-			const value = parsed.segments[key];
-			if (typeof value === "boolean") config.segments[key] = value;
+		if (typeof parsed.nerdFont === "boolean") config.nerdFont = parsed.nerdFont;
+
+		if (isRecord(parsed.segments)) {
+			for (const key of SEGMENT_KEYS) {
+				const value = parsed.segments[key];
+				if (typeof value === "boolean") config.segments[key] = value;
+			}
 		}
 	} catch {
 		return config;
@@ -140,6 +148,7 @@ function loadConfig(): FooterConfig {
 function createDefaultConfig(): FooterConfig {
 	return {
 		segments: { ...DEFAULT_CONFIG.segments },
+		nerdFont: DEFAULT_CONFIG.nerdFont,
 	};
 }
 
@@ -241,12 +250,15 @@ function thinkingColor(level: string): ThemeColor {
 	}
 }
 
-function thinkingGlyph(level: string): string {
-	return level === "off" ? THINKING_OUTLINE_CIRCLE : THINKING_FILLED_CIRCLE;
+function thinkingGlyph(level: string, nerdFont: boolean): string {
+	if (level === "off") {
+		return nerdFont ? THINKING_OUTLINE_CIRCLE : FALLBACK_THINKING_OUTLINE_CIRCLE;
+	}
+	return nerdFont ? THINKING_FILLED_CIRCLE : FALLBACK_THINKING_FILLED_CIRCLE;
 }
 
-function formatThinkingDot(level: string, theme: Theme): string {
-	return theme.fg(thinkingColor(level), thinkingGlyph(level));
+function formatThinkingDot(level: string, theme: Theme, nerdFont: boolean): string {
+	return theme.fg(thinkingColor(level), thinkingGlyph(level, nerdFont));
 }
 
 function formatModelName(provider: string | undefined, id: string | undefined): string {

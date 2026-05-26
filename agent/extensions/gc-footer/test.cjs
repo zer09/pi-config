@@ -151,6 +151,18 @@ async function run() {
 
 	{
 		const footer = await createFooter({
+			thinkingLevel: "off",
+			config: { nerdFont: false },
+		});
+		assert.match(footer.renderPlain(), /\u25cb$/, "fallback off thinking should use unicode outline circle");
+		footer.setThinkingLevel("medium");
+		const line = footer.renderPlain();
+		assert.match(line, /\u25cf$/, "fallback enabled thinking should use unicode filled circle");
+		assert.ok(!line.includes("\uf111"), "fallback thinking should not use Nerd Font glyphs");
+	}
+
+	{
+		const footer = await createFooter({
 			cwd: path.join(process.env.HOME ?? "/home/test", "project"),
 			model: { provider: "anthropic", id: "claude-sonnet-4-20250514", contextWindow: 200000 },
 		});
@@ -232,8 +244,9 @@ async function run() {
 		assert.ok(line.includes("\uf111"), "invalid config should keep default thinking segment");
 	}
 
-	{
+	for (const config of [undefined, { nerdFont: false }]) {
 		const footer = await createFooter({
+			...(config ? { config } : {}),
 			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
 			statuses: new Map([
 				["a", "alpha-status-is-long"],
