@@ -57,7 +57,13 @@ async function createFooter(options = {}) {
 	const notifications = [];
 	const factory = loadExtension();
 	const themeName = options.themeName ?? "dark";
-	const theme = { fg: (_color, text) => `\x1b[2m${text}\x1b[0m` };
+	const colorCalls = [];
+	const theme = {
+		fg(color, text) {
+			colorCalls.push({ color, text });
+			return `\x1b[2m${text}\x1b[0m`;
+		},
+	};
 	let thinkingLevel = options.thinkingLevel ?? "medium";
 	let branch = Object.hasOwn(options, "branch") ? options.branch : "main";
 	let statuses = options.statuses ?? new Map();
@@ -135,6 +141,7 @@ async function createFooter(options = {}) {
 		handlers,
 		commands,
 		notifications,
+		colorCalls,
 		render(width = 120) {
 			return component.render(width)[0] ?? "";
 		},
@@ -152,6 +159,9 @@ async function createFooter(options = {}) {
 		},
 		getRenderRequests() {
 			return renderRequests;
+		},
+		getColorCalls() {
+			return colorCalls;
 		},
 		async runCommand(args = "") {
 			const command = commands.get("gc-footer");
@@ -265,6 +275,23 @@ async function run() {
 		assert.ok(
 			footer.renderPlain().includes("↑742k/R12M ↓80k (28%) (76k/272k) openai-codex/gpt-5.5"),
 			"context percentage should be computed when usage percent is absent",
+		);
+	}
+
+	for (const { percent, text, color } of [
+		{ percent: 69.4, text: "(69%)", color: "muted" },
+		{ percent: 69.6, text: "(70%)", color: "warning" },
+		{ percent: 70, text: "(70%)", color: "warning" },
+		{ percent: 89.5, text: "(90%)", color: "error" },
+		{ percent: 90, text: "(90%)", color: "error" },
+	]) {
+		const footer = await createFooter({
+			contextUsage: { tokens: 1000, contextWindow: 10000, percent },
+		});
+		footer.renderPlain();
+		assert.ok(
+			footer.getColorCalls().some((call) => call.text === text && call.color === color),
+			`context percentage ${text} should use ${color}`,
 		);
 	}
 

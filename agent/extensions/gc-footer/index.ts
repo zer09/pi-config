@@ -264,19 +264,34 @@ function formatContextUsage(ctx: ExtensionContext, theme: Theme): string | undef
 	const contextWindow = usage.contextWindow || ctx.model?.contextWindow;
 	if (!contextWindow) return undefined;
 
-	return theme.fg(
-		"muted",
-		`(${formatTokenPercent(usage.tokens, contextWindow, usage.percent)}) (${formatTokens(usage.tokens)}/${formatTokens(contextWindow)})`,
-	);
+	const percent = getTokenPercent(usage.tokens, contextWindow, usage.percent);
+	const displayedPercent = getDisplayedTokenPercent(percent);
+	return [
+		theme.fg(contextUsageColor(displayedPercent.value), `(${displayedPercent.text})`),
+		theme.fg("muted", `(${formatTokens(usage.tokens)}/${formatTokens(contextWindow)})`),
+	].join(" ");
 }
 
-function formatTokenPercent(tokens: number, contextWindow: number, percent: number | null | undefined): string {
-	const value = typeof percent === "number" && Number.isFinite(percent)
+function getTokenPercent(tokens: number, contextWindow: number, percent: number | null | undefined): number {
+	return typeof percent === "number" && Number.isFinite(percent)
 		? percent
 		: (tokens / contextWindow) * 100;
+}
 
-	if (value < 10 && !Number.isInteger(value)) return `${value.toFixed(1)}%`;
-	return `${Math.round(value)}%`;
+function getDisplayedTokenPercent(percent: number): { text: string; value: number } {
+	if (percent < 10 && !Number.isInteger(percent)) {
+		const text = percent.toFixed(1);
+		return { text: `${text}%`, value: Number(text) };
+	}
+
+	const value = Math.round(percent);
+	return { text: `${value}%`, value };
+}
+
+function contextUsageColor(percent: number): ThemeColor {
+	if (percent >= 90) return "error";
+	if (percent >= 70) return "warning";
+	return "muted";
 }
 
 function formatTokens(count: number): string {
