@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -10,13 +13,45 @@ let requestRender: (() => void) | undefined;
 
 const THINKING_OUTLINE_CIRCLE = "\uf10c";
 const THINKING_FILLED_CIRCLE = "\uf111";
+const CONFIG_PATH = join(dirname(fileURLToPath(import.meta.url)), "config.json");
+
+const SEGMENT_KEYS = [
+	"cwd",
+	"branch",
+	"statuses",
+	"tokens",
+	"context",
+	"model",
+	"thinking",
+] as const;
+
+type SegmentName = typeof SEGMENT_KEYS[number];
+type SegmentConfig = Record<SegmentName, boolean>;
+
+type FooterConfig = {
+	segments: SegmentConfig;
+};
 
 type FooterData = {
 	getGitBranch(): string | null;
 	getExtensionStatuses(): ReadonlyMap<string, string>;
 };
 
+const DEFAULT_CONFIG: FooterConfig = {
+	segments: {
+		cwd: true,
+		branch: true,
+		statuses: true,
+		tokens: true,
+		context: true,
+		model: true,
+		thinking: true,
+	},
+};
+
 export default function gcFooter(pi: ExtensionAPI): void {
+	const config = loadConfig();
+
 	pi.on("session_start", async (_event, ctx) => {
 		if (!ctx.hasUI) return;
 
@@ -33,7 +68,7 @@ export default function gcFooter(pi: ExtensionAPI): void {
 				},
 				invalidate() {},
 				render(width: number): string[] {
-					return [renderFooterLine(width, pi, ctx, theme, footerData)];
+					return [renderFooterLine(width, pi, ctx, theme, footerData, config)];
 				},
 			};
 		});
@@ -63,20 +98,53 @@ function renderFooterLine(
 	ctx: ExtensionContext,
 	theme: Theme,
 	footerData: FooterData,
+	config: FooterConfig,
 ): string {
 	const left = joinSegments([
-		theme.fg("dim", formatCwd(ctx.cwd)),
-		formatGitBranch(footerData.getGitBranch(), theme),
+		config.segments.cwd ? theme.fg("dim", formatCwd(ctx.cwd)) : undefined,
+		config.segments.branch ? formatGitBranch(footerData.getGitBranch(), theme) : undefined,
 	]);
-	const middle = formatExtensionStatuses(footerData.getExtensionStatuses());
+	const middle = config.segments.statuses
+		? formatExtensionStatuses(footerData.getExtensionStatuses())
+		: undefined;
 	const right = joinSegments([
-		formatSessionTokenTotals(ctx, theme),
-		formatContextUsage(ctx, theme),
-		theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id)),
-		formatThinkingDot(pi.getThinkingLevel(), theme),
+		config.segments.tokens ? formatSessionTokenTotals(ctx, theme) : undefined,
+		config.segments.context ? formatContextUsage(ctx, theme) : undefined,
+		config.segments.model ? theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id)) : undefined,
+		config.segments.thinking ? formatThinkingDot(pi.getThinkingLevel(), theme) : undefined,
 	]);
 
 	return joinFooterSections(left, middle, right, width);
+}
+
+function loadConfig(): FooterConfig {
+	const config = createDefaultConfig();
+	const configPath = process.env.GC_FOOTER_CONFIG_PATH || CONFIG_PATH;
+	if (!existsSync(configPath)) return config;
+
+	try {
+		const parsed = JSON.parse(readFileSync(configPath, "utf8"));
+		if (!isRecord(parsed) || !isRecord(parsed.segments)) return config;
+
+		for (const key of SEGMENT_KEYS) {
+			const value = parsed.segments[key];
+			if (typeof value === "boolean") config.segments[key] = value;
+		}
+	} catch {
+		return config;
+	}
+
+	return config;
+}
+
+function createDefaultConfig(): FooterConfig {
+	return {
+		segments: { ...DEFAULT_CONFIG.segments },
+	};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function formatCwd(cwd: string): string {

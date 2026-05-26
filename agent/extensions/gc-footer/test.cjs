@@ -1,6 +1,8 @@
 const assert = require("node:assert/strict");
 const { execFileSync } = require("node:child_process");
+const fs = require("node:fs");
 const Module = require("node:module");
+const os = require("node:os");
 const path = require("node:path");
 
 function resolveGlobalNodeModules() {
@@ -37,6 +39,19 @@ function loadExtension() {
 }
 
 async function createFooter(options = {}) {
+	const oldConfigPath = process.env.GC_FOOTER_CONFIG_PATH;
+	let tempConfigDir;
+
+	if (Object.hasOwn(options, "config")) {
+		tempConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), "gc-footer-test-"));
+		const configPath = path.join(tempConfigDir, "config.json");
+		const configText = typeof options.config === "string"
+			? options.config
+			: JSON.stringify(options.config);
+		fs.writeFileSync(configPath, configText, "utf8");
+		process.env.GC_FOOTER_CONFIG_PATH = configPath;
+	}
+
 	const handlers = new Map();
 	const factory = loadExtension();
 	let thinkingLevel = options.thinkingLevel ?? "medium";
@@ -45,14 +60,23 @@ async function createFooter(options = {}) {
 	let renderRequests = 0;
 	let footerFactory;
 
-	factory({
-		on(event, handler) {
-			handlers.set(event, handler);
-		},
-		getThinkingLevel() {
-			return thinkingLevel;
-		},
-	});
+	try {
+		factory({
+			on(event, handler) {
+				handlers.set(event, handler);
+			},
+			getThinkingLevel() {
+				return thinkingLevel;
+			},
+		});
+	} finally {
+		if (oldConfigPath === undefined) {
+			delete process.env.GC_FOOTER_CONFIG_PATH;
+		} else {
+			process.env.GC_FOOTER_CONFIG_PATH = oldConfigPath;
+		}
+		if (tempConfigDir) fs.rmSync(tempConfigDir, { recursive: true, force: true });
+	}
 
 	const ctx = {
 		hasUI: true,
@@ -171,6 +195,41 @@ async function run() {
 		const line = footer.renderPlain();
 		assert.ok(line.includes("↑12k ↓3k openai-codex/gpt-5.5"), "cache segments should be omitted when zero");
 		assert.ok(!line.includes("/272k"), "context usage should be hidden when tokens are unknown");
+	}
+
+	{
+		const footer = await createFooter({
+			config: {
+				segments: {
+					branch: false,
+					statuses: false,
+					tokens: false,
+					context: false,
+					thinking: false,
+				},
+			},
+			statuses: new Map([["status", "status:on"]]),
+			entries: [assistantEntry({ input: 12000, output: 3000, cacheRead: 4000, cacheWrite: 4000 })],
+			contextUsage: { tokens: 9400, contextWindow: 272000, percent: 3.45 },
+		});
+		const line = footer.renderPlain();
+		assert.ok(line.includes("~/project"), "cwd should remain enabled by default");
+		assert.ok(line.includes("openai-codex/gpt-5.5"), "model should remain enabled by default");
+		assert.ok(!line.includes("(main)"), "branch config should hide branch");
+		assert.ok(!line.includes("status:on"), "statuses config should hide statuses");
+		assert.ok(!line.includes("↑") && !line.includes("↓"), "tokens config should hide token totals");
+		assert.ok(!line.includes("/272k"), "context config should hide context usage");
+		assert.ok(!line.includes("\uf111"), "thinking config should hide thinking dot");
+	}
+
+	{
+		const footer = await createFooter({
+			config: "{",
+		});
+		const line = footer.renderPlain();
+		assert.match(line, /^~\/project \(main\)/, "invalid config should fall back to defaults");
+		assert.ok(line.includes("openai-codex/gpt-5.5"), "invalid config should keep default model segment");
+		assert.ok(line.includes("\uf111"), "invalid config should keep default thinking segment");
 	}
 
 	{
