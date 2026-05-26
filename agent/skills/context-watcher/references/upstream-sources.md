@@ -31,7 +31,7 @@ Task intent -> Context Watcher routing -> Context Mode sandbox
 
 - Context Mode MCP tools are preferred when available.
 - If MCP tools are unavailable on a platform, use the closest sandboxed equivalent with RTK compression and keep the same routing rules conceptually.
-- codebase-memory-mcp applies to indexed projects and structural code/document graphs. If a repo is missing or stale, index when authorized and useful.
+- codebase-memory-mcp applies to indexed projects and structural code/document graphs. At graph-session start, match by `root_path` and check status only for a matching project; rebuild the active repo with `mode="full"` and `persistence=false` only when indexing is authorized and useful, and when the project is missing, empty, stale, incomplete, failed, branch/worktree state changed, code edits affect graph accuracy, or deep/semantic graph accuracy is required.
 - Browser tools are not substitutes for authenticated `gh` CLI on private GitHub data.
 - Native file tools remain required for file writes and precise edits.
 
