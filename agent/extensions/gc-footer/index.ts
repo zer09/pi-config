@@ -47,6 +47,10 @@ export default function gcFooter(pi: ExtensionAPI): void {
 		requestRender?.();
 	});
 
+	pi.on("agent_end", async () => {
+		requestRender?.();
+	});
+
 	pi.on("session_shutdown", async (_event, ctx) => {
 		if (ctx.hasUI) ctx.ui.setFooter(undefined);
 		requestRender = undefined;
@@ -65,10 +69,11 @@ function renderFooterLine(
 		formatGitBranch(footerData.getGitBranch(), theme),
 	]);
 	const middle = formatExtensionStatuses(footerData.getExtensionStatuses());
-	const right = [
+	const right = joinSegments([
+		formatContextUsage(ctx, theme),
 		theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id)),
 		formatThinkingDot(pi.getThinkingLevel(), theme),
-	].join(" ");
+	]);
 
 	return joinFooterSections(left, middle, right, width);
 }
@@ -92,6 +97,24 @@ function formatExtensionStatuses(statuses: ReadonlyMap<string, string>): string 
 		.join(" ");
 
 	return statusText || undefined;
+}
+
+function formatContextUsage(ctx: ExtensionContext, theme: Theme): string | undefined {
+	const usage = ctx.getContextUsage();
+	if (!usage || usage.tokens === null) return undefined;
+
+	const contextWindow = usage.contextWindow || ctx.model?.contextWindow;
+	if (!contextWindow) return undefined;
+
+	return theme.fg("muted", `(${formatTokens(usage.tokens)}/${formatTokens(contextWindow)})`);
+}
+
+function formatTokens(count: number): string {
+	if (count < 1000) return count.toString();
+	if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
+	if (count < 1000000) return `${Math.round(count / 1000)}k`;
+	if (count < 10000000) return `${(count / 1000000).toFixed(1)}M`;
+	return `${Math.round(count / 1000000)}M`;
 }
 
 function sanitizeStatusText(text: string): string {
