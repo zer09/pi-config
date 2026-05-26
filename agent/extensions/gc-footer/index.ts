@@ -56,7 +56,7 @@ function renderFooterLine(
 ): string {
 	const left = theme.fg("dim", formatCwd(ctx.cwd));
 	const right = [
-		theme.fg("muted", formatModelName(ctx.model?.id)),
+		theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id)),
 		formatThinkingDot(pi.getThinkingLevel(), theme),
 	].join(" ");
 
@@ -97,10 +97,11 @@ function formatThinkingDot(level: string, theme: Theme): string {
 	return theme.fg(thinkingColor(level), thinkingGlyph(level));
 }
 
-function formatModelName(id: string | undefined): string {
+function formatModelName(provider: string | undefined, id: string | undefined): string {
 	if (!id) return "no-model";
 	const base = id.includes("/") ? (id.split("/").pop() ?? id) : id;
-	return base.replace(/-\d{8}$/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "");
+	const model = base.replace(/-\d{8}$/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "");
+	return provider ? `${provider}/${model}` : model;
 }
 
 function joinLeftRight(left: string, right: string, width: number): string {
