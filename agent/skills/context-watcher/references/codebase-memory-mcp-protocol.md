@@ -26,8 +26,8 @@ Start every graph session with:
 2. Match the active repository or worktree root to a project by `root_path`.
 3. If a project matches, call `codebase_memory_mcp_index_status(project=...)`; if none matches, skip status and treat the project as missing.
 4. Rebuild with `codebase_memory_mcp_index_repository(repo_path=<active repository or worktree root>, mode="full", persistence=false)` only when indexing is authorized and useful, and when the project is missing, status is empty/stale/incomplete/failed, the branch/worktree state changed, code was edited and graph accuracy matters, or deep/semantic graph accuracy is required. Then repeat project selection and status checks.
-5. If needed, `codebase_memory_mcp_get_graph_schema(project=...)`.
-6. If broad orientation is needed, `codebase_memory_mcp_get_architecture(project=...)`.
+5. If a project is available after any needed recheck, call `codebase_memory_mcp_get_graph_schema(project=...)` when needed.
+6. If a project is available and broad orientation is needed, call `codebase_memory_mcp_get_architecture(project=...)`.
 
 If needed indexing fails or the project remains missing, empty, stale, incomplete, or failed, follow the fallback protocol and state that graph results are degraded.
 

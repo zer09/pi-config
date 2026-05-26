@@ -89,7 +89,7 @@ If writing a log file, use native file tools only when appropriate. Do not expos
 2. Match the active repository or worktree to a project by `root_path`.
 3. If a project matches, call `codebase_memory_mcp_index_status(project=...)`; if none matches, skip status and treat the project as missing.
 4. Rebuild with `codebase_memory_mcp_index_repository(repo_path=..., mode="full", persistence=false)` only when indexing is authorized and useful, graph accuracy matters, and the project is missing or status is empty, stale, incomplete, or failed.
-5. After needed indexing, list and match projects again, then rerun `codebase_memory_mcp_index_status(project=...)`; if no project matches or status remains empty, stale, incomplete, or failed, report a degraded graph fallback.
+5. After needed indexing, list and match projects again; if no project matches, report a degraded graph fallback. If a project matches, rerun `codebase_memory_mcp_index_status(project=...)`; if status remains empty, stale, incomplete, or failed, report a degraded graph fallback.
 6. Do not guess `project` from the folder name.
 
 ## Troubleshooting stale graph
