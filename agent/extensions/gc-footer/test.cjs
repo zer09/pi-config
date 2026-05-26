@@ -279,8 +279,10 @@ async function run() {
 	}
 
 	for (const { percent, text, color } of [
-		{ percent: 69, text: "(69%)", color: "muted" },
+		{ percent: 69.4, text: "(69%)", color: "muted" },
+		{ percent: 69.6, text: "(70%)", color: "warning" },
 		{ percent: 70, text: "(70%)", color: "warning" },
+		{ percent: 89.5, text: "(90%)", color: "error" },
 		{ percent: 90, text: "(90%)", color: "error" },
 	]) {
 		const footer = await createFooter({
