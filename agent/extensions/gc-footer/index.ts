@@ -70,6 +70,7 @@ function renderFooterLine(
 	]);
 	const middle = formatExtensionStatuses(footerData.getExtensionStatuses());
 	const right = joinSegments([
+		formatSessionTokenTotals(ctx, theme),
 		formatContextUsage(ctx, theme),
 		theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id)),
 		formatThinkingDot(pi.getThinkingLevel(), theme),
@@ -99,6 +100,28 @@ function formatExtensionStatuses(statuses: ReadonlyMap<string, string>): string 
 	return statusText || undefined;
 }
 
+function formatSessionTokenTotals(ctx: ExtensionContext, theme: Theme): string | undefined {
+	let input = 0;
+	let output = 0;
+	let cacheRead = 0;
+	let cacheWrite = 0;
+
+	for (const entry of ctx.sessionManager.getEntries()) {
+		if (entry.type !== "message" || entry.message.role !== "assistant") continue;
+		const usage = entry.message.usage;
+		input += usage.input;
+		output += usage.output;
+		cacheRead += usage.cacheRead;
+		cacheWrite += usage.cacheWrite;
+	}
+
+	if (!input && !output && !cacheRead && !cacheWrite) return undefined;
+
+	const inputPart = `↑${formatTokens(input)}${cacheRead ? `/R${formatTokens(cacheRead)}` : ""}`;
+	const outputPart = `↓${formatTokens(output)}${cacheWrite ? `/W${formatTokens(cacheWrite)}` : ""}`;
+	return theme.fg("muted", `${inputPart} ${outputPart}`);
+}
+
 function formatContextUsage(ctx: ExtensionContext, theme: Theme): string | undefined {
 	const usage = ctx.getContextUsage();
 	if (!usage || usage.tokens === null) return undefined;
@@ -111,9 +134,15 @@ function formatContextUsage(ctx: ExtensionContext, theme: Theme): string | undef
 
 function formatTokens(count: number): string {
 	if (count < 1000) return count.toString();
-	if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
+	if (count < 10000) {
+		const thousands = count / 1000;
+		return Number.isInteger(thousands) ? `${thousands}k` : `${thousands.toFixed(1)}k`;
+	}
 	if (count < 1000000) return `${Math.round(count / 1000)}k`;
-	if (count < 10000000) return `${(count / 1000000).toFixed(1)}M`;
+	if (count < 10000000) {
+		const millions = count / 1000000;
+		return Number.isInteger(millions) ? `${millions}M` : `${millions.toFixed(1)}M`;
+	}
 	return `${Math.round(count / 1000000)}M`;
 }
 
