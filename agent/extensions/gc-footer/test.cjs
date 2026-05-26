@@ -1,0 +1,339 @@
+const assert = require("node:assert/strict");
+const { execFileSync } = require("node:child_process");
+const fs = require("node:fs");
+const Module = require("node:module");
+const os = require("node:os");
+const path = require("node:path");
+
+function resolveGlobalNodeModules() {
+	try {
+		return execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
+	} catch {
+		return path.resolve(path.dirname(process.execPath), "..", "lib", "node_modules");
+	}
+}
+
+const globalNodeModules = resolveGlobalNodeModules();
+const piPackageRoot = path.join(globalNodeModules, "@earendil-works", "pi-coding-agent");
+process.env.NODE_PATH = [
+	path.join(piPackageRoot, "node_modules"),
+	globalNodeModules,
+	process.env.NODE_PATH,
+].filter(Boolean).join(path.delimiter);
+Module._initPaths();
+
+const { createJiti } = require(path.join(piPackageRoot, "node_modules", "jiti"));
+const { visibleWidth } = require("@earendil-works/pi-tui");
+
+const extensionPath = path.join(__dirname, "index.ts");
+const ansiPattern = /\x1b\[[0-9;]*m/g;
+
+function stripAnsi(value) {
+	return value.replace(ansiPattern, "");
+}
+
+function loadExtension() {
+	const jiti = createJiti(extensionPath, { interopDefault: false, moduleCache: false });
+	const mod = jiti(extensionPath);
+	return mod.default ?? mod;
+}
+
+async function createFooter(options = {}) {
+	const oldConfigPath = process.env.GC_FOOTER_CONFIG_PATH;
+	let tempConfigDir;
+
+	if (Object.hasOwn(options, "config")) {
+		tempConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), "gc-footer-test-"));
+		const configPath = path.join(tempConfigDir, "config.json");
+		const configText = typeof options.config === "string"
+			? options.config
+			: JSON.stringify(options.config);
+		fs.writeFileSync(configPath, configText, "utf8");
+		process.env.GC_FOOTER_CONFIG_PATH = configPath;
+	}
+
+	const handlers = new Map();
+	const commands = new Map();
+	const notifications = [];
+	const factory = loadExtension();
+	const themeName = options.themeName ?? "dark";
+	const theme = { fg: (_color, text) => `\x1b[2m${text}\x1b[0m` };
+	let thinkingLevel = options.thinkingLevel ?? "medium";
+	let branch = Object.hasOwn(options, "branch") ? options.branch : "main";
+	let statuses = options.statuses ?? new Map();
+	let renderRequests = 0;
+	let footerFactory;
+
+	try {
+		factory({
+			on(event, handler) {
+				handlers.set(event, handler);
+			},
+			registerCommand(name, command) {
+				commands.set(name, command);
+			},
+			getThinkingLevel() {
+				return thinkingLevel;
+			},
+		});
+	} finally {
+		if (oldConfigPath === undefined) {
+			delete process.env.GC_FOOTER_CONFIG_PATH;
+		} else {
+			process.env.GC_FOOTER_CONFIG_PATH = oldConfigPath;
+		}
+		if (tempConfigDir) fs.rmSync(tempConfigDir, { recursive: true, force: true });
+	}
+
+	const ctx = {
+		hasUI: true,
+		cwd: options.cwd ?? path.join(process.env.HOME ?? "/home/test", "project"),
+		model: options.model ?? {
+			provider: "openai-codex",
+			id: "gpt-5.5",
+			contextWindow: 272000,
+		},
+		sessionManager: {
+			getEntries: () => options.entries ?? [],
+		},
+		getContextUsage: () => options.contextUsage,
+		ui: {
+			theme,
+			notify(message, level = "info") {
+				notifications.push({ message, level });
+			},
+			getAllThemes() {
+				return [{ name: themeName, path: undefined }];
+			},
+			getTheme(name) {
+				return name === themeName ? theme : undefined;
+			},
+			setFooter(fn) {
+				footerFactory = fn;
+			},
+		},
+	};
+
+	await handlers.get("session_start")?.({}, ctx);
+	assert.equal(typeof footerFactory, "function", "session_start should install footer");
+
+	const component = footerFactory(
+		{ requestRender: () => { renderRequests += 1; } },
+		theme,
+		{
+			getGitBranch: () => branch,
+			getExtensionStatuses: () => statuses,
+			onBranchChange: (callback) => {
+				createFooter.lastBranchCallback = callback;
+				return () => {};
+			},
+		},
+	);
+
+	return {
+		component,
+		handlers,
+		commands,
+		notifications,
+		render(width = 120) {
+			return component.render(width)[0] ?? "";
+		},
+		renderPlain(width = 120) {
+			return stripAnsi(this.render(width));
+		},
+		setThinkingLevel(level) {
+			thinkingLevel = level;
+		},
+		setBranch(value) {
+			branch = value;
+		},
+		setStatuses(value) {
+			statuses = value;
+		},
+		getRenderRequests() {
+			return renderRequests;
+		},
+		async runCommand(args = "") {
+			const command = commands.get("gc-footer");
+			assert.equal(typeof command?.handler, "function", "gc-footer command should be registered");
+			await command.handler(args, ctx);
+			return notifications[notifications.length - 1];
+		},
+	};
+}
+
+function assistantEntry(usage) {
+	return { type: "message", message: { role: "assistant", usage } };
+}
+
+async function run() {
+	{
+		const footer = await createFooter({ thinkingLevel: "off" });
+		assert.match(footer.renderPlain(), /\uf10c$/, "off thinking should use outline circle");
+		footer.setThinkingLevel("medium");
+		assert.match(footer.renderPlain(), /\uf111$/, "enabled thinking should use filled circle");
+	}
+
+	{
+		const footer = await createFooter({
+			thinkingLevel: "off",
+			config: { nerdFont: false },
+		});
+		assert.match(footer.renderPlain(), /\u25cb$/, "fallback off thinking should use unicode outline circle");
+		footer.setThinkingLevel("medium");
+		const line = footer.renderPlain();
+		assert.match(line, /\u25cf$/, "fallback enabled thinking should use unicode filled circle");
+		assert.ok(!line.includes("\uf111"), "fallback thinking should not use Nerd Font glyphs");
+	}
+
+	{
+		const footer = await createFooter({
+			cwd: path.join(process.env.HOME ?? "/home/test", "project"),
+			model: { provider: "anthropic", id: "claude-sonnet-4-20250514", contextWindow: 200000 },
+		});
+		const line = footer.renderPlain();
+		assert.match(line, /^~\/project \(main\)/, "cwd should abbreviate home and show branch");
+		assert.ok(line.includes("anthropic/claude-sonnet-4"), "model date suffix should be removed");
+	}
+
+	{
+		const footer = await createFooter({ branch: null });
+		assert.ok(!footer.renderPlain().includes("(main)"), "branch should be hidden outside git repos");
+	}
+
+	{
+		const footer = await createFooter();
+		const notification = await footer.runCommand();
+		assert.equal(notification.level, "info", "gc-footer command should report status");
+		assert.ok(notification.message.includes("segments: cwd, branch, statuses, tokens, context, model, thinking"), "command should list enabled segments");
+		assert.ok(notification.message.includes("theme: dark"), "command should report active theme name");
+		assert.ok(notification.message.includes("model: openai-codex/gpt-5.5"), "command should report current model");
+		assert.ok(notification.message.includes("thinking: medium"), "command should report current thinking level");
+		assert.ok(notification.message.includes("branch: main"), "command should report current branch");
+		assert.ok(notification.message.includes("nerdFont: on"), "command should report Nerd Font mode");
+	}
+
+	{
+		const footer = await createFooter({
+			config: {
+				segments: {
+					branch: false,
+					statuses: false,
+					tokens: false,
+				},
+				nerdFont: false,
+			},
+		});
+		const notification = await footer.runCommand("status");
+		assert.equal(notification.level, "info", "gc-footer status alias should report status");
+		assert.ok(notification.message.includes("segments: cwd, context, model, thinking"), "command should show config-disabled segments as omitted");
+		assert.ok(notification.message.includes("nerdFont: off"), "command should report disabled Nerd Font mode");
+
+		const error = await footer.runCommand("toggle branch");
+		assert.equal(error.level, "error", "gc-footer command should reject mutating subcommands");
+		assert.equal(error.message, "Usage: /gc-footer", "gc-footer command should remain read-only");
+	}
+
+	{
+		const footer = await createFooter({
+			statuses: new Map([
+				["z-status", "z:\ton\nready"],
+				["a-status", "a:on"],
+			]),
+		});
+		const line = footer.renderPlain();
+		assert.ok(line.includes("a:on z: on ready"), "statuses should sort by key and sanitize whitespace");
+		assert.ok(line.indexOf("a:on") < line.indexOf("openai-codex/gpt-5.5"), "statuses should render before model");
+	}
+
+	{
+		const footer = await createFooter({
+			entries: [assistantEntry({ input: 12000, output: 3000, cacheRead: 4000, cacheWrite: 4000 })],
+			contextUsage: { tokens: 9400, contextWindow: 272000, percent: 3.45 },
+		});
+		assert.ok(
+			footer.renderPlain().includes("↑12k/R4k ↓3k/W4k (3.5%) (9.4k/272k) openai-codex/gpt-5.5"),
+			"right side should include token totals, context percentage, context usage, model, and thinking",
+		);
+	}
+
+	{
+		const footer = await createFooter({
+			entries: [assistantEntry({ input: 742000, output: 80000, cacheRead: 12000000, cacheWrite: 0 })],
+			contextUsage: { tokens: 76000, contextWindow: 272000, percent: null },
+		});
+		assert.ok(
+			footer.renderPlain().includes("↑742k/R12M ↓80k (28%) (76k/272k) openai-codex/gpt-5.5"),
+			"context percentage should be computed when usage percent is absent",
+		);
+	}
+
+	{
+		const footer = await createFooter({
+			entries: [assistantEntry({ input: 12000, output: 3000, cacheRead: 0, cacheWrite: 0 })],
+			contextUsage: { tokens: null, contextWindow: 272000, percent: null },
+		});
+		const line = footer.renderPlain();
+		assert.ok(line.includes("↑12k ↓3k openai-codex/gpt-5.5"), "cache segments should be omitted when zero");
+		assert.ok(!line.includes("/272k"), "context usage should be hidden when tokens are unknown");
+	}
+
+	{
+		const footer = await createFooter({
+			config: {
+				segments: {
+					branch: false,
+					statuses: false,
+					tokens: false,
+					context: false,
+					thinking: false,
+				},
+			},
+			statuses: new Map([["status", "status:on"]]),
+			entries: [assistantEntry({ input: 12000, output: 3000, cacheRead: 4000, cacheWrite: 4000 })],
+			contextUsage: { tokens: 9400, contextWindow: 272000, percent: 3.45 },
+		});
+		const line = footer.renderPlain();
+		assert.ok(line.includes("~/project"), "cwd should remain enabled by default");
+		assert.ok(line.includes("openai-codex/gpt-5.5"), "model should remain enabled by default");
+		assert.ok(!line.includes("(main)"), "branch config should hide branch");
+		assert.ok(!line.includes("status:on"), "statuses config should hide statuses");
+		assert.ok(!line.includes("↑") && !line.includes("↓"), "tokens config should hide token totals");
+		assert.ok(!line.includes("%") && !line.includes("/272k"), "context config should hide context percentage and usage");
+		assert.ok(!line.includes("\uf111"), "thinking config should hide thinking dot");
+	}
+
+	{
+		const footer = await createFooter({
+			config: "{",
+		});
+		const line = footer.renderPlain();
+		assert.match(line, /^~\/project \(main\)/, "invalid config should fall back to defaults");
+		assert.ok(line.includes("openai-codex/gpt-5.5"), "invalid config should keep default model segment");
+		assert.ok(line.includes("\uf111"), "invalid config should keep default thinking segment");
+	}
+
+	for (const config of [undefined, { nerdFont: false }]) {
+		const footer = await createFooter({
+			...(config ? { config } : {}),
+			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
+			statuses: new Map([
+				["a", "alpha-status-is-long"],
+				["b", "beta-status-is-long"],
+			]),
+			entries: [assistantEntry({ input: 123456, output: 45678, cacheRead: 98765, cacheWrite: 8765 })],
+			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
+		});
+		for (let width = 0; width <= 140; width += 1) {
+			assert.doesNotThrow(() => footer.render(width), `render should not throw at width ${width}`);
+			assert.ok(visibleWidth(footer.render(width)) <= width, `render should fit width ${width}`);
+		}
+	}
+
+	console.log("gc-footer tests passed");
+}
+
+run().catch((error) => {
+	console.error(error.stack || error.message);
+	process.exitCode = 1;
+});
