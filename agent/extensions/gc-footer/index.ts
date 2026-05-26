@@ -13,6 +13,7 @@ const THINKING_FILLED_CIRCLE = "\uf111";
 
 type FooterData = {
 	getGitBranch(): string | null;
+	getExtensionStatuses(): ReadonlyMap<string, string>;
 };
 
 export default function gcFooter(pi: ExtensionAPI): void {
@@ -63,12 +64,13 @@ function renderFooterLine(
 		theme.fg("dim", formatCwd(ctx.cwd)),
 		formatGitBranch(footerData.getGitBranch(), theme),
 	]);
+	const middle = formatExtensionStatuses(footerData.getExtensionStatuses());
 	const right = [
 		theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id)),
 		formatThinkingDot(pi.getThinkingLevel(), theme),
 	].join(" ");
 
-	return joinLeftRight(left, right, width);
+	return joinFooterSections(left, middle, right, width);
 }
 
 function formatCwd(cwd: string): string {
@@ -80,6 +82,20 @@ function formatCwd(cwd: string): string {
 
 function formatGitBranch(branch: string | null, theme: Theme): string | undefined {
 	return branch ? theme.fg("muted", `(${branch})`) : undefined;
+}
+
+function formatExtensionStatuses(statuses: ReadonlyMap<string, string>): string | undefined {
+	const statusText = Array.from(statuses.entries())
+		.sort(([a], [b]) => a.localeCompare(b))
+		.map(([, text]) => sanitizeStatusText(text))
+		.filter(Boolean)
+		.join(" ");
+
+	return statusText || undefined;
+}
+
+function sanitizeStatusText(text: string): string {
+	return text.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim();
 }
 
 function joinSegments(segments: Array<string | undefined>): string {
@@ -118,6 +134,53 @@ function formatModelName(provider: string | undefined, id: string | undefined): 
 	const base = id.includes("/") ? (id.split("/").pop() ?? id) : id;
 	const model = base.replace(/-\d{8}$/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "");
 	return provider ? `${provider}/${model}` : model;
+}
+
+function joinFooterSections(
+	left: string,
+	middle: string | undefined,
+	right: string,
+	width: number,
+): string {
+	if (width <= 0) return "";
+	if (!middle) return joinLeftRight(left, right, width);
+
+	const leftWidth = visibleWidth(left);
+	const middleWidth = visibleWidth(middle);
+	const rightWidth = visibleWidth(right);
+	const gapWidth = (left && middle ? 1 : 0) + (middle && right ? 1 : 0);
+
+	if (leftWidth + middleWidth + rightWidth + gapWidth <= width) {
+		return joinLeftMiddleRight(left, middle, right, width);
+	}
+
+	const availableMiddleWidth = width - leftWidth - rightWidth - gapWidth;
+	if (availableMiddleWidth <= 0) {
+		return joinLeftRight(left, right, width);
+	}
+
+	const shortenedMiddle = truncateToWidth(middle, availableMiddleWidth, "");
+	return visibleWidth(shortenedMiddle) > 0
+		? joinLeftMiddleRight(left, shortenedMiddle, right, width)
+		: joinLeftRight(left, right, width);
+}
+
+function joinLeftMiddleRight(left: string, middle: string, right: string, width: number): string {
+	const leftWidth = visibleWidth(left);
+	const middleWidth = visibleWidth(middle);
+	const rightWidth = visibleWidth(right);
+	const paddingWidth = Math.max(0, width - leftWidth - middleWidth - rightWidth);
+	const leftPaddingWidth = left && middle ? Math.max(1, Math.floor(paddingWidth / 2)) : 0;
+	const rightPaddingWidth = middle && right ? Math.max(1, paddingWidth - leftPaddingWidth) : 0;
+	const line = [
+		left,
+		" ".repeat(leftPaddingWidth),
+		middle,
+		" ".repeat(rightPaddingWidth),
+		right,
+	].join("");
+
+	return truncateToWidth(line, width, "");
 }
 
 function joinLeftRight(left: string, right: string, width: number): string {
