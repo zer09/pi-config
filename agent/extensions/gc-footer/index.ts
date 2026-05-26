@@ -61,6 +61,8 @@ export default function gcFooter(pi: ExtensionAPI): void {
 		description: "Show gc footer status",
 		handler: async (args, ctx) => {
 			const command = args.trim();
+			// TODO(gc-footer): Add mutating subcommands after config writes are stable:
+			// /gc-footer toggle <segment>, /gc-footer nerd-font <on|off>.
 			if (command && command !== "status") {
 				ctx.ui.notify("Usage: /gc-footer", "error");
 				return;
