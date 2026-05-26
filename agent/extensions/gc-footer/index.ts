@@ -55,15 +55,38 @@ const DEFAULT_CONFIG: FooterConfig = {
 
 export default function gcFooter(pi: ExtensionAPI): void {
 	const config = loadConfig();
+	let currentBranch: string | null | undefined;
+
+	pi.registerCommand("gc-footer", {
+		description: "Show gc footer status",
+		handler: async (args, ctx) => {
+			const command = args.trim();
+			if (command && command !== "status") {
+				ctx.ui.notify("Usage: /gc-footer", "error");
+				return;
+			}
+
+			ctx.ui.notify(formatCommandStatus(config, ctx, pi.getThinkingLevel(), currentBranch), "info");
+		},
+	});
 
 	pi.on("session_start", async (_event, ctx) => {
 		if (!ctx.hasUI) return;
 
 		ctx.ui.setFooter((tui, theme, footerData) => {
+			const getBranch = () => {
+				currentBranch = footerData.getGitBranch();
+				return currentBranch;
+			};
 			const render = () => tui.requestRender();
+			const renderBranchChange = () => {
+				getBranch();
+				render();
+			};
 			requestRender = render;
+			getBranch();
 
-			const unsubscribeBranch = footerData.onBranchChange(render);
+			const unsubscribeBranch = footerData.onBranchChange(renderBranchChange);
 
 			return {
 				dispose() {
@@ -72,7 +95,7 @@ export default function gcFooter(pi: ExtensionAPI): void {
 				},
 				invalidate() {},
 				render(width: number): string[] {
-					return [renderFooterLine(width, pi, ctx, theme, footerData, config)];
+					return [renderFooterLine(width, pi, ctx, theme, footerData, config, getBranch)];
 				},
 			};
 		});
@@ -93,6 +116,7 @@ export default function gcFooter(pi: ExtensionAPI): void {
 	pi.on("session_shutdown", async (_event, ctx) => {
 		if (ctx.hasUI) ctx.ui.setFooter(undefined);
 		requestRender = undefined;
+		currentBranch = undefined;
 	});
 }
 
@@ -103,10 +127,11 @@ function renderFooterLine(
 	theme: Theme,
 	footerData: FooterData,
 	config: FooterConfig,
+	getBranch: () => string | null,
 ): string {
 	const left = joinSegments([
 		config.segments.cwd ? theme.fg("dim", formatCwd(ctx.cwd)) : undefined,
-		config.segments.branch ? formatGitBranch(footerData.getGitBranch(), theme) : undefined,
+		config.segments.branch ? formatGitBranch(getBranch(), theme) : undefined,
 	]);
 	const middle = config.segments.statuses
 		? formatExtensionStatuses(footerData.getExtensionStatuses())
@@ -154,6 +179,37 @@ function createDefaultConfig(): FooterConfig {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function formatCommandStatus(
+	config: FooterConfig,
+	ctx: ExtensionContext,
+	thinkingLevel: string,
+	branch: string | null | undefined,
+): string {
+	const enabledSegments = SEGMENT_KEYS.filter((key) => config.segments[key]).join(", ");
+	return [
+		"gc-footer",
+		`segments: ${enabledSegments || "none"}`,
+		`theme: ${getActiveThemeName(ctx)}`,
+		`model: ${formatModelName(ctx.model?.provider, ctx.model?.id)}`,
+		`thinking: ${thinkingLevel}`,
+		`branch: ${formatBranchStatus(branch)}`,
+		`nerdFont: ${config.nerdFont ? "on" : "off"}`,
+	].join("\n");
+}
+
+function getActiveThemeName(ctx: ExtensionContext): string {
+	const currentTheme = ctx.ui.theme;
+	for (const theme of ctx.ui.getAllThemes()) {
+		if (ctx.ui.getTheme(theme.name) === currentTheme) return theme.name;
+	}
+	return "unknown";
+}
+
+function formatBranchStatus(branch: string | null | undefined): string {
+	if (branch === undefined) return "unknown";
+	return branch ?? "none";
 }
 
 function formatCwd(cwd: string): string {

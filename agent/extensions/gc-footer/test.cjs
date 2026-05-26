@@ -53,7 +53,11 @@ async function createFooter(options = {}) {
 	}
 
 	const handlers = new Map();
+	const commands = new Map();
+	const notifications = [];
 	const factory = loadExtension();
+	const themeName = options.themeName ?? "dark";
+	const theme = { fg: (_color, text) => `\x1b[2m${text}\x1b[0m` };
 	let thinkingLevel = options.thinkingLevel ?? "medium";
 	let branch = Object.hasOwn(options, "branch") ? options.branch : "main";
 	let statuses = options.statuses ?? new Map();
@@ -64,6 +68,9 @@ async function createFooter(options = {}) {
 		factory({
 			on(event, handler) {
 				handlers.set(event, handler);
+			},
+			registerCommand(name, command) {
+				commands.set(name, command);
 			},
 			getThinkingLevel() {
 				return thinkingLevel;
@@ -91,6 +98,16 @@ async function createFooter(options = {}) {
 		},
 		getContextUsage: () => options.contextUsage,
 		ui: {
+			theme,
+			notify(message, level = "info") {
+				notifications.push({ message, level });
+			},
+			getAllThemes() {
+				return [{ name: themeName, path: undefined }];
+			},
+			getTheme(name) {
+				return name === themeName ? theme : undefined;
+			},
 			setFooter(fn) {
 				footerFactory = fn;
 			},
@@ -102,7 +119,7 @@ async function createFooter(options = {}) {
 
 	const component = footerFactory(
 		{ requestRender: () => { renderRequests += 1; } },
-		{ fg: (_color, text) => `\x1b[2m${text}\x1b[0m` },
+		theme,
 		{
 			getGitBranch: () => branch,
 			getExtensionStatuses: () => statuses,
@@ -116,6 +133,8 @@ async function createFooter(options = {}) {
 	return {
 		component,
 		handlers,
+		commands,
+		notifications,
 		render(width = 120) {
 			return component.render(width)[0] ?? "";
 		},
@@ -133,6 +152,12 @@ async function createFooter(options = {}) {
 		},
 		getRenderRequests() {
 			return renderRequests;
+		},
+		async runCommand(args = "") {
+			const command = commands.get("gc-footer");
+			assert.equal(typeof command?.handler, "function", "gc-footer command should be registered");
+			await command.handler(args, ctx);
+			return notifications[notifications.length - 1];
 		},
 	};
 }
@@ -174,6 +199,39 @@ async function run() {
 	{
 		const footer = await createFooter({ branch: null });
 		assert.ok(!footer.renderPlain().includes("(main)"), "branch should be hidden outside git repos");
+	}
+
+	{
+		const footer = await createFooter();
+		const notification = await footer.runCommand();
+		assert.equal(notification.level, "info", "gc-footer command should report status");
+		assert.ok(notification.message.includes("segments: cwd, branch, statuses, tokens, context, model, thinking"), "command should list enabled segments");
+		assert.ok(notification.message.includes("theme: dark"), "command should report active theme name");
+		assert.ok(notification.message.includes("model: openai-codex/gpt-5.5"), "command should report current model");
+		assert.ok(notification.message.includes("thinking: medium"), "command should report current thinking level");
+		assert.ok(notification.message.includes("branch: main"), "command should report current branch");
+		assert.ok(notification.message.includes("nerdFont: on"), "command should report Nerd Font mode");
+	}
+
+	{
+		const footer = await createFooter({
+			config: {
+				segments: {
+					branch: false,
+					statuses: false,
+					tokens: false,
+				},
+				nerdFont: false,
+			},
+		});
+		const notification = await footer.runCommand("status");
+		assert.equal(notification.level, "info", "gc-footer status alias should report status");
+		assert.ok(notification.message.includes("segments: cwd, context, model, thinking"), "command should show config-disabled segments as omitted");
+		assert.ok(notification.message.includes("nerdFont: off"), "command should report disabled Nerd Font mode");
+
+		const error = await footer.runCommand("toggle branch");
+		assert.equal(error.level, "error", "gc-footer command should reject mutating subcommands");
+		assert.equal(error.message, "Usage: /gc-footer", "gc-footer command should remain read-only");
 	}
 
 	{
