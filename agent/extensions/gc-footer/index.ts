@@ -264,7 +264,19 @@ function formatContextUsage(ctx: ExtensionContext, theme: Theme): string | undef
 	const contextWindow = usage.contextWindow || ctx.model?.contextWindow;
 	if (!contextWindow) return undefined;
 
-	return theme.fg("muted", `(${formatTokens(usage.tokens)}/${formatTokens(contextWindow)})`);
+	return theme.fg(
+		"muted",
+		`(${formatTokenPercent(usage.tokens, contextWindow, usage.percent)}) (${formatTokens(usage.tokens)}/${formatTokens(contextWindow)})`,
+	);
+}
+
+function formatTokenPercent(tokens: number, contextWindow: number, percent: number | null | undefined): string {
+	const value = typeof percent === "number" && Number.isFinite(percent)
+		? percent
+		: (tokens / contextWindow) * 100;
+
+	if (value < 10 && !Number.isInteger(value)) return `${value.toFixed(1)}%`;
+	return `${Math.round(value)}%`;
 }
 
 function formatTokens(count: number): string {

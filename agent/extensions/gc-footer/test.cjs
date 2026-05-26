@@ -252,8 +252,19 @@ async function run() {
 			contextUsage: { tokens: 9400, contextWindow: 272000, percent: 3.45 },
 		});
 		assert.ok(
-			footer.renderPlain().includes("↑12k/R4k ↓3k/W4k (9.4k/272k) openai-codex/gpt-5.5"),
-			"right side should include token totals, context usage, model, and thinking",
+			footer.renderPlain().includes("↑12k/R4k ↓3k/W4k (3.5%) (9.4k/272k) openai-codex/gpt-5.5"),
+			"right side should include token totals, context percentage, context usage, model, and thinking",
+		);
+	}
+
+	{
+		const footer = await createFooter({
+			entries: [assistantEntry({ input: 742000, output: 80000, cacheRead: 12000000, cacheWrite: 0 })],
+			contextUsage: { tokens: 76000, contextWindow: 272000, percent: null },
+		});
+		assert.ok(
+			footer.renderPlain().includes("↑742k/R12M ↓80k (28%) (76k/272k) openai-codex/gpt-5.5"),
+			"context percentage should be computed when usage percent is absent",
 		);
 	}
 
@@ -288,7 +299,7 @@ async function run() {
 		assert.ok(!line.includes("(main)"), "branch config should hide branch");
 		assert.ok(!line.includes("status:on"), "statuses config should hide statuses");
 		assert.ok(!line.includes("↑") && !line.includes("↓"), "tokens config should hide token totals");
-		assert.ok(!line.includes("/272k"), "context config should hide context usage");
+		assert.ok(!line.includes("%") && !line.includes("/272k"), "context config should hide context percentage and usage");
 		assert.ok(!line.includes("\uf111"), "thinking config should hide thinking dot");
 	}
 
