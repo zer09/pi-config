@@ -1,0 +1,4 @@
+interface:
+  display_name: "Notion CLI"
+  short_description: "Use ntn for Notion API workflows"
+  default_prompt: "Use $notion-cli to query a Notion database with ntn."
