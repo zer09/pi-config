@@ -3,64 +3,40 @@ name: firebase-app-hosting-basics
 description: Deploy and manage web apps with Firebase App Hosting. Use this skill when deploying Next.js/Angular apps with backends.
 ---
 
-# App Hosting Basics
+# Firebase App Hosting Basics
+
+Use Firebase App Hosting for framework-backed web apps such as Next.js or Angular. Do not confuse it with Firebase Hosting Classic.
 
 ## Hosted service safety
 
-Firebase and Google Cloud actions can mutate hosted project state. List, inspect, and read configuration freely, but only create backends, connect repositories, configure secrets, change billing, deploy, or modify remote resources when the user explicitly asks for that exact action.
+- Reads, local config edits, local builds, and emulation are allowed.
+- Creating backends, connecting repos, changing rollout settings, setting secrets, changing service accounts, enabling services, or deploying requires exact user instruction.
+- Confirm the Firebase project, backend ID, region, branch, and rollout target before any hosted mutation.
+- Never print or commit secret values. Refer to Firebase secrets and environment variables by name only.
 
-## Description
-This skill enables the agent to deploy and manage modern, full-stack web applications (Next.js, Angular, etc.) using Firebase App Hosting. 
+## Workflow
 
-**Important**: In order to use App Hosting, your Firebase project must be on the Blaze pricing plan. Direct the user to https://console.firebase.google.com/project/_/overview?purchaseBillingPlan=metered to upgrade their plan.
+1. Determine whether the app needs App Hosting or Hosting Classic. Use App Hosting for supported full-stack frameworks and server backends; use `firebase-hosting-basics` for static sites, SPAs, and simple hosting.
+2. Inspect existing files before editing: `firebase.json`, `.firebaserc`, app hosting config files, package scripts, and framework config.
+3. Load references only as needed:
+   - [configuration](references/configuration.md)
+   - [cli commands](references/cli_commands.md)
+   - [emulation](references/emulation.md)
+4. Use `firebase apphosting --help` or subcommand help for exact flags before syntax-sensitive guidance.
+5. Validate locally with the project build, framework checks, and App Hosting emulator guidance when possible.
+6. For deploy or backend changes, provide a dry-run/checklist first unless the user explicitly requested the exact command.
 
-## Hosting vs App Hosting
+## Command reminders
 
-**Choose Firebase Hosting if:**
-- You are deploying a static site (HTML/CSS/JS).
-- You are deploying a simple SPA (React, Vue, etc. without SSR).
-- You want full control over the build and deploy process via CLI.
+```bash
+firebase --version
+firebase apphosting --help
+firebase apphosting:backends:list --project <project-id>
+firebase emulators:start --only apphosting
+```
 
-**Choose Firebase App Hosting if:**
-- You are using a supported full-stack framework like Next.js or Angular.
-- You need Server-Side Rendering (SSR) or ISR.
-- You want an automated "git push to deploy" workflow with zero configuration.
-
-## Deploying to App Hosting
-
-### Deploy from Source
-
-This is the recommended flow for most users. 
-1. Configure `firebase.json` with an `apphosting` block.
-    ```json
-    {
-      "apphosting": {
-        "backendId": "my-app-id",
-        "rootDir": "/",
-        "ignore": [
-          "node_modules",
-          ".git",
-          "firebase-debug.log",
-          "firebase-debug.*.log",
-          "functions"
-        ]
-      }
-    }
-    ```
-2. Create or edit `apphosting.yaml`- see [Configuration](references/configuration.md) for more information on how to do so.
-3. If the app needs safe access to sensitive keys, use `npx -y firebase-tools@latest apphosting:secrets` commands to set and grant access to secrets.
-4. Run `npx -y firebase-tools@latest deploy` when you are ready to deploy.
-
-### Automated deployment via GitHub (CI/CD)
-
-Alternatively, set up a backend connected to a GitHub repository for automated deployments "git push" deployments.
-This is only recommended for more advanced users, and is not required to use App Hosting.
-See [CLI Commands](references/cli_commands.md) for more information on how to set this up using CLI commands.
-
-## Emulation
-
-See [Emulation](references/emulation.md) for more information on how to test your app locally using the Firebase Local Emulator Suite.
+Verify each command against installed Firebase CLI help before running it.
 
 ## Maintenance
 
-For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.
+Update this Local Skill using `../../../docs/skills/firebase-skills-update-process.md`. Preserve the local invariants in `../../../docs/skills/local-skill-update-invariants.md`.

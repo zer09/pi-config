@@ -9,14 +9,16 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Source of truth
 
 - Upstream repository: https://github.com/firebase/skills
-- Current upstream commit checked locally: `02c0a6188912165e15338622e141d39ae401a14b`
+- Current upstream commit checked locally: `befec2994279960a22784ff7f9e1398fe0c6b73c`
+
+The current upstream `firebase/skills` main branch no longer contains the `developing-genkit-*` skill paths that were recorded when these local skills were installed. Treat the local Genkit skills as retained local snapshots until a new upstream source is verified; do not delete or replace them solely because those paths are absent from `firebase/skills`.
 
 | Local skill | Upstream path |
 | --- | --- |
-| `developing-genkit-dart` | `skills/developing-genkit-dart/SKILL.md` |
-| `developing-genkit-go` | `skills/developing-genkit-go/SKILL.md` |
-| `developing-genkit-js` | `skills/developing-genkit-js/SKILL.md` |
-| `developing-genkit-python` | `skills/developing-genkit-python/SKILL.md` |
+| `developing-genkit-dart` | retained local snapshot; path absent from current `firebase/skills` main |
+| `developing-genkit-go` | retained local snapshot; path absent from current `firebase/skills` main |
+| `developing-genkit-js` | retained local snapshot; path absent from current `firebase/skills` main |
+| `developing-genkit-python` | retained local snapshot; path absent from current `firebase/skills` main |
 | `firebase-ai-logic-basics` | `skills/firebase-ai-logic-basics/SKILL.md` |
 | `firebase-app-hosting-basics` | `skills/firebase-app-hosting-basics/SKILL.md` |
 | `firebase-auth-basics` | `skills/firebase-auth-basics/SKILL.md` |
@@ -30,16 +32,22 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 
 Firebase and Google Cloud are external hosted services. Reads, local emulation, local validation, and local code generation are allowed. Deploys, project creation, database creation, data writes, rule publishing, hosting deploys, quota changes, service enablement, and other hosted mutations require explicit user instruction for the exact action.
 
+## Slimming policy
+
+Keep runtime `SKILL.md` files concise. The body should contain only product boundaries, hosted-service safety gates, local validation workflow, reference navigation, and maintenance pointers. Keep platform-specific setup, examples, generated command help, and long API details in `references/`, `reference/`, `examples.md`, or `templates.md`.
+
+For skills marked `keep it` in the trimming inventory, retention can mean no runtime rewrite when the existing skill is already compact or intentionally detailed for a niche/current API. Still validate and record the decision.
+
 ## Update workflow
 
 1. Load `skill-creator`, `gh-cli`, and the relevant Firebase skill before editing.
-2. Fetch upstream files with authenticated `gh` CLI through Context Mode/RTK, for example:
+2. Fetch upstream files with authenticated `gh` CLI through Context Mode/RTK when an upstream path exists, for example:
 
 ```bash
 rtk gh api repos/firebase/skills/contents/skills/firebase-firestore/SKILL.md?ref=main
 ```
 
-3. Compare upstream runtime files with local skill folders, including references, examples, templates, and scripts.
+3. Compare upstream runtime files with local skill folders, including references, examples, templates, and scripts. For retained Genkit snapshots, first identify a current upstream source before syncing.
 4. Copy upstream runtime changes unless they weaken local hosted-service mutation gates or conflict with OpenAI skill-creator rules.
 5. Keep every `SKILL.md` frontmatter limited to `name` and `description`.
 6. Preserve local folder name `firebase-data-connect` even though upstream currently uses `firebase-data-connect-basics`.

@@ -1,103 +1,39 @@
 ---
 name: firebase-auth-basics
-description: "Guide for setting up and using Firebase Authentication. Use when an app requires user sign-in, user management, or secure data access using auth rules."
+description: Guide for setting up and using Firebase Authentication. Use when an app requires user sign-in, user management, or secure data access using auth rules.
 ---
+
+# Firebase Auth Basics
+
+Use Firebase Authentication for sign-in, user identity, provider setup, user management, and auth-backed security rules.
 
 ## Hosted service safety
 
-Firebase Authentication actions can mutate hosted project state. List and inspect configuration freely, but only enable providers, create users, update auth settings, deploy rules, or modify remote resources when the user explicitly asks for that exact action.
-
-## Prerequisites
-
-- **Firebase Project**: Created via `npx -y firebase-tools@latest projects:create` (see `firebase-basics`).
-- **Firebase CLI**: Installed and logged in (see `firebase-basics`).
-
-## Core Concepts
-
-Firebase Authentication provides backend services, easy-to-use SDKs, and ready-made UI libraries to authenticate users to your app.
-
-### Users
-
-A user is an entity that can sign in to your app. Each user is identified by a unique ID (`uid`) which is guaranteed to be unique across all providers.
-User properties include:
-- `uid`: Unique identifier.
-- `email`: User's email address (if available).
-- `displayName`: User's display name (if available).
-- `photoURL`: URL to user's photo (if available).
-- `emailVerified`: Boolean indicating if the email is verified.
-
-### Identity Providers
-
-Firebase Auth supports multiple ways to sign in:
-- **Email/Password**: Basic email and password authentication.
-- **Federated Identity Providers**: Google, Facebook, Twitter, GitHub, Microsoft, Apple, etc.
-- **Phone Number**: SMS-based authentication.
-- **Anonymous**: Temporary guest accounts that can be linked to permanent accounts later.
-- **Custom Auth**: Integrate with your existing auth system.
-
-Google Sign In is recommended as a good and secure default provider.
-
-### Tokens
-
-When a user signs in, they receive an ID Token (JWT). This token is used to identify the user when making requests to Firebase services (Realtime Database, Cloud Storage, Firestore) or your own backend.
-- **ID Token**: Short-lived (1 hour), verifies identity.
-- **Refresh Token**: Long-lived, used to get new ID tokens.
+- Local code edits, emulator use, and read-only inspection are allowed.
+- Enabling providers, changing authorized domains, creating/updating/deleting users, setting custom claims, deploying rules, or changing production auth settings requires exact user instruction.
+- Never print or commit credentials, OAuth client secrets, service account keys, password values, or refresh tokens.
+- Treat custom claims and admin SDK actions as privileged writes. Confirm target user IDs and environments before drafting commands.
 
 ## Workflow
 
-### 1. Provisioning
+1. Identify the platform, sign-in providers, and whether this is client SDK, Admin SDK, emulator, or rules work.
+2. Verify existing Firebase app initialization and project selection. Use `firebase-basics` if setup is unclear.
+3. Load the smallest relevant reference:
+   - [Web client SDK](references/client_sdk_web.md)
+   - [Android client SDK](references/client_sdk_android.md)
+   - [Flutter setup](references/flutter_setup.md)
+   - [Security rules](references/security_rules.md)
+4. Add only the auth flows needed: sign-in, sign-out, auth state listener, token refresh, route guards, or user profile handling.
+5. When security rules depend on auth, validate both unauthenticated and authenticated paths. Use `firebase-security-rules-auditor` after editing Firestore rules.
+6. Prefer Firebase Auth emulator for tests and local verification.
 
-#### Option 1. Enabling Authentication via CLI
+## Implementation reminders
 
-Only Google Sign In, anonymous auth, and email/password auth can be enabled via CLI. For other providers, use the Firebase Console.
-
-Configure Firebase Authentication in `firebase.json` by adding an 'auth' block:
-
-```
-{
-  "auth": {
-    "providers": {
-      "anonymous": true,
-      "emailPassword": true,
-      "googleSignIn": {
-        "oAuthBrandDisplayName": "Your Brand Name",
-        "supportEmail": "support@example.com",
-        "authorizedRedirectUris": ["https://example.com"]
-      }
-    }
-  }
-}
-```
-
-**CRITICAL**: After configuring `firebase.json`, you MUST deploy the auth configuration to the Firebase backend for the changes to take effect. This is essential for auth providers like Google Sign-In, email/password, etc. to auto-generate the necessary OAuth clients for your app platforms. Run:
-```bash
-npx -y firebase-tools@latest deploy --only auth
-```
-
-#### Option 2. Enabling Authentication in Console
-
-Enable other providers in the Firebase Console.
-
-1.  Go to the https://console.firebase.google.com/project/_/authentication/providers
-2.  Select your project.
-3.  Enable the desired Sign-in providers (e.g., Email/Password, Google).
-
-### 2. Client Setup & Usage
-
-**Web**
-See [references/client_sdk_web.md](references/client_sdk_web.md).
-
-**Flutter**
-See [references/flutter_setup.md](references/flutter_setup.md).
-**Android (Kotlin)**
-See [references/client_sdk_android.md](references/client_sdk_android.md).
-
-### 3. Security Rules
-
-Secure your data using `request.auth` in Firestore/Storage rules.
-
-See [references/security_rules.md](references/security_rules.md).
+- Keep provider configuration and redirect domains out of source when they are environment-specific.
+- Handle loading, signed-out, disabled-user, provider-linking, token-expired, and permission-denied states explicitly.
+- Do not assume client claims are trusted until verified by Firebase Auth or Security Rules.
+- Use Context Mode for long emulator logs, rules test output, or generated SDK docs.
 
 ## Maintenance
 
-For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.
+Update this Local Skill using `../../../docs/skills/firebase-skills-update-process.md`. Preserve the local invariants in `../../../docs/skills/local-skill-update-invariants.md`.

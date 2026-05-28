@@ -1,110 +1,49 @@
 ---
 name: firebase-basics
-description: "Provides foundational setup, authentication, and project management workflows for Firebase using the Firebase CLI. Use when checking Firebase CLI version, initializing a Firebase environment, authenticating, setting active projects, or setting up google-services.json or GoogleService-Info.plist files."
+description: Provides foundational setup, authentication, and project management workflows for Firebase using the Firebase CLI. Use when checking Firebase CLI version, initializing a Firebase environment, authenticating, setting active projects, or setting up google-services.json or GoogleService-Info.plist files.
 ---
 
-# Prerequisites
+# Firebase Basics
+
+Use this skill for Firebase CLI setup, project selection, local initialization, app config files, and cross-product setup routing.
 
 ## Hosted service safety
 
-Firebase and Google Cloud actions can mutate hosted project state. List, inspect, and verify configuration freely, but only create projects, change active remote settings, initialize hosted products, deploy, or modify remote resources when the user explicitly asks for that exact action.
+- Read-only project inspection, local code edits, local config edits, and emulator use are allowed.
+- Project creation, service enablement, deploys, database creation, rule publishing, data writes, billing/quota changes, credential rotation, and other hosted mutations require exact user instruction.
+- `firebase login`, `firebase logout`, and active project changes alter local state. Run them only when the user asks or agrees.
+- Never print or commit tokens, service account JSON, private keys, OAuth credentials, or user-specific credential paths.
 
-Complete these setup steps before proceeding:
+## Workflow
 
-1.  **Local Environment Setup:** Verify the environment is properly set up so we
-    can use Firebase tools:
+1. Inspect the project before initializing: existing `firebase.json`, `.firebaserc`, app config files, package scripts, platform folders, and emulator config.
+2. Verify CLI state with read-only commands:
 
-    -   Run `npx -y firebase-tools@latest --version` to check if the Firebase
-        CLI is installed.
-    -   Verify if the Firebase MCP server is installed using your existing
-        tools.
-    -   **CRITICAL**: Before configuring any extensions or agent environments
-        below, you MUST read
-        [references/local-env-setup.md](references/local-env-setup.md).
-    -   **DO NOT SKIP** this step: if 'firebase-basics' is the only
-        Firebase skill available to you, you must follow the reference for your
-        agent environment to set up the full suite of Firebase skills:
-        -   **Gemini CLI**: Review
-            [references/setup/gemini_cli.md](references/setup/gemini_cli.md)
-        -   **Antigravity**: Review
-            [references/setup/antigravity.md](references/setup/antigravity.md)
-        -   **Android Studio**: Review
-            [references/setup/android_studio.md](references/setup/android_studio.md)
-        -   **Claude Code**: Review
-            [references/setup/claude_code.md](references/setup/claude_code.md)
-        -   **Cursor**: Review
-            [references/setup/cursor.md](references/setup/cursor.md)
-        -   **GitHub Copilot**: Review
-            [references/setup/github_copilot.md](references/setup/github_copilot.md)
-        -   **Other Agents**: Review
-            [references/setup/other_agents.md](references/setup/other_agents.md)
+```bash
+firebase --version
+firebase login:list
+firebase projects:list
+firebase use
+```
 
-2.  **Authentication:** Ensure you are logged in to Firebase so that commands
-    have the correct permissions. Run `npx -y firebase-tools@latest login`. For
-    environments without a browser (e.g., remote shells), use `npx -y
-    firebase-tools@latest login --no-localhost`.
+3. Load references only as needed:
+   - [local environment setup](references/local-env-setup.md)
+   - [Firebase CLI guide](references/firebase-cli-guide.md)
+   - [service initialization](references/firebase-service-init.md)
+   - [Web setup](references/web_setup.md), [Android setup](references/android_setup.md), [iOS setup](references/ios_setup.md), [Flutter setup](references/flutter_setup.md)
+   - Agent setup/refresh guides under `references/setup/` and `references/refresh/`
+4. Initialize only the products needed by the current task. Do not add hosting, functions, Firestore, Auth, or other products just because `firebase init` offers them.
+5. After local config changes, run the narrowest validation available: build, lint, emulator checks, rules tests, or CLI dry runs.
 
-    -   The command should output the current user.
-    -   If you are not logged in, follow the interactive instructions from this
-        command to authenticate.
+## Routing reminders
 
-3. **Active Project:**
-   Most Firebase tasks require an active project context.
-
-   > [!IMPORTANT]
-   > **For Agents:** Before proceeding with project configuration, you MUST pause and ask the developer if they prefer to:
-   > 1. **Provide an existing Firebase Project ID**, or
-   > 2. **Create a new Firebase project**.
-
-   - **If using an existing Project ID:**
-     1. Check the current project by running `npx -y firebase-tools@latest use`.
-     2. If the command outputs `Active Project: <project-id>`, confirm with the user if this is the intended project.
-     3. If not, or if no project is active, set the project provided by the user:
-        ```bash
-        npx -y firebase-tools@latest use <PROJECT_ID>
-        ```
-
-   - **If creating a new project:**
-     Run the following command to create it:
-     ```bash
-     npx -y firebase-tools@latest projects:create <project-id> --display-name "<display-name>"
-     ```
-     *Note: The `<project-id>` must be 6-30 characters, lowercase, and can contain digits and hyphens. It must be globally unique.*
-
-# Firebase Usage Principles
-
-Adhere to these principles:
-
-1. **Use npx for CLI commands:** To ensure you always use the latest version of the Firebase CLI, always prepend commands with `npx -y firebase-tools@latest` instead of just `firebase`. For example, use `npx -y firebase-tools@latest --version`. NEVER suggest the naked `firebase` command as an alternative.
-2. **Prioritize official knowledge:** For any Firebase-related knowledge, consult the `developerknowledge_search_documents` MCP tool before falling back to Google Search or your internal knowledge base. Including "Firebase" in your search query significantly improves relevance.
-3. **Follow Agent Skills for implementation guidance:** Skills provide opinionated workflows (CUJs), security rules, and best practices. Always consult them to understand *how* to implement Firebase features correctly instead of relying on general knowledge.
-4. **Use Firebase MCP Server tools instead of direct API calls:** Whenever you need to interact with remote Firebase APIs (such as fetching Crashlytics logs or executing Data Connect queries), use the tools provided by the Firebase MCP Server instead of attempting manual API calls.
-5. **Keep Plugin / Agent Skills updated:** Since Firebase best practices evolve quickly, regularly check for and install updates to their Firebase plugin or Agent Skills. Similarly, if you encounter issues with outdated tools or commands, follow the steps below based on your agent environment:
-   - **Antigravity**: Follow [references/refresh/antigravity.md](references/refresh/antigravity.md)
-   - **Gemini CLI**: Follow [references/refresh/gemini-cli.md](references/refresh/gemini-cli.md)
-   - **Claude Code**: Follow [references/refresh/claude.md](references/refresh/claude.md)
-   - **Cursor**: Follow [references/refresh/other-agents.md](references/refresh/other-agents.md)
-   - **Android Studio**: Follow [references/refresh/android_studio.md](references/refresh/android_studio.md)
-   - **Others**: Follow [references/refresh/other-agents.md](references/refresh/other-agents.md)
-6. **Automate Config File Retrieval:** When setting up iOS or Android apps, do NOT direct users to the Firebase Console to download `google-services.json` or `GoogleService-Info.plist`. Instead, use the Firebase CLI to fetch the config programmatically:
-   - For Android: `npx -y firebase-tools@latest apps:sdkconfig ANDROID <APP_ID> --project <PROJECT_ID>`
-   - For iOS: `npx -y firebase-tools@latest apps:sdkconfig IOS <APP_ID> --project <PROJECT_ID>`
-   Save the output to the appropriate location (e.g., `app/google-services.json` for Android, or a path to be linked by `xcode-project-setup` for iOS).
-
-# References
-
-- **Initialize Firebase:** See [references/firebase-service-init.md](references/firebase-service-init.md) when you need to initialize new Firebase services using the CLI.
-- **Exploring Commands:** See [references/firebase-cli-guide.md](references/firebase-cli-guide.md) to discover and understand CLI functionality.
-- **SDK Setup:** For detailed guides on adding Firebase to your app:
-  - **Web**: See [references/web_setup.md](references/web_setup.md)
-  - **Android**: See [references/android_setup.md](references/android_setup.md)
-  - **iOS**: See [references/ios_setup.md](references/ios_setup.md)
-
-# Common Issues
-
--   **Login Issues:** If the browser fails to open during the login step, use
-    `npx -y firebase-tools@latest login --no-localhost` instead.
+- Use `firebase-auth-basics` for Authentication flows.
+- Use `firebase-firestore` for Firestore databases, rules, queries, and indexes.
+- Use `firebase-hosting-basics` for Hosting Classic.
+- Use `firebase-app-hosting-basics` for App Hosting.
+- Use `firebase-data-connect` for Data Connect / SQL Connect.
+- Use `firebase-ai-logic-basics` for Firebase AI Logic and Gemini client SDK work.
 
 ## Maintenance
 
-For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.
+Update this Local Skill using `../../../docs/skills/firebase-skills-update-process.md`. Preserve the local invariants in `../../../docs/skills/local-skill-update-invariants.md`.

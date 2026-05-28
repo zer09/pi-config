@@ -19,22 +19,22 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 |  | ctx-stats | Strong | 8 | remove it | Simple stats command; full skill is unnecessary. |
 |  | ctx-upgrade | Medium | 5 | make it slim | Upgrade workflow has exact steps, but can be very short. |
 |  | debug-optimize-lcp | Strong | 8 | make it slim | I know LCP well; keep only Chrome DevTools workflow specifics. |
-|  | developing-genkit-dart | Low | 4 | keep it | Genkit Dart is niche/current; skill prevents API guessing. |
-|  | developing-genkit-go | Low | 4 | keep it | Genkit Go APIs are specific enough to need guidance. |
-|  | developing-genkit-js | Medium | 6 | make it slim | I can do JS AI work, but Genkit specifics should remain compact. |
-|  | developing-genkit-python | Low | 4 | keep it | Python Genkit is less standard; keep to avoid hallucinated APIs. |
+| ✓ | developing-genkit-dart | Low | 4 | keep it | Retained as a compact niche/current Genkit snapshot; upstream path is absent from current `firebase/skills`. |
+| ✓ | developing-genkit-go | Low | 4 | keep it | Retained for specific Genkit Go API guidance; upstream path is absent from current `firebase/skills`. |
+| ✓ | developing-genkit-js | Medium | 6 | make it slim | Slimmed to version checks, hosted-service safety, reference routing, CLI reminders, and validation workflow. |
+| ✓ | developing-genkit-python | Low | 4 | keep it | Retained to avoid hallucinated Python Genkit APIs; upstream path is absent from current `firebase/skills`. |
 | x | edge-case-analysis | Very strong | 9 | remove it | Generic reasoning task; no special local tooling needed. |
 |  | figma | Low-medium | 4 | keep it | Figma MCP workflow and safety boundaries are tool-specific. |
 |  | figma-create-design-system-rules | Strong | 8 | remove it | Mostly generic design-system writing; not worth a full skill. |
 |  | figma-implement-design | Medium | 6 | make it slim | Design-to-code workflow helps, but full skill can be trimmed. |
-|  | firebase-ai-logic-basics | Medium | 5 | make it slim | Current Firebase/Gemini details matter; keep compact docs routing. |
-|  | firebase-app-hosting-basics | Medium | 5 | make it slim | Product-specific, but can be a short deployment checklist. |
-|  | firebase-auth-basics | Good | 7 | make it slim | I know auth patterns; keep only Firebase-specific commands/rules. |
-|  | firebase-basics | Medium | 6 | make it slim | Firebase CLI setup is useful, but does not need much text. |
-|  | firebase-data-connect | Weak | 3 | keep it | Newer Firebase SQL product; exact schema/auth workflow matters. |
-|  | firebase-firestore | Medium | 6 | keep it | Security rules and indexes are risky enough to keep explicit. |
-|  | firebase-hosting-basics | Good | 7 | make it slim | Hosting is familiar; keep only Firebase CLI specifics. |
-|  | firebase-security-rules-auditor | Medium | 6 | keep it | Security auditing benefits from a strict checklist. |
+| ✓ | firebase-ai-logic-basics | Medium | 5 | make it slim | Slimmed to hosted-service safety, platform routing, reference links, and production reminders. |
+| ✓ | firebase-app-hosting-basics | Medium | 5 | make it slim | Slimmed to App Hosting boundaries, mutation gates, config references, and deploy validation. |
+| ✓ | firebase-auth-basics | Good | 7 | make it slim | Slimmed to auth mutation gates, platform references, emulator validation, and rules handoff. |
+| ✓ | firebase-basics | Medium | 6 | make it slim | Slimmed to Firebase CLI setup, local-state safety, product routing, and reference navigation. |
+| ✓ | firebase-data-connect | Weak | 3 | keep it | Retained because newer Data Connect schema, auth, realtime, and SDK workflows need detailed guidance. |
+| ✓ | firebase-firestore | Medium | 6 | keep it | Retained because Firestore rules, indexes, database creation, and edition differences are safety-sensitive. |
+| ✓ | firebase-hosting-basics | Good | 7 | make it slim | Slimmed to Hosting Classic boundaries, deploy gates, config references, and emulator validation. |
+| ✓ | firebase-security-rules-auditor | Medium | 6 | keep it | Retained because Firestore rules auditing benefits from strict, safety-focused review criteria. |
 |  | gh-address-comments | Medium | 6 | make it slim | PR-comment workflow is useful but can be compact. |
 |  | gh-cli | Strong | 8 | make it slim | I know gh well; keep only auth/safety/local conventions. |
 |  | grill-with-docs | Strong | 8 | remove it | Mostly facilitation/process; not needed as installed skill. |
