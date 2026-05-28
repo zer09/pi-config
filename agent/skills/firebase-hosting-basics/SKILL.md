@@ -23,7 +23,8 @@ Use Firebase Hosting Classic for static sites, SPAs, and simple microservices. F
 3. Verify installed Firebase CLI help for exact flags:
 
 ```bash
-firebase hosting --help
+firebase --help
+firebase hosting:sites:list --help
 firebase hosting:sites:list --project <project-id>
 firebase emulators:start --only hosting
 ```

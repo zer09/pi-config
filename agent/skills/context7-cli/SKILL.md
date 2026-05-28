@@ -10,6 +10,7 @@ Use `ctx7` for current library docs, Context7 skill management, and MCP setup. P
 ## Safety and routing
 
 - Read-only docs lookup is allowed. Use Context Mode when docs output may exceed 20 lines, especially `ctx7 docs --json`.
+- Skill discovery commands are read-only only when used as preview with no interactive selection or install target. `ctx7 skills search` can install from its interactive list, and `ctx7 skills suggest` can install suggested skills; treat accepting any prompt/selection or passing install-target flags as an explicit local mutation.
 - `ctx7 login`, `ctx7 logout`, `ctx7 setup`, `ctx7 remove`, `ctx7 upgrade -y`, `ctx7 skills install`, `ctx7 skills remove`, and `ctx7 skills generate` change local config, auth state, installed skills, packages, or remote state. Run them only when the user explicitly requests that exact action.
 - Never print or commit API keys, OAuth tokens, cookies, or generated config secrets. Refer to `CONTEXT7_API_KEY` by name or use `<api-key>` placeholders.
 - Verify exact flags with `ctx7 <command> --help`; local CLI behavior may be newer than the skill references.
@@ -30,13 +31,13 @@ ctx7 docs /owner/project "<question>"
 ctx7 docs /owner/project "<question>" --json
 ```
 
-Skill discovery is read-only until install/remove/generate:
+Skill discovery is preview-only unless the user explicitly requested an install or target change. Do not select items from interactive search results or accept suggested installs in read-only work:
 
 ```bash
-ctx7 skills search <keywords>
+ctx7 skills search <keywords>   # preview only; do not select/install
 ctx7 skills list
 ctx7 skills info /owner/repo
-ctx7 skills suggest
+ctx7 skills suggest             # preview only; do not accept/install suggestions
 ```
 
 Setup and auth commands mutate local state, so draft or run only with explicit instruction:
