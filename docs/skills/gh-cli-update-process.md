@@ -1,6 +1,6 @@
 # Updating the gh-cli skill
 
-Purpose: keep `agent/skills/gh-cli/SKILL.md` as a small command-family index and keep exact command syntax in one reference file per command or subcommand.
+Purpose: keep `agent/skills/gh-cli/SKILL.md` as a small runtime router, keep `references/index.md` as the command-family map, and keep exact command syntax in one reference file per command or subcommand.
 
 ## Local invariants
 
@@ -16,7 +16,8 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
 
 ## File model
 
-- `agent/skills/gh-cli/SKILL.md`: frontmatter, operating rules, prerequisites, common examples, and compact command structure. Keep it token-friendly.
+- `agent/skills/gh-cli/SKILL.md`: frontmatter, operating rules, runtime workflow, common read-only examples, and reference navigation. Keep it token-friendly.
+- `agent/skills/gh-cli/references/index.md`: compact command-family map and reference path rules for runtime discovery.
 - `agent/skills/gh-cli/references/<command>.md`: top-level command manual, for example `references/auth.md`.
 - `agent/skills/gh-cli/references/<command>/<subcommand>.md`: subcommand manual, for example `references/auth/login.md` and `references/pr/create.md`.
 - `agent/skills/gh-cli/references/help/<topic>.md`: `gh help <topic>` pages, not command pages.
@@ -33,7 +34,7 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
    - `gh auth login` -> `agent/skills/gh-cli/references/auth/login.md`
    - `gh codespace ports forward` -> `agent/skills/gh-cli/references/codespace/ports/forward.md`
 5. Keep generated reference files self-contained: source URL, generator version, summary, subcommand links, and full `gh help ...` manual text.
-6. Update `SKILL.md` only with compact command-family entries. Do not paste full manual text into `SKILL.md`.
+6. Update `SKILL.md` only with compact routing guidance, and update `references/index.md` with command-family entries. Do not paste full manual text into `SKILL.md`.
 7. Preserve the GitHub mutation gate, secret-protection rules, and HTTPS-repository-URL normalization rule in `SKILL.md`.
 8. Preserve `scripts/normalize_github_url.py`; when adding URL kinds, return one primary argv array rather than shell strings, avoid alternate argv fields such as `clone_argv`, and include the exact top-level `references/...` files an agent should read before running `gh`.
 9. Keep this central update process linked from `SKILL.md`; do not add a duplicate update-process file inside the skill bundle.
