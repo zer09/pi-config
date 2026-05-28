@@ -6,7 +6,7 @@ Purpose: keep `agent/skills/gh-cli/SKILL.md` as a small runtime router, keep `re
 
 Before and after regenerating local command references, apply `local-skill-update-invariants.md`. Generated command content is input, not final truth; preserve local safety gates, routing, token footprint, and OpenAI skill compatibility.
 
-Preserve the local GitHub URL normalization rule: when a user supplies a GitHub HTTPS repository URL such as `https://github.com/zer09/pi-config`, the runtime skill must route through authenticated `gh` instead of web/HTTPS browsing. Normalize the URL to `OWNER/REPO` for `gh --repo OWNER/REPO ...` and to `git@github.com:OWNER/REPO.git` when using `gh repo clone` or Git remote operations. Keep `scripts/normalize_github_url.py` as the deterministic parser for GitHub HTTPS and SSH URL shapes, and keep its compact JSON output limited to one primary `gh.argv` plus top-level `references` for valid routes.
+Preserve the local GitHub URL normalization rule: when a user supplies a GitHub HTTPS repository URL such as `https://github.com/zer09/pi-config`, the runtime skill must route through authenticated `gh` instead of web/HTTPS browsing. Normalize obvious URLs from memory to `OWNER/REPO` for `gh --repo OWNER/REPO ...` and to `git@github.com:OWNER/REPO.git` when using `gh repo clone` or Git remote operations. Keep `scripts/normalize_github_url.py` as the deterministic fallback parser for ambiguous or complex GitHub HTTPS and SSH URL shapes, and keep its compact JSON output limited to one primary `gh.argv` plus top-level `references` for valid routes.
 
 ## Sources
 
@@ -16,7 +16,7 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
 
 ## File model
 
-- `agent/skills/gh-cli/SKILL.md`: frontmatter, operating rules, runtime workflow, common read-only examples, and reference navigation. Keep it token-friendly.
+- `agent/skills/gh-cli/SKILL.md`: frontmatter, operating rules, runtime workflow, minimal local examples, and reference navigation. Keep it token-friendly.
 - `agent/skills/gh-cli/references/index.md`: compact command-family map and reference path rules for runtime discovery.
 - `agent/skills/gh-cli/references/<command>.md`: top-level command manual, for example `references/auth.md`.
 - `agent/skills/gh-cli/references/<command>/<subcommand>.md`: subcommand manual, for example `references/auth/login.md` and `references/pr/create.md`.
