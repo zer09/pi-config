@@ -46,7 +46,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 |  | mmx-cli | Weak | 3 | remove it | Niche CLI; remove unless you actively use MiniMax often. |
 | ✓ | mysql | Strong | 8 | make it slim | DB expertise is strong; keep only project/tool conventions. |
 |  | nlm-skill | Weak | 3 | remove it | Niche NotebookLM CLI; remove unless used regularly. |
-|  | notion-cli | Medium | 5 | make it slim | Exact CLI/API workflow matters; make it compact. |
+| x | notion-cli | Medium | 5 | remove it | Removed because the local `ntn` CLI output was not a good fit for routine agent workflows. |
 | ✓ | postgres | Strong | 8 | make it slim | DB expertise is strong; keep only operational checklists. |
 | x | refine-linear-task | Very strong | 9 | remove it | Generic issue-writing task; no skill needed. |
 | ✓ | ruff | Strong | 8 | make it slim | Commands are simple; keep only preferred invocation. |

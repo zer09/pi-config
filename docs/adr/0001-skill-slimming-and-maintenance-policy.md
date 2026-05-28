@@ -30,6 +30,8 @@ The Astral Python tooling pass kept `uv`, `ruff`, and `ty`, but slimmed each ski
 
 The PlanetScale database pass kept `mysql` and `postgres`, but slimmed each skill around database safety gates, evidence-based workflow, fast guidance, local reference navigation, provider notes, and maintenance pointers. Detailed database internals and command catalogs stay in `references/`.
 
+The Notion CLI pass removed `notion-cli` because prior use showed the local `ntn` CLI output was not a good fit for routine agent workflows. Notion remains an external hosted service; exact explicit user instruction is still required for any future Notion write.
+
 ## Consequences
 
 - Fewer installed runtime skills are loaded or considered by Pi.
