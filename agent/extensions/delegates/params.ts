@@ -12,7 +12,7 @@ import {
 	MIN_MAX_RESULT_BYTES,
 	MIN_TIMEOUT_MS,
 } from "./constants.ts";
-import { getContinuedReaderSessionDir, getReaderSessionDir } from "./paths.ts";
+import { getContinuedReaderSessionDir } from "./paths.ts";
 import { assertTextFile } from "./text-files.ts";
 import { READER_TOOLS, WRITER_TOOLS } from "./toolsets.ts";
 import {
@@ -220,10 +220,11 @@ export function resolveReaderInvocation(params: NormalizedReaderParams, agents: 
 }
 
 export function resolveInvocation(params: NormalizedReaderParams, agents: AgentConfig[], sessionDir?: string): ResolvedInvocation | string {
+	if (!params.continueSession && sessionDir === undefined) return "Fresh reader invocation requires an explicit sessionDir";
 	return resolveReaderInvocation(
 		params,
 		agents,
-		sessionDir ?? (params.continueSession ? getContinuedReaderSessionDir(params.cwd, params.agent, params.sessionKey ?? "") : getReaderSessionDir(params.cwd)),
+		sessionDir ?? getContinuedReaderSessionDir(params.cwd, params.agent, params.sessionKey ?? ""),
 	);
 }
 
