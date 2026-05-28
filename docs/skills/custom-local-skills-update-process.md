@@ -5,9 +5,12 @@ Use this Skill Maintenance Doc for Custom Local Skills whose source of truth is 
 Current scope:
 
 - `context-watcher`
-- `edge-case-analysis`
 - `codebase-memory-mcp`
 - Any new custom Local Skill with no dedicated upstream source
+
+Retired custom skills:
+
+- `edge-case-analysis`: removed during the skill slimming pass because the base model can perform this generic reasoning workflow without a runtime skill.
 
 ## Update workflow
 
@@ -31,16 +34,6 @@ When updating it:
 - Preserve graph-first structural exploration and worktree project/index lifecycle rules.
 - Preserve the rule that large output and file analysis must stay in Context Mode.
 - Avoid broad rewrites unless the user explicitly asks for a token-footprint reduction pass.
-
-## Edge Case Analysis rules
-
-When updating `edge-case-analysis`:
-
-- Preserve codebase-memory-mcp structural analysis.
-- Preserve Context Mode handling for logs, test output, and large files.
-- Preserve RTK-default read-only shell guidance.
-- Keep the skill focused on boundary conditions, impossible states, blast radius, and logic gaps.
-- Do not turn it into a general code-review checklist; it should stay specialized.
 
 ## Codebase Memory MCP rules
 

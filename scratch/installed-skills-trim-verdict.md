@@ -23,7 +23,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 |  | developing-genkit-go | Low | 4 | keep it | Genkit Go APIs are specific enough to need guidance. |
 |  | developing-genkit-js | Medium | 6 | make it slim | I can do JS AI work, but Genkit specifics should remain compact. |
 |  | developing-genkit-python | Low | 4 | keep it | Python Genkit is less standard; keep to avoid hallucinated APIs. |
-|  | edge-case-analysis | Very strong | 9 | remove it | Generic reasoning task; no special local tooling needed. |
+| x | edge-case-analysis | Very strong | 9 | remove it | Generic reasoning task; no special local tooling needed. |
 |  | figma | Low-medium | 4 | keep it | Figma MCP workflow and safety boundaries are tool-specific. |
 |  | figma-create-design-system-rules | Strong | 8 | remove it | Mostly generic design-system writing; not worth a full skill. |
 |  | figma-implement-design | Medium | 6 | make it slim | Design-to-code workflow helps, but full skill can be trimmed. |
@@ -38,7 +38,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 |  | gh-address-comments | Medium | 6 | make it slim | PR-comment workflow is useful but can be compact. |
 |  | gh-cli | Strong | 8 | make it slim | I know gh well; keep only auth/safety/local conventions. |
 |  | grill-with-docs | Strong | 8 | remove it | Mostly facilitation/process; not needed as installed skill. |
-|  | humanizer | Very strong | 9 | remove it | Writing style cleanup is generic and memory-native. |
+| x | humanizer | Very strong | 9 | remove it | Writing style cleanup is generic and memory-native. |
 |  | improve-codebase-architecture | Strong | 8 | remove it | Generic architecture review does not need a separate skill. |
 |  | librarian | Medium | 6 | make it slim | Source-citation workflow is useful; shorten to routing rules. |
 |  | linear-cli | Medium | 5 | make it slim | Exact CLI/API details matter, but keep concise. |
@@ -48,11 +48,11 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 |  | nlm-skill | Weak | 3 | remove it | Niche NotebookLM CLI; remove unless used regularly. |
 |  | notion-cli | Medium | 5 | make it slim | Exact CLI/API workflow matters; make it compact. |
 |  | postgres | Strong | 8 | make it slim | DB expertise is strong; keep only operational checklists. |
-|  | refine-linear-task | Very strong | 9 | remove it | Generic issue-writing task; no skill needed. |
+| x | refine-linear-task | Very strong | 9 | remove it | Generic issue-writing task; no skill needed. |
 |  | ruff | Strong | 8 | make it slim | Commands are simple; keep only preferred invocation. |
 |  | session-handoff | Medium | 6 | keep it | Local handoff location/conventions are important. |
 |  | skill-creator | Medium | 6 | make it slim | Local skill format matters, but can be summarized. |
-|  | tdd | Very strong | 9 | remove it | Generic methodology; no installed skill needed. |
+| x | tdd | Very strong | 9 | remove it | Generic methodology; no installed skill needed. |
 |  | troubleshooting | Medium | 6 | make it slim | Useful for MCP/Chrome failures, but keep only failure playbook. |
 |  | ty | Medium | 6 | make it slim | Newer Python type checker; keep exact command guidance. |
 | x | understand | Low-medium | 4 | remove it | External/symlinked suite; remove unless actively used. |

@@ -24,6 +24,8 @@ Runtime `SKILL.md` files should stay compact. Long examples, command catalogs, t
 
 The first removal under this policy was the `understand` skill suite. These skills were installed as universal symlinks in `~/.agents/skills` and overlapped with existing Pi tools such as context-mode and codebase-memory-mcp. Removal deleted only the symlinks from the active skill path and left the upstream `~/.understand-anything` checkout untouched.
 
+The next removal pass deleted all skills rated 9 in the inventory: `edge-case-analysis`, `humanizer`, `refine-linear-task`, and `tdd`. These workflows are strong base-model capabilities and do not need dedicated runtime skill instructions.
+
 ## Consequences
 
 - Fewer installed runtime skills are loaded or considered by Pi.

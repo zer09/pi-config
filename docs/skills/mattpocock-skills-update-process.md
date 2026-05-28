@@ -15,13 +15,11 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 | --- | --- | --- |
 | `grill-with-docs` | `skills/engineering/grill-with-docs` | Keeps `CONTEXT-FORMAT.md` and `ADR-FORMAT.md`; use as the replacement for deprecated ubiquitous-language workflow. |
 | `improve-codebase-architecture` | `skills/engineering/improve-codebase-architecture` | Architecture deepening workflow informed by `CONTEXT.md` and ADRs. |
-| `tdd` | `skills/engineering/tdd` | Red-green-refactor workflow with behavior-focused testing references. |
 
 ## Local files
 
 - `agent/skills/grill-with-docs/`
 - `agent/skills/improve-codebase-architecture/`
-- `agent/skills/tdd/`
 - Each skill has local `agents/openai.yaml` UI metadata.
 - `docs/skills/grill-with-docs-usage.md` is local usage guidance and should remain separate from this update process.
 
@@ -40,10 +38,10 @@ rtk gh api repos/mattpocock/skills/contents/skills/engineering/grill-with-docs/S
 6. Keep local maintenance pointers in each `SKILL.md` pointing to this grouped update process.
 7. Keep `agents/openai.yaml` valid YAML with only UI metadata fields unless UI assets are intentionally installed.
 8. Update the upstream commit SHA in this file when source content changes.
-9. Validate all Matt Pocock skills:
+9. Validate all remaining Matt Pocock skills:
 
 ```bash
-for skill in grill-with-docs improve-codebase-architecture tdd; do
+for skill in grill-with-docs improve-codebase-architecture; do
   uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/$skill || exit 1
 done
 ```
@@ -53,4 +51,5 @@ done
 ## Notes
 
 - Do not install `skills/deprecated/ubiquitous-language` unless explicitly requested. The local convention is to use `grill-with-docs` for domain language and ADR discipline.
+- `tdd` was removed during the skill slimming pass because test-driven development is strong base-model capability. Do not restore it unless explicitly requested.
 - Do not create placeholder ADRs. Create `docs/adr/` lazily when a real ADR-worthy decision appears.

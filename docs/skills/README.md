@@ -71,21 +71,33 @@ Installing a new skill means:
 ## Update documents
 
 - `local-skill-update-invariants.md`: canonical local overlays and validation checks that apply to every skill update or install.
-- `agent-toolkit-skills-update-process.md`: update workflow for softaworks agent-toolkit skills.
+- `agent-toolkit-skills-update-process.md`: update workflow for the remaining softaworks agent-toolkit skills.
 - `astral-python-tools-update-process.md`: update workflow for Astral uv, Ruff, and ty skills.
 - `chrome-devtools-skills-update-process.md`: update workflow for Chrome DevTools MCP skills.
 - `context7-cli-update-process.md`: update workflow for the Context7 CLI skill.
-- `custom-local-skills-update-process.md`: update workflow for custom Local Skills such as context-watcher, edge-case-analysis, and codebase-memory-mcp.
+- `custom-local-skills-update-process.md`: update workflow for custom Local Skills such as context-watcher and codebase-memory-mcp.
 - `firebase-skills-update-process.md`: update workflow for Firebase and Genkit skills.
 - `gh-cli-update-process.md`: update workflow for the generated GitHub CLI skill and its command references.
 - `grill-with-docs-usage.md`: usage reference for initializing CONTEXT.md and applying ADR guidance in other repos.
 - `linear-cli-update-process.md`: update workflow for the Linear CLI skill.
-- `mattpocock-skills-update-process.md`: update workflow for Matt Pocock engineering skills.
+- `mattpocock-skills-update-process.md`: update workflow for the remaining Matt Pocock engineering skills.
 - `minimax-cli-update-process.md`: update workflow for the MiniMax CLI skill.
 - `nlm-skill-update-process.md`: update workflow for the NotebookLM CLI and MCP skill.
 - `notion-cli-update-process.md`: update workflow for the Notion CLI skill from `makenotion/skills` and local `ntn` help.
 - `openai-skills-update-process.md`: update workflow for OpenAI-derived skills, including skill-creator, Figma skills, and gh-address-comments.
 - `planetscale-database-skills-update-process.md`: update workflow for PlanetScale MySQL and Postgres skills.
-- `refine-linear-task-update-process.md`: update workflow for the Linear task refinement skill.
+- `refine-linear-task-update-process.md`: retired-skill notes and reinstall checklist for the former Linear task refinement skill.
+
+## Retired skills
+
+These runtime skills were removed during the skill slimming pass because their workflows are strong base-model capabilities or overlap with remaining tools:
+
+- `edge-case-analysis`
+- `humanizer`
+- `refine-linear-task`
+- `tdd`
+- `understand`, `understand-chat`, `understand-dashboard`, `understand-diff`, `understand-domain`, `understand-explain`, `understand-knowledge`, `understand-onboard`
+
+Do not restore retired skills unless the user explicitly asks for that workflow again.
 
 Keep long-lived update process docs here for discovery. Skill folders should contain only runtime skill instructions, references needed during skill use, and lightweight pointers to these docs.
