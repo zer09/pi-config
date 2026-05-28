@@ -15,6 +15,15 @@ Use the local `linear` command for Linear reads and carefully gated writes. Line
 - Never print tokens. `linear auth token` writes a secret to stdout; do not run it in a way that enters the transcript, logs, shell history, or committed files.
 - Do not guess flags or required fields. Check `linear <command> --help` or the local reference files before syntax-sensitive answers.
 
+## Hosted mutation guard handling
+
+When a Linear mutation is blocked with a message that begins `Hosted-service mutation blocked: Linear ...`, treat it as an expected Pi hosted-service mutation guard block, not as a Linear CLI, issue, GraphQL, or reference problem.
+
+- Do not load `references/issue.md` or other command references solely to diagnose that guard block.
+- Read the exact `/authorize-hosted-mutation ...` command from the blocked warning.
+- Ask the user whether to authorize and retry that exact blocked Linear mutation. Include the exact authorization command and target/action in the question.
+- After authorization is granted, retry the unchanged blocked command within 10 minutes. If the retry then fails with a non-guard Linear error, load the smallest command reference needed.
+
 ## Discovery workflow
 
 ```bash
