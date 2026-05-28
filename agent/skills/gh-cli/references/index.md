@@ -1,6 +1,8 @@
 # GitHub CLI reference index
 
-Use this index after `SKILL.md` to choose the smallest exact reference file to read. Each command reference was generated from local `gh help` output and includes the manual URL, summary, subcommand links, and full help text.
+Use this index when the command family, exact flags, or output fields are not obvious. Each command reference was generated from local `gh help` output and includes the manual URL, summary, subcommand links, and full help text.
+
+Runtime route: identify the repository as `OWNER/REPO`; convert obvious GitHub HTTPS or SSH URLs directly to the matching `gh` command; use `../scripts/normalize_github_url.py` only when conversion is unclear, the URL is complex, or deterministic JSON output is useful. Run read-only commands through Context Mode/RTK when output may be large.
 
 ## Path rules
 

@@ -16,15 +16,6 @@ Use `gh` for authenticated GitHub repository, issue, pull request, release, work
 - Do not expose tokens. Refer to token environment variables by name only, for example `GITHUB_TOKEN` or `GH_ENTERPRISE_TOKEN`.
 - Prefer `--json`, `--jq`, `--template`, `--repo OWNER/REPO`, and `--hostname HOST` for scriptable output.
 
-## Runtime workflow
-
-1. Identify the repository as `OWNER/REPO`; convert obvious GitHub HTTPS or SSH URLs directly to the matching `gh` command.
-2. Use the bundled URL normalizer only when conversion is unclear, the URL is complex, or you want its returned `references` and primary `gh.argv`.
-3. Read `references/index.md` to choose the command family.
-4. Read the exact top-level or subcommand reference file before relying on flags or output fields.
-5. Run read-only commands through Context Mode/RTK when output may be large.
-6. If a write is needed, stop unless the user explicitly requested that exact GitHub mutation.
-
 ## Minimal local examples
 
 Keep the command library in `references/index.md`; these examples only show local preferences for URL normalization, `--repo`, `--json`, and paginated API reads.

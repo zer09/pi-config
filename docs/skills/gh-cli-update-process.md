@@ -16,8 +16,8 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
 
 ## File model
 
-- `agent/skills/gh-cli/SKILL.md`: frontmatter, operating rules, runtime workflow, minimal local examples, and reference navigation. Keep it token-friendly.
-- `agent/skills/gh-cli/references/index.md`: compact command-family map and reference path rules for runtime discovery.
+- `agent/skills/gh-cli/SKILL.md`: frontmatter, operating rules, minimal local examples, and reference navigation. Keep it token-friendly.
+- `agent/skills/gh-cli/references/index.md`: compact command-family map, runtime route, and reference path rules for discovery.
 - `agent/skills/gh-cli/references/<command>.md`: top-level command manual, for example `references/auth.md`.
 - `agent/skills/gh-cli/references/<command>/<subcommand>.md`: subcommand manual, for example `references/auth/login.md` and `references/pr/create.md`.
 - `agent/skills/gh-cli/references/help/<topic>.md`: `gh help <topic>` pages, not command pages.
