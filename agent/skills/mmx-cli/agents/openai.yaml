@@ -1,4 +1,0 @@
-interface:
-  display_name: "MiniMax CLI"
-  short_description: "Use MiniMax from the terminal"
-  default_prompt: "Use $mmx-cli to work with MiniMax text, image, video, speech, music, search, and API resources from the terminal."

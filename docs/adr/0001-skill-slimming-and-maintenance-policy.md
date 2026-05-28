@@ -32,6 +32,8 @@ The PlanetScale database pass kept `mysql` and `postgres`, but slimmed each skil
 
 The Notion CLI pass removed `notion-cli` because prior use showed the local `ntn` CLI output was not a good fit for routine agent workflows. Notion remains an external hosted service; exact explicit user instruction is still required for any future Notion write.
 
+The MiniMax CLI pass removed `mmx-cli` because MiniMax is niche in this setup and not used often enough to justify a dedicated runtime skill. Future MiniMax API generation or remote-state changes still require exact explicit user instruction.
+
 ## Consequences
 
 - Fewer installed runtime skills are loaded or considered by Pi.

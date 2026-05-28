@@ -43,7 +43,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 |  | librarian | Medium | 6 | make it slim | Source-citation workflow is useful; shorten to routing rules. |
 |  | linear-cli | Medium | 5 | make it slim | Exact CLI/API details matter, but keep concise. |
 |  | memory-leak-debugging | Strong | 8 | make it slim | I know debugging; keep only tool-specific heap/memlab flow. |
-|  | mmx-cli | Weak | 3 | remove it | Niche CLI; remove unless you actively use MiniMax often. |
+| x | mmx-cli | Weak | 3 | remove it | Removed because MiniMax is niche in this setup and not used often enough to justify a dedicated runtime skill. |
 | ✓ | mysql | Strong | 8 | make it slim | DB expertise is strong; keep only project/tool conventions. |
 |  | nlm-skill | Weak | 3 | remove it | Niche NotebookLM CLI; remove unless used regularly. |
 | x | notion-cli | Medium | 5 | remove it | Removed because the local `ntn` CLI output was not a good fit for routine agent workflows. |

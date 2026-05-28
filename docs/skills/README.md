@@ -81,7 +81,7 @@ Installing a new skill means:
 - `grill-with-docs-usage.md`: usage reference for initializing CONTEXT.md and applying ADR guidance in other repos.
 - `linear-cli-update-process.md`: update workflow for the Linear CLI skill.
 - `mattpocock-skills-update-process.md`: update workflow for the remaining Matt Pocock engineering skills.
-- `minimax-cli-update-process.md`: update workflow for the MiniMax CLI skill.
+- `minimax-cli-update-process.md`: retired-skill notes and reinstall checklist for the former MiniMax CLI skill.
 - `nlm-skill-update-process.md`: update workflow for the NotebookLM CLI and MCP skill.
 - `notion-cli-update-process.md`: retired-skill notes and reinstall checklist for the former Notion CLI skill.
 - `openai-skills-update-process.md`: update workflow for OpenAI-derived skills, including skill-creator, Figma skills, and gh-address-comments.
@@ -90,11 +90,12 @@ Installing a new skill means:
 
 ## Retired skills
 
-These runtime skills were removed during the skill slimming pass because their workflows are strong base-model capabilities or overlap with remaining tools:
+These runtime skills were removed during the skill slimming pass because their workflows are strong base-model capabilities, overlap with remaining tools, or are not worth a dedicated runtime skill in this setup:
 
 - `edge-case-analysis`
 - `humanizer`
 - `refine-linear-task`
+- `mmx-cli`
 - `notion-cli`
 - `tdd`
 - `understand`, `understand-chat`, `understand-dashboard`, `understand-diff`, `understand-domain`, `understand-explain`, `understand-knowledge`, `understand-onboard`
