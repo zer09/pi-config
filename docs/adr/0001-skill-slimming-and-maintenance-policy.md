@@ -26,6 +26,8 @@ The first removal under this policy was the `understand` skill suite. These skil
 
 The next removal pass deleted all skills rated 9 in the inventory: `edge-case-analysis`, `humanizer`, `refine-linear-task`, and `tdd`. These workflows are strong base-model capabilities and do not need dedicated runtime skill instructions.
 
+The Astral Python tooling pass kept `uv`, `ruff`, and `ty`, but slimmed each skill to core triggers, command routing, scoped-change safeguards, docs links, and maintenance pointers. These tools remain installed because exact Python tooling conventions are useful, while long migration tables and broad command catalogs are unnecessary at runtime.
+
 ## Consequences
 
 - Fewer installed runtime skills are loaded or considered by Pi.

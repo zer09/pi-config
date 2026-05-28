@@ -49,12 +49,12 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 |  | notion-cli | Medium | 5 | make it slim | Exact CLI/API workflow matters; make it compact. |
 |  | postgres | Strong | 8 | make it slim | DB expertise is strong; keep only operational checklists. |
 | x | refine-linear-task | Very strong | 9 | remove it | Generic issue-writing task; no skill needed. |
-|  | ruff | Strong | 8 | make it slim | Commands are simple; keep only preferred invocation. |
+| ✓ | ruff | Strong | 8 | make it slim | Commands are simple; keep only preferred invocation. |
 |  | session-handoff | Medium | 6 | keep it | Local handoff location/conventions are important. |
 |  | skill-creator | Medium | 6 | make it slim | Local skill format matters, but can be summarized. |
 | x | tdd | Very strong | 9 | remove it | Generic methodology; no installed skill needed. |
 |  | troubleshooting | Medium | 6 | make it slim | Useful for MCP/Chrome failures, but keep only failure playbook. |
-|  | ty | Medium | 6 | make it slim | Newer Python type checker; keep exact command guidance. |
+| ✓ | ty | Medium | 6 | make it slim | Newer Python type checker; keep exact command guidance. |
 | x | understand | Low-medium | 4 | remove it | External/symlinked suite; remove unless actively used. |
 | x | understand-chat | Low-medium | 4 | remove it | Same as above; overlaps with codebase-memory/context tools. |
 | x | understand-dashboard | Low-medium | 4 | remove it | Same as above; optional visualization only. |
@@ -63,4 +63,4 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | x | understand-explain | Low-medium | 4 | remove it | Same as above; explanation can use normal code tools. |
 | x | understand-knowledge | Low-medium | 4 | remove it | Same as above; niche knowledge graph workflow. |
 | x | understand-onboard | Low-medium | 4 | remove it | Same as above; onboarding can be done generically. |
-|  | uv | Good | 7 | make it slim | I know uv fairly well; keep only preferred project commands. |
+| ✓ | uv | Good | 7 | make it slim | I know uv fairly well; keep only preferred project commands. |
