@@ -6,9 +6,9 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 
 | Status | Skill | How good without skill | Rating | Action | Verdict |
 |---|---|---:|---:|---|---|
-|  | a11y-debugging | Strong | 8 | make it slim | I know accessibility well, but a slim checklist for Chrome/MCP workflow is useful. |
-|  | chrome-devtools | Good | 7 | make it slim | Browser debugging is familiar, but exact MCP routing should stay concise. |
-|  | chrome-devtools-cli | Medium | 5 | make it slim | CLI automation details are easy to forget; keep only commands and gotchas. |
+| ✓ | a11y-debugging | Strong | 8 | make it slim | Slimmed to Chrome MCP a11y workflow, browser mutation safety, large-output handling, and snippet references. |
+| ✓ | chrome-devtools | Good | 7 | make it slim | Slimmed to MCP page workflow, tool selection, browser mutation gates, and troubleshooting handoff. |
+| ✓ | chrome-devtools-cli | Medium | 5 | make it slim | Slimmed to CLI command shape, command groups, Context Mode routing, setup gate, and gotchas. |
 |  | codebase-memory-mcp | Weak | 3 | keep it | Custom MCP protocol and project/index rules need explicit guidance. |
 |  | context-mode | Weak | 3 | keep it | Core local context-saving behavior is tool-specific and important. |
 |  | context-watcher | Weak | 2 | keep it | This is core orchestration and safety policy for this Pi setup. |
@@ -18,7 +18,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 |  | ctx-purge | Good | 7 | make it slim | Destructive command needs a tiny safety reminder, not a full skill. |
 |  | ctx-stats | Strong | 8 | remove it | Simple stats command; full skill is unnecessary. |
 |  | ctx-upgrade | Medium | 5 | make it slim | Upgrade workflow has exact steps, but can be very short. |
-|  | debug-optimize-lcp | Strong | 8 | make it slim | I know LCP well; keep only Chrome DevTools workflow specifics. |
+| ✓ | debug-optimize-lcp | Strong | 8 | make it slim | Slimmed to LCP trace workflow, subpart bottleneck map, reference routing, and verification loop. |
 | ✓ | developing-genkit-dart | Low | 4 | keep it | Retained as a compact niche/current Genkit snapshot; upstream path is absent from current `firebase/skills`. |
 | ✓ | developing-genkit-go | Low | 4 | keep it | Retained for specific Genkit Go API guidance; upstream path is absent from current `firebase/skills`. |
 | ✓ | developing-genkit-js | Medium | 6 | make it slim | Slimmed to version checks, hosted-service safety, reference routing, CLI reminders, and validation workflow. |
@@ -42,7 +42,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 |  | improve-codebase-architecture | Strong | 8 | remove it | Generic architecture review does not need a separate skill. |
 |  | librarian | Medium | 6 | make it slim | Source-citation workflow is useful; shorten to routing rules. |
 | ✓ | linear-cli | Medium | 5 | make it slim | Slimmed to mutation gates, discovery workflow, reference routing, Markdown/body-file rules, known gotchas, and GraphQL fallback safety. |
-|  | memory-leak-debugging | Strong | 8 | make it slim | I know debugging; keep only tool-specific heap/memlab flow. |
+| ✓ | memory-leak-debugging | Strong | 8 | make it slim | Slimmed to heap snapshot safety, Chrome MCP capture flow, memlab/script analysis, and common leak references. |
 | x | mmx-cli | Weak | 3 | remove it | Removed because MiniMax is niche in this setup and not used often enough to justify a dedicated runtime skill. |
 | ✓ | mysql | Strong | 8 | make it slim | DB expertise is strong; keep only project/tool conventions. |
 |  | nlm-skill | Weak | 3 | remove it | Niche NotebookLM CLI; remove unless used regularly. |
@@ -53,7 +53,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 |  | session-handoff | Medium | 6 | keep it | Local handoff location/conventions are important. |
 |  | skill-creator | Medium | 6 | make it slim | Local skill format matters, but can be summarized. |
 | x | tdd | Very strong | 9 | remove it | Generic methodology; no installed skill needed. |
-|  | troubleshooting | Medium | 6 | make it slim | Useful for MCP/Chrome failures, but keep only failure playbook. |
+| ✓ | troubleshooting | Medium | 6 | make it slim | Slimmed to Chrome DevTools MCP failure triage, known error patterns, configuration safety, and diagnostics. |
 | ✓ | ty | Medium | 6 | make it slim | Newer Python type checker; keep exact command guidance. |
 | x | understand | Low-medium | 4 | remove it | External/symlinked suite; remove unless actively used. |
 | x | understand-chat | Low-medium | 4 | remove it | Same as above; overlaps with codebase-memory/context tools. |

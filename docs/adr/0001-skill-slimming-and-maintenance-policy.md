@@ -40,6 +40,8 @@ The Firebase pass kept the Firebase-owned and Genkit skills, slimming the skills
 
 The Context7 CLI pass kept `context7-cli`, but slimmed runtime guidance to docs lookup workflow, mutation gates for auth/setup/skills/upgrade commands, reference navigation, and common gotchas. Detailed command behavior remains in `references/`.
 
+The Chrome DevTools pass kept and slimmed `a11y-debugging`, `chrome-devtools`, `chrome-devtools-cli`, `debug-optimize-lcp`, `memory-leak-debugging`, and `troubleshooting`. Runtime guidance now emphasizes MCP/CLI routing, browser mutation gates, large-output handling, focused debugging workflows, and references for snippets or detailed command behavior.
+
 ## Consequences
 
 - Fewer installed runtime skills are loaded or considered by Pi.
