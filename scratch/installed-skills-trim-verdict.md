@@ -9,9 +9,9 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | ✓ | a11y-debugging | Strong | 8 | make it slim | Slimmed to Chrome MCP a11y workflow, browser mutation safety, large-output handling, and snippet references. |
 | ✓ | chrome-devtools | Good | 7 | make it slim | Slimmed to MCP page workflow, tool selection, browser mutation gates, and troubleshooting handoff. |
 | ✓ | chrome-devtools-cli | Medium | 5 | make it slim | Slimmed to CLI command shape, command groups, Context Mode routing, setup gate, and gotchas. |
-|  | codebase-memory-mcp | Weak | 3 | keep it | Custom MCP protocol and project/index rules need explicit guidance. |
+| ✓ | codebase-memory-mcp | Weak | 3 | keep it | Retained because the custom MCP protocol and project/index rules need explicit guidance. |
 | ✓ | context-mode | Weak | 3 | keep it | Retained because core local context-saving behavior is tool-specific and important. |
-|  | context-watcher | Weak | 2 | keep it | This is core orchestration and safety policy for this Pi setup. |
+| ✓ | context-watcher | Weak | 2 | keep it | Retained because this is core orchestration and safety policy for this Pi setup. |
 | ✓ | context7-cli | Medium | 5 | make it slim | Slimmed to docs lookup workflow, mutation gates for auth/setup/skills/upgrade commands, reference routing, and common gotchas. |
 | ✓ | ctx-doctor | Strong | 8 | keep it | Retained as package-provided metadata-only helper; full body loads only when triggered. |
 | ✓ | ctx-insight | Strong | 8 | keep it | Retained as package-provided metadata-only helper; full body loads only when triggered. |
@@ -50,7 +50,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | ✓ | postgres | Strong | 8 | make it slim | DB expertise is strong; keep only operational checklists. |
 | x | refine-linear-task | Very strong | 9 | remove it | Generic issue-writing task; no skill needed. |
 | ✓ | ruff | Strong | 8 | make it slim | Commands are simple; keep only preferred invocation. |
-|  | session-handoff | Medium | 6 | keep it | Local handoff location/conventions are important. |
+| ✓ | session-handoff | Medium | 6 | keep it | Retained because local handoff location and continuity conventions are important. |
 | ✓ | skill-creator | Medium | 6 | keep it | Retained as foundational OpenAI-derived skill maintenance guidance. |
 | x | tdd | Very strong | 9 | remove it | Generic methodology; no installed skill needed. |
 | ✓ | troubleshooting | Medium | 6 | make it slim | Slimmed to Chrome DevTools MCP failure triage, known error patterns, configuration safety, and diagnostics. |
