@@ -40,12 +40,12 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | ✓ | grill-with-docs | Strong | 8 | keep it | Retained with remaining Matt Pocock skills for optional domain-language and ADR grilling workflows. |
 | x | humanizer | Very strong | 9 | remove it | Writing style cleanup is generic and memory-native. |
 | ✓ | improve-codebase-architecture | Strong | 8 | keep it | Retained with remaining Matt Pocock skills for optional CONTEXT.md/ADR-informed architecture review. |
-|  | librarian | Medium | 6 | make it slim | Source-citation workflow is useful; shorten to routing rules. |
+| ✓ | librarian | Medium | 6 | keep it | Retained because source-citation and library-internals research workflow is useful when triggered. |
 | ✓ | linear-cli | Medium | 5 | make it slim | Slimmed to mutation gates, discovery workflow, reference routing, Markdown/body-file rules, known gotchas, and GraphQL fallback safety. |
 | ✓ | memory-leak-debugging | Strong | 8 | make it slim | Slimmed to heap snapshot safety, Chrome MCP capture flow, memlab/script analysis, and common leak references. |
 | x | mmx-cli | Weak | 3 | remove it | Removed because MiniMax is niche in this setup and not used often enough to justify a dedicated runtime skill. |
 | ✓ | mysql | Strong | 8 | make it slim | DB expertise is strong; keep only project/tool conventions. |
-|  | nlm-skill | Weak | 3 | remove it | Niche NotebookLM CLI; remove unless used regularly. |
+| ✓ | nlm-skill | Weak | 3 | keep it | Retained because NotebookLM CLI/MCP workflows are niche and exact enough to keep available. |
 | x | notion-cli | Medium | 5 | remove it | Removed because the local `ntn` CLI output was not a good fit for routine agent workflows. |
 | ✓ | postgres | Strong | 8 | make it slim | DB expertise is strong; keep only operational checklists. |
 | x | refine-linear-task | Very strong | 9 | remove it | Generic issue-writing task; no skill needed. |
