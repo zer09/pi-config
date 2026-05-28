@@ -18,7 +18,13 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 
 ## Local safety rule
 
-Database guidance can affect production data. Reads, schema review, query analysis, local tests, and dry-run planning are allowed. Destructive operations such as drops, truncates, deletes, migrations, replication changes, or production writes require explicit user instruction for the exact action.
+Database guidance can affect production data. Reads, schema review, query analysis, local tests, and dry-run planning are allowed. Destructive operations such as drops, truncates, deletes, migrations, replication changes, privilege changes, data backfills, or production writes require explicit user instruction for the exact action.
+
+## Slimming policy
+
+These skills are intentionally slim. Keep `SKILL.md` focused on triggers, destructive-operation gates, evidence-based workflow, fast guidance, local reference navigation, PlanetScale hosting notes, and the maintenance pointer. Keep detailed examples, command catalogs, and database internals in `references/` instead of the runtime skill.
+
+Preserve relative links to local `references/` files so the runtime skill remains usable without fetching raw GitHub URLs.
 
 ## Update workflow
 
@@ -30,9 +36,9 @@ rtk gh api repos/planetscale/database-skills/contents/skills/mysql/SKILL.md?ref=
 ```
 
 3. Compare upstream runtime files with local skill folders, including references.
-4. Copy upstream runtime changes unless they weaken local destructive-operation safety or conflict with OpenAI skill-creator rules.
+4. Copy upstream runtime changes only when they improve the compact local workflow and do not weaken local destructive-operation safety, relative reference navigation, or OpenAI skill-creator rules.
 5. Keep every `SKILL.md` frontmatter limited to `name` and `description`.
-6. Regenerate or update `agents/openai.yaml` when a skill description changes.
+6. Regenerate or update `agents/openai.yaml` when a skill description changes or the default prompt becomes stale.
 7. Update the upstream commit SHA in this file when source content changes.
 8. Validate both database skills:
 

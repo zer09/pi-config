@@ -28,6 +28,8 @@ The next removal pass deleted all skills rated 9 in the inventory: `edge-case-an
 
 The Astral Python tooling pass kept `uv`, `ruff`, and `ty`, but slimmed each skill to core triggers, command routing, scoped-change safeguards, docs links, and maintenance pointers. These tools remain installed because exact Python tooling conventions are useful, while long migration tables and broad command catalogs are unnecessary at runtime.
 
+The PlanetScale database pass kept `mysql` and `postgres`, but slimmed each skill around database safety gates, evidence-based workflow, fast guidance, local reference navigation, provider notes, and maintenance pointers. Detailed database internals and command catalogs stay in `references/`.
+
 ## Consequences
 
 - Fewer installed runtime skills are loaded or considered by Pi.

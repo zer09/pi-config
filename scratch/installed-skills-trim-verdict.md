@@ -44,10 +44,10 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 |  | linear-cli | Medium | 5 | make it slim | Exact CLI/API details matter, but keep concise. |
 |  | memory-leak-debugging | Strong | 8 | make it slim | I know debugging; keep only tool-specific heap/memlab flow. |
 |  | mmx-cli | Weak | 3 | remove it | Niche CLI; remove unless you actively use MiniMax often. |
-|  | mysql | Strong | 8 | make it slim | DB expertise is strong; keep only project/tool conventions. |
+| ✓ | mysql | Strong | 8 | make it slim | DB expertise is strong; keep only project/tool conventions. |
 |  | nlm-skill | Weak | 3 | remove it | Niche NotebookLM CLI; remove unless used regularly. |
 |  | notion-cli | Medium | 5 | make it slim | Exact CLI/API workflow matters; make it compact. |
-|  | postgres | Strong | 8 | make it slim | DB expertise is strong; keep only operational checklists. |
+| ✓ | postgres | Strong | 8 | make it slim | DB expertise is strong; keep only operational checklists. |
 | x | refine-linear-task | Very strong | 9 | remove it | Generic issue-writing task; no skill needed. |
 | ✓ | ruff | Strong | 8 | make it slim | Commands are simple; keep only preferred invocation. |
 |  | session-handoff | Medium | 6 | keep it | Local handoff location/conventions are important. |
