@@ -1,6 +1,6 @@
 # Updating agent-toolkit skills
 
-Purpose: keep the skills imported from `softaworks/agent-toolkit` aligned with upstream while preserving local OpenAI skill-creator conventions.
+Purpose: keep the remaining skill imported from `softaworks/agent-toolkit` aligned with upstream while preserving local OpenAI skill-creator conventions.
 
 ## Local invariants
 
@@ -14,14 +14,12 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 | Local skill | Upstream path |
 | --- | --- |
 | `session-handoff` | `skills/session-handoff/SKILL.md` plus runtime resources |
-| `humanizer` | `skills/humanizer/SKILL.md` |
 
 Prefer the `skills/` source paths over generated `dist/plugins/...` copies.
 
 ## Local files
 
 - `agent/skills/session-handoff/`: handoff workflow, references, and scripts.
-- `agent/skills/humanizer/`: AI-writing cleanup workflow.
 - Each skill has local `agents/openai.yaml` UI metadata.
 
 ## Session-handoff local overlays
@@ -37,14 +35,9 @@ When updating or reinstalling `session-handoff`, apply these local overlays afte
 
 For a fresh install or reinstall from upstream, copy the upstream runtime resources first, then immediately apply the overlays above before validation or commit.
 
-## Humanizer local overlays
+## Retired skills
 
-When updating or reinstalling `humanizer`, keep `README.md` platform-neutral:
-
-- Do not restore Claude Code-only install paths such as `~/.claude/skills`.
-- Describe this repo's tracked location as `agent/skills/humanizer/`.
-- For installs outside this repo, tell users to copy the skill directory to their agent or harness-supported skill location.
-- Keep usage examples agent-neutral.
+`humanizer` was removed during the skill slimming pass because writing cleanup is strong base-model capability. Do not restore it unless the user explicitly asks to reinstall that workflow.
 
 ## Update workflow
 
@@ -53,7 +46,6 @@ When updating or reinstalling `humanizer`, keep `README.md` platform-neutral:
 
 ```bash
 rtk gh api repos/softaworks/agent-toolkit/contents/skills/session-handoff/SKILL.md?ref=main
-rtk gh api repos/softaworks/agent-toolkit/contents/skills/humanizer/SKILL.md?ref=main
 ```
 
 3. Compare upstream runtime files with local skill folders.
@@ -62,12 +54,10 @@ rtk gh api repos/softaworks/agent-toolkit/contents/skills/humanizer/SKILL.md?ref
 6. Preserve local scripts and references that are required by the skill.
 7. Regenerate or update `agents/openai.yaml` if a skill description changes.
 8. Update the upstream commit SHA in this file when source content changes.
-9. Validate both skills:
+9. Validate the skill:
 
 ```bash
-for skill in session-handoff humanizer; do
-  uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/$skill || exit 1
-done
+uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/session-handoff
 ```
 
 10. Scan changed files for literal home paths and secret values before committing.

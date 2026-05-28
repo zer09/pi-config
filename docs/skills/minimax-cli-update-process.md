@@ -1,41 +1,32 @@
-# Updating the MiniMax CLI skill
+# Retired MiniMax CLI skill
 
-Purpose: keep `agent/skills/mmx-cli` aligned with the MiniMax CLI upstream skill while preserving local OpenAI skill-creator conventions.
+Status: retired during the skill slimming pass.
 
-## Local invariants
+## Decision
 
-Before and after syncing upstream, apply `local-skill-update-invariants.md`. Upstream content is input, not final truth; preserve local safety gates, routing, token footprint, and OpenAI skill compatibility.
+`mmx-cli` was removed because MiniMax is a niche CLI in this setup and is not used often enough to justify a dedicated runtime skill. Future MiniMax API calls still go to an external hosted service; do not run generation, quota, config, or resource-management commands unless the user explicitly requests that exact action.
 
-## Source of truth
+Do not update or reinstall this skill unless the user explicitly asks for a dedicated MiniMax CLI runtime skill again.
+
+## Former source of truth
 
 - Upstream repository: https://github.com/MiniMax-AI/cli
-- Upstream skill path: `skill/SKILL.md`
-- Current upstream commit checked locally: `a6b93ba03cfaeaa19e733b45b17422af0503e541`
+- Former upstream skill path: `skill/SKILL.md`
+- Last upstream commit checked locally before retirement: `a6b93ba03cfaeaa19e733b45b17422af0503e541`
+- Former local files:
+  - `agent/skills/mmx-cli/SKILL.md`
+  - `agent/skills/mmx-cli/agents/openai.yaml`
 
-## Local files
+## Reinstall checklist
 
-- `agent/skills/mmx-cli/SKILL.md`: MiniMax CLI usage workflow.
-- `agent/skills/mmx-cli/agents/openai.yaml`: local UI metadata.
+If reinstalling later:
 
-## Update workflow
-
-1. Load `skill-creator` and `gh-cli`, then read this file.
-2. Fetch upstream with authenticated `gh` CLI through Context Mode/RTK:
-
-```bash
-rtk gh api repos/MiniMax-AI/cli/contents/skill/SKILL.md?ref=main
-```
-
-3. Compare upstream with local `SKILL.md`.
-4. Copy upstream runtime changes unless they conflict with local Pi routing, mutation safety gates, or OpenAI skill-creator rules.
-5. Keep frontmatter limited to `name` and `description`.
-6. Keep placeholder secrets as placeholders such as `<api-key>`, never realistic token examples.
-7. Regenerate or update `agents/openai.yaml` if the skill description changes.
-8. Update the upstream commit SHA in this file when source content changes.
-9. Validate:
-
-```bash
-uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/mmx-cli
-```
-
-10. Scan changed files for literal home paths and secret values before committing.
+1. Read `docs/skills/README.md` and `docs/skills/local-skill-update-invariants.md`.
+2. Load `skill-creator` and `gh-cli`.
+3. Fetch upstream runtime content from `MiniMax-AI/cli` and compare it with any local CLI behavior that matters.
+4. Preserve hosted-service mutation gates. Authentication, generation, uploads, downloads, quota/config changes, and resource management require exact explicit user instruction when they create cost, change remote state, write local credentials, or download generated media.
+5. Keep placeholder secrets as placeholders such as `<api-key>` or environment variable names; never document realistic token values.
+6. Keep `SKILL.md` concise and limit frontmatter to `name` and `description`.
+7. Add `agents/openai.yaml` with `default_prompt` mentioning `$mmx-cli`.
+8. Add this skill back to `docs/skills/README.md` active update documents if it is reinstalled.
+9. Validate with `uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/mmx-cli`.

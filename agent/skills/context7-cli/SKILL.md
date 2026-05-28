@@ -5,72 +5,59 @@ description: Use the ctx7 CLI to fetch library documentation, manage AI coding s
 
 # ctx7 CLI
 
-The Context7 CLI does three things: fetches up-to-date library documentation, manages AI coding skills, and sets up Context7 MCP for your editor.
+Use `ctx7` for current library docs, Context7 skill management, and MCP setup. Prefer the installed CLI. Do not install or upgrade global packages unless the user explicitly asks.
 
-Make sure the CLI is up to date before running commands:
+## Safety and routing
 
-```bash
-npm install -g ctx7@latest
-```
+- Read-only docs lookup is allowed. Use Context Mode when docs output may exceed 20 lines, especially `ctx7 docs --json`.
+- Skill discovery commands are read-only only when used as preview with no interactive selection or install target. `ctx7 skills search` can install from its interactive list, and `ctx7 skills suggest` can install suggested skills; treat accepting any prompt/selection or passing install-target flags as an explicit local mutation.
+- `ctx7 login`, `ctx7 logout`, `ctx7 setup`, `ctx7 remove`, `ctx7 upgrade -y`, `ctx7 skills install`, `ctx7 skills remove`, and `ctx7 skills generate` change local config, auth state, installed skills, packages, or remote state. Run them only when the user explicitly requests that exact action.
+- Never print or commit API keys, OAuth tokens, cookies, or generated config secrets. Refer to `CONTEXT7_API_KEY` by name or use `<api-key>` placeholders.
+- Verify exact flags with `ctx7 <command> --help`; local CLI behavior may be newer than the skill references.
 
-Or run directly without installing:
+## Reference navigation
 
-```bash
-npx ctx7@latest <command>
-```
+- [Documentation](references/docs.md) - resolving library IDs and fetching current docs.
+- [Skills management](references/skills.md) - searching, installing, listing, removing, suggesting, and generating skills.
+- [Setup](references/setup.md) - configuring or removing Context7 MCP for supported agents/editors.
 
-## What this skill covers
+## Common workflows
 
-- **[Documentation](references/docs.md)** — Fetch current docs for any library. Use when writing code, verifying API signatures, or when training data may be outdated.
-- **[Skills management](references/skills.md)** — Install, search, suggest, list, remove, and generate AI coding skills.
-- **[Setup](references/setup.md)** — Configure Context7 MCP for Claude Code / Cursor / OpenCode.
-
-## Quick Reference
+Documentation lookup is two-step: resolve a library ID, then query docs.
 
 ```bash
-# Documentation
-ctx7 library <name> <query>           # Step 1: resolve library ID
-ctx7 docs <libraryId> <query>         # Step 2: fetch docs
-
-# Skills
-ctx7 skills install /owner/repo       # Install from a repo (interactive)
-ctx7 skills install /owner/repo name  # Install a specific skill
-ctx7 skills search <keywords>         # Search the registry
-ctx7 skills suggest                   # Auto-suggest based on project deps
-ctx7 skills list                      # List installed skills
-ctx7 skills remove <name>             # Uninstall a skill
-ctx7 skills generate                  # Generate a custom skill with AI (requires login)
-
-# Setup
-ctx7 setup                            # Configure Context7 MCP (interactive)
-ctx7 login                            # Log in for higher rate limits + skill generation
-ctx7 whoami                           # Check current login status
+ctx7 library <name> "<topic>"
+ctx7 docs /owner/project "<question>"
+ctx7 docs /owner/project "<question>" --json
 ```
 
-## Authentication
+Skill discovery is preview-only unless the user explicitly requested an install or target change. Do not select items from interactive search results or accept suggested installs in read-only work:
 
 ```bash
-ctx7 login               # Opens browser for OAuth
-ctx7 login --no-browser  # Prints URL instead of opening browser
-ctx7 logout              # Clear stored tokens
-ctx7 whoami              # Show current login status (name + email)
+ctx7 skills search <keywords>   # preview only; do not select/install
+ctx7 skills list
+ctx7 skills info /owner/repo
+ctx7 skills suggest             # preview only; do not accept/install suggestions
 ```
 
-Most commands work without login. Exceptions: `skills generate` always requires it; `ctx7 setup` requires it unless `--api-key` or `--oauth` is passed. Login also unlocks higher rate limits on docs commands.
-
-Set an API key via environment variable to skip interactive login entirely:
+Setup and auth commands mutate local state, so draft or run only with explicit instruction:
 
 ```bash
-export CONTEXT7_API_KEY=<api-key>
+ctx7 whoami
+ctx7 login --no-browser
+ctx7 setup --help
+ctx7 remove --help
+ctx7 upgrade --check
 ```
 
-## Common Mistakes
+## Gotchas
 
-- Library IDs require a `/` prefix — `/facebook/react` not `facebook/react`
-- Always run `ctx7 library` first — `ctx7 docs react "hooks"` will fail without a valid ID
-- Repository format for skills is `/owner/repo` — e.g., `ctx7 skills install /anthropics/skills`
-- `skills generate` requires login — run `ctx7 login` first
+- Library IDs need the leading slash, for example `/facebook/react`.
+- Run `ctx7 library` before `ctx7 docs`; plain names like `react` are not valid library IDs.
+- Skill repositories use `/owner/repo` format.
+- `skills generate` requires login and uses a remote AI workflow.
+- `ctx7 setup` and `ctx7 remove` can target different agents and project/global scopes; confirm the target before running.
 
 ## Maintenance
 
-For future updates to this source, read `../../../docs/skills/context7-cli-update-process.md`.
+Update this Local Skill using `../../../docs/skills/context7-cli-update-process.md`. Preserve the local invariants in `../../../docs/skills/local-skill-update-invariants.md`.

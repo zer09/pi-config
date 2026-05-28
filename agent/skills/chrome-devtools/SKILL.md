@@ -3,54 +3,36 @@ name: chrome-devtools
 description: Uses Chrome DevTools via MCP for efficient debugging, troubleshooting and browser automation. Use when debugging web pages, automating browser interactions, analyzing performance, or inspecting network requests. This skill does not apply to `--slim` mode (MCP configuration).
 ---
 
-## Core Concepts
+# Chrome DevTools MCP
 
-**Browser lifecycle**: Browser starts automatically on first tool call using a persistent Chrome profile. Configure via CLI args in the MCP server configuration: `npx chrome-devtools-mcp@latest --help`. To enable extensions, use `--categoryExtensions`.
-**Page selection**: Tools operate on the currently selected page. Use `list_pages` to see available pages, then `select_page` to switch context.
+Use Chrome DevTools MCP for browser debugging, page inspection, performance traces, screenshots, network requests, console messages, and controlled browser automation.
 
-**Element interaction**: Use `take_snapshot` to get page structure with element `uid`s. Each element has a unique `uid` for interaction. If an element isn't found, take a fresh snapshot - the element may have been removed or the page changed.
+## Safety and routing
 
-## Workflow Patterns
+- Browser automation can mutate hosted services. Keep interactions read-only unless the user explicitly requests the exact browser-side mutation.
+- Use `take_snapshot` before interacting. Element `uid`s are snapshot-specific; refresh the snapshot after navigation or DOM changes.
+- Use `filePath`, pagination, filters, and `includeSnapshot: false` to keep tool output small.
+- Keep sequential steps sequential: navigate or select page, wait, snapshot, then interact. Parallelize only independent read-only checks.
+- If Chrome DevTools MCP launch, connection, or target selection fails, switch to the `troubleshooting` skill.
 
-### Before interacting with a page
+## Page workflow
 
-1. Navigate: `navigate_page` or `new_page`
-2. Wait: `wait_for` to ensure content is loaded if you know what you look for.
-3. Snapshot: `take_snapshot` to understand page structure
-4. Interact: Use element `uid`s from snapshot for `click`, `fill`, etc.
+1. Open or choose a page with `new_page`, `navigate_page`, `list_pages`, and `select_page`.
+2. Wait for known text or UI state with `wait_for` when needed.
+3. Inspect structure with `take_snapshot`; use `take_screenshot` for visual layout or screenshot evidence.
+4. Interact with `click`, `fill`, `press_key`, `hover`, `drag`, `upload_file`, or `handle_dialog` only after confirming the action is safe.
+5. Inspect effects with a fresh snapshot, console/network tools, or `evaluate_script`.
 
-### Efficient data retrieval
+## Tool selection
 
-- Use `filePath` parameter for large outputs (screenshots, snapshots, traces)
-- Use pagination (`pageIdx`, `pageSize`) and filtering (`types`) to minimize data
-- Set `includeSnapshot: false` on input actions unless you need updated page state
-
-### Tool selection
-
-- **Automation/interaction**: `take_snapshot` (text-based, faster, better for automation)
-- **Visual inspection**: `take_screenshot` (when user needs to see visual state)
-- **Additional details**: `evaluate_script` for data not in accessibility tree
-
-### Parallel execution
-
-You can send multiple tool calls in parallel, but maintain correct order: navigate → wait → snapshot → interact.
-
-### Testing an extension
-
-1. **Install**: Use `install_extension` with the path to the unpacked extension.
-2. **Identify**: Get the extension ID from the response or by calling `list_extensions`.
-3. **Trigger Action**: Use `trigger_extension_action` to open the popup or side panel if applicable.
-4. **Verify Service Worker**: Use `evaluate_script` with `serviceWorkerId` to check extension state or trigger background actions.
-5. **Verify Page Behavior**: Navigate to a page where the extension operates and use `take_snapshot` to check if content scripts injected elements or modified the page correctly.
-
-## Troubleshooting
-
-If `chrome-devtools-mcp` is insufficient, guide users to use Chrome DevTools UI:
-
-- https://developer.chrome.com/docs/devtools
-- https://developer.chrome.com/docs/devtools/ai-assistance
-
-If there are errors launching `chrome-devtools-mcp` or Chrome, refer to https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/troubleshooting.md.
+- Page structure and automation: `take_snapshot`.
+- Visual state: `take_screenshot`.
+- DOM data not present in the accessibility tree: `evaluate_script`.
+- Network debugging: `list_network_requests` then `get_network_request` for selected request details.
+- Console and browser issues: `list_console_messages` then `get_console_message`.
+- Performance: `performance_start_trace`, `performance_stop_trace`, and `performance_analyze_insight`.
+- Memory: `take_memory_snapshot`, then use the `memory-leak-debugging` skill.
+- Extensions: require extension category tools to be enabled; install, reload, trigger, or uninstall extensions only for explicit extension-testing tasks.
 
 ## Maintenance
 

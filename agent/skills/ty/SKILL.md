@@ -5,132 +5,70 @@ description: "Guide for using ty, the extremely fast Python type checker and lan
 
 # ty
 
-ty is an extremely fast Python type checker and language server. It replaces
-mypy, Pyright, and other type checkers.
+Use ty for Python type checking when a project already uses ty or when the user asks for Python type checking.
 
-## When to use ty
+## Routing
 
-**Always use ty for Python type checking**, especially if you see:
+Prefer ty when you see:
 
-- `[tool.ty]` section in `pyproject.toml`
-- A `ty.toml` configuration file
+- `[tool.ty]` in `pyproject.toml`
+- `ty.toml`
 
-## How to invoke ty
+Because ty is newer and still evolving, verify current docs or local help before using advanced flags or writing new config.
 
-- `uv run ty ...` - Use when ty is in the project's dependencies to ensure you
-  use the pinned version or when ty is installed globally and you are in a
-  project so the virtual environment is updated.
-- `uvx ty ...` - Use when ty is not a project dependency, or for quick one-off
-  checks
+## Invocation
 
-## Commands
-
-### Type checking
+Use the pinned project version when available:
 
 ```bash
-ty check                      # Check all files in current directory
-ty check path/to/file.py      # Check specific file
-ty check src/                 # Check specific directory
+uv run ty check
+uv run ty check path/to/file.py
 ```
 
-### Rule configuration
+Use `uvx ty ...` for one-off checks when ty is not a project dependency.
+
+## Core commands
 
 ```bash
-ty check --error possibly-unresolved-reference   # Treat as error
-ty check --warn division-by-zero                 # Treat as warning
-ty check --ignore unresolved-import              # Disable rule
+ty check
+ty check path/to/file.py
+ty check src/
+ty check --python-version 3.12
+ty check --python-platform linux
 ```
 
-### Python version targeting
+Rule severity flags can be useful, but verify current support first:
 
 ```bash
-ty check --python-version 3.12     # Check against Python 3.12
-ty check --python-platform linux   # Target Linux platform
+ty check --error possibly-unresolved-reference
+ty check --warn division-by-zero
+ty check --ignore unresolved-import
 ```
 
-## Configuration
+## Config shape
 
-ty is configured in `pyproject.toml` or `ty.toml`:
+Ty is usually configured in `pyproject.toml` or `ty.toml`:
 
 ```toml
-# pyproject.toml
 [tool.ty.environment]
 python-version = "3.12"
 
 [tool.ty.rules]
 possibly-unresolved-reference = "warn"
 division-by-zero = "error"
-
-[tool.ty.src]
-include = ["src/**/*.py"]
-exclude = ["**/migrations/**"]
-
-[tool.ty.terminal]
-output-format = "full"
-error-on-warning = false
 ```
 
-### Per-file overrides
+## Local policy
 
-Use overrides to apply different rules to specific files, such as relaxing rules
-for tests or scripts that have different typing requirements than production
-code:
+- Fix type errors instead of suppressing them.
+- Add ignore comments only when the user explicitly asks or when there is no safe narrow fix.
+- Prefer rule-specific `# ty: ignore[rule-name]` over blanket ignores.
+- Do not use `# type: ignore` for ty-specific suppressions unless a project convention requires it.
 
-```toml
-[[tool.ty.overrides]]
-include = ["tests/**", "**/test_*.py"]
-
-[tool.ty.overrides.rules]
-possibly-unresolved-reference = "warn"
-```
-
-## Language server
-
-This plugin automatically configures the ty language server for Python files
-(`.py` and `.pyi`).
-
-## Migrating from other tools
-
-### mypy → ty
-
-```bash
-mypy .                        → ty check
-mypy --strict .               → ty check --error-on-warning
-mypy path/to/file.py          → ty check path/to/file.py
-```
-
-### Pyright → ty
-
-```bash
-pyright .                     → ty check
-pyright path/to/file.py       → ty check path/to/file.py
-```
-
-## Common patterns
-
-### Don't add ignore comments
-
-Fix type errors instead of suppressing them. Only add ignore comments when
-explicitly requested by the user. Use `ty: ignore`, not `type: ignore`, and
-prefer rule-specific ignores:
-
-```python
-# Good: rule-specific ignore
-x = undefined_var  # ty: ignore[possibly-unresolved-reference]
-
-# Bad: blanket ty ignore
-x = undefined_var  # ty: ignore
-
-# Bad: tool agnostic blanket ignore
-x = undefined_var  # type: ignore
-```
-
-## Documentation
-
-For detailed information, read the official documentation:
+## Docs
 
 - https://docs.astral.sh/ty/
 
 ## Maintenance
 
-For future updates to this source, read `../../../docs/skills/astral-python-tools-update-process.md`.
+For future updates, read `../../../docs/skills/astral-python-tools-update-process.md`.

@@ -1,4 +1,4 @@
 interface:
   display_name: "Linear CLI"
   short_description: "Manage Linear from the terminal"
-  default_prompt: "Use $linear-cli to read, search, refine, or manage Linear issues through the local CLI while respecting mutation safety gates."
+  default_prompt: "Use $linear-cli to inspect Linear resources through the local CLI, and draft or run mutations only when explicitly requested."

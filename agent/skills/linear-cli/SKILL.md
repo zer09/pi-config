@@ -1,268 +1,81 @@
 ---
 name: linear-cli
-description: "Manage Linear issues from the command line using the linear cli. Use for reading, searching, refining, creating, and updating Linear issues with the local Linear CLI; mutations require explicit user approval."
+description: "Manage Linear from the terminal with the local `linear` CLI. Use for reading/searching issues, teams, projects, cycles, labels, documents, and GraphQL API data, or for drafting/running Linear mutations only when the user explicitly requests the exact hosted-service write."
 ---
 
 # Linear CLI
 
-A CLI to manage Linear issues from the command line, with git and jj integration.
+Use the local `linear` command for Linear reads and carefully gated writes. Linear is an external hosted service: stay read-only unless the user explicitly requests the exact create, update, delete, comment, assign, label, attach, link, relation, close, reopen, auth, or other mutation.
 
-## Prerequisites
+## Core rules
 
-The `linear` command must be available on PATH. To check:
+- Prefer the installed `linear` command. Verify with `linear --version`; if missing, suggest `npx @schpet/linear-cli` instead of installing unless the user asks.
+- Use Context Mode for read-only commands that may exceed 20 lines: issue searches, schema output, GraphQL JSON, comments, documents, or generated help.
+- Before any mutation, verify the target identifier, team/project/workspace, command, flags, and body file. If the user did not request that exact mutation, provide a command draft instead of running it.
+- Never print tokens. `linear auth token` writes a secret to stdout; do not run it in a way that enters the transcript, logs, shell history, or committed files.
+- Do not guess flags or required fields. Check `linear <command> --help` or the local reference files before syntax-sensitive answers.
+
+## Discovery workflow
 
 ```bash
 linear --version
-```
-
-If not installed globally, you can run it without installing via npx:
-
-```bash
-npx @schpet/linear-cli --version
-```
-
-All subsequent commands can be prefixed with `npx @schpet/linear-cli` in place of `linear`. Otherwise, follow the install instructions at:\
-https://github.com/schpet/linear-cli?tab=readme-ov-file#install
-
-## Best Practices for Markdown Content
-
-When working with issue descriptions or comment bodies that contain markdown, **always prefer using file-based flags** instead of passing content as command-line arguments:
-
-- Use `--description-file` for `issue create` and `issue update` commands
-- Use `--body-file` for `comment add` and `comment update` commands
-
-**Why use file-based flags:**
-
-- Ensures proper formatting in the Linear web UI
-- Avoids shell escaping issues with newlines and special characters
-- Prevents literal `\n` sequences from appearing in markdown
-- Makes it easier to work with multi-line content
-
-**Example workflow:**
-
-```bash
-# Write markdown to a temporary file
-cat > /tmp/description.md <<'EOF'
-## Summary
-
-- First item
-- Second item
-
-## Details
-
-This is a detailed description with proper formatting.
-EOF
-
-# Create issue using the file
-linear issue create --title "My Issue" --description-file /tmp/description.md
-
-# Or for comments
-linear issue comment add ENG-123 --body-file /tmp/comment.md
-```
-
-**Only use inline flags** (`--description`, `--body`) for simple, single-line content.
-
-## Available Commands
-
-Compact command list, generated from `linear --help`:
-
-```bash
-linear auth
-linear auth login
-linear auth logout
-linear auth list
-linear auth default
-linear auth token
-linear auth whoami
-linear auth migrate
-
-linear issue
-linear issue id
-linear issue mine
-linear issue query
-linear issue title
-linear issue start
-linear issue view
-linear issue url
-linear issue describe
-linear issue commits
-linear issue pull-request
-linear issue delete
-linear issue create
-linear issue update
-linear issue comment
-linear issue comment add
-linear issue comment delete
-linear issue comment update
-linear issue comment list
-linear issue attach
-linear issue link
-linear issue relation
-linear issue relation add
-linear issue relation delete
-linear issue relation list
-linear issue agent-session
-linear issue agent-session list
-linear issue agent-session view
-
-linear team
-linear team create
-linear team delete
-linear team list
-linear team id
-linear team autolinks
-linear team members
-
-linear project
-linear project list
-linear project view
-linear project create
-linear project update
-linear project delete
-
-linear project-update
-linear project-update create
-linear project-update list
-
-linear cycle
-linear cycle list
-linear cycle view
-
-linear milestone
-linear milestone list
-linear milestone view
-linear milestone create
-linear milestone update
-linear milestone delete
-
-linear initiative
-linear initiative list
-linear initiative view
-linear initiative create
-linear initiative archive
-linear initiative update
-linear initiative unarchive
-linear initiative delete
-linear initiative add-project
-linear initiative remove-project
-
-linear initiative-update
-linear initiative-update create
-linear initiative-update list
-
-linear label
-linear label list
-linear label create
-linear label delete
-
-linear document
-linear document list
-linear document view
-linear document create
-linear document update
-linear document delete
-
-linear config
-
-linear schema
-
-linear api
-```
-
-## Reference Documentation
-
-- [auth](references/auth.md) - Manage Linear authentication
-- [issue](references/issue.md) - Manage Linear issues
-- [team](references/team.md) - Manage Linear teams
-- [project](references/project.md) - Manage Linear projects
-- [project-update](references/project-update.md) - Manage project status updates
-- [cycle](references/cycle.md) - Manage Linear team cycles
-- [milestone](references/milestone.md) - Manage Linear project milestones
-- [initiative](references/initiative.md) - Manage Linear initiatives
-- [initiative-update](references/initiative-update.md) - Manage initiative status updates (timeline posts)
-- [label](references/label.md) - Manage Linear issue labels
-- [document](references/document.md) - Manage Linear documents
-- [config](references/config.md) - Interactively generate .linear.toml configuration
-- [schema](references/schema.md) - Print the GraphQL schema to stdout
-- [api](references/api.md) - Make a raw GraphQL API request
-
-For curated examples of organization features (initiatives, labels, projects, bulk operations), see [organization-features](references/organization-features.md).
-
-## Discovering Options
-
-To see available subcommands and flags, run `--help` on any command:
-
-```bash
 linear --help
 linear issue --help
-linear issue list --help
-linear issue create --help
+linear issue view --help
+linear team list
 ```
 
-Each command has detailed help output describing all available flags and options.
+Use `linear team list` or project/cycle list commands to resolve identifiers before writes. Some commands infer team from repository config, but do not rely on inference for mutations.
 
-Some commands have required flags that aren't obvious. Notable examples:
+## Reference navigation
 
-- `issue list` requires a sort order — provide it via `--sort` (valid values: `manual`, `priority`), the `issue_sort` config option, or the `LINEAR_ISSUE_SORT` env var. Also requires `--team <key>` unless the team can be inferred from the directory — if unknown, run `linear team list` first.
-- `--no-pager` is only supported on `issue list` — passing it to other commands like `project list` will error.
+Start with [commands](references/commands.md), then open the smallest command reference needed:
 
-## Using the Linear GraphQL API Directly
+- [auth](references/auth.md) - authentication and identity
+- [issue](references/issue.md) - issues, comments, links, relations, agent sessions
+- [team](references/team.md), [project](references/project.md), [cycle](references/cycle.md), [milestone](references/milestone.md)
+- [initiative](references/initiative.md), [initiative-update](references/initiative-update.md), [project-update](references/project-update.md)
+- [label](references/label.md), [document](references/document.md), [config](references/config.md)
+- [schema](references/schema.md), [api](references/api.md) - GraphQL fallback
+- [organization-features](references/organization-features.md) - curated examples for organization workflows
 
-**Prefer the CLI for all supported operations.** The `api` command should only be used as a fallback for queries not covered by the CLI.
+## Issue and comment content
 
-### Check the schema for available types and fields
+For Markdown descriptions or comment bodies, prefer file-based flags:
 
-Write the schema to a tempfile, then search it:
+```bash
+linear issue create --title "<title>" --description-file <description.md>
+linear issue update <ISSUE-ID> --description-file <description.md>
+linear issue comment add <ISSUE-ID> --body-file <comment.md>
+```
+
+Use inline `--description` or `--body` only for simple one-line text. File flags preserve formatting, avoid shell escaping issues, and prevent literal `\n` from appearing in Linear.
+
+Known gotchas:
+
+- `issue list` requires a sort order: pass `--sort manual` or `--sort priority`, or configure `issue_sort` / `LINEAR_ISSUE_SORT`.
+- `issue list` usually needs `--team <key>` unless team inference is verified.
+- `--no-pager` is only supported on `issue list`; do not pass it to commands like `project list`.
+
+## GraphQL fallback
+
+Prefer first-class CLI commands. Use `linear api` only when the CLI does not expose the needed read or mutation.
 
 ```bash
 linear schema -o "${TMPDIR:-/tmp}/linear-schema.graphql"
-grep -i "cycle" "${TMPDIR:-/tmp}/linear-schema.graphql"
-grep -A 30 "^type Issue " "${TMPDIR:-/tmp}/linear-schema.graphql"
+rg -n "type Issue|cycle" "${TMPDIR:-/tmp}/linear-schema.graphql"
 ```
 
-### Make a GraphQL request
-
-**Important:** GraphQL queries containing non-null type markers (e.g. `String` followed by an exclamation mark) must be passed via heredoc stdin to avoid escaping issues. Simple queries without those markers can be passed inline.
+Pass GraphQL queries with variables through heredoc stdin, especially when a query contains non-null markers such as `String!`:
 
 ```bash
-# Simple query (no type markers, so inline is fine)
-linear api '{ viewer { id name email } }'
-
-# Query with variables — use heredoc to avoid escaping issues
-linear api --variable teamId=abc123 <<'GRAPHQL'
+linear api --variable teamId=<team-id> <<'GRAPHQL'
 query($teamId: String!) { team(id: $teamId) { name } }
 GRAPHQL
-
-# Search issues by text
-linear api --variable term=onboarding <<'GRAPHQL'
-query($term: String!) { searchIssues(term: $term, first: 20) { nodes { identifier title state { name } } } }
-GRAPHQL
-
-# Numeric and boolean variables
-linear api --variable first=5 <<'GRAPHQL'
-query($first: Int!) { issues(first: $first) { nodes { title } } }
-GRAPHQL
-
-# Complex variables via JSON
-linear api --variables-json '{"filter": {"state": {"name": {"eq": "In Progress"}}}}' <<'GRAPHQL'
-query($filter: IssueFilter!) { issues(filter: $filter) { nodes { title } } }
-GRAPHQL
-
-# Pipe to jq for filtering
-linear api '{ issues(first: 5) { nodes { identifier title } } }' | jq '.data.issues.nodes[].title'
 ```
 
-### Advanced: Using curl directly
-
-For cases where you need full HTTP control, use `linear auth token`:
-
-```bash
-curl -s -X POST https://api.linear.app/graphql \
-  -H "Content-Type: application/json" \
-  -H "Authorization: $(linear auth token)" \
-  -d '{"query": "{ viewer { id } }"}'
-```
+For JSON processing, run the command inside Context Mode and print only the derived fields. Avoid direct `curl` unless full HTTP control is required and the user explicitly requested the operation.
 
 ## Maintenance
 
-For future updates to this source, read `../../../docs/skills/linear-cli-update-process.md`.
+Update this Local Skill using `../../../docs/skills/linear-cli-update-process.md`. Preserve the local invariants in `../../../docs/skills/local-skill-update-invariants.md` and keep generated command catalogs in `references/`, not in this runtime file.

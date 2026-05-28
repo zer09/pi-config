@@ -9,7 +9,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Source of truth
 
 - Upstream repository: https://github.com/ChromeDevTools/chrome-devtools-mcp
-- Current upstream commit checked locally: `9914134b0f74bfa05a182f62ee13b88aa3244344`
+- Current upstream commit checked locally: `50cecd810b9362f6b3fd3806bcceaca0e2b9d1fb`
 
 | Local skill | Upstream path |
 | --- | --- |
@@ -19,6 +19,10 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 | `debug-optimize-lcp` | `skills/debug-optimize-lcp/SKILL.md` |
 | `memory-leak-debugging` | `skills/memory-leak-debugging/SKILL.md` |
 | `troubleshooting` | `skills/troubleshooting/SKILL.md` |
+
+## Slimming policy
+
+Keep these runtime skills concise. The local Chrome DevTools skills should focus on MCP/CLI routing, browser mutation gates, large-output handling, reference navigation, and failure playbooks. Upstream prose is useful input, but do not re-expand `SKILL.md` with long tutorials, command catalogs, or repeated web performance background unless a workflow depends on it.
 
 ## Local files
 
@@ -35,8 +39,8 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 rtk gh api repos/ChromeDevTools/chrome-devtools-mcp/contents/skills/chrome-devtools/SKILL.md?ref=main
 ```
 
-3. Compare upstream runtime files with local skill folders, including references.
-4. Copy upstream runtime changes unless they conflict with local Pi MCP routing, browser safety, or OpenAI skill-creator rules.
+3. Compare upstream runtime files with local skill folders, including references, and summarize new tools, flags, or failure cases before editing.
+4. Apply upstream runtime changes only when they preserve local Pi MCP routing, browser safety, compact runtime docs, and OpenAI skill-creator rules.
 5. Keep every `SKILL.md` frontmatter limited to `name` and `description`.
 6. Keep browser automation instructions read-only unless the user explicitly authorizes a hosted-service mutation through the browser.
 7. Regenerate or update `agents/openai.yaml` when a skill description changes.

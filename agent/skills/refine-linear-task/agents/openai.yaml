@@ -1,4 +1,0 @@
-interface:
-  display_name: "Refine Linear Task"
-  short_description: "Clarify Linear issues for implementation"
-  default_prompt: "Use $refine-linear-task to improve this Linear issue with clearer scope, context, and acceptance criteria."

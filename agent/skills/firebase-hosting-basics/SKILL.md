@@ -3,52 +3,42 @@ name: firebase-hosting-basics
 description: Skill for working with Firebase Hosting (Classic). Use this when you want to deploy static web apps, Single Page Apps (SPAs), or simple microservices. Do NOT use for Firebase App Hosting.
 ---
 
-# hosting-basics
+# Firebase Hosting Basics
+
+Use Firebase Hosting Classic for static sites, SPAs, and simple microservices. For framework-backed App Hosting, use `firebase-app-hosting-basics` instead.
 
 ## Hosted service safety
 
-Firebase Hosting actions can mutate hosted project state. List, inspect, emulate locally, and read configuration freely, but only create channels, deploy, roll back, connect GitHub, or modify remote resources when the user explicitly asks for that exact action.
+- Local config edits, builds, emulator use, and read-only inspection are allowed.
+- Deploys, site creation, target changes, channel creation, rewrites to live services, custom domain changes, and rollback actions require exact user instruction.
+- Confirm the Firebase project, hosting site, deploy target, channel, and public/build directory before any hosted mutation.
+- Never print or commit credentials, tokens, service account JSON, or secret env values.
 
-This skill provides instructions and references for working with Firebase Hosting, a fast and secure hosting service for your web app, static and dynamic content, and microservices.
+## Workflow
 
-## Overview
+1. Inspect existing `firebase.json`, `.firebaserc`, build output directories, package scripts, and hosting targets.
+2. Load the smallest relevant reference:
+   - [configuration](references/configuration.md)
+   - [deploying](references/deploying.md)
+3. Verify installed Firebase CLI help for exact flags:
 
-Firebase Hosting provides production-grade web content hosting for developers. With a single command, you can deploy web apps and serve both static and dynamic content to a global CDN (content delivery network).
-
-**Key Features:**
-- **Fast Content Delivery:** Files are cached on SSDs at CDN edges around the world.
-- **Secure by Default:** Zero-configuration SSL is built-in.
-- **Preview Channels:** View and test changes on temporary preview URLs before deploying live.
-- **GitHub Integration:** Automate previews and deploys with GitHub Actions.
-- **Dynamic Content:** Serve dynamic content and microservices using Cloud Functions or Cloud Run.
-
-## Hosting vs App Hosting
-
-**Choose Firebase Hosting if:**
-- You are deploying a static site (HTML/CSS/JS).
-- You are deploying a simple SPA (React, Vue, etc. without SSR).
-- You want full control over the build and deploy process via CLI.
-
-**Choose Firebase App Hosting if:**
-- You are using a supported full-stack framework like Next.js or Angular.
-- You need Server-Side Rendering (SSR) or ISR.
-- You want an automated "git push to deploy" workflow with zero configuration.
-
-## Instructions
-
-### 1. Configuration (`firebase.json`)
-For details on configuring Hosting behavior, including public directories, redirects, rewrites, and headers, see [configuration.md](references/configuration.md).
-
-### 2. Deploying
-For instructions on deploying your site, using preview channels, and managing releases, see [deploying.md](references/deploying.md).
-
-### 3. Emulation
-To test your app locally:
 ```bash
-npx -y firebase-tools@latest emulators:start --only hosting
+firebase --help
+firebase hosting:sites:list --help
+firebase hosting:sites:list --project <project-id>
+firebase emulators:start --only hosting
 ```
-This serves your app at `http://localhost:5000` by default.
+
+4. Validate local builds and Hosting emulator behavior before drafting deploy commands.
+5. For deploys, prefer a checklist or command draft first unless the user already asked for the exact deploy target.
+
+## Configuration reminders
+
+- Keep Hosting Classic and App Hosting configuration separate.
+- Check rewrites, redirects, headers, cache settings, and SPA fallback behavior before deploy.
+- Do not change production targets or custom domains as part of unrelated code work.
+- Use Context Mode for long emulator logs, deploy output, or CLI help.
 
 ## Maintenance
 
-For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.
+Update this Local Skill using `../../../docs/skills/firebase-skills-update-process.md`. Preserve the local invariants in `../../../docs/skills/local-skill-update-invariants.md`.

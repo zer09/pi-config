@@ -19,10 +19,14 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 
 ## Local files
 
-- `agent/skills/uv/`: uv usage guidance.
-- `agent/skills/ruff/`: Ruff usage guidance.
-- `agent/skills/ty/`: ty usage guidance.
+- `agent/skills/uv/`: compact uv command routing and local Python tooling policy.
+- `agent/skills/ruff/`: compact Ruff lint/format workflow with formatting-churn safeguards.
+- `agent/skills/ty/`: compact ty type-checking workflow with docs-verification guidance for advanced flags.
 - Each skill has local `agents/openai.yaml` UI metadata.
+
+## Slimming policy
+
+These skills are intentionally slim. Keep `SKILL.md` focused on triggers, preferred invocation, safety/scoping rules, core commands, docs links, and the maintenance pointer. Do not restore long migration tables or broad command catalogs unless the user explicitly asks for a more detailed runtime skill.
 
 ## Update workflow
 
@@ -34,12 +38,13 @@ rtk gh api repos/astral-sh/claude-code-plugins/contents/plugins/astral/skills/uv
 ```
 
 3. Compare upstream runtime files with local skill folders.
-4. Copy upstream runtime changes unless they conflict with local Pi routing or OpenAI skill-creator rules.
+4. Copy upstream runtime changes only when they improve the compact local workflow and do not conflict with local Pi routing, OpenAI skill-creator rules, or token-footprint goals.
 5. Keep every `SKILL.md` frontmatter limited to `name` and `description`.
 6. Preserve local Python tooling policy in project rules: use `uv`, prefer `uv run`, use `ruff` for lint/format, and use `ty` for type checking.
-7. Regenerate or update `agents/openai.yaml` if a skill description changes.
-8. Update the upstream commit SHA in this file when source content changes.
-9. Validate all Astral skills:
+7. Preserve the scoped-fix safeguards in `ruff` and the docs-verification warning for advanced `ty` flags.
+8. Regenerate or update `agents/openai.yaml` if a skill description changes.
+9. Update the upstream commit SHA in this file when source content changes.
+10. Validate all Astral skills:
 
 ```bash
 for skill in uv ruff ty; do
@@ -47,4 +52,4 @@ for skill in uv ruff ty; do
 done
 ```
 
-10. Scan changed files for literal home paths and secret values before committing.
+11. Scan changed files for literal home paths and secret values before committing.

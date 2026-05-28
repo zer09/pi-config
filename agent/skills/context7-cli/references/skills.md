@@ -24,7 +24,7 @@ Alias: `ctx7 si /anthropics/skills pdf`
 
 ## Search
 
-Find skills across the entire registry by keyword. Shows an interactive list with install counts and trust scores. Select to install.
+Find skills across the entire registry by keyword. The interactive list shows install counts and trust scores and can install when you select an item. In read-only work, use it only as a preview and exit without selecting or installing.
 
 ```bash
 ctx7 skills search pdf
@@ -36,12 +36,12 @@ Alias: `ctx7 ss pdf`
 
 ## Suggest
 
-Auto-detects your project dependencies and recommends relevant skills from the registry.
+Auto-detects your project dependencies and recommends relevant skills from the registry. It can install suggestions to project, global, or targeted assistant directories. Treat accepting/installing suggestions or passing target/global install flags as a local mutation. In read-only work, preview only and exit without installing.
 
 ```bash
-ctx7 skills suggest           # Scan current project, install to project
-ctx7 skills suggest --global  # Install suggestions globally
-ctx7 skills suggest --claude  # Target Claude Code only
+ctx7 skills suggest           # Preview suggestions; do not accept installs in read-only work
+ctx7 skills suggest --global  # Mutates if accepted: install suggestions globally
+ctx7 skills suggest --claude  # Mutates if accepted: target Claude Code
 ```
 
 Reads `package.json`, `requirements.txt`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Gemfile`. Falls back to suggesting `ctx7 skills search` if no dependencies are detected.
