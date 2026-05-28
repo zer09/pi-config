@@ -38,6 +38,8 @@ The Linear CLI pass kept `linear-cli`, but slimmed runtime guidance to mutation 
 
 The Firebase pass kept the Firebase-owned and Genkit skills, slimming the skills whose workflows are familiar enough to keep compact: `developing-genkit-js`, `firebase-ai-logic-basics`, `firebase-app-hosting-basics`, `firebase-auth-basics`, `firebase-basics`, and `firebase-hosting-basics`. It retained the more niche or safety-sensitive skills as-is: Genkit Dart/Go/Python, Data Connect, Firestore, and the security rules auditor. Current `firebase/skills` no longer contains the local Genkit paths, so those remain local snapshots until a new upstream source is verified.
 
+The Context7 CLI pass kept `context7-cli`, but slimmed runtime guidance to docs lookup workflow, mutation gates for auth/setup/skills/upgrade commands, reference navigation, and common gotchas. Detailed command behavior remains in `references/`.
+
 ## Consequences
 
 - Fewer installed runtime skills are loaded or considered by Pi.

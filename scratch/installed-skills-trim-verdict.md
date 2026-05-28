@@ -12,7 +12,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 |  | codebase-memory-mcp | Weak | 3 | keep it | Custom MCP protocol and project/index rules need explicit guidance. |
 |  | context-mode | Weak | 3 | keep it | Core local context-saving behavior is tool-specific and important. |
 |  | context-watcher | Weak | 2 | keep it | This is core orchestration and safety policy for this Pi setup. |
-|  | context7-cli | Medium | 5 | make it slim | Current-doc lookup matters, but the skill can be shortened. |
+| ✓ | context7-cli | Medium | 5 | make it slim | Slimmed to docs lookup workflow, mutation gates for auth/setup/skills/upgrade commands, reference routing, and common gotchas. |
 |  | ctx-doctor | Strong | 8 | remove it | Simple wrapper command; does not need a full skill. |
 |  | ctx-insight | Strong | 8 | remove it | Simple dashboard command; can live in general rules if needed. |
 |  | ctx-purge | Good | 7 | make it slim | Destructive command needs a tiny safety reminder, not a full skill. |
