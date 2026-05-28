@@ -41,7 +41,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | x | humanizer | Very strong | 9 | remove it | Writing style cleanup is generic and memory-native. |
 |  | improve-codebase-architecture | Strong | 8 | remove it | Generic architecture review does not need a separate skill. |
 |  | librarian | Medium | 6 | make it slim | Source-citation workflow is useful; shorten to routing rules. |
-|  | linear-cli | Medium | 5 | make it slim | Exact CLI/API details matter, but keep concise. |
+| ✓ | linear-cli | Medium | 5 | make it slim | Slimmed to mutation gates, discovery workflow, reference routing, Markdown/body-file rules, known gotchas, and GraphQL fallback safety. |
 |  | memory-leak-debugging | Strong | 8 | make it slim | I know debugging; keep only tool-specific heap/memlab flow. |
 | x | mmx-cli | Weak | 3 | remove it | Removed because MiniMax is niche in this setup and not used often enough to justify a dedicated runtime skill. |
 | ✓ | mysql | Strong | 8 | make it slim | DB expertise is strong; keep only project/tool conventions. |

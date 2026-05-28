@@ -34,6 +34,8 @@ The Notion CLI pass removed `notion-cli` because prior use showed the local `ntn
 
 The MiniMax CLI pass removed `mmx-cli` because MiniMax is niche in this setup and not used often enough to justify a dedicated runtime skill. Future MiniMax API generation or remote-state changes still require exact explicit user instruction.
 
+The Linear CLI pass kept `linear-cli`, but slimmed runtime guidance to mutation gates, discovery workflow, reference navigation, Markdown/body-file handling, known command gotchas, and GraphQL fallback safety. Detailed command help remains in `references/`.
+
 ## Consequences
 
 - Fewer installed runtime skills are loaded or considered by Pi.
