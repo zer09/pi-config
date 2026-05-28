@@ -10,7 +10,7 @@ This Pi config had accumulated runtime skills from several sources: local Pi ski
 
 Large or redundant skills increase prompt footprint and make future maintenance harder. Removing or slimming skills should preserve the parts that matter: local tool protocols, exact CLI/MCP workflows, hosted-service mutation gates, and project-specific conventions.
 
-The initial inventory and recommendations are recorded in `scratch/installed-skills-trim-verdict.md`.
+The initial inventory and recommendations are recorded in `docs/skills/installed-skills-trim-verdict.md`. The repeatable update/install process is documented in `docs/skills/skill-slimming-process.md` so future skill maintenance applies the same keep/slim/remove classification.
 
 ## Decision
 
@@ -50,7 +50,7 @@ The retained-skill pass marked package-provided Context Mode helpers (`context-m
 
 - Fewer installed runtime skills are loaded or considered by Pi.
 - Custom safety and routing skills remain protected.
-- Future skill updates must preserve `docs/skills/local-skill-update-invariants.md`.
+- Future skill updates must preserve `docs/skills/local-skill-update-invariants.md` and apply `docs/skills/skill-slimming-process.md`.
 - Removed skills can be reinstalled later if a concrete workflow requires them.
 
 ## Validation

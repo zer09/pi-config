@@ -14,11 +14,14 @@ When updating one or more Local Skills:
 
 1. Read `docs/skills/README.md`.
 2. Read this invariant document.
-3. Read the relevant skill update-process document in `docs/skills/`.
-4. Fetch or compare upstream runtime skill content.
-5. Apply upstream changes only when they do not weaken these local invariants.
-6. Reapply local overlays from this document.
-7. Run validation before committing.
+3. Read `docs/skills/skill-slimming-process.md`.
+4. Read the relevant skill update-process document in `docs/skills/`.
+5. Fetch or compare upstream runtime skill content.
+6. Classify each affected skill as `keep it`, `make it slim`, or `remove it`.
+7. Apply upstream changes only when they do not weaken these local invariants.
+8. Reapply local overlays from this document.
+9. Update `docs/skills/installed-skills-trim-verdict.md` when the installed-skill decision changes.
+10. Run validation before committing.
 
 ## Install contract
 
@@ -26,14 +29,17 @@ When installing a new Local Skill:
 
 1. Read `docs/skills/README.md`.
 2. Read this invariant document.
-3. Load `skill-creator`.
-4. Create `agent/skills/<skill-name>/`.
-5. Add `SKILL.md`, `agents/openai.yaml`, and any needed runtime `references/`, scripts, or assets.
-6. Add hosted-service safety gates if the skill touches remote services.
-7. Add a lightweight `## Maintenance` pointer in `SKILL.md`.
-8. Add or update the relevant skill update-process document in `docs/skills/`.
-9. Update `docs/skills/README.md`.
-10. Run validation before committing.
+3. Read `docs/skills/skill-slimming-process.md`.
+4. Load `skill-creator`.
+5. Classify the proposed skill as `keep it`, `make it slim`, or `remove it` before adding it.
+6. Create `agent/skills/<skill-name>/` only when the classification supports installation or the user explicitly wants it installed.
+7. Add `SKILL.md`, `agents/openai.yaml`, and any needed runtime `references/`, scripts, or assets.
+8. Add hosted-service safety gates if the skill touches remote services.
+9. Add a lightweight `## Maintenance` pointer in `SKILL.md`.
+10. Add or update the relevant skill update-process document in `docs/skills/`.
+11. Update `docs/skills/installed-skills-trim-verdict.md` when the installed-skill inventory changes.
+12. Update `docs/skills/README.md`.
+13. Run validation before committing.
 
 ## Local structure invariants
 
@@ -44,6 +50,7 @@ When installing a new Local Skill:
 - `interface.default_prompt` must mention the skill as `$skill-name`.
 - `interface.short_description` should be 25-64 characters.
 - Keep long-lived maintenance docs in `docs/skills/`.
+- Keep durable installed-skill decisions in `docs/skills/installed-skills-trim-verdict.md`, not in `scratch/`.
 - Skill folders should contain runtime instructions, runtime references, scripts, assets, and lightweight maintenance pointers only.
 
 ## Safety invariants
@@ -74,6 +81,7 @@ When installing a new Local Skill:
 ## Token-footprint invariants
 
 - Keep `SKILL.md` under 500 lines where practical.
+- Apply `docs/skills/skill-slimming-process.md` during every update or install.
 - Move examples, troubleshooting, command catalogs, API details, and long reference material into `references/` files.
 - Keep core workflow, safety gates, and reference navigation in `SKILL.md`.
 - Avoid duplicating the same long content in both `SKILL.md` and references.
@@ -81,7 +89,7 @@ When installing a new Local Skill:
 
 ## Runtime artifact invariants
 
-- Do not commit generated caches or runtime artifacts, including `__pycache__/`, `.pyc`, logs, temporary downloads, or test output.
+- Do not commit generated caches or runtime artifacts, including `__pycache__/`, `.pyc`, logs, temporary downloads, test output, or files under `scratch/`.
 - If an upstream import includes generated artifacts, remove them unless they are explicitly required runtime assets.
 - Before deleting directories, verify they are not symlinks outside the repo.
 
@@ -108,6 +116,7 @@ Then verify:
 - No tracked or untracked cache artifacts are present in skill folders.
 - Python script execution examples prefer `uv run python ...` or `uv run --with ... python ...` over bare `python ...`.
 - Update docs referenced from `docs/skills/README.md` still exist.
+- `docs/skills/installed-skills-trim-verdict.md` is updated when a skill is retained, slimmed, removed, installed, or reclassified.
 - Removed or grouped maintenance docs have no stale references.
 
 ## Commit discipline
