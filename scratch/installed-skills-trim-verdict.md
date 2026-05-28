@@ -10,23 +10,23 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | ✓ | chrome-devtools | Good | 7 | make it slim | Slimmed to MCP page workflow, tool selection, browser mutation gates, and troubleshooting handoff. |
 | ✓ | chrome-devtools-cli | Medium | 5 | make it slim | Slimmed to CLI command shape, command groups, Context Mode routing, setup gate, and gotchas. |
 |  | codebase-memory-mcp | Weak | 3 | keep it | Custom MCP protocol and project/index rules need explicit guidance. |
-|  | context-mode | Weak | 3 | keep it | Core local context-saving behavior is tool-specific and important. |
+| ✓ | context-mode | Weak | 3 | keep it | Retained because core local context-saving behavior is tool-specific and important. |
 |  | context-watcher | Weak | 2 | keep it | This is core orchestration and safety policy for this Pi setup. |
 | ✓ | context7-cli | Medium | 5 | make it slim | Slimmed to docs lookup workflow, mutation gates for auth/setup/skills/upgrade commands, reference routing, and common gotchas. |
-|  | ctx-doctor | Strong | 8 | remove it | Simple wrapper command; does not need a full skill. |
-|  | ctx-insight | Strong | 8 | remove it | Simple dashboard command; can live in general rules if needed. |
-|  | ctx-purge | Good | 7 | make it slim | Destructive command needs a tiny safety reminder, not a full skill. |
-|  | ctx-stats | Strong | 8 | remove it | Simple stats command; full skill is unnecessary. |
-|  | ctx-upgrade | Medium | 5 | make it slim | Upgrade workflow has exact steps, but can be very short. |
+| ✓ | ctx-doctor | Strong | 8 | keep it | Retained as package-provided metadata-only helper; full body loads only when triggered. |
+| ✓ | ctx-insight | Strong | 8 | keep it | Retained as package-provided metadata-only helper; full body loads only when triggered. |
+| ✓ | ctx-purge | Good | 7 | keep it | Retained as package-provided helper; destructive scope safety remains useful when triggered. |
+| ✓ | ctx-stats | Strong | 8 | keep it | Retained as package-provided metadata-only helper; full body loads only when triggered. |
+| ✓ | ctx-upgrade | Medium | 5 | keep it | Retained as package-provided helper; exact upgrade flow is useful when triggered. |
 | ✓ | debug-optimize-lcp | Strong | 8 | make it slim | Slimmed to LCP trace workflow, subpart bottleneck map, reference routing, and verification loop. |
 | ✓ | developing-genkit-dart | Low | 4 | keep it | Retained as a compact niche/current Genkit snapshot; upstream path is absent from current `firebase/skills`. |
 | ✓ | developing-genkit-go | Low | 4 | keep it | Retained for specific Genkit Go API guidance; upstream path is absent from current `firebase/skills`. |
 | ✓ | developing-genkit-js | Medium | 6 | make it slim | Slimmed to version checks, hosted-service safety, reference routing, CLI reminders, and validation workflow. |
 | ✓ | developing-genkit-python | Low | 4 | keep it | Retained to avoid hallucinated Python Genkit APIs; upstream path is absent from current `firebase/skills`. |
 | x | edge-case-analysis | Very strong | 9 | remove it | Generic reasoning task; no special local tooling needed. |
-|  | figma | Low-medium | 4 | keep it | Figma MCP workflow and safety boundaries are tool-specific. |
-|  | figma-create-design-system-rules | Strong | 8 | remove it | Mostly generic design-system writing; not worth a full skill. |
-|  | figma-implement-design | Medium | 6 | make it slim | Design-to-code workflow helps, but full skill can be trimmed. |
+| ✓ | figma | Low-medium | 4 | keep it | Retained because Figma MCP workflow and safety boundaries are tool-specific. |
+| ✓ | figma-create-design-system-rules | Strong | 8 | keep it | Retained with the OpenAI-derived skill set; full body loads only when triggered. |
+| ✓ | figma-implement-design | Medium | 6 | keep it | Retained with the OpenAI-derived skill set for Figma design-to-code workflows. |
 | ✓ | firebase-ai-logic-basics | Medium | 5 | make it slim | Slimmed to hosted-service safety, platform routing, reference links, and production reminders. |
 | ✓ | firebase-app-hosting-basics | Medium | 5 | make it slim | Slimmed to App Hosting boundaries, mutation gates, config references, and deploy validation. |
 | ✓ | firebase-auth-basics | Good | 7 | make it slim | Slimmed to auth mutation gates, platform references, emulator validation, and rules handoff. |
@@ -35,11 +35,11 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | ✓ | firebase-firestore | Medium | 6 | keep it | Retained because Firestore rules, indexes, database creation, and edition differences are safety-sensitive. |
 | ✓ | firebase-hosting-basics | Good | 7 | make it slim | Slimmed to Hosting Classic boundaries, deploy gates, config references, and emulator validation. |
 | ✓ | firebase-security-rules-auditor | Medium | 6 | keep it | Retained because Firestore rules auditing benefits from strict, safety-focused review criteria. |
-|  | gh-address-comments | Medium | 6 | make it slim | PR-comment workflow is useful but can be compact. |
+| ✓ | gh-address-comments | Medium | 6 | keep it | Retained with the OpenAI-derived skill set; PR comment workflow and GitHub gates are useful when triggered. |
 |  | gh-cli | Strong | 8 | make it slim | I know gh well; keep only auth/safety/local conventions. |
-|  | grill-with-docs | Strong | 8 | remove it | Mostly facilitation/process; not needed as installed skill. |
+| ✓ | grill-with-docs | Strong | 8 | keep it | Retained with remaining Matt Pocock skills for optional domain-language and ADR grilling workflows. |
 | x | humanizer | Very strong | 9 | remove it | Writing style cleanup is generic and memory-native. |
-|  | improve-codebase-architecture | Strong | 8 | remove it | Generic architecture review does not need a separate skill. |
+| ✓ | improve-codebase-architecture | Strong | 8 | keep it | Retained with remaining Matt Pocock skills for optional CONTEXT.md/ADR-informed architecture review. |
 |  | librarian | Medium | 6 | make it slim | Source-citation workflow is useful; shorten to routing rules. |
 | ✓ | linear-cli | Medium | 5 | make it slim | Slimmed to mutation gates, discovery workflow, reference routing, Markdown/body-file rules, known gotchas, and GraphQL fallback safety. |
 | ✓ | memory-leak-debugging | Strong | 8 | make it slim | Slimmed to heap snapshot safety, Chrome MCP capture flow, memlab/script analysis, and common leak references. |
@@ -51,7 +51,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | x | refine-linear-task | Very strong | 9 | remove it | Generic issue-writing task; no skill needed. |
 | ✓ | ruff | Strong | 8 | make it slim | Commands are simple; keep only preferred invocation. |
 |  | session-handoff | Medium | 6 | keep it | Local handoff location/conventions are important. |
-|  | skill-creator | Medium | 6 | make it slim | Local skill format matters, but can be summarized. |
+| ✓ | skill-creator | Medium | 6 | keep it | Retained as foundational OpenAI-derived skill maintenance guidance. |
 | x | tdd | Very strong | 9 | remove it | Generic methodology; no installed skill needed. |
 | ✓ | troubleshooting | Medium | 6 | make it slim | Slimmed to Chrome DevTools MCP failure triage, known error patterns, configuration safety, and diagnostics. |
 | ✓ | ty | Medium | 6 | make it slim | Newer Python type checker; keep exact command guidance. |

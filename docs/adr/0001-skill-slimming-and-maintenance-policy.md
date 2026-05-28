@@ -42,6 +42,8 @@ The Context7 CLI pass kept `context7-cli`, but slimmed runtime guidance to docs 
 
 The Chrome DevTools pass kept and slimmed `a11y-debugging`, `chrome-devtools`, `chrome-devtools-cli`, `debug-optimize-lcp`, `memory-leak-debugging`, and `troubleshooting`. Runtime guidance now emphasizes MCP/CLI routing, browser mutation gates, large-output handling, focused debugging workflows, and references for snippets or detailed command behavior.
 
+The retained-skill pass marked package-provided Context Mode helpers (`context-mode`, `ctx-doctor`, `ctx-insight`, `ctx-purge`, `ctx-stats`, and `ctx-upgrade`) as retained without editing package files because their full bodies load only when triggered and package upgrades may restore `node_modules` content. The same pass retained OpenAI-derived skills (`skill-creator`, `gh-address-comments`, `figma`, `figma-create-design-system-rules`, and `figma-implement-design`) and the remaining Matt Pocock skills (`grill-with-docs` and `improve-codebase-architecture`) for optional future workflows rather than removing or slimming them now.
+
 ## Consequences
 
 - Fewer installed runtime skills are loaded or considered by Pi.
