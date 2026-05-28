@@ -26,7 +26,10 @@ export interface BaseDelegateParams {
 	includeDiagnostics?: boolean;
 }
 
-export type ReaderParams = BaseDelegateParams;
+export interface ReaderParams extends BaseDelegateParams {
+	continueSession?: boolean;
+	sessionKey?: string;
+}
 
 export interface WriterParams extends BaseDelegateParams {
 	allowedPaths: string[];
@@ -43,7 +46,10 @@ export interface NormalizedBaseDelegateParams {
 	includeDiagnostics: boolean;
 }
 
-export type NormalizedReaderParams = NormalizedBaseDelegateParams;
+export interface NormalizedReaderParams extends NormalizedBaseDelegateParams {
+	continueSession: boolean;
+	sessionKey?: string;
+}
 
 export interface NormalizedWriterParams extends NormalizedBaseDelegateParams {
 	allowedPaths: string[];
@@ -75,6 +81,7 @@ export interface ResolvedReaderInvocation {
 	thinking: ThinkingLevel;
 	tools: string[];
 	sessionDir: string;
+	sessionMode: "fresh" | "continued";
 }
 
 export interface ResolvedWriterInvocation {
@@ -132,6 +139,11 @@ export interface ReaderToolDetails {
 	durationMs: number;
 	toolCallCount: number;
 	truncated: boolean;
+	sessionMode?: "fresh" | "continued";
+	continueSession?: boolean;
+	sessionKey?: string;
+	sessionPreserved?: boolean;
+	diagnosticSessionDir?: string;
 	stderrTail?: string;
 	error?: string;
 }

@@ -8,10 +8,12 @@ import { discoverAgents } from "./agent-files.ts";
 import { runChildProcess } from "./child-process.ts";
 import { DELEGATE_ALLOWED_PATHS_ENV } from "./constants.ts";
 import { buildReaderPiArgs, buildWriterPiArgs, getPiInvocation } from "./pi-invocation.ts";
-import { normalizeReaderParams, normalizeWriterParams, resolveInvocation, resolveWriterInvocation } from "./params.ts";
-import { getWriterSessionBaseDir } from "./paths.ts";
+import { normalizeReaderParams, normalizeWriterParams, resolveReaderInvocation, resolveWriterInvocation } from "./params.ts";
+import { getContinuedReaderSessionDir, getFreshReaderSessionBaseDir, getWriterSessionBaseDir } from "./paths.ts";
 import { emitDelegateProgress, type DelegateUpdate } from "./progress.ts";
+import { redactSensitiveText } from "./redaction.ts";
 import { makeImmediateFailure, makeImmediateWriterFailure, makeReaderToolResult, makeWriterToolResult } from "./results.ts";
+import { acquireContinuedReaderSessionLock, type SessionLock } from "./session-lock.ts";
 import { cleanupTempRunFiles, createTempRunFiles, createWriterTempRunFiles } from "./temp-files.ts";
 import { buildWriterDiffPreview, captureWriterFileSnapshots, summarizeWriterDiff, writerDiffDetailFields } from "./writer-diff.ts";
 import type { ChildProcessResult, ReaderParams, ReaderToolResult, TempRunFiles, WriterParams, WriterToolResult } from "./types.ts";
@@ -24,6 +26,12 @@ interface GitScopeSnapshot {
 }
 
 const MAX_SCOPE_FINGERPRINT_BYTES = 10 * 1024 * 1024;
+
+async function makeFreshReaderSessionDir(cwd: string): Promise<string> {
+	const base = getFreshReaderSessionBaseDir(cwd);
+	await fs.promises.mkdir(base, { recursive: true });
+	return await fs.promises.mkdtemp(path.join(base, "run-"));
+}
 
 async function makeFreshWriterSessionDir(cwd: string): Promise<string> {
 	const base = getWriterSessionBaseDir(cwd);
@@ -122,28 +130,59 @@ export async function runReader(
 ): Promise<ReaderToolResult> {
 	const started = Date.now();
 	const normalized = normalizeReaderParams(params, defaultCwd);
-	emitDelegateProgress(onUpdate, "starting", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd });
+	const sessionMode = normalized.continueSession ? "continued" : "fresh";
+	const sessionDetails = { sessionMode, continueSession: normalized.continueSession };
+	emitDelegateProgress(onUpdate, "starting", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd, details: sessionDetails });
 	const discovery = await discoverAgents();
-	const resolved = resolveInvocation(normalized, discovery.agents);
-	if (typeof resolved === "string") return makeImmediateFailure(normalized, normalized.agent, resolved, Date.now() - started);
+	let sessionDir = "";
+	let sessionLock: SessionLock | undefined;
+	try {
+		if (normalized.continueSession) {
+			sessionDir = getContinuedReaderSessionDir(normalized.cwd, normalized.agent, normalized.sessionKey ?? "");
+			sessionLock = await acquireContinuedReaderSessionLock(sessionDir, {
+				pid: process.pid,
+				timestamp: new Date().toISOString(),
+				cwd: redactSensitiveText(normalized.cwd),
+				agent: normalized.agent,
+				sessionKey: "<redacted>",
+			});
+		} else {
+			sessionDir = await makeFreshReaderSessionDir(normalized.cwd);
+		}
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		return makeImmediateFailure(normalized, normalized.agent, message, Date.now() - started, { sessionMode, sessionDir, sessionPreserved: false });
+	}
+
+	const resolved = resolveReaderInvocation(normalized, discovery.agents, sessionDir);
+	if (typeof resolved === "string") {
+		await sessionLock?.release().catch(() => undefined);
+		if (sessionMode === "fresh") await fs.promises.rm(sessionDir, { recursive: true, force: true });
+		return makeImmediateFailure(normalized, normalized.agent, resolved, Date.now() - started, { sessionMode, sessionDir, sessionPreserved: false });
+	}
 
 	let tempFiles: TempRunFiles | undefined;
+	let cleanupSession = resolved.sessionMode === "fresh";
+	let sessionPreserved = false;
 	try {
-		await fs.promises.mkdir(resolved.sessionDir, { recursive: true });
 		tempFiles = await createTempRunFiles(resolved);
 		const args = buildReaderPiArgs(resolved, tempFiles);
 		const invocation = getPiInvocation(args);
-		emitDelegateProgress(onUpdate, "launching_subagent", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd });
+		emitDelegateProgress(onUpdate, "launching_subagent", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd, details: sessionDetails });
 		let emittedChildEvent = false;
 		const child = await runChildProcess(invocation, normalized.cwd, signal, normalized.timeoutMs, () => {
 			if (emittedChildEvent) return;
 			emittedChildEvent = true;
-			emitDelegateProgress(onUpdate, "working", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd });
+			emitDelegateProgress(onUpdate, "working", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd, details: sessionDetails });
 		});
-		emitDelegateProgress(onUpdate, "finishing", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd });
-		return makeReaderToolResult(resolved, child, Date.now() - started);
+		cleanupSession = resolved.sessionMode === "fresh" && (child.status === "completed" || !normalized.includeDiagnostics);
+		sessionPreserved = resolved.sessionMode === "fresh" && !cleanupSession;
+		emitDelegateProgress(onUpdate, "finishing", { agent: normalized.agent, task: normalized.task, cwd: normalized.cwd, details: sessionDetails });
+		return makeReaderToolResult(resolved, child, Date.now() - started, sessionPreserved);
 	} finally {
 		await cleanupTempRunFiles(tempFiles);
+		await sessionLock?.release().catch(() => undefined);
+		if (cleanupSession) await fs.promises.rm(sessionDir, { recursive: true, force: true });
 	}
 }
 
