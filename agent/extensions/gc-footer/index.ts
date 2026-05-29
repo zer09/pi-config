@@ -17,6 +17,8 @@ const FALLBACK_THINKING_OUTLINE_CIRCLE = "\u25cb";
 const FALLBACK_THINKING_FILLED_CIRCLE = "\u25cf";
 const TIMER_RUNNING_GLYPH = "\uf017";
 const TIMER_DONE_GLYPH = "\uf00c";
+const MCP_SERVER_GLYPH = "\uf233";
+const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
 const CONFIG_PATH = join(dirname(fileURLToPath(import.meta.url)), "config.json");
 
 const SEGMENT_KEYS = [
@@ -167,7 +169,7 @@ function renderFooterLine(
 		config.segments.branch ? formatGitBranch(getBranch(), theme) : undefined,
 	]);
 	const middle = config.segments.statuses
-		? formatExtensionStatuses(footerData.getExtensionStatuses())
+		? formatExtensionStatuses(footerData.getExtensionStatuses(), theme, config.nerdFont)
 		: undefined;
 	const right = joinSegments([
 		config.segments.timer ? formatPromptTimer(promptTimer, theme, config.nerdFont) : undefined,
@@ -319,14 +321,32 @@ function formatGitBranch(branch: string | null, theme: Theme): string | undefine
 	return branch ? theme.fg("muted", `(${branch})`) : undefined;
 }
 
-function formatExtensionStatuses(statuses: ReadonlyMap<string, string>): string | undefined {
+function formatExtensionStatuses(statuses: ReadonlyMap<string, string>, theme: Theme, nerdFont: boolean): string | undefined {
 	const statusText = Array.from(statuses.entries())
 		.sort(([a], [b]) => a.localeCompare(b))
-		.map(([, text]) => sanitizeStatusText(text))
+		.map(([, text]) => formatExtensionStatus(sanitizeStatusText(text), theme, nerdFont))
 		.filter(Boolean)
 		.join(" ");
 
 	return statusText || undefined;
+}
+
+function formatExtensionStatus(text: string, theme: Theme, nerdFont: boolean): string {
+	const plainText = stripAnsi(text);
+	const mcpMatch = plainText.match(/^MCP:\s*(\d+)\s*\/\s*(\d+)\s+servers?$/i);
+	if (mcpMatch) {
+		const [visibleText, connected, total] = mcpMatch;
+		const compactText = `${nerdFont ? MCP_SERVER_GLYPH : "MCP"} ${connected}/${total}`;
+		return Number(connected) > 0
+			? preserveVisibleTextStyle(text, visibleText, compactText)
+			: theme.fg("muted", compactText);
+	}
+
+	return text;
+}
+
+function preserveVisibleTextStyle(text: string, visibleText: string, compactText: string): string {
+	return text.includes(visibleText) ? text.replace(visibleText, compactText) : compactText;
 }
 
 function formatSessionTokenTotals(ctx: ExtensionContext, theme: Theme): string | undefined {
@@ -404,6 +424,10 @@ function formatTokens(count: number): string {
 
 function sanitizeStatusText(text: string): string {
 	return text.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim();
+}
+
+function stripAnsi(text: string): string {
+	return text.replace(ANSI_PATTERN, "");
 }
 
 function joinSegments(segments: Array<string | undefined>): string {

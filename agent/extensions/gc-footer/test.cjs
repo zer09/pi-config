@@ -261,6 +261,35 @@ async function run() {
 
 	{
 		const footer = await createFooter({
+			statuses: new Map([["mcp", "\x1b[32mMCP: 0/9 servers\x1b[0m"]]),
+		});
+		footer.renderPlain();
+		assert.ok(footer.renderPlain().includes("\uf233 0/9"), "MCP status should use compact server glyph by default");
+		assert.ok(
+			footer.getColorCalls().some((call) => call.color === "muted" && call.text === "\uf233 0/9"),
+			"inactive MCP status should use muted color instead of upstream active color",
+		);
+	}
+
+	{
+		const footer = await createFooter({
+			statuses: new Map([["mcp", "\x1b[32mMCP: 2/9 servers\x1b[0m"]]),
+		});
+		assert.ok(footer.render().includes("\x1b[32m\uf233 2/9\x1b[0m"), "active MCP status should preserve changed upstream color");
+	}
+
+	{
+		const footer = await createFooter({
+			config: { nerdFont: false },
+			statuses: new Map([["mcp", "MCP: 0/9 servers"]]),
+		});
+		const line = footer.renderPlain();
+		assert.ok(line.includes("MCP 0/9"), "MCP status should use compact text fallback without Nerd Font");
+		assert.ok(!line.includes("\uf233"), "fallback MCP status should not use Nerd Font glyph");
+	}
+
+	{
+		const footer = await createFooter({
 			entries: [assistantEntry({ input: 12000, output: 3000, cacheRead: 0, cacheWrite: 0 })],
 		});
 		const originalNow = Date.now;
