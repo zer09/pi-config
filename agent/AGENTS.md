@@ -9,7 +9,6 @@ Before work begins:
 3. If the task is Coding, read both `~/.pi/agent/rules/coding.md` and `~/.pi/agent/rules/agent.md`.
 4. If the task involves code exploration or review, verify codebase-memory-mcp project/index status per Context Watcher.
 5. Use RTK inside Context Mode for read-only shell work when available.
-6. If `~/.pi/agent/cleanup-sessions.sh` exists, is tracked, and is unmodified, run it with `--safe`. If not, skip and warn.
 
 Do not ask permission for startup steps.
 

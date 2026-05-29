@@ -148,10 +148,24 @@ function renderAgentLabel(agent: unknown, fallback: "reader" | "writer", theme: 
 	return color(theme, "toolTitle", bold(theme, agentLabel(agent, fallback)));
 }
 
+function delegateSessionMode(tool: "reader" | "writer", args: any): "fresh" | "continued" {
+	if (tool === "reader" && args?.continueSession === true) return "continued";
+	return "fresh";
+}
+
+function renderDelegateModeDot(tool: "reader" | "writer", args: any, theme: any): string {
+	const mode = delegateSessionMode(tool, args);
+	const dot = mode === "continued" ? "●" : "○";
+	const colorName = mode === "continued" ? "accent" : "muted";
+	return color(theme, colorName, dot);
+}
+
 function renderToolCall(tool: "reader" | "writer", args: any, theme: any, context: any): Text {
 	const text = (context?.lastComponent as Text | undefined) ?? new Text("", 0, 0);
 	const task = typeof args?.task === "string" ? previewTask(args.task) : "";
-	text.setText(`${renderAgentLabel(args?.agent, tool, theme)}${task ? ` ${color(theme, "dim", task)}` : ""}`);
+	const label = renderAgentLabel(args?.agent, tool, theme);
+	const dot = renderDelegateModeDot(tool, args, theme);
+	text.setText(`${label} ${dot}${task ? ` ${color(theme, "dim", task)}` : ""}`);
 	return text;
 }
 

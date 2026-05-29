@@ -114,7 +114,16 @@ Delegate safety boundaries always remain in the child system prompt. `systemProm
 
 ## Progress UI
 
-Both tools emit progress through `onUpdate` with compact details. Partial progress rows render with Pi's animated loading indicator plus phase labels such as:
+Both tools emit progress through `onUpdate` with compact details.
+
+Delegate call rows include a session-mode dot after the agent label:
+
+- `○` fresh delegate session
+- `●` continued reader session
+
+The dot is a UI hint only. Continued reader calls are still controlled by `continueSession: true` and `sessionKey` in the tool input. Session keys are not rendered in the collapsed call row.
+
+Partial progress rows render with Pi's animated loading indicator plus phase labels such as:
 
 - `starting` displays as `{spinner} Starting...`
 - `launching_subagent` displays as `{spinner} Launching Subagent...`
