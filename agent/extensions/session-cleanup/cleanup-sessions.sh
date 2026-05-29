@@ -4,11 +4,11 @@ set -euo pipefail
 # Prune old ignored runtime artifacts to keep ~/.pi clean.
 # Safe mode is the default: only untracked files ignored by git are deleted.
 # Usage:
-#   bash ~/.pi/agent/cleanup-sessions.sh
-#   bash ~/.pi/agent/cleanup-sessions.sh --safe
-#   bash ~/.pi/agent/cleanup-sessions.sh --days=14
-#   bash ~/.pi/agent/cleanup-sessions.sh --aggressive
-#   bash ~/.pi/agent/cleanup-sessions.sh --dry-run
+#   bash ~/.pi/agent/extensions/session-cleanup/cleanup-sessions.sh
+#   bash ~/.pi/agent/extensions/session-cleanup/cleanup-sessions.sh --safe
+#   bash ~/.pi/agent/extensions/session-cleanup/cleanup-sessions.sh --days=14
+#   bash ~/.pi/agent/extensions/session-cleanup/cleanup-sessions.sh --aggressive
+#   bash ~/.pi/agent/extensions/session-cleanup/cleanup-sessions.sh --dry-run
 
 DAYS=30
 AGGRESSIVE=false
