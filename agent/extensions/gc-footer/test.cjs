@@ -160,6 +160,9 @@ async function createFooter(options = {}) {
 		getRenderRequests() {
 			return renderRequests;
 		},
+		async emit(event, payload = {}) {
+			await handlers.get(event)?.(payload, ctx);
+		},
 		getColorCalls() {
 			return colorCalls;
 		},
@@ -215,7 +218,7 @@ async function run() {
 		const footer = await createFooter();
 		const notification = await footer.runCommand();
 		assert.equal(notification.level, "info", "gc-footer command should report status");
-		assert.ok(notification.message.includes("segments: cwd, branch, statuses, tokens, context, model, thinking"), "command should list enabled segments");
+		assert.ok(notification.message.includes("segments: cwd, branch, statuses, timer, tokens, context, model, thinking"), "command should list enabled segments");
 		assert.ok(notification.message.includes("theme: dark"), "command should report active theme name");
 		assert.ok(notification.message.includes("model: openai-codex/gpt-5.5"), "command should report current model");
 		assert.ok(notification.message.includes("thinking: medium"), "command should report current thinking level");
@@ -236,7 +239,7 @@ async function run() {
 		});
 		const notification = await footer.runCommand("status");
 		assert.equal(notification.level, "info", "gc-footer status alias should report status");
-		assert.ok(notification.message.includes("segments: cwd, context, model, thinking"), "command should show config-disabled segments as omitted");
+		assert.ok(notification.message.includes("segments: cwd, timer, context, model, thinking"), "command should show config-disabled segments as omitted");
 		assert.ok(notification.message.includes("nerdFont: off"), "command should report disabled Nerd Font mode");
 
 		const error = await footer.runCommand("toggle branch");
@@ -254,6 +257,48 @@ async function run() {
 		const line = footer.renderPlain();
 		assert.ok(line.includes("a:on z: on ready"), "statuses should sort by key and sanitize whitespace");
 		assert.ok(line.indexOf("a:on") < line.indexOf("openai-codex/gpt-5.5"), "statuses should render before model");
+	}
+
+	{
+		const footer = await createFooter({
+			entries: [assistantEntry({ input: 12000, output: 3000, cacheRead: 0, cacheWrite: 0 })],
+		});
+		const originalNow = Date.now;
+		try {
+			let now = 100000;
+			Date.now = () => now;
+
+			await footer.emit("input", { source: "interactive", text: "hello", images: [] });
+			now += 1200;
+			await footer.emit("before_agent_start");
+			assert.ok(footer.renderPlain().includes("\uf017 1.2s"), "running timer should show clock glyph and elapsed duration");
+
+			now += 3400;
+			await footer.emit("agent_end");
+			const completedLine = footer.renderPlain();
+			assert.ok(completedLine.includes("\uf00c 4.6s"), "completed timer should show check glyph and total duration");
+			assert.ok(completedLine.indexOf("\uf00c") < completedLine.indexOf("↑"), "timer should render before token totals");
+		} finally {
+			Date.now = originalNow;
+		}
+	}
+
+	{
+		const footer = await createFooter({ config: { nerdFont: false } });
+		const originalNow = Date.now;
+		try {
+			let now = 200000;
+			Date.now = () => now;
+
+			await footer.emit("before_agent_start");
+			now += 500;
+			assert.ok(footer.renderPlain().includes("time 0.5s"), "fallback running timer should use text label");
+
+			await footer.emit("agent_end");
+			assert.ok(footer.renderPlain().includes("done 0.5s"), "fallback completed timer should use text label");
+		} finally {
+			Date.now = originalNow;
+		}
 	}
 
 	{

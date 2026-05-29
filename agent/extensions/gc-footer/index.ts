@@ -15,12 +15,15 @@ const THINKING_OUTLINE_CIRCLE = "\uf10c";
 const THINKING_FILLED_CIRCLE = "\uf111";
 const FALLBACK_THINKING_OUTLINE_CIRCLE = "\u25cb";
 const FALLBACK_THINKING_FILLED_CIRCLE = "\u25cf";
+const TIMER_RUNNING_GLYPH = "\uf017";
+const TIMER_DONE_GLYPH = "\uf00c";
 const CONFIG_PATH = join(dirname(fileURLToPath(import.meta.url)), "config.json");
 
 const SEGMENT_KEYS = [
 	"cwd",
 	"branch",
 	"statuses",
+	"timer",
 	"tokens",
 	"context",
 	"model",
@@ -40,11 +43,19 @@ type FooterData = {
 	getExtensionStatuses(): ReadonlyMap<string, string>;
 };
 
+type PromptTimerState = {
+	pendingStartedAt: number | undefined;
+	startedAt: number | undefined;
+	lastDurationMs: number | undefined;
+	interval: ReturnType<typeof setInterval> | undefined;
+};
+
 const DEFAULT_CONFIG: FooterConfig = {
 	segments: {
 		cwd: true,
 		branch: true,
 		statuses: true,
+		timer: true,
 		tokens: true,
 		context: true,
 		model: true,
@@ -55,6 +66,12 @@ const DEFAULT_CONFIG: FooterConfig = {
 
 export default function gcFooter(pi: ExtensionAPI): void {
 	const config = loadConfig();
+	const promptTimer: PromptTimerState = {
+		pendingStartedAt: undefined,
+		startedAt: undefined,
+		lastDurationMs: undefined,
+		interval: undefined,
+	};
 	let currentBranch: string | null | undefined;
 
 	pi.registerCommand("gc-footer", {
@@ -97,10 +114,22 @@ export default function gcFooter(pi: ExtensionAPI): void {
 				},
 				invalidate() {},
 				render(width: number): string[] {
-					return [renderFooterLine(width, pi, ctx, theme, footerData, config, getBranch)];
+					return [renderFooterLine(width, pi, ctx, theme, footerData, config, promptTimer, getBranch)];
 				},
 			};
 		});
+	});
+
+	pi.on("input", async (event, ctx) => {
+		if (!ctx.hasUI || event.source !== "interactive") return;
+		promptTimer.pendingStartedAt = shouldUseInputStart(event.text, event.images)
+			? Date.now()
+			: undefined;
+	});
+
+	pi.on("before_agent_start", async (_event, ctx) => {
+		if (!ctx.hasUI) return;
+		startPromptTimer(promptTimer, promptTimer.pendingStartedAt ?? Date.now());
 	});
 
 	pi.on("thinking_level_select", async () => {
@@ -112,10 +141,11 @@ export default function gcFooter(pi: ExtensionAPI): void {
 	});
 
 	pi.on("agent_end", async () => {
-		requestRender?.();
+		if (!stopPromptTimer(promptTimer)) requestRender?.();
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
+		clearPromptTimer(promptTimer);
 		if (ctx.hasUI) ctx.ui.setFooter(undefined);
 		requestRender = undefined;
 		currentBranch = undefined;
@@ -129,6 +159,7 @@ function renderFooterLine(
 	theme: Theme,
 	footerData: FooterData,
 	config: FooterConfig,
+	promptTimer: PromptTimerState,
 	getBranch: () => string | null,
 ): string {
 	const left = joinSegments([
@@ -139,6 +170,7 @@ function renderFooterLine(
 		? formatExtensionStatuses(footerData.getExtensionStatuses())
 		: undefined;
 	const right = joinSegments([
+		config.segments.timer ? formatPromptTimer(promptTimer, theme, config.nerdFont) : undefined,
 		config.segments.tokens ? formatSessionTokenTotals(ctx, theme) : undefined,
 		config.segments.context ? formatContextUsage(ctx, theme) : undefined,
 		config.segments.model ? theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id)) : undefined,
@@ -146,6 +178,68 @@ function renderFooterLine(
 	]);
 
 	return joinFooterSections(left, middle, right, width);
+}
+
+function shouldUseInputStart(text: string, images: readonly unknown[] | undefined): boolean {
+	const trimmedText = text.trim();
+	return (trimmedText.length > 0 || Boolean(images?.length)) && !trimmedText.startsWith("/");
+}
+
+function startPromptTimer(timer: PromptTimerState, startedAt: number): void {
+	clearPromptTimerInterval(timer);
+	timer.pendingStartedAt = undefined;
+	timer.startedAt = startedAt;
+	timer.lastDurationMs = undefined;
+	timer.interval = setInterval(() => requestRender?.(), 250);
+	(timer.interval as ReturnType<typeof setInterval> & { unref?: () => void }).unref?.();
+	requestRender?.();
+}
+
+function stopPromptTimer(timer: PromptTimerState): boolean {
+	if (timer.startedAt === undefined) {
+		timer.pendingStartedAt = undefined;
+		return false;
+	}
+
+	timer.lastDurationMs = Date.now() - timer.startedAt;
+	timer.startedAt = undefined;
+	timer.pendingStartedAt = undefined;
+	clearPromptTimerInterval(timer);
+	requestRender?.();
+	return true;
+}
+
+function clearPromptTimer(timer: PromptTimerState): void {
+	timer.pendingStartedAt = undefined;
+	timer.startedAt = undefined;
+	timer.lastDurationMs = undefined;
+	clearPromptTimerInterval(timer);
+}
+
+function clearPromptTimerInterval(timer: PromptTimerState): void {
+	if (timer.interval === undefined) return;
+	clearInterval(timer.interval);
+	timer.interval = undefined;
+}
+
+function formatPromptTimer(
+	timer: PromptTimerState,
+	theme: Theme,
+	nerdFont: boolean,
+): string | undefined {
+	const running = timer.startedAt !== undefined;
+	const durationMs = running ? Date.now() - timer.startedAt : timer.lastDurationMs;
+	if (durationMs === undefined) return undefined;
+
+	const glyph = nerdFont
+		? (running ? TIMER_RUNNING_GLYPH : TIMER_DONE_GLYPH)
+		: (running ? "time" : "done");
+	const glyphColor: ThemeColor = running ? "accent" : "success";
+	return `${theme.fg(glyphColor, glyph)} ${theme.fg("muted", formatDuration(durationMs))}`;
+}
+
+function formatDuration(durationMs: number): string {
+	return `${(Math.max(0, durationMs) / 1000).toFixed(1)}s`;
 }
 
 function loadConfig(): FooterConfig {
