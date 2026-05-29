@@ -1,6 +1,6 @@
 import * as path from "node:path";
 
-import type { AgentConfig, ResolvedInvocation, ResolvedWriterInvocation } from "./types.ts";
+import type { AgentConfig, ResolvedReaderInvocation, ResolvedWriterInvocation } from "./types.ts";
 
 export function buildReaderSystemPrompt(agent: AgentConfig): string {
 	const readOnlyContract = [
@@ -53,7 +53,7 @@ export function buildReaderSystemPrompt(agent: AgentConfig): string {
 	].join("\n");
 }
 
-export function buildReaderTaskPrompt(invocation: ResolvedInvocation): string {
+export function buildReaderTaskPrompt(invocation: ResolvedReaderInvocation): string {
 	const cwd = invocation.params.cwd;
 	const cdPrefix = `cd '${cwd.replace(/'/g, `'\\''`)}' &&`;
 

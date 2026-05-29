@@ -18,10 +18,13 @@ import delegatesExtension, {
 	buildWriterDiffPreview,
 	buildWriterSystemPrompt,
 	captureWriterFileSnapshots,
+	getContinuedReaderSessionDir,
+	getFreshReaderSessionBaseDir,
 	getReaderSessionDir,
 	normalizeReaderParams,
 	normalizeWriterParams,
 	resolveInvocation,
+	resolveReaderInvocation,
 	renderDelegateCall,
 	renderDelegateResult,
 	runReader,
@@ -30,8 +33,9 @@ import delegatesExtension, {
 	writerProfile,
 } from "./index.ts";
 import { WRITER_DIFF_MAX_PREVIEW_LINES } from "./constants.ts";
-import { cwdSessionDirName, getWriterSessionBaseDir } from "./paths.ts";
+import { agentSessionDirName, cwdSessionDirName, getWriterSessionBaseDir, sessionKeyDirName } from "./paths.ts";
 import { redactSensitiveText } from "./redaction.ts";
+import { acquireContinuedReaderSessionLock } from "./session-lock.ts";
 import { writerDiffDetailFields } from "./writer-diff.ts";
 import type { AgentConfig } from "./types.ts";
 
@@ -249,6 +253,26 @@ console.log(JSON.stringify({ type: "message_end", message: { role: "assistant", 
 	return { agentRoot, project, capturePath, fakePi };
 }
 
+function makeHangingReaderHarness(): {
+	agentRoot: string;
+	project: string;
+	capturePath: string;
+	fakePi: string;
+} {
+	const harness = makeFakeReaderHarness();
+	writeExecutable(
+		harness.fakePi,
+		`#!/usr/bin/env node
+const fs = require("node:fs");
+const args = process.argv.slice(2);
+fs.writeFileSync(process.env.CAPTURE_PATH, JSON.stringify({ sessionDir: args[args.indexOf("--session-dir") + 1] }));
+console.log(JSON.stringify({ type: "tool_execution_start" }));
+setInterval(() => {}, 1000);
+`,
+	);
+	return harness;
+}
+
 test("extension exposes reader and writer only in parent processes", async () => {
 	await withEnv({ [DELEGATE_CHILD_MARKER]: undefined }, () => {
 		assert.deepEqual(captureRegisteredToolNames(), ["reader", "writer"]);
@@ -261,7 +285,7 @@ test("extension registers no delegate tools when PI_DELEGATE_CHILD is set", asyn
 	});
 });
 
-test("reader parameters keep the read-only public interface", async () => {
+test("reader parameters keep the read-only public interface with explicit continuation fields", async () => {
 	await withEnv({ [DELEGATE_CHILD_MARKER]: undefined }, () => {
 		const [reader] = captureRegisteredTools();
 		assert.equal(reader.name, "reader");
@@ -275,8 +299,12 @@ test("reader parameters keep the read-only public interface", async () => {
 			"timeoutMs",
 			"maxResultBytes",
 			"includeDiagnostics",
+			"continueSession",
+			"sessionKey",
 		]);
 		assert.deepEqual(reader.parameters?.required, ["agent", "task"]);
+		assert.equal(reader.parameters?.properties?.continueSession?.default, false);
+		assert.match(reader.parameters?.properties?.sessionKey?.description ?? "", /Required when continueSession is true/);
 	});
 });
 
@@ -319,6 +347,8 @@ test("writer parameters require exact allowed paths and profile is fresh scoped 
 		]);
 		assert.deepEqual(writer.parameters?.required, ["agent", "task", "allowedPaths"]);
 		assert.equal(writer.parameters?.properties?.allowedPaths?.minItems, 1);
+		assert.equal(writer.parameters?.properties?.continueSession, undefined);
+		assert.equal(writer.parameters?.properties?.sessionKey, undefined);
 		assert.equal(writer.parameters?.additionalProperties, false);
 	});
 
@@ -333,7 +363,7 @@ test("writer parameters require exact allowed paths and profile is fresh scoped 
 test("reader profile defines read capability without write tools", () => {
 	assert.equal(readerProfile.name, "reader");
 	assert.equal(readerProfile.capability, "read");
-	assert.equal(readerProfile.sessionMode, "persistent");
+	assert.equal(readerProfile.sessionMode, "fresh");
 	assert.equal(readerProfile.defaultModel, DEFAULT_READER_MODEL);
 	assert.equal(readerProfile.defaultThinking, DEFAULT_THINKING);
 	assert.equal(readerProfile.tools.includes("edit"), false);
@@ -378,8 +408,64 @@ test("delegate cwd overrides resolve relative to the tool default cwd", () => {
 	const writer = normalizeWriterParams({ agent: "implementer", task: "Write", cwd: "project", allowedPaths: ["src/app.ts"] }, parent);
 
 	assert.equal(reader.cwd, fs.realpathSync(project));
+	assert.equal(reader.continueSession, false);
+	assert.equal(reader.sessionKey, undefined);
 	assert.equal(writer.cwd, fs.realpathSync(project));
 	assert.deepEqual(writer.allowedPaths, [fs.realpathSync(path.join(project, "src", "app.ts"))]);
+});
+
+test("reader continuation parameters normalize only for explicit named sessions", () => {
+	const project = makeTempDir("pi-delegates-reader-continuation-params-");
+	const freshDefault = normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project }, "/tmp/parent");
+	assert.equal(freshDefault.continueSession, false);
+	assert.equal(freshDefault.sessionKey, undefined);
+
+	const freshExplicit = normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project, continueSession: false }, "/tmp/parent");
+	assert.equal(freshExplicit.continueSession, false);
+	assert.equal(freshExplicit.sessionKey, undefined);
+
+	const continued = normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project, continueSession: true, sessionKey: "  auth  " }, "/tmp/parent");
+	assert.equal(continued.continueSession, true);
+	assert.equal(continued.sessionKey, "auth");
+
+	assert.throws(
+		() => normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project, continueSession: true }, "/tmp/parent"),
+		/sessionKey is required when continueSession is true/,
+	);
+	assert.throws(
+		() => normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project, continueSession: true, sessionKey: "   " }, "/tmp/parent"),
+		/sessionKey must be a non-empty string/,
+	);
+	assert.throws(
+		() => normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project, sessionKey: "auth" }, "/tmp/parent"),
+		/sessionKey requires continueSession to be true/,
+	);
+	assert.throws(
+		() => normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project, continueSession: false, sessionKey: "auth" }, "/tmp/parent"),
+		/sessionKey requires continueSession to be true/,
+	);
+	assert.throws(
+		() => normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project, continueSession: "true" as any }, "/tmp/parent"),
+		/continueSession must be a boolean/,
+	);
+	assert.throws(
+		() => normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project, continueSession: true, sessionKey: 123 as any }, "/tmp/parent"),
+		/sessionKey must be a string/,
+	);
+	assert.throws(
+		() => normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project, continueSession: true, sessionKey: "API_KEY=abc" }, "/tmp/parent"),
+		/sessionKey must not contain secret-looking key\/value material/,
+	);
+	for (const credentialLikeKey of [`ghp_${"a".repeat(20)}`, `github_pat_${"a".repeat(20)}`, `sk-${"a".repeat(8)}`]) {
+		assert.throws(
+			() => normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project, continueSession: true, sessionKey: credentialLikeKey }, "/tmp/parent"),
+			/sessionKey must not contain secret-looking credential material/,
+		);
+	}
+	assert.throws(
+		() => normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project, continueSession: true, sessionKey: "x".repeat(513) }, "/tmp/parent"),
+		/sessionKey must be at most 512 characters/,
+	);
 });
 
 test("delegate session directories use encoded collision-resistant cwd names", () => {
@@ -438,6 +524,40 @@ test("delegate session cwd names are hashed when a cwd is too long for one path 
 	}
 });
 
+test("continued reader session paths are keyed by cwd, agent, and session key", () => {
+	const cwd = "/tmp/project:one";
+	const continued = getContinuedReaderSessionDir(cwd, "docs researcher", "api v2/migration", "/agent-root");
+	assert.equal(
+		continued,
+		path.join(
+			"/agent-root",
+			"delegate-sessions",
+			"reader",
+			expectedCwdSessionDirName(cwd),
+			"continued",
+			"--docs%20researcher--",
+			"--api%20v2%2Fmigration--",
+		),
+	);
+	assert.notEqual(getContinuedReaderSessionDir(cwd, "reviewer", "auth", "/agent-root"), getContinuedReaderSessionDir(cwd, "investigator", "auth", "/agent-root"));
+	assert.notEqual(getContinuedReaderSessionDir(cwd, "reviewer", "auth", "/agent-root"), getContinuedReaderSessionDir(cwd, "reviewer", "style", "/agent-root"));
+	assert.notEqual(getContinuedReaderSessionDir(cwd, "reviewer", "auth", "/agent-root"), getContinuedReaderSessionDir("/tmp/other", "reviewer", "auth", "/agent-root"));
+
+	for (const value of ["with spaces", "slash/value", "colon:value", "unicode-漢字", "back\\slash"]) {
+		for (const segment of [agentSessionDirName(value), sessionKeyDirName(value)]) {
+			assert.doesNotMatch(segment, /[\\/:]/);
+			assert.equal(segment.startsWith("--"), true);
+			assert.equal(segment.endsWith("--"), true);
+			assert.ok(Buffer.byteLength(segment, "utf8") <= 200);
+		}
+	}
+
+	const longValue = "long-".repeat(80);
+	assert.match(agentSessionDirName(longValue), /^--agent-[a-f0-9]{64}--$/);
+	assert.match(sessionKeyDirName(longValue), /^--session-[a-f0-9]{64}--$/);
+	assert.throws(() => sessionKeyDirName("   "), /session segment must be a non-empty string/);
+});
+
 test("writer strips Pi file-reference prefixes from allowed paths", () => {
 	const project = makeTempDir("pi-delegates-at-paths-");
 	fs.mkdirSync(path.join(project, "src"));
@@ -473,13 +593,16 @@ test("reader invocation resolves defaults and overrides without exposing writer 
 		timeoutMs: DEFAULT_TIMEOUT_MS,
 		maxResultBytes: DEFAULT_MAX_RESULT_BYTES,
 		includeDiagnostics: false,
+		continueSession: false,
 	});
 	assert.throws(
 		() => normalizeReaderParams({ agent: "investigator", task: "Missing cwd", cwd: path.join(cwd, "missing") }, "/tmp/parent-cwd"),
 		/cwd must resolve to an existing directory/,
 	);
 
-	const profileDefault = resolveInvocation(normalized, [sampleAgent()]);
+	assert.equal(resolveInvocation(normalized, [sampleAgent()]), "Fresh reader invocation requires an explicit sessionDir");
+	const freshSessionDir = path.join(getFreshReaderSessionBaseDir(fs.realpathSync(cwd)), "run-test");
+	const profileDefault = resolveInvocation(normalized, [sampleAgent()], freshSessionDir);
 	assert.notEqual(typeof profileDefault, "string");
 	assert.equal((profileDefault as any).model, DEFAULT_READER_MODEL);
 	assert.equal((profileDefault as any).thinking, DEFAULT_THINKING);
@@ -497,9 +620,16 @@ test("reader invocation resolves defaults and overrides without exposing writer 
 		"context_mode_ctx_fetch_and_index",
 		"context_mode_ctx_index",
 	]);
-	assert.equal((profileDefault as any).sessionDir, getReaderSessionDir(fs.realpathSync(cwd)));
+	assert.equal((profileDefault as any).sessionDir, freshSessionDir);
+	assert.equal((profileDefault as any).sessionMode, "fresh");
 
-	const agentOverride = resolveInvocation(normalized, [sampleAgent({ model: "model-agent", thinking: "high" })]);
+	const continued = normalizeReaderParams({ agent: "investigator", task: "Continue", cwd, continueSession: true, sessionKey: "auth" }, "/tmp/parent-cwd");
+	const continuedInvocation = resolveReaderInvocation(continued, [sampleAgent()], getContinuedReaderSessionDir(fs.realpathSync(cwd), "investigator", "auth"));
+	assert.notEqual(typeof continuedInvocation, "string");
+	assert.equal((continuedInvocation as any).sessionMode, "continued");
+	assert.equal((continuedInvocation as any).sessionDir, getContinuedReaderSessionDir(fs.realpathSync(cwd), "investigator", "auth"));
+
+	const agentOverride = resolveInvocation(normalized, [sampleAgent({ model: "model-agent", thinking: "high" })], freshSessionDir);
 	assert.notEqual(typeof agentOverride, "string");
 	assert.equal((agentOverride as any).model, "model-agent");
 	assert.equal((agentOverride as any).thinking, "high");
@@ -507,6 +637,7 @@ test("reader invocation resolves defaults and overrides without exposing writer 
 	const callOverride = resolveInvocation(
 		{ ...normalized, model: "model-call", thinking: "low" },
 		[sampleAgent({ model: "model-agent", thinking: "high" })],
+		freshSessionDir,
 	);
 	assert.notEqual(typeof callOverride, "string");
 	assert.equal((callOverride as any).model, "model-call");
@@ -1069,7 +1200,7 @@ test("writer snapshot degrades to skipped diff when file read fails after stat",
 	}
 });
 
-test("reader launches Pi with json output, persistent per-cwd session dir, --continue, read-only tools, prompt file, and task file", async () => {
+test("reader launches Pi in fresh mode by default with read-only tools and disposable session files", async () => {
 	const agentRoot = makeTempDir("pi-delegates-agent-root-");
 	const project = makeTempDir("pi-delegates-project-");
 	const capturePath = path.join(makeTempDir("pi-delegates-capture-"), "capture.json");
@@ -1096,6 +1227,7 @@ fs.writeFileSync(process.env.CAPTURE_PATH, JSON.stringify({
   kind: process.env.PI_DELEGATE_KIND,
   promptPath,
   taskPath,
+  sessionDir: args[args.indexOf("--session-dir") + 1],
   prompt: fs.readFileSync(promptPath, "utf8"),
   task: fs.readFileSync(taskPath, "utf8")
 }, null, 2));
@@ -1117,12 +1249,18 @@ console.log(JSON.stringify({ type: "message_end", message: { role: "assistant", 
 			assert.equal(result.details.model, "child-model");
 			assert.equal(result.details.status, "completed");
 			assert.equal(result.details.toolCallCount, 1);
+			assert.equal(result.details.sessionMode, "fresh");
+			assert.equal(result.details.continueSession, false);
+			assert.equal(result.details.sessionPreserved, false);
 
 			const capture = JSON.parse(fs.readFileSync(capturePath, "utf8"));
 			assert.equal(capture.cwd, project);
 			assert.equal(capture.childMarker, "1");
 			assert.equal(capture.kind, "reader");
-			assert.deepEqual(capture.args.slice(0, 6), ["--mode", "json", "-p", "--session-dir", getReaderSessionDir(project), "--continue"]);
+			assert.deepEqual(capture.args.slice(0, 5), ["--mode", "json", "-p", "--session-dir", capture.sessionDir]);
+			assert.equal(capture.args.includes("--continue"), false);
+			assert.equal(path.dirname(capture.sessionDir), getFreshReaderSessionBaseDir(project));
+			assert.match(path.basename(capture.sessionDir), /^run-/);
 			assert.equal(capture.args[capture.args.indexOf("--model") + 1], DEFAULT_READER_MODEL);
 			assert.equal(capture.args[capture.args.indexOf("--thinking") + 1], DEFAULT_THINKING);
 			assert.match(capture.args[capture.args.indexOf("--tools") + 1], /ctx_execute/);
@@ -1130,9 +1268,154 @@ console.log(JSON.stringify({ type: "message_end", message: { role: "assistant", 
 			assert.match(capture.task, /Inspect auth/);
 			assert.equal(fs.existsSync(capture.promptPath), false);
 			assert.equal(fs.existsSync(capture.taskPath), false);
+			assert.equal(fs.existsSync(capture.sessionDir), false);
 		},
 	);
 });
+
+test("reader continues only explicit named sessions and releases the continued-session lock", async () => {
+	const harness = makeFakeReaderHarness("## Result\nContinued");
+	await withEnv(
+		{
+			PI_CODING_AGENT_DIR: harness.agentRoot,
+			PI_DELEGATE_BIN: harness.fakePi,
+			CAPTURE_PATH: harness.capturePath,
+		},
+		async () => {
+			const result = await runReader(
+				{ agent: "investigator", task: "Continue auth", cwd: harness.project, continueSession: true, sessionKey: "auth", timeoutMs: 5_000 },
+				"/tmp/parent",
+			);
+			assert.equal(result.content[0].text, "## Result\nContinued");
+			assert.equal(result.details.sessionMode, "continued");
+			assert.equal(result.details.continueSession, true);
+			assert.equal(result.details.sessionKey, "<redacted>");
+
+			const capture = JSON.parse(fs.readFileSync(harness.capturePath, "utf8"));
+			const sessionDir = capture.args[capture.args.indexOf("--session-dir") + 1];
+			assert.equal(sessionDir, getContinuedReaderSessionDir(harness.project, "investigator", "auth"));
+			assert.equal(capture.args.includes("--continue"), true);
+			assert.equal(fs.existsSync(sessionDir), true);
+			assert.equal(fs.existsSync(path.join(sessionDir, ".delegate-lock")), false);
+		},
+	);
+});
+
+test("reader rejects concurrent continued sessions with an existing lock", async () => {
+	const harness = makeFakeReaderHarness("## Result\nShould not run");
+	const sessionDir = getContinuedReaderSessionDir(harness.project, "investigator", "auth", harness.agentRoot);
+	fs.mkdirSync(sessionDir, { recursive: true });
+	fs.writeFileSync(path.join(sessionDir, ".delegate-lock"), "{bad json", "utf8");
+	await withEnv(
+		{
+			PI_CODING_AGENT_DIR: harness.agentRoot,
+			PI_DELEGATE_BIN: harness.fakePi,
+			CAPTURE_PATH: harness.capturePath,
+		},
+		async () => {
+			const result = await runReader(
+				{ agent: "investigator", task: "Continue auth", cwd: harness.project, continueSession: true, sessionKey: "auth", timeoutMs: 5_000 },
+				"/tmp/parent",
+			);
+			assert.equal(result.details.status, "failed");
+			assert.equal(result.details.sessionMode, "continued");
+			assert.equal(result.details.sessionKey, "<redacted>");
+			assert.match(result.content[0].text, /reader continued session is already running for this sessionKey/);
+			assert.doesNotMatch(result.content[0].text, /auth/);
+			assert.equal(fs.existsSync(path.join(sessionDir, ".delegate-lock")), true);
+			assert.equal(fs.existsSync(harness.capturePath), false);
+		},
+	);
+});
+
+test("reader continued sessions preserve session dir and release lock after child failure", async () => {
+	const agentRoot = makeTempDir("pi-delegates-agent-root-");
+	const project = makeTempDir("pi-delegates-continued-failure-");
+	const fakePi = path.join(makeTempDir("pi-delegates-bin-"), "fake-pi.cjs");
+	const capturePath = path.join(makeTempDir("pi-delegates-capture-"), "capture.json");
+	writeAgent(agentRoot, "investigator", `---\nname: investigator\n---\nInvestigate.`);
+	writeExecutable(
+		fakePi,
+		`#!/usr/bin/env node
+const fs = require("node:fs");
+const args = process.argv.slice(2);
+fs.writeFileSync(process.env.CAPTURE_PATH, JSON.stringify({ sessionDir: args[args.indexOf("--session-dir") + 1] }));
+process.exit(2);
+`,
+	);
+
+	await withEnv({ PI_CODING_AGENT_DIR: agentRoot, PI_DELEGATE_BIN: fakePi, CAPTURE_PATH: capturePath }, async () => {
+		const result = await runReader(
+			{ agent: "investigator", task: "Continue and fail", cwd: project, continueSession: true, sessionKey: "auth", timeoutMs: 5_000 },
+			"/tmp/parent",
+		);
+		const capture = JSON.parse(fs.readFileSync(capturePath, "utf8"));
+		assert.equal(result.details.status, "failed");
+		assert.equal(result.details.sessionMode, "continued");
+		assert.equal(fs.existsSync(capture.sessionDir), true);
+		assert.equal(fs.existsSync(path.join(capture.sessionDir, ".delegate-lock")), false);
+	});
+});
+
+test("reader continued sessions preserve session dir and release lock after timeout and abort", async () => {
+	for (const scenario of ["timeout", "aborted"] as const) {
+		const harness = makeHangingReaderHarness();
+		await withEnv(
+			{
+				PI_CODING_AGENT_DIR: harness.agentRoot,
+				PI_DELEGATE_BIN: harness.fakePi,
+				CAPTURE_PATH: harness.capturePath,
+			},
+			async () => {
+				const controller = scenario === "aborted" ? new AbortController() : undefined;
+				if (controller) setTimeout(() => controller.abort(), 100);
+				const result = await runReader(
+					{
+						agent: "investigator",
+						task: `Continue and ${scenario}`,
+						cwd: harness.project,
+						continueSession: true,
+						sessionKey: scenario,
+						timeoutMs: scenario === "timeout" ? 1_000 : 5_000,
+						includeDiagnostics: true,
+					},
+					"/tmp/parent",
+					controller?.signal,
+				);
+				const capture = JSON.parse(fs.readFileSync(harness.capturePath, "utf8"));
+				assert.equal(result.details.status, scenario);
+				assert.equal(result.details.sessionMode, "continued");
+				assert.equal(fs.existsSync(capture.sessionDir), true);
+				assert.equal(fs.existsSync(path.join(capture.sessionDir, ".delegate-lock")), false);
+			},
+		);
+	}
+});
+
+test("continued reader lock write failure removes half-acquired lock", async () => {
+	const sessionDir = makeTempDir("pi-delegates-lock-write-failure-");
+	const lockPath = path.join(sessionDir, ".delegate-lock");
+	const originalOpen = fs.promises.open;
+	(fs.promises as any).open = async (filePath: string, flags: string) => {
+		const handle = await originalOpen.call(fs.promises, filePath, flags as never);
+		if (filePath !== lockPath) return handle;
+		return {
+			async writeFile() {
+				throw new Error("simulated lock write failure");
+			},
+			async close() {
+				await handle.close();
+			},
+		};
+	};
+	try {
+		await assert.rejects(() => acquireContinuedReaderSessionLock(sessionDir, { pid: process.pid }), /simulated lock write failure/);
+		assert.equal(fs.existsSync(lockPath), false);
+	} finally {
+		(fs.promises as any).open = originalOpen;
+	}
+});
+
 test("reader streams progress updates through onUpdate without appending progress to final content", async () => {
 	const harness = makeFakeReaderHarness("## Result\nProgress-safe final answer");
 	const updates: any[] = [];
@@ -1223,10 +1506,13 @@ test("reader final result returns only redacted truncated child summary plus com
 			assert.equal(result.details.truncated, true);
 			assert.deepEqual(Object.keys(result.details).sort(), [
 				"agent",
+				"continueSession",
 				"cwd",
 				"durationMs",
 				"exitCode",
 				"model",
+				"sessionMode",
+				"sessionPreserved",
 				"status",
 				"thinking",
 				"toolCallCount",
@@ -1276,6 +1562,132 @@ process.exit(2);
 		assert.doesNotMatch(withDiagnostics.content[0].text, /<fixture-secret>/);
 		assert.match(withDiagnostics.details.stderrTail ?? "", /SECRET_TOKEN=<redacted>/);
 		assert.equal(fs.existsSync(secondCapture.sessionDir), true);
+	});
+});
+
+test("reader fresh sessions are preserved on failure only when diagnostics are requested", async () => {
+	const agentRoot = makeTempDir("pi-delegates-agent-root-");
+	const project = makeTempDir("pi-delegates-reader-diagnostics-");
+	const fakePi = path.join(makeTempDir("pi-delegates-bin-"), "fake-pi.cjs");
+	const capturePath = path.join(makeTempDir("pi-delegates-capture-"), "capture.json");
+	writeAgent(agentRoot, "investigator", `---\nname: investigator\n---\nInvestigate.`);
+	writeExecutable(
+		fakePi,
+		`#!/usr/bin/env node
+const fs = require("node:fs");
+const args = process.argv.slice(2);
+fs.writeFileSync(process.env.CAPTURE_PATH, JSON.stringify({ sessionDir: args[args.indexOf("--session-dir") + 1] }));
+console.error("stderr SECRET_TOKEN=<fixture-secret>");
+process.exit(2);
+`,
+	);
+
+	await withEnv({ PI_CODING_AGENT_DIR: agentRoot, PI_DELEGATE_BIN: fakePi, CAPTURE_PATH: capturePath }, async () => {
+		const withoutDiagnostics = await runReader({ agent: "investigator", task: "Fail safely", cwd: project, timeoutMs: 5_000 }, "/tmp/parent");
+		const firstCapture = JSON.parse(fs.readFileSync(capturePath, "utf8"));
+		assert.equal(withoutDiagnostics.details.status, "failed");
+		assert.equal(withoutDiagnostics.details.sessionMode, "fresh");
+		assert.equal(withoutDiagnostics.details.continueSession, false);
+		assert.equal(withoutDiagnostics.details.sessionPreserved, false);
+		assert.equal(withoutDiagnostics.details.diagnosticSessionDir, undefined);
+		assert.equal(fs.existsSync(firstCapture.sessionDir), false);
+
+		const withDiagnostics = await runReader(
+			{ agent: "investigator", task: "Fail with diagnostics", cwd: project, timeoutMs: 5_000, includeDiagnostics: true },
+			"/tmp/parent",
+		);
+		const secondCapture = JSON.parse(fs.readFileSync(capturePath, "utf8"));
+		assert.equal(withDiagnostics.details.status, "failed");
+		assert.equal(withDiagnostics.details.sessionMode, "fresh");
+		assert.equal(withDiagnostics.details.sessionPreserved, true);
+		assert.equal(withDiagnostics.details.diagnosticSessionDir, secondCapture.sessionDir);
+		assert.match(withDiagnostics.content[0].text, /SECRET_TOKEN=<redacted>/);
+		assert.doesNotMatch(withDiagnostics.content[0].text, /<fixture-secret>/);
+		assert.equal(fs.existsSync(secondCapture.sessionDir), true);
+	});
+});
+
+test("reader fresh timeout and abort preserve diagnostic sessions", async () => {
+	for (const scenario of ["timeout", "aborted"] as const) {
+		const harness = makeHangingReaderHarness();
+		await withEnv(
+			{
+				PI_CODING_AGENT_DIR: harness.agentRoot,
+				PI_DELEGATE_BIN: harness.fakePi,
+				CAPTURE_PATH: harness.capturePath,
+			},
+			async () => {
+				const controller = scenario === "aborted" ? new AbortController() : undefined;
+				if (controller) setTimeout(() => controller.abort(), 100);
+				const result = await runReader(
+					{
+						agent: "investigator",
+						task: `Fresh ${scenario}`,
+						cwd: harness.project,
+						timeoutMs: scenario === "timeout" ? 1_000 : 5_000,
+						includeDiagnostics: true,
+					},
+					"/tmp/parent",
+					controller?.signal,
+				);
+				const capture = JSON.parse(fs.readFileSync(harness.capturePath, "utf8"));
+				assert.equal(result.details.status, scenario);
+				assert.equal(result.details.sessionMode, "fresh");
+				assert.equal(result.details.sessionPreserved, true);
+				assert.equal(result.details.diagnosticSessionDir, capture.sessionDir);
+				assert.equal(fs.existsSync(capture.sessionDir), true);
+			},
+		);
+	}
+});
+
+test("reader fresh early failures clean up or preserve sessions by diagnostics policy", async () => {
+	const agentRoot = makeTempDir("pi-delegates-agent-root-");
+	writeAgent(agentRoot, "investigator", `---\nname: investigator\n---\nInvestigate.`);
+
+	await withEnv({ PI_CODING_AGENT_DIR: agentRoot }, async () => {
+		const project = makeTempDir("pi-delegates-unknown-agent-");
+		const baseDir = getFreshReaderSessionBaseDir(project, agentRoot);
+		const result = await runReader({ agent: "missing", task: "Unknown", cwd: project, timeoutMs: 5_000 }, "/tmp/parent");
+		const runDirs = fs.existsSync(baseDir) ? fs.readdirSync(baseDir).filter((name) => name.startsWith("run-")) : [];
+		assert.equal(result.details.status, "failed");
+		assert.equal(result.details.sessionMode, "fresh");
+		assert.equal(runDirs.length, 0);
+	});
+
+	const tempFile = path.join(makeTempDir("pi-delegates-temp-file-"), "not-a-dir");
+	const tempFailureProject = makeTempDir("pi-delegates-temp-failure-");
+	fs.writeFileSync(tempFile, "not a directory", "utf8");
+	await withEnv({ PI_CODING_AGENT_DIR: agentRoot, TMPDIR: tempFile }, async () => {
+		const baseDir = getFreshReaderSessionBaseDir(tempFailureProject, agentRoot);
+		await assert.rejects(
+			() => runReader({ agent: "investigator", task: "Temp failure", cwd: tempFailureProject, timeoutMs: 5_000 }, "/tmp/parent"),
+			/ENOTDIR|not a directory/i,
+		);
+		const runDirs = fs.existsSync(baseDir) ? fs.readdirSync(baseDir).filter((name) => name.startsWith("run-")) : [];
+		assert.equal(runDirs.length, 0);
+	});
+
+	await withEnv({ PI_CODING_AGENT_DIR: agentRoot, PI_DELEGATE_BIN: path.join(makeTempDir("pi-delegates-missing-bin-"), "missing-pi") }, async () => {
+		const project = makeTempDir("pi-delegates-spawn-failure-");
+		const baseDir = getFreshReaderSessionBaseDir(project, agentRoot);
+		const withoutDiagnostics = await runReader({ agent: "investigator", task: "Spawn fail", cwd: project, timeoutMs: 5_000 }, "/tmp/parent");
+		const runDirs = fs.existsSync(baseDir) ? fs.readdirSync(baseDir).filter((name) => name.startsWith("run-")) : [];
+		assert.equal(withoutDiagnostics.details.status, "failed");
+		assert.equal(withoutDiagnostics.details.sessionPreserved, false);
+		assert.equal(runDirs.length, 0);
+	});
+
+	await withEnv({ PI_CODING_AGENT_DIR: agentRoot, PI_DELEGATE_BIN: path.join(makeTempDir("pi-delegates-missing-bin-"), "missing-pi") }, async () => {
+		const project = makeTempDir("pi-delegates-spawn-diagnostics-");
+		const withDiagnostics = await runReader(
+			{ agent: "investigator", task: "Spawn fail", cwd: project, timeoutMs: 5_000, includeDiagnostics: true },
+			"/tmp/parent",
+		);
+		assert.equal(withDiagnostics.details.status, "failed");
+		assert.equal(withDiagnostics.details.sessionPreserved, true);
+		assert.ok(withDiagnostics.details.diagnosticSessionDir);
+		assert.equal(fs.existsSync(withDiagnostics.details.diagnosticSessionDir), true);
 	});
 });
 

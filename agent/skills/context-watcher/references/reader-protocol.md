@@ -17,9 +17,11 @@ Do not use reader delegates just to think. Use them for isolated, tool-grounded 
 
 ## Default mode
 
-Reader delegates are read-only. Do not ask them to edit files, run mutating commands, or route to other delegates. Future writer work uses a separate `writer` tool with explicit guardrails; it is not part of this protocol.
+Reader delegates are read-only and use fresh child context by default. Do not ask them to edit files, run mutating commands, or route to other delegates. Future writer work uses a separate `writer` tool with explicit guardrails; it is not part of this protocol.
 
 Use Pi-native `reader` when available. Do not use non-Pi delegation tools for this workflow unless the user explicitly asks.
+
+Use default fresh mode for independent reviews, second opinions, unrelated tasks, and broad audits that should not inherit stale hypotheses. Use continued mode only when the parent intentionally resumes a named investigation thread by setting `continueSession: true` and a non-secret `sessionKey`.
 
 ## Required reader delegate instructions
 
@@ -35,13 +37,23 @@ Every reader delegate must be told to:
 
 ## Session layout
 
-Reader uses isolated persistent sessions under:
+Reader fresh mode uses a unique temporary session directory and does not pass `--continue`:
 
 ```text
-~/.pi/agent/delegate-sessions/reader/<cwd-segments>/
+~/.pi/agent/delegate-sessions/reader/<encoded-cwd>/run-XXXXXX
 ```
 
-Reader normally runs with `--continue` so later calls resume the same cwd-scoped delegate memory.
+The fresh directory is deleted on success. On failure, timeout, or abort it is preserved only when `includeDiagnostics` is true.
+
+Reader continued mode is explicit and uses a persistent directory keyed by cwd, agent, and session key:
+
+```text
+~/.pi/agent/delegate-sessions/reader/<encoded-cwd>/continued/<encoded-agent>/<encoded-session-key>/
+```
+
+Continued calls pass `--continue`, require `sessionKey`, and are protected by a best-effort `.delegate-lock` file while running. If a lock exists, treat the session as already active; delete the lock only after confirming it is stale. Old cwd-only reader sessions are not auto-used.
+
+Do not put secrets or credential-looking material in `sessionKey`; it becomes filesystem path material and may appear in redacted diagnostics.
 
 ## Output contract
 

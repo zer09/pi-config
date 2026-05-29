@@ -7,7 +7,7 @@ import type {
 	NormalizedReaderParams,
 	NormalizedWriterParams,
 	ReaderToolResult,
-	ResolvedInvocation,
+	ResolvedReaderInvocation,
 	ResolvedWriterInvocation,
 	WriterDiffPreview,
 	WriterToolResult,
@@ -30,7 +30,7 @@ function buildFailureText(child: ChildProcessResult, includeDiagnostics: boolean
 	return parts.join("\n");
 }
 
-export function makeReaderToolResult(invocation: ResolvedInvocation, child: ChildProcessResult, durationMs: number): ReaderToolResult {
+export function makeReaderToolResult(invocation: ResolvedReaderInvocation, child: ChildProcessResult, durationMs: number, sessionPreserved = false): ReaderToolResult {
 	const rawText = child.status === "completed" ? resultTextFromChild(child) || "(no output)" : buildFailureText(child, invocation.params.includeDiagnostics, "Reader");
 	const redacted = redactSensitiveText(rawText);
 	const truncated = truncateMiddleByBytes(redacted, invocation.params.maxResultBytes);
@@ -47,6 +47,11 @@ export function makeReaderToolResult(invocation: ResolvedInvocation, child: Chil
 			durationMs,
 			toolCallCount: child.state.toolCallCount,
 			truncated: truncated.truncated,
+			sessionMode: invocation.sessionMode,
+			continueSession: invocation.params.continueSession,
+			...(invocation.sessionMode === "continued" && invocation.params.sessionKey ? { sessionKey: "<redacted>" } : {}),
+			...(invocation.sessionMode === "fresh" ? { sessionPreserved } : {}),
+			...(invocation.sessionMode === "fresh" && sessionPreserved ? { diagnosticSessionDir: redactSensitiveText(invocation.sessionDir) } : {}),
 			...(invocation.params.includeDiagnostics && stderr ? { stderrTail: stderr } : {}),
 			...(child.error ? { error: redactSensitiveText(child.error) } : {}),
 		},
@@ -85,7 +90,13 @@ export function makeWriterToolResult(
 	};
 }
 
-export function makeImmediateFailure(params: NormalizedReaderParams, agentName: string, message: string, durationMs: number): ReaderToolResult {
+export function makeImmediateFailure(
+	params: NormalizedReaderParams,
+	agentName: string,
+	message: string,
+	durationMs: number,
+	session?: { sessionMode: "fresh" | "continued"; sessionDir?: string; sessionPreserved?: boolean },
+): ReaderToolResult {
 	const redacted = redactSensitiveText(message);
 	const truncated = truncateMiddleByBytes(redacted, params.maxResultBytes);
 	return {
@@ -100,6 +111,10 @@ export function makeImmediateFailure(params: NormalizedReaderParams, agentName: 
 			durationMs,
 			toolCallCount: 0,
 			truncated: truncated.truncated,
+			...(session ? { sessionMode: session.sessionMode, continueSession: params.continueSession } : {}),
+			...(session?.sessionMode === "continued" && params.sessionKey ? { sessionKey: "<redacted>" } : {}),
+			...(session?.sessionMode === "fresh" ? { sessionPreserved: session.sessionPreserved ?? false } : {}),
+			...(session?.sessionMode === "fresh" && session.sessionPreserved && session.sessionDir ? { diagnosticSessionDir: redactSensitiveText(session.sessionDir) } : {}),
 			error: redacted,
 		},
 	};

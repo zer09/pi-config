@@ -15,7 +15,9 @@ The child receives `PI_DELEGATE_CHILD=1` and `PI_DELEGATE_KIND=reader`, so deleg
 
 The parent agent remains the orchestrator. Reader output uses `## Parent considerations` rather than telling the child or parent to call another delegate next.
 
-Delegate session directories use reversible, collision-resistant cwd encoding, for example `/home/gc/.pi` maps to `--%2Fhome%2Fgc%2F.pi--` under `~/.pi/agent/delegate-sessions/{reader,writer}/`. Very long cwd values are stored as `--cwd-<sha256>--` to stay under per-segment filesystem limits.
+Delegate session directories use reversible, collision-resistant cwd encoding, for example `/home/gc/.pi` maps to `--%2Fhome%2Fgc%2F.pi--` under `~/.pi/agent/delegate-sessions/{reader,writer}/`. Very long cwd, agent, and session-key values are stored as hashed segments to stay under per-segment filesystem limits.
+
+Reader uses a fresh `run-*` session directory by default and does not pass `--continue`. The fresh directory is deleted on success, and on failure is preserved only when `includeDiagnostics` is true. Deliberate follow-ups must set `continueSession: true` with a non-secret `sessionKey`; continued reader sessions use `delegate-sessions/reader/<encoded-cwd>/continued/<encoded-agent>/<encoded-session-key>/`, pass `--continue`, and are protected by a `.delegate-lock` file while running. Old cwd-only reader sessions are not auto-used.
 
 ## Reader parameters
 
@@ -29,6 +31,8 @@ Delegate session directories use reversible, collision-resistant cwd encoding, f
   timeoutMs?: number;
   maxResultBytes?: number;
   includeDiagnostics?: boolean;
+  continueSession?: boolean;
+  sessionKey?: string;
 }
 ```
 
@@ -40,6 +44,10 @@ Defaults and precedence:
 - `timeoutMs`: `600000`, clamped to `1000..3600000`
 - `maxResultBytes`: `24000`, clamped to `1000..1000000`
 - `includeDiagnostics`: `false`
+- `continueSession`: `false`; fresh context is used by default
+- `sessionKey`: required only when `continueSession` is true; do not put secrets in it
+
+Use fresh mode for independent second opinions, unrelated tasks, and broad audits that should not inherit stale hypotheses. Use continued mode only for a named investigation thread where prior reader memory is intentional.
 
 ## Writer scope
 
@@ -134,7 +142,7 @@ Final delegate rows and expanded writer file rows use Nerd Font icons with theme
 Delegates return:
 
 - `content`: model-visible text. Reader returns the redacted and truncated child final answer. Writer returns a compact changed-file summary, not the full diff or child stdout/stderr.
-- `details`: compact metadata including agent, model, thinking, cwd, status, exit code, duration, tool-call count, and truncation status. Writer details may include capped `changedFiles`, `changedFileCount`, `skippedDiffCount`, `changedFilesTruncated`, `diffPreview`, and `diffTruncated` for TUI rendering.
+- `details`: compact metadata including agent, model, thinking, cwd, status, exit code, duration, tool-call count, truncation status, and reader session metadata. Reader details include `sessionMode`, `continueSession`, `sessionPreserved` for fresh mode, redacted `sessionKey` for continued mode, and `diagnosticSessionDir` only when a fresh failed session is preserved. Writer details may include capped `changedFiles`, `changedFileCount`, `skippedDiffCount`, `changedFilesTruncated`, `diffPreview`, and `diffTruncated` for TUI rendering.
 
 Diagnostics are bounded and redacted. They are included only when `includeDiagnostics` is true.
 

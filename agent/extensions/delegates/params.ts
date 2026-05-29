@@ -12,7 +12,8 @@ import {
 	MIN_MAX_RESULT_BYTES,
 	MIN_TIMEOUT_MS,
 } from "./constants.ts";
-import { getReaderSessionDir } from "./paths.ts";
+import { getContinuedReaderSessionDir } from "./paths.ts";
+import { containsSecretValue } from "./redaction.ts";
 import { assertTextFile } from "./text-files.ts";
 import { READER_TOOLS, WRITER_TOOLS } from "./toolsets.ts";
 import {
@@ -22,6 +23,7 @@ import {
 	type NormalizedWriterParams,
 	type ReaderParams,
 	type ResolvedInvocation,
+	type ResolvedReaderInvocation,
 	type ResolvedWriterInvocation,
 	type ThinkingLevel,
 	type WriterParams,
@@ -54,6 +56,28 @@ function normalizeBoolean(value: unknown, field: string, defaultValue: boolean):
 	if (value === undefined) return defaultValue;
 	if (typeof value !== "boolean") throw new Error(`${field} must be a boolean`);
 	return value;
+}
+
+function normalizeReaderContinueSession(value: unknown): boolean {
+	return normalizeBoolean(value, "continueSession", false);
+}
+
+const MAX_READER_SESSION_KEY_LENGTH = 512;
+const SECRET_LOOKING_SESSION_KEY_PATTERN = /(?:TOKEN|API_KEY|SECRET|PASSWORD|PRIVATE|BEARER|AUTH)\s*=/i;
+
+function normalizeReaderSessionKey(value: unknown, continueSession: boolean): string | undefined {
+	if (value === undefined) {
+		if (continueSession) throw new Error("sessionKey is required when continueSession is true");
+		return undefined;
+	}
+	if (typeof value !== "string") throw new Error("sessionKey must be a string");
+	if (value.length > MAX_READER_SESSION_KEY_LENGTH) throw new Error(`sessionKey must be at most ${MAX_READER_SESSION_KEY_LENGTH} characters`);
+	const trimmed = value.trim();
+	if (trimmed === "") throw new Error("sessionKey must be a non-empty string");
+	if (SECRET_LOOKING_SESSION_KEY_PATTERN.test(trimmed)) throw new Error("sessionKey must not contain secret-looking key/value material");
+	if (containsSecretValue(trimmed)) throw new Error("sessionKey must not contain secret-looking credential material");
+	if (!continueSession) throw new Error("sessionKey requires continueSession to be true");
+	return trimmed;
 }
 
 function stripPathReferencePrefix(value: string): string {
@@ -128,6 +152,8 @@ function normalizeAllowedPaths(value: unknown, cwd: string): string[] {
 export function normalizeReaderParams(params: ReaderParams, defaultCwd: string): NormalizedReaderParams {
 	const model = normalizeOptionalString(params.model, "model");
 	const thinking = normalizeThinking(params.thinking);
+	const continueSession = normalizeReaderContinueSession(params.continueSession);
+	const sessionKey = normalizeReaderSessionKey(params.sessionKey, continueSession);
 	const normalized: NormalizedReaderParams = {
 		agent: normalizeNonEmptyString(params.agent, "agent"),
 		task: normalizeNonEmptyString(params.task, "task"),
@@ -141,9 +167,11 @@ export function normalizeReaderParams(params: ReaderParams, defaultCwd: string):
 			MAX_MAX_RESULT_BYTES,
 		),
 		includeDiagnostics: normalizeBoolean(params.includeDiagnostics, "includeDiagnostics", false),
+		continueSession,
 	};
 	if (model !== undefined) normalized.model = model;
 	if (thinking !== undefined) normalized.thinking = thinking;
+	if (sessionKey !== undefined) normalized.sessionKey = sessionKey;
 	return normalized;
 }
 
@@ -178,7 +206,7 @@ function findAgent(name: string, agents: AgentConfig[]): AgentConfig | string {
 	return `Unknown agent '${name}'. Available agents: ${available}`;
 }
 
-export function resolveInvocation(params: NormalizedReaderParams, agents: AgentConfig[]): ResolvedInvocation | string {
+export function resolveReaderInvocation(params: NormalizedReaderParams, agents: AgentConfig[], sessionDir: string): ResolvedReaderInvocation | string {
 	const agent = findAgent(params.agent, agents);
 	if (typeof agent === "string") return agent;
 
@@ -188,8 +216,18 @@ export function resolveInvocation(params: NormalizedReaderParams, agents: AgentC
 		model: params.model ?? agent.model ?? DEFAULT_READER_MODEL,
 		thinking: params.thinking ?? agent.thinking ?? DEFAULT_THINKING,
 		tools: [...READER_TOOLS],
-		sessionDir: getReaderSessionDir(params.cwd),
+		sessionDir,
+		sessionMode: params.continueSession ? "continued" : "fresh",
 	};
+}
+
+export function resolveInvocation(params: NormalizedReaderParams, agents: AgentConfig[], sessionDir?: string): ResolvedInvocation | string {
+	if (!params.continueSession && sessionDir === undefined) return "Fresh reader invocation requires an explicit sessionDir";
+	return resolveReaderInvocation(
+		params,
+		agents,
+		sessionDir ?? getContinuedReaderSessionDir(params.cwd, params.agent, params.sessionKey ?? ""),
+	);
 }
 
 export function resolveWriterInvocation(params: NormalizedWriterParams, agents: AgentConfig[], sessionDir: string): ResolvedWriterInvocation | string {

@@ -10,6 +10,15 @@ const SECRET_VALUE_PATTERNS = [
 	/\bsk-[A-Za-z0-9_-]{8,}\b/g,
 ];
 
+export function containsSecretValue(text: string): boolean {
+	if (/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/.test(text)) return true;
+	if (/\bBearer\s+[A-Za-z0-9._~+/=-]+/i.test(text)) return true;
+	return SECRET_VALUE_PATTERNS.some((pattern) => {
+		pattern.lastIndex = 0;
+		return pattern.test(text);
+	});
+}
+
 function redactKeyValue(_match: string, key: string, separator: string, quote = ""): string {
 	return `${key}${separator}${quote}<redacted>${quote}`;
 }

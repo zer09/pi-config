@@ -10,8 +10,15 @@ export {
 	WRITER_DIFF_MAX_CHANGED_FILES,
 	WRITER_DIFF_MAX_FILE_BYTES,
 } from "./constants.ts";
-export { getReaderSessionDir } from "./paths.ts";
-export { normalizeReaderParams, normalizeWriterParams, resolveInvocation } from "./params.ts";
+export {
+	agentSessionDirName,
+	getContinuedReaderSessionDir,
+	getFreshReaderSessionBaseDir,
+	getReaderSessionBaseDir,
+	getReaderSessionDir,
+	sessionKeyDirName,
+} from "./paths.ts";
+export { normalizeReaderParams, normalizeWriterParams, resolveInvocation, resolveReaderInvocation } from "./params.ts";
 export { readerProfile } from "./profiles/reader.ts";
 export { writerProfile } from "./profiles/writer.ts";
 export { buildReaderSystemPrompt, buildReaderTaskPrompt, buildWriterSystemPrompt, buildWriterTaskPrompt } from "./prompts.ts";

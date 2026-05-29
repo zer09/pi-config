@@ -45,6 +45,13 @@ const BaseParamsProperties = {
 export const ReaderParamsSchema = Type.Object({
 	...BaseParamsProperties,
 	task: Type.String({ description: "Self-contained read-only task to delegate to the child agent" }),
+	continueSession: Type.Optional(Type.Boolean({
+		description: "Continue a named persistent reader session. Default false; fresh context is used by default.",
+		default: false,
+	})),
+	sessionKey: Type.Optional(Type.String({
+		description: "Required when continueSession is true. Names the reader investigation thread.",
+	})),
 }, { additionalProperties: false });
 
 export const WriterParamsSchema = Type.Object({

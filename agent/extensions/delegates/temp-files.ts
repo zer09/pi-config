@@ -3,9 +3,9 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import { buildReaderSystemPrompt, buildReaderTaskPrompt, buildWriterSystemPrompt, buildWriterTaskPrompt } from "./prompts.ts";
-import type { ResolvedInvocation, ResolvedWriterInvocation, TempRunFiles } from "./types.ts";
+import type { ResolvedReaderInvocation, ResolvedWriterInvocation, TempRunFiles } from "./types.ts";
 
-export async function createTempRunFiles(invocation: ResolvedInvocation): Promise<TempRunFiles> {
+export async function createTempRunFiles(invocation: ResolvedReaderInvocation): Promise<TempRunFiles> {
 	const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pi-delegate-reader-"));
 	const promptPath = path.join(dir, "system-prompt.md");
 	const taskPath = path.join(dir, "task.md");
