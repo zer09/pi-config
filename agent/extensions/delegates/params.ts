@@ -13,6 +13,7 @@ import {
 	MIN_TIMEOUT_MS,
 } from "./constants.ts";
 import { getContinuedReaderSessionDir } from "./paths.ts";
+import { containsSecretValue } from "./redaction.ts";
 import { assertTextFile } from "./text-files.ts";
 import { READER_TOOLS, WRITER_TOOLS } from "./toolsets.ts";
 import {
@@ -74,6 +75,7 @@ function normalizeReaderSessionKey(value: unknown, continueSession: boolean): st
 	const trimmed = value.trim();
 	if (trimmed === "") throw new Error("sessionKey must be a non-empty string");
 	if (SECRET_LOOKING_SESSION_KEY_PATTERN.test(trimmed)) throw new Error("sessionKey must not contain secret-looking key/value material");
+	if (containsSecretValue(trimmed)) throw new Error("sessionKey must not contain secret-looking credential material");
 	if (!continueSession) throw new Error("sessionKey requires continueSession to be true");
 	return trimmed;
 }

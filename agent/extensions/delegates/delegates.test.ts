@@ -456,6 +456,12 @@ test("reader continuation parameters normalize only for explicit named sessions"
 		() => normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project, continueSession: true, sessionKey: "API_KEY=abc" }, "/tmp/parent"),
 		/sessionKey must not contain secret-looking key\/value material/,
 	);
+	for (const credentialLikeKey of [`ghp_${"a".repeat(20)}`, `github_pat_${"a".repeat(20)}`, `sk-${"a".repeat(8)}`]) {
+		assert.throws(
+			() => normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project, continueSession: true, sessionKey: credentialLikeKey }, "/tmp/parent"),
+			/sessionKey must not contain secret-looking credential material/,
+		);
+	}
 	assert.throws(
 		() => normalizeReaderParams({ agent: "investigator", task: "Read", cwd: project, continueSession: true, sessionKey: "x".repeat(513) }, "/tmp/parent"),
 		/sessionKey must be at most 512 characters/,
