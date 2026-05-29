@@ -1736,7 +1736,7 @@ test("writer custom renderers emphasize agent labels and hide raw child stdout o
 		assert.ok(writer?.renderResult);
 		const call = writer.renderCall({ agent: "implementer", task: "Change\nexact file", allowedPaths: ["src/app.ts"] }, theme as any, context as any);
 		const renderedCall = call.render(120).join("\n");
-		assert.match(renderedCall, /Implementer Change exact file/);
+		assert.match(renderedCall, /Implementer ○ Change exact file/);
 		assert.doesNotMatch(renderedCall, /writer implementer/);
 
 		const resultPayload = {
@@ -1949,7 +1949,7 @@ test("reader custom renderers show progress and status details without exposing 
 	const context = { state: {}, cwd: "/tmp/project" };
 	const call = renderDelegateCall({ agent: "investigator", task: "Inspect\nwith noisy whitespace" }, theme as any, context as any);
 	const renderedCall = call.render(120).join("\n");
-	assert.match(renderedCall, /Investigator Inspect with noisy whitespace/);
+	assert.match(renderedCall, /Investigator ○ Inspect with noisy whitespace/);
 	assert.doesNotMatch(renderedCall, /reader investigator/);
 
 	const result = renderDelegateResult(
@@ -1979,6 +1979,34 @@ test("reader custom renderers show progress and status details without exposing 
 	assert.match(rendered, /tools: 2/);
 	assert.doesNotMatch(rendered, /SECRET_TOKEN/);
 	assert.doesNotMatch(rendered, /raw child final summary/);
+});
+
+test("reader call renderer marks continued sessions with filled dot", () => {
+	const theme = {
+		fg(_name: string, text: string) {
+			return text;
+		},
+		bold(text: string) {
+			return text;
+		},
+	};
+	const context = { state: {}, cwd: "/tmp/project" };
+
+	const call = renderDelegateCall(
+		{
+			agent: "investigator",
+			task: "Continue delegate indicator investigation",
+			continueSession: true,
+			sessionKey: "demo",
+		},
+		theme as any,
+		context as any,
+	);
+
+	const renderedCall = call.render(120).join("\n");
+	assert.match(renderedCall, /Investigator ● Continue delegate indicator investigation/);
+	assert.doesNotMatch(renderedCall, /demo/);
+	assert.doesNotMatch(renderedCall, /sessionKey/);
 });
 
 test("delegate final status renderer uses selected icons", () => {
