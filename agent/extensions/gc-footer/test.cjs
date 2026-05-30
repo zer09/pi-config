@@ -32,6 +32,37 @@ function stripAnsi(value) {
 	return value.replace(ansiPattern, "");
 }
 
+async function waitFor(predicate, message) {
+	for (let i = 0; i < 50; i += 1) {
+		if (predicate()) return;
+		await new Promise((resolve) => setTimeout(resolve, 10));
+	}
+	assert.ok(predicate(), message);
+}
+
+async function withFakeGitStatus(output, fn) {
+	return withFakeGitScript(`process.stdout.write(${JSON.stringify(output)});\n`, fn);
+}
+
+async function withFakeGitScript(script, fn) {
+	const oldPath = process.env.PATH;
+	const binDir = fs.mkdtempSync(path.join(os.tmpdir(), "gc-footer-git-"));
+	const gitPath = path.join(binDir, "git");
+	fs.writeFileSync(gitPath, `#!/usr/bin/env node\n${script}`, "utf8");
+	fs.chmodSync(gitPath, 0o755);
+	process.env.PATH = [binDir, oldPath].filter(Boolean).join(path.delimiter);
+	try {
+		return await fn();
+	} finally {
+		if (oldPath === undefined) {
+			delete process.env.PATH;
+		} else {
+			process.env.PATH = oldPath;
+		}
+		fs.rmSync(binDir, { recursive: true, force: true });
+	}
+}
+
 function loadExtension() {
 	const jiti = createJiti(extensionPath, { interopDefault: false, moduleCache: false });
 	const mod = jiti(extensionPath);
@@ -214,11 +245,71 @@ async function run() {
 		assert.ok(!footer.renderPlain().includes("(main)"), "branch should be hidden outside git repos");
 	}
 
+	await withFakeGitStatus("# branch.head main\n# branch.ab +0 -0\n", async () => {
+		const footer = await createFooter({ cwd: __dirname, branch: "main" });
+		await waitFor(() => footer.getRenderRequests() > 0, "git status refresh should request a render");
+		assert.ok(footer.renderPlain().includes("(main)"), "clean synced branch should match the existing branch format");
+		assert.ok(!footer.renderPlain().includes("(main*"), "clean branch should not show dirty marker");
+	});
+
+	await withFakeGitStatus("# branch.head main\n# branch.ab +0 -0\n1 .M N... 100644 100644 100644 abc abc file.txt\n", async () => {
+		const footer = await createFooter({ cwd: __dirname, branch: "main" });
+		await waitFor(() => footer.renderPlain().includes("(main*)"), "dirty branch should show dirty marker");
+		assert.ok(
+			footer.getColorCalls().some((call) => call.color === "warning" && call.text === "(main*)"),
+			"dirty branch should use warning color",
+		);
+	});
+
+	await withFakeGitStatus("# branch.head main\n# branch.ab +2 -0\n", async () => {
+		const footer = await createFooter({ cwd: __dirname, branch: "main" });
+		await waitFor(() => footer.renderPlain().includes("(main +2)"), "ahead branch should show ahead count");
+	});
+
+	await withFakeGitStatus("# branch.head main\n# branch.ab +0 -1\n", async () => {
+		const footer = await createFooter({ cwd: __dirname, branch: "main" });
+		await waitFor(() => footer.renderPlain().includes("(main -1)"), "behind branch should show behind count");
+	});
+
+	await withFakeGitStatus("# branch.head main\n# branch.ab +2 -1\n? new-file.txt\n", async () => {
+		const footer = await createFooter({ cwd: __dirname, branch: "main" });
+		await waitFor(() => footer.renderPlain().includes("(main +2/-1*)"), "diverged dirty branch should show ahead, behind, and dirty marker");
+	});
+
+	{
+		const largeDirtyOutput = `# branch.head main\n# branch.ab +0 -0\n${Array.from({ length: 9000 }, (_, index) => `? file-${index}\n`).join("")}`;
+		await withFakeGitStatus(largeDirtyOutput, async () => {
+			const footer = await createFooter({ cwd: __dirname, branch: "main" });
+			await waitFor(() => footer.renderPlain().includes("(main*)"), "large dirty status output should still show dirty marker");
+		});
+	}
+
+	{
+		const markerPath = path.join(os.tmpdir(), `gc-footer-git-disabled-${process.pid}-${Date.now()}`);
+		try {
+			await withFakeGitScript(
+				`require("node:fs").writeFileSync(${JSON.stringify(markerPath)}, "ran");\nprocess.stdout.write("# branch.head main\\n# branch.ab +0 -0\\n");\n`,
+				async () => {
+					const footer = await createFooter({
+						cwd: __dirname,
+						branch: "main",
+						config: { segments: { branch: false } },
+					});
+					footer.renderPlain();
+					await new Promise((resolve) => setTimeout(resolve, 20));
+					assert.equal(fs.existsSync(markerPath), false, "disabled branch segment should not spawn git status");
+				},
+			);
+		} finally {
+			fs.rmSync(markerPath, { force: true });
+		}
+	}
+
 	{
 		const footer = await createFooter();
 		const notification = await footer.runCommand();
 		assert.equal(notification.level, "info", "gc-footer command should report status");
-		assert.ok(notification.message.includes("segments: cwd, branch, statuses, timer, tokens, context, model, thinking"), "command should list enabled segments");
+		assert.ok(notification.message.includes("segments: cwd, branch, statuses, timer, queue, tokens, context, model, thinking"), "command should list enabled segments");
 		assert.ok(notification.message.includes("theme: dark"), "command should report active theme name");
 		assert.ok(notification.message.includes("model: openai-codex/gpt-5.5"), "command should report current model");
 		assert.ok(notification.message.includes("thinking: medium"), "command should report current thinking level");
@@ -239,7 +330,7 @@ async function run() {
 		});
 		const notification = await footer.runCommand("status");
 		assert.equal(notification.level, "info", "gc-footer status alias should report status");
-		assert.ok(notification.message.includes("segments: cwd, timer, context, model, thinking"), "command should show config-disabled segments as omitted");
+		assert.ok(notification.message.includes("segments: cwd, timer, queue, context, model, thinking"), "command should show config-disabled segments as omitted");
 		assert.ok(notification.message.includes("nerdFont: off"), "command should report disabled Nerd Font mode");
 
 		const error = await footer.runCommand("toggle branch");
@@ -358,15 +449,31 @@ async function run() {
 			await footer.emit("before_agent_start");
 			now += 1000;
 			await footer.emit("input", { source: "interactive", text: "queued", images: [], streamingBehavior: "followUp" });
+			assert.ok(footer.renderPlain().includes("\uf46c 1"), "queued follow-up count should be visible while waiting");
 			now += 1000;
 			await footer.emit("agent_end");
 			now += 500;
 			await footer.emit("before_agent_start");
-			assert.ok(footer.renderPlain().includes("\uf017 1.5s"), "queued follow-up timer should start when the follow-up was submitted");
+			const queuedLine = footer.renderPlain();
+			assert.ok(queuedLine.includes("\uf017 1.5s"), "queued follow-up timer should start when the follow-up was submitted");
+			assert.ok(!queuedLine.includes("\uf46c"), "queued follow-up count should hide after the queued prompt starts");
 			await footer.emit("agent_end");
 		} finally {
 			Date.now = originalNow;
 		}
+	}
+
+	{
+		const footer = await createFooter({ config: { nerdFont: false } });
+		await footer.emit("input", { source: "interactive", text: "first", images: [] });
+		await footer.emit("before_agent_start");
+		await footer.emit("input", { source: "interactive", text: "queued one", images: [], streamingBehavior: "followUp" });
+		await footer.emit("input", { source: "interactive", text: "queued two", images: [], streamingBehavior: "followUp" });
+		assert.ok(footer.renderPlain().includes("q 2"), "fallback queue indicator should show multiple queued follow-ups");
+		await footer.emit("agent_end");
+		await footer.emit("before_agent_start");
+		assert.ok(footer.renderPlain().includes("q 1"), "fallback queue indicator should decrement when a queued prompt starts");
+		await footer.emit("agent_end");
 	}
 
 	{
@@ -453,6 +560,60 @@ async function run() {
 		const line = footer.renderPlain();
 		assert.ok(line.includes("↑12k ↓3k openai-codex/gpt-5.5"), "cache segments should be omitted when zero");
 		assert.ok(!line.includes("/272k"), "context usage should be hidden when tokens are unknown");
+	}
+
+	{
+		const footer = await createFooter({
+			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
+			statuses: new Map([["mcp", "MCP: 0/9 servers"]]),
+			entries: [assistantEntry({ input: 123456, output: 45678, cacheRead: 98765, cacheWrite: 8765 })],
+			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
+		});
+		const compactLine = footer.renderPlain(90);
+		assert.ok(compactLine.includes("path (main)"), "compact layout should use cwd basename");
+		assert.ok(compactLine.includes("↑123k ↓46k"), "compact layout should omit cache token details");
+		assert.ok(compactLine.includes("(45%)"), "compact layout should keep context percentage");
+		assert.ok(!compactLine.includes("/272k"), "compact layout should omit full context window details");
+		assert.ok(compactLine.includes("codex/gpt-5.5"), "compact layout should shorten Codex model name");
+		assert.ok(!compactLine.includes("openai-codex"), "compact layout should omit redundant Codex provider name");
+		assert.ok(!compactLine.includes("\uf233 0/9"), "compact layout should drop inactive MCP status first");
+
+		const minimalLine = footer.renderPlain(40);
+		assert.ok(minimalLine.includes("path (main)"), "minimal layout should keep cwd basename and branch");
+		assert.ok(minimalLine.includes("(45%)"), "minimal layout should keep context percentage");
+		assert.ok(!minimalLine.includes("codex/gpt-5.5"), "minimal layout should hide model");
+		assert.ok(!minimalLine.includes("↑"), "minimal layout should hide token totals");
+	}
+
+	{
+		const footer = await createFooter({
+			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
+			statuses: new Map([["mcp", "\x1b[32mMCP: 2/9 servers\x1b[0m"]]),
+			entries: [assistantEntry({ input: 123456, output: 45678, cacheRead: 98765, cacheWrite: 8765 })],
+			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
+		});
+		assert.ok(footer.renderPlain(90).includes("\uf233 2/9"), "compact layout should keep active MCP status");
+	}
+
+	{
+		const footer = await createFooter({
+			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
+			statuses: new Map([["other", "status:warn"]]),
+		});
+		const line = footer.renderPlain(60);
+		assert.ok(line.includes("status:warn"), "compact layout should preserve non-MCP extension statuses");
+	}
+
+	{
+		const footer = await createFooter({
+			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
+			model: { provider: "anthropic", id: "claude-sonnet-4-20250514", contextWindow: 200000 },
+			entries: [assistantEntry({ input: 123456, output: 45678, cacheRead: 98765, cacheWrite: 8765 })],
+			contextUsage: { tokens: 123456, contextWindow: 200000, percent: 61.7 },
+		});
+		const line = footer.renderPlain(60);
+		assert.ok(line.includes("sonnet-4"), "compact layout should shorten Anthropic Sonnet model names");
+		assert.ok(!line.includes("anthropic/"), "compact layout should omit Anthropic provider prefix");
 	}
 
 	{

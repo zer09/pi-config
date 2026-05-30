@@ -1,5 +1,6 @@
+import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
 	ExtensionAPI,
@@ -17,8 +18,11 @@ const FALLBACK_THINKING_OUTLINE_CIRCLE = "\u25cb";
 const FALLBACK_THINKING_FILLED_CIRCLE = "\u25cf";
 const TIMER_RUNNING_GLYPH = "\uf017";
 const TIMER_DONE_GLYPH = "\uf00c";
+const QUEUE_GLYPH = "\uf46c";
 const MCP_SERVER_GLYPH = "\uf233";
 const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
+const GIT_STATUS_TTL_MS = 5000;
+const GIT_STATUS_TIMEOUT_MS = 500;
 const CONFIG_PATH = join(dirname(fileURLToPath(import.meta.url)), "config.json");
 
 const SEGMENT_KEYS = [
@@ -26,6 +30,7 @@ const SEGMENT_KEYS = [
 	"branch",
 	"statuses",
 	"timer",
+	"queue",
 	"tokens",
 	"context",
 	"model",
@@ -34,6 +39,7 @@ const SEGMENT_KEYS = [
 
 type SegmentName = typeof SEGMENT_KEYS[number];
 type SegmentConfig = Record<SegmentName, boolean>;
+type FooterProfile = "full" | "compact" | "minimal";
 
 type FooterConfig = {
 	segments: SegmentConfig;
@@ -54,12 +60,34 @@ type PromptTimerState = {
 	interval: ReturnType<typeof setInterval> | undefined;
 };
 
+type GitStatus = {
+	branch: string | null;
+	dirty: boolean;
+	ahead: number;
+	behind: number;
+};
+
+type GitStatusState = {
+	cached: GitStatus | undefined;
+	cwd: string | undefined;
+	refreshedAt: number;
+	refreshing: boolean;
+	scheduled: ReturnType<typeof setImmediate> | undefined;
+};
+
+type FooterParts = {
+	left: string;
+	middle: string | undefined;
+	right: string;
+};
+
 const DEFAULT_CONFIG: FooterConfig = {
 	segments: {
 		cwd: true,
 		branch: true,
 		statuses: true,
 		timer: true,
+		queue: true,
 		tokens: true,
 		context: true,
 		model: true,
@@ -78,6 +106,7 @@ export default function gcFooter(pi: ExtensionAPI): void {
 		lastDurationMs: undefined,
 		interval: undefined,
 	};
+	const gitStatus = createGitStatusState();
 	let currentBranch: string | null | undefined;
 
 	pi.registerCommand("gc-footer", {
@@ -105,22 +134,37 @@ export default function gcFooter(pi: ExtensionAPI): void {
 			};
 			const render = () => tui.requestRender();
 			const renderBranchChange = () => {
-				getBranch();
+				const branch = getBranch();
+				if (config.segments.branch) scheduleGitStatusRefresh(gitStatus, ctx.cwd, branch, true);
 				render();
 			};
 			requestRender = render;
-			getBranch();
+			const initialBranch = getBranch();
+			if (config.segments.branch) scheduleGitStatusRefresh(gitStatus, ctx.cwd, initialBranch, true);
 
 			const unsubscribeBranch = footerData.onBranchChange(renderBranchChange);
 
 			return {
 				dispose() {
 					unsubscribeBranch();
+					clearScheduledGitStatusRefresh(gitStatus);
 					if (requestRender === render) requestRender = undefined;
 				},
 				invalidate() {},
 				render(width: number): string[] {
-					return [renderFooterLine(width, pi, ctx, theme, footerData, config, promptTimer, getBranch)];
+					const branch = getBranch();
+					if (config.segments.branch) scheduleGitStatusRefresh(gitStatus, ctx.cwd, branch);
+					return [renderFooterLine(
+						width,
+						pi,
+						ctx,
+						theme,
+						footerData,
+						config,
+						promptTimer,
+						branch,
+						config.segments.branch ? getGitStatusForRender(gitStatus, ctx.cwd, branch) : undefined,
+					)];
 				},
 			};
 		});
@@ -150,6 +194,7 @@ export default function gcFooter(pi: ExtensionAPI): void {
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		clearPromptTimer(promptTimer);
+		clearGitStatus(gitStatus);
 		if (ctx.hasUI) ctx.ui.setFooter(undefined);
 		requestRender = undefined;
 		currentBranch = undefined;
@@ -164,24 +209,49 @@ function renderFooterLine(
 	footerData: FooterData,
 	config: FooterConfig,
 	promptTimer: PromptTimerState,
-	getBranch: () => string | null,
+	branch: string | null,
+	gitStatus: GitStatus | undefined,
 ): string {
+	const profiles: FooterProfile[] = ["full", "compact", "minimal"];
+	for (const profile of profiles) {
+		const parts = buildFooterParts(profile, pi, ctx, theme, footerData, config, promptTimer, branch, gitStatus);
+		if (footerSectionsFit(parts, width)) return joinFooterSections(parts.left, parts.middle, parts.right, width);
+	}
+
+	const fallback = buildFooterParts("minimal", pi, ctx, theme, footerData, config, promptTimer, branch, gitStatus);
+	return joinFooterSections(fallback.left, fallback.middle, fallback.right, width);
+}
+
+function buildFooterParts(
+	profile: FooterProfile,
+	pi: ExtensionAPI,
+	ctx: ExtensionContext,
+	theme: Theme,
+	footerData: FooterData,
+	config: FooterConfig,
+	promptTimer: PromptTimerState,
+	branch: string | null,
+	gitStatus: GitStatus | undefined,
+): FooterParts {
+	const compact = profile !== "full";
+	const minimal = profile === "minimal";
 	const left = joinSegments([
-		config.segments.cwd ? theme.fg("dim", formatCwd(ctx.cwd)) : undefined,
-		config.segments.branch ? formatGitBranch(getBranch(), theme) : undefined,
+		config.segments.cwd ? theme.fg("dim", formatCwd(ctx.cwd, profile)) : undefined,
+		config.segments.branch ? formatGitBranch(branch, theme, gitStatus) : undefined,
 	]);
 	const middle = config.segments.statuses
-		? formatExtensionStatuses(footerData.getExtensionStatuses(), theme, config.nerdFont)
+		? formatExtensionStatuses(footerData.getExtensionStatuses(), theme, config.nerdFont, compact ? "active" : "full")
 		: undefined;
 	const right = joinSegments([
 		config.segments.timer ? formatPromptTimer(promptTimer, theme, config.nerdFont) : undefined,
-		config.segments.tokens ? formatSessionTokenTotals(ctx, theme) : undefined,
-		config.segments.context ? formatContextUsage(ctx, theme) : undefined,
-		config.segments.model ? theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id)) : undefined,
-		config.segments.thinking ? formatThinkingDot(pi.getThinkingLevel(), theme, config.nerdFont) : undefined,
+		config.segments.queue ? formatPromptQueue(promptTimer, theme, config.nerdFont) : undefined,
+		config.segments.tokens && !minimal ? formatSessionTokenTotals(ctx, theme, compact ? "compact" : "full") : undefined,
+		config.segments.context ? formatContextUsage(ctx, theme, compact ? "compact" : "full") : undefined,
+		config.segments.model && !minimal ? theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id, compact ? "compact" : "full")) : undefined,
+		config.segments.thinking && !minimal ? formatThinkingDot(pi.getThinkingLevel(), theme, config.nerdFont) : undefined,
 	]);
 
-	return joinFooterSections(left, middle, right, width);
+	return { left, middle, right };
 }
 
 function recordPendingPromptStart(
@@ -288,6 +358,12 @@ function formatPromptTimer(
 	return `${theme.fg(glyphColor, glyph)} ${theme.fg("muted", formatDuration(durationMs))}`;
 }
 
+function formatPromptQueue(timer: PromptTimerState, theme: Theme, nerdFont: boolean): string | undefined {
+	const count = timer.queuedStartedAts.length;
+	if (!count) return undefined;
+	return theme.fg("muted", `${nerdFont ? QUEUE_GLYPH : "q"} ${count}`);
+}
+
 function formatDuration(durationMs: number): string {
 	const safeMs = Math.max(0, durationMs);
 	const totalSeconds = Math.round(safeMs / 1000);
@@ -364,46 +440,237 @@ function formatBranchStatus(branch: string | null | undefined): string {
 	return branch ?? "none";
 }
 
-function formatCwd(cwd: string): string {
+function formatCwd(cwd: string, profile: FooterProfile = "full"): string {
+	if (profile !== "full") return formatCwdBasename(cwd);
+
 	const home = process.env.HOME;
 	if (!home) return cwd;
 	if (cwd === home) return "~";
 	return cwd.startsWith(`${home}/`) ? `~${cwd.slice(home.length)}` : cwd;
 }
 
-function formatGitBranch(branch: string | null, theme: Theme): string | undefined {
-	return branch ? theme.fg("muted", `(${branch})`) : undefined;
+function formatCwdBasename(cwd: string): string {
+	const home = process.env.HOME;
+	if (home && cwd === home) return "~";
+	return basename(cwd) || cwd;
 }
 
-function formatExtensionStatuses(statuses: ReadonlyMap<string, string>, theme: Theme, nerdFont: boolean): string | undefined {
+function formatGitBranch(branch: string | null, theme: Theme, gitStatus: GitStatus | undefined): string | undefined {
+	const status = gitStatus ?? (branch ? { branch, dirty: false, ahead: 0, behind: 0 } : undefined);
+	if (!status?.branch) return undefined;
+
+	const sync = formatGitSyncStatus(status.ahead, status.behind);
+	const dirty = status.dirty ? "*" : "";
+	const text = `(${status.branch}${sync ? ` ${sync}` : ""}${dirty})`;
+	return theme.fg(status.dirty ? "warning" : "muted", text);
+}
+
+function formatGitSyncStatus(ahead: number, behind: number): string {
+	return [ahead ? `+${ahead}` : undefined, behind ? `-${behind}` : undefined].filter(Boolean).join("/");
+}
+
+function createGitStatusState(): GitStatusState {
+	return {
+		cached: undefined,
+		cwd: undefined,
+		refreshedAt: 0,
+		refreshing: false,
+		scheduled: undefined,
+	};
+}
+
+function getGitStatusForRender(state: GitStatusState, cwd: string, branch: string | null): GitStatus | undefined {
+	if (!branch) return undefined;
+	if (state.cwd !== cwd || state.cached?.branch !== branch) {
+		return { branch, dirty: false, ahead: 0, behind: 0 };
+	}
+	return state.cached;
+}
+
+function scheduleGitStatusRefresh(
+	state: GitStatusState,
+	cwd: string,
+	branch: string | null,
+	force = false,
+): void {
+	const now = Date.now();
+	const cwdChanged = state.cwd !== cwd;
+	const branchChanged = Boolean(branch && state.cached?.branch && state.cached.branch !== branch);
+	if (cwdChanged) {
+		state.cwd = cwd;
+		state.cached = branch ? { branch, dirty: false, ahead: 0, behind: 0 } : undefined;
+		state.refreshedAt = 0;
+	} else if (branchChanged) {
+		state.refreshedAt = 0;
+	}
+
+	if (!force && !cwdChanged && !branchChanged && now - state.refreshedAt < GIT_STATUS_TTL_MS) return;
+	if (state.refreshing || state.scheduled !== undefined) return;
+
+	state.scheduled = setImmediate(() => {
+		state.scheduled = undefined;
+		void refreshGitStatus(state, cwd, branch);
+	});
+	(state.scheduled as ReturnType<typeof setImmediate> & { unref?: () => void }).unref?.();
+}
+
+async function refreshGitStatus(state: GitStatusState, cwd: string, branch: string | null): Promise<void> {
+	state.refreshing = true;
+	state.refreshedAt = Date.now();
+	const status = await readGitStatus(cwd, branch);
+	state.refreshing = false;
+	if (state.cwd !== cwd) return;
+
+	if (status) {
+		state.cached = status;
+	} else if (!state.cached && branch) {
+		state.cached = { branch, dirty: false, ahead: 0, behind: 0 };
+	}
+	requestRender?.();
+}
+
+function readGitStatus(cwd: string, fallbackBranch: string | null): Promise<GitStatus | undefined> {
+	return new Promise((resolve) => {
+		let resolved = false;
+		let status: GitStatus = {
+			branch: fallbackBranch,
+			dirty: false,
+			ahead: 0,
+			behind: 0,
+		};
+		let pendingLine = "";
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		let child: ReturnType<typeof spawn>;
+
+		const finish = (result: GitStatus | undefined) => {
+			if (resolved) return;
+			resolved = true;
+			if (timeout !== undefined) clearTimeout(timeout);
+			resolve(result);
+		};
+
+		const parseLine = (line: string) => {
+			status = parseGitStatusLine(line, status);
+		};
+
+		try {
+			child = spawn("git", ["status", "--porcelain=v2", "--branch"], {
+				cwd,
+				stdio: ["ignore", "pipe", "ignore"],
+			});
+		} catch {
+			finish(undefined);
+			return;
+		}
+
+		timeout = setTimeout(() => {
+			child.kill();
+			finish(undefined);
+		}, GIT_STATUS_TIMEOUT_MS);
+		(timeout as ReturnType<typeof setTimeout> & { unref?: () => void }).unref?.();
+
+		child.stdout.setEncoding("utf8");
+		child.stdout.on("data", (chunk: string) => {
+			pendingLine += chunk;
+			let newlineIndex = pendingLine.indexOf("\n");
+			while (newlineIndex !== -1) {
+				parseLine(pendingLine.slice(0, newlineIndex).replace(/\r$/, ""));
+				pendingLine = pendingLine.slice(newlineIndex + 1);
+				if (status.dirty && status.branch) {
+					child.kill();
+					finish(status);
+					return;
+				}
+				newlineIndex = pendingLine.indexOf("\n");
+			}
+		});
+		child.on("error", () => finish(undefined));
+		child.on("close", (code) => {
+			if (pendingLine) parseLine(pendingLine.replace(/\r$/, ""));
+			finish(code === 0 && status.branch ? status : undefined);
+		});
+		child.unref?.();
+	});
+}
+
+function parseGitStatusLine(line: string, status: GitStatus): GitStatus {
+	if (!line) return status;
+	if (line.startsWith("# branch.head ")) {
+		return {
+			...status,
+			branch: normalizeGitBranch(line.slice("# branch.head ".length).trim(), status.branch),
+		};
+	}
+	if (line.startsWith("# branch.ab ")) {
+		const match = line.match(/^# branch\.ab \+(\d+) -(\d+)$/);
+		return match ? { ...status, ahead: Number(match[1]), behind: Number(match[2]) } : status;
+	}
+	return line.startsWith("#") ? status : { ...status, dirty: true };
+}
+
+function normalizeGitBranch(head: string, fallbackBranch: string | null): string | null {
+	if (!head || head === "(unknown)") return fallbackBranch;
+	return head === "(detached)" ? "detached" : head;
+}
+
+function clearGitStatus(state: GitStatusState): void {
+	clearScheduledGitStatusRefresh(state);
+	state.cached = undefined;
+	state.cwd = undefined;
+	state.refreshedAt = 0;
+	state.refreshing = false;
+}
+
+function clearScheduledGitStatusRefresh(state: GitStatusState): void {
+	if (state.scheduled === undefined) return;
+	clearImmediate(state.scheduled);
+	state.scheduled = undefined;
+}
+
+function formatExtensionStatuses(
+	statuses: ReadonlyMap<string, string>,
+	theme: Theme,
+	nerdFont: boolean,
+	mode: "full" | "active" = "full",
+): string | undefined {
 	const statusText = Array.from(statuses.entries())
 		.sort(([a], [b]) => a.localeCompare(b))
 		.map(([, text]) => formatExtensionStatus(sanitizeStatusText(text), theme, nerdFont))
+		.filter((status) => mode === "full" || status.keepInCompact)
+		.map((status) => status.text)
 		.filter(Boolean)
 		.join(" ");
 
 	return statusText || undefined;
 }
 
-function formatExtensionStatus(text: string, theme: Theme, nerdFont: boolean): string {
+function formatExtensionStatus(text: string, theme: Theme, nerdFont: boolean): { text: string; keepInCompact: boolean } {
 	const plainText = stripAnsi(text);
 	const mcpMatch = plainText.match(/^MCP:\s*(\d+)\s*\/\s*(\d+)\s+servers?$/i);
 	if (mcpMatch) {
 		const [visibleText, connected, total] = mcpMatch;
+		const active = Number(connected) > 0;
 		const compactText = `${nerdFont ? MCP_SERVER_GLYPH : "MCP"} ${connected}/${total}`;
-		return Number(connected) > 0
-			? preserveVisibleTextStyle(text, visibleText, compactText)
-			: theme.fg("muted", compactText);
+		return {
+			keepInCompact: active,
+			text: active
+				? preserveVisibleTextStyle(text, visibleText, compactText)
+				: theme.fg("muted", compactText),
+		};
 	}
 
-	return text;
+	return { text, keepInCompact: true };
 }
 
 function preserveVisibleTextStyle(text: string, visibleText: string, compactText: string): string {
 	return text.includes(visibleText) ? text.replace(visibleText, compactText) : compactText;
 }
 
-function formatSessionTokenTotals(ctx: ExtensionContext, theme: Theme): string | undefined {
+function formatSessionTokenTotals(
+	ctx: ExtensionContext,
+	theme: Theme,
+	profile: "full" | "compact" = "full",
+): string | undefined {
 	let input = 0;
 	let output = 0;
 	let cacheRead = 0;
@@ -420,12 +687,16 @@ function formatSessionTokenTotals(ctx: ExtensionContext, theme: Theme): string |
 
 	if (!input && !output && !cacheRead && !cacheWrite) return undefined;
 
-	const inputPart = `↑${formatTokens(input)}${cacheRead ? `/R${formatTokens(cacheRead)}` : ""}`;
-	const outputPart = `↓${formatTokens(output)}${cacheWrite ? `/W${formatTokens(cacheWrite)}` : ""}`;
+	const inputPart = `↑${formatTokens(input)}${profile === "full" && cacheRead ? `/R${formatTokens(cacheRead)}` : ""}`;
+	const outputPart = `↓${formatTokens(output)}${profile === "full" && cacheWrite ? `/W${formatTokens(cacheWrite)}` : ""}`;
 	return theme.fg("muted", `${inputPart} ${outputPart}`);
 }
 
-function formatContextUsage(ctx: ExtensionContext, theme: Theme): string | undefined {
+function formatContextUsage(
+	ctx: ExtensionContext,
+	theme: Theme,
+	profile: "full" | "compact" = "full",
+): string | undefined {
 	const usage = ctx.getContextUsage();
 	if (!usage || usage.tokens === null) return undefined;
 
@@ -434,10 +705,10 @@ function formatContextUsage(ctx: ExtensionContext, theme: Theme): string | undef
 
 	const percent = getTokenPercent(usage.tokens, contextWindow, usage.percent);
 	const displayedPercent = getDisplayedTokenPercent(percent);
-	return [
-		theme.fg(contextUsageColor(displayedPercent.value), `(${displayedPercent.text})`),
-		theme.fg("muted", `(${formatTokens(usage.tokens)}/${formatTokens(contextWindow)})`),
-	].join(" ");
+	const percentText = theme.fg(contextUsageColor(displayedPercent.value), `(${displayedPercent.text})`);
+	return profile === "compact"
+		? percentText
+		: [percentText, theme.fg("muted", `(${formatTokens(usage.tokens)}/${formatTokens(contextWindow)})`)].join(" ");
 }
 
 function getTokenPercent(tokens: number, contextWindow: number, percent: number | null | undefined): number {
@@ -518,11 +789,47 @@ function formatThinkingDot(level: string, theme: Theme, nerdFont: boolean): stri
 	return theme.fg(thinkingColor(level), thinkingGlyph(level, nerdFont));
 }
 
-function formatModelName(provider: string | undefined, id: string | undefined): string {
+function formatModelName(
+	provider: string | undefined,
+	id: string | undefined,
+	profile: "full" | "compact" | "minimal" = "full",
+): string {
 	if (!id) return "no-model";
 	const base = id.includes("/") ? (id.split("/").pop() ?? id) : id;
 	const model = base.replace(/-\d{8}$/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "");
+	if (profile === "full") return provider ? `${provider}/${model}` : model;
+	return formatCompactModelName(provider, model, profile);
+}
+
+function formatCompactModelName(
+	provider: string | undefined,
+	model: string,
+	profile: "compact" | "minimal",
+): string {
+	if (provider === "openai-codex" && model.startsWith("gpt-")) {
+		return profile === "minimal" ? model : `codex/${model}`;
+	}
+
+	if (provider === "anthropic") {
+		if (model.startsWith("claude-sonnet-")) return model.replace(/^claude-/, "");
+		if (model.startsWith("claude-opus-")) return model.replace(/^claude-/, "");
+	}
+
+	if ((provider === "google" || provider === "google-gemini") && model.startsWith("gemini-") && model.includes("flash")) {
+		return model.replace(/^gemini-/, "").replace(/^(\d+(?:\.\d+)?(?:-[a-z]+)?)-flash/, "flash-$1");
+	}
+
+	if (profile === "minimal") return model;
 	return provider ? `${provider}/${model}` : model;
+}
+
+function footerSectionsFit(parts: FooterParts, width: number): boolean {
+	if (width <= 0) return false;
+	const leftWidth = visibleWidth(parts.left);
+	const middleWidth = visibleWidth(parts.middle ?? "");
+	const rightWidth = visibleWidth(parts.right);
+	const gapWidth = (parts.left && parts.middle ? 1 : 0) + (parts.middle && parts.right ? 1 : 0) + (!parts.middle && parts.left && parts.right ? 1 : 0);
+	return leftWidth + middleWidth + rightWidth + gapWidth <= width;
 }
 
 function joinFooterSections(
