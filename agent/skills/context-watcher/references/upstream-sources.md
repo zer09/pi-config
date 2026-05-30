@@ -17,21 +17,22 @@ Context Watcher coordinates three token-protection and code-understanding layers
 
 1. Context Mode: sandbox execution, indexing, search, large-output protection, web fetching, and file analysis.
 2. RTK Token Optimizer: command-output compression for read-only shell work.
-3. CodeGraph: local structural codebase exploration, architecture context, symbol search, callers/callees, flow tracing, impact analysis, indexed file layout, and cross-language/framework edges when available.
+3. CodeGraph: local structural codebase exploration through the MCP server and CLI, architecture context, symbol search, callers/callees, flow tracing, impact analysis, indexed file layout, and cross-language/framework edges when available.
 
 The intended order is:
 
 ```text
 Task intent -> Context Watcher routing -> Context Mode sandbox
                                       -> RTK inside sandbox when useful
-                                      -> CodeGraph first for structural code work
+                                      -> CodeGraph MCP alongside Context Mode for code work
+                                      -> CodeGraph CLI inside Context Mode for indexed graph output
 ```
 
 ## Compatibility notes
 
 - Context Mode MCP tools are preferred when available.
 - If MCP tools are unavailable on a platform, use the closest sandboxed equivalent with RTK compression and keep the same routing rules conceptually.
-- CodeGraph applies to repositories with `.codegraph/` indexes. At graph-session start, use `projectPath` when the target repo/worktree may differ from the session root. Initialize or update indexes only when local index mutation is authorized and useful.
+- CodeGraph applies to repositories with `.codegraph/` indexes. At graph-session start, use `projectPath` when the target repo/worktree may differ from the session root, and verify the `codegraph` MCP server alongside Context Mode when code work begins. Initialize or update indexes only when local index mutation is authorized and useful.
 - Browser tools are not substitutes for authenticated `gh` CLI on private GitHub data.
 - Native file tools remain required for file writes and precise edits.
 
@@ -39,7 +40,7 @@ Task intent -> Context Watcher routing -> Context Mode sandbox
 
 - RTK Token Optimizer: use local RTK help and installed documentation. Do not guess flags.
 - Context Mode: use `ctx_doctor`, `ctx_stats`, and installed Context Mode skill docs when troubleshooting.
-- CodeGraph: use live MCP tool descriptions, `codegraph status <repo>`, Context Watcher's `codegraph-protocol.md`, and `codegraph --help` as the source of truth for current project state and function signatures. If schemas do not match documented parameters, restart Pi or reconnect the configured MCP server.
+- CodeGraph: use live MCP tool descriptions, `codegraph status <repo>`, Context Watcher's `codegraph-protocol.md`, and `codegraph --help` as the source of truth for current project state and function signatures. Use CLI help plus live MCP schemas when comparing MCP/CLI feature parity. If schemas do not match documented parameters, restart Pi or reconnect the configured MCP server.
 - GitHub CLI: load the local `gh-cli` skill before GitHub work.
 - Context7 CLI: load the local `context7-cli` skill when Context7 usage is unclear.
 

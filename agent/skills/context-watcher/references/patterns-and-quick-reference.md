@@ -26,9 +26,10 @@ This reference expands examples from `../SKILL.md`. Load it when examples are ne
 2. If the repo is not initialized, ask before `codegraph init <repo> --index` unless setup was explicitly requested.
 3. Use `codegraph_context` for first-pass orientation.
 4. Use `codegraph_search`, `codegraph_trace`, and `codegraph_explore` for focused evidence.
-5. Use optional `codegraph_callers`, `codegraph_callees`, and `codegraph_impact` when the live MCP server exposes them.
-6. Use Context Mode/RTK for compact file inventories if graph results are insufficient.
-7. Avoid reading large files or broad search output into context.
+5. Use optional `codegraph_callers`, `codegraph_callees`, and `codegraph_impact` when the live MCP server exposes them for immediate lookup.
+6. Use CodeGraph CLI through Context Mode when graph output should be indexed, searched later, batched, parsed, or compared.
+7. Use Context Mode/RTK for compact file inventories if graph results are insufficient.
+8. Avoid reading large files or broad search output into context.
 
 ## Pattern 4: infrastructure inspection
 
@@ -130,5 +131,21 @@ codegraph_callers(symbol="KnownSymbol", projectPath="<repo>")
 codegraph_callees(symbol="KnownSymbol", projectPath="<repo>")
 codegraph_impact(symbol="KnownSymbol", projectPath="<repo>")
 ```
+
+### Indexed graph output
+
+```text
+ctx_batch_execute({
+  commands: [
+    { label: "codegraph status", command: "codegraph status <repo> --json" },
+    { label: "codegraph search KnownSymbol", command: "codegraph query -p <repo> KnownSymbol --json" },
+    { label: "codegraph callers KnownSymbol", command: "codegraph callers -p <repo> KnownSymbol --json" },
+    { label: "codegraph impact KnownSymbol", command: "codegraph impact -p <repo> KnownSymbol --json" }
+  ],
+  queries: ["health", "KnownSymbol callers", "KnownSymbol impact"]
+})
+```
+
+Use plain `codegraph files -p <repo> --format flat` inside Context Mode when symbol counts matter; in CodeGraph 0.9.7, CLI JSON may omit them.
 
 Use live MCP schemas as authoritative if parameter names differ from examples.
