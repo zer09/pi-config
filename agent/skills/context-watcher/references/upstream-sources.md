@@ -39,7 +39,7 @@ Task intent -> Context Watcher routing -> Context Mode sandbox
 
 - RTK Token Optimizer: use local RTK help and installed documentation. Do not guess flags.
 - Context Mode: use `ctx_doctor`, `ctx_stats`, and installed Context Mode skill docs when troubleshooting.
-- CodeGraph: use MCP tool descriptions, `codegraph_status`, the CodeGraph skill, and `codegraph --help` as the source of truth for current project state and function signatures. If schemas do not match documented parameters, restart Pi or reconnect the configured MCP server.
+- CodeGraph: use live MCP tool descriptions, `codegraph status <repo>`, the CodeGraph skill, and `codegraph --help` as the source of truth for current project state and function signatures. If schemas do not match documented parameters, restart Pi or reconnect the configured MCP server.
 - GitHub CLI: load the local `gh-cli` skill before GitHub work.
 - Context7 CLI: load the local `context7-cli` skill when Context7 usage is unclear.
 

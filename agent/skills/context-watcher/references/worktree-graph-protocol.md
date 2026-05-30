@@ -38,8 +38,8 @@ CodeGraph indexes repositories through a local `.codegraph/` directory. Select t
 Use this sequence:
 
 1. Identify the active worktree repo path.
-2. Run read-only `codegraph status <worktree repo>` through Context Mode, or call `codegraph_status` with `projectPath`.
-3. If the repo is not initialized, ask before `codegraph init -i <worktree repo>` unless setup/indexing was explicitly requested.
+2. Run read-only `codegraph status <worktree repo>` through Context Mode, or call `codegraph_status` with `projectPath` when that MCP tool is exposed.
+3. If the repo is not initialized, ask before `codegraph init <worktree repo> --index` unless setup/indexing was explicitly requested.
 4. Query CodeGraph with `projectPath` set to the active worktree repo.
 5. If no project is available after any authorized setup/recheck, follow the degraded graph fallback.
 

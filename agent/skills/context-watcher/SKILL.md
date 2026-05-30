@@ -93,21 +93,22 @@ For counts, filters, diffs, parsing, aggregation, or transforms, program the ana
 
 Start structural graph work with CodeGraph when available:
 
-1. If project health is unknown, call `codegraph_status` through MCP or run read-only `codegraph status <repo>` through Context Mode.
-2. If the project is uninitialized, ask before `codegraph init -i <repo>` unless the user explicitly requested setup/indexing.
-3. Pass `projectPath` on MCP calls for worktrees, multi-repo tasks, or repos outside the session root.
-4. Choose the first tool by intent:
+1. If project health is unknown, run read-only `codegraph status <repo>` through Context Mode, or use `codegraph_status` when the live MCP server exposes it.
+2. If the project is uninitialized, ask before `codegraph init <repo> --index` unless the user explicitly requested setup/indexing.
+3. List the live `codegraph` server tools before relying on optional relationship/status tools. CodeGraph defines 10 MCP tool capabilities, but the visible tool list is gated by the server's active/default project: fewer than 500 indexed files exposes only the 5 core tools. Later per-call `projectPath` values do not change `tools/list`.
+4. Pass `projectPath` on MCP calls for worktrees, multi-repo tasks, or repos outside the session root.
+5. Choose the first tool by intent:
    - Architecture, onboarding, area, or bug questions: `codegraph_context`.
    - Flow/path questions: `codegraph_trace`.
    - Known symbol lookup: `codegraph_search`.
    - One exact symbol source: `codegraph_node`.
    - Related source survey: `codegraph_explore`.
-   - Direct relationships: `codegraph_callers` or `codegraph_callees`.
-   - Blast radius or refactor planning: `codegraph_impact`.
-   - Indexed layout: `codegraph_files`.
-   - Health/pending sync: `codegraph_status`.
-5. If a stale banner names files, read only those files for exact current content.
-6. If CodeGraph remains unavailable, uninitialized, stale, or insufficient, follow the fallback protocol and state that graph results are degraded.
+   - Direct relationships, when exposed: `codegraph_callers` or `codegraph_callees`.
+   - Blast radius or refactor planning, when exposed: `codegraph_impact`.
+   - Indexed layout, when exposed: `codegraph_files`.
+   - Health/pending sync, when exposed: `codegraph_status`; otherwise use CLI `codegraph status <repo>`.
+6. If a stale banner names files, read only those files for exact current content.
+7. If CodeGraph remains unavailable, uninitialized, stale, not exposed, or insufficient, follow the fallback protocol and state that graph results are degraded.
 
 Do not start structural code questions with grep/find/manual file reading. Do not loop over many `codegraph_node` calls when one `codegraph_context` or `codegraph_explore` call can answer.
 

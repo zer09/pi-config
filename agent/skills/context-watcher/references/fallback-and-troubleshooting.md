@@ -79,21 +79,21 @@ If writing a log file, use native file tools only when appropriate. Do not expos
 1. Verify the MCP server list includes `codegraph`.
 2. If server metadata is stale, restart Pi or reconnect the MCP server before trusting cached tool lists.
 3. Verify the installed command resolves with `codegraph --version` through Context Mode when shell inspection is needed.
-4. List tools from the `codegraph` server and confirm the expected tools are present.
+4. List tools from the `codegraph` server and confirm the expected core tools are present. If optional tools are absent, do not assume a broken Pi configuration: CodeGraph intentionally gates `tools/list` by the server's active/default project size. Fewer than 500 indexed files exposes only the 5 core tools, and a later per-call `projectPath` does not change that list. Also check whether `CODEGRAPH_MCP_TOOLS` is set, because it can allowlist fewer visible tools.
 5. Retry the graph query after reconnecting.
 6. Fall back to Context Mode/RTK only if graph tooling remains unavailable or the task is not structural code work.
 
 ## Troubleshooting project path selection
 
 1. Identify the active repository or worktree path.
-2. Call `codegraph_status` with `projectPath` or run read-only `codegraph status <repo>`.
-3. If status says the project is not initialized, ask before `codegraph init -i <repo>` unless setup/indexing was explicitly requested.
+2. Run read-only `codegraph status <repo>` or call `codegraph_status` with `projectPath` when that MCP tool is exposed.
+3. If status says the project is not initialized, ask before `codegraph init <repo> --index` unless setup/indexing was explicitly requested.
 4. Pass `projectPath` for worktrees, multi-repo tasks, and repos outside the session root.
 5. If CodeGraph still cannot find the right project, report a degraded graph fallback. Do not guess based on folder names alone.
 
 ## Troubleshooting stale graph
 
-- Call `codegraph_status`.
+- Run read-only `codegraph status <repo>` or call `codegraph_status` when that MCP tool is exposed.
 - If a stale banner names files, read only those files for exact current content.
 - If pending sync matters for graph accuracy, wait for sync or ask before running `codegraph sync` or `codegraph index`.
 - State when graph results may be stale.

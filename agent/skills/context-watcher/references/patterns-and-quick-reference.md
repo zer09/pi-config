@@ -22,12 +22,13 @@ This reference expands examples from `../SKILL.md`. Load it when examples are ne
 
 ## Pattern 3: codebase orientation
 
-1. Check `codegraph_status` or read-only `codegraph status <repo>` when project health is unknown.
-2. If the repo is not initialized, ask before `codegraph init -i <repo>` unless setup was explicitly requested.
+1. Check read-only `codegraph status <repo>` or exposed `codegraph_status` when project health is unknown.
+2. If the repo is not initialized, ask before `codegraph init <repo> --index` unless setup was explicitly requested.
 3. Use `codegraph_context` for first-pass orientation.
-4. Use `codegraph_search`, `codegraph_trace`, `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, and `codegraph_explore` for focused evidence.
-5. Use Context Mode/RTK for compact file inventories if graph results are insufficient.
-6. Avoid reading large files or broad search output into context.
+4. Use `codegraph_search`, `codegraph_trace`, and `codegraph_explore` for focused evidence.
+5. Use optional `codegraph_callers`, `codegraph_callees`, and `codegraph_impact` when the live MCP server exposes them.
+6. Use Context Mode/RTK for compact file inventories if graph results are insufficient.
+7. Avoid reading large files or broad search output into context.
 
 ## Pattern 4: infrastructure inspection
 
@@ -80,6 +81,7 @@ ctx_doctor
 ctx_stats
 codegraph --version
 codegraph status <repo>
+# Optional when exposed by the live MCP server:
 codegraph_status(projectPath="<repo>")
 ```
 
@@ -119,14 +121,14 @@ ctx_search({ queries: ["specific API option"] })
 ### Graph review
 
 ```text
-codegraph_status(projectPath="<repo>")
 codegraph_context(task="Explain how the changed feature works", projectPath="<repo>")
 codegraph_search(query="KnownSymbol", projectPath="<repo>")
 codegraph_trace(from="incoming route", to="side effect", projectPath="<repo>")
+codegraph_explore(query="related symbols from prior result", projectPath="<repo>")
+# Optional when exposed:
 codegraph_callers(symbol="KnownSymbol", projectPath="<repo>")
 codegraph_callees(symbol="KnownSymbol", projectPath="<repo>")
 codegraph_impact(symbol="KnownSymbol", projectPath="<repo>")
-codegraph_explore(query="related symbols from prior result", projectPath="<repo>")
 ```
 
 Use live MCP schemas as authoritative if parameter names differ from examples.

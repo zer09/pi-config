@@ -1,4 +1,4 @@
 interface:
   display_name: "CodeGraph"
   short_description: "Local graph-first code exploration"
-  default_prompt: "Use $codegraph for structural code exploration, flow tracing, and refactor impact before falling back to grep."
+  default_prompt: "Use $codegraph for structural code exploration, flow tracing, and refactor impact before falling back to grep. List live MCP tools first: CodeGraph tool visibility is gated by the server's active/default project size."
