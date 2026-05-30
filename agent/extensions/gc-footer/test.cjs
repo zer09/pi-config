@@ -313,6 +313,64 @@ async function run() {
 	}
 
 	{
+		const footer = await createFooter();
+		const originalNow = Date.now;
+		try {
+			let now = 300000;
+			Date.now = () => now;
+
+			await footer.emit("input", { source: "interactive", text: "/skill:demo hello", images: [] });
+			now += 900;
+			await footer.emit("before_agent_start");
+			assert.ok(footer.renderPlain().includes("\uf017 0.9s"), "slash prompt expansion time should be counted");
+			await footer.emit("agent_end");
+		} finally {
+			Date.now = originalNow;
+		}
+	}
+
+	{
+		const footer = await createFooter();
+		const originalNow = Date.now;
+		try {
+			let now = 400000;
+			Date.now = () => now;
+
+			await footer.emit("input", { source: "interactive", text: "first", images: [] });
+			await footer.emit("before_agent_start");
+			now += 1000;
+			await footer.emit("input", { source: "interactive", text: "queued", images: [], streamingBehavior: "followUp" });
+			now += 1000;
+			await footer.emit("agent_end");
+			now += 500;
+			await footer.emit("before_agent_start");
+			assert.ok(footer.renderPlain().includes("\uf017 1.5s"), "queued follow-up timer should start when the follow-up was submitted");
+			await footer.emit("agent_end");
+		} finally {
+			Date.now = originalNow;
+		}
+	}
+
+	{
+		const footer = await createFooter();
+		const originalNow = Date.now;
+		try {
+			let now = 500000;
+			Date.now = () => now;
+
+			await footer.emit("input", { source: "interactive", text: "handled by another extension", images: [] });
+			await new Promise((resolve) => setImmediate(resolve));
+			now += 5000;
+			await footer.emit("before_agent_start");
+			now += 200;
+			assert.ok(footer.renderPlain().includes("\uf017 0.2s"), "handled inputs should not leave stale start times for later prompts");
+			await footer.emit("agent_end");
+		} finally {
+			Date.now = originalNow;
+		}
+	}
+
+	{
 		const footer = await createFooter({ config: { nerdFont: false } });
 		const originalNow = Date.now;
 		try {

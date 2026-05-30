@@ -47,6 +47,8 @@ type FooterData = {
 
 type PromptTimerState = {
 	pendingStartedAt: number | undefined;
+	pendingClearImmediate: ReturnType<typeof setImmediate> | undefined;
+	queuedStartedAts: number[];
 	startedAt: number | undefined;
 	lastDurationMs: number | undefined;
 	interval: ReturnType<typeof setInterval> | undefined;
@@ -70,6 +72,8 @@ export default function gcFooter(pi: ExtensionAPI): void {
 	const config = loadConfig();
 	const promptTimer: PromptTimerState = {
 		pendingStartedAt: undefined,
+		pendingClearImmediate: undefined,
+		queuedStartedAts: [],
 		startedAt: undefined,
 		lastDurationMs: undefined,
 		interval: undefined,
@@ -123,15 +127,13 @@ export default function gcFooter(pi: ExtensionAPI): void {
 	});
 
 	pi.on("input", async (event, ctx) => {
-		if (!ctx.hasUI || event.source !== "interactive") return;
-		promptTimer.pendingStartedAt = shouldUseInputStart(event.text, event.images)
-			? Date.now()
-			: undefined;
+		if (!ctx.hasUI) return;
+		recordPendingPromptStart(promptTimer, event.source, event.text, event.images, event.streamingBehavior);
 	});
 
 	pi.on("before_agent_start", async (_event, ctx) => {
 		if (!ctx.hasUI) return;
-		startPromptTimer(promptTimer, promptTimer.pendingStartedAt ?? Date.now());
+		startPromptTimer(promptTimer, takePendingPromptStart(promptTimer) ?? Date.now());
 	});
 
 	pi.on("thinking_level_select", async () => {
@@ -182,14 +184,63 @@ function renderFooterLine(
 	return joinFooterSections(left, middle, right, width);
 }
 
-function shouldUseInputStart(text: string, images: readonly unknown[] | undefined): boolean {
-	const trimmedText = text.trim();
-	return (trimmedText.length > 0 || Boolean(images?.length)) && !trimmedText.startsWith("/");
+function recordPendingPromptStart(
+	timer: PromptTimerState,
+	source: "interactive" | "rpc" | "extension",
+	text: string,
+	images: readonly unknown[] | undefined,
+	streamingBehavior: "steer" | "followUp" | undefined,
+): void {
+	if (source !== "interactive" || !hasPromptContent(text, images) || streamingBehavior === "steer") {
+		clearPendingPromptStart(timer);
+		return;
+	}
+
+	const startedAt = Date.now();
+	if (streamingBehavior === "followUp") {
+		clearPendingPromptStart(timer);
+		timer.queuedStartedAts.push(startedAt);
+		return;
+	}
+
+	timer.pendingStartedAt = startedAt;
+	schedulePendingPromptStartClear(timer, startedAt);
+}
+
+function hasPromptContent(text: string, images: readonly unknown[] | undefined): boolean {
+	return text.trim().length > 0 || Boolean(images?.length);
+}
+
+function takePendingPromptStart(timer: PromptTimerState): number | undefined {
+	const startedAt = timer.pendingStartedAt;
+	clearPendingPromptStart(timer);
+	return startedAt ?? timer.queuedStartedAts.shift();
+}
+
+function schedulePendingPromptStartClear(timer: PromptTimerState, startedAt: number): void {
+	clearPendingPromptStartClear(timer);
+	timer.pendingClearImmediate = setImmediate(() => {
+		timer.pendingClearImmediate = undefined;
+		if (timer.pendingStartedAt === startedAt && timer.startedAt === undefined) {
+			timer.pendingStartedAt = undefined;
+		}
+	});
+	(timer.pendingClearImmediate as ReturnType<typeof setImmediate> & { unref?: () => void }).unref?.();
+}
+
+function clearPendingPromptStart(timer: PromptTimerState): void {
+	timer.pendingStartedAt = undefined;
+	clearPendingPromptStartClear(timer);
+}
+
+function clearPendingPromptStartClear(timer: PromptTimerState): void {
+	if (timer.pendingClearImmediate === undefined) return;
+	clearImmediate(timer.pendingClearImmediate);
+	timer.pendingClearImmediate = undefined;
 }
 
 function startPromptTimer(timer: PromptTimerState, startedAt: number): void {
 	clearPromptTimerInterval(timer);
-	timer.pendingStartedAt = undefined;
 	timer.startedAt = startedAt;
 	timer.lastDurationMs = undefined;
 	timer.interval = setInterval(() => requestRender?.(), 250);
@@ -198,21 +249,18 @@ function startPromptTimer(timer: PromptTimerState, startedAt: number): void {
 }
 
 function stopPromptTimer(timer: PromptTimerState): boolean {
-	if (timer.startedAt === undefined) {
-		timer.pendingStartedAt = undefined;
-		return false;
-	}
+	if (timer.startedAt === undefined) return false;
 
 	timer.lastDurationMs = Date.now() - timer.startedAt;
 	timer.startedAt = undefined;
-	timer.pendingStartedAt = undefined;
 	clearPromptTimerInterval(timer);
 	requestRender?.();
 	return true;
 }
 
 function clearPromptTimer(timer: PromptTimerState): void {
-	timer.pendingStartedAt = undefined;
+	clearPendingPromptStart(timer);
+	timer.queuedStartedAts = [];
 	timer.startedAt = undefined;
 	timer.lastDurationMs = undefined;
 	clearPromptTimerInterval(timer);
