@@ -31,39 +31,40 @@ Examples:
 .worktrees/issues/bug-login-timeout/api/
 ```
 
-## Project selection
+## Project path selection
 
-codebase-memory-mcp indexes repositories as projects. Select the graph project by matching `root_path` to the repository or worktree repo you are working in.
+CodeGraph indexes repositories through a local `.codegraph/` directory. Select the graph by matching `projectPath` to the repository or worktree repo you are working in.
 
 Use this sequence:
 
-1. Call `codebase_memory_mcp_list_projects`.
-2. Match the active worktree repo to a project by `root_path`.
-3. If a project matches, call `codebase_memory_mcp_index_status(project=...)`; if none matches, skip status and treat the project as missing.
-4. Rebuild the active worktree graph with `codebase_memory_mcp_index_repository(repo_path=<worktree repo>, mode="full", persistence=false)` only when indexing is authorized and useful, and when the project is missing, status is empty/stale/incomplete/failed, the branch/worktree state changed, code was edited and graph accuracy matters, or deep/semantic graph accuracy is required. Then repeat project selection and status checks.
-5. Query the matched project for structural code work; if no project is available after any needed recheck, follow the degraded graph fallback.
+1. Identify the active worktree repo path.
+2. Run read-only `codegraph status <worktree repo>` through Context Mode, or call `codegraph_status` with `projectPath`.
+3. If the repo is not initialized, ask before `codegraph init -i <worktree repo>` unless setup/indexing was explicitly requested.
+4. Query CodeGraph with `projectPath` set to the active worktree repo.
+5. If no project is available after any authorized setup/recheck, follow the degraded graph fallback.
 
-Do not assume a base-repo graph represents a worktree after branch-specific edits. Re-index the worktree repo with `mode="full"` only when indexing is authorized and useful, and when branch-specific edits or changed relationships matter.
+Do not assume a base-repo graph represents a worktree after branch-specific edits. Initialize or sync the worktree repo only when graph accuracy matters and local index mutation is authorized.
 
 ## Multi-repo feature roots
 
 When a story or feature root contains multiple repositories:
 
-1. Index each repository as its own codebase-memory project only when indexing is authorized and useful.
-2. Use the project that matches the repo under investigation for repo-scoped work.
-3. Use `index_repository(repo_path=<active repo>, mode="cross-repo-intelligence", target_projects=[...])` only when cross-repo route/channel links are authorized, useful, needed, and target projects already have fresh indexes.
-4. Use `trace_path(project=..., function_name=..., mode="cross_service")` or `query_graph` over cross-service edge types only if the schema shows those edges exist.
+1. Check or initialize each repository as its own CodeGraph project only when indexing is authorized and useful.
+2. Pass `projectPath` for the repo under investigation for repo-scoped work.
+3. Use `codegraph_trace` or `codegraph_context` for cross-repo route/channel questions only when CodeGraph output shows the needed edges exist.
 
-Do not require every nested repo to be combined into one containing root. codebase-memory project boundaries are repository roots.
+Do not require every nested repo to be combined into one containing root. CodeGraph project boundaries should match repository roots unless a parent root is intentionally initialized.
 
 ## Stale or incomplete graph
 
-If project status, schema, or query results show the graph is missing, stale, empty, incomplete, or failed:
+If status or query results show the graph is missing, stale, uninitialized, or insufficient:
 
-1. Do not treat that as permission to skip graph-first automatically.
-2. Re-index the matching worktree repo with `mode="full"` and `persistence=false` only when indexing is authorized and useful, and when graph accuracy matters.
-3. Retry the graph query.
-4. Fall back to Context Mode/RTK only when needed indexing fails or graph results remain insufficient.
+1. Do not treat that as permission to skip graph-first silently.
+2. Initialize, sync, or index only when local index mutation is authorized and graph accuracy matters.
+3. Retry the graph query after authorized setup/sync.
+4. Fall back to Context Mode/RTK only when setup is not authorized, setup fails, or graph results remain insufficient.
+
+If CodeGraph emits a stale-file banner, read only the listed files for exact current content.
 
 ## Removing worktrees
 
@@ -72,11 +73,11 @@ When removing a worktree group:
 1. Verify removal targets are inside the expected worktree tree.
 2. Before any `rm -rf`, verify the path is not a symlink to somewhere outside the expected tree.
 3. Never delete outside the project directory or `.pi/` without explicit user confirmation.
-4. Do not call `codebase_memory_mcp_delete_project` unless the user explicitly asks to delete the local graph project.
-5. If the user does request graph cleanup, list projects first and delete only the exact project whose `root_path` matches the removed worktree repo.
+4. Do not run `codegraph uninit` unless the user explicitly asks to delete the local graph index.
+5. If the user does request graph cleanup, delete only the exact `.codegraph/` index for the matching worktree repo.
 
 ## Safety reminders
 
 - Worktree creation and local branch operations are local mutations and may use whitelisted direct Bash when safe.
 - Remote branch pushes still require exact explicit user instruction.
-- Keep graph-first structural code behavior active inside worktrees and follow `codebase-memory-mcp-protocol.md` for MCP parameters.
+- Keep graph-first structural code behavior active inside worktrees and follow `codegraph-protocol.md` for MCP parameters.

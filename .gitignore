@@ -54,6 +54,7 @@ Thumbs.db
 
 # Local code graph db/cache
 .codebase-memory/
+.codegraph/
 
 # Skills CLI project-local install/cache targets
 /.agents/

@@ -1,10 +1,10 @@
 # Fallback and troubleshooting
 
-This reference expands the fallback rules in `../SKILL.md`. Load it when Context Mode, RTK, or codebase-memory-mcp is unavailable, failing, stale, or producing unexpected output.
+This reference expands the fallback rules in `../SKILL.md`. Load it when Context Mode, RTK, or CodeGraph is unavailable, failing, stale, or producing unexpected output.
 
 ## Fallback principle
 
-Fallbacks must be explicit. Do not silently bypass Context Mode, RTK, codebase-memory-mcp, GitHub routing, or hosted-service mutation gates.
+Fallbacks must be explicit. Do not silently bypass Context Mode, RTK, CodeGraph, GitHub routing, or hosted-service mutation gates.
 
 When fallback occurs, record or summarize:
 
@@ -46,9 +46,9 @@ Common triggers:
 3. Hook misconfiguration.
 4. SQLite lock.
 5. RTK binary not found in sandbox PATH.
-6. codebase-memory-mcp unavailable or not connected.
-7. codebase-memory project missing, stale, empty, corrupt, or insufficient for the task.
-8. Required graph labels or edge types absent from the schema.
+6. CodeGraph MCP unavailable or not connected.
+7. CodeGraph project uninitialized, stale, missing, or insufficient for the task.
+8. Required CodeGraph relationships are absent or dynamic behavior is not statically visible.
 
 ## Suggested fallback log format
 
@@ -74,47 +74,37 @@ If writing a log file, use native file tools only when appropriate. Do not expos
 3. If a command may produce large output, avoid direct Bash even while troubleshooting.
 4. Use `ctx_search` to recover previously indexed state after compaction.
 
-## Troubleshooting codebase-memory-mcp not connecting
+## Troubleshooting CodeGraph not connecting
 
-1. Verify the MCP server list includes `codebase-memory-mcp`.
-2. If the server metadata is stale, restart Pi or reconnect the MCP server before trusting cached tool lists.
-3. Verify the installed command resolves with a short version/help check through Context Mode when shell inspection is needed.
-4. List tools from the `codebase-memory-mcp` server and confirm the expected graph tools are present.
+1. Verify the MCP server list includes `codegraph`.
+2. If server metadata is stale, restart Pi or reconnect the MCP server before trusting cached tool lists.
+3. Verify the installed command resolves with `codegraph --version` through Context Mode when shell inspection is needed.
+4. List tools from the `codegraph` server and confirm the expected tools are present.
 5. Retry the graph query after reconnecting.
 6. Fall back to Context Mode/RTK only if graph tooling remains unavailable or the task is not structural code work.
 
-## Troubleshooting project selection
+## Troubleshooting project path selection
 
-1. Call `codebase_memory_mcp_list_projects`.
-2. Match the active repository or worktree to a project by `root_path`.
-3. If a project matches, call `codebase_memory_mcp_index_status(project=...)`; if none matches, skip status and treat the project as missing.
-4. Rebuild with `codebase_memory_mcp_index_repository(repo_path=..., mode="full", persistence=false)` only when indexing is authorized and useful, graph accuracy matters, and the project is missing or status is empty, stale, incomplete, or failed.
-5. After needed indexing, list and match projects again; if no project matches, report a degraded graph fallback. If a project matches, rerun `codebase_memory_mcp_index_status(project=...)`; if status remains empty, stale, incomplete, or failed, report a degraded graph fallback.
-6. Do not guess `project` from the folder name.
+1. Identify the active repository or worktree path.
+2. Call `codegraph_status` with `projectPath` or run read-only `codegraph status <repo>`.
+3. If status says the project is not initialized, ask before `codegraph init -i <repo>` unless setup/indexing was explicitly requested.
+4. Pass `projectPath` for worktrees, multi-repo tasks, and repos outside the session root.
+5. If CodeGraph still cannot find the right project, report a degraded graph fallback. Do not guess based on folder names alone.
 
 ## Troubleshooting stale graph
 
-- Call `codebase_memory_mcp_index_status(project=...)`.
-- Re-index with `mode="full"` only when indexing is authorized and useful after file edits, branch changes, worktree creation, or empty/stale/incomplete/failed status when changed relationships matter.
-- Re-run the query after indexing.
+- Call `codegraph_status`.
+- If a stale banner names files, read only those files for exact current content.
+- If pending sync matters for graph accuracy, wait for sync or ask before running `codegraph sync` or `codegraph index`.
 - State when graph results may be stale.
 
 ## Troubleshooting graph query misses
 
-- Inspect schema with `codebase_memory_mcp_get_graph_schema(project=...)`.
-- Use `search_graph(query=...)` for natural-language symbol discovery.
-- Use `search_graph(name_pattern=...)` for known names; omit `query` because it takes precedence.
-- Use `semantic_query` as an array of keywords only when the index supports semantic search.
-- Use `search_code(mode="compact" or "files")` for code text patterns.
+- Use `codegraph_context` for architecture, feature-area, or bug questions.
+- Use `codegraph_trace` for flow/path questions.
+- Use `codegraph_search` only when a symbol name or likely name is known.
+- Use `codegraph_explore` for source across several related symbols.
 - Use Context Mode/RTK grep/search for literals, config, docs, generated files, or non-code files.
-
-## Troubleshooting Cypher
-
-- Inspect labels and edge types with `get_graph_schema` first.
-- Keep `max_rows` bounded.
-- Start with simple one-hop patterns before aggregations.
-- If a property appears blank or missing, query another property or use `get_code_snippet` for focused evidence.
-- Use `query_graph` for edge rows; degree filters in `search_graph` find nodes, not edge details.
 
 ## Troubleshooting RTK not found inside Context Mode
 
@@ -129,7 +119,7 @@ Review local fallback logs with Context Mode, not raw `tail`, when output may be
 - Restarting or upgrading Context Mode.
 - Reinstalling RTK hooks.
 - Restarting Pi to refresh MCP server metadata.
-- Re-indexing the codebase-memory project when indexing is authorized and useful.
+- Initializing or syncing CodeGraph only when setup/indexing is authorized.
 - Checking for SQLite locks.
 
 ## Troubleshooting uv not found for local tooling

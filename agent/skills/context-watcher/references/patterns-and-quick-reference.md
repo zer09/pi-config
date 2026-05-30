@@ -6,7 +6,7 @@ This reference expands examples from `../SKILL.md`. Load it when examples are ne
 
 1. Load `gh-cli` for GitHub data.
 2. Use `gh` through Context Mode/RTK to inspect the PR.
-3. Use codebase-memory-mcp to detect changed files, impacted symbols, callers/callees, and risky traces.
+3. Use CodeGraph to map changed areas, impacted symbols, callers/callees, and risky traces.
 4. Read only affected code needed for evidence.
 5. Run focused tests through Context Mode.
 6. Draft comments unless the user explicitly asks to post them.
@@ -15,20 +15,19 @@ This reference expands examples from `../SKILL.md`. Load it when examples are ne
 
 1. Run the failing test through `ctx_execute` or `ctx_batch_execute` with RTK.
 2. Summarize the first actionable failure.
-3. Use codebase-memory-mcp to find related symbols, callers, callees, data flow, or cross-service paths.
+3. Use CodeGraph to find related symbols, callers, callees, data flow, or request paths.
 4. Read/edit only relevant files.
 5. Re-run focused tests.
 6. Run broader checks only when needed before claiming completion.
 
 ## Pattern 3: codebase orientation
 
-1. Call `codebase_memory_mcp_list_projects`.
-2. Select the project whose `root_path` matches the active repo.
-3. Call `codebase_memory_mcp_index_status(project=...)`.
-4. Use `codebase_memory_mcp_get_architecture(project=...)` and `codebase_memory_mcp_get_graph_schema(project=...)` for first-pass orientation.
-5. Use `search_graph`, `trace_path`, `query_graph`, and `get_code_snippet` for focused evidence.
-6. Use Context Mode/RTK for compact file inventories if graph results are insufficient.
-7. Avoid reading large files or broad search output into context.
+1. Check `codegraph_status` or read-only `codegraph status <repo>` when project health is unknown.
+2. If the repo is not initialized, ask before `codegraph init -i <repo>` unless setup was explicitly requested.
+3. Use `codegraph_context` for first-pass orientation.
+4. Use `codegraph_search`, `codegraph_trace`, `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, and `codegraph_explore` for focused evidence.
+5. Use Context Mode/RTK for compact file inventories if graph results are insufficient.
+6. Avoid reading large files or broad search output into context.
 
 ## Pattern 4: infrastructure inspection
 
@@ -79,9 +78,9 @@ Avoid:
 ```text
 ctx_doctor
 ctx_stats
-codebase_memory_mcp_list_projects
-codebase_memory_mcp_index_status(project="...")
-codebase_memory_mcp_get_graph_schema(project="...")
+codegraph --version
+codegraph status <repo>
+codegraph_status(projectPath="<repo>")
 ```
 
 ### Git reads
@@ -120,14 +119,14 @@ ctx_search({ queries: ["specific API option"] })
 ### Graph review
 
 ```text
-codebase_memory_mcp_list_projects
-codebase_memory_mcp_index_status(project="my-project")
-codebase_memory_mcp_get_architecture(project="my-project")
-codebase_memory_mcp_get_graph_schema(project="my-project")
-codebase_memory_mcp_detect_changes(project="my-project", since="HEAD~1", depth=2)
-codebase_memory_mcp_search_graph(project="my-project", query="natural language target", limit=10)
-codebase_memory_mcp_trace_path(project="my-project", function_name="Target", direction="both", depth=3, risk_labels=true)
-codebase_memory_mcp_get_code_snippet(project="my-project", qualified_name="exact.qualified.Name", include_neighbors=true)
+codegraph_status(projectPath="<repo>")
+codegraph_context(task="Explain how the changed feature works", projectPath="<repo>")
+codegraph_search(query="KnownSymbol", projectPath="<repo>")
+codegraph_trace(from="incoming route", to="side effect", projectPath="<repo>")
+codegraph_callers(symbol="KnownSymbol", projectPath="<repo>")
+codegraph_callees(symbol="KnownSymbol", projectPath="<repo>")
+codegraph_impact(symbol="KnownSymbol", projectPath="<repo>")
+codegraph_explore(query="related symbols from prior result", projectPath="<repo>")
 ```
 
-Use `query_graph` with bounded `max_rows` for custom Cypher, fan-in/fan-out, and edge inspection. Use one-line Cypher strings inside MCP JSON when copy-paste simplicity matters.
+Use live MCP schemas as authoritative if parameter names differ from examples.

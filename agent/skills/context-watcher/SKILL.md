@@ -1,11 +1,11 @@
 ---
 name: context-watcher
-description: "Unified orchestration of Context Mode, RTK Token Optimizer, and codebase-memory-mcp. Use for shell commands, code review, blast radius analysis, graph-first exploration, test runs, git history, log analysis, web doc fetching, Playwright snapshots, CI/CD output, infrastructure inspection, and dependency management."
+description: "Unified orchestration of Context Mode, RTK Token Optimizer, and CodeGraph. Use for shell commands, code review, blast radius analysis, graph-first exploration, test runs, git history, log analysis, web doc fetching, Playwright snapshots, CI/CD output, infrastructure inspection, and dependency management."
 ---
 
 # Context Watcher
 
-Context Watcher protects the context window and routes shell work, file reads, web/docs access, GitHub data, codebase-memory-mcp, RTK, worktrees, reader delegates, and large output.
+Context Watcher protects the context window and routes shell work, file reads, web/docs access, GitHub data, CodeGraph, RTK, worktrees, reader delegates, and large output.
 
 Load and apply it for shell commands, tests/builds/lints, git reads, GitHub CLI work, code review, codebase orientation, refactor or blast-radius analysis, caller/callee lookup, logs, JSON/CSV/data processing, URLs/docs/API checks, browser snapshots, dependency or infrastructure inspection, worktrees, reader delegates, and resume/compaction recovery.
 
@@ -13,7 +13,7 @@ Load and apply it for shell commands, tests/builds/lints, git reads, GitHub CLI 
 
 - Context Mode is the default for read-only shell work and any output likely over 20 lines.
 - RTK is the default read-only shell prefix when available, and belongs inside Context Mode.
-- codebase-memory-mcp is first for structural code exploration, review, impact, caller/callee, worktree, and graph questions when available and applicable.
+- CodeGraph is first for structural code exploration, review, impact, caller/callee, worktree, and graph questions when available and applicable.
 - Native `read` is for files you intend to edit; `ctx_execute_file` is for analysis reads.
 - Native `write` and `edit` are the only tools for file creation or modification.
 - External hosted services are read-only unless the user explicitly requests the exact mutation.
@@ -35,10 +35,10 @@ Before every tool call, silently route by this checklist:
 7. GitHub data or operations? Load `gh-cli`, use authenticated `gh` through Context Mode/RTK, and keep private data out of browser/web fetch tools unless explicitly requested.
 8. URL or web document? Use `ctx_fetch_and_index`, then `ctx_search`.
 9. Third-party API/library/framework behavior? Check local installed source when relevant, then Context7; do not guess APIs, flags, versions, package names, endpoints, or fields.
-10. Codebase exploration, review, test discovery, architecture, blast radius, caller/callee, data flow, or refactor analysis? Use codebase-memory-mcp first when applicable.
-11. Worktree work? Use story-grouped roots and the codebase-memory project whose `root_path` matches each repo.
-12. Reader delegate? Require Context Watcher, Context Mode, RTK, codebase-memory-mcp for structural code work, `gh-cli` for GitHub, mutation gates, compact findings, and no recursive delegation.
-13. Context Mode, RTK, or codebase-memory-mcp failed? Follow fallback protocol with intended route, failure, fallback route, and completeness/degraded status.
+10. Codebase exploration, review, test discovery, architecture, blast radius, caller/callee, data flow, or refactor analysis? Use CodeGraph first when applicable.
+11. Worktree work? Use story-grouped roots and a CodeGraph index whose project path matches each repo/worktree.
+12. Reader delegate? Require Context Watcher, Context Mode, RTK, CodeGraph for structural code work, `gh-cli` for GitHub, mutation gates, compact findings, and no recursive delegation.
+13. Context Mode, RTK, or CodeGraph failed? Follow fallback protocol with intended route, failure, fallback route, and completeness/degraded status.
 
 ## Direct Bash whitelist
 
@@ -72,9 +72,9 @@ Rules:
 | Index already-available docs | `ctx_index` |
 | Third-party API/library docs | Context7 first; local installed source first when relevant |
 | GitHub/private repo data | `gh-cli` plus authenticated `gh` through Context Mode/RTK |
-| Code review/exploration | codebase-memory-mcp first for structural questions |
-| Worktree create/use/remove | story-grouped roots plus codebase-memory project/index lifecycle |
-| Reader delegation | `reader` with Context Watcher, Context Mode, RTK, codebase-memory-mcp, and mutation gates |
+| Code review/exploration | CodeGraph first for structural questions |
+| Worktree create/use/remove | story-grouped roots plus CodeGraph project path/index lifecycle |
+| Reader delegation | `reader` with Context Watcher, Context Mode, RTK, CodeGraph, and mutation gates |
 | Tool failure | explicit fallback protocol |
 
 ## Core tool rules
@@ -89,24 +89,33 @@ Use RTK as the default prefix for read-only shell operations when available, ins
 
 For counts, filters, diffs, parsing, aggregation, or transforms, program the analysis in Context Mode and print only the answer. Do not inspect raw logs, test output, snapshots, JSON, CSV, or large source mentally.
 
-### codebase-memory-mcp
+### CodeGraph
 
-Start structural graph work with:
+Start structural graph work with CodeGraph when available:
 
-1. `codebase_memory_mcp_list_projects`.
-2. Match the active repository root to a project by `root_path`.
-3. If a project matches, call `codebase_memory_mcp_index_status(project=...)`; if none matches, skip status and treat the project as missing.
-4. Rebuild the active repository graph with `codebase_memory_mcp_index_repository(repo_path=<active repo root>, mode="full", persistence=false)` only when indexing is authorized and useful, and when the project is missing, status is empty/stale/incomplete/failed, the branch/worktree state changed, code was edited and graph accuracy matters, or deep/semantic graph accuracy is required. Then repeat project selection and status checks.
-5. If a project is available after any needed recheck, call `codebase_memory_mcp_get_architecture(project=...)` or `codebase_memory_mcp_get_graph_schema(project=...)`.
-6. Use focused tools only with that matched project: `codebase_memory_mcp_search_graph`, `codebase_memory_mcp_trace_path`, `codebase_memory_mcp_query_graph`, `codebase_memory_mcp_detect_changes`, `codebase_memory_mcp_search_code`, and `codebase_memory_mcp_get_code_snippet`.
+1. If project health is unknown, call `codegraph_status` through MCP or run read-only `codegraph status <repo>` through Context Mode.
+2. If the project is uninitialized, ask before `codegraph init -i <repo>` unless the user explicitly requested setup/indexing.
+3. Pass `projectPath` on MCP calls for worktrees, multi-repo tasks, or repos outside the session root.
+4. Choose the first tool by intent:
+   - Architecture, onboarding, area, or bug questions: `codegraph_context`.
+   - Flow/path questions: `codegraph_trace`.
+   - Known symbol lookup: `codegraph_search`.
+   - One exact symbol source: `codegraph_node`.
+   - Related source survey: `codegraph_explore`.
+   - Direct relationships: `codegraph_callers` or `codegraph_callees`.
+   - Blast radius or refactor planning: `codegraph_impact`.
+   - Indexed layout: `codegraph_files`.
+   - Health/pending sync: `codegraph_status`.
+5. If a stale banner names files, read only those files for exact current content.
+6. If CodeGraph remains unavailable, uninitialized, stale, or insufficient, follow the fallback protocol and state that graph results are degraded.
 
-Most query tools require `project`; get it from `codebase_memory_mcp_list_projects`. Use `codebase_memory_mcp_get_code_snippet` only after `codebase_memory_mcp_search_graph` finds an exact `qualified_name`. If needed indexing fails or the project remains missing, empty, stale, incomplete, or failed, follow the fallback protocol and state that graph results are degraded. Treat `codebase_memory_mcp_delete_project(project=...)`, `codebase_memory_mcp_manage_adr(project=..., mode="update")`, `codebase_memory_mcp_ingest_traces(project=..., traces=...)`, and persistent indexing as deliberate local memory mutations.
+Do not start structural code questions with grep/find/manual file reading. Do not loop over many `codegraph_node` calls when one `codegraph_context` or `codegraph_explore` call can answer.
 
 ### GitHub, Context7, worktrees, readers, fallback
 
 - GitHub: load `gh-cli`; use authenticated `gh` through Context Mode/RTK; keep `git push`, PR creation, comments, reviews, labels, workflow dispatches, releases, and merges behind exact user instruction.
 - Context7: use before current third-party API/library/framework advice or implementation; do not send secrets, personal data, or proprietary code.
-- Worktrees: use `.worktrees/<story>/<feature-name>/<repo-name>/` or `.worktrees/issues/<issue-number>/<repo-name>/`; select/index the matching codebase-memory project by `root_path`; do not delete codebase-memory projects unless explicitly asked.
+- Worktrees: use `.worktrees/<story>/<feature-name>/<repo-name>/` or `.worktrees/issues/<issue-number>/<repo-name>/`; use a CodeGraph index for the matching repo/worktree path; do not run `codegraph uninit` unless explicitly asked.
 - Reader delegates: use only for read-only bounded investigation/review/testing/docs/consistency work; require Context Watcher routing and compact structured findings; parent owns validation, edits, commits, hosted mutations, and final reporting.
 - Fallback: record intended route, failure reason, fallback route, and whether results are complete or degraded.
 
@@ -118,17 +127,17 @@ Load references only when their trigger applies. If a rule is needed for safe ro
 |---|---|
 | [`references/context-mode-routing.md`](references/context-mode-routing.md) | Context Mode tool choice, command routing, file/log/test/build output, or examples matter. |
 | [`references/rtk-usage.md`](references/rtk-usage.md) | RTK flags, compression behavior, analytics, examples, or failure modes matter. |
-| [`references/codebase-memory-mcp-protocol.md`](references/codebase-memory-mcp-protocol.md) | Code review, exploration, graph indexing, stale graph, project selection, Cypher, trace, or graph fallback details matter. |
+| [`references/codegraph-protocol.md`](references/codegraph-protocol.md) | Code review, exploration, graph setup/indexing, stale graph, project paths, trace, impact, or graph fallback details matter. |
 | [`references/github-and-context7-routing.md`](references/github-and-context7-routing.md) | GitHub/private GitHub data or current third-party library/API docs are involved. |
 | [`references/worktree-graph-protocol.md`](references/worktree-graph-protocol.md) | Creating, using, indexing, or removing worktrees. |
 | [`references/reader-protocol.md`](references/reader-protocol.md) | Delegating to `reader` delegates or orchestrating parallel investigations. |
-| [`references/fallback-and-troubleshooting.md`](references/fallback-and-troubleshooting.md) | Context Mode, RTK, or codebase-memory-mcp is unavailable, failing, stale, or unexpected. |
+| [`references/fallback-and-troubleshooting.md`](references/fallback-and-troubleshooting.md) | Context Mode, RTK, or CodeGraph is unavailable, failing, stale, or unexpected. |
 | [`references/patterns-and-quick-reference.md`](references/patterns-and-quick-reference.md) | Examples are needed for PR review, test-debug-fix, orientation, infrastructure, docs lookup, recovery, or data analysis. |
 | [`references/upstream-sources.md`](references/upstream-sources.md) | Updating this skill, checking provenance, compatibility, or maintenance rules. |
 
 ## Behavioral self-check
 
-Before committing changes to this skill, verify that base-only loading still routes: large logs to `ctx_execute_file`; tests/builds/git reads to Context Mode plus RTK; source edits to native `read`/`edit`; new files to `write`; structural review to codebase-memory-mcp first; third-party APIs to Context7; private GitHub to `gh-cli` plus authenticated `gh`; broad PR handling as read-only unless exact mutation is requested; URLs to `ctx_fetch_and_index`/`ctx_search`; worktrees to story roots plus graph lifecycle; readers with inherited routing and mutation gates; failures to explicit fallback; resumed sessions to `ctx_search(sort: "timeline")` before asking the user.
+Before committing changes to this skill, verify that base-only loading still routes: large logs to `ctx_execute_file`; tests/builds/git reads to Context Mode plus RTK; source edits to native `read`/`edit`; new files to `write`; structural review to CodeGraph first; third-party APIs to Context7; private GitHub to `gh-cli` plus authenticated `gh`; broad PR handling as read-only unless exact mutation is requested; URLs to `ctx_fetch_and_index`/`ctx_search`; worktrees to story roots plus graph lifecycle; readers with inherited routing and mutation gates; failures to explicit fallback; resumed sessions to `ctx_search(sort: "timeline")` before asking the user.
 
 ## Maintenance
 

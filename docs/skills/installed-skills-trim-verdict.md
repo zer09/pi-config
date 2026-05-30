@@ -9,7 +9,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | ✓ | a11y-debugging | Strong | 8 | make it slim | Slimmed to Chrome MCP a11y workflow, browser mutation safety, large-output handling, and snippet references. |
 | ✓ | chrome-devtools | Good | 7 | make it slim | Slimmed to MCP page workflow, tool selection, browser mutation gates, and troubleshooting handoff. |
 | ✓ | chrome-devtools-cli | Medium | 5 | make it slim | Slimmed to CLI command shape, command groups, Context Mode routing, setup gate, and gotchas. |
-| ✓ | codebase-memory-mcp | Weak | 3 | keep it | Retained because the custom MCP protocol and project/index rules need explicit guidance. |
+| ✓ | codegraph | Weak | 3 | keep it | Retained because the custom CodeGraph MCP/CLI protocol, projectPath routing, staleness policy, and local index rules need explicit guidance. |
 | ✓ | context-mode | Weak | 3 | keep it | Retained because core local context-saving behavior is tool-specific and important. |
 | ✓ | context-watcher | Weak | 2 | keep it | Retained because this is core orchestration and safety policy for this Pi setup. |
 | ✓ | context7-cli | Medium | 5 | make it slim | Slimmed to docs lookup workflow, mutation gates for auth/setup/skills/upgrade commands, reference routing, and common gotchas. |
@@ -56,11 +56,11 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | ✓ | troubleshooting | Medium | 6 | make it slim | Slimmed to Chrome DevTools MCP failure triage, known error patterns, configuration safety, and diagnostics. |
 | ✓ | ty | Medium | 6 | make it slim | Newer Python type checker; keep exact command guidance. |
 | x | understand | Low-medium | 4 | remove it | External/symlinked suite; remove unless actively used. |
-| x | understand-chat | Low-medium | 4 | remove it | Same as above; overlaps with codebase-memory/context tools. |
+| x | understand-chat | Low-medium | 4 | remove it | Same as above; overlaps with CodeGraph/Context Mode tools. |
 | x | understand-dashboard | Low-medium | 4 | remove it | Same as above; optional visualization only. |
 | x | understand-diff | Low-medium | 4 | remove it | Same as above; diff analysis can use existing tools. |
 | x | understand-domain | Low-medium | 4 | remove it | Same as above; domain extraction is not core. |
 | x | understand-explain | Low-medium | 4 | remove it | Same as above; explanation can use normal code tools. |
-| x | understand-knowledge | Low-medium | 4 | remove it | Same as above; niche knowledge graph workflow. |
-| x | understand-onboard | Low-medium | 4 | remove it | Same as above; onboarding can be done generically. |
+| x | understand-knowledge | Low-medium | 4 | remove it | Same as above; niche knowledge graph workflow replaced by CodeGraph. |
+| x | understand-onboard | Low-medium | 4 | remove it | Same as above; onboarding can be done with CodeGraph or normal code tools. |
 | ✓ | uv | Good | 7 | make it slim | I know uv fairly well; keep only preferred project commands. |
