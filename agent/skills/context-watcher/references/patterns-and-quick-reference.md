@@ -137,15 +137,15 @@ codegraph_impact(symbol="KnownSymbol", projectPath="<repo>")
 ```text
 ctx_batch_execute({
   commands: [
-    { label: "codegraph status", command: "codegraph status <repo> --json" },
-    { label: "codegraph search KnownSymbol", command: "codegraph query -p <repo> KnownSymbol --json" },
-    { label: "codegraph callers KnownSymbol", command: "codegraph callers -p <repo> KnownSymbol --json" },
-    { label: "codegraph impact KnownSymbol", command: "codegraph impact -p <repo> KnownSymbol --json" }
+    { label: "codegraph status", command: "codegraph status <repo> | perl -pe 's/\\e\\[[0-9;?]*[ -\\/]*[@-~]//g'" },
+    { label: "codegraph search KnownSymbol", command: "codegraph query -p <repo> KnownSymbol | perl -pe 's/\\e\\[[0-9;?]*[ -\\/]*[@-~]//g'" },
+    { label: "codegraph callers KnownSymbol", command: "codegraph callers -p <repo> KnownSymbol | perl -pe 's/\\e\\[[0-9;?]*[ -\\/]*[@-~]//g'" },
+    { label: "codegraph impact KnownSymbol", command: "codegraph impact -p <repo> KnownSymbol | perl -pe 's/\\e\\[[0-9;?]*[ -\\/]*[@-~]//g'" }
   ],
   queries: ["health", "KnownSymbol callers", "KnownSymbol impact"]
 })
 ```
 
-Use plain `codegraph files -p <repo> --format flat` inside Context Mode when symbol counts matter; in CodeGraph 0.9.7, CLI JSON may omit them.
+Use MCP first when symbol ambiguity matters. Use plain CLI with ANSI stripped when output should be indexed and searched later. Use CLI `--json` only inside programmed analysis that prints a compact summary. Use plain `codegraph files -p <repo> --format flat` when symbol counts matter; in CodeGraph 0.9.7, CLI JSON may omit them.
 
 Use live MCP schemas as authoritative if parameter names differ from examples.

@@ -15,7 +15,8 @@ Load and apply it for shell commands, tests/builds/lints, git reads, GitHub CLI 
 - RTK is the default read-only shell prefix when available, and belongs inside Context Mode.
 - CodeGraph is first for structural code exploration, review, impact, caller/callee, worktree, and graph questions when available and applicable.
 - When Context Mode is started for code work, treat CodeGraph MCP as part of the same Context Watcher runtime and verify/reconnect it when needed.
-- Use CodeGraph CLI inside Context Mode for overlapping read-only graph output that should be indexed, searched, batched, parsed, or compared.
+- Prefer CodeGraph MCP for first-pass reasoning, ambiguity detection, and source/flow tools; use CodeGraph CLI inside Context Mode for durable, indexed, batched, parsed, or compared graph output.
+- For CLI graph output, strip ANSI from plain output; use JSON only inside programmed analysis that prints a compact summary.
 - Native `read` is for files you intend to edit; `ctx_execute_file` is for analysis reads.
 - Native `write` and `edit` are the only tools for file creation or modification.
 - External hosted services are read-only unless the user explicitly requests the exact mutation.
@@ -37,7 +38,7 @@ Before every tool call, silently route by this checklist:
 7. GitHub data or operations? Load `gh-cli`, use authenticated `gh` through Context Mode/RTK, and keep private data out of browser/web fetch tools unless explicitly requested.
 8. URL or web document? Use `ctx_fetch_and_index`, then `ctx_search`.
 9. Third-party API/library/framework behavior? Check local installed source when relevant, then Context7; do not guess APIs, flags, versions, package names, endpoints, or fields.
-10. Codebase exploration, review, test discovery, architecture, blast radius, caller/callee, data flow, or refactor analysis? Use CodeGraph first when applicable; use CLI inside Context Mode when durable indexed graph output is better.
+10. Codebase exploration, review, test discovery, architecture, blast radius, caller/callee, data flow, or refactor analysis? Use CodeGraph MCP first for thinking/ambiguity; use CLI inside Context Mode when durable indexed graph evidence is better.
 11. Worktree work? Use story-grouped roots and a CodeGraph index whose project path matches each repo/worktree.
 12. Reader delegate? Require Context Watcher, Context Mode, RTK, CodeGraph for structural code work, `gh-cli` for GitHub, mutation gates, compact findings, and no recursive delegation.
 13. Context Mode, RTK, or CodeGraph failed? Follow fallback protocol with intended route, failure, fallback route, and completeness/degraded status.
@@ -97,7 +98,7 @@ Use CodeGraph before grep/find/manual source walking for structural code work.
 
 Base route: keep CodeGraph MCP available alongside Context Mode for code work; check health with read-only `codegraph status <repo>` or exposed `codegraph_status`; ask before local index mutations; list live MCP tools before optional caller/callee/impact/status assumptions; pass `projectPath` for worktrees and non-session repos; read stale-banner files only when exact current content matters.
 
-First tool by intent: `codegraph_context` for architecture/onboarding/bug areas, `codegraph_trace` for flow/path questions, `codegraph_search` for known symbols, `codegraph_node` for one exact symbol, and `codegraph_explore` for related source surveys. Use optional `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_files`, and `codegraph_status` when exposed for immediate lookup; use equivalent CLI commands through Context Mode/RTK when output should be indexed, searched, batched, parsed, compared, or when optional MCP tools are hidden.
+First tool by intent: `codegraph_context` for architecture/onboarding/bug areas, `codegraph_trace` for flow/path questions, `codegraph_search` for known symbols, `codegraph_node` for one exact symbol, and `codegraph_explore` for related source surveys. Use optional `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_files`, and `codegraph_status` when exposed for immediate lookup. Use equivalent CLI commands through Context Mode/RTK when output should be indexed, searched, batched, parsed, compared, or when optional MCP tools are hidden; strip ANSI for plain output and reserve raw JSON for programmed summaries.
 
 If CodeGraph is unavailable, uninitialized, stale, hidden by tool gating, or insufficient, follow the fallback protocol and state that graph results are degraded.
 

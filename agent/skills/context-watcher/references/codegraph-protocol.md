@@ -65,19 +65,34 @@ Practical CLI notes: `codegraph files` has no positional repo argument; use `-p 
 
 ## MCP vs CLI routing
 
-For overlapping read-only CodeGraph features, MCP and CLI use the same graph data. Prefer CodeGraph CLI inside Context Mode when output should be indexed, searched later, batched, parsed, counted, compared, or preserved for a review. Prefer MCP for immediate graph exploration and for tools without exact CLI equivalents.
+For overlapping read-only CodeGraph features, MCP and CLI use the same graph data. Use this shortcut:
 
-| Intent | MCP | CLI inside Context Mode |
-|---|---|---|
-| Index health | `codegraph_status` | `codegraph status <repo> --json` |
-| Symbol search | `codegraph_search` | `codegraph query -p <repo> <term> --json` |
-| File layout | `codegraph_files` | `codegraph files -p <repo> --format flat` |
-| Task context | `codegraph_context` | `codegraph context -p <repo> "<task>" --format json` |
-| Callers | `codegraph_callers` | `codegraph callers -p <repo> <symbol> --json` |
-| Callees | `codegraph_callees` | `codegraph callees -p <repo> <symbol> --json` |
-| Impact | `codegraph_impact` | `codegraph impact -p <repo> <symbol> --json` |
+```text
+MCP for thinking: first-pass reasoning, ambiguity detection, immediate lookup, source, and flow.
+CLI inside Context Mode for capturing: durable indexed output, batches, comparisons, and programmed analysis.
+```
+
+Prefer MCP when a symbol name may be ambiguous. MCP can surface aggregation notes, such as multiple symbols with the same name, that plain CLI output may omit. After narrowing the exact symbol/file, CLI is safe for batching and indexing.
 
 Use MCP-first tools for source and flows that have no exact CLI equivalent: `codegraph_node`, `codegraph_explore`, and `codegraph_trace`.
+
+For CLI capture, default to plain output with ANSI stripped:
+
+```text
+| perl -pe 's/\e\[[0-9;?]*[ -\/]*[@-~]//g'
+```
+
+Use `--json` only when code in `ctx_execute`/`ctx_batch_execute` will parse it and print a compact summary. Do not surface large raw JSON unless the user needs machine-readable output.
+
+| Intent | MCP for thinking | CLI inside Context Mode for capture |
+|---|---|---|
+| Index health | `codegraph_status` | `codegraph status <repo>` |
+| Symbol search | `codegraph_search` | `codegraph query -p <repo> <term>` |
+| File layout | `codegraph_files` | `codegraph files -p <repo> --format flat` |
+| Task context | `codegraph_context` | `codegraph context -p <repo> "<task>" --no-code` |
+| Callers | `codegraph_callers` | `codegraph callers -p <repo> <symbol>` |
+| Callees | `codegraph_callees` | `codegraph callees -p <repo> <symbol>` |
+| Impact | `codegraph_impact` | `codegraph impact -p <repo> <symbol>` |
 
 Use `ctx_batch_execute` for multiple CLI graph checks so each command output is indexed and searchable by `ctx_search`. Use `ctx_execute` for one focused CLI graph command when batching is unnecessary.
 
@@ -117,7 +132,7 @@ Parameter guidance:
 - Use `codegraph_search` when a symbol name is known or likely.
 - Use `codegraph_node` only for one exact symbol.
 - Use `codegraph_explore` for related source across several symbols/files; pass a bag of symbol/file names, not a natural-language question.
-- Use `codegraph_impact` before refactors or edits to public/high fan-in symbols when exposed for immediate lookup; use CLI `codegraph impact -p <repo> <symbol> --json` inside Context Mode for indexed refactor or review planning.
+- Use `codegraph_impact` before refactors or edits to public/high fan-in symbols when exposed for immediate lookup; use CLI `codegraph impact -p <repo> <symbol>` inside Context Mode for indexed refactor or review planning. Add `--json` only when code will parse it and print a compact summary.
 
 Example context args:
 
@@ -152,7 +167,7 @@ For review tasks:
 3. Use `codegraph_search` for changed public symbols when names are known.
 4. Use `codegraph_trace` for request, event, async job, data, or control-flow paths.
 5. Use one `codegraph_explore` for source evidence across surfaced symbols.
-6. Use `codegraph_impact`, `codegraph_callers`, or `codegraph_callees` when the live server exposes them for immediate lookup; use CLI equivalents through `ctx_batch_execute` when relationship output should be indexed or compared.
+6. Use `codegraph_impact`, `codegraph_callers`, or `codegraph_callees` when the live server exposes them for immediate lookup; use CLI equivalents through `ctx_batch_execute` when relationship output should be indexed or compared. Strip ANSI from plain CLI output.
 7. Draft comments unless the user explicitly asks to post them.
 
 CodeGraph complements tests and lint; it does not replace validation.
@@ -171,7 +186,7 @@ For known symbols:
 codegraph_search -> codegraph_trace -> codegraph_explore -> optional codegraph_callers/codegraph_callees/codegraph_impact
 ```
 
-Use `impact` before edits when exposed to understand callers, downstream callees, route handlers, tests, and cross-language edges when indexed. For refactor planning or review evidence, prefer CLI `codegraph impact -p <repo> <symbol> --json` through Context Mode so the result is indexed. If optional tools are not exposed, use CLI equivalents through Context Mode plus core context, trace, and explore results.
+Use `impact` before edits when exposed to understand callers, downstream callees, route handlers, tests, and cross-language edges when indexed. For refactor planning or review evidence, prefer CLI `codegraph impact -p <repo> <symbol>` through Context Mode so the result is indexed; use JSON only for programmed summaries. If optional tools are not exposed, use CLI equivalents through Context Mode plus core context, trace, and explore results.
 
 ## Staleness handling
 
