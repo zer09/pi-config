@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,7 +23,6 @@ const MCP_SERVER_GLYPH = "\uf233";
 const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
 const GIT_STATUS_TTL_MS = 5000;
 const GIT_STATUS_TIMEOUT_MS = 500;
-const GIT_STATUS_MAX_BUFFER = 64 * 1024;
 const CONFIG_PATH = join(dirname(fileURLToPath(import.meta.url)), "config.json");
 
 const SEGMENT_KEYS = [
@@ -136,11 +135,12 @@ export default function gcFooter(pi: ExtensionAPI): void {
 			const render = () => tui.requestRender();
 			const renderBranchChange = () => {
 				const branch = getBranch();
-				scheduleGitStatusRefresh(gitStatus, ctx.cwd, branch, true);
+				if (config.segments.branch) scheduleGitStatusRefresh(gitStatus, ctx.cwd, branch, true);
 				render();
 			};
 			requestRender = render;
-			scheduleGitStatusRefresh(gitStatus, ctx.cwd, getBranch(), true);
+			const initialBranch = getBranch();
+			if (config.segments.branch) scheduleGitStatusRefresh(gitStatus, ctx.cwd, initialBranch, true);
 
 			const unsubscribeBranch = footerData.onBranchChange(renderBranchChange);
 
@@ -153,7 +153,7 @@ export default function gcFooter(pi: ExtensionAPI): void {
 				invalidate() {},
 				render(width: number): string[] {
 					const branch = getBranch();
-					scheduleGitStatusRefresh(gitStatus, ctx.cwd, branch);
+					if (config.segments.branch) scheduleGitStatusRefresh(gitStatus, ctx.cwd, branch);
 					return [renderFooterLine(
 						width,
 						pi,
@@ -163,7 +163,7 @@ export default function gcFooter(pi: ExtensionAPI): void {
 						config,
 						promptTimer,
 						branch,
-						getGitStatusForRender(gitStatus, ctx.cwd, branch),
+						config.segments.branch ? getGitStatusForRender(gitStatus, ctx.cwd, branch) : undefined,
 					)];
 				},
 			};
@@ -531,49 +531,81 @@ async function refreshGitStatus(state: GitStatusState, cwd: string, branch: stri
 
 function readGitStatus(cwd: string, fallbackBranch: string | null): Promise<GitStatus | undefined> {
 	return new Promise((resolve) => {
+		let resolved = false;
+		let status: GitStatus = {
+			branch: fallbackBranch,
+			dirty: false,
+			ahead: 0,
+			behind: 0,
+		};
+		let pendingLine = "";
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		let child: ReturnType<typeof spawn>;
+
+		const finish = (result: GitStatus | undefined) => {
+			if (resolved) return;
+			resolved = true;
+			if (timeout !== undefined) clearTimeout(timeout);
+			resolve(result);
+		};
+
+		const parseLine = (line: string) => {
+			status = parseGitStatusLine(line, status);
+		};
+
 		try {
-			const child = execFile(
-				"git",
-				["status", "--porcelain=v2", "--branch"],
-				{
-					cwd,
-					encoding: "utf8",
-					maxBuffer: GIT_STATUS_MAX_BUFFER,
-					timeout: GIT_STATUS_TIMEOUT_MS,
-				},
-				(error, stdout) => {
-					resolve(error ? undefined : parseGitStatusOutput(stdout, fallbackBranch));
-				},
-			);
-			child.unref?.();
+			child = spawn("git", ["status", "--porcelain=v2", "--branch"], {
+				cwd,
+				stdio: ["ignore", "pipe", "ignore"],
+			});
 		} catch {
-			resolve(undefined);
+			finish(undefined);
+			return;
 		}
+
+		timeout = setTimeout(() => {
+			child.kill();
+			finish(undefined);
+		}, GIT_STATUS_TIMEOUT_MS);
+		(timeout as ReturnType<typeof setTimeout> & { unref?: () => void }).unref?.();
+
+		child.stdout.setEncoding("utf8");
+		child.stdout.on("data", (chunk: string) => {
+			pendingLine += chunk;
+			let newlineIndex = pendingLine.indexOf("\n");
+			while (newlineIndex !== -1) {
+				parseLine(pendingLine.slice(0, newlineIndex).replace(/\r$/, ""));
+				pendingLine = pendingLine.slice(newlineIndex + 1);
+				if (status.dirty && status.branch) {
+					child.kill();
+					finish(status);
+					return;
+				}
+				newlineIndex = pendingLine.indexOf("\n");
+			}
+		});
+		child.on("error", () => finish(undefined));
+		child.on("close", (code) => {
+			if (pendingLine) parseLine(pendingLine.replace(/\r$/, ""));
+			finish(code === 0 && status.branch ? status : undefined);
+		});
+		child.unref?.();
 	});
 }
 
-function parseGitStatusOutput(output: string, fallbackBranch: string | null): GitStatus | undefined {
-	let branch = fallbackBranch;
-	let dirty = false;
-	let ahead = 0;
-	let behind = 0;
-
-	for (const line of output.split(/\r?\n/)) {
-		if (!line) continue;
-		if (line.startsWith("# branch.head ")) {
-			branch = normalizeGitBranch(line.slice("# branch.head ".length).trim(), branch);
-		} else if (line.startsWith("# branch.ab ")) {
-			const match = line.match(/^# branch\.ab \+(\d+) -(\d+)$/);
-			if (match) {
-				ahead = Number(match[1]);
-				behind = Number(match[2]);
-			}
-		} else if (!line.startsWith("#")) {
-			dirty = true;
-		}
+function parseGitStatusLine(line: string, status: GitStatus): GitStatus {
+	if (!line) return status;
+	if (line.startsWith("# branch.head ")) {
+		return {
+			...status,
+			branch: normalizeGitBranch(line.slice("# branch.head ".length).trim(), status.branch),
+		};
 	}
-
-	return branch ? { branch, dirty, ahead, behind } : undefined;
+	if (line.startsWith("# branch.ab ")) {
+		const match = line.match(/^# branch\.ab \+(\d+) -(\d+)$/);
+		return match ? { ...status, ahead: Number(match[1]), behind: Number(match[2]) } : status;
+	}
+	return line.startsWith("#") ? status : { ...status, dirty: true };
 }
 
 function normalizeGitBranch(head: string, fallbackBranch: string | null): string | null {
@@ -604,7 +636,7 @@ function formatExtensionStatuses(
 	const statusText = Array.from(statuses.entries())
 		.sort(([a], [b]) => a.localeCompare(b))
 		.map(([, text]) => formatExtensionStatus(sanitizeStatusText(text), theme, nerdFont))
-		.filter((status) => mode === "full" || status.active)
+		.filter((status) => mode === "full" || status.keepInCompact)
 		.map((status) => status.text)
 		.filter(Boolean)
 		.join(" ");
@@ -612,7 +644,7 @@ function formatExtensionStatuses(
 	return statusText || undefined;
 }
 
-function formatExtensionStatus(text: string, theme: Theme, nerdFont: boolean): { text: string; active: boolean } {
+function formatExtensionStatus(text: string, theme: Theme, nerdFont: boolean): { text: string; keepInCompact: boolean } {
 	const plainText = stripAnsi(text);
 	const mcpMatch = plainText.match(/^MCP:\s*(\d+)\s*\/\s*(\d+)\s+servers?$/i);
 	if (mcpMatch) {
@@ -620,14 +652,14 @@ function formatExtensionStatus(text: string, theme: Theme, nerdFont: boolean): {
 		const active = Number(connected) > 0;
 		const compactText = `${nerdFont ? MCP_SERVER_GLYPH : "MCP"} ${connected}/${total}`;
 		return {
-			active,
+			keepInCompact: active,
 			text: active
 				? preserveVisibleTextStyle(text, visibleText, compactText)
 				: theme.fg("muted", compactText),
 		};
 	}
 
-	return { text, active: false };
+	return { text, keepInCompact: true };
 }
 
 function preserveVisibleTextStyle(text: string, visibleText: string, compactText: string): string {

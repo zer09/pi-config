@@ -41,10 +41,14 @@ async function waitFor(predicate, message) {
 }
 
 async function withFakeGitStatus(output, fn) {
+	return withFakeGitScript(`process.stdout.write(${JSON.stringify(output)});\n`, fn);
+}
+
+async function withFakeGitScript(script, fn) {
 	const oldPath = process.env.PATH;
 	const binDir = fs.mkdtempSync(path.join(os.tmpdir(), "gc-footer-git-"));
 	const gitPath = path.join(binDir, "git");
-	fs.writeFileSync(gitPath, `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(output)});\n`, "utf8");
+	fs.writeFileSync(gitPath, `#!/usr/bin/env node\n${script}`, "utf8");
 	fs.chmodSync(gitPath, 0o755);
 	process.env.PATH = [binDir, oldPath].filter(Boolean).join(path.delimiter);
 	try {
@@ -271,6 +275,35 @@ async function run() {
 		const footer = await createFooter({ cwd: __dirname, branch: "main" });
 		await waitFor(() => footer.renderPlain().includes("(main +2/-1*)"), "diverged dirty branch should show ahead, behind, and dirty marker");
 	});
+
+	{
+		const largeDirtyOutput = `# branch.head main\n# branch.ab +0 -0\n${Array.from({ length: 9000 }, (_, index) => `? file-${index}\n`).join("")}`;
+		await withFakeGitStatus(largeDirtyOutput, async () => {
+			const footer = await createFooter({ cwd: __dirname, branch: "main" });
+			await waitFor(() => footer.renderPlain().includes("(main*)"), "large dirty status output should still show dirty marker");
+		});
+	}
+
+	{
+		const markerPath = path.join(os.tmpdir(), `gc-footer-git-disabled-${process.pid}-${Date.now()}`);
+		try {
+			await withFakeGitScript(
+				`require("node:fs").writeFileSync(${JSON.stringify(markerPath)}, "ran");\nprocess.stdout.write("# branch.head main\\n# branch.ab +0 -0\\n");\n`,
+				async () => {
+					const footer = await createFooter({
+						cwd: __dirname,
+						branch: "main",
+						config: { segments: { branch: false } },
+					});
+					footer.renderPlain();
+					await new Promise((resolve) => setTimeout(resolve, 20));
+					assert.equal(fs.existsSync(markerPath), false, "disabled branch segment should not spawn git status");
+				},
+			);
+		} finally {
+			fs.rmSync(markerPath, { force: true });
+		}
+	}
 
 	{
 		const footer = await createFooter();
@@ -560,6 +593,15 @@ async function run() {
 			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
 		});
 		assert.ok(footer.renderPlain(90).includes("\uf233 2/9"), "compact layout should keep active MCP status");
+	}
+
+	{
+		const footer = await createFooter({
+			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
+			statuses: new Map([["other", "status:warn"]]),
+		});
+		const line = footer.renderPlain(60);
+		assert.ok(line.includes("status:warn"), "compact layout should preserve non-MCP extension statuses");
 	}
 
 	{
