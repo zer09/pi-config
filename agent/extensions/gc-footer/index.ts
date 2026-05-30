@@ -15,12 +15,17 @@ const THINKING_OUTLINE_CIRCLE = "\uf10c";
 const THINKING_FILLED_CIRCLE = "\uf111";
 const FALLBACK_THINKING_OUTLINE_CIRCLE = "\u25cb";
 const FALLBACK_THINKING_FILLED_CIRCLE = "\u25cf";
+const TIMER_RUNNING_GLYPH = "\uf017";
+const TIMER_DONE_GLYPH = "\uf00c";
+const MCP_SERVER_GLYPH = "\uf233";
+const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
 const CONFIG_PATH = join(dirname(fileURLToPath(import.meta.url)), "config.json");
 
 const SEGMENT_KEYS = [
 	"cwd",
 	"branch",
 	"statuses",
+	"timer",
 	"tokens",
 	"context",
 	"model",
@@ -40,11 +45,21 @@ type FooterData = {
 	getExtensionStatuses(): ReadonlyMap<string, string>;
 };
 
+type PromptTimerState = {
+	pendingStartedAt: number | undefined;
+	pendingClearImmediate: ReturnType<typeof setImmediate> | undefined;
+	queuedStartedAts: number[];
+	startedAt: number | undefined;
+	lastDurationMs: number | undefined;
+	interval: ReturnType<typeof setInterval> | undefined;
+};
+
 const DEFAULT_CONFIG: FooterConfig = {
 	segments: {
 		cwd: true,
 		branch: true,
 		statuses: true,
+		timer: true,
 		tokens: true,
 		context: true,
 		model: true,
@@ -55,6 +70,14 @@ const DEFAULT_CONFIG: FooterConfig = {
 
 export default function gcFooter(pi: ExtensionAPI): void {
 	const config = loadConfig();
+	const promptTimer: PromptTimerState = {
+		pendingStartedAt: undefined,
+		pendingClearImmediate: undefined,
+		queuedStartedAts: [],
+		startedAt: undefined,
+		lastDurationMs: undefined,
+		interval: undefined,
+	};
 	let currentBranch: string | null | undefined;
 
 	pi.registerCommand("gc-footer", {
@@ -97,10 +120,20 @@ export default function gcFooter(pi: ExtensionAPI): void {
 				},
 				invalidate() {},
 				render(width: number): string[] {
-					return [renderFooterLine(width, pi, ctx, theme, footerData, config, getBranch)];
+					return [renderFooterLine(width, pi, ctx, theme, footerData, config, promptTimer, getBranch)];
 				},
 			};
 		});
+	});
+
+	pi.on("input", async (event, ctx) => {
+		if (!ctx.hasUI) return;
+		recordPendingPromptStart(promptTimer, event.source, event.text, event.images, event.streamingBehavior);
+	});
+
+	pi.on("before_agent_start", async (_event, ctx) => {
+		if (!ctx.hasUI) return;
+		startPromptTimer(promptTimer, takePendingPromptStart(promptTimer) ?? Date.now());
 	});
 
 	pi.on("thinking_level_select", async () => {
@@ -112,10 +145,11 @@ export default function gcFooter(pi: ExtensionAPI): void {
 	});
 
 	pi.on("agent_end", async () => {
-		requestRender?.();
+		if (!stopPromptTimer(promptTimer)) requestRender?.();
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
+		clearPromptTimer(promptTimer);
 		if (ctx.hasUI) ctx.ui.setFooter(undefined);
 		requestRender = undefined;
 		currentBranch = undefined;
@@ -129,6 +163,7 @@ function renderFooterLine(
 	theme: Theme,
 	footerData: FooterData,
 	config: FooterConfig,
+	promptTimer: PromptTimerState,
 	getBranch: () => string | null,
 ): string {
 	const left = joinSegments([
@@ -136,9 +171,10 @@ function renderFooterLine(
 		config.segments.branch ? formatGitBranch(getBranch(), theme) : undefined,
 	]);
 	const middle = config.segments.statuses
-		? formatExtensionStatuses(footerData.getExtensionStatuses())
+		? formatExtensionStatuses(footerData.getExtensionStatuses(), theme, config.nerdFont)
 		: undefined;
 	const right = joinSegments([
+		config.segments.timer ? formatPromptTimer(promptTimer, theme, config.nerdFont) : undefined,
 		config.segments.tokens ? formatSessionTokenTotals(ctx, theme) : undefined,
 		config.segments.context ? formatContextUsage(ctx, theme) : undefined,
 		config.segments.model ? theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id)) : undefined,
@@ -146,6 +182,120 @@ function renderFooterLine(
 	]);
 
 	return joinFooterSections(left, middle, right, width);
+}
+
+function recordPendingPromptStart(
+	timer: PromptTimerState,
+	source: "interactive" | "rpc" | "extension",
+	text: string,
+	images: readonly unknown[] | undefined,
+	streamingBehavior: "steer" | "followUp" | undefined,
+): void {
+	if (source !== "interactive" || !hasPromptContent(text, images) || streamingBehavior === "steer") {
+		clearPendingPromptStart(timer);
+		return;
+	}
+
+	const startedAt = Date.now();
+	if (streamingBehavior === "followUp") {
+		clearPendingPromptStart(timer);
+		timer.queuedStartedAts.push(startedAt);
+		return;
+	}
+
+	timer.pendingStartedAt = startedAt;
+	schedulePendingPromptStartClear(timer, startedAt);
+}
+
+function hasPromptContent(text: string, images: readonly unknown[] | undefined): boolean {
+	return text.trim().length > 0 || Boolean(images?.length);
+}
+
+function takePendingPromptStart(timer: PromptTimerState): number | undefined {
+	const startedAt = timer.pendingStartedAt;
+	clearPendingPromptStart(timer);
+	return startedAt ?? timer.queuedStartedAts.shift();
+}
+
+function schedulePendingPromptStartClear(timer: PromptTimerState, startedAt: number): void {
+	clearPendingPromptStartClear(timer);
+	timer.pendingClearImmediate = setImmediate(() => {
+		timer.pendingClearImmediate = undefined;
+		if (timer.pendingStartedAt === startedAt && timer.startedAt === undefined) {
+			timer.pendingStartedAt = undefined;
+		}
+	});
+	(timer.pendingClearImmediate as ReturnType<typeof setImmediate> & { unref?: () => void }).unref?.();
+}
+
+function clearPendingPromptStart(timer: PromptTimerState): void {
+	timer.pendingStartedAt = undefined;
+	clearPendingPromptStartClear(timer);
+}
+
+function clearPendingPromptStartClear(timer: PromptTimerState): void {
+	if (timer.pendingClearImmediate === undefined) return;
+	clearImmediate(timer.pendingClearImmediate);
+	timer.pendingClearImmediate = undefined;
+}
+
+function startPromptTimer(timer: PromptTimerState, startedAt: number): void {
+	clearPromptTimerInterval(timer);
+	timer.startedAt = startedAt;
+	timer.lastDurationMs = undefined;
+	timer.interval = setInterval(() => requestRender?.(), 250);
+	(timer.interval as ReturnType<typeof setInterval> & { unref?: () => void }).unref?.();
+	requestRender?.();
+}
+
+function stopPromptTimer(timer: PromptTimerState): boolean {
+	if (timer.startedAt === undefined) return false;
+
+	timer.lastDurationMs = Date.now() - timer.startedAt;
+	timer.startedAt = undefined;
+	clearPromptTimerInterval(timer);
+	requestRender?.();
+	return true;
+}
+
+function clearPromptTimer(timer: PromptTimerState): void {
+	clearPendingPromptStart(timer);
+	timer.queuedStartedAts = [];
+	timer.startedAt = undefined;
+	timer.lastDurationMs = undefined;
+	clearPromptTimerInterval(timer);
+}
+
+function clearPromptTimerInterval(timer: PromptTimerState): void {
+	if (timer.interval === undefined) return;
+	clearInterval(timer.interval);
+	timer.interval = undefined;
+}
+
+function formatPromptTimer(
+	timer: PromptTimerState,
+	theme: Theme,
+	nerdFont: boolean,
+): string | undefined {
+	const running = timer.startedAt !== undefined;
+	const durationMs = running ? Date.now() - timer.startedAt : timer.lastDurationMs;
+	if (durationMs === undefined) return undefined;
+
+	const glyph = nerdFont
+		? (running ? TIMER_RUNNING_GLYPH : TIMER_DONE_GLYPH)
+		: (running ? "time" : "done");
+	const glyphColor: ThemeColor = running ? "accent" : "success";
+	return `${theme.fg(glyphColor, glyph)} ${theme.fg("muted", formatDuration(durationMs))}`;
+}
+
+function formatDuration(durationMs: number): string {
+	const safeMs = Math.max(0, durationMs);
+	const totalSeconds = Math.round(safeMs / 1000);
+	if (totalSeconds < 60) return `${(safeMs / 1000).toFixed(1)}s`;
+
+	const minutes = Math.floor(totalSeconds / 60);
+	const seconds = String(totalSeconds % 60).padStart(2, "0");
+	return `${minutes}:${seconds}`;
 }
 
 function loadConfig(): FooterConfig {
@@ -225,14 +375,32 @@ function formatGitBranch(branch: string | null, theme: Theme): string | undefine
 	return branch ? theme.fg("muted", `(${branch})`) : undefined;
 }
 
-function formatExtensionStatuses(statuses: ReadonlyMap<string, string>): string | undefined {
+function formatExtensionStatuses(statuses: ReadonlyMap<string, string>, theme: Theme, nerdFont: boolean): string | undefined {
 	const statusText = Array.from(statuses.entries())
 		.sort(([a], [b]) => a.localeCompare(b))
-		.map(([, text]) => sanitizeStatusText(text))
+		.map(([, text]) => formatExtensionStatus(sanitizeStatusText(text), theme, nerdFont))
 		.filter(Boolean)
 		.join(" ");
 
 	return statusText || undefined;
+}
+
+function formatExtensionStatus(text: string, theme: Theme, nerdFont: boolean): string {
+	const plainText = stripAnsi(text);
+	const mcpMatch = plainText.match(/^MCP:\s*(\d+)\s*\/\s*(\d+)\s+servers?$/i);
+	if (mcpMatch) {
+		const [visibleText, connected, total] = mcpMatch;
+		const compactText = `${nerdFont ? MCP_SERVER_GLYPH : "MCP"} ${connected}/${total}`;
+		return Number(connected) > 0
+			? preserveVisibleTextStyle(text, visibleText, compactText)
+			: theme.fg("muted", compactText);
+	}
+
+	return text;
+}
+
+function preserveVisibleTextStyle(text: string, visibleText: string, compactText: string): string {
+	return text.includes(visibleText) ? text.replace(visibleText, compactText) : compactText;
 }
 
 function formatSessionTokenTotals(ctx: ExtensionContext, theme: Theme): string | undefined {
@@ -310,6 +478,10 @@ function formatTokens(count: number): string {
 
 function sanitizeStatusText(text: string): string {
 	return text.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim();
+}
+
+function stripAnsi(text: string): string {
+	return text.replace(ANSI_PATTERN, "");
 }
 
 function joinSegments(segments: Array<string | undefined>): string {
