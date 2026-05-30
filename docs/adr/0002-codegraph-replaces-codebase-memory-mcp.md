@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. Runtime skill packaging superseded by ADR 0003; CodeGraph remains the active graph-first provider.
 
 ## Context
 

@@ -1,6 +1,8 @@
-# CodeGraph protocol
+# CodeGraph Runtime Reference
 
 This reference expands the graph-first rules in `../SKILL.md`. Load it for code review, codebase exploration, graph setup/indexing, stale graph handling, project paths, trace, impact, or graph fallback details.
+
+CodeGraph is a Context Watcher capability.
 
 ## Mandatory graph-first scope
 
@@ -58,7 +60,9 @@ Keep `.codegraph/` ignored before or immediately after initializing a repo. Pref
 
 CLI path rule: `status`, `init`, `index`, `sync`, `uninit`, and `unlock` accept a positional repo path. `files`, `query`, `context`, `callers`, `callees`, `impact`, and `affected` use `-p/--path`. The CLI symbol search command is `query`; the MCP symbol search tool is `codegraph_search`.
 
-`codegraph install`, `codegraph uninstall`, `codegraph uninit`, and `codegraph unlock` mutate local configuration or graph state. Do not run them without exact authorization, except `install --print-config <agent>` is read-only.
+Practical CLI notes: `codegraph files` has no positional repo argument; use `-p <repo>`. `codegraph query --json` returns `{ node, score }` entries; useful node fields include `name`, `kind`, `filePath`, `startLine`, and `signature`. CLI `callers`, `callees`, and `impact` remain available even when MCP optional tools are hidden. After authorized `index` or `sync`, `codegraph status <repo>` is the authoritative health/count check. `codegraph serve --no-watch` disables auto-sync and should be reserved for slow or problematic filesystems.
+
+`codegraph install`, `codegraph uninstall`, `codegraph uninit`, and `codegraph unlock` mutate local configuration or graph state. Do not run them without exact authorization, except `install --print-config <agent>` is read-only. Use `unlock` only when status, index, or sync reports a stale lock.
 
 ## MCP function and parameter usage
 

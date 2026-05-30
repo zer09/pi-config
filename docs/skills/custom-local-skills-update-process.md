@@ -5,13 +5,13 @@ Use this Skill Maintenance Doc for Custom Local Skills whose source of truth is 
 Current scope:
 
 - `context-watcher`
-- `codegraph`
 - Any new custom Local Skill with no dedicated upstream source
 
 Retired custom skills:
 
 - `edge-case-analysis`: removed during the skill slimming pass because the base model can perform this generic reasoning workflow without a runtime skill.
-- `codebase-memory-mcp`: replaced by `codegraph` as the graph-first structural code exploration layer. See `../adr/0002-codegraph-replaces-codebase-memory-mcp.md`.
+- `codebase-memory-mcp`: replaced by the CodeGraph capability. See `../adr/0002-codegraph-replaces-codebase-memory-mcp.md`.
+- `codegraph`: merged into `context-watcher` to reduce runtime skill duplication while preserving CodeGraph routing quality. See `../adr/0003-codegraph-skill-merged-into-context-watcher.md`.
 
 ## Update workflow
 
@@ -36,9 +36,11 @@ When updating it:
 - Preserve the rule that large output and file analysis must stay in Context Mode.
 - Avoid broad rewrites unless the user explicitly asks for a token-footprint reduction pass.
 
-## CodeGraph rules
+## CodeGraph capability rules
 
-When updating `codegraph`:
+CodeGraph is maintained as a Context Watcher capability, not as a standalone Local Skill. Do not recreate `agent/skills/codegraph/` unless the user explicitly reverses ADR 0003.
+
+When updating Context Watcher's CodeGraph guidance:
 
 - Verify the current CodeGraph CLI and MCP tool inventory before changing examples.
 - Preserve Pi-specific MCP server naming: `codegraph` with command `codegraph serve --mcp`.
@@ -47,6 +49,7 @@ When updating `codegraph`:
 - Keep local index operations deliberate: `codegraph init`, `codegraph index`, `codegraph sync`, and `codegraph uninit` must not be hidden side effects.
 - Keep `.codegraph/` ignored in repositories where CodeGraph indexes are initialized.
 - Remove stale examples that describe tool parameters not present in the current MCP schema.
+- Keep details in `agent/skills/context-watcher/references/codegraph-protocol.md`; keep `agent/skills/context-watcher/SKILL.md` compact.
 
 ## Validation
 

@@ -9,9 +9,9 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | ✓ | a11y-debugging | Strong | 8 | make it slim | Slimmed to Chrome MCP a11y workflow, browser mutation safety, large-output handling, and snippet references. |
 | ✓ | chrome-devtools | Good | 7 | make it slim | Slimmed to MCP page workflow, tool selection, browser mutation gates, and troubleshooting handoff. |
 | ✓ | chrome-devtools-cli | Medium | 5 | make it slim | Slimmed to CLI command shape, command groups, Context Mode routing, setup gate, and gotchas. |
-| ✓ | codegraph | Weak | 3 | keep it | Retained because the custom CodeGraph MCP/CLI protocol, projectPath routing, staleness policy, and local index rules need explicit guidance. |
+| x | codegraph | Weak | 3 | remove it | Removed as a standalone Local Skill and merged into Context Watcher; CodeGraph remains the graph-first capability through `context-watcher/references/codegraph-protocol.md`. |
 | ✓ | context-mode | Weak | 3 | keep it | Retained because core local context-saving behavior is tool-specific and important. |
-| ✓ | context-watcher | Weak | 2 | keep it | Retained because this is core orchestration and safety policy for this Pi setup. |
+| ✓ | context-watcher | Weak | 2 | keep it | Retained because this is core orchestration and safety policy for this Pi setup, including the CodeGraph graph-first capability. |
 | ✓ | context7-cli | Medium | 5 | make it slim | Slimmed to docs lookup workflow, mutation gates for auth/setup/skills/upgrade commands, reference routing, and common gotchas. |
 | ✓ | ctx-doctor | Strong | 8 | keep it | Retained as package-provided metadata-only helper; full body loads only when triggered. |
 | ✓ | ctx-insight | Strong | 8 | keep it | Retained as package-provided metadata-only helper; full body loads only when triggered. |
