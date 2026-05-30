@@ -1,5 +1,10 @@
 # Pi Agent Rules
 
+## Default mode
+
+- Default to read-only investigation. Do not modify files, commits, hosted services, or external state unless the user explicitly asks for that exact change.
+- If the latest user request is phrased as a question, review, or assessment, treat it as Analysis/read-only unless it also explicitly asks to apply changes.
+
 ## Startup
 
 Before work begins:
