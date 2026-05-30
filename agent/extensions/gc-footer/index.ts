@@ -289,7 +289,13 @@ function formatPromptTimer(
 }
 
 function formatDuration(durationMs: number): string {
-	return `${(Math.max(0, durationMs) / 1000).toFixed(1)}s`;
+	const safeMs = Math.max(0, durationMs);
+	const totalSeconds = Math.round(safeMs / 1000);
+	if (totalSeconds < 60) return `${(safeMs / 1000).toFixed(1)}s`;
+
+	const minutes = Math.floor(totalSeconds / 60);
+	const seconds = String(totalSeconds % 60).padStart(2, "0");
+	return `${minutes}:${seconds}`;
 }
 
 function loadConfig(): FooterConfig {

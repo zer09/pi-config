@@ -333,6 +333,24 @@ async function run() {
 		const footer = await createFooter();
 		const originalNow = Date.now;
 		try {
+			let now = 600000;
+			Date.now = () => now;
+
+			await footer.emit("before_agent_start");
+			now += 600000;
+			assert.ok(footer.renderPlain().includes("\uf017 10:00"), "long running timer should use m:ss format");
+
+			await footer.emit("agent_end");
+			assert.ok(footer.renderPlain().includes("\uf00c 10:00"), "long completed timer should use m:ss format");
+		} finally {
+			Date.now = originalNow;
+		}
+	}
+
+	{
+		const footer = await createFooter();
+		const originalNow = Date.now;
+		try {
 			let now = 400000;
 			Date.now = () => now;
 
