@@ -27,6 +27,7 @@ agent/npm/
 tmp/
 scratch/
 logs/
+plans/
 context-mode/
 context7/
 .pi/
