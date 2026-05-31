@@ -20,6 +20,8 @@ const TIMER_RUNNING_GLYPH = "\uf017";
 const TIMER_DONE_GLYPH = "\uf00c";
 const QUEUE_GLYPH = "\uf46c";
 const MCP_SERVER_GLYPH = "\uf233";
+const AGENTMEMORY_GLYPH = "\uf0c7";
+const AGENTMEMORY_FALLBACK = "mem";
 const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
 const GIT_STATUS_TTL_MS = 5000;
 const GIT_STATUS_TIMEOUT_MS = 500;
@@ -646,6 +648,16 @@ function formatExtensionStatuses(
 
 function formatExtensionStatus(text: string, theme: Theme, nerdFont: boolean): { text: string; keepInCompact: boolean } {
 	const plainText = stripAnsi(text);
+	const agentMemoryMatch = plainText.match(/^🧠\s*agentmemory(?:\s+(off))?$/i);
+	if (agentMemoryMatch) {
+		const active = agentMemoryMatch[1] === undefined;
+		const compactText = nerdFont ? AGENTMEMORY_GLYPH : AGENTMEMORY_FALLBACK;
+		return {
+			keepInCompact: true,
+			text: theme.fg(active ? "accent" : "muted", compactText),
+		};
+	}
+
 	const mcpMatch = plainText.match(/^MCP:\s*(\d+)\s*\/\s*(\d+)\s+servers?$/i);
 	if (mcpMatch) {
 		const [visibleText, connected, total] = mcpMatch;
