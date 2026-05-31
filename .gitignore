@@ -24,6 +24,7 @@ agent/cursor-proxy.json
 
 # Local working dirs and logs
 agent/npm/
+data/
 tmp/
 scratch/
 logs/
