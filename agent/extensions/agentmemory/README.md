@@ -25,7 +25,7 @@ Copy this folder into pi's global extensions directory:
 
 ```bash
 mkdir -p ~/.pi/agent/extensions/agentmemory
-cp -R integrations/pi/. ~/.pi/agent/extensions/agentmemory/
+cp -R agent/extensions/agentmemory/. ~/.pi/agent/extensions/agentmemory/
 ```
 
 Then enable it in `~/.pi/agent/settings.json` if you prefer explicit loading:

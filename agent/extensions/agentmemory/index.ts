@@ -226,7 +226,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     }),
     async execute(_toolCallId, params) {
       const result = await callAgentMemory<Record<string, unknown>>("remember", {
-        body: { content: params.content, type: params.type || "fact" },
+        body: { content: params.content, type: params.type || "fact", project: currentProject, cwd: currentProject },
       });
       if (!result) {
         return {
@@ -253,7 +253,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     lastPrompt = event.prompt?.trim() || "";
     if (!lastPrompt) return;
 
-    const result = await callAgentMemory<{ results?: SmartSearchResult[] }>("search", {
+    const result = await callAgentMemory<{ results?: SmartSearchResult[] }>("smart-search", {
       body: { query: lastPrompt, limit: 5, project: currentProject, cwd: currentProject },
     });
     const results = result?.results || [];
