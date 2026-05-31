@@ -20,7 +20,7 @@ Implementation policy:
 
 - Configure Pi MCP with `codegraph` using `codegraph serve --mcp` and a workspace/root path appropriate for the active task; the server launch path controls MCP tool gating.
 - Remove the active `codebase-memory-mcp` MCP server entry and runtime skill.
-- Add a `codegraph` Local Skill with compact runtime guidance and a detailed routing reference.
+- Add CodeGraph runtime guidance and a detailed routing reference under Context Watcher; ADR 0003 supersedes the earlier standalone Local Skill packaging.
 - Update Context Watcher, reader delegates, and global agent rules so structural code exploration, review, caller/callee lookup, tracing, and refactor impact analysis use CodeGraph first.
 - Use `projectPath` for worktrees, multi-repo tasks, and repos outside the active session root.
 - Treat `codegraph init`, `codegraph index`, `codegraph sync`, and `codegraph uninit` as local index mutations. Run them only when setup/indexing/deletion is explicitly authorized or directly requested.
@@ -34,7 +34,7 @@ Implementation policy:
 - Each repository or worktree needs its own `.codegraph/` index when graph accuracy matters.
 - Pi must be restarted or MCP metadata must be refreshed after config changes before the `codegraph` server appears in MCP tool lists.
 - Existing `.codebase-memory/` data may remain local and ignored until explicitly removed.
-- ADR and skill-maintenance docs must treat CodeGraph, not codebase-memory, as the retained custom graph-first skill.
+- ADR and skill-maintenance docs must treat CodeGraph, not codebase-memory, as the retained graph-first capability owned by Context Watcher.
 
 ## Validation
 
