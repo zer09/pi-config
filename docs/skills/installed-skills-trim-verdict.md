@@ -40,6 +40,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | ✓ | grill-with-docs | Strong | 8 | keep it | Retained with remaining Matt Pocock skills for optional domain-language and ADR grilling workflows. |
 | x | humanizer | Very strong | 9 | remove it | Writing style cleanup is generic and memory-native. |
 | ✓ | improve-codebase-architecture | Strong | 8 | keep it | Retained with remaining Matt Pocock skills for optional CONTEXT.md/ADR-informed architecture review. |
+| ✓ | intent-layer | Medium | 6 | keep it | Installed from Crafter Station for hierarchical `AGENTS.md` context setup, measurement scripts, and compact node templates. |
 | ✓ | librarian | Medium | 6 | keep it | Retained because source-citation and library-internals research workflow is useful when triggered. |
 | ✓ | linear-cli | Medium | 5 | make it slim | Slimmed to mutation gates, discovery workflow, reference routing, Markdown/body-file rules, known gotchas, and GraphQL fallback safety. |
 | ✓ | memory-leak-debugging | Strong | 8 | make it slim | Slimmed to heap snapshot safety, Chrome MCP capture flow, memlab/script analysis, and common leak references. |

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Intent Layer"
+  short_description: "Set up hierarchical AGENTS.md context"
+  default_prompt: "Use $intent-layer to set up hierarchical AGENTS.md context for this codebase."
