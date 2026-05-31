@@ -1,13 +1,18 @@
 # Pi Agent Rules
 
+## Default mode
+
+- Default to read-only investigation. Do not modify files, commits, hosted services, or external state unless the user explicitly asks for that exact change.
+- If the latest user request is phrased as a question, review, or assessment, treat it as Analysis/read-only unless it also explicitly asks to apply changes.
+
 ## Startup
 
 Before work begins:
 
-1. Load the `context-watcher` skill from `~/.pi/agent/skills/context-watcher/SKILL.md` and treat it as active for the whole session. Apply its preflight, routing, RTK, codebase-memory-mcp, GitHub, Context7, worktree, delegate, and fallback rules; do not merely read the file without activating the skill.
+1. Load the `context-watcher` skill from `~/.pi/agent/skills/context-watcher/SKILL.md` and treat it as active for the whole session. Apply its preflight, routing, RTK, CodeGraph, GitHub, Context7, worktree, delegate, and fallback rules; do not merely read the file without activating the skill.
 2. Read `~/.pi/agent/rules/freedom.md` and the active approach file from `~/.pi/agent/rules/`.
 3. If the task is Coding, read both `~/.pi/agent/rules/coding.md` and `~/.pi/agent/rules/agent.md`.
-4. If the task involves code exploration or review, verify codebase-memory-mcp project/index status per Context Watcher.
+4. If the task involves code exploration or review, verify CodeGraph project/index status per Context Watcher.
 5. Use RTK inside Context Mode for read-only shell work when available.
 
 Do not ask permission for startup steps.
@@ -24,7 +29,7 @@ Silently check:
 - Git commit/amend/squash? Only create or modify commits when the user explicitly asks for a commit. Do not infer commit permission from "fix it", "finish", "save", "clean up", or "handle this".
 - URL or web document? Use `ctx_fetch_and_index`, then `ctx_search`.
 - Third-party API/library/framework behavior? Verify current docs with Context7, using local installed source first when relevant.
-- Code exploration, review, impact analysis, or refactor planning? Use codebase-memory-mcp first for structural code questions when available and applicable.
+- Code exploration, review, impact analysis, or refactor planning? Use CodeGraph first for structural code questions when available and applicable.
 - Shared or public content? Redact secrets and user-specific home paths.
 - Destructive local delete? Verify scope, symlinks, and safety before deleting.
 
@@ -71,7 +76,7 @@ Every task follows `~/.pi/agent/AGENTS.md` plus `~/.pi/agent/rules/freedom.md`. 
 
 ## Tool routing summary
 
-- Context Watcher is authoritative for shell, large output, RTK, codebase-memory-mcp, GitHub, Context7, worktrees, delegates, and fallbacks.
+- Context Watcher is authoritative for shell, large output, RTK, CodeGraph, GitHub, Context7, worktrees, delegates, and fallbacks.
 - Use native `read` only for files you intend to edit. Use `ctx_execute_file` for analysis reads.
 - Use native `write` or `edit` for all file creation/modification.
 - Use `ctx_search(sort: "timeline")` after resume/compaction before asking the user to repeat context.
@@ -109,7 +114,7 @@ Delegate rules:
 - The parent owns orchestration, final decisions, validation, edits outside the delegate scope, commits, hosted-service mutation gates, and user-facing reporting.
 - Do not ask delegates to route to or recommend other delegates.
 - Do not use delegates recursively. Child sessions disable delegate tools with `PI_DELEGATE_CHILD=1`.
-- Reader delegates are read-only. Require Context Watcher, Context Mode/RTK, codebase-memory-mcp when applicable, hosted-service mutation gates, and compact structured findings.
+- Reader delegates are read-only. Require Context Watcher, Context Mode/RTK, CodeGraph when applicable, hosted-service mutation gates, and compact structured findings.
 - Writer delegates may read or modify only exact allowed files. They must not run shell or Context Mode tools, delete files, commit, push, deploy, or mutate hosted services.
 - For user requests described as "deep", "comprehensive", "broad", "audit", or "consistency check", consider at least one `reader` delegate as an independent pass unless a single scripted scan is clearly sufficient.
 

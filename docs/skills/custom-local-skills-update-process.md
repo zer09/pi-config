@@ -5,12 +5,13 @@ Use this Skill Maintenance Doc for Custom Local Skills whose source of truth is 
 Current scope:
 
 - `context-watcher`
-- `codebase-memory-mcp`
 - Any new custom Local Skill with no dedicated upstream source
 
 Retired custom skills:
 
 - `edge-case-analysis`: removed during the skill slimming pass because the base model can perform this generic reasoning workflow without a runtime skill.
+- `codebase-memory-mcp`: replaced by the CodeGraph capability. See `../adr/0002-codegraph-replaces-codebase-memory-mcp.md`.
+- `codegraph`: merged into `context-watcher` to reduce runtime skill duplication while preserving CodeGraph routing quality. See `../adr/0003-codegraph-skill-merged-into-context-watcher.md`.
 
 ## Update workflow
 
@@ -28,22 +29,27 @@ Retired custom skills:
 
 When updating it:
 
-- Preserve Context Mode, RTK, and codebase-memory-mcp routing rules.
+- Preserve Context Mode, RTK, and CodeGraph routing rules.
 - Preserve the external hosted service mutation gate.
 - Preserve the GitHub CLI preflight and private GitHub data routing.
-- Preserve graph-first structural exploration and worktree project/index lifecycle rules.
+- Preserve graph-first structural exploration and worktree project path/index lifecycle rules.
 - Preserve the rule that large output and file analysis must stay in Context Mode.
 - Avoid broad rewrites unless the user explicitly asks for a token-footprint reduction pass.
 
-## Codebase Memory MCP rules
+## CodeGraph capability rules
 
-When updating `codebase-memory-mcp`:
+CodeGraph is maintained as a Context Watcher capability, not as a standalone Local Skill. Do not recreate `agent/skills/codegraph/` unless the user explicitly reverses ADR 0003.
 
-- Verify the current `codebase-memory-mcp` MCP tool inventory and schemas before changing examples.
-- Preserve Pi-specific server/tool naming, especially the `codebase_memory_mcp_` tool prefix and required `project` parameter.
+When updating Context Watcher's CodeGraph guidance:
+
+- Verify the current CodeGraph CLI and MCP tool inventory before changing examples.
+- Preserve Pi-specific MCP server naming: `codegraph` with command `codegraph serve --mcp`.
+- Preserve the use of optional `projectPath` for worktrees, multi-repo tasks, and repos outside the session root.
 - Preserve Context Watcher routing for shell work, large output, source edits, and explicit grep/search fallbacks.
-- Keep write-like local memory operations deliberate: indexing, persistent artifacts, ADR updates, trace ingestion, and project deletion.
-- Remove stale examples that omit required parameters or describe parameters not present in the current schema.
+- Keep local index operations deliberate: `codegraph init`, `codegraph index`, `codegraph sync`, and `codegraph uninit` must not be hidden side effects.
+- Keep `.codegraph/` ignored in repositories where CodeGraph indexes are initialized.
+- Remove stale examples that describe tool parameters not present in the current MCP schema.
+- Keep details in `agent/skills/context-watcher/references/codegraph-protocol.md`; keep `agent/skills/context-watcher/SKILL.md` compact.
 
 ## Validation
 

@@ -27,6 +27,7 @@ agent/npm/
 tmp/
 scratch/
 logs/
+plans/
 context-mode/
 context7/
 .pi/
@@ -35,8 +36,26 @@ context7/
 note.txt
 exa-usage.json
 
+# Generic local-only files
+.env
+.env.local
+.env.*.local
+.envrc
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+*.pem
+*.key
+*.p12
+*.pfx
+
 # Local code graph db/cache
 .codebase-memory/
+.codegraph/
 
 # Skills CLI project-local install/cache targets
 /.agents/

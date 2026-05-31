@@ -37,8 +37,15 @@ The rule that remote service writes require explicit user instruction for the ex
 _Avoid_: permission prompt, safety check
 
 **Context Watcher**:
-The command-routing and context-management layer that keeps shell output, searches, and large files token-efficient.
+The command-routing and context-management layer that keeps shell output, searches, graph-first structural code exploration, and large files token-efficient.
 _Avoid_: wrapper, logger
+
+**CodeGraph Capability**:
+The graph-first structural code exploration capability governed by Context Watcher.
+
+**Retired Local Skill**:
+A former Local Skill that is no longer installed as runtime instructions but may remain documented for history or reinstall guidance.
+_Avoid_: disabled skill, hidden skill
 
 **Reader Delegate**:
 A child Pi agent launched for one bounded investigation task with an isolated context window and a compact result returned to the parent.
@@ -59,8 +66,10 @@ _Avoid_: orchestrator
 - A **Skill Maintenance Doc** records how to update one or more **Local Skills** from their **Upstream Skills** or maintain **Custom Local Skills**.
 - A **Local Skill Update Invariant** constrains every skill update; upstream content is input, not final truth.
 - A **Runtime Reference** belongs to a **Local Skill** and supports task execution.
+- A **Retired Local Skill** may remain documented in a **Skill Maintenance Doc** without remaining installed as a **Local Skill**.
 - The **External Hosted Service Mutation Gate** applies whenever a task would modify GitHub, Linear, Figma, NotebookLM, Firebase, cloud services, or similar remote systems.
-- **Context Watcher** governs read-only shell work and large-output processing across the **Pi Config**.
+- **Context Watcher** governs read-only shell work, graph-first structural code exploration, and large-output processing across the **Pi Config**.
+- **Context Watcher** owns the **CodeGraph Capability** instead of delegating it to a separate **Local Skill**.
 - The **Delegates Extension** launches **reader and writer delegates** with Context Watcher-aware prompt boundaries and no recursive delegation.
 
 ## Example dialogue

@@ -3,8 +3,9 @@
     "context-mode": {
       "command": "context-mode"
     },
-    "codebase-memory-mcp": {
-      "command": "codebase-memory-mcp"
+    "codegraph": {
+      "command": "codegraph",
+      "args": ["serve", "--mcp"]
     },
     "figma": {
       "command": "npx",
