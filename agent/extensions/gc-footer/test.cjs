@@ -352,6 +352,41 @@ async function run() {
 
 	{
 		const footer = await createFooter({
+			statuses: new Map([["agentmemory", "🧠 agentmemory"]]),
+		});
+		const line = footer.renderPlain();
+		assert.ok(line.includes("\uf0c7"), "healthy agentmemory status should use compact disk glyph");
+		assert.ok(!line.includes("agentmemory"), "agentmemory status should omit the long label");
+		assert.ok(!line.includes("🧠"), "agentmemory status should omit the colored emoji");
+		assert.ok(
+			footer.getColorCalls().some((call) => call.color === "accent" && call.text === "\uf0c7"),
+			"healthy agentmemory status should use accent color",
+		);
+	}
+
+	{
+		const footer = await createFooter({
+			statuses: new Map([["agentmemory", "🧠 agentmemory off"]]),
+		});
+		footer.renderPlain();
+		assert.ok(
+			footer.getColorCalls().some((call) => call.color === "muted" && call.text === "\uf0c7"),
+			"offline agentmemory status should mute the disk glyph",
+		);
+	}
+
+	{
+		const footer = await createFooter({
+			config: { nerdFont: false },
+			statuses: new Map([["agentmemory", "🧠 agentmemory"]]),
+		});
+		const line = footer.renderPlain();
+		assert.ok(line.includes("mem"), "agentmemory status should use text fallback without Nerd Font");
+		assert.ok(!line.includes("\uf0c7"), "fallback agentmemory status should not use Nerd Font glyph");
+	}
+
+	{
+		const footer = await createFooter({
 			statuses: new Map([["mcp", "\x1b[32mMCP: 0/9 servers\x1b[0m"]]),
 		});
 		footer.renderPlain();
