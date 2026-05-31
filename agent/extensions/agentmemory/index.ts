@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
-import { basename } from "node:path";
-import { randomUUID } from "node:crypto";
+import path from "node:path";
+import crypto from "node:crypto";
 import { createPlaintextBearerAuthGuard } from "./security.js";
 
 type TextBlock = { type?: string; text?: string };
@@ -29,15 +29,7 @@ type HealthResponse = {
   };
 };
 
-type StatusContext = {
-  hasUI?: boolean;
-  ui?: {
-    setStatus: (key: string, text: string) => void;
-  };
-};
-
 const DEFAULT_URL = process.env.AGENTMEMORY_URL || "http://localhost:3111";
-const DEFAULT_REQUEST_TIMEOUT_MS = 2000;
 const guardPlaintextBearerAuth = createPlaintextBearerAuthGuard();
 const TOOL_GUIDANCE = [
   "agentmemory is available for cross-session memory.",
@@ -47,13 +39,6 @@ const TOOL_GUIDANCE = [
 
 function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, "");
-}
-
-function getRequestTimeoutMs(): number {
-  const raw = process.env.AGENTMEMORY_TIMEOUT_MS;
-  if (!raw) return DEFAULT_REQUEST_TIMEOUT_MS;
-  const timeout = Number.parseInt(raw, 10);
-  return Number.isFinite(timeout) && timeout > 0 ? timeout : DEFAULT_REQUEST_TIMEOUT_MS;
 }
 
 function getText(content: unknown): string {
@@ -119,7 +104,6 @@ async function callAgentMemory<T>(
       method,
       headers,
       body: options?.body !== undefined ? JSON.stringify(options.body) : undefined,
-      signal: AbortSignal.timeout(getRequestTimeoutMs()),
     });
     if (!response.ok) return null;
     return (await response.json()) as T;
@@ -135,7 +119,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
       process.env.AGENTMEMORY_SECRET,
     );
   }
-  let sessionId = `ephemeral-${randomUUID().slice(0, 8)}`;
+  let sessionId = `ephemeral-${crypto.randomUUID().slice(0, 8)}`;
   let currentProject = process.cwd();
   let lastPrompt = "";
   let lastHealthOk = false;
@@ -144,10 +128,9 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     return await callAgentMemory<HealthResponse>("health", { method: "GET" });
   }
 
-  async function refreshStatus(ctx?: StatusContext) {
+  async function refreshStatus(ctx: { ui: { setStatus: (key: string, text: string) => void } }) {
     const health = await getHealth();
     lastHealthOk = !!health && (health.status === "healthy" || health.health?.status === "healthy");
-    if (ctx?.hasUI === false || !ctx?.ui) return;
     ctx.ui.setStatus("agentmemory", lastHealthOk ? "🧠 agentmemory" : "🧠 agentmemory off");
   }
 
@@ -200,8 +183,8 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
       limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 10, default: 5, description: "Maximum results" })),
     }),
     async execute(_toolCallId, params) {
-      const result = await callAgentMemory<{ results?: SmartSearchResult[] }>("search", {
-        body: { query: params.query, limit: params.limit ?? 5, project: currentProject, cwd: currentProject },
+      const result = await callAgentMemory<{ results?: SmartSearchResult[] }>("smart-search", {
+        body: { query: params.query, limit: params.limit ?? 5 },
       });
       const results = result?.results || [];
       return {
@@ -226,7 +209,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     }),
     async execute(_toolCallId, params) {
       const result = await callAgentMemory<Record<string, unknown>>("remember", {
-        body: { content: params.content, type: params.type || "fact", project: currentProject, cwd: currentProject },
+        body: { content: params.content, type: params.type || "fact" },
       });
       if (!result) {
         return {
@@ -243,7 +226,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
 
   pi.on("session_start", async (_event, ctx) => {
     const sessionFile = ctx.sessionManager.getSessionFile();
-    sessionId = sessionFile ? basename(sessionFile).replace(/\.[^.]+$/, "") : `ephemeral-${randomUUID().slice(0, 8)}`;
+    sessionId = sessionFile ? path.basename(sessionFile).replace(/\.[^.]+$/, "") : `ephemeral-${crypto.randomUUID().slice(0, 8)}`;
     currentProject = process.cwd();
     await refreshStatus(ctx);
   });
@@ -254,7 +237,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     if (!lastPrompt) return;
 
     const result = await callAgentMemory<{ results?: SmartSearchResult[] }>("smart-search", {
-      body: { query: lastPrompt, limit: 5, project: currentProject, cwd: currentProject },
+      body: { query: lastPrompt, limit: 5 },
     });
     const results = result?.results || [];
     const recallBlock = results.length
