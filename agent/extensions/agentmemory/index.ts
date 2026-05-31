@@ -113,6 +113,8 @@ async function callAgentMemory<T>(
 }
 
 export default function agentmemoryExtension(pi: ExtensionAPI) {
+  if (process.env.PI_DELEGATE_CHILD) return;
+
   if (process.env.AGENTMEMORY_REQUIRE_HTTPS === "1") {
     guardPlaintextBearerAuth(
       normalizeBaseUrl(process.env.AGENTMEMORY_URL || DEFAULT_URL),
@@ -128,9 +130,10 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     return await callAgentMemory<HealthResponse>("health", { method: "GET" });
   }
 
-  async function refreshStatus(ctx: { ui: { setStatus: (key: string, text: string) => void } }) {
+  async function refreshStatus(ctx: { hasUI?: boolean; ui?: { setStatus: (key: string, text: string) => void } }) {
     const health = await getHealth();
     lastHealthOk = !!health && (health.status === "healthy" || health.health?.status === "healthy");
+    if (ctx.hasUI === false || !ctx.ui) return;
     ctx.ui.setStatus("agentmemory", lastHealthOk ? "🧠 agentmemory" : "🧠 agentmemory off");
   }
 
