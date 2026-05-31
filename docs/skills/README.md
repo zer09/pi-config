@@ -84,6 +84,7 @@ Installing a new skill means:
 - `firebase-skills-update-process.md`: update workflow for Firebase and Genkit skills.
 - `gh-cli-update-process.md`: update workflow for the generated GitHub CLI skill and its command references.
 - `grill-with-docs-usage.md`: usage reference for initializing CONTEXT.md and applying ADR guidance in other repos.
+- `intent-layer-update-process.md`: update workflow for the Crafter Station Intent Layer skill.
 - `linear-cli-update-process.md`: update workflow for the Linear CLI skill.
 - `mattpocock-skills-update-process.md`: update workflow for the remaining Matt Pocock engineering skills.
 - `minimax-cli-update-process.md`: retired-skill notes and reinstall checklist for the former MiniMax CLI skill.
