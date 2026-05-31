@@ -14,12 +14,27 @@ fi
 
 ROOT_FILE=""
 HAS_INTENT_SECTION=false
+HAS_AGENTS=false
+HAS_CLAUDE=false
+HAS_DUPLICATE_ROOTS=false
 CHILD_NODES=()
 
+if [ -f "$TARGET_PATH/AGENTS.md" ]; then
+  HAS_AGENTS=true
+fi
+
 if [ -f "$TARGET_PATH/CLAUDE.md" ]; then
-  ROOT_FILE="CLAUDE.md"
-elif [ -f "$TARGET_PATH/AGENTS.md" ]; then
+  HAS_CLAUDE=true
+fi
+
+if [ "$HAS_AGENTS" = true ]; then
   ROOT_FILE="AGENTS.md"
+elif [ "$HAS_CLAUDE" = true ]; then
+  ROOT_FILE="CLAUDE.md"
+fi
+
+if [ "$HAS_AGENTS" = true ] && [ "$HAS_CLAUDE" = true ]; then
+  HAS_DUPLICATE_ROOTS=true
 fi
 
 if [ -n "$ROOT_FILE" ] && grep -q "## Intent Layer" "$TARGET_PATH/$ROOT_FILE" 2>/dev/null; then
@@ -37,11 +52,14 @@ done < <(
 echo "=== Intent Layer State ==="
 echo "root_file: ${ROOT_FILE:-none}"
 echo "has_intent_section: $HAS_INTENT_SECTION"
+echo "duplicate_root_files: $HAS_DUPLICATE_ROOTS"
 echo "child_nodes: ${#CHILD_NODES[@]}"
 
-for node in "${CHILD_NODES[@]}"; do
-  echo "  - $node"
-done
+if [ "${#CHILD_NODES[@]}" -gt 0 ]; then
+  for node in "${CHILD_NODES[@]}"; do
+    echo "  - $node"
+  done
+fi
 
 echo ""
 if [ -z "$ROOT_FILE" ]; then
@@ -49,7 +67,11 @@ if [ -z "$ROOT_FILE" ]; then
   echo "action: initial setup required"
 elif [ "$HAS_INTENT_SECTION" = false ]; then
   echo "state: partial"
-  echo "action: add Intent Layer section to $ROOT_FILE"
+  if [ "$HAS_DUPLICATE_ROOTS" = true ]; then
+    echo "action: resolve duplicate root files, then add Intent Layer section to $ROOT_FILE"
+  else
+    echo "action: add Intent Layer section to $ROOT_FILE"
+  fi
 else
   echo "state: complete"
   echo "action: maintenance mode (audit/candidates/both)"

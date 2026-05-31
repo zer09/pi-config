@@ -24,26 +24,26 @@ echo "Target: $TARGET_PATH"
 echo ""
 
 echo "## Directory Structure (depth 3)"
-find "$TARGET_PATH" -maxdepth 3 \( "${PRUNE_ARGS[@]}" \) -prune -o -type d -print 2>/dev/null | head -50
+find "$TARGET_PATH" -maxdepth 3 \( "${PRUNE_ARGS[@]}" \) -prune -o -type d -print 2>/dev/null | awk 'NR <= 50'
 
 echo ""
 echo "## Existing Intent Nodes"
 find "$TARGET_PATH" \( "${PRUNE_ARGS[@]}" \) -prune -o \
-  \( -name "AGENTS.md" -o -name "CLAUDE.md" \) -type f -print 2>/dev/null | head -20
+  \( -name "AGENTS.md" -o -name "CLAUDE.md" \) -type f -print 2>/dev/null | awk 'NR <= 20'
 
 echo ""
 echo "## Large Directories (potential boundaries)"
-echo "(Directories with >20 files)"
+echo "(Directories with >20 files; heuristic)"
 find "$TARGET_PATH" \( "${PRUNE_ARGS[@]}" \) -prune -o -type d -exec sh -c '
   count=$(find "$1" -maxdepth 1 -type f | wc -l | tr -d " ")
   [ "$count" -gt 20 ] && echo "$count files: $1"
-' _ {} \; 2>/dev/null | sort -rn | head -15
+' _ {} \; 2>/dev/null | sort -rn | awk 'NR <= 15'
 
 echo ""
 echo "## Package/Config Files (semantic boundaries)"
 find "$TARGET_PATH" -maxdepth 4 \( "${PRUNE_ARGS[@]}" \) -prune -o \
   \( -name "package.json" -o -name "Cargo.toml" -o -name "go.mod" -o -name "pyproject.toml" \) \
-  -type f -print 2>/dev/null | head -20
+  -type f -print 2>/dev/null | awk 'NR <= 20'
 
 echo ""
 echo "## Suggested Intent Node Locations"
