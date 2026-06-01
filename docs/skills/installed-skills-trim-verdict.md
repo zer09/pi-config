@@ -35,7 +35,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | ✓ | firebase-firestore | Medium | 6 | keep it | Retained because Firestore rules, indexes, database creation, and edition differences are safety-sensitive. |
 | ✓ | firebase-hosting-basics | Good | 7 | make it slim | Slimmed to Hosting Classic boundaries, deploy gates, config references, and emulator validation. |
 | ✓ | firebase-security-rules-auditor | Medium | 6 | keep it | Retained because Firestore rules auditing benefits from strict, safety-focused review criteria. |
-| ✓ | gh-address-comments | Medium | 6 | keep it | Retained with the OpenAI-derived skill set; PR comment workflow and GitHub gates are useful when triggered. |
+| x | gh-address-comments | Medium | 6 | remove it | Retired because exact GitHub comment URLs map directly to `gh api`, and the PR-wide workflow caused over-broad routing. |
 | ✓ | gh-cli | Strong | 8 | make it slim | Slimmed to auth, safety, URL normalization, runtime workflow, and reference navigation; command library moved to `references/index.md`. |
 | ✓ | grill-with-docs | Strong | 8 | keep it | Retained with remaining Matt Pocock skills for optional domain-language and ADR grilling workflows. |
 | x | humanizer | Very strong | 9 | remove it | Writing style cleanup is generic and memory-native. |

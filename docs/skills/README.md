@@ -90,7 +90,7 @@ Installing a new skill means:
 - `minimax-cli-update-process.md`: retired-skill notes and reinstall checklist for the former MiniMax CLI skill.
 - `nlm-skill-update-process.md`: update workflow for the NotebookLM CLI and MCP skill.
 - `notion-cli-update-process.md`: retired-skill notes and reinstall checklist for the former Notion CLI skill.
-- `openai-skills-update-process.md`: update workflow for OpenAI-derived skills, including skill-creator, Figma skills, and gh-address-comments.
+- `openai-skills-update-process.md`: update workflow for OpenAI-derived skills, including skill-creator and Figma skills.
 - `planetscale-database-skills-update-process.md`: update workflow for PlanetScale MySQL and Postgres skills.
 - `refine-linear-task-update-process.md`: retired-skill notes and reinstall checklist for the former Linear task refinement skill.
 
@@ -99,6 +99,7 @@ Installing a new skill means:
 These runtime skills were removed during the skill slimming pass because their workflows are strong base-model capabilities, overlap with remaining tools, or are not worth a dedicated runtime skill in this setup:
 
 - `edge-case-analysis`
+- `gh-address-comments`
 - `humanizer`
 - `refine-linear-task`
 - `mmx-cli`

@@ -14,7 +14,6 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 | Local skill | Upstream path | Local notes |
 | --- | --- | --- |
 | `skill-creator` | `skills/.system/skill-creator` | Foundational skill. Validate this before changing other skills. |
-| `gh-address-comments` | `skills/.curated/gh-address-comments` | Keep local GitHub mutation gate and use authenticated `gh` CLI through Context Mode/RTK. |
 | `figma` | `skills/.curated/figma` | Lightweight Figma MCP setup and design context helper. |
 | `figma-implement-design` | `skills/.curated/figma-implement-design` | Design-to-code implementation workflow. |
 | `figma-create-design-system-rules` | `skills/.curated/figma-create-design-system-rules` | Project rule generation for Figma-to-code workflows. |
@@ -31,7 +30,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 
 ## Update workflow
 
-1. Load `skill-creator` and `gh-cli`, then read this file.
+1. Load `skill-creator`, then read this file. Load `gh-cli` only when fetching upstream GitHub content or checking command syntax.
 2. Fetch upstream files with authenticated `gh` CLI through Context Mode/RTK, for example:
 
 ```bash
@@ -47,17 +46,12 @@ rtk gh api repos/openai/skills/contents/skills/.curated/figma/SKILL.md?ref=main
 8. Validate all OpenAI-derived skills:
 
 ```bash
-for skill in skill-creator gh-address-comments figma figma-implement-design figma-create-design-system-rules; do
+for skill in skill-creator figma figma-implement-design figma-create-design-system-rules; do
   uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/$skill || exit 1
 done
 ```
 
-9. Compile or test bundled scripts when they change. For example:
-
-```bash
-uv run python -m py_compile ~/.pi/agent/skills/gh-address-comments/scripts/fetch_comments.py
-```
-
+9. Compile or test bundled scripts when they change.
 10. Scan changed files for literal home paths and secret values before committing.
 
 ## Foundational skill caution
