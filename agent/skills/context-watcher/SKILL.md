@@ -98,28 +98,7 @@ Use CodeGraph before grep/find/manual source walking for structural code work.
 
 Base route: keep CodeGraph MCP available alongside Context Mode for code work; check health with read-only `codegraph status <repo>` or exposed `codegraph_status`; ask before local index mutations; list live MCP tools before optional caller/callee/impact/status assumptions; pass `projectPath` for worktrees and non-session repos; read stale-banner files only when exact current content matters.
 
-Current MCP shapes, in columnar JSON:
-
-```json
-{
-  "v": 1,
-  "kind": "codegraph_mcp_tools",
-  "status": "current_when_verified",
-  "cols": ["tool", "required", "optional"],
-  "rows": [
-    ["codegraph_codegraph_search", ["query:string"], ["kind:enum", "limit:number=10", "projectPath:string"]],
-    ["codegraph_codegraph_context", ["task:string"], ["maxNodes:number=20", "includeCode:boolean=true", "projectPath:string"]],
-    ["codegraph_codegraph_callers", ["symbol:string"], ["limit:number=20", "projectPath:string"]],
-    ["codegraph_codegraph_callees", ["symbol:string"], ["limit:number=20", "projectPath:string"]],
-    ["codegraph_codegraph_impact", ["symbol:string"], ["depth:number=2", "projectPath:string"]],
-    ["codegraph_codegraph_node", ["symbol:string"], ["includeCode:boolean=false", "projectPath:string"]],
-    ["codegraph_codegraph_explore", ["query:string"], ["maxFiles:number=12", "projectPath:string"]],
-    ["codegraph_codegraph_status", [], ["projectPath:string"]],
-    ["codegraph_codegraph_files", [], ["path:string", "pattern:string", "format:tree|flat|grouped=tree", "includeMetadata:boolean=true", "maxDepth:number", "projectPath:string"]],
-    ["codegraph_codegraph_trace", ["from:string", "to:string"], ["projectPath:string"]]
-  ]
-}
-```
+For exact CodeGraph MCP parameter names, load `references/codegraph-protocol.md`; do not infer schemas.
 
 First tool by intent: `codegraph_context` for architecture/onboarding/bug areas, `codegraph_trace` for flow/path questions, `codegraph_search` for known symbols, `codegraph_node` for one exact symbol, and `codegraph_explore` for related source surveys. Use optional `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_files`, and `codegraph_status` when exposed for immediate lookup. Use equivalent CLI commands through Context Mode/RTK when output should be indexed, searched, batched, parsed, compared, or when optional MCP tools are hidden; strip ANSI for plain output and reserve raw JSON for programmed summaries.
 

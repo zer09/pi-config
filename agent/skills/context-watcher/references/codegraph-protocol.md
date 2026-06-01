@@ -124,6 +124,29 @@ Optional tools when exposed:
 - Change impact: `codegraph_impact`.
 - File layout: `codegraph_files`.
 
+Current MCP shapes, in columnar JSON. `tool` values are Pi MCP gateway names; prose may use shorthand names.
+
+```json
+{
+  "v": 1,
+  "kind": "codegraph_mcp_tools",
+  "status": "current_when_verified",
+  "cols": ["tool", "required", "optional"],
+  "rows": [
+    ["codegraph_codegraph_search", ["query"], ["kind", "limit", "projectPath"]],
+    ["codegraph_codegraph_context", ["task"], ["maxNodes", "includeCode", "projectPath"]],
+    ["codegraph_codegraph_callers", ["symbol"], ["limit", "projectPath"]],
+    ["codegraph_codegraph_callees", ["symbol"], ["limit", "projectPath"]],
+    ["codegraph_codegraph_impact", ["symbol"], ["depth", "projectPath"]],
+    ["codegraph_codegraph_node", ["symbol"], ["includeCode", "projectPath"]],
+    ["codegraph_codegraph_explore", ["query"], ["maxFiles", "projectPath"]],
+    ["codegraph_codegraph_status", [], ["projectPath"]],
+    ["codegraph_codegraph_files", [], ["path", "pattern", "format", "includeMetadata", "maxDepth", "projectPath"]],
+    ["codegraph_codegraph_trace", ["from", "to"], ["projectPath"]]
+  ]
+}
+```
+
 Parameter guidance:
 
 - Use `projectPath` for explicit repository/worktree routing.
