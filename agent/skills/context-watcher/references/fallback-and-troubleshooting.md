@@ -71,8 +71,9 @@ If writing a log file, use native file tools only when appropriate. Do not expos
 
 1. Prefer the MCP Context Mode tools directly.
 2. Run diagnostics with `ctx_doctor` when asked or when repeated routing failures occur.
-3. If a command may produce large output, avoid direct Bash even while troubleshooting.
-4. Use `ctx_search` to recover previously indexed state after compaction.
+3. Use `ctx_stats` for runtime/session evidence and `ctx_insight` only when the user wants the local analytics dashboard.
+4. If a command may produce large output, avoid direct Bash even while troubleshooting.
+5. Use `ctx_search` to recover previously indexed state after compaction.
 
 ## Troubleshooting CodeGraph not connecting
 

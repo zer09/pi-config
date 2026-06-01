@@ -52,7 +52,7 @@ Notes:
 - `ctx_fetch_and_index`: fetch a URL, convert/index content, then use `ctx_search`.
 - `ctx_index`: index already-available documentation or knowledge content.
 - `ctx_search`: search indexed content. Batch questions in one call.
-- `ctx_purge`, `ctx_stats`, `ctx_doctor`, `ctx_upgrade`: management commands. Destructive purge requires explicit scope.
+- `ctx_stats`, `ctx_doctor`, `ctx_upgrade`, `ctx_insight`, `ctx_purge`: management commands. `ctx_insight` opens the local analytics dashboard. Destructive purge requires explicit scope.
 
 ## Think in code
 
@@ -110,6 +110,7 @@ Do not use these routes for normal work:
 - `ctx doctor`, `ctx-doctor`, `/ctx-doctor`: call doctor, run the returned command if provided, and display as a checklist.
 - `ctx upgrade`, `ctx-upgrade`, `/ctx-upgrade`: call upgrade, run the returned command, display as a checklist, and tell the user to restart the session.
 - `ctx purge`, `ctx-purge`, `/ctx-purge`: destructive. Use explicit scope and warn that it is irreversible.
+- `ctx insight`, `ctx-insight`, `/ctx-insight`: open the local Context Mode analytics dashboard; use only when the user wants dashboard/metrics inspection.
 
 ## Session recovery
 

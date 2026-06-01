@@ -2,7 +2,7 @@
 
 Blocks hosted-service mutations at Pi `tool_call` time unless the current user prompt or a one-time command authorizes the exact operation.
 
-Context Mode tools are excluded from this guard because they are part of the default agent execution path. The excluded tools are `ctx_execute`, `context_mode_ctx_execute`, `ctx_batch_execute`, `context_mode_ctx_batch_execute`, `ctx_execute_file`, and `context_mode_ctx_execute_file`. Local filesystem tools (`read`, `write`, and `edit`) are treated as local operations, even when their file content mentions hosted services.
+Context Mode tools are part of the default agent execution path. Executable Context Mode surfaces (`ctx_execute`, `context_mode_ctx_execute`, `ctx_batch_execute`, `context_mode_ctx_batch_execute`, `ctx_execute_file`, and `context_mode_ctx_execute_file`) are inspected for hidden hosted-service mutations in their command or code payloads. Non-executable Context Mode tools such as `ctx_search`, `ctx_index`, `ctx_fetch_and_index`, `ctx_stats`, `ctx_doctor`, `ctx_upgrade`, `ctx_purge`, and `ctx_insight` are not classified as hosted-service mutations by themselves. Local filesystem tools (`read`, `write`, and `edit`) are treated as local operations, even when their file content mentions hosted services.
 
 ## Exact prompt authorization
 
