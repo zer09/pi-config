@@ -84,7 +84,7 @@ Rules:
 
 ### Context Mode and RTK
 
-Use `ctx_batch_execute` as the primary shell research tool; use `ctx_execute` for one command or analysis, `ctx_execute_file` for file/log/data analysis, `ctx_fetch_and_index` for URLs, `ctx_search` for indexed state, and `ctx_index` for already-available docs. Use management tools only for their explicit purposes; `ctx_purge` is destructive and needs explicit scope.
+Use `ctx_batch_execute` as the primary shell research tool; use `ctx_execute` for one command or analysis, `ctx_execute_file` for file/log/data analysis, `ctx_fetch_and_index` for URLs, `ctx_search` for indexed state, and `ctx_index` for already-available docs. Use management tools only for their explicit purposes: `ctx_stats` for savings/session stats, `ctx_doctor` for diagnostics, `ctx_upgrade` for upgrades, `ctx_insight` for the local analytics dashboard, and `ctx_purge` for destructive deletion with explicit scope.
 
 Use RTK as the default prefix for read-only shell operations when available, inside Context Mode, for example `ctx_execute({ language: "shell", code: "rtk git status --short --branch" })`. RTK compresses output; it does not replace sandboxing, indexing, graph-first exploration, or programmed analysis.
 

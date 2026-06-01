@@ -80,6 +80,7 @@ Avoid:
 ```text
 ctx_doctor
 ctx_stats
+ctx_insight  # optional local analytics dashboard
 codegraph --version
 codegraph status <repo>
 # Optional when exposed by the live MCP server:
@@ -95,6 +96,8 @@ ctx_execute({ language: "shell", code: "rtk git diff --stat" })
 ```
 
 ### Tests and builds
+
+Use `ctx_batch_execute` by default for multiple checks or output-heavy suites. Use `ctx_execute` for one focused command.
 
 ```text
 ctx_execute({ language: "shell", code: "rtk npm test" })
