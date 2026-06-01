@@ -98,6 +98,8 @@ Use CodeGraph before grep/find/manual source walking for structural code work.
 
 Base route: keep CodeGraph MCP available alongside Context Mode for code work; check health with read-only `codegraph status <repo>` or exposed `codegraph_status`; ask before local index mutations; list live MCP tools before optional caller/callee/impact/status assumptions; pass `projectPath` for worktrees and non-session repos; read stale-banner files only when exact current content matters.
 
+For exact CodeGraph MCP parameter names, load `references/codegraph-protocol.md`; do not infer schemas.
+
 First tool by intent: `codegraph_context` for architecture/onboarding/bug areas, `codegraph_trace` for flow/path questions, `codegraph_search` for known symbols, `codegraph_node` for one exact symbol, and `codegraph_explore` for related source surveys. Use optional `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_files`, and `codegraph_status` when exposed for immediate lookup. Use equivalent CLI commands through Context Mode/RTK when output should be indexed, searched, batched, parsed, compared, or when optional MCP tools are hidden; strip ANSI for plain output and reserve raw JSON for programmed summaries.
 
 If CodeGraph is unavailable, uninitialized, stale, hidden by tool gating, or insufficient, follow the fallback protocol and state that graph results are degraded.
