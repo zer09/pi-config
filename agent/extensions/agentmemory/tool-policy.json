@@ -1,0 +1,314 @@
+{
+  "upstream": {
+    "source": "src/mcp/tools-registry.ts",
+    "lastCheckedVersion": "0.9.24",
+    "lastCheckedCommit": "fd9e3bd42d6208a33f0ee9de1442fdbb60eab106",
+    "toolCount": 53
+  },
+  "localTools": [
+    {
+      "name": "memory_health",
+      "reason": "Pi-local health check for the AgentMemory REST server"
+    },
+    {
+      "name": "memory_search",
+      "reason": "Pi-local friendly compatibility alias for quick smart-search output"
+    }
+  ],
+  "defaultTools": [
+    {
+      "name": "memory_recall",
+      "required": ["query"],
+      "properties": ["format", "limit", "query", "token_budget"],
+      "reason": "Read-only cross-session recall"
+    },
+    {
+      "name": "memory_save",
+      "required": ["content"],
+      "properties": ["concepts", "content", "files", "project", "type"],
+      "reason": "Primary explicit durable write path, guarded against secret-looking content"
+    },
+    {
+      "name": "memory_file_history",
+      "required": ["files"],
+      "properties": ["files", "sessionId"],
+      "reason": "Read-only file-specific prior work"
+    },
+    {
+      "name": "memory_patterns",
+      "required": [],
+      "properties": ["project"],
+      "reason": "Read-only recurring pattern analysis"
+    },
+    {
+      "name": "memory_sessions",
+      "required": [],
+      "properties": [],
+      "reason": "Read-only session listing"
+    },
+    {
+      "name": "memory_smart_search",
+      "required": ["query"],
+      "properties": ["expandIds", "limit", "query"],
+      "reason": "Read-only hybrid search"
+    },
+    {
+      "name": "memory_timeline",
+      "required": ["anchor"],
+      "properties": ["after", "anchor", "before", "project"],
+      "reason": "Read-only chronological context"
+    },
+    {
+      "name": "memory_profile",
+      "required": ["project"],
+      "properties": ["project", "refresh"],
+      "reason": "Read-oriented project/profile summary"
+    },
+    {
+      "name": "memory_commit_lookup",
+      "required": ["sha"],
+      "properties": ["sha"],
+      "reason": "Read-only commit provenance"
+    },
+    {
+      "name": "memory_commits",
+      "required": [],
+      "properties": ["branch", "limit", "repo"],
+      "reason": "Read-only commit/session provenance"
+    },
+    {
+      "name": "memory_diagnose",
+      "required": [],
+      "properties": ["categories"],
+      "reason": "Read-only diagnostics"
+    },
+    {
+      "name": "memory_verify",
+      "required": ["id"],
+      "properties": ["id"],
+      "reason": "Read-only provenance verification"
+    },
+    {
+      "name": "memory_lesson_recall",
+      "required": ["query"],
+      "properties": ["limit", "minConfidence", "project", "query"],
+      "reason": "Read-only lesson recall"
+    }
+  ],
+  "gatedTools": [
+    {
+      "name": "memory_export",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Broad private memory export"
+    },
+    {
+      "name": "memory_consolidate",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Mutates or reclassifies memory state"
+    },
+    {
+      "name": "memory_audit",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Broad private memory audit"
+    },
+    {
+      "name": "memory_governance_delete",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Destructive memory deletion"
+    },
+    {
+      "name": "memory_heal",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Mutates memory subsystem state"
+    },
+    {
+      "name": "memory_lesson_save",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Additional durable write path"
+    },
+    {
+      "name": "memory_reflect",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Synthesizes higher-order memories or insights"
+    },
+    {
+      "name": "memory_insight_list",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Broad insight inspection coupled to reflection workflows"
+    }
+  ],
+  "notExposedTools": [
+    {
+      "name": "memory_compress_file",
+      "reason": "Rewrites local files and creates backups"
+    },
+    {
+      "name": "memory_vision_search",
+      "reason": "Requires optional image embedding provider and is not routine Pi memory recall"
+    },
+    {
+      "name": "memory_relations",
+      "reason": "Graph traversal overlaps with other routing and needs clearer value before exposure"
+    },
+    {
+      "name": "memory_claude_bridge_sync",
+      "reason": "Claude-specific bridge workflow"
+    },
+    {
+      "name": "memory_graph_query",
+      "reason": "Graph querying remains unexposed while CodeGraph owns structural graph reasoning"
+    },
+    {
+      "name": "memory_team_share",
+      "reason": "Team sharing workflow is not a default local Pi operation"
+    },
+    {
+      "name": "memory_team_feed",
+      "reason": "Team feed workflow is not a default local Pi operation"
+    },
+    {
+      "name": "memory_snapshot_create",
+      "reason": "Persistent snapshot write path"
+    },
+    {
+      "name": "memory_action_create",
+      "reason": "Task-state write path overlaps with Pi plans and handoffs"
+    },
+    {
+      "name": "memory_action_update",
+      "reason": "Task-state mutation overlaps with Pi plans and handoffs"
+    },
+    {
+      "name": "memory_frontier",
+      "reason": "Workflow planning surface not adopted by default"
+    },
+    {
+      "name": "memory_next",
+      "reason": "Workflow planning surface not adopted by default"
+    },
+    {
+      "name": "memory_lease",
+      "reason": "Coordination workflow not adopted by default"
+    },
+    {
+      "name": "memory_routine_run",
+      "reason": "Automated routine execution is not default memory recall"
+    },
+    {
+      "name": "memory_signal_send",
+      "reason": "Coordination write path not adopted by default"
+    },
+    {
+      "name": "memory_signal_read",
+      "reason": "Coordination read path not adopted by default"
+    },
+    {
+      "name": "memory_checkpoint",
+      "reason": "Checkpoint workflow overlaps with Pi handoffs"
+    },
+    {
+      "name": "memory_mesh_sync",
+      "reason": "Mesh sync workflow is not default local Pi operation"
+    },
+    {
+      "name": "memory_sentinel_create",
+      "reason": "Sentinel write path not adopted by default"
+    },
+    {
+      "name": "memory_sentinel_trigger",
+      "reason": "Sentinel execution path not adopted by default"
+    },
+    {
+      "name": "memory_sketch_create",
+      "reason": "Sketch write path not adopted by default"
+    },
+    {
+      "name": "memory_sketch_promote",
+      "reason": "Sketch promotion mutates memory/workflow state"
+    },
+    {
+      "name": "memory_crystallize",
+      "reason": "Memory synthesis/mutation workflow not adopted by default"
+    },
+    {
+      "name": "memory_facet_tag",
+      "reason": "Facet tagging mutates memory metadata"
+    },
+    {
+      "name": "memory_facet_query",
+      "reason": "Facet query surface not needed in the default Pi profile"
+    },
+    {
+      "name": "memory_obsidian_export",
+      "reason": "Exports memory content to files"
+    },
+    {
+      "name": "memory_slot_list",
+      "reason": "Slot workflows need a separate persistent-state policy"
+    },
+    {
+      "name": "memory_slot_get",
+      "reason": "Slot workflows need a separate persistent-state policy"
+    },
+    {
+      "name": "memory_slot_create",
+      "reason": "Slot workflows need a separate persistent-state policy"
+    },
+    {
+      "name": "memory_slot_append",
+      "reason": "Slot workflows need a separate persistent-state policy"
+    },
+    {
+      "name": "memory_slot_replace",
+      "reason": "Slot workflows need a separate persistent-state policy"
+    },
+    {
+      "name": "memory_slot_delete",
+      "reason": "Slot workflows need a separate persistent-state policy"
+    }
+  ],
+  "localInvariants": [
+    {
+      "id": "delegate-child-disabled",
+      "file": "agent/extensions/agentmemory/index.ts",
+      "contains": "process.env.PI_DELEGATE_CHILD",
+      "reason": "Delegate child sessions must not register AgentMemory tools, hooks, or bundled skills"
+    },
+    {
+      "id": "headless-ui-guard",
+      "file": "agent/extensions/agentmemory/index.ts",
+      "contains": "ctx.hasUI === false || !ctx.ui",
+      "reason": "Headless sessions must not crash when status UI is absent"
+    },
+    {
+      "id": "https-bearer-guard",
+      "file": "agent/extensions/agentmemory/security.ts",
+      "contains": "AGENTMEMORY_REQUIRE_HTTPS",
+      "reason": "Bearer secrets must not be silently sent over non-loopback plaintext HTTP"
+    },
+    {
+      "id": "secret-content-guard",
+      "file": "agent/extensions/agentmemory/security.ts",
+      "contains": "containsSecretLikeContent",
+      "reason": "Durable memory writes must reject obvious secret-looking content"
+    },
+    {
+      "id": "mcp-call-endpoint",
+      "file": "agent/extensions/agentmemory/index.ts",
+      "contains": "mcp/call",
+      "reason": "Curated MCP-compatible wrappers must use the upstream MCP REST bridge"
+    },
+    {
+      "id": "bundled-skill-discovery",
+      "file": "agent/extensions/agentmemory/index.ts",
+      "contains": "resources_discover",
+      "reason": "The AgentMemory skill must stay bundled beside the extension"
+    },
+    {
+      "id": "footer-status-shape",
+      "file": "agent/extensions/agentmemory/index.ts",
+      "contains": "🧠 agentmemory off",
+      "reason": "gc-footer compact status depends on the existing status text shape"
+    }
+  ]
+}
