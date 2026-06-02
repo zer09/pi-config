@@ -1,0 +1,870 @@
+const assert = require("node:assert/strict");
+const { execFileSync } = require("node:child_process");
+const Module = require("node:module");
+const path = require("node:path");
+
+function resolveGlobalNodeModules() {
+  try {
+    return execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
+  } catch {
+    return path.resolve(path.dirname(process.execPath), "..", "lib", "node_modules");
+  }
+}
+
+const globalNodeModules = resolveGlobalNodeModules();
+const piPackageRoot = path.join(globalNodeModules, "@earendil-works", "pi-coding-agent");
+process.env.NODE_PATH = [
+  path.join(piPackageRoot, "node_modules"),
+  globalNodeModules,
+  process.env.NODE_PATH,
+].filter(Boolean).join(path.delimiter);
+Module._initPaths();
+
+const { createJiti } = require(path.join(piPackageRoot, "node_modules", "jiti"));
+
+const extensionPath = path.join(__dirname, "index.ts");
+const securityPath = path.join(__dirname, "security.ts");
+const MANAGED_ENV_KEYS = [
+  "AGENTMEMORY_URL",
+  "AGENTMEMORY_SECRET",
+  "AGENTMEMORY_REQUIRE_HTTPS",
+  "PI_DELEGATE_CHILD",
+];
+const DEFAULT_TOOL_NAMES = [
+  "memory_health",
+  "memory_search",
+  "memory_save",
+  "memory_smart_search",
+  "memory_recall",
+  "memory_sessions",
+  "memory_file_history",
+  "memory_timeline",
+  "memory_patterns",
+  "memory_profile",
+  "memory_commit_lookup",
+  "memory_commits",
+  "memory_diagnose",
+  "memory_verify",
+  "memory_lesson_recall",
+];
+const GATED_TOOL_NAMES = [
+  "memory_lesson_save",
+  "memory_consolidate",
+  "memory_reflect",
+  "memory_insight_list",
+  "memory_audit",
+  "memory_export",
+  "memory_governance_delete",
+  "memory_heal",
+];
+
+const tests = [];
+function test(name, fn) {
+  tests.push({ name, fn });
+}
+
+function loadExtension() {
+  const jiti = createJiti(extensionPath, { interopDefault: false, moduleCache: false });
+  const mod = jiti(extensionPath);
+  return mod.default ?? mod;
+}
+
+function loadSecurity() {
+  const jiti = createJiti(securityPath, { interopDefault: false, moduleCache: false });
+  return jiti(securityPath);
+}
+
+function jsonResponse(body, options = {}) {
+  const ok = options.ok ?? true;
+  return {
+    ok,
+    status: options.status ?? (ok ? 200 : 500),
+    statusText: options.statusText ?? (ok ? "OK" : "ERR"),
+    async text() {
+      return JSON.stringify(body);
+    },
+    async json() {
+      return body;
+    },
+  };
+}
+
+function createHarness(options = {}) {
+  const oldFetch = global.fetch;
+  const oldEnv = new Map();
+  for (const key of MANAGED_ENV_KEYS) oldEnv.set(key, process.env[key]);
+  for (const key of MANAGED_ENV_KEYS) delete process.env[key];
+  for (const [key, value] of Object.entries(options.env || {})) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+
+  const fetchCalls = [];
+  global.fetch = async (url, init = {}) => {
+    fetchCalls.push({ url: String(url), init });
+    if (options.fetchHandler) return await options.fetchHandler(String(url), init, fetchCalls);
+    throw new Error("unexpected fetch");
+  };
+
+  const handlers = new Map();
+  const tools = new Map();
+  const commands = new Map();
+  const statuses = new Map();
+  const notifications = [];
+
+  const pi = {
+    on(event, handler) {
+      const list = handlers.get(event) || [];
+      list.push(handler);
+      handlers.set(event, list);
+    },
+    registerTool(tool) {
+      tools.set(tool.name, tool);
+    },
+    registerCommand(name, command) {
+      commands.set(name, command);
+    },
+  };
+
+  try {
+    loadExtension()(pi);
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+
+  const ctx = {
+    hasUI: true,
+    cwd: "/tmp/project",
+    sessionManager: {
+      getSessionFile: () => "/tmp/session-file.json",
+    },
+    ui: {
+      setStatus(key, text) {
+        statuses.set(key, text);
+      },
+      notify(message, level) {
+        notifications.push({ message, level });
+      },
+    },
+  };
+
+  function cleanup() {
+    if (oldFetch === undefined) delete global.fetch;
+    else global.fetch = oldFetch;
+    for (const key of MANAGED_ENV_KEYS) {
+      const value = oldEnv.get(key);
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+
+  async function emit(event, payload = {}, customCtx = ctx) {
+    let result;
+    for (const handler of handlers.get(event) || []) {
+      const handlerResult = await handler(payload, customCtx);
+      if (handlerResult !== undefined) result = handlerResult;
+    }
+    return result;
+  }
+
+  async function callTool(name, params = {}) {
+    const tool = tools.get(name);
+    assert.equal(typeof tool?.execute, "function", `${name} should be registered`);
+    return await tool.execute("tool-1", params);
+  }
+
+  return {
+    handlers,
+    tools,
+    commands,
+    statuses,
+    notifications,
+    fetchCalls,
+    ctx,
+    emit,
+    callTool,
+    cleanup,
+  };
+}
+
+function parseBody(call) {
+  return JSON.parse(call.init.body);
+}
+
+function textContent(result) {
+  return result.content.map((block) => block.text).join("\n");
+}
+
+test("registers curated default tools and bundled skill discovery", async () => {
+  const harness = createHarness();
+  try {
+    assert.deepEqual([...harness.tools.keys()].sort(), [...DEFAULT_TOOL_NAMES].sort());
+    for (const gated of GATED_TOOL_NAMES) assert.equal(harness.tools.has(gated), false, `${gated} should not be registered by default`);
+
+    const resources = await harness.emit("resources_discover", { reason: "startup", cwd: "/tmp/project" });
+    assert.deepEqual(resources.skillPaths, [path.join(__dirname, "skills")]);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("delegate child sessions register no tools hooks commands or skills", () => {
+  const harness = createHarness({ env: { PI_DELEGATE_CHILD: "1" } });
+  try {
+    assert.equal(harness.tools.size, 0);
+    assert.equal(harness.commands.size, 0);
+    assert.equal(harness.handlers.size, 0);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_health failure reports configured URL", async () => {
+  const harness = createHarness({
+    env: { AGENTMEMORY_URL: "http://localhost:5999" },
+    fetchHandler: async () => { throw new Error("offline"); },
+  });
+  try {
+    const result = await harness.callTool("memory_health");
+    assert.match(textContent(result), /http:\/\/localhost:5999/);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_smart_search calls the MCP REST bridge", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url) => {
+      assert.match(url, /\/agentmemory\/mcp\/call$/);
+      return jsonResponse({ content: [{ type: "text", text: "search ok" }] });
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_smart_search", { query: "prior decision", limit: 3 });
+    assert.equal(textContent(result), "search ok");
+    assert.deepEqual(parseBody(harness.fetchCalls[0]), {
+      name: "memory_smart_search",
+      arguments: { query: "prior decision", limit: 3 },
+    });
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("MCP isError responses are surfaced as failures", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ isError: true, content: [{ type: "text", text: "upstream denied request" }] }),
+  });
+  try {
+    const result = await harness.callTool("memory_smart_search", { query: "prior decision" });
+    assert.equal(textContent(result), "memory_smart_search failed: upstream denied request");
+    assert.equal(result.details.ok, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("security helpers redact protocol-relative URLs and shared secret-context objects", () => {
+  const security = loadSecurity();
+  assert.equal(security.sanitizeTextForDisplay("see //user:pass@example.invalid/path"), "see //<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("http://outer.invalid//user:pass@example.invalid/path"), "http://outer.invalid//<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("see https:\\\\user:pass@example.invalid\\\\path"), "see https:\\\\<redacted>@example.invalid\\\\path");
+  assert.equal(security.sanitizeTextForDisplay("see https://example.invalid/path/user:pass@host/more"), "see https://example.invalid/path/<redacted>@host/more");
+  assert.equal(security.sanitizeTextForDisplay("https%3A%2F%2Fuser%3Apass%40example.invalid%2Fpath"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("https%3A%2F%2Fuser%ZZ%3Apass%40example.invalid%2Fpath"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("https\\u003a\\u002f\\u002fuser\\u003apass\\u0040example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("https\\x3a\\x2f\\x2fuser\\x3apass\\x40example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("https\\u{3a}\\u{2f}\\u{2f}user\\u{3a}pass\\u{40}example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("https&colon;&sol;&sol;user&colon;pass&commat;example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("https&colon&sol&soluser&colonpass&commat;example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("https&#x3a;&#x2f;&#x2f;user&#x3a;pass&#x40;example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("https&#58&#47&#47user&#58pass&#64example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.containsSecretLikeContent("https://user:pass@example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("https%3A%2F%2Fuser%3Apass%40example.invalid%2Fpath"), true);
+  assert.equal(security.containsSecretLikeContent("https%3A%2F%2Fuser%ZZ%3Apass%40example.invalid%2Fpath"), true);
+  assert.equal(security.containsSecretLikeContent("https\\u003a\\u002f\\u002fuser\\u003apass\\u0040example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("https\\x3a\\x2f\\x2fuser\\x3apass\\x40example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("https\\u{3a}\\u{2f}\\u{2f}user\\u{3a}pass\\u{40}example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("https&colon;&sol;&sol;user&colon;pass&commat;example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("https&colon&sol&soluser&colonpass&commat;example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("https&#58&#47&#47user&#58pass&#64example.invalid/path"), true);
+  assert.equal(security.sanitizeTextForDisplay("API&#95;KEY&#61;abcdefghijklmnop"), "API_KEY=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("api&hyphen;key&equals;abcdefghijklmnop"), "api-key=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("SECRET&equals;&quot;short word&quot;"), 'SECRET="<redacted>"');
+  assert.equal(security.sanitizeTextForDisplay("TOKEN%ZZ%3Aabcdefghijklmnop"), "TOKEN:<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("ＡＰＩ＿ＫＥＹ＝abcdefghijklmnop"), "API_KEY=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("https：／／user：pass＠example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("TOK\u200bEN=abcdefghijklmnop"), "TOKEN=<redacted>");
+  assert.equal(
+    security.sanitizeTextForDisplay("https%255Cu003a%2526%252347%25EF%25BC%258Fuser%25EF%25BC%259Apass%2526%252364example.invalid%25EF%25BC%258Fpath SECRET%ZZ%3A＂abcdefghijklmnop&quot"),
+    'https://<redacted>@example.invalid/path SECRET:"<redacted>"',
+  );
+  assert.equal(security.sanitizeTextForDisplay("https\\072\\057\\057user\\072pass\\100example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("https\\58\\47\\47user\\58pass\\64example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("ｈｔｔｐｓ％３Ａ％２Ｆ％２Ｆuser％３Ａpass％４０example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("TOKEN%_%3Aabcdefghijklmnop"), "TOKEN:<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("API\\137KEY\\075abcdefghijklmnop"), "API_KEY=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("https\\3a\\2f\\2fuser\\3apass\\40example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("API\\00005fKEY\\00003dabcdefghijklmnop"), "API_KEY=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("\\54 OKEN\\3a abcdefghijklmnop"), "TOKEN:<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("https\\3a\\2f\\2f\\75 ser\\3a\\70 ass\\40example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("Bearer\\20 abcdefghijklmnop"), "Bearer <redacted>");
+  assert.equal(security.sanitizeTextForDisplay("&#84;&#79;&#75;&#69;&#78;&#61;abcdefghijklmnop"), "TOKEN=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("&#x54;&#x4f;&#x4b;&#x45;&#x4e;&#x3d;abcdefghijklmnop"), "TOKEN=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("&#104;&#116;&#116;&#112;&#115;&#58;&#47;&#47;user&#58;pass&#64;example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("\\84\\79\\75\\69\\78\\61abcdefghijklmnop"), "TOKEN=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("\\104\\116\\116\\112\\115\\58\\47\\47user\\58pass\\64example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("\\124\\117\\113\\105\\116\\075abcdefghijklmnop"), "TOKEN=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("\\150\\164\\164\\160\\163\\072\\057\\057user\\072pass\\100example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("T\u0338OKEN=abcdefghijklmnop"), "TOKEN=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("h\u0338t\u0338t\u0338p\u0338s://user:pass@example.invalid/path"), "https://<redacted>@example.invalid/path");
+  assert.equal(security.sanitizeTextForDisplay("\\U00000054\\U0000004F\\U0000004B\\U00000045\\U0000004E\\U0000003Dabcdefghijklmnop"), "TOKEN=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("%u0054%u004F%u004B%u0045%u004E%u003Dabcdefghijklmnop"), "TOKEN=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("&amp;#84;&amp;#79;&amp;#75;&amp;#69;&amp;#78;&amp;#61;abcdefghijklmnop"), "TOKEN=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("\\54\\4f\\4b\\45\\4e\\3d abcdefghijklmnop"), "TOKEN=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("https\\3a\\2f\\2fuser\\3apass\\40example\\2einvalid\\2fpath CREDENTIAL\\3dabcdefghijklmnop"), "https://<redacted>@example.invalid/path CREDENTIAL=<redacted>");
+  assert.doesNotMatch(security.sanitizeTextForDisplay("https\\3a\\2f\\2fuser\\3apass\\40example\\2einvalid\\2fpath PRIVATE\\5fKEY\\3dabcdefghijklmnop"), /user|pass|abcdefghijklmnop/);
+  assert.doesNotMatch(security.sanitizeTextForDisplay("https://user:pass example.invalid/path"), /user|pass/);
+  assert.equal(security.sanitizeTextForDisplay('{"TOKEN=abcdefghijklmnop":"short"}'), '{\n  "TOKEN=<redacted>": "short"\n}');
+  assert.equal(security.sanitizeTextForDisplay("\\42 \\65 \\61\\72 \\65\\72\\20\\57\\6b CREDENTIAL\\3aabcdefghijklmnop"), "Bearer <redacted>");
+  assert.equal(security.sanitizeTextForDisplay("TOKEN='abcdefghijklmnop AUTH_TOKEN:'qrstuvwxyzabcdef'"), "TOKEN='<redacted> AUTH_<redacted>");
+  assert.doesNotMatch(security.sanitizeTextForDisplay('SECRET:"abcdefghijklmnop TOKEN="qrstuvwxyzabcdef"'), /abcdefghijklmnop|qrstuvwxyzabcdef/);
+  assert.doesNotMatch(security.sanitizeTextForDisplay('TOKEN="abcdefghijklmnop"TOKEN="qrstuvwxyzabcdef"'), /abcdefghijklmnop|qrstuvwxyzabcdef/);
+  assert.equal(security.sanitizeTextForDisplay("Bearer abcdefghijklmnop qrstuvwxyzabcdef"), "Bearer <redacted>");
+  assert.equal(security.sanitizeTextForDisplay("Bearer abcdefghijklbearer-token:'qrstuvwxyzabcdef'"), "Bearer <redacted>");
+  assert.equal(security.sanitizeTextForDisplay("pathBearer abcdefghijklmnop"), "pathBearer <redacted>");
+  assert.equal(security.containsSecretLikeContent("API&#95;KEY&#61;abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("api&hyphen;key&equals;abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("SECRET&equals;&quot;short word&quot;"), true);
+  assert.equal(security.containsSecretLikeContent("TOKEN%ZZ%3Aabcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("ＡＰＩ＿ＫＥＹ＝abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("https：／／user：pass＠example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("TOK\u200bEN=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("https%255Cu003a%2526%252347%25EF%25BC%258Fuser%25EF%25BC%259Apass%2526%252364example.invalid%25EF%25BC%258Fpath SECRET%ZZ%3A＂abcdefghijklmnop&quot"), true);
+  assert.equal(security.containsSecretLikeContent("https\\072\\057\\057user\\072pass\\100example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("https\\58\\47\\47user\\58pass\\64example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("ｈｔｔｐｓ％３Ａ％２Ｆ％２Ｆuser％３Ａpass％４０example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("TOKEN%_%3Aabcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("API\\137KEY\\075abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("https\\3a\\2f\\2fuser\\3apass\\40example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("API\\00005fKEY\\00003dabcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("\\54 OKEN\\3a abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("https\\3a\\2f\\2f\\75 ser\\3a\\70 ass\\40example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("Bearer\\20 abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("&#84;&#79;&#75;&#69;&#78;&#61;abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("&#x54;&#x4f;&#x4b;&#x45;&#x4e;&#x3d;abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("&#104;&#116;&#116;&#112;&#115;&#58;&#47;&#47;user&#58;pass&#64;example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("\\84\\79\\75\\69\\78\\61abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("\\104\\116\\116\\112\\115\\58\\47\\47user\\58pass\\64example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("\\124\\117\\113\\105\\116\\075abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("\\150\\164\\164\\160\\163\\072\\057\\057user\\072pass\\100example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("T\u0338OKEN=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("h\u0338t\u0338t\u0338p\u0338s://user:pass@example.invalid/path"), true);
+  assert.equal(security.containsSecretLikeContent("\\U00000054\\U0000004F\\U0000004B\\U00000045\\U0000004E\\U0000003Dabcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("%u0054%u004F%u004B%u0045%u004E%u003Dabcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("&amp;#84;&amp;#79;&amp;#75;&amp;#69;&amp;#78;&amp;#61;abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("\\54\\4f\\4b\\45\\4e\\3d abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("https\\3a\\2f\\2fuser\\3apass\\40example\\2einvalid\\2fpath CREDENTIAL\\3dabcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent({ "TOKEN=abcdefghijklmnop": "short" }), true);
+  assert.equal(security.containsSecretLikeContent("\\42 \\65 \\61\\72 \\65\\72\\20\\57\\6b CREDENTIAL\\3aabcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("TOKEN='abcdefghijklmnop AUTH_TOKEN:'qrstuvwxyzabcdef'"), true);
+  assert.equal(security.containsSecretLikeContent({ "ＴＯＫＥＮ": "short" }), true);
+  assert.equal(security.containsSecretLikeContent({ "TO\u200bKEN": "short" }), true);
+  assert.equal(security.containsSecretLikeContent({ "api&hyphen;key": "short" }), true);
+  assert.deepEqual(security.redactSecretLikeValue({ "ＴＯＫＥＮ": "short", safe: "value" }), { "ＴＯＫＥＮ": "<redacted>", safe: "value" });
+  assert.deepEqual(security.redactSecretLikeValue({ "TO\u200bKEN": "short" }), { "TO\u200bKEN": "<redacted>" });
+
+  const shared = { value: "opaque" };
+  assert.deepEqual(security.redactSecretLikeValue({ safe: shared, token: shared }), {
+    safe: "<redacted>",
+    token: { value: "<redacted>" },
+  });
+});
+
+test("tool outputs redact secret-looking upstream text", async () => {
+  const smartSearchHarness = createHarness({
+    fetchHandler: async () => jsonResponse({
+      results: [{ title: "API_KEY=abcdefghijklmnop", narrative: "TOKEN=qrstuvwxyzabcdef", type: "fact" }],
+    }),
+  });
+  try {
+    const result = await smartSearchHarness.callTool("memory_search", { query: "legacy secret", limit: 1 });
+    const text = textContent(result);
+    assert.match(text, /API_KEY=<redacted>/);
+    assert.match(text, /TOKEN=<redacted>/);
+    assert.doesNotMatch(text, /abcdefghijklmnop|qrstuvwxyzabcdef/);
+    assert.doesNotMatch(JSON.stringify(result), /abcdefghijklmnop|qrstuvwxyzabcdef/);
+  } finally {
+    smartSearchHarness.cleanup();
+  }
+
+  const searchUrlHarness = createHarness({
+    fetchHandler: async () => jsonResponse({
+      results: [{ title: "See https://user:pass@example.invalid/path", narrative: "safe", type: "fact" }],
+    }),
+  });
+  try {
+    const result = await searchUrlHarness.callTool("memory_search", { query: "legacy url", limit: 1 });
+    assert.match(textContent(result), /https:\/\/<redacted>@example.invalid\/path/);
+    assert.doesNotMatch(JSON.stringify(result), /user|pass/);
+  } finally {
+    searchUrlHarness.cleanup();
+  }
+
+  const mcpHarness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "SECRET=abcdefghijklmnop" }] }),
+  });
+  try {
+    const result = await mcpHarness.callTool("memory_smart_search", { query: "legacy secret" });
+    assert.equal(textContent(result), "SECRET=<redacted>");
+    assert.doesNotMatch(JSON.stringify(result), /abcdefghijklmnop/);
+  } finally {
+    mcpHarness.cleanup();
+  }
+
+  const quotedMcpHarness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: 'SECRET="short word"' }] }),
+  });
+  try {
+    const result = await quotedMcpHarness.callTool("memory_smart_search", { query: "legacy secret" });
+    assert.equal(textContent(result), 'SECRET="<redacted>"');
+    assert.doesNotMatch(JSON.stringify(result), /short word/);
+  } finally {
+    quotedMcpHarness.cleanup();
+  }
+
+  const escapedQuoteHarness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: 'SECRET="abc\\" def ghi"' }] }),
+  });
+  try {
+    const result = await escapedQuoteHarness.callTool("memory_smart_search", { query: "legacy secret" });
+    assert.equal(textContent(result), 'SECRET="<redacted>"');
+    assert.doesNotMatch(JSON.stringify(result), /abc|def|ghi/);
+  } finally {
+    escapedQuoteHarness.cleanup();
+  }
+
+  const unquotedRemainderHarness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "SECRET=abc def ghi" }] }),
+  });
+  try {
+    const result = await unquotedRemainderHarness.callTool("memory_smart_search", { query: "legacy secret" });
+    assert.equal(textContent(result), "SECRET=<redacted>");
+    assert.doesNotMatch(JSON.stringify(result), /abc|def|ghi/);
+  } finally {
+    unquotedRemainderHarness.cleanup();
+  }
+
+  const jsonStringMcpHarness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: '[{"token":"short value","url":"https://user:pass@example.invalid/path"}]' }] }),
+  });
+  try {
+    const result = await jsonStringMcpHarness.callTool("memory_smart_search", { query: "legacy secret" });
+    assert.match(textContent(result), /"token": "<redacted>"/);
+    assert.match(textContent(result), /https:\/\/<redacted>@example.invalid\/path/);
+    assert.doesNotMatch(JSON.stringify(result), /short value|user|pass/);
+  } finally {
+    jsonStringMcpHarness.cleanup();
+  }
+
+  const urlMcpHarness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "see https://user:pass@example.invalid/path and //user:pass@example.invalid/other and https%3A%2F%2Fuser%3Apass%40example.invalid%2Fencoded and https%3A%2F%2Fuser%ZZ%3Apass%40example.invalid%2Fmalformed and https\\u003a\\u002f\\u002fuser\\u003apass\\u0040example.invalid/unicode and https\\x3a\\x2f\\x2fuser\\x3apass\\x40example.invalid/hex and https\\u{3a}\\u{2f}\\u{2f}user\\u{3a}pass\\u{40}example.invalid/codepoint and https&colon;&sol;&sol;user&colon;pass&commat;example.invalid/entity and https&colon&sol&soluser&colonpass&commat;example.invalid/entity-nosmi and https&#58&#47&#47user&#58pass&#64example.invalid/decimal-nosmi and https%5Cx3a%5Cx2f%5Cx2fuser%5Cx3apass%5Cx40example.invalid/percent-hex" }] }),
+  });
+  try {
+    const result = await urlMcpHarness.callTool("memory_smart_search", { query: "legacy url" });
+    assert.match(textContent(result), /https:\/\/<redacted>@example.invalid\/path/);
+    assert.match(textContent(result), /\/\/<redacted>@example.invalid\/other/);
+    assert.match(textContent(result), /https:\/\/<redacted>@example.invalid\/encoded/);
+    assert.match(textContent(result), /https:\/\/<redacted>@example.invalid\/malformed/);
+    assert.match(textContent(result), /https:\/\/<redacted>@example.invalid\/unicode/);
+    assert.match(textContent(result), /https:\/\/<redacted>@example.invalid\/hex/);
+    assert.match(textContent(result), /https:\/\/<redacted>@example.invalid\/codepoint/);
+    assert.match(textContent(result), /https:\/\/<redacted>@example.invalid\/entity/);
+    assert.match(textContent(result), /https:\/\/<redacted>@example.invalid\/entity-nosmi/);
+    assert.match(textContent(result), /https:\/\/<redacted>@example.invalid\/decimal-nosmi/);
+    assert.match(textContent(result), /https:\/\/<redacted>@example.invalid\/percent-hex/);
+    assert.doesNotMatch(JSON.stringify(result), /user|pass|%ZZ|u003a|u002f|u0040|x3a|x2f|x40|u\{|&colon|&sol|&commat|&#58|&#47|&#64/);
+  } finally {
+    urlMcpHarness.cleanup();
+  }
+
+  const structuredMcpHarness = createHarness({
+    fetchHandler: async () => jsonResponse({ isError: true, meta: { "api–key": "short", url: "https://user:pass@example.invalid/path" } }),
+  });
+  try {
+    const result = await structuredMcpHarness.callTool("memory_smart_search", { query: "legacy secret" });
+    assert.match(textContent(result), /"api–key": "<redacted>"/);
+    assert.match(textContent(result), /https:\/\/<redacted>@example.invalid\/path/);
+    assert.doesNotMatch(JSON.stringify(result), /short|user|pass/);
+  } finally {
+    structuredMcpHarness.cleanup();
+  }
+});
+
+test("memory_file_history maps file arrays to upstream comma-separated input", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "history ok" }] }),
+  });
+  try {
+    await harness.callTool("memory_file_history", { files: ["a.ts", "b.ts"], sessionId: "current" });
+    assert.deepEqual(parseBody(harness.fetchCalls[0]), {
+      name: "memory_file_history",
+      arguments: { files: "a.ts,b.ts", sessionId: "current" },
+    });
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_save refuses secret-looking content before network calls", async () => {
+  for (const content of [
+    "API_KEY=abcdefghijklmnop",
+    "https://user:pass@example.invalid/path",
+    "https%3A%2F%2Fuser%3Apass%40example.invalid%2Fpath",
+    "https%3A%2F%2Fuser%ZZ%3Apass%40example.invalid%2Fpath",
+    "https\\u003a\\u002f\\u002fuser\\u003apass\\u0040example.invalid/path",
+    "https\\x3a\\x2f\\x2fuser\\x3apass\\x40example.invalid/path",
+    "https\\u{3a}\\u{2f}\\u{2f}user\\u{3a}pass\\u{40}example.invalid/path",
+    "https&colon;&sol;&sol;user&colon;pass&commat;example.invalid/path",
+    "https&colon&sol&soluser&colonpass&commat;example.invalid/path",
+    "https&#58&#47&#47user&#58pass&#64example.invalid/path",
+    "https%5Cx3a%5Cx2f%5Cx2fuser%5Cx3apass%5Cx40example.invalid/path",
+    "API&#95;KEY&#61;abcdefghijklmnop",
+    "api&hyphen;key&equals;abcdefghijklmnop",
+    "SECRET&equals;&quot;short word&quot;",
+    "TOKEN%ZZ%3Aabcdefghijklmnop",
+    "ＡＰＩ＿ＫＥＹ＝abcdefghijklmnop",
+    "https：／／user：pass＠example.invalid/path",
+    "TOK\u200bEN=abcdefghijklmnop",
+    "https%255Cu003a%2526%252347%25EF%25BC%258Fuser%25EF%25BC%259Apass%2526%252364example.invalid%25EF%25BC%258Fpath SECRET%ZZ%3A＂abcdefghijklmnop&quot",
+    "https\\072\\057\\057user\\072pass\\100example.invalid/path",
+    "https\\58\\47\\47user\\58pass\\64example.invalid/path",
+    "ｈｔｔｐｓ％３Ａ％２Ｆ％２Ｆuser％３Ａpass％４０example.invalid/path",
+    "TOKEN%_%3Aabcdefghijklmnop",
+    "API\\137KEY\\075abcdefghijklmnop",
+    "https\\3a\\2f\\2fuser\\3apass\\40example.invalid/path",
+    "https\\00003a\\00002f\\00002fuser\\00003apass\\000040example.invalid/path",
+    "API\\00005fKEY\\00003dabcdefghijklmnop",
+    "SECRET\\00003a\\000022short word\\000022",
+    "\\54 OKEN\\3a abcdefghijklmnop",
+    "https\\3a\\2f\\2f\\75 ser\\3a\\70 ass\\40example.invalid/path",
+    "Bearer\\20 abcdefghijklmnop",
+    "&#84;&#79;&#75;&#69;&#78;&#61;abcdefghijklmnop",
+    "&#x54;&#x4f;&#x4b;&#x45;&#x4e;&#x3d;abcdefghijklmnop",
+    "&#104;&#116;&#116;&#112;&#115;&#58;&#47;&#47;user&#58;pass&#64;example.invalid/path",
+    "\\84\\79\\75\\69\\78\\61abcdefghijklmnop",
+    "\\104\\116\\116\\112\\115\\58\\47\\47user\\58pass\\64example.invalid/path",
+    "\\124\\117\\113\\105\\116\\075abcdefghijklmnop",
+    "\\150\\164\\164\\160\\163\\072\\057\\057user\\072pass\\100example.invalid/path",
+    "T\u0338OKEN=abcdefghijklmnop",
+    "h\u0338t\u0338t\u0338p\u0338s://user:pass@example.invalid/path",
+    "\\U00000054\\U0000004F\\U0000004B\\U00000045\\U0000004E\\U0000003Dabcdefghijklmnop",
+    "%u0054%u004F%u004B%u0045%u004E%u003Dabcdefghijklmnop",
+    "&amp;#84;&amp;#79;&amp;#75;&amp;#69;&amp;#78;&amp;#61;abcdefghijklmnop",
+    "\\54\\4f\\4b\\45\\4e\\3d abcdefghijklmnop",
+    "https\\3a\\2f\\2fuser\\3apass\\40example\\2einvalid\\2fpath CREDENTIAL\\3dabcdefghijklmnop",
+  ]) {
+    const harness = createHarness({
+      fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "unexpected" }] }),
+    });
+    try {
+      const result = await harness.callTool("memory_save", { content, type: "fact" });
+      assert.match(textContent(result), /Refusing to save memory/);
+      assert.equal(harness.fetchCalls.length, 0);
+    } finally {
+      harness.cleanup();
+    }
+  }
+});
+
+test("memory_save refuses JSON-style secret-looking content", async () => {
+  for (const content of [
+    '{"API_KEY":"abcdefghijklmnop"}',
+    '{"token":["abcdefghijklmnop"]}',
+    '{"token":{"value":"abcdefghijklmnop"}}',
+    '{"api–key":"abcdefghijklmnop"}',
+    '{"TOKEN=abcdefghijklmnop":"short"}',
+    'API_KEY="short word"',
+    "SECRET='short word'",
+    [{ "api–key": "abcdefghijklmnop" }],
+  ]) {
+    const harness = createHarness({
+      fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "unexpected" }] }),
+    });
+    try {
+      const result = await harness.callTool("memory_save", { content, type: "fact" });
+      assert.match(textContent(result), /Refusing to save memory/);
+      assert.equal(harness.fetchCalls.length, 0);
+    } finally {
+      harness.cleanup();
+    }
+  }
+});
+
+test("memory_save refuses unicode dash secret separators", async () => {
+  for (const content of [
+    "API_KEY–abcdefghijklmnop",
+    "API_KEY—abcdefghijklmnop",
+    "API_KEY‑abcdefghijklmnop",
+  ]) {
+    const harness = createHarness({
+      fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "unexpected" }] }),
+    });
+    try {
+      const result = await harness.callTool("memory_save", { content });
+      assert.match(textContent(result), /Refusing to save memory/);
+      assert.equal(harness.fetchCalls.length, 0);
+    } finally {
+      harness.cleanup();
+    }
+  }
+});
+
+test("memory_save refuses secret-looking metadata fields", async () => {
+  for (const params of [
+    { content: "safe durable fact", concepts: "API_KEY=abcdefghijklmnop" },
+    { content: "safe durable fact", concepts: '{"api-key":"abcdefghijklmnop"}' },
+    { content: "safe durable fact", concepts: { "api–key": "abcdefghijklmnop" } },
+    { content: "safe durable fact", concepts: { "ＴＯＫＥＮ": "short" } },
+    { content: "safe durable fact", concepts: { "TO\u200bKEN": "short" } },
+    { content: "safe durable fact", concepts: { "api&hyphen;key": "short" } },
+    { content: "safe durable fact", files: ["TOKEN=abcdefghijklmnop"] },
+    { content: "safe durable fact", files: [{ nest: [{ my_SECRET_x: "abcdefghijklmnop" }] }] },
+    { content: "safe durable fact", files: [{ nest: [{ my_SECRET_x: "short" }] }] },
+    { content: "safe durable fact", project: "SECRET=abcdefghijklmnop" },
+    { content: "safe durable fact", project: "my_SECRET_abcdefghijklmnop" },
+    { content: "safe durable fact", project: '{"token":["abcdefghijklmnop"]}' },
+  ]) {
+    const harness = createHarness({
+      fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "unexpected" }] }),
+    });
+    try {
+      const result = await harness.callTool("memory_save", params);
+      assert.match(textContent(result), /Refusing to save memory/);
+      assert.equal(harness.fetchCalls.length, 0);
+    } finally {
+      harness.cleanup();
+    }
+  }
+});
+
+test("memory_save refuses invalid metadata before network calls", async () => {
+  const circular = { safe: "metadata" };
+  circular.self = circular;
+  const circularArray = ["safe"];
+  circularArray.push(circularArray);
+  for (const params of [
+    { content: "safe durable fact", concepts: circular },
+    { content: "safe durable fact", concepts: circularArray },
+    { content: "safe durable fact", files: ["safe.ts", { nested: "value" }] },
+    { content: "safe durable fact", project: { name: "project" } },
+  ]) {
+    const harness = createHarness({
+      fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "unexpected" }] }),
+    });
+    try {
+      const result = await harness.callTool("memory_save", params);
+      assert.match(textContent(result), /metadata fields must be strings or string arrays/);
+      assert.equal(harness.fetchCalls.length, 0);
+    } finally {
+      harness.cleanup();
+    }
+  }
+});
+
+test("agentmemory-status command is safe without UI", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => { throw new Error("command should not fetch without UI"); },
+  });
+  try {
+    const command = harness.commands.get("agentmemory-status");
+    await command.handler("", { hasUI: false });
+    assert.equal(harness.fetchCalls.length, 0);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_health display and fetch URL redact configured URL secrets", async () => {
+  const harness = createHarness({
+    env: { AGENTMEMORY_URL: "https://user:pass@example.invalid:3111/path?token=abcdefghijklmnop#secret" },
+    fetchHandler: async (url) => {
+      assert.equal(url, "https://example.invalid:3111/path/agentmemory/health");
+      throw new Error("offline");
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_health");
+    const text = textContent(result);
+    assert.match(text, /https:\/\/example.invalid:3111\/path/);
+    assert.doesNotMatch(text, /user|pass|token=|abcdefghijklmnop|#secret/);
+  } finally {
+    harness.cleanup();
+  }
+
+  const malformedHarness = createHarness({
+    env: { AGENTMEMORY_URL: "not a url https://user:pass@example.invalid/path?token=abcdefghijklmnop#secret" },
+    fetchHandler: async (url) => {
+      assert.doesNotMatch(url, /user|pass|token=|abcdefghijklmnop|#secret/);
+      throw new Error("offline");
+    },
+  });
+  try {
+    const result = await malformedHarness.callTool("memory_health");
+    const text = textContent(result);
+    assert.match(text, /not a url https:\/\/example.invalid\/path/);
+    assert.doesNotMatch(text, /user|pass|token=|abcdefghijklmnop|#secret/);
+  } finally {
+    malformedHarness.cleanup();
+  }
+
+  const embeddedUrlHarness = createHarness({
+    env: { AGENTMEMORY_URL: "http://outer.invalid/https://user:pass@example.invalid/path?token=abcdefghijklmnop#secret" },
+    fetchHandler: async (url) => {
+      assert.equal(url, "http://outer.invalid/https://example.invalid/path/agentmemory/health");
+      assert.doesNotMatch(url, /user|pass|token=|abcdefghijklmnop|#secret/);
+      throw new Error("offline");
+    },
+  });
+  try {
+    const result = await embeddedUrlHarness.callTool("memory_health");
+    const text = textContent(result);
+    assert.match(text, /http:\/\/outer.invalid\/https:\/\/example.invalid\/path/);
+    assert.doesNotMatch(text, /user|pass|token=|abcdefghijklmnop|#secret/);
+  } finally {
+    embeddedUrlHarness.cleanup();
+  }
+
+  const maliciousHealthHarness = createHarness({
+    fetchHandler: async () => jsonResponse({ status: "ok TOKEN=abcdefghijklmnop", version: "https\\x3a\\x2f\\x2fuser\\x3apass\\x40example.invalid/path" }),
+  });
+  try {
+    const result = await maliciousHealthHarness.callTool("memory_health");
+    const text = textContent(result);
+    assert.match(text, /TOKEN=<redacted>/);
+    assert.match(text, /https:\/\/<redacted>@example.invalid\/path/);
+    assert.doesNotMatch(JSON.stringify(result), /abcdefghijklmnop|user|pass/);
+  } finally {
+    maliciousHealthHarness.cleanup();
+  }
+
+  const maliciousCommandHarness = createHarness({
+    fetchHandler: async () => jsonResponse({ status: "ok TOKEN=abcdefghijklmnop", version: "https&colon&sol&soluser&colonpass&commat;example.invalid/path" }),
+  });
+  try {
+    const command = maliciousCommandHarness.commands.get("agentmemory-status");
+    await command.handler("", maliciousCommandHarness.ctx);
+    assert.equal(maliciousCommandHarness.notifications.length, 1);
+    const notification = maliciousCommandHarness.notifications[0].message;
+    assert.match(notification, /TOKEN=<redacted>/);
+    assert.match(notification, /https:\/\/<redacted>@example.invalid\/path/);
+    assert.doesNotMatch(notification, /abcdefghijklmnop|user|pass/);
+  } finally {
+    maliciousCommandHarness.cleanup();
+  }
+});
+
+test("memory_save success output omits saved content", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "safe durable fact" }], id: "mem_1" }),
+  });
+  try {
+    const result = await harness.callTool("memory_save", { content: "safe durable fact", type: "fact" });
+    assert.equal(textContent(result), "Saved memory (fact).");
+    assert.doesNotMatch(JSON.stringify(result), /safe durable fact/);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_save falls back to legacy remember endpoint when MCP save is unavailable", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url) => {
+      if (url.endsWith("/agentmemory/mcp/call")) return jsonResponse({ error: "missing" }, { ok: false, status: 404 });
+      if (url.endsWith("/agentmemory/remember")) return jsonResponse({ ok: true, id: "mem_1" });
+      throw new Error(`unexpected ${url}`);
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_save", { content: "Remember this durable preference", type: "preference" });
+    assert.equal(textContent(result), "Saved memory (preference).");
+    assert.doesNotMatch(JSON.stringify(result), /Remember this durable preference/);
+    assert.equal(harness.fetchCalls.length, 2);
+    assert.equal(parseBody(harness.fetchCalls[1]).content, "Remember this durable preference");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("agent_end observe uses tool_input/tool_output and redacts secret-looking values", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url, init) => {
+      if (url.endsWith("/agentmemory/health")) return jsonResponse({ status: "healthy", version: "0.9.24" });
+      if (url.endsWith("/agentmemory/smart-search")) return jsonResponse({ results: [] });
+      if (url.endsWith("/agentmemory/observe")) return jsonResponse({ ok: true, body: JSON.parse(init.body) }, { status: 201 });
+      throw new Error(`unexpected ${url}`);
+    },
+  });
+  try {
+    await harness.emit("session_start");
+    await harness.emit("before_agent_start", {
+      systemPrompt: "base",
+      systemPromptOptions: { cwd: "/tmp/project" },
+      prompt: "Please review https://user:pass@example.invalid/path and use API_KEY=abcdefghijklmnop safely",
+    });
+    await harness.emit("agent_end", {
+      messages: [{ role: "assistant", content: [{ type: "text", text: "Used https://user:pass@example.invalid/path and Bearer abcdefghijklmnop carefully" }] }],
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const smartSearch = harness.fetchCalls.find((call) => call.url.endsWith("/agentmemory/smart-search"));
+    assert.ok(smartSearch, "smart-search call should be made");
+    assert.equal(parseBody(smartSearch).query, "Please review https://<redacted>@example.invalid/path and use API_KEY=<redacted>");
+
+    const observe = harness.fetchCalls.find((call) => call.url.endsWith("/agentmemory/observe"));
+    assert.ok(observe, "observe call should be made");
+    const data = parseBody(observe).data;
+    assert.equal(data.input, undefined);
+    assert.equal(data.output, undefined);
+    assert.equal(data.tool_input, "Please review https://<redacted>@example.invalid/path and use API_KEY=<redacted>");
+    assert.equal(data.tool_output, "Used https://<redacted>@example.invalid/path and Bearer <redacted> carefully");
+    assert.doesNotMatch(JSON.stringify(data), /user|pass|abcdefghijklmnop/);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("AGENTMEMORY_REQUIRE_HTTPS rejects plaintext bearer auth to non-loopback hosts", () => {
+  assert.throws(
+    () => createHarness({
+      env: {
+        AGENTMEMORY_URL: "http://example.com:3111",
+        AGENTMEMORY_SECRET: "test",
+        AGENTMEMORY_REQUIRE_HTTPS: "1",
+      },
+    }),
+    /plaintext HTTP/,
+  );
+});
+
+async function main() {
+  let failed = 0;
+  for (const { name, fn } of tests) {
+    try {
+      await fn();
+      console.log(`ok ${name}`);
+    } catch (error) {
+      failed += 1;
+      console.error(`FAIL ${name}`);
+      console.error(error.stack || error.message || error);
+    }
+  }
+  if (failed > 0) {
+    console.error(`${failed}/${tests.length} tests failed`);
+    process.exit(1);
+  }
+  console.log(`${tests.length}/${tests.length} tests passed`);
+}
+
+main();

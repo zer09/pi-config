@@ -7,8 +7,8 @@
 </h1>
 
 <p align="center">
-  <strong>Your pi sessions remember everything. No more re-explaining.</strong><br/>
-  <sub>Persistent cross-session memory via <a href="https://github.com/rohitg00/agentmemory">agentmemory</a> — shared with Claude Code, Codex CLI, Gemini CLI, Hermes, OpenClaw, and more.</sub>
+  <strong>Your pi sessions remember useful cross-session context.</strong><br/>
+  <sub>Persistent memory via <a href="https://github.com/rohitg00/agentmemory">agentmemory</a>, exposed to pi through a curated native extension.</sub>
 </p>
 
 ---
@@ -21,14 +21,13 @@ Start the agentmemory server in a separate terminal:
 npx @agentmemory/agentmemory
 ```
 
-Copy this folder into pi's global extensions directory:
+Place this folder under pi's global extensions directory:
 
 ```bash
-mkdir -p ~/.pi/agent/extensions/agentmemory
-cp integrations/pi/index.ts ~/.pi/agent/extensions/agentmemory/index.ts
+~/.pi/agent/extensions/agentmemory
 ```
 
-Then enable it in `~/.pi/agent/settings.json` if you prefer explicit loading:
+If you prefer explicit loading, enable it in `~/.pi/agent/settings.json`:
 
 ```json
 {
@@ -36,39 +35,110 @@ Then enable it in `~/.pi/agent/settings.json` if you prefer explicit loading:
 }
 ```
 
-If you place it under `~/.pi/agent/extensions/agentmemory/`, pi will also auto-discover it and `/reload` can hot-reload it.
+Pi can also auto-discover extensions in `~/.pi/agent/extensions/`, and `/reload` can hot-reload extension changes.
 
 ## What it adds
 
-- `memory_health` — confirm the shared memory server is reachable
-- `memory_search` — search prior decisions, bugs, workflows, and preferences
-- `memory_save` — write durable facts back to long-term memory
-- `/agentmemory-status` — check health from inside pi
-- `before_agent_start` recall — injects relevant memories into the prompt
-- `agent_end` capture — saves completed conversation turns back to agentmemory
+Default Pi tools:
+
+- `memory_health` - check whether the AgentMemory REST server is reachable
+- `memory_search` - friendly compatibility search for prior decisions, bugs, workflows, and preferences
+- `memory_save` - save durable non-secret facts, workflows, preferences, or bug fixes
+- `memory_smart_search` - MCP-compatible hybrid AgentMemory search
+- `memory_recall` - richer prior-session recall with format and token-budget controls
+- `memory_sessions` - list recent AgentMemory sessions
+- `memory_file_history` - retrieve history for specific files
+- `memory_timeline` - chronological observations around an anchor
+- `memory_patterns` - recurring patterns across sessions
+- `memory_profile` - project/profile summary
+- `memory_commit_lookup` - sessions linked to a commit SHA
+- `memory_commits` - recent commits linked to sessions
+- `memory_diagnose` - read-only diagnostics
+- `memory_verify` - provenance verification by memory ID
+- `memory_lesson_recall` - recall durable lessons
+
+Command and lifecycle behavior:
+
+- `/agentmemory-status` - check health from inside pi
+- `resources_discover` - contributes the bundled `skills/agentmemory/SKILL.md` skill
+- `before_agent_start` - injects relevant memories into the prompt
+- `agent_end` - captures completed conversation turns back to AgentMemory
+
+This extension intentionally does not expose all AgentMemory MCP tools by default.
+
+## Bundled skill
+
+The Pi-specific AgentMemory skill lives beside the extension:
+
+```text
+agent/extensions/agentmemory/skills/agentmemory/SKILL.md
+```
+
+The extension publishes that directory through Pi's `resources_discover` event. Keeping the skill bundled with the extension makes upstream sync easier and avoids a separate global `agent/skills/agentmemory` copy.
+
+## Safety behavior
+
+- Delegate child sessions are skipped when `PI_DELEGATE_CHILD` is set.
+- Headless sessions do not write UI status.
+- Bearer auth is sent only as an `Authorization` header.
+- `AGENTMEMORY_REQUIRE_HTTPS=1` refuses to send a bearer token over plaintext HTTP to non-loopback hosts.
+- `memory_save` refuses obvious secret-looking values.
+- Conversation capture redacts obvious secret-looking values before calling `/agentmemory/observe`.
+- Broad, destructive, or mutating AgentMemory tools are not registered by default.
+
+Gated tools reserved for explicit future workflows:
+
+```text
+memory_lesson_save
+memory_consolidate
+memory_reflect
+memory_insight_list
+memory_audit
+memory_export
+memory_governance_delete
+memory_heal
+```
 
 ## Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `AGENTMEMORY_URL` | `http://localhost:3111` | agentmemory server URL |
+| `AGENTMEMORY_URL` | `http://localhost:3111` | AgentMemory server URL |
 | `AGENTMEMORY_SECRET` | (none) | Bearer token for protected instances |
-| `AGENTMEMORY_REQUIRE_HTTPS` | (off) | When set to `1`, refuse to send a bearer token over plaintext HTTP to a non-loopback host. Sends the token only when `AGENTMEMORY_URL` is `https://...` or points at `localhost`/`127.0.0.1`/`::1`. With this off, the plugin warns once but still sends. |
+| `AGENTMEMORY_REQUIRE_HTTPS` | (off) | When set to `1`, refuse bearer auth over plaintext HTTP to non-loopback hosts |
+| `PI_DELEGATE_CHILD` | (off) | Local pi delegate marker; skips AgentMemory tools, hooks, and bundled skill discovery |
+
+## Upstream sync workflow
+
+The default tool policy lives in:
+
+```text
+tool-policy.json
+```
+
+Run the local sync checker after updating the upstream AgentMemory clone:
+
+```bash
+node scripts/check-upstream-sync.mjs --upstream /home/gc/development/agentmemory
+```
+
+Useful inspection command:
+
+```bash
+node scripts/extract-upstream-tools.mjs --upstream /home/gc/development/agentmemory
+```
+
+The checker verifies that every upstream MCP tool is categorized as default, gated, or not exposed, that server cases match the registry, and that local Pi safety invariants are still present.
 
 ## Smoke test
 
-Run pi and ask it to use the `memory_health` tool, or call the command directly:
+Run pi and ask it to use `memory_health`, or call the command directly:
 
 ```text
 /agentmemory-status
 ```
 
 You should see `agentmemory healthy` and a footer status like `🧠 agentmemory`.
-
-## Notes
-
-- This extension uses pi's extension API, not MCP, so it can hook directly into the agent lifecycle.
-- One local agentmemory server can be shared across pi, pi2, Hermes, OpenClaw, Claude Code, Codex CLI, and Gemini CLI.
 
 ## See also
 

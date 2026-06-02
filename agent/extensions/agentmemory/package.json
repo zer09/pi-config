@@ -1,5 +1,9 @@
 {
   "name": "agentmemory-pi-extension",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "test": "node agentmemory.test.cjs",
+    "check:sync": "node scripts/check-upstream-sync.mjs --upstream /home/gc/development/agentmemory"
+  }
 }
