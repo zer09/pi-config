@@ -13,48 +13,24 @@
  * then redact the safest candidate. This file should prefer false positives over
  * leaking credentials. Do not add examples with real credential values.
  *
- * Runtime callers can opt out with PI_AGENTMEMORY_SECURITY_ENABLED=0 for local
- * debugging. The default and all unrecognized values are fail-closed/enabled.
+ * Pi can opt out of local save refusal and output redaction with
+ * PI_AGENTMEMORY_SECURITY_ENABLED=0. The default and all unrecognized values
+ * are fail-closed/enabled. Plaintext bearer transport
+ * checks and URL diagnostic scrubbing intentionally stay independent.
  */
 
-const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
-
-// Separators that users and tools commonly place inside credential-like key names.
-// Includes ASCII underscore/hyphen plus Unicode dash compatibility variants.
-const SECRET_SEPARATOR_PATTERN = "_\\-\\u2010\\u2011\\u2012\\u2013\\u2014\\u2015\\u2212\\uFE58\\uFE63\\uFF0D";
-const SECRET_KEY_CHAR_PATTERN = `[A-Za-z0-9${SECRET_SEPARATOR_PATTERN}]`;
-const SECRET_KEY_PATTERN = `${SECRET_KEY_CHAR_PATTERN}*(?:API[${SECRET_SEPARATOR_PATTERN}]?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|BEARER|PRIVATE|KEY)${SECRET_KEY_CHAR_PATTERN}*?`;
-
-const SECRET_KEY_NAME_PATTERN = new RegExp(`^${SECRET_KEY_PATTERN}$`, "i");
-
-// Unquoted assignments intentionally consume the rest of the line/string. Once a
-// secret-looking key is present, the safest default is to redact the full tail.
-const SECRET_ASSIGNMENT_PATTERN = new RegExp(
-  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}])(${SECRET_KEY_PATTERN})(\\s*[:=${SECRET_SEPARATOR_PATTERN}]\\s*)(?![\"'])([\\s\\S]*\\S[\\s\\S]*)`,
-  "gi",
-);
-
-// Quoted assignments are parsed manually by redactQuotedSecretAssignments so we
-// can handle escaped quotes, missing closing quotes, and adjacent assignments.
-const QUOTED_SECRET_ASSIGNMENT_START_PATTERN = new RegExp(
-  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}]|(?<=[\"']))((?:[\"'])?)(${SECRET_KEY_PATTERN})\\2(\\s*[:=${SECRET_SEPARATOR_PATTERN}]\\s*)([\"'])`,
-  "gi",
-);
-
-// Bearer values may arrive split across whitespace after decoding CSS, octal, or
-// decimal escapes. Redact the whole run rather than only the first token.
-const BEARER_VALUE_PATTERN = /(Bearer\s+)([A-Za-z0-9._~+/=:'"-]{12,}(?:\s+[A-Za-z0-9._~+/=:'"-]{12,})*)(?=$|[\s,;])/gi;
-const PRIVATE_KEY_BLOCK_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/gi;
-const SECURITY_DISABLED_VALUES = new Set(["0", "false", "no", "off", "disabled"]);
-const SECURITY_ENABLED_VALUES = new Set(["1", "true", "yes", "on", "enabled"]);
+// -----------------------------------------------------------------------------
+// Public API
+// -----------------------------------------------------------------------------
 
 type SecurityEnv = { PI_AGENTMEMORY_SECURITY_ENABLED?: string };
 
 /**
- * Return whether AgentMemory content safety checks are enabled.
+ * Return whether Pi-local AgentMemory extension safety checks are enabled.
  *
- * Security is enabled by default. Only explicit disabled values turn it off;
- * unknown values remain enabled so typoed configuration fails closed.
+ * This controls local save refusal and AgentMemory output redaction. Security is
+ * enabled by default. Only explicit disabled values turn it off; unknown values
+ * remain enabled so typoed configuration fails closed.
  */
 export function isSecurityEnabled(env: SecurityEnv = process.env): boolean {
   const rawValue = env.PI_AGENTMEMORY_SECURITY_ENABLED;
@@ -82,6 +58,9 @@ export function usesPlaintextBearerAuth(baseUrl: string, secret?: string): boole
 /**
  * Render a URL safely for diagnostics. Userinfo, query strings, and fragments are
  * removed so status messages cannot echo credentials or signed URLs.
+ *
+ * This helper is intentionally independent of PI_AGENTMEMORY_SECURITY_ENABLED
+ * because configured endpoint URLs can contain credentials or signed data.
  */
 export function sanitizeUrlForDisplay(baseUrl: string): string {
   const withoutUserinfo = redactUrlUserinfo(baseUrl);
@@ -109,7 +88,8 @@ export function plaintextBearerAuthMessage(baseUrl: string): string {
  * Create a one-shot guard for unsafe bearer transport.
  *
  * The guard warns once by default. When AGENTMEMORY_REQUIRE_HTTPS=1 is present in
- * the supplied environment, it throws instead so callers can fail closed.
+ * the supplied environment, it throws instead so callers can fail closed. This
+ * transport guard is independent of PI_AGENTMEMORY_SECURITY_ENABLED.
  */
 export function createPlaintextBearerAuthGuard(
   warn: (message: string) => void = (message) => console.warn(message),
@@ -135,7 +115,11 @@ export function createPlaintextBearerAuthGuard(
  * parsed JSON. Object keys also count: a credential embedded in a key must refuse
  * the write just like a credential embedded in a value.
  */
-export function containsSecretLikeContent(value: unknown, seen = new Set<object>(), secretKeyContext = false): boolean {
+export function containsSecretLikeContent(
+  value: unknown,
+  seen = new Set<object>(),
+  secretKeyContext = false,
+): boolean {
   if (value === undefined || value === null) return false;
 
   if (typeof value === "string") {
@@ -175,11 +159,18 @@ export function redactSecretLikeText(text: string): string {
   const source = textVariants(text)
     .map((variant) => ({ variant, score: secretSignalScore(variant) }))
     .filter(({ score }) => score > 0)
-    .sort((left, right) => right.score - left.score || Number(left.variant === text) - Number(right.variant === text))[0]?.variant || text;
-  return redactQuotedSecretAssignments(redactUrlUserinfo(source)
+    .sort((left, right) => right.score - left.score || Number(left.variant === text) - Number(right.variant === text))[0]
+    ?.variant || text;
+
+  const redactedTransportSecrets = redactUrlUserinfo(source)
     .replace(PRIVATE_KEY_BLOCK_PATTERN, "<redacted private key>")
-    .replace(BEARER_VALUE_PATTERN, "$1<redacted>"))
-    .replace(SECRET_ASSIGNMENT_PATTERN, (_match, prefix: string, key: string, separator: string) => `${prefix}${key}${separator}<redacted>`);
+    .replace(BEARER_VALUE_PATTERN, "$1<redacted>");
+
+  return redactQuotedSecretAssignments(redactedTransportSecrets)
+    .replace(
+      SECRET_ASSIGNMENT_PATTERN,
+      (_match, prefix: string, key: string, separator: string) => `${prefix}${key}${separator}<redacted>`,
+    );
 }
 
 /**
@@ -212,7 +203,12 @@ export function sanitizeTextForDisplay(text: string): string {
  * the value itself is short or opaque. Shared/circular references are handled so
  * diagnostic rendering cannot recurse forever or leak through a non-secret alias.
  */
-export function redactSecretLikeValue(value: unknown, seen = new Set<object>(), secretKeyContext = false, secretObjects?: Set<object>): unknown {
+export function redactSecretLikeValue(
+  value: unknown,
+  seen = new Set<object>(),
+  secretKeyContext = false,
+  secretObjects?: Set<object>,
+): unknown {
   const contextObjects = secretObjects || collectSecretContextObjects(value);
   if (value === undefined || value === null) return value;
 
@@ -221,7 +217,11 @@ export function redactSecretLikeValue(value: unknown, seen = new Set<object>(), 
     if (secretKeyContext && redacted.trim()) return "<redacted>";
     if (looksLikeJsonText(redacted)) {
       try {
-        return JSON.stringify(redactSecretLikeValue(JSON.parse(redacted), new Set<object>(), secretKeyContext), null, 2);
+        return JSON.stringify(
+          redactSecretLikeValue(JSON.parse(redacted), new Set<object>(), secretKeyContext),
+          null,
+          2,
+        );
       } catch {
         return redacted;
       }
@@ -233,12 +233,54 @@ export function redactSecretLikeValue(value: unknown, seen = new Set<object>(), 
   if (!secretKeyContext && contextObjects.has(value)) return "<redacted>";
   if (seen.has(value)) return secretKeyContext ? "<redacted>" : "[Circular]";
   seen.add(value);
-  if (Array.isArray(value)) return value.map((item) => redactSecretLikeValue(item, seen, secretKeyContext, contextObjects));
+  if (Array.isArray(value)) {
+    return value.map((item) => redactSecretLikeValue(item, seen, secretKeyContext, contextObjects));
+  }
 
   return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([key, inner]) => [redactSecretLikeText(key), redactSecretLikeValue(inner, seen, secretKeyContext || isSecretLikeKey(key), contextObjects)]),
+    Object.entries(value as Record<string, unknown>).map(([key, inner]) => [
+      redactSecretLikeText(key),
+      redactSecretLikeValue(inner, seen, secretKeyContext || isSecretLikeKey(key), contextObjects),
+    ]),
   );
 }
+
+// -----------------------------------------------------------------------------
+// Private constants and types
+// -----------------------------------------------------------------------------
+
+type EscapeMode = "numeric" | "css" | "cssLoose" | "decimal" | "octal";
+
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+const SECURITY_DISABLED_VALUES = new Set(["0", "false", "no", "off", "disabled"]);
+const SECURITY_ENABLED_VALUES = new Set(["1", "true", "yes", "on", "enabled"]);
+
+// Separators that users and tools commonly place inside credential-like key names.
+// Includes ASCII underscore/hyphen plus Unicode dash compatibility variants.
+const SECRET_SEPARATOR_PATTERN = "_\\-\\u2010\\u2011\\u2012\\u2013\\u2014\\u2015\\u2212\\uFE58\\uFE63\\uFF0D";
+const SECRET_KEY_CHAR_PATTERN = `[A-Za-z0-9${SECRET_SEPARATOR_PATTERN}]`;
+const SECRET_KEY_PATTERN = `${SECRET_KEY_CHAR_PATTERN}*(?:API[${SECRET_SEPARATOR_PATTERN}]?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|BEARER|PRIVATE|KEY)${SECRET_KEY_CHAR_PATTERN}*?`;
+const SECRET_KEY_NAME_PATTERN = new RegExp(`^${SECRET_KEY_PATTERN}$`, "i");
+
+// Unquoted assignments intentionally consume the rest of the line/string. Once a
+// secret-looking key is present, the safest default is to redact the full tail.
+const SECRET_ASSIGNMENT_PATTERN = new RegExp(
+  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}])(${SECRET_KEY_PATTERN})(\\s*[:=${SECRET_SEPARATOR_PATTERN}]\\s*)(?![\"'])([\\s\\S]*\\S[\\s\\S]*)`,
+  "gi",
+);
+
+// Quoted assignments are parsed manually by redactQuotedSecretAssignments so we
+// can handle escaped quotes, missing closing quotes, and adjacent assignments.
+const QUOTED_SECRET_ASSIGNMENT_START_PATTERN = new RegExp(
+  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}]|(?<=[\"']))((?:[\"'])?)(${SECRET_KEY_PATTERN})\\2(\\s*[:=${SECRET_SEPARATOR_PATTERN}]\\s*)([\"'])`,
+  "gi",
+);
+
+// Bearer values may arrive split across whitespace after decoding CSS, octal, or
+// decimal escapes. Redact the whole run rather than only the first token.
+const BEARER_VALUE_PATTERN = /(Bearer\s+)([A-Za-z0-9._~+/=:'"-]{12,}(?:\s+[A-Za-z0-9._~+/=:'"-]{12,})*)(?=$|[\s,;])/gi;
+const PRIVATE_KEY_BLOCK_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/gi;
 
 // -----------------------------------------------------------------------------
 // Private helpers
@@ -448,6 +490,23 @@ function normalizeObfuscatedText(text: string): string {
   return stripCombiningMarkText(stripInvisibleFormatText(normalizeCompatibilityText(text)));
 }
 
+/** Decode one backslash-escape family without mixing incompatible parsers. */
+function decodeBackslashEscapesByMode(text: string, escapeMode: EscapeMode): string {
+  switch (escapeMode) {
+    case "css":
+      return decodeNumericEscapeText(decodeStrictCssHexEscapeText(text));
+    case "cssLoose":
+      return decodeNumericEscapeText(decodeCssHexEscapeText(text));
+    case "decimal":
+      return decodeCssHexEscapeText(decodeNumericEscapeText(decodeDecimalEscapeText(text)));
+    case "octal":
+      return decodeCssHexEscapeText(decodeNumericEscapeText(decodeOctalEscapeText(text)));
+    case "numeric":
+      return decodeCssHexEscapeText(decodeNumericEscapeText(text));
+  }
+  return decodeCssHexEscapeText(decodeNumericEscapeText(text));
+}
+
 /**
  * Decode one obfuscation strategy for a bounded number of rounds.
  *
@@ -455,22 +514,14 @@ function normalizeObfuscatedText(text: string): string {
  * conflict on short hex-looking sequences. Keeping them as separate variants
  * prevents one decoder from corrupting another decoder's stronger candidate.
  */
-function decodeObfuscatedText(text: string, escapeMode: "numeric" | "css" | "cssLoose" | "decimal" | "octal" = "numeric"): string {
+function decodeObfuscatedText(text: string, escapeMode: EscapeMode = "numeric"): string {
   let current = text;
   for (let index = 0; index < 4; index += 1) {
     const normalized = normalizeObfuscatedText(current);
     const percentUnicodeDecoded = decodePercentUnicodeEscapeText(normalized);
     const percentDecoded = decodePercentEncodedText(stripMalformedPercentTripletNoise(percentUnicodeDecoded));
     const unicodeDecoded = decodeUnicodeEscapeText(decodePercentUnicodeEscapeText(percentDecoded));
-    const escapeDecoded = escapeMode === "css"
-      ? decodeNumericEscapeText(decodeStrictCssHexEscapeText(unicodeDecoded))
-      : escapeMode === "cssLoose"
-        ? decodeNumericEscapeText(decodeCssHexEscapeText(unicodeDecoded))
-        : escapeMode === "decimal"
-        ? decodeCssHexEscapeText(decodeNumericEscapeText(decodeDecimalEscapeText(unicodeDecoded)))
-        : escapeMode === "octal"
-          ? decodeCssHexEscapeText(decodeNumericEscapeText(decodeOctalEscapeText(unicodeDecoded)))
-          : decodeCssHexEscapeText(decodeNumericEscapeText(unicodeDecoded));
+    const escapeDecoded = decodeBackslashEscapesByMode(unicodeDecoded, escapeMode);
     const decoded = normalizeObfuscatedText(decodeHtmlUrlEntities(escapeDecoded));
     if (decoded === current) break;
     current = decoded;
@@ -493,7 +544,15 @@ function hasCanonicalUrlUserinfo(text: string): boolean {
 /** Generate raw and decoded variants that downstream matchers can score. */
 function textVariants(text: string): string[] {
   const variants = [text];
-  for (const decoded of [decodeObfuscatedText(text, "decimal"), decodeObfuscatedText(text, "octal"), decodeObfuscatedText(text), decodeObfuscatedText(text, "cssLoose"), decodeObfuscatedText(text, "css")]) {
+  const decodedVariants = [
+    decodeObfuscatedText(text, "decimal"),
+    decodeObfuscatedText(text, "octal"),
+    decodeObfuscatedText(text),
+    decodeObfuscatedText(text, "cssLoose"),
+    decodeObfuscatedText(text, "css"),
+  ];
+
+  for (const decoded of decodedVariants) {
     if (!variants.includes(decoded)) variants.push(decoded);
   }
   return variants;
@@ -602,7 +661,12 @@ function redactQuotedSecretAssignments(text: string): string {
  * Collect objects that are reachable through a secret-like key. Shared references
  * to those objects must be redacted everywhere, not only under the secret key.
  */
-function collectSecretContextObjects(value: unknown, targets = new Set<object>(), seen = new Set<object>(), secretKeyContext = false): Set<object> {
+function collectSecretContextObjects(
+  value: unknown,
+  targets = new Set<object>(),
+  seen = new Set<object>(),
+  secretKeyContext = false,
+): Set<object> {
   if (value === undefined || value === null || typeof value !== "object") return targets;
   if (secretKeyContext) targets.add(value);
   if (seen.has(value)) return targets;
