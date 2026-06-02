@@ -164,7 +164,15 @@ export function redactSecretLikeText(text: string): string {
 
   const redactedTransportSecrets = redactUrlUserinfo(source)
     .replace(PRIVATE_KEY_BLOCK_PATTERN, "<redacted private key>")
-    .replace(BEARER_VALUE_PATTERN, "$1<redacted>");
+    .replace(BEARER_VALUE_PATTERN, "$1<redacted>")
+    .replace(
+      CLI_SECRET_FLAG_QUOTED_PATTERN,
+      (_match, prefix: string, flag: string, separator: string, quote: string) => `${prefix}${flag}${separator}${quote}<redacted>${quote}`,
+    )
+    .replace(
+      CLI_SECRET_FLAG_PATTERN,
+      (_match, prefix: string, flag: string, separator: string) => `${prefix}${flag}${separator}<redacted>`,
+    );
 
   return redactQuotedSecretAssignments(redactedTransportSecrets)
     .replace(
@@ -259,11 +267,13 @@ const SECURITY_ENABLED_VALUES = new Set(["1", "true", "yes", "on", "enabled"]);
 // Separators that users and tools commonly place inside credential-like key names.
 // Includes ASCII underscore/hyphen plus Unicode dash compatibility variants.
 const SECRET_SEPARATOR_PATTERN = "_\\-\\u2010\\u2011\\u2012\\u2013\\u2014\\u2015\\u2212\\uFE58\\uFE63\\uFF0D";
-const SECRET_KEY_CHAR_PATTERN = `[A-Za-z0-9${SECRET_SEPARATOR_PATTERN}]`;
-const SECRET_KEY_WORD_PATTERN = `API[${SECRET_SEPARATOR_PATTERN}]?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|BEARER|PRIVATE`;
-const SEPARATED_KEY_PATTERN = `(?:KEY|${SECRET_KEY_CHAR_PATTERN}*[${SECRET_SEPARATOR_PATTERN}]KEY(?:[${SECRET_SEPARATOR_PATTERN}]${SECRET_KEY_CHAR_PATTERN}*)?|${SECRET_KEY_CHAR_PATTERN}*KEY[${SECRET_SEPARATOR_PATTERN}]${SECRET_KEY_CHAR_PATTERN}*)`;
-const SECRET_KEY_PATTERN = `(?:${SECRET_KEY_CHAR_PATTERN}*(?:${SECRET_KEY_WORD_PATTERN})${SECRET_KEY_CHAR_PATTERN}*|${SEPARATED_KEY_PATTERN})`;
+const SECRET_KEY_PART_PATTERN = "[A-Za-z0-9]+";
+const SECRET_KEY_WORD_PATTERN = `API[${SECRET_SEPARATOR_PATTERN}]?KEY|KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|BEARER|PRIVATE`;
+const SECRET_KEY_PATTERN = `(?:${SECRET_KEY_PART_PATTERN}[${SECRET_SEPARATOR_PATTERN}])*(?:${SECRET_KEY_WORD_PATTERN})(?:[${SECRET_SEPARATOR_PATTERN}]${SECRET_KEY_PART_PATTERN})*`;
 const SECRET_KEY_NAME_PATTERN = new RegExp(`^${SECRET_KEY_PATTERN}$`, "i");
+const CLI_SECRET_FLAG_NAME_PATTERN = `[Aa][Pp][Ii][${SECRET_SEPARATOR_PATTERN}]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Aa][Uu][Tt][Hh]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee](?:[${SECRET_SEPARATOR_PATTERN}][Kk][Ee][Yy])?`;
+const CLI_SECRET_FLAG_VALUE_TERMINATOR_PATTERN = "\\s,;)}\\]>\"'`";
+const CLI_SECRET_FLAG_PLACEHOLDER_PATTERN = "(?:\\$\\{?[A-Z_][A-Z0-9_]*\\}?|<[^>]+>|[A-Z_][A-Z0-9_]{2,})";
 
 // Assignment separators exclude ASCII underscore/hyphen so placeholder env var
 // names like AWS_SECRET_ACCESS_KEY are not split into fake key/value pairs.
@@ -287,7 +297,15 @@ const QUOTED_SECRET_ASSIGNMENT_START_PATTERN = new RegExp(
 // decimal escapes. Redact the whole run rather than only the first token. Common
 // prose and markdown closing delimiters are valid token terminators.
 const BEARER_VALUE_PATTERN = /(Bearer\s+)([A-Za-z0-9._~+/=:'"-]{12,}(?:\s+[A-Za-z0-9._~+/=:'"-]{12,})*)(?=$|[\s,;.!?)}\]>"'`])/gi;
-const PRIVATE_KEY_BLOCK_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/gi;
+const CLI_SECRET_FLAG_QUOTED_PATTERN = new RegExp(
+  `(^|[\\s([{])(--(?:${CLI_SECRET_FLAG_NAME_PATTERN}))(=|\\s+)(["'])((?!${CLI_SECRET_FLAG_PLACEHOLDER_PATTERN}\\4)[\\s\\S]*?\\S[\\s\\S]*?)\\4`,
+  "g",
+);
+const CLI_SECRET_FLAG_PATTERN = new RegExp(
+  `(^|[\\s([{])(--(?:${CLI_SECRET_FLAG_NAME_PATTERN}))(=|\\s+)(?!${CLI_SECRET_FLAG_PLACEHOLDER_PATTERN}(?=$|[${CLI_SECRET_FLAG_VALUE_TERMINATOR_PATTERN}]))(?!-)([^${CLI_SECRET_FLAG_VALUE_TERMINATOR_PATTERN}]{8,})(?=$|[${CLI_SECRET_FLAG_VALUE_TERMINATOR_PATTERN}])`,
+  "g",
+);
+const PRIVATE_KEY_BLOCK_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$)/gi;
 
 // -----------------------------------------------------------------------------
 // Private helpers
@@ -590,7 +608,7 @@ function isSecretLikeKey(key: string): boolean {
 function secretSignalScore(text: string): number {
   let score = hasUrlUserinfo(text) ? 2 : 0;
   if (hasCanonicalUrlUserinfo(text)) score += 1;
-  for (const pattern of [PRIVATE_KEY_BLOCK_PATTERN, BEARER_VALUE_PATTERN, QUOTED_SECRET_ASSIGNMENT_START_PATTERN, SECRET_ASSIGNMENT_PATTERN]) {
+  for (const pattern of [PRIVATE_KEY_BLOCK_PATTERN, BEARER_VALUE_PATTERN, CLI_SECRET_FLAG_QUOTED_PATTERN, CLI_SECRET_FLAG_PATTERN, QUOTED_SECRET_ASSIGNMENT_START_PATTERN, SECRET_ASSIGNMENT_PATTERN]) {
     pattern.lastIndex = 0;
     if (pattern.test(text)) score += 1;
   }

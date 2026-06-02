@@ -344,7 +344,14 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.sanitizeTextForDisplay("`Bearer abcdefghijklmnop`"), "`Bearer <redacted>`");
   assert.equal(security.sanitizeTextForDisplay("(Bearer abcdefghijklmnop)"), "(Bearer <redacted>)");
   assert.equal(security.sanitizeTextForDisplay("keyboard=shortcuts"), "keyboard=shortcuts");
+  assert.equal(security.sanitizeTextForDisplay("author=Alice"), "author=Alice");
+  assert.equal(security.sanitizeTextForDisplay('{"author":"Alice","authoredBy":"Bob"}'), '{\n  "author": "Alice",\n  "authoredBy": "Bob"\n}');
   assert.equal(security.sanitizeTextForDisplay("Use AWS_SECRET_ACCESS_KEY from the environment"), "Use AWS_SECRET_ACCESS_KEY from the environment");
+  assert.equal(security.sanitizeTextForDisplay("AUTH_TOKEN=abcdefghijklmnop"), "AUTH_TOKEN=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("--api-key sk-abcdefghijklmnop"), "--api-key <redacted>");
+  assert.equal(security.sanitizeTextForDisplay("tool --token abcdefghijklmnop --safe next"), "tool --token <redacted> --safe next");
+  assert.equal(security.sanitizeTextForDisplay("tool --api-key $AWS_SECRET_ACCESS_KEY"), "tool --api-key $AWS_SECRET_ACCESS_KEY");
+  assert.equal(security.sanitizeTextForDisplay("-----BEGIN PRIVATE KEY-----\nabc123"), "<redacted private key>");
   assert.equal(security.sanitizeTextForDisplay('{"monkey":"banana"}'), '{\n  "monkey": "banana"\n}');
   assert.equal(security.containsSecretLikeContent("API&#95;KEY&#61;abcdefghijklmnop"), true);
   assert.equal(security.containsSecretLikeContent("api&hyphen;key&equals;abcdefghijklmnop"), true);
@@ -384,8 +391,15 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.containsSecretLikeContent("`Bearer abcdefghijklmnop`"), true);
   assert.equal(security.containsSecretLikeContent("(Bearer abcdefghijklmnop)"), true);
   assert.equal(security.containsSecretLikeContent("keyboard=shortcuts"), false);
+  assert.equal(security.containsSecretLikeContent("author=Alice"), false);
+  assert.equal(security.containsSecretLikeContent({ author: "Alice", authoredBy: "Bob" }), false);
   assert.equal(security.containsSecretLikeContent("SECRET_KEY"), false);
   assert.equal(security.containsSecretLikeContent("Use AWS_SECRET_ACCESS_KEY from the environment"), false);
+  assert.equal(security.containsSecretLikeContent("AUTH_TOKEN=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("--api-key sk-abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("tool --token abcdefghijklmnop --safe next"), true);
+  assert.equal(security.containsSecretLikeContent("tool --api-key $AWS_SECRET_ACCESS_KEY"), false);
+  assert.equal(security.containsSecretLikeContent("-----BEGIN PRIVATE KEY-----\nabc123"), true);
   assert.equal(security.containsSecretLikeContent({ monkey: "banana" }), false);
   assert.equal(security.containsSecretLikeContent({ "ＴＯＫＥＮ": "short" }), true);
   assert.equal(security.containsSecretLikeContent({ "TO\u200bKEN": "short" }), true);
@@ -582,6 +596,9 @@ test("memory_save refuses secret-looking content before network calls", async ()
     "&amp;#84;&amp;#79;&amp;#75;&amp;#69;&amp;#78;&amp;#61;abcdefghijklmnop",
     "\\54\\4f\\4b\\45\\4e\\3d abcdefghijklmnop",
     "https\\3a\\2f\\2fuser\\3apass\\40example\\2einvalid\\2fpath CREDENTIAL\\3dabcdefghijklmnop",
+    "--api-key sk-abcdefghijklmnop",
+    "tool --token abcdefghijklmnop --safe next",
+    "-----BEGIN PRIVATE KEY-----\nabc123",
   ]) {
     const harness = createHarness({
       fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "unexpected" }] }),
@@ -815,6 +832,10 @@ test("memory_save success output omits saved content", async () => {
     const result = await harness.callTool("memory_save", { content: "safe durable fact", type: "fact" });
     assert.equal(textContent(result), "Saved memory (fact).");
     assert.doesNotMatch(JSON.stringify(result), /safe durable fact/);
+
+    const authorResult = await harness.callTool("memory_save", { content: "author=Alice", type: "fact" });
+    assert.equal(textContent(authorResult), "Saved memory (fact).");
+    assert.equal(parseBody(harness.fetchCalls[1]).arguments.content, "author=Alice");
   } finally {
     harness.cleanup();
   }
