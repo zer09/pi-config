@@ -12,20 +12,20 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 let requestRender: (() => void) | undefined;
 
-const THINKING_OUTLINE_CIRCLE = "\uf10c";
-const THINKING_FILLED_CIRCLE = "\uf111";
-const FALLBACK_THINKING_OUTLINE_CIRCLE = "\u25cb";
-const FALLBACK_THINKING_FILLED_CIRCLE = "\u25cf";
-const TIMER_RUNNING_GLYPH = "\uf017";
-const TIMER_DONE_GLYPH = "\uf00c";
-const QUEUE_GLYPH = "\uf46c";
-const MCP_SERVER_GLYPH = "\uf233";
-const AGENTMEMORY_GLYPH = "\uf0c7";
 const AGENTMEMORY_FALLBACK = "mem";
+const AGENTMEMORY_GLYPH = "\uf0c7";
 const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
-const GIT_STATUS_TTL_MS = 5000;
-const GIT_STATUS_TIMEOUT_MS = 500;
 const CONFIG_PATH = join(dirname(fileURLToPath(import.meta.url)), "config.json");
+const FALLBACK_THINKING_FILLED_CIRCLE = "\u25cf";
+const FALLBACK_THINKING_OUTLINE_CIRCLE = "\u25cb";
+const GIT_STATUS_TIMEOUT_MS = 500;
+const GIT_STATUS_TTL_MS = 5000;
+const MCP_SERVER_GLYPH = "\uf233";
+const QUEUE_GLYPH = "\uf46c";
+const THINKING_FILLED_CIRCLE = "\uf111";
+const THINKING_OUTLINE_CIRCLE = "\uf10c";
+const TIMER_DONE_GLYPH = "\uf00c";
+const TIMER_RUNNING_GLYPH = "\uf017";
 
 const SEGMENT_KEYS = [
 	"cwd",
@@ -46,9 +46,9 @@ type SegmentProfileOverride = FooterProfile | "inherit";
 type SegmentProfileConfig = Partial<Record<SegmentName, SegmentProfileOverride>>;
 
 type FooterConfig = {
-	segments: SegmentConfig;
-	segmentProfiles: SegmentProfileConfig;
 	nerdFont: boolean;
+	segmentProfiles: SegmentProfileConfig;
+	segments: SegmentConfig;
 };
 
 type FooterData = {
@@ -87,6 +87,8 @@ type FooterParts = {
 };
 
 const DEFAULT_CONFIG: FooterConfig = {
+	nerdFont: true,
+	segmentProfiles: {},
 	segments: {
 		cwd: true,
 		branch: true,
@@ -98,8 +100,6 @@ const DEFAULT_CONFIG: FooterConfig = {
 		model: true,
 		thinking: true,
 	},
-	segmentProfiles: {},
-	nerdFont: true,
 };
 
 export default function gcFooter(pi: ExtensionAPI): void {
@@ -240,13 +240,13 @@ function buildFooterParts(
 	gitStatus: GitStatus | undefined,
 ): FooterParts {
 	const minimal = profile === "minimal";
+	const contextProfile = resolveSegmentProfile(config, "context", profile);
 	const cwdProfile = resolveSegmentProfile(config, "cwd", profile);
+	const modelProfile = resolveSegmentProfile(config, "model", profile);
 	const statusesProfile = resolveSegmentProfile(config, "statuses", profile);
 	const tokensProfile = resolveSegmentProfile(config, "tokens", profile);
-	const contextProfile = resolveSegmentProfile(config, "context", profile);
-	const modelProfile = resolveSegmentProfile(config, "model", profile);
-	const showTokens = config.segments.tokens && tokensProfile !== "minimal" && (!minimal || hasSegmentProfileOverride(config, "tokens"));
 	const showModel = config.segments.model && (!minimal || hasSegmentProfileOverride(config, "model"));
+	const showTokens = config.segments.tokens && tokensProfile !== "minimal" && (!minimal || hasSegmentProfileOverride(config, "tokens"));
 	const left = joinSegments([
 		config.segments.cwd ? theme.fg("dim", formatCwd(ctx.cwd, cwdProfile)) : undefined,
 		config.segments.branch ? formatGitBranch(branch, theme, gitStatus) : undefined,
@@ -419,9 +419,9 @@ function loadConfig(): FooterConfig {
 
 function createDefaultConfig(): FooterConfig {
 	return {
-		segments: { ...DEFAULT_CONFIG.segments },
-		segmentProfiles: { ...DEFAULT_CONFIG.segmentProfiles },
 		nerdFont: DEFAULT_CONFIG.nerdFont,
+		segmentProfiles: { ...DEFAULT_CONFIG.segmentProfiles },
+		segments: { ...DEFAULT_CONFIG.segments },
 	};
 }
 
