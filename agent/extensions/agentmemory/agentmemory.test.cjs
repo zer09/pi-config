@@ -335,7 +335,7 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.doesNotMatch(security.sanitizeTextForDisplay("https://user:pass example.invalid/path"), /user|pass/);
   assert.equal(security.sanitizeTextForDisplay('{"TOKEN=abcdefghijklmnop":"short"}'), '{\n  "TOKEN=<redacted>": "short"\n}');
   assert.equal(security.sanitizeTextForDisplay("\\42 \\65 \\61\\72 \\65\\72\\20\\57\\6b CREDENTIAL\\3aabcdefghijklmnop"), "Bearer <redacted>");
-  assert.equal(security.sanitizeTextForDisplay("TOKEN='abcdefghijklmnop AUTH_TOKEN:'qrstuvwxyzabcdef'"), "TOKEN='<redacted> AUTH_<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("TOKEN='abcdefghijklmnop AUTH_TOKEN:'qrstuvwxyzabcdef'"), "TOKEN='<redacted> AUTH_TOKEN:'<redacted>'");
   assert.doesNotMatch(security.sanitizeTextForDisplay('SECRET:"abcdefghijklmnop TOKEN="qrstuvwxyzabcdef"'), /abcdefghijklmnop|qrstuvwxyzabcdef/);
   assert.doesNotMatch(security.sanitizeTextForDisplay('TOKEN="abcdefghijklmnop"TOKEN="qrstuvwxyzabcdef"'), /abcdefghijklmnop|qrstuvwxyzabcdef/);
   assert.equal(security.sanitizeTextForDisplay("Bearer abcdefghijklmnop qrstuvwxyzabcdef"), "Bearer <redacted>");
@@ -344,6 +344,7 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.sanitizeTextForDisplay("`Bearer abcdefghijklmnop`"), "`Bearer <redacted>`");
   assert.equal(security.sanitizeTextForDisplay("(Bearer abcdefghijklmnop)"), "(Bearer <redacted>)");
   assert.equal(security.sanitizeTextForDisplay("keyboard=shortcuts"), "keyboard=shortcuts");
+  assert.equal(security.sanitizeTextForDisplay("Use AWS_SECRET_ACCESS_KEY from the environment"), "Use AWS_SECRET_ACCESS_KEY from the environment");
   assert.equal(security.sanitizeTextForDisplay('{"monkey":"banana"}'), '{\n  "monkey": "banana"\n}');
   assert.equal(security.containsSecretLikeContent("API&#95;KEY&#61;abcdefghijklmnop"), true);
   assert.equal(security.containsSecretLikeContent("api&hyphen;key&equals;abcdefghijklmnop"), true);
@@ -383,6 +384,8 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.containsSecretLikeContent("`Bearer abcdefghijklmnop`"), true);
   assert.equal(security.containsSecretLikeContent("(Bearer abcdefghijklmnop)"), true);
   assert.equal(security.containsSecretLikeContent("keyboard=shortcuts"), false);
+  assert.equal(security.containsSecretLikeContent("SECRET_KEY"), false);
+  assert.equal(security.containsSecretLikeContent("Use AWS_SECRET_ACCESS_KEY from the environment"), false);
   assert.equal(security.containsSecretLikeContent({ monkey: "banana" }), false);
   assert.equal(security.containsSecretLikeContent({ "ＴＯＫＥＮ": "short" }), true);
   assert.equal(security.containsSecretLikeContent({ "TO\u200bKEN": "short" }), true);
@@ -672,7 +675,7 @@ test("memory_save refuses secret-looking metadata fields", async () => {
     { content: "safe durable fact", files: [{ nest: [{ my_SECRET_x: "abcdefghijklmnop" }] }] },
     { content: "safe durable fact", files: [{ nest: [{ my_SECRET_x: "short" }] }] },
     { content: "safe durable fact", project: "SECRET=abcdefghijklmnop" },
-    { content: "safe durable fact", project: "my_SECRET_abcdefghijklmnop" },
+    { content: "safe durable fact", project: "my_SECRET=abcdefghijklmnop" },
     { content: "safe durable fact", project: '{"token":["abcdefghijklmnop"]}' },
   ]) {
     const harness = createHarness({

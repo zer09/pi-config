@@ -265,17 +265,21 @@ const SEPARATED_KEY_PATTERN = `(?:KEY|${SECRET_KEY_CHAR_PATTERN}*[${SECRET_SEPAR
 const SECRET_KEY_PATTERN = `(?:${SECRET_KEY_CHAR_PATTERN}*(?:${SECRET_KEY_WORD_PATTERN})${SECRET_KEY_CHAR_PATTERN}*|${SEPARATED_KEY_PATTERN})`;
 const SECRET_KEY_NAME_PATTERN = new RegExp(`^${SECRET_KEY_PATTERN}$`, "i");
 
+// Assignment separators exclude ASCII underscore/hyphen so placeholder env var
+// names like AWS_SECRET_ACCESS_KEY are not split into fake key/value pairs.
+const SECRET_ASSIGNMENT_SEPARATOR_PATTERN = ":=\\u2010\\u2011\\u2012\\u2013\\u2014\\u2015\\u2212\\uFE58\\uFE63\\uFF0D";
+
 // Unquoted assignments intentionally consume the rest of the line/string. Once a
 // secret-looking key is present, the safest default is to redact the full tail.
 const SECRET_ASSIGNMENT_PATTERN = new RegExp(
-  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}])(${SECRET_KEY_PATTERN})(\\s*[:=${SECRET_SEPARATOR_PATTERN}]\\s*)(?![\"'])([\\s\\S]*\\S[\\s\\S]*)`,
+  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}])(${SECRET_KEY_PATTERN})(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)(?![\"'])([\\s\\S]*\\S[\\s\\S]*)`,
   "gi",
 );
 
 // Quoted assignments are parsed manually by redactQuotedSecretAssignments so we
 // can handle escaped quotes, missing closing quotes, and adjacent assignments.
 const QUOTED_SECRET_ASSIGNMENT_START_PATTERN = new RegExp(
-  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}]|(?<=[\"']))((?:[\"'])?)(${SECRET_KEY_PATTERN})\\2(\\s*[:=${SECRET_SEPARATOR_PATTERN}]\\s*)([\"'])`,
+  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}]|(?<=[\"']))((?:[\"'])?)(${SECRET_KEY_PATTERN})\\2(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)([\"'])`,
   "gi",
 );
 
