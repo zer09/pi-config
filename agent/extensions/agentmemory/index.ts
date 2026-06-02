@@ -6,6 +6,7 @@ import { Type } from "typebox";
 import {
   containsSecretLikeContent,
   createPlaintextBearerAuthGuard,
+  isSecurityEnabled,
   redactSecretLikeText,
   redactSecretLikeValue,
   sanitizeTextForDisplay,
@@ -246,15 +247,35 @@ function getLastAssistantText(messages: unknown[]): string {
   return "";
 }
 
+function securityEnabled(): boolean {
+  return isSecurityEnabled(process.env);
+}
+
+function containsBlockedSecret(value: unknown): boolean {
+  return securityEnabled() && containsSecretLikeContent(value);
+}
+
+function protectText(text: string): string {
+  return securityEnabled() ? redactSecretLikeText(text) : text;
+}
+
+function protectDisplayText(text: string): string {
+  return securityEnabled() ? sanitizeTextForDisplay(text) : text;
+}
+
+function protectValue(value: unknown): unknown {
+  return securityEnabled() ? redactSecretLikeValue(value) : value;
+}
+
 function formatSearchResults(results: SmartSearchResult[]): string {
   if (!results.length) return "No relevant memories found.";
   return results
     .slice(0, 5)
     .map((result, index) => {
       const obs = result.observation ?? result;
-      const title = sanitizeTextForDisplay(obs.title?.trim() || `Memory ${index + 1}`);
-      const narrative = sanitizeTextForDisplay(obs.narrative?.trim() || "");
-      const type = sanitizeTextForDisplay(obs.type?.trim() || "memory");
+      const title = protectDisplayText(obs.title?.trim() || `Memory ${index + 1}`);
+      const narrative = protectDisplayText(obs.narrative?.trim() || "");
+      const type = protectDisplayText(obs.type?.trim() || "memory");
       const score = result.combinedScore ?? result.score;
       const scoreText = typeof score === "number" ? ` [score=${score.toFixed(3)}]` : "";
       return `- ${title} (${type})${scoreText}${narrative ? `: ${narrative}` : ""}`;
@@ -264,9 +285,9 @@ function formatSearchResults(results: SmartSearchResult[]): string {
 
 function formatMcpResult(result: McpToolResponse): string {
   const text = getText(result.content);
-  if (text) return sanitizeTextForDisplay(text);
-  if (typeof result.error === "string" && result.error.trim()) return sanitizeTextForDisplay(result.error.trim());
-  return sanitizeTextForDisplay(JSON.stringify(redactSecretLikeValue(result), null, 2));
+  if (text) return protectDisplayText(text);
+  if (typeof result.error === "string" && result.error.trim()) return protectDisplayText(result.error.trim());
+  return protectDisplayText(JSON.stringify(protectValue(result), null, 2));
 }
 
 function cleanArgs(params: ToolParams): ToolParams {
@@ -279,7 +300,7 @@ function cleanArgs(params: ToolParams): ToolParams {
 }
 
 function sanitizeForLookup(value: unknown): unknown {
-  return redactSecretLikeValue(value);
+  return protectValue(value);
 }
 
 function isStringOrStringArray(value: unknown): boolean {
@@ -413,8 +434,8 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
         ctx.ui.notify(`agentmemory is unreachable at ${displayBaseUrl()}`, "warning");
         return;
       }
-      const status = sanitizeTextForDisplay(health.status || health.health?.status || "unknown");
-      const version = health.version ? ` v${sanitizeTextForDisplay(health.version)}` : "";
+      const status = protectDisplayText(health.status || health.health?.status || "unknown");
+      const version = health.version ? ` v${protectDisplayText(health.version)}` : "";
       ctx.ui.notify(
         `agentmemory ${status}${version}`,
         "info",
@@ -439,7 +460,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
         content: [
           {
             type: "text",
-            text: `agentmemory status: ${sanitizeTextForDisplay(health.status || health.health?.status || "unknown")}${health.version ? ` (v${sanitizeTextForDisplay(health.version)})` : ""}`,
+            text: `agentmemory status: ${protectDisplayText(health.status || health.health?.status || "unknown")}${health.version ? ` (v${protectDisplayText(health.version)})` : ""}`,
           },
         ],
         details: sanitizeForLookup(health),
@@ -456,7 +477,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
       limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 10, default: 5, description: "Maximum results" })),
     }),
     async execute(_toolCallId, params) {
-      const query = redactSecretLikeText(params.query);
+      const query = protectText(params.query);
       const result = await callAgentMemory<{ results?: SmartSearchResult[] }>("smart-search", {
         body: { query, limit: params.limit ?? 5 },
       });
@@ -481,7 +502,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     }),
     async execute(_toolCallId, params) {
       const rawArgs = params as ToolParams;
-      if (containsSecretLikeContent(rawArgs)) {
+      if (containsBlockedSecret(rawArgs)) {
         return {
           content: [{ type: "text", text: "Refusing to save memory: content appears to contain a secret-looking value. Replace credential values with environment variable names or placeholders." }],
           details: { ok: false, reason: "secret-like-content" },
@@ -494,7 +515,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
         };
       }
       const args = normalizeSaveParams(rawArgs);
-      if (containsSecretLikeContent(args)) {
+      if (containsBlockedSecret(args)) {
         return {
           content: [{ type: "text", text: "Refusing to save memory: content appears to contain a secret-looking value. Replace credential values with environment variable names or placeholders." }],
           details: { ok: false, reason: "secret-like-content" },
@@ -536,7 +557,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     lastPrompt = event.prompt?.trim() || "";
     if (!lastPrompt) return;
 
-    const query = redactSecretLikeText(lastPrompt);
+    const query = protectText(lastPrompt);
     const result = await callAgentMemory<{ results?: SmartSearchResult[] }>("smart-search", {
       body: { query, limit: 5 },
     });
@@ -567,8 +588,8 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
         timestamp: new Date().toISOString(),
         data: {
           tool_name: "conversation",
-          tool_input: redactSecretLikeText(lastPrompt).slice(0, 500),
-          tool_output: redactSecretLikeText(assistantText).slice(0, 4000),
+          tool_input: protectText(lastPrompt).slice(0, 500),
+          tool_output: protectText(assistantText).slice(0, 4000),
         },
       },
     });

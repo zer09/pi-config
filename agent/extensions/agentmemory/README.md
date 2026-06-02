@@ -82,8 +82,9 @@ The extension publishes that directory through Pi's `resources_discover` event. 
 - Headless sessions do not write UI status.
 - Bearer auth is sent only as an `Authorization` header.
 - `AGENTMEMORY_REQUIRE_HTTPS=1` refuses to send a bearer token over plaintext HTTP to non-loopback hosts.
-- `memory_save` refuses obvious secret-looking values.
-- Conversation capture redacts obvious secret-looking values before calling `/agentmemory/observe`.
+- Security is enabled by default; `AGENTMEMORY_SECURITY_ENABLED=0` disables local secret refusal and display redaction for explicit local debugging.
+- `memory_save` refuses obvious secret-looking values when security is enabled.
+- Conversation capture redacts obvious secret-looking values before calling `/agentmemory/observe` when security is enabled.
 - Broad, destructive, or mutating AgentMemory tools are not registered by default.
 
 Gated tools reserved for explicit future workflows:
@@ -106,6 +107,7 @@ memory_heal
 | `AGENTMEMORY_URL` | `http://localhost:3111` | AgentMemory server URL |
 | `AGENTMEMORY_SECRET` | (none) | Bearer token for protected instances |
 | `AGENTMEMORY_REQUIRE_HTTPS` | (off) | When set to `1`, refuse bearer auth over plaintext HTTP to non-loopback hosts |
+| `AGENTMEMORY_SECURITY_ENABLED` | `1` | Enables local secret refusal and output redaction. Set to `0`, `false`, `no`, `off`, or `disabled` only for explicit local debugging. Unknown values stay enabled. |
 | `PI_DELEGATE_CHILD` | (off) | Local pi delegate marker; skips AgentMemory tools, hooks, and bundled skill discovery |
 
 ## Upstream sync workflow

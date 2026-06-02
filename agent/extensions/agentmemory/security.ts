@@ -12,6 +12,9 @@
  * obfuscations into candidate variants, score those variants for secret signals,
  * then redact the safest candidate. This file should prefer false positives over
  * leaking credentials. Do not add examples with real credential values.
+ *
+ * Runtime callers can opt out with AGENTMEMORY_SECURITY_ENABLED=0 for local
+ * debugging. The default and all unrecognized values are fail-closed/enabled.
  */
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
@@ -21,10 +24,8 @@ const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 const SECRET_SEPARATOR_PATTERN = "_\\-\\u2010\\u2011\\u2012\\u2013\\u2014\\u2015\\u2212\\uFE58\\uFE63\\uFF0D";
 const SECRET_KEY_CHAR_PATTERN = `[A-Za-z0-9${SECRET_SEPARATOR_PATTERN}]`;
 const SECRET_KEY_PATTERN = `${SECRET_KEY_CHAR_PATTERN}*(?:API[${SECRET_SEPARATOR_PATTERN}]?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|BEARER|PRIVATE|KEY)${SECRET_KEY_CHAR_PATTERN}*?`;
-const SECRET_VALUE_PATTERN = "[^\\s,;\"']+";
 
 const SECRET_KEY_NAME_PATTERN = new RegExp(`^${SECRET_KEY_PATTERN}$`, "i");
-const SECRET_VALUE_ONLY_PATTERN = new RegExp(`^${SECRET_VALUE_PATTERN}$`);
 
 // Unquoted assignments intentionally consume the rest of the line/string. Once a
 // secret-looking key is present, the safest default is to redact the full tail.
@@ -44,6 +45,25 @@ const QUOTED_SECRET_ASSIGNMENT_START_PATTERN = new RegExp(
 // decimal escapes. Redact the whole run rather than only the first token.
 const BEARER_VALUE_PATTERN = /(Bearer\s+)([A-Za-z0-9._~+/=:'"-]{12,}(?:\s+[A-Za-z0-9._~+/=:'"-]{12,})*)(?=$|[\s,;])/gi;
 const PRIVATE_KEY_BLOCK_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/gi;
+const SECURITY_DISABLED_VALUES = new Set(["0", "false", "no", "off", "disabled"]);
+const SECURITY_ENABLED_VALUES = new Set(["1", "true", "yes", "on", "enabled"]);
+
+type SecurityEnv = { AGENTMEMORY_SECURITY_ENABLED?: string };
+
+/**
+ * Return whether AgentMemory content safety checks are enabled.
+ *
+ * Security is enabled by default. Only explicit disabled values turn it off;
+ * unknown values remain enabled so typoed configuration fails closed.
+ */
+export function isSecurityEnabled(env: SecurityEnv = process.env): boolean {
+  const rawValue = env.AGENTMEMORY_SECURITY_ENABLED;
+  if (rawValue === undefined || rawValue.trim() === "") return true;
+  const normalized = rawValue.trim().toLowerCase();
+  if (SECURITY_DISABLED_VALUES.has(normalized)) return false;
+  if (SECURITY_ENABLED_VALUES.has(normalized)) return true;
+  return true;
+}
 
 /**
  * Return true when a configured AgentMemory bearer secret would be sent over
