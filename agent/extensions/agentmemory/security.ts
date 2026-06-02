@@ -13,7 +13,7 @@
  * then redact the safest candidate. This file should prefer false positives over
  * leaking credentials. Do not add examples with real credential values.
  *
- * Runtime callers can opt out with AGENTMEMORY_SECURITY_ENABLED=0 for local
+ * Runtime callers can opt out with PI_AGENTMEMORY_SECURITY_ENABLED=0 for local
  * debugging. The default and all unrecognized values are fail-closed/enabled.
  */
 
@@ -48,7 +48,7 @@ const PRIVATE_KEY_BLOCK_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?
 const SECURITY_DISABLED_VALUES = new Set(["0", "false", "no", "off", "disabled"]);
 const SECURITY_ENABLED_VALUES = new Set(["1", "true", "yes", "on", "enabled"]);
 
-type SecurityEnv = { AGENTMEMORY_SECURITY_ENABLED?: string };
+type SecurityEnv = { PI_AGENTMEMORY_SECURITY_ENABLED?: string };
 
 /**
  * Return whether AgentMemory content safety checks are enabled.
@@ -57,7 +57,7 @@ type SecurityEnv = { AGENTMEMORY_SECURITY_ENABLED?: string };
  * unknown values remain enabled so typoed configuration fails closed.
  */
 export function isSecurityEnabled(env: SecurityEnv = process.env): boolean {
-  const rawValue = env.AGENTMEMORY_SECURITY_ENABLED;
+  const rawValue = env.PI_AGENTMEMORY_SECURITY_ENABLED;
   if (rawValue === undefined || rawValue.trim() === "") return true;
   const normalized = rawValue.trim().toLowerCase();
   if (SECURITY_DISABLED_VALUES.has(normalized)) return false;

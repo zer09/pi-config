@@ -28,7 +28,7 @@ const MANAGED_ENV_KEYS = [
   "AGENTMEMORY_URL",
   "AGENTMEMORY_SECRET",
   "AGENTMEMORY_REQUIRE_HTTPS",
-  "AGENTMEMORY_SECURITY_ENABLED",
+  "PI_AGENTMEMORY_SECURITY_ENABLED",
   "PI_DELEGATE_CHILD",
 ];
 const DEFAULT_TOOL_NAMES = [
@@ -269,11 +269,11 @@ test("MCP isError responses are surfaced as failures", async () => {
 test("security helpers redact protocol-relative URLs and shared secret-context objects", () => {
   const security = loadSecurity();
   assert.equal(security.isSecurityEnabled({}), true);
-  assert.equal(security.isSecurityEnabled({ AGENTMEMORY_SECURITY_ENABLED: "1" }), true);
-  assert.equal(security.isSecurityEnabled({ AGENTMEMORY_SECURITY_ENABLED: "enabled" }), true);
-  assert.equal(security.isSecurityEnabled({ AGENTMEMORY_SECURITY_ENABLED: "0" }), false);
-  assert.equal(security.isSecurityEnabled({ AGENTMEMORY_SECURITY_ENABLED: "false" }), false);
-  assert.equal(security.isSecurityEnabled({ AGENTMEMORY_SECURITY_ENABLED: "unexpected" }), true);
+  assert.equal(security.isSecurityEnabled({ PI_AGENTMEMORY_SECURITY_ENABLED: "1" }), true);
+  assert.equal(security.isSecurityEnabled({ PI_AGENTMEMORY_SECURITY_ENABLED: "enabled" }), true);
+  assert.equal(security.isSecurityEnabled({ PI_AGENTMEMORY_SECURITY_ENABLED: "0" }), false);
+  assert.equal(security.isSecurityEnabled({ PI_AGENTMEMORY_SECURITY_ENABLED: "false" }), false);
+  assert.equal(security.isSecurityEnabled({ PI_AGENTMEMORY_SECURITY_ENABLED: "unexpected" }), true);
   assert.equal(security.sanitizeTextForDisplay("see //user:pass@example.invalid/path"), "see //<redacted>@example.invalid/path");
   assert.equal(security.sanitizeTextForDisplay("http://outer.invalid//user:pass@example.invalid/path"), "http://outer.invalid//<redacted>@example.invalid/path");
   assert.equal(security.sanitizeTextForDisplay("see https:\\\\user:pass@example.invalid\\\\path"), "see https:\\\\<redacted>@example.invalid\\\\path");
@@ -585,10 +585,10 @@ test("memory_save refuses secret-looking content before network calls", async ()
   }
 });
 
-test("AGENTMEMORY_SECURITY_ENABLED=0 disables save guard and display redaction", async () => {
+test("PI_AGENTMEMORY_SECURITY_ENABLED=0 disables save guard and display redaction", async () => {
   const rawSecret = "API_KEY=abcdefghijklmnop";
   const harness = createHarness({
-    env: { AGENTMEMORY_SECURITY_ENABLED: "0" },
+    env: { PI_AGENTMEMORY_SECURITY_ENABLED: "0" },
     fetchHandler: async (_url, init) => {
       const body = JSON.parse(init.body);
       if (body.name === "memory_smart_search") return jsonResponse({ content: [{ type: "text", text: rawSecret }] });
