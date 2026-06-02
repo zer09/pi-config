@@ -71,17 +71,16 @@ function loadExtension() {
 
 async function createFooter(options = {}) {
 	const oldConfigPath = process.env.GC_FOOTER_CONFIG_PATH;
-	let tempConfigDir;
+	const tempConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), "gc-footer-test-"));
+	const configPath = path.join(tempConfigDir, "config.json");
 
 	if (Object.hasOwn(options, "config")) {
-		tempConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), "gc-footer-test-"));
-		const configPath = path.join(tempConfigDir, "config.json");
 		const configText = typeof options.config === "string"
 			? options.config
 			: JSON.stringify(options.config);
 		fs.writeFileSync(configPath, configText, "utf8");
-		process.env.GC_FOOTER_CONFIG_PATH = configPath;
 	}
+	process.env.GC_FOOTER_CONFIG_PATH = configPath;
 
 	const handlers = new Map();
 	const commands = new Map();
@@ -119,7 +118,7 @@ async function createFooter(options = {}) {
 		} else {
 			process.env.GC_FOOTER_CONFIG_PATH = oldConfigPath;
 		}
-		if (tempConfigDir) fs.rmSync(tempConfigDir, { recursive: true, force: true });
+		fs.rmSync(tempConfigDir, { recursive: true, force: true });
 	}
 
 	const ctx = {
@@ -312,6 +311,7 @@ async function run() {
 		assert.ok(notification.message.includes("segments: cwd, branch, statuses, timer, queue, tokens, context, model, thinking"), "command should list enabled segments");
 		assert.ok(notification.message.includes("theme: dark"), "command should report active theme name");
 		assert.ok(notification.message.includes("model: openai-codex/gpt-5.5"), "command should report current model");
+		assert.ok(!notification.message.includes("segmentProfiles:"), "command should omit absent segment profile overrides");
 		assert.ok(notification.message.includes("thinking: medium"), "command should report current thinking level");
 		assert.ok(notification.message.includes("branch: main"), "command should report current branch");
 		assert.ok(notification.message.includes("nerdFont: on"), "command should report Nerd Font mode");
@@ -336,6 +336,15 @@ async function run() {
 		const error = await footer.runCommand("toggle branch");
 		assert.equal(error.level, "error", "gc-footer command should reject mutating subcommands");
 		assert.equal(error.message, "Usage: /gc-footer", "gc-footer command should remain read-only");
+	}
+
+	{
+		const footer = await createFooter({
+			config: { segmentProfiles: { model: "compact" } },
+		});
+		const notification = await footer.runCommand();
+		assert.equal(notification.level, "info", "gc-footer command should report segment profile overrides");
+		assert.ok(notification.message.includes("segmentProfiles: model=compact"), "command should list configured segment profile overrides");
 	}
 
 	{
@@ -561,6 +570,18 @@ async function run() {
 
 	{
 		const footer = await createFooter({
+			config: { segmentProfiles: { model: "compact" } },
+			entries: [assistantEntry({ input: 12000, output: 3000, cacheRead: 4000, cacheWrite: 4000 })],
+			contextUsage: { tokens: 9400, contextWindow: 272000, percent: 3.45 },
+		});
+		const line = footer.renderPlain(160);
+		assert.ok(line.includes("↑12k/R4k ↓3k/W4k (3.5%) (9.4k/272k)"), "model profile override should leave other full-profile segments unchanged");
+		assert.ok(line.includes("codex/gpt-5.5"), "model compact override should shorten the model in full layout");
+		assert.ok(!line.includes("openai-codex/gpt-5.5"), "model compact override should omit the full provider label");
+	}
+
+	{
+		const footer = await createFooter({
 			entries: [assistantEntry({ input: 742000, output: 80000, cacheRead: 12000000, cacheWrite: 0 })],
 			contextUsage: { tokens: 76000, contextWindow: 272000, percent: null },
 		});
@@ -618,6 +639,20 @@ async function run() {
 		assert.ok(minimalLine.includes("(45%)"), "minimal layout should keep context percentage");
 		assert.ok(!minimalLine.includes("codex/gpt-5.5"), "minimal layout should hide model");
 		assert.ok(!minimalLine.includes("↑"), "minimal layout should hide token totals");
+	}
+
+	{
+		const footer = await createFooter({
+			config: { segmentProfiles: { model: "full" } },
+			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
+			statuses: new Map([["mcp", "MCP: 0/9 servers"]]),
+			entries: [assistantEntry({ input: 123456, output: 45678, cacheRead: 98765, cacheWrite: 8765 })],
+			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
+		});
+		const line = footer.renderPlain(90);
+		assert.ok(line.includes("path (main)"), "main compact layout should still use cwd basename with model full override");
+		assert.ok(line.includes("↑123k ↓46k"), "main compact layout should still compact token totals with model full override");
+		assert.ok(line.includes("openai-codex/gpt-5.5"), "model full override should keep full provider label in compact layout");
 	}
 
 	{
@@ -684,6 +719,17 @@ async function run() {
 		assert.match(line, /^~\/project \(main\)/, "invalid config should fall back to defaults");
 		assert.ok(line.includes("openai-codex/gpt-5.5"), "invalid config should keep default model segment");
 		assert.ok(line.includes("\uf111"), "invalid config should keep default thinking segment");
+	}
+
+	for (const config of [
+		{ segmentProfiles: { model: "inherit" } },
+		{ segmentProfiles: { model: "tiny", unknown: "compact" } },
+	]) {
+		const footer = await createFooter({ config });
+		const line = footer.renderPlain();
+		assert.ok(line.includes("openai-codex/gpt-5.5"), "ignored segment profile overrides should keep default model rendering");
+		const notification = await footer.runCommand();
+		assert.ok(!notification.message.includes("segmentProfiles:"), "ignored segment profile overrides should not be reported");
 	}
 
 	for (const config of [undefined, { nerdFont: false }]) {

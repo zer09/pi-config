@@ -42,9 +42,12 @@ const SEGMENT_KEYS = [
 type SegmentName = typeof SEGMENT_KEYS[number];
 type SegmentConfig = Record<SegmentName, boolean>;
 type FooterProfile = "full" | "compact" | "minimal";
+type SegmentProfileOverride = FooterProfile | "inherit";
+type SegmentProfileConfig = Partial<Record<SegmentName, SegmentProfileOverride>>;
 
 type FooterConfig = {
 	segments: SegmentConfig;
+	segmentProfiles: SegmentProfileConfig;
 	nerdFont: boolean;
 };
 
@@ -95,6 +98,7 @@ const DEFAULT_CONFIG: FooterConfig = {
 		model: true,
 		thinking: true,
 	},
+	segmentProfiles: {},
 	nerdFont: true,
 };
 
@@ -235,21 +239,27 @@ function buildFooterParts(
 	branch: string | null,
 	gitStatus: GitStatus | undefined,
 ): FooterParts {
-	const compact = profile !== "full";
 	const minimal = profile === "minimal";
+	const cwdProfile = resolveSegmentProfile(config, "cwd", profile);
+	const statusesProfile = resolveSegmentProfile(config, "statuses", profile);
+	const tokensProfile = resolveSegmentProfile(config, "tokens", profile);
+	const contextProfile = resolveSegmentProfile(config, "context", profile);
+	const modelProfile = resolveSegmentProfile(config, "model", profile);
+	const showTokens = config.segments.tokens && tokensProfile !== "minimal" && (!minimal || hasSegmentProfileOverride(config, "tokens"));
+	const showModel = config.segments.model && (!minimal || hasSegmentProfileOverride(config, "model"));
 	const left = joinSegments([
-		config.segments.cwd ? theme.fg("dim", formatCwd(ctx.cwd, profile)) : undefined,
+		config.segments.cwd ? theme.fg("dim", formatCwd(ctx.cwd, cwdProfile)) : undefined,
 		config.segments.branch ? formatGitBranch(branch, theme, gitStatus) : undefined,
 	]);
 	const middle = config.segments.statuses
-		? formatExtensionStatuses(footerData.getExtensionStatuses(), theme, config.nerdFont, compact ? "active" : "full")
+		? formatExtensionStatuses(footerData.getExtensionStatuses(), theme, config.nerdFont, statusesProfile === "full" ? "full" : "active")
 		: undefined;
 	const right = joinSegments([
 		config.segments.timer ? formatPromptTimer(promptTimer, theme, config.nerdFont) : undefined,
 		config.segments.queue ? formatPromptQueue(promptTimer, theme, config.nerdFont) : undefined,
-		config.segments.tokens && !minimal ? formatSessionTokenTotals(ctx, theme, compact ? "compact" : "full") : undefined,
-		config.segments.context ? formatContextUsage(ctx, theme, compact ? "compact" : "full") : undefined,
-		config.segments.model && !minimal ? theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id, compact ? "compact" : "full")) : undefined,
+		showTokens ? formatSessionTokenTotals(ctx, theme, tokensProfile === "full" ? "full" : "compact") : undefined,
+		config.segments.context ? formatContextUsage(ctx, theme, contextProfile === "full" ? "full" : "compact") : undefined,
+		showModel ? theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id, modelProfile)) : undefined,
 		config.segments.thinking && !minimal ? formatThinkingDot(pi.getThinkingLevel(), theme, config.nerdFont) : undefined,
 	]);
 
@@ -393,6 +403,13 @@ function loadConfig(): FooterConfig {
 				if (typeof value === "boolean") config.segments[key] = value;
 			}
 		}
+
+		if (isRecord(parsed.segmentProfiles)) {
+			for (const key of SEGMENT_KEYS) {
+				const value = parsed.segmentProfiles[key];
+				if (isSegmentProfileOverride(value)) config.segmentProfiles[key] = value;
+			}
+		}
 	} catch {
 		return config;
 	}
@@ -403,12 +420,27 @@ function loadConfig(): FooterConfig {
 function createDefaultConfig(): FooterConfig {
 	return {
 		segments: { ...DEFAULT_CONFIG.segments },
+		segmentProfiles: { ...DEFAULT_CONFIG.segmentProfiles },
 		nerdFont: DEFAULT_CONFIG.nerdFont,
 	};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isSegmentProfileOverride(value: unknown): value is SegmentProfileOverride {
+	return value === "inherit" || value === "full" || value === "compact" || value === "minimal";
+}
+
+function resolveSegmentProfile(config: FooterConfig, segment: SegmentName, footerProfile: FooterProfile): FooterProfile {
+	const override = config.segmentProfiles[segment];
+	return override && override !== "inherit" ? override : footerProfile;
+}
+
+function hasSegmentProfileOverride(config: FooterConfig, segment: SegmentName): boolean {
+	const override = config.segmentProfiles[segment];
+	return Boolean(override && override !== "inherit");
 }
 
 function formatCommandStatus(
@@ -418,15 +450,24 @@ function formatCommandStatus(
 	branch: string | null | undefined,
 ): string {
 	const enabledSegments = SEGMENT_KEYS.filter((key) => config.segments[key]).join(", ");
+	const segmentProfiles = formatSegmentProfileOverrides(config);
 	return [
 		"gc-footer",
 		`segments: ${enabledSegments || "none"}`,
+		...(segmentProfiles ? [`segmentProfiles: ${segmentProfiles}`] : []),
 		`theme: ${getActiveThemeName(ctx)}`,
 		`model: ${formatModelName(ctx.model?.provider, ctx.model?.id)}`,
 		`thinking: ${thinkingLevel}`,
 		`branch: ${formatBranchStatus(branch)}`,
 		`nerdFont: ${config.nerdFont ? "on" : "off"}`,
 	].join("\n");
+}
+
+function formatSegmentProfileOverrides(config: FooterConfig): string {
+	return SEGMENT_KEYS.map((key) => {
+		const override = config.segmentProfiles[key];
+		return override && override !== "inherit" ? `${key}=${override}` : undefined;
+	}).filter(Boolean).join(", ");
 }
 
 function getActiveThemeName(ctx: ExtensionContext): string {
