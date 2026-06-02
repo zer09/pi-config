@@ -111,6 +111,14 @@ type FooterParts = {
 	right: string;
 };
 
+type FooterPartWidths = {
+	gap: number;
+	left: number;
+	middle: number;
+	right: number;
+	total: number;
+};
+
 const FOOTER_PROFILES: readonly FooterProfile[] = ["full", "compact", "minimal"];
 
 const DEFAULT_CONFIG: FooterConfig = {
@@ -248,14 +256,15 @@ function renderFooterLine(
 	if (width <= 0) return "";
 
 	const snapshot = createRenderSnapshot(pi, ctx, theme, footerData, config);
-	let fallback: FooterParts | undefined;
+	let fallback: { parts: FooterParts; widths: FooterPartWidths } | undefined;
 	for (const profile of FOOTER_PROFILES) {
 		const parts = buildFooterParts(profile, theme, config, promptTimer, branch, gitStatus, snapshot);
-		fallback = parts;
-		if (footerSectionsFit(parts, width)) return joinFooterSections(parts.left, parts.middle, parts.right, width);
+		const widths = measureFooterParts(parts);
+		fallback = { parts, widths };
+		if (footerSectionsFit(widths, width)) return joinFooterSections(parts, width, widths);
 	}
 
-	return fallback ? joinFooterSections(fallback.left, fallback.middle, fallback.right, width) : "";
+	return fallback ? joinFooterSections(fallback.parts, width, fallback.widths) : "";
 }
 
 function createRenderSnapshot(
@@ -947,48 +956,49 @@ function formatCompactModelName(
 	return provider ? `${provider}/${model}` : model;
 }
 
-function footerSectionsFit(parts: FooterParts, width: number): boolean {
-	if (width <= 0) return false;
-	const leftWidth = visibleWidth(parts.left);
-	const middleWidth = visibleWidth(parts.middle ?? "");
-	const rightWidth = visibleWidth(parts.right);
-	const gapWidth = (parts.left && parts.middle ? 1 : 0) + (parts.middle && parts.right ? 1 : 0) + (!parts.middle && parts.left && parts.right ? 1 : 0);
-	return leftWidth + middleWidth + rightWidth + gapWidth <= width;
+function measureFooterParts(parts: FooterParts): FooterPartWidths {
+	const left = visibleWidth(parts.left);
+	const middle = visibleWidth(parts.middle ?? "");
+	const right = visibleWidth(parts.right);
+	const gap = (parts.left && parts.middle ? 1 : 0)
+		+ (parts.middle && parts.right ? 1 : 0)
+		+ (!parts.middle && parts.left && parts.right ? 1 : 0);
+	return { gap, left, middle, right, total: left + middle + right + gap };
 }
 
-function joinFooterSections(
+function footerSectionsFit(widths: FooterPartWidths, width: number): boolean {
+	return width > 0 && widths.total <= width;
+}
+
+function joinFooterSections(parts: FooterParts, width: number, widths = measureFooterParts(parts)): string {
+	if (width <= 0) return "";
+	if (!parts.middle) return joinLeftRight(parts.left, parts.right, width, widths.left, widths.right);
+
+	if (widths.total <= width) {
+		return joinLeftMiddleRight(parts.left, parts.middle, parts.right, width, widths.left, widths.middle, widths.right);
+	}
+
+	const availableMiddleWidth = width - widths.left - widths.right - widths.gap;
+	if (availableMiddleWidth <= 0) {
+		return joinLeftRight(parts.left, parts.right, width, widths.left, widths.right);
+	}
+
+	const shortenedMiddle = truncateToWidth(parts.middle, availableMiddleWidth, "");
+	const shortenedMiddleWidth = visibleWidth(shortenedMiddle);
+	return shortenedMiddleWidth > 0
+		? joinLeftMiddleRight(parts.left, shortenedMiddle, parts.right, width, widths.left, shortenedMiddleWidth, widths.right)
+		: joinLeftRight(parts.left, parts.right, width, widths.left, widths.right);
+}
+
+function joinLeftMiddleRight(
 	left: string,
-	middle: string | undefined,
+	middle: string,
 	right: string,
 	width: number,
+	leftWidth: number,
+	middleWidth: number,
+	rightWidth: number,
 ): string {
-	if (width <= 0) return "";
-	if (!middle) return joinLeftRight(left, right, width);
-
-	const leftWidth = visibleWidth(left);
-	const middleWidth = visibleWidth(middle);
-	const rightWidth = visibleWidth(right);
-	const gapWidth = (left && middle ? 1 : 0) + (middle && right ? 1 : 0);
-
-	if (leftWidth + middleWidth + rightWidth + gapWidth <= width) {
-		return joinLeftMiddleRight(left, middle, right, width);
-	}
-
-	const availableMiddleWidth = width - leftWidth - rightWidth - gapWidth;
-	if (availableMiddleWidth <= 0) {
-		return joinLeftRight(left, right, width);
-	}
-
-	const shortenedMiddle = truncateToWidth(middle, availableMiddleWidth, "");
-	return visibleWidth(shortenedMiddle) > 0
-		? joinLeftMiddleRight(left, shortenedMiddle, right, width)
-		: joinLeftRight(left, right, width);
-}
-
-function joinLeftMiddleRight(left: string, middle: string, right: string, width: number): string {
-	const leftWidth = visibleWidth(left);
-	const middleWidth = visibleWidth(middle);
-	const rightWidth = visibleWidth(right);
 	const paddingWidth = Math.max(0, width - leftWidth - middleWidth - rightWidth);
 	const leftPaddingWidth = left && middle ? Math.max(1, Math.floor(paddingWidth / 2)) : 0;
 	const rightPaddingWidth = middle && right ? Math.max(1, paddingWidth - leftPaddingWidth) : 0;
@@ -1003,11 +1013,9 @@ function joinLeftMiddleRight(left: string, middle: string, right: string, width:
 	return truncateToWidth(line, width, "");
 }
 
-function joinLeftRight(left: string, right: string, width: number): string {
+function joinLeftRight(left: string, right: string, width: number, leftWidth: number, rightWidth: number): string {
 	if (width <= 0) return "";
 
-	const leftWidth = visibleWidth(left);
-	const rightWidth = visibleWidth(right);
 	const gapWidth = left && right ? 1 : 0;
 
 	if (leftWidth + gapWidth + rightWidth <= width) {
