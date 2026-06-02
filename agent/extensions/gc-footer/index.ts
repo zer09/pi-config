@@ -44,6 +44,31 @@ type SegmentConfig = Record<SegmentName, boolean>;
 type FooterProfile = "full" | "compact" | "minimal";
 type SegmentProfileOverride = FooterProfile | "inherit";
 type SegmentProfileConfig = Partial<Record<SegmentName, SegmentProfileOverride>>;
+type ContextUsageSnapshot = ReturnType<ExtensionContext["getContextUsage"]>;
+
+type FormattedExtensionStatus = {
+	keepInCompact: boolean;
+	text: string;
+};
+
+type SessionTokenTotals = {
+	cacheRead: number;
+	cacheWrite: number;
+	input: number;
+	output: number;
+};
+
+type RenderSnapshot = {
+	contextUsage: ContextUsageSnapshot;
+	cwd: string;
+	formattedStatuses: FormattedExtensionStatus[];
+	modelContextWindow: number | undefined;
+	modelId: string | undefined;
+	modelProvider: string | undefined;
+	now: number;
+	sessionTokenTotals: SessionTokenTotals | undefined;
+	thinkingLevel: string;
+};
 
 type FooterConfig = {
 	nerdFont: boolean;
@@ -85,6 +110,8 @@ type FooterParts = {
 	middle: string | undefined;
 	right: string;
 };
+
+const FOOTER_PROFILES: readonly FooterProfile[] = ["full", "compact", "minimal"];
 
 const DEFAULT_CONFIG: FooterConfig = {
 	nerdFont: true,
@@ -218,26 +245,49 @@ function renderFooterLine(
 	branch: string | null,
 	gitStatus: GitStatus | undefined,
 ): string {
-	const profiles: FooterProfile[] = ["full", "compact", "minimal"];
-	for (const profile of profiles) {
-		const parts = buildFooterParts(profile, pi, ctx, theme, footerData, config, promptTimer, branch, gitStatus);
+	if (width <= 0) return "";
+
+	const snapshot = createRenderSnapshot(pi, ctx, theme, footerData, config);
+	let fallback: FooterParts | undefined;
+	for (const profile of FOOTER_PROFILES) {
+		const parts = buildFooterParts(profile, theme, config, promptTimer, branch, gitStatus, snapshot);
+		fallback = parts;
 		if (footerSectionsFit(parts, width)) return joinFooterSections(parts.left, parts.middle, parts.right, width);
 	}
 
-	const fallback = buildFooterParts("minimal", pi, ctx, theme, footerData, config, promptTimer, branch, gitStatus);
-	return joinFooterSections(fallback.left, fallback.middle, fallback.right, width);
+	return fallback ? joinFooterSections(fallback.left, fallback.middle, fallback.right, width) : "";
 }
 
-function buildFooterParts(
-	profile: FooterProfile,
+function createRenderSnapshot(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	theme: Theme,
 	footerData: FooterData,
 	config: FooterConfig,
+): RenderSnapshot {
+	return {
+		contextUsage: config.segments.context ? ctx.getContextUsage() : undefined,
+		cwd: ctx.cwd,
+		formattedStatuses: config.segments.statuses
+			? formatExtensionStatusEntries(footerData.getExtensionStatuses(), theme, config.nerdFont)
+			: [],
+		modelContextWindow: ctx.model?.contextWindow,
+		modelId: ctx.model?.id,
+		modelProvider: ctx.model?.provider,
+		now: Date.now(),
+		sessionTokenTotals: config.segments.tokens ? getSessionTokenTotals(ctx) : undefined,
+		thinkingLevel: config.segments.thinking ? pi.getThinkingLevel() : "off",
+	};
+}
+
+function buildFooterParts(
+	profile: FooterProfile,
+	theme: Theme,
+	config: FooterConfig,
 	promptTimer: PromptTimerState,
 	branch: string | null,
 	gitStatus: GitStatus | undefined,
+	snapshot: RenderSnapshot,
 ): FooterParts {
 	const minimal = profile === "minimal";
 	const contextProfile = resolveSegmentProfile(config, "context", profile);
@@ -248,19 +298,19 @@ function buildFooterParts(
 	const showModel = config.segments.model && (!minimal || hasSegmentProfileOverride(config, "model"));
 	const showTokens = config.segments.tokens && tokensProfile !== "minimal" && (!minimal || hasSegmentProfileOverride(config, "tokens"));
 	const left = joinSegments([
-		config.segments.cwd ? theme.fg("dim", formatCwd(ctx.cwd, cwdProfile)) : undefined,
+		config.segments.cwd ? theme.fg("dim", formatCwd(snapshot.cwd, cwdProfile)) : undefined,
 		config.segments.branch ? formatGitBranch(branch, theme, gitStatus) : undefined,
 	]);
 	const middle = config.segments.statuses
-		? formatExtensionStatuses(footerData.getExtensionStatuses(), theme, config.nerdFont, statusesProfile === "full" ? "full" : "active")
+		? formatExtensionStatuses(snapshot.formattedStatuses, statusesProfile === "full" ? "full" : "active")
 		: undefined;
 	const right = joinSegments([
-		config.segments.timer ? formatPromptTimer(promptTimer, theme, config.nerdFont) : undefined,
+		config.segments.timer ? formatPromptTimer(promptTimer, theme, config.nerdFont, snapshot.now) : undefined,
 		config.segments.queue ? formatPromptQueue(promptTimer, theme, config.nerdFont) : undefined,
-		showTokens ? formatSessionTokenTotals(ctx, theme, tokensProfile === "full" ? "full" : "compact") : undefined,
-		config.segments.context ? formatContextUsage(ctx, theme, contextProfile === "full" ? "full" : "compact") : undefined,
-		showModel ? theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id, modelProfile)) : undefined,
-		config.segments.thinking && !minimal ? formatThinkingDot(pi.getThinkingLevel(), theme, config.nerdFont) : undefined,
+		showTokens ? formatSessionTokenTotals(snapshot.sessionTokenTotals, theme, tokensProfile === "full" ? "full" : "compact") : undefined,
+		config.segments.context ? formatContextUsage(snapshot.contextUsage, snapshot.modelContextWindow, theme, contextProfile === "full" ? "full" : "compact") : undefined,
+		showModel ? theme.fg("muted", formatModelName(snapshot.modelProvider, snapshot.modelId, modelProfile)) : undefined,
+		config.segments.thinking && !minimal ? formatThinkingDot(snapshot.thinkingLevel, theme, config.nerdFont) : undefined,
 	]);
 
 	return { left, middle, right };
@@ -358,9 +408,10 @@ function formatPromptTimer(
 	timer: PromptTimerState,
 	theme: Theme,
 	nerdFont: boolean,
+	now = Date.now(),
 ): string | undefined {
 	const running = timer.startedAt !== undefined;
-	const durationMs = running ? Date.now() - timer.startedAt : timer.lastDurationMs;
+	const durationMs = running ? now - timer.startedAt : timer.lastDurationMs;
 	if (durationMs === undefined) return undefined;
 
 	const glyph = nerdFont
@@ -536,9 +587,17 @@ function scheduleGitStatusRefresh(
 	branch: string | null,
 	force = false,
 ): void {
+	if (!branch) {
+		clearScheduledGitStatusRefresh(state);
+		state.cached = undefined;
+		state.cwd = cwd;
+		state.refreshedAt = 0;
+		return;
+	}
+
 	const now = Date.now();
 	const cwdChanged = state.cwd !== cwd;
-	const branchChanged = Boolean(branch && state.cached?.branch && state.cached.branch !== branch);
+	const branchChanged = Boolean(state.cached?.branch && state.cached.branch !== branch);
 	if (cwdChanged) {
 		state.cwd = cwd;
 		state.cached = branch ? { branch, dirty: false, ahead: 0, behind: 0 } : undefined;
@@ -670,15 +729,21 @@ function clearScheduledGitStatusRefresh(state: GitStatusState): void {
 	state.scheduled = undefined;
 }
 
-function formatExtensionStatuses(
+function formatExtensionStatusEntries(
 	statuses: ReadonlyMap<string, string>,
 	theme: Theme,
 	nerdFont: boolean,
+): FormattedExtensionStatus[] {
+	return Array.from(statuses.entries())
+		.sort(([a], [b]) => a.localeCompare(b))
+		.map(([, text]) => formatExtensionStatus(sanitizeStatusText(text), theme, nerdFont));
+}
+
+function formatExtensionStatuses(
+	statuses: FormattedExtensionStatus[],
 	mode: "full" | "active" = "full",
 ): string | undefined {
-	const statusText = Array.from(statuses.entries())
-		.sort(([a], [b]) => a.localeCompare(b))
-		.map(([, text]) => formatExtensionStatus(sanitizeStatusText(text), theme, nerdFont))
+	const statusText = statuses
 		.filter((status) => mode === "full" || status.keepInCompact)
 		.map((status) => status.text)
 		.filter(Boolean)
@@ -687,7 +752,7 @@ function formatExtensionStatuses(
 	return statusText || undefined;
 }
 
-function formatExtensionStatus(text: string, theme: Theme, nerdFont: boolean): { text: string; keepInCompact: boolean } {
+function formatExtensionStatus(text: string, theme: Theme, nerdFont: boolean): FormattedExtensionStatus {
 	const plainText = stripAnsi(text);
 	const agentMemoryMatch = plainText.match(/^🧠\s*agentmemory(?:\s+(off))?$/i);
 	if (agentMemoryMatch) {
@@ -719,11 +784,7 @@ function preserveVisibleTextStyle(text: string, visibleText: string, compactText
 	return text.includes(visibleText) ? text.replace(visibleText, compactText) : compactText;
 }
 
-function formatSessionTokenTotals(
-	ctx: ExtensionContext,
-	theme: Theme,
-	profile: "full" | "compact" = "full",
-): string | undefined {
+function getSessionTokenTotals(ctx: ExtensionContext): SessionTokenTotals | undefined {
 	let input = 0;
 	let output = 0;
 	let cacheRead = 0;
@@ -738,22 +799,32 @@ function formatSessionTokenTotals(
 		cacheWrite += usage.cacheWrite;
 	}
 
-	if (!input && !output && !cacheRead && !cacheWrite) return undefined;
+	return input || output || cacheRead || cacheWrite
+		? { cacheRead, cacheWrite, input, output }
+		: undefined;
+}
 
-	const inputPart = `↑${formatTokens(input)}${profile === "full" && cacheRead ? `/R${formatTokens(cacheRead)}` : ""}`;
-	const outputPart = `↓${formatTokens(output)}${profile === "full" && cacheWrite ? `/W${formatTokens(cacheWrite)}` : ""}`;
+function formatSessionTokenTotals(
+	totals: SessionTokenTotals | undefined,
+	theme: Theme,
+	profile: "full" | "compact" = "full",
+): string | undefined {
+	if (!totals) return undefined;
+
+	const inputPart = `↑${formatTokens(totals.input)}${profile === "full" && totals.cacheRead ? `/R${formatTokens(totals.cacheRead)}` : ""}`;
+	const outputPart = `↓${formatTokens(totals.output)}${profile === "full" && totals.cacheWrite ? `/W${formatTokens(totals.cacheWrite)}` : ""}`;
 	return theme.fg("muted", `${inputPart} ${outputPart}`);
 }
 
 function formatContextUsage(
-	ctx: ExtensionContext,
+	usage: ContextUsageSnapshot,
+	modelContextWindow: number | undefined,
 	theme: Theme,
 	profile: "full" | "compact" = "full",
 ): string | undefined {
-	const usage = ctx.getContextUsage();
 	if (!usage || usage.tokens === null) return undefined;
 
-	const contextWindow = usage.contextWindow || ctx.model?.contextWindow;
+	const contextWindow = usage.contextWindow || modelContextWindow;
 	if (!contextWindow) return undefined;
 
 	const percent = getTokenPercent(usage.tokens, contextWindow, usage.percent);

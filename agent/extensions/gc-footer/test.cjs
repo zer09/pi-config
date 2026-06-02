@@ -305,6 +305,26 @@ async function run() {
 	}
 
 	{
+		const markerPath = path.join(os.tmpdir(), `gc-footer-git-null-branch-${process.pid}-${Date.now()}`);
+		try {
+			await withFakeGitScript(
+				`require("node:fs").writeFileSync(${JSON.stringify(markerPath)}, "ran");\nprocess.stdout.write("# branch.head main\\n# branch.ab +0 -0\\n");\n`,
+				async () => {
+					const footer = await createFooter({
+						cwd: __dirname,
+						branch: null,
+					});
+					footer.renderPlain();
+					await new Promise((resolve) => setTimeout(resolve, 20));
+					assert.equal(fs.existsSync(markerPath), false, "missing branch should not spawn git status");
+				},
+			);
+		} finally {
+			fs.rmSync(markerPath, { force: true });
+		}
+	}
+
+	{
 		const footer = await createFooter();
 		const notification = await footer.runCommand();
 		assert.equal(notification.level, "info", "gc-footer command should report status");
