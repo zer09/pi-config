@@ -164,6 +164,7 @@ export function redactSecretLikeText(text: string): string {
 
   const redactedTransportSecrets = redactUrlUserinfo(source)
     .replace(PRIVATE_KEY_BLOCK_PATTERN, "<redacted private key>")
+    .replace(AUTHORIZATION_HEADER_PATTERN, "$1$2 <redacted>")
     .replace(BEARER_VALUE_PATTERN, "$1<redacted>")
     .replace(
       CLI_SECRET_FLAG_QUOTED_PATTERN,
@@ -172,9 +173,14 @@ export function redactSecretLikeText(text: string): string {
     .replace(
       CLI_SECRET_FLAG_PATTERN,
       (_match, prefix: string, flag: string, separator: string) => `${prefix}${flag}${separator}<redacted>`,
-    );
+    )
+    .replace(STANDALONE_PROVIDER_TOKEN_PATTERN, "$1<redacted token>");
 
   return redactQuotedSecretAssignments(redactedTransportSecrets)
+    .replace(
+      OUTER_QUOTED_SECRET_ASSIGNMENT_PATTERN,
+      (_match, prefix: string, quote: string, key: string, separator: string) => `${prefix}${quote}${key}${separator}<redacted>${quote}`,
+    )
     .replace(
       SECRET_ASSIGNMENT_PATTERN,
       (_match, prefix: string, key: string, separator: string) => `${prefix}${key}${separator}<redacted>`,
@@ -268,10 +274,10 @@ const SECURITY_ENABLED_VALUES = new Set(["1", "true", "yes", "on", "enabled"]);
 // Includes ASCII underscore/hyphen plus Unicode dash compatibility variants.
 const SECRET_SEPARATOR_PATTERN = "_\\-\\u2010\\u2011\\u2012\\u2013\\u2014\\u2015\\u2212\\uFE58\\uFE63\\uFF0D";
 const SECRET_KEY_PART_PATTERN = "[A-Za-z0-9]+";
-const SECRET_KEY_WORD_PATTERN = `API[${SECRET_SEPARATOR_PATTERN}]?KEY|KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|BEARER|PRIVATE`;
+const SECRET_KEY_WORD_PATTERN = `API[${SECRET_SEPARATOR_PATTERN}]?KEY|PRIVATE[${SECRET_SEPARATOR_PATTERN}]?KEY|KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|BEARER`;
 const SECRET_KEY_PATTERN = `(?:${SECRET_KEY_PART_PATTERN}[${SECRET_SEPARATOR_PATTERN}])*(?:${SECRET_KEY_WORD_PATTERN})(?:[${SECRET_SEPARATOR_PATTERN}]${SECRET_KEY_PART_PATTERN})*`;
 const SECRET_KEY_NAME_PATTERN = new RegExp(`^${SECRET_KEY_PATTERN}$`, "i");
-const CLI_SECRET_FLAG_NAME_PATTERN = `[Aa][Pp][Ii][${SECRET_SEPARATOR_PATTERN}]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Aa][Uu][Tt][Hh]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee](?:[${SECRET_SEPARATOR_PATTERN}][Kk][Ee][Yy])?`;
+const CLI_SECRET_FLAG_NAME_PATTERN = `[Aa][Pp][Ii][${SECRET_SEPARATOR_PATTERN}]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Aa][Uu][Tt][Hh]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][${SECRET_SEPARATOR_PATTERN}][Kk][Ee][Yy]`;
 const CLI_SECRET_FLAG_VALUE_TERMINATOR_PATTERN = "\\s,;)}\\]>\"'`";
 const CLI_SECRET_FLAG_PLACEHOLDER_PATTERN = "(?:\\$\\{?[A-Z_][A-Z0-9_]*\\}?|<[^>]+>|[A-Z_][A-Z0-9_]{2,})";
 
@@ -282,7 +288,7 @@ const SECRET_ASSIGNMENT_SEPARATOR_PATTERN = ":=\\u2010\\u2011\\u2012\\u2013\\u20
 // Unquoted assignments intentionally consume the rest of the line/string. Once a
 // secret-looking key is present, the safest default is to redact the full tail.
 const SECRET_ASSIGNMENT_PATTERN = new RegExp(
-  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}])(${SECRET_KEY_PATTERN})(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)(?![\"'])([\\s\\S]*\\S[\\s\\S]*)`,
+  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}\"'\`])(${SECRET_KEY_PATTERN})(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)(?![\"'])([\\s\\S]*\\S[\\s\\S]*)`,
   "gi",
 );
 
@@ -297,6 +303,12 @@ const QUOTED_SECRET_ASSIGNMENT_START_PATTERN = new RegExp(
 // decimal escapes. Redact the whole run rather than only the first token. Common
 // prose and markdown closing delimiters are valid token terminators.
 const BEARER_VALUE_PATTERN = /(Bearer\s+)([A-Za-z0-9._~+/=:'"-]{12,}(?:\s+[A-Za-z0-9._~+/=:'"-]{12,})*)(?=$|[\s,;.!?)}\]>"'`])/gi;
+const AUTHORIZATION_HEADER_PATTERN = /(Authorization\s*:\s*)(Basic|Bearer|Digest|NTLM)\s+([A-Za-z0-9._~+/=:-]{8,})(?=$|[\s,;.!?)}\]>"'`])/gi;
+const STANDALONE_PROVIDER_TOKEN_PATTERN = /(^|[^A-Za-z0-9_\-])((?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|glpat-[A-Za-z0-9_-]{20,}|AIza[A-Za-z0-9_-]{20,}))(?=$|[^A-Za-z0-9_\-])/g;
+const OUTER_QUOTED_SECRET_ASSIGNMENT_PATTERN = new RegExp(
+  `(^|[\\s([{])([\"'\`])(${SECRET_KEY_PATTERN})(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)(?![\"'])([^\"'\`\\r\\n]*\\S[^\"'\`\\r\\n]*)\\2`,
+  "gi",
+);
 const CLI_SECRET_FLAG_QUOTED_PATTERN = new RegExp(
   `(^|[\\s([{])(--(?:${CLI_SECRET_FLAG_NAME_PATTERN}))(=|\\s+)(["'])((?!${CLI_SECRET_FLAG_PLACEHOLDER_PATTERN}\\4)[\\s\\S]*?\\S[\\s\\S]*?)\\4`,
   "g",
@@ -589,9 +601,26 @@ function looksLikeJsonText(text: string): boolean {
   return (trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"));
 }
 
+/** Add separator hints at camelCase/PascalCase boundaries for key-name checks. */
+function splitCamelCaseKeyName(key: string): string {
+  return key
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2");
+}
+
+/** Generate decoded key-name variants without changing the display spelling. */
+function keyNameVariants(key: string): string[] {
+  const variants = textVariants(key);
+  for (const variant of [...variants]) {
+    const split = splitCamelCaseKeyName(variant);
+    if (!variants.includes(split)) variants.push(split);
+  }
+  return variants;
+}
+
 /** True when a field/key name itself denotes a secret context. */
 function isSecretLikeKey(key: string): boolean {
-  for (const variant of textVariants(key)) {
+  for (const variant of keyNameVariants(key)) {
     SECRET_KEY_NAME_PATTERN.lastIndex = 0;
     if (SECRET_KEY_NAME_PATTERN.test(variant)) return true;
   }
@@ -608,7 +637,7 @@ function isSecretLikeKey(key: string): boolean {
 function secretSignalScore(text: string): number {
   let score = hasUrlUserinfo(text) ? 2 : 0;
   if (hasCanonicalUrlUserinfo(text)) score += 1;
-  for (const pattern of [PRIVATE_KEY_BLOCK_PATTERN, BEARER_VALUE_PATTERN, CLI_SECRET_FLAG_QUOTED_PATTERN, CLI_SECRET_FLAG_PATTERN, QUOTED_SECRET_ASSIGNMENT_START_PATTERN, SECRET_ASSIGNMENT_PATTERN]) {
+  for (const pattern of [PRIVATE_KEY_BLOCK_PATTERN, AUTHORIZATION_HEADER_PATTERN, BEARER_VALUE_PATTERN, STANDALONE_PROVIDER_TOKEN_PATTERN, CLI_SECRET_FLAG_QUOTED_PATTERN, CLI_SECRET_FLAG_PATTERN, QUOTED_SECRET_ASSIGNMENT_START_PATTERN, OUTER_QUOTED_SECRET_ASSIGNMENT_PATTERN, SECRET_ASSIGNMENT_PATTERN]) {
     pattern.lastIndex = 0;
     if (pattern.test(text)) score += 1;
   }
