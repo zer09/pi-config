@@ -121,13 +121,15 @@ tool-policy.json
 Run the local sync checker after updating the upstream AgentMemory clone:
 
 ```bash
-node scripts/check-upstream-sync.mjs --upstream /home/gc/development/agentmemory
+npm run check:sync -- --upstream <path-to-agentmemory-clone>
 ```
+
+You can also set `AGENTMEMORY_UPSTREAM=<path-to-agentmemory-clone>` and run `npm run check:sync`.
 
 Useful inspection command:
 
 ```bash
-node scripts/extract-upstream-tools.mjs --upstream /home/gc/development/agentmemory
+node scripts/extract-upstream-tools.mjs --upstream <path-to-agentmemory-clone>
 ```
 
 The checker verifies that every upstream MCP tool is categorized as default, gated, or not exposed, that server cases match the registry, and that local Pi safety invariants are still present.

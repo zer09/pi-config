@@ -41,6 +41,13 @@ function rel(filePath) {
   return filePath.startsWith(`${PROJECT_ROOT}/`) ? filePath.slice(PROJECT_ROOT.length + 1) : filePath;
 }
 
+function displayPath(filePath) {
+  const home = process.env.HOME;
+  if (home && filePath === home) return "~";
+  if (home && filePath.startsWith(`${home}/`)) return `~/${filePath.slice(home.length + 1)}`;
+  return rel(filePath);
+}
+
 function main() {
   const upstreamRoot = resolveUpstreamRoot();
   const summary = extractUpstreamTools(upstreamRoot);
@@ -127,7 +134,7 @@ function main() {
     warnings.push(`upstream integrations/pi/index.ts lines=${upstreamLines}; local index.ts lines=${localLines}; review local safety deltas before syncing`);
   }
 
-  console.log(`AgentMemory upstream: ${upstreamRoot}`);
+  console.log(`AgentMemory upstream: ${displayPath(upstreamRoot)}`);
   console.log(`registry tools: ${summary.registryCount}`);
   console.log(`server cases: ${summary.serverCaseCount}`);
   console.log(`standalone cases: ${summary.standaloneCaseCount}`);

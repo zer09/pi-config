@@ -3,12 +3,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const DEFAULT_UPSTREAM = "/home/gc/development/agentmemory";
+const UPSTREAM_REQUIRED_MESSAGE = "AgentMemory upstream path is required. Pass --upstream <path> or set AGENTMEMORY_UPSTREAM.";
 
 export function resolveUpstreamRoot(args = process.argv.slice(2)) {
   const index = args.indexOf("--upstream");
   if (index !== -1 && args[index + 1]) return resolve(args[index + 1]);
-  return resolve(process.env.AGENTMEMORY_UPSTREAM || DEFAULT_UPSTREAM);
+  if (process.env.AGENTMEMORY_UPSTREAM) return resolve(process.env.AGENTMEMORY_UPSTREAM);
+  throw new Error(UPSTREAM_REQUIRED_MESSAGE);
 }
 
 export function extractUpstreamTools(upstreamRoot = resolveUpstreamRoot()) {
