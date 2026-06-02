@@ -952,6 +952,8 @@ function formatCompactModelName(
 		return model.replace(/^gemini-/, "").replace(/^(\d+(?:\.\d+)?(?:-[a-z]+)?)-flash/, "flash-$1");
 	}
 
+	if (provider === "minimax" || provider === "opencode-go") return model;
+
 	if (profile === "minimal") return model;
 	return provider ? `${provider}/${model}` : model;
 }

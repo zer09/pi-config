@@ -39,6 +39,8 @@ Example output change:
 
 ```text
 openai-codex/gpt-5.5 -> codex/gpt-5.5
+opencode-go/deepseek-v4-flash -> deepseek-v4-flash
+minimax/MiniMax-M2.7 -> MiniMax-M2.7
 ```
 
 ### Full config shape

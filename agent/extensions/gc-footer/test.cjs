@@ -600,6 +600,53 @@ async function run() {
 		assert.ok(!line.includes("openai-codex/gpt-5.5"), "model compact override should omit the full provider label");
 	}
 
+	for (const { provider, models } of [
+		{
+			provider: "opencode-go",
+			models: [
+				"deepseek-v4-flash",
+				"deepseek-v4-pro",
+				"glm-5",
+				"glm-5.1",
+				"kimi-k2.5",
+				"kimi-k2.6",
+				"mimo-v2.5",
+				"mimo-v2.5-pro",
+				"minimax-m2.5",
+				"minimax-m2.7",
+				"qwen3.6-plus",
+				"qwen3.7-max",
+			],
+		},
+		{
+			provider: "minimax",
+			models: [
+				"MiniMax-M2.7",
+				"MiniMax-M2.7-highspeed",
+			],
+		},
+	]) {
+		for (const model of models) {
+			const footer = await createFooter({
+				config: {
+					segments: {
+						branch: false,
+						context: false,
+						cwd: false,
+						queue: false,
+						statuses: false,
+						thinking: false,
+						timer: false,
+						tokens: false,
+					},
+					segmentProfiles: { model: "compact" },
+				},
+				model: { provider, id: model, contextWindow: 200000 },
+			});
+			assert.equal(footer.renderPlain().trim(), model, `${provider}/${model} compact name should omit provider prefix`);
+		}
+	}
+
 	{
 		const footer = await createFooter({
 			entries: [assistantEntry({ input: 742000, output: 80000, cacheRead: 12000000, cacheWrite: 0 })],
