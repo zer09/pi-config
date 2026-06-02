@@ -341,6 +341,10 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.sanitizeTextForDisplay("Bearer abcdefghijklmnop qrstuvwxyzabcdef"), "Bearer <redacted>");
   assert.equal(security.sanitizeTextForDisplay("Bearer abcdefghijklbearer-token:'qrstuvwxyzabcdef'"), "Bearer <redacted>");
   assert.equal(security.sanitizeTextForDisplay("pathBearer abcdefghijklmnop"), "pathBearer <redacted>");
+  assert.equal(security.sanitizeTextForDisplay("`Bearer abcdefghijklmnop`"), "`Bearer <redacted>`");
+  assert.equal(security.sanitizeTextForDisplay("(Bearer abcdefghijklmnop)"), "(Bearer <redacted>)");
+  assert.equal(security.sanitizeTextForDisplay("keyboard=shortcuts"), "keyboard=shortcuts");
+  assert.equal(security.sanitizeTextForDisplay('{"monkey":"banana"}'), '{\n  "monkey": "banana"\n}');
   assert.equal(security.containsSecretLikeContent("API&#95;KEY&#61;abcdefghijklmnop"), true);
   assert.equal(security.containsSecretLikeContent("api&hyphen;key&equals;abcdefghijklmnop"), true);
   assert.equal(security.containsSecretLikeContent("SECRET&equals;&quot;short word&quot;"), true);
@@ -376,6 +380,10 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.containsSecretLikeContent({ "TOKEN=abcdefghijklmnop": "short" }), true);
   assert.equal(security.containsSecretLikeContent("\\42 \\65 \\61\\72 \\65\\72\\20\\57\\6b CREDENTIAL\\3aabcdefghijklmnop"), true);
   assert.equal(security.containsSecretLikeContent("TOKEN='abcdefghijklmnop AUTH_TOKEN:'qrstuvwxyzabcdef'"), true);
+  assert.equal(security.containsSecretLikeContent("`Bearer abcdefghijklmnop`"), true);
+  assert.equal(security.containsSecretLikeContent("(Bearer abcdefghijklmnop)"), true);
+  assert.equal(security.containsSecretLikeContent("keyboard=shortcuts"), false);
+  assert.equal(security.containsSecretLikeContent({ monkey: "banana" }), false);
   assert.equal(security.containsSecretLikeContent({ "ＴＯＫＥＮ": "short" }), true);
   assert.equal(security.containsSecretLikeContent({ "TO\u200bKEN": "short" }), true);
   assert.equal(security.containsSecretLikeContent({ "api&hyphen;key": "short" }), true);

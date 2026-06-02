@@ -260,7 +260,9 @@ const SECURITY_ENABLED_VALUES = new Set(["1", "true", "yes", "on", "enabled"]);
 // Includes ASCII underscore/hyphen plus Unicode dash compatibility variants.
 const SECRET_SEPARATOR_PATTERN = "_\\-\\u2010\\u2011\\u2012\\u2013\\u2014\\u2015\\u2212\\uFE58\\uFE63\\uFF0D";
 const SECRET_KEY_CHAR_PATTERN = `[A-Za-z0-9${SECRET_SEPARATOR_PATTERN}]`;
-const SECRET_KEY_PATTERN = `${SECRET_KEY_CHAR_PATTERN}*(?:API[${SECRET_SEPARATOR_PATTERN}]?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|BEARER|PRIVATE|KEY)${SECRET_KEY_CHAR_PATTERN}*?`;
+const SECRET_KEY_WORD_PATTERN = `API[${SECRET_SEPARATOR_PATTERN}]?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|BEARER|PRIVATE`;
+const SEPARATED_KEY_PATTERN = `(?:KEY|${SECRET_KEY_CHAR_PATTERN}*[${SECRET_SEPARATOR_PATTERN}]KEY(?:[${SECRET_SEPARATOR_PATTERN}]${SECRET_KEY_CHAR_PATTERN}*)?|${SECRET_KEY_CHAR_PATTERN}*KEY[${SECRET_SEPARATOR_PATTERN}]${SECRET_KEY_CHAR_PATTERN}*)`;
+const SECRET_KEY_PATTERN = `(?:${SECRET_KEY_CHAR_PATTERN}*(?:${SECRET_KEY_WORD_PATTERN})${SECRET_KEY_CHAR_PATTERN}*|${SEPARATED_KEY_PATTERN})`;
 const SECRET_KEY_NAME_PATTERN = new RegExp(`^${SECRET_KEY_PATTERN}$`, "i");
 
 // Unquoted assignments intentionally consume the rest of the line/string. Once a
@@ -278,8 +280,9 @@ const QUOTED_SECRET_ASSIGNMENT_START_PATTERN = new RegExp(
 );
 
 // Bearer values may arrive split across whitespace after decoding CSS, octal, or
-// decimal escapes. Redact the whole run rather than only the first token.
-const BEARER_VALUE_PATTERN = /(Bearer\s+)([A-Za-z0-9._~+/=:'"-]{12,}(?:\s+[A-Za-z0-9._~+/=:'"-]{12,})*)(?=$|[\s,;])/gi;
+// decimal escapes. Redact the whole run rather than only the first token. Common
+// prose and markdown closing delimiters are valid token terminators.
+const BEARER_VALUE_PATTERN = /(Bearer\s+)([A-Za-z0-9._~+/=:'"-]{12,}(?:\s+[A-Za-z0-9._~+/=:'"-]{12,})*)(?=$|[\s,;.!?)}\]>"'`])/gi;
 const PRIVATE_KEY_BLOCK_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/gi;
 
 // -----------------------------------------------------------------------------
