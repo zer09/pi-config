@@ -39,11 +39,12 @@ Use this sequence:
 
 1. Identify the active worktree repo path.
 2. Run read-only `codegraph status <worktree repo>` through Context Mode, or call `codegraph_status` with `projectPath` when that MCP tool is exposed.
-3. If the repo is not initialized, ask before `codegraph init <worktree repo> --index` unless setup/indexing was explicitly requested.
-4. Query CodeGraph with `projectPath` set to the active worktree repo.
-5. If no project is available after any authorized setup/recheck, follow the degraded graph fallback.
+3. If the repo is not initialized and graph accuracy matters, run `codegraph init <worktree repo>` when setup/indexing/freshness was explicitly requested; otherwise ask before initializing.
+4. If the graph is stale and graph accuracy matters, run `codegraph sync <worktree repo>` or `codegraph index <worktree repo>` when sync/index/freshness was explicitly requested; otherwise ask before mutating the local index.
+5. Query CodeGraph with `projectPath` set to the active worktree repo.
+6. If no project is available after any authorized setup/recheck, follow the degraded graph fallback.
 
-Do not assume a base-repo graph represents a worktree after branch-specific edits. Initialize or sync the worktree repo only when graph accuracy matters and local index mutation is authorized.
+Do not assume a base-repo graph represents a worktree after branch-specific edits. Initialize, sync, or index the worktree repo only when graph accuracy matters and local index mutation is authorized.
 
 ## Multi-repo feature roots
 
@@ -51,7 +52,7 @@ When a story or feature root contains multiple repositories:
 
 1. Check or initialize each repository as its own CodeGraph project only when indexing is authorized and useful.
 2. Pass `projectPath` for the repo under investigation for repo-scoped work.
-3. Use `codegraph_trace` or `codegraph_context` for cross-repo route/channel questions only when CodeGraph output shows the needed edges exist.
+3. Use `codegraph_explore` for cross-repo route/channel questions only when CodeGraph output shows the needed edges exist.
 
 Do not require every nested repo to be combined into one containing root. CodeGraph project boundaries should match repository roots unless a parent root is intentionally initialized.
 
@@ -60,8 +61,8 @@ Do not require every nested repo to be combined into one containing root. CodeGr
 If status or query results show the graph is missing, stale, uninitialized, or insufficient:
 
 1. Do not treat that as permission to skip graph-first silently.
-2. Initialize, sync, or index only when local index mutation is authorized and graph accuracy matters.
-3. Retry the graph query after authorized setup/sync.
+2. Initialize, sync, or index when local index mutation is authorized and graph accuracy matters; do not fall back before an authorized refresh.
+3. Retry the graph query after authorized setup/sync/index.
 4. Fall back to Context Mode/RTK only when setup is not authorized, setup fails, or graph results remain insufficient.
 
 If CodeGraph emits a stale-file banner, read only the listed files for exact current content.

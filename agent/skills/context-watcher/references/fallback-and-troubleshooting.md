@@ -80,7 +80,7 @@ If writing a log file, use native file tools only when appropriate. Do not expos
 1. Verify the MCP server list includes `codegraph`.
 2. If server metadata is stale, restart Pi or reconnect the MCP server before trusting cached tool lists.
 3. Verify the installed command resolves with `codegraph --version` through Context Mode when shell inspection is needed.
-4. List tools from the `codegraph` server and confirm the expected core tools are present. If optional tools are absent, do not assume a broken Pi configuration: CodeGraph intentionally gates `tools/list` by the server's active/default project size. Fewer than 500 indexed files exposes only the 5 core tools, and a later per-call `projectPath` does not change that list. Also check whether `CODEGRAPH_MCP_TOOLS` is set, because it can allowlist fewer visible tools.
+4. List tools from the `codegraph` server and confirm expected tools are present. CodeGraph v0.9.9 normally exposes `codegraph_explore`, `codegraph_search`, `codegraph_node`, `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_files`, and `codegraph_status`. If fewer tools are visible, refresh MCP metadata and check whether `CODEGRAPH_MCP_TOOLS` is set, because it can allowlist fewer visible tools.
 5. Retry the graph query after reconnecting.
 6. Fall back to Context Mode/RTK only if graph tooling remains unavailable or the task is not structural code work.
 
@@ -88,7 +88,7 @@ If writing a log file, use native file tools only when appropriate. Do not expos
 
 1. Identify the active repository or worktree path.
 2. Run read-only `codegraph status <repo>` or call `codegraph_status` with `projectPath` when that MCP tool is exposed.
-3. If status says the project is not initialized, ask before `codegraph init <repo> --index` unless setup/indexing was explicitly requested.
+3. If status says the project is not initialized and graph accuracy matters, run `codegraph init <repo>` when setup/indexing/freshness was explicitly requested; otherwise ask before initializing.
 4. Pass `projectPath` for worktrees, multi-repo tasks, and repos outside the session root.
 5. If CodeGraph still cannot find the right project, report a degraded graph fallback. Do not guess based on folder names alone.
 
@@ -96,15 +96,15 @@ If writing a log file, use native file tools only when appropriate. Do not expos
 
 - Run read-only `codegraph status <repo>` or call `codegraph_status` when that MCP tool is exposed.
 - If a stale banner names files, read only those files for exact current content.
-- If pending sync matters for graph accuracy, wait for sync or ask before running `codegraph sync` or `codegraph index`.
+- If pending sync matters for graph accuracy, run `codegraph sync` or `codegraph index` when sync/index/freshness was explicitly requested; otherwise wait for sync or ask before mutating the local index.
 - State when graph results may be stale.
 
 ## Troubleshooting graph query misses
 
-- Use `codegraph_context` for architecture, feature-area, or bug questions.
-- Use `codegraph_trace` for flow/path questions.
+- Use `codegraph_explore` first for architecture, feature-area, bug, flow/path, and source survey questions.
 - Use `codegraph_search` only when a symbol name or likely name is known.
-- Use `codegraph_explore` for source across several related symbols.
+- Use `codegraph_node` only for one exact symbol.
+- Use callers/callees/impact for relationship misses or refactor planning.
 - Use Context Mode/RTK grep/search for literals, config, docs, generated files, or non-code files.
 
 ## Troubleshooting RTK not found inside Context Mode
@@ -120,7 +120,7 @@ Review local fallback logs with Context Mode, not raw `tail`, when output may be
 - Restarting or upgrading Context Mode.
 - Reinstalling RTK hooks.
 - Restarting Pi to refresh MCP server metadata.
-- Initializing or syncing CodeGraph only when setup/indexing is authorized.
+- Initializing, syncing, or indexing CodeGraph only when setup/indexing/freshness is authorized.
 - Checking for SQLite locks.
 
 ## Troubleshooting uv not found for local tooling

@@ -112,13 +112,19 @@ memory_heal
 
 ## Upstream sync workflow
 
+Use the canonical upgrade guide before syncing a new upstream AgentMemory version:
+
+```text
+docs/agentmemory-upgrade-process.md
+```
+
 The default tool policy lives in:
 
 ```text
 tool-policy.json
 ```
 
-Run the local sync checker after updating the upstream AgentMemory clone:
+Run the local sync checker after updating or selecting the upstream AgentMemory clone:
 
 ```bash
 npm run check:sync -- --upstream <path-to-agentmemory-clone>

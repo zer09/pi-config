@@ -23,10 +23,10 @@ This reference expands examples from `../SKILL.md`. Load it when examples are ne
 ## Pattern 3: codebase orientation
 
 1. Check read-only `codegraph status <repo>` or exposed `codegraph_status` when project health is unknown.
-2. If the repo is not initialized, ask before `codegraph init <repo> --index` unless setup was explicitly requested.
-3. Use `codegraph_context` for first-pass orientation.
-4. Use `codegraph_search`, `codegraph_trace`, and `codegraph_explore` for focused evidence.
-5. Use optional `codegraph_callers`, `codegraph_callees`, and `codegraph_impact` when the live MCP server exposes them for immediate lookup.
+2. If the repo is not initialized or stale and graph accuracy matters, run `codegraph init <repo>`, `codegraph sync <repo>`, or `codegraph index <repo>` when setup/indexing/freshness was explicitly requested; otherwise ask before local index mutation.
+3. Use `codegraph_explore` first for orientation, architecture, bug, flow/path, and source survey questions.
+4. Use `codegraph_search` for known symbols and `codegraph_node` only for one exact symbol.
+5. Use `codegraph_callers`, `codegraph_callees`, and `codegraph_impact` for focused relationship and refactor evidence.
 6. Use CodeGraph CLI through Context Mode when graph output should be indexed, searched later, batched, parsed, or compared.
 7. Use Context Mode/RTK for compact file inventories if graph results are insufficient.
 8. Avoid reading large files or broad search output into context.
@@ -105,6 +105,26 @@ ctx_execute({ language: "shell", code: "rtk uv run pytest" })
 ctx_execute({ language: "shell", code: "rtk npm run build" })
 ```
 
+Keep `concurrency: 1` for tests and builds unless each command is independent and cannot race on locks, caches, ports, or generated files.
+
+### Parallel I/O batches
+
+Use parallel Context Mode batches for independent network or read-only I/O work.
+
+```text
+ctx_batch_execute({
+  commands: [
+    { label: "issue 1", command: "gh issue view 1" },
+    { label: "issue 2", command: "gh issue view 2" },
+    { label: "issue 3", command: "gh issue view 3" }
+  ],
+  queries: ["root cause", "proposed fix", "risks"],
+  concurrency: 4
+})
+```
+
+Use `concurrency: 4-8` for I/O-bound reads. Keep `concurrency: 1` for CPU-bound or stateful commands.
+
 ### Files
 
 ```text
@@ -122,17 +142,51 @@ ctx_fetch_and_index({ url: "https://example.com/docs", source: "docs" })
 ctx_search({ queries: ["specific API option"] })
 ```
 
+For multiple public docs pages, fetch as a bounded batch:
+
+```text
+ctx_fetch_and_index({
+  requests: [
+    { url: "https://example.com/guide", source: "example-guide" },
+    { url: "https://example.com/api", source: "example-api" }
+  ],
+  concurrency: 5
+})
+```
+
+### Local indexing and search
+
+Index local docs or a bounded project slice when repeated search will be cheaper than repeated reads.
+
+```text
+ctx_index({
+  path: "docs",
+  source: "project-docs",
+  maxDepth: 5,
+  maxFiles: 200,
+  extensions: [".md", ".mdx", ".txt"]
+})
+ctx_search({ source: "project-docs", queries: ["routing rules", "upgrade process"], limit: 5 })
+```
+
+If MCP tools are unavailable, fall back to the CLI:
+
+```text
+context-mode index docs --source project-docs --max-depth 5 --max-files 200
+context-mode search "routing rules" --source project-docs --limit 5
+```
+
 ### Graph review
 
 ```text
-codegraph_context(task="Explain how the changed feature works", projectPath="<repo>")
+codegraph_explore(query="How does the changed feature work? KnownSymbol related file names", projectPath="<repo>")
 codegraph_search(query="KnownSymbol", projectPath="<repo>")
-codegraph_trace(from="incoming route", to="side effect", projectPath="<repo>")
-codegraph_explore(query="related symbols from prior result", projectPath="<repo>")
-# Optional when exposed:
+codegraph_node(symbol="KnownSymbol", projectPath="<repo>")
 codegraph_callers(symbol="KnownSymbol", projectPath="<repo>")
 codegraph_callees(symbol="KnownSymbol", projectPath="<repo>")
 codegraph_impact(symbol="KnownSymbol", projectPath="<repo>")
+codegraph_files(projectPath="<repo>")
+codegraph_status(projectPath="<repo>")
 ```
 
 ### Indexed graph output
@@ -149,6 +203,6 @@ ctx_batch_execute({
 })
 ```
 
-Use MCP first when symbol ambiguity matters. Use plain CLI with ANSI stripped when output should be indexed and searched later. Use CLI `--json` only inside programmed analysis that prints a compact summary. Use plain `codegraph files -p <repo> --format flat` when symbol counts matter; in CodeGraph 0.9.7, CLI JSON may omit them.
+Use MCP first when symbol ambiguity matters. Use plain CLI with ANSI stripped when output should be indexed and searched later. Use CLI `--json` only inside programmed analysis that prints a compact summary. Use plain `codegraph files -p <repo> --format flat` when symbol counts matter.
 
 Use live MCP schemas as authoritative if parameter names differ from examples.
