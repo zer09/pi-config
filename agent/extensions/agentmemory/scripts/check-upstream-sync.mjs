@@ -52,10 +52,17 @@ function displayPath(filePath) {
   return rel(filePath);
 }
 
+function extractLocalMemoryToolNames(localText) {
+  return new Set([...localText.matchAll(/name:\s*"(memory_[^"]+)"/g)].map((match) => match[1]));
+}
+
 function main() {
   const upstreamRoot = resolveUpstreamRoot();
   const summary = extractUpstreamTools(upstreamRoot);
   const policy = readJson(POLICY_PATH);
+  const localIndexPath = join(EXTENSION_DIR, "index.ts");
+  const localIndexText = readFileSync(localIndexPath, "utf8");
+  const localMemoryToolNames = extractLocalMemoryToolNames(localIndexText);
   const failures = [];
   const warnings = [];
   const upstreamNames = summary.tools.map((tool) => tool.name);
@@ -111,6 +118,16 @@ function main() {
     }
   }
 
+  const localToolNames = new Set((policy.localTools || []).map(entryName).filter(Boolean));
+  for (const name of localToolNames) {
+    if (upstreamNameSet.has(name)) failures.push(`localTools lists upstream tool ${name}; classify it under defaultTools, gatedTools, or notExposedTools instead`);
+    if (!localMemoryToolNames.has(name)) failures.push(`localTools lists ${name}, but index.ts does not register it`);
+  }
+  for (const name of sorted(localMemoryToolNames)) {
+    if (upstreamNameSet.has(name)) continue;
+    if (!localToolNames.has(name)) failures.push(`index.ts registers local-only tool ${name}, but tool-policy localTools does not document it`);
+  }
+
   for (const invariant of policy.localInvariants || []) {
     const file = invariant.file ? join(PROJECT_ROOT, invariant.file) : "";
     if (!file || !existsSync(file)) {
@@ -132,9 +149,8 @@ function main() {
   const upstreamPiIndex = join(upstreamRoot, "integrations/pi/index.ts");
   if (existsSync(upstreamPiIndex)) {
     const upstreamText = readFileSync(upstreamPiIndex, "utf8");
-    const localText = readFileSync(join(EXTENSION_DIR, "index.ts"), "utf8");
     const upstreamLines = upstreamText.split("\n").length;
-    const localLines = localText.split("\n").length;
+    const localLines = localIndexText.split("\n").length;
     warnings.push(`upstream integrations/pi/index.ts lines=${upstreamLines}; local index.ts lines=${localLines}; review local safety deltas before syncing`);
   }
 

@@ -275,6 +275,79 @@ test("memory_health failure reports configured URL", async () => {
   }
 });
 
+test("memory_health reports policy drift and followup diagnostics", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url) => {
+      if (url.endsWith("/agentmemory/health")) return jsonResponse({ status: "healthy", version: "0.9.27" });
+      if (url.endsWith("/agentmemory/diagnostics/followup")) {
+        return jsonResponse({
+          success: true,
+          windowSeconds: 120,
+          agentInitiatedSearches: 4,
+          followupWithinWindow: 1,
+          rate: 0.25,
+          caveat: "Directional signal only.",
+        });
+      }
+      throw new Error(`unexpected ${url}`);
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_health");
+    const text = textContent(result);
+    assert.match(text, /agentmemory status: healthy \(v0\.9\.27\)/);
+    assert.match(text, /policy drift warning: local Pi policy last checked against AgentMemory v0\.9\.26, but server reports v0\.9\.27/);
+    assert.match(text, /smart-search followup diagnostic: 1\/4 agent searches followed up within 120s \(25\.0%\)/);
+    assert.match(text, /Directional signal only/);
+    assert.equal(harness.fetchCalls.length, 2);
+    assert.equal(result.details.piDiagnostics.policy.lastCheckedVersion, "0.9.26");
+    assert.equal(result.details.piDiagnostics.policy.serverVersion, "0.9.27");
+    assert.equal(result.details.piDiagnostics.followup.rate, 0.25);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("agentmemory-status reports policy drift without leaking raw health text", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ status: "healthy", version: "0.9.27" }),
+  });
+  try {
+    const command = harness.commands.get("agentmemory-status");
+    await command.handler("", harness.ctx);
+    assert.equal(harness.notifications.length, 1);
+    assert.match(harness.notifications[0].message, /agentmemory healthy v0\.9\.27; policy drift warning:/);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_diagnose appends policy and followup diagnostics", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url, init) => {
+      if (url.endsWith("/agentmemory/mcp/call")) {
+        assert.deepEqual(JSON.parse(init.body), { name: "memory_diagnose", arguments: { categories: "sessions" } });
+        return jsonResponse({ content: [{ type: "text", text: "diagnostics ok" }] });
+      }
+      if (url.endsWith("/agentmemory/health")) return jsonResponse({ status: "healthy", version: "0.9.27" });
+      if (url.endsWith("/agentmemory/diagnostics/followup")) {
+        return jsonResponse({ success: true, windowSeconds: 60, agentInitiatedSearches: 2, followupWithinWindow: 1, rate: 0.5 });
+      }
+      throw new Error(`unexpected ${url}`);
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_diagnose", { categories: "sessions" });
+    const text = textContent(result);
+    assert.match(text, /diagnostics ok/);
+    assert.match(text, /policy drift warning: local Pi policy last checked against AgentMemory v0\.9\.26, but server reports v0\.9\.27/);
+    assert.match(text, /smart-search followup diagnostic: 1\/2 agent searches followed up within 60s \(50\.0%\)/);
+    assert.equal(harness.fetchCalls.length, 3);
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("memory_smart_search calls the MCP REST bridge", async () => {
   const harness = createHarness({
     fetchHandler: async (url) => {

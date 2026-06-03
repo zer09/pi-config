@@ -168,13 +168,25 @@ The checker verifies that every upstream MCP tool is categorized as default, gat
 
 ## Smoke test
 
-Run pi and ask it to use `memory_health`, `memory_slot_list`, `memory_mcp_resources`, or `memory_mcp_prompts`, or call the command directly:
+Run pi and ask it to use these read-only checks:
 
 ```text
+memory_health
+memory_diagnose
+memory_slot_list
+memory_mcp_resources
+memory_mcp_prompts
 /agentmemory-status
 ```
 
-You should see `agentmemory healthy` and a footer status like `🧠 agentmemory`.
+For direct HTTP smoke checks against the default local server:
+
+```bash
+curl http://localhost:3111/agentmemory/health
+curl http://localhost:3111/agentmemory/diagnostics/followup
+```
+
+You should see `agentmemory healthy`, a footer status like `🧠 agentmemory`, no policy drift warning when the server version matches `tool-policy.json`, and followup diagnostic data when the server exposes `/agentmemory/diagnostics/followup`.
 
 ## See also
 

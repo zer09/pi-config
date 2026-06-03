@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
@@ -36,6 +37,22 @@ type HealthResponse = {
     status?: string;
     notes?: string[];
   };
+};
+
+type FollowupDiagnosticResponse = {
+  success?: boolean;
+  windowSeconds?: number;
+  agentInitiatedSearches?: number;
+  followupWithinWindow?: number;
+  rate?: number;
+  caveat?: string;
+  [key: string]: unknown;
+};
+
+type PolicyMetadata = {
+  lastCheckedVersion?: string;
+  lastCheckedCommit?: string;
+  toolCount?: number;
 };
 
 type McpToolResponse = {
@@ -104,6 +121,8 @@ type McpToolDefinition = {
 const DEFAULT_URL = process.env.AGENTMEMORY_URL || "http://localhost:3111";
 const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
 const SKILLS_DIR = join(EXTENSION_DIR, "skills");
+const TOOL_POLICY_PATH = join(EXTENSION_DIR, "tool-policy.json");
+const LOCAL_POLICY_METADATA = readPolicyMetadata();
 const guardPlaintextBearerAuth = createPlaintextBearerAuthGuard();
 const TOOL_GUIDANCE = [
   "agentmemory is available for cross-session memory.",
@@ -483,6 +502,20 @@ function protectValue(value: unknown): unknown {
   return securityEnabled() ? redactSecretLikeValue(value) : value;
 }
 
+function readPolicyMetadata(): PolicyMetadata {
+  try {
+    const parsed = JSON.parse(readFileSync(TOOL_POLICY_PATH, "utf8")) as { upstream?: PolicyMetadata };
+    const upstream = parsed.upstream || {};
+    return {
+      lastCheckedVersion: typeof upstream.lastCheckedVersion === "string" ? upstream.lastCheckedVersion : undefined,
+      lastCheckedCommit: typeof upstream.lastCheckedCommit === "string" ? upstream.lastCheckedCommit : undefined,
+      toolCount: typeof upstream.toolCount === "number" ? upstream.toolCount : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
 function formatSearchResults(results: SmartSearchResult[]): string {
   if (!results.length) return "No relevant memories found.";
   return results
@@ -508,6 +541,69 @@ function formatMcpResult(result: McpToolResponse): string {
 
 function formatJsonResult(value: unknown): string {
   return protectDisplayText(JSON.stringify(protectValue(value), null, 2));
+}
+
+function normalizeVersion(value: unknown): string {
+  return typeof value === "string" ? value.trim().replace(/^v/i, "") : "";
+}
+
+function finiteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function policyDriftWarning(health: HealthResponse | null | undefined): string | null {
+  const localVersion = normalizeVersion(LOCAL_POLICY_METADATA.lastCheckedVersion);
+  const serverVersion = normalizeVersion(health?.version);
+  if (!localVersion || !serverVersion || localVersion === serverVersion) return null;
+  return `local Pi policy last checked against AgentMemory v${localVersion}, but server reports v${serverVersion}`;
+}
+
+function formatPolicyDriftWarning(health: HealthResponse | null | undefined): string | null {
+  const warning = policyDriftWarning(health);
+  return warning ? protectDisplayText(`policy drift warning: ${warning}`) : null;
+}
+
+function isFollowupDiagnostic(value: unknown): value is FollowupDiagnosticResponse {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as FollowupDiagnosticResponse;
+  return finiteNumber(candidate.agentInitiatedSearches) !== null
+    && finiteNumber(candidate.followupWithinWindow) !== null
+    && finiteNumber(candidate.rate) !== null;
+}
+
+function formatFollowupDiagnostic(result: FollowupDiagnosticResponse | null): string | null {
+  if (!isFollowupDiagnostic(result)) return null;
+  const total = result.agentInitiatedSearches || 0;
+  const followups = result.followupWithinWindow || 0;
+  const windowSeconds = finiteNumber(result.windowSeconds);
+  const rate = finiteNumber(result.rate);
+  const rateText = rate === null ? "unknown rate" : `${(rate * 100).toFixed(1)}%`;
+  const windowText = windowSeconds === null ? "the configured window" : `${windowSeconds}s`;
+  const caveat = typeof result.caveat === "string" && result.caveat.trim()
+    ? ` ${result.caveat.trim()}`
+    : "";
+  return protectDisplayText(`smart-search followup diagnostic: ${followups}/${total} agent searches followed up within ${windowText} (${rateText}).${caveat}`);
+}
+
+function buildPiDiagnostics(health: HealthResponse | null | undefined, followup: FollowupDiagnosticResponse | null) {
+  const policyWarning = policyDriftWarning(health);
+  return {
+    policy: {
+      lastCheckedVersion: LOCAL_POLICY_METADATA.lastCheckedVersion || null,
+      lastCheckedCommit: LOCAL_POLICY_METADATA.lastCheckedCommit || null,
+      serverVersion: health?.version || null,
+      warning: policyWarning,
+    },
+    followup: isFollowupDiagnostic(followup) ? followup : null,
+  };
+}
+
+function formatPiDiagnosticsFooter(health: HealthResponse | null | undefined, followup: FollowupDiagnosticResponse | null): string {
+  const lines = [
+    formatPolicyDriftWarning(health),
+    formatFollowupDiagnostic(followup),
+  ].filter((line): line is string => Boolean(line));
+  return lines.length ? `Pi diagnostics:\n${lines.map((line) => `- ${line}`).join("\n")}` : "";
 }
 
 function formatMcpResources(result: McpResourcesResponse): string {
@@ -785,6 +881,20 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     return await callAgentMemory<HealthResponse>("health", { method: "GET" });
   }
 
+  async function getFollowupDiagnostic() {
+    const result = await callAgentMemory<FollowupDiagnosticResponse>("diagnostics/followup", { method: "GET" });
+    return isFollowupDiagnostic(result) ? result : null;
+  }
+
+  async function getPiDiagnostics(health?: HealthResponse | null) {
+    const effectiveHealth = health === undefined ? await getHealth() : health;
+    const followup = effectiveHealth ? await getFollowupDiagnostic() : null;
+    return {
+      text: formatPiDiagnosticsFooter(effectiveHealth, followup),
+      details: buildPiDiagnostics(effectiveHealth, followup),
+    };
+  }
+
   async function refreshStatus(ctx: { hasUI?: boolean; ui?: { setStatus: (key: string, text: string) => void } }) {
     const health = await getHealth();
     lastHealthOk = !!health && (health.status === "healthy" || health.health?.status === "healthy");
@@ -821,9 +931,10 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
             details: { ok: false, tool: tool.name, result: sanitizeForLookup(result) },
           };
         }
+        const diagnostics = tool.name === "memory_diagnose" ? await getPiDiagnostics() : { text: "", details: null };
         return {
-          content: [{ type: "text", text: formatMcpResult(result) }],
-          details: { tool: tool.name, result: sanitizeForLookup(result) },
+          content: [{ type: "text", text: [formatMcpResult(result), diagnostics.text].filter(Boolean).join("\n\n") }],
+          details: { tool: tool.name, result: sanitizeForLookup(result), piDiagnostics: sanitizeForLookup(diagnostics.details) },
         };
       },
     });
@@ -844,8 +955,9 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
       }
       const status = protectDisplayText(health.status || health.health?.status || "unknown");
       const version = health.version ? ` v${protectDisplayText(health.version)}` : "";
+      const drift = formatPolicyDriftWarning(health);
       ctx.ui.notify(
-        `agentmemory ${status}${version}`,
+        `agentmemory ${status}${version}${drift ? `; ${drift}` : ""}`,
         "info",
       );
     },
@@ -864,14 +976,16 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
           details: { ok: false },
         };
       }
+      const diagnostics = await getPiDiagnostics(health);
+      const statusText = `agentmemory status: ${protectDisplayText(health.status || health.health?.status || "unknown")}${health.version ? ` (v${protectDisplayText(health.version)})` : ""}`;
       return {
         content: [
           {
             type: "text",
-            text: `agentmemory status: ${protectDisplayText(health.status || health.health?.status || "unknown")}${health.version ? ` (v${protectDisplayText(health.version)})` : ""}`,
+            text: [statusText, diagnostics.text].filter(Boolean).join("\n\n"),
           },
         ],
-        details: sanitizeForLookup(health),
+        details: { ...(sanitizeForLookup(health) as ToolParams), piDiagnostics: sanitizeForLookup(diagnostics.details) },
       };
     },
   });
