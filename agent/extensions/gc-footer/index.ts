@@ -12,20 +12,20 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 let requestRender: (() => void) | undefined;
 
-const THINKING_OUTLINE_CIRCLE = "\uf10c";
-const THINKING_FILLED_CIRCLE = "\uf111";
-const FALLBACK_THINKING_OUTLINE_CIRCLE = "\u25cb";
-const FALLBACK_THINKING_FILLED_CIRCLE = "\u25cf";
-const TIMER_RUNNING_GLYPH = "\uf017";
-const TIMER_DONE_GLYPH = "\uf00c";
-const QUEUE_GLYPH = "\uf46c";
-const MCP_SERVER_GLYPH = "\uf233";
-const AGENTMEMORY_GLYPH = "\uf0c7";
 const AGENTMEMORY_FALLBACK = "mem";
+const AGENTMEMORY_GLYPH = "\uf0c7";
 const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
-const GIT_STATUS_TTL_MS = 5000;
-const GIT_STATUS_TIMEOUT_MS = 500;
 const CONFIG_PATH = join(dirname(fileURLToPath(import.meta.url)), "config.json");
+const FALLBACK_THINKING_FILLED_CIRCLE = "\u25cf";
+const FALLBACK_THINKING_OUTLINE_CIRCLE = "\u25cb";
+const GIT_STATUS_TIMEOUT_MS = 500;
+const GIT_STATUS_TTL_MS = 5000;
+const MCP_SERVER_GLYPH = "\uf233";
+const QUEUE_GLYPH = "\uf46c";
+const THINKING_FILLED_CIRCLE = "\uf111";
+const THINKING_OUTLINE_CIRCLE = "\uf10c";
+const TIMER_DONE_GLYPH = "\uf00c";
+const TIMER_RUNNING_GLYPH = "\uf017";
 
 const SEGMENT_KEYS = [
 	"cwd",
@@ -42,10 +42,38 @@ const SEGMENT_KEYS = [
 type SegmentName = typeof SEGMENT_KEYS[number];
 type SegmentConfig = Record<SegmentName, boolean>;
 type FooterProfile = "full" | "compact" | "minimal";
+type SegmentProfileOverride = FooterProfile | "inherit";
+type SegmentProfileConfig = Partial<Record<SegmentName, SegmentProfileOverride>>;
+type ContextUsageSnapshot = ReturnType<ExtensionContext["getContextUsage"]>;
+
+type FormattedExtensionStatus = {
+	keepInCompact: boolean;
+	text: string;
+};
+
+type SessionTokenTotals = {
+	cacheRead: number;
+	cacheWrite: number;
+	input: number;
+	output: number;
+};
+
+type RenderSnapshot = {
+	contextUsage: ContextUsageSnapshot;
+	cwd: string;
+	formattedStatuses: FormattedExtensionStatus[];
+	modelContextWindow: number | undefined;
+	modelId: string | undefined;
+	modelProvider: string | undefined;
+	now: number;
+	sessionTokenTotals: SessionTokenTotals | undefined;
+	thinkingLevel: string;
+};
 
 type FooterConfig = {
-	segments: SegmentConfig;
 	nerdFont: boolean;
+	segmentProfiles: SegmentProfileConfig;
+	segments: SegmentConfig;
 };
 
 type FooterData = {
@@ -83,7 +111,19 @@ type FooterParts = {
 	right: string;
 };
 
+type FooterPartWidths = {
+	gap: number;
+	left: number;
+	middle: number;
+	right: number;
+	total: number;
+};
+
+const FOOTER_PROFILES: readonly FooterProfile[] = ["full", "compact", "minimal"];
+
 const DEFAULT_CONFIG: FooterConfig = {
+	nerdFont: true,
+	segmentProfiles: {},
 	segments: {
 		cwd: true,
 		branch: true,
@@ -95,7 +135,6 @@ const DEFAULT_CONFIG: FooterConfig = {
 		model: true,
 		thinking: true,
 	},
-	nerdFont: true,
 };
 
 export default function gcFooter(pi: ExtensionAPI): void {
@@ -214,43 +253,73 @@ function renderFooterLine(
 	branch: string | null,
 	gitStatus: GitStatus | undefined,
 ): string {
-	const profiles: FooterProfile[] = ["full", "compact", "minimal"];
-	for (const profile of profiles) {
-		const parts = buildFooterParts(profile, pi, ctx, theme, footerData, config, promptTimer, branch, gitStatus);
-		if (footerSectionsFit(parts, width)) return joinFooterSections(parts.left, parts.middle, parts.right, width);
+	if (width <= 0) return "";
+
+	const snapshot = createRenderSnapshot(pi, ctx, theme, footerData, config);
+	let fallback: { parts: FooterParts; widths: FooterPartWidths } | undefined;
+	for (const profile of FOOTER_PROFILES) {
+		const parts = buildFooterParts(profile, theme, config, promptTimer, branch, gitStatus, snapshot);
+		const widths = measureFooterParts(parts);
+		fallback = { parts, widths };
+		if (footerSectionsFit(widths, width)) return joinFooterSections(parts, width, widths);
 	}
 
-	const fallback = buildFooterParts("minimal", pi, ctx, theme, footerData, config, promptTimer, branch, gitStatus);
-	return joinFooterSections(fallback.left, fallback.middle, fallback.right, width);
+	return fallback ? joinFooterSections(fallback.parts, width, fallback.widths) : "";
 }
 
-function buildFooterParts(
-	profile: FooterProfile,
+function createRenderSnapshot(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
 	theme: Theme,
 	footerData: FooterData,
 	config: FooterConfig,
+): RenderSnapshot {
+	return {
+		contextUsage: config.segments.context ? ctx.getContextUsage() : undefined,
+		cwd: ctx.cwd,
+		formattedStatuses: config.segments.statuses
+			? formatExtensionStatusEntries(footerData.getExtensionStatuses(), theme, config.nerdFont)
+			: [],
+		modelContextWindow: ctx.model?.contextWindow,
+		modelId: ctx.model?.id,
+		modelProvider: ctx.model?.provider,
+		now: Date.now(),
+		sessionTokenTotals: config.segments.tokens ? getSessionTokenTotals(ctx) : undefined,
+		thinkingLevel: config.segments.thinking ? pi.getThinkingLevel() : "off",
+	};
+}
+
+function buildFooterParts(
+	profile: FooterProfile,
+	theme: Theme,
+	config: FooterConfig,
 	promptTimer: PromptTimerState,
 	branch: string | null,
 	gitStatus: GitStatus | undefined,
+	snapshot: RenderSnapshot,
 ): FooterParts {
-	const compact = profile !== "full";
 	const minimal = profile === "minimal";
+	const contextProfile = resolveSegmentProfile(config, "context", profile);
+	const cwdProfile = resolveSegmentProfile(config, "cwd", profile);
+	const modelProfile = resolveSegmentProfile(config, "model", profile);
+	const statusesProfile = resolveSegmentProfile(config, "statuses", profile);
+	const tokensProfile = resolveSegmentProfile(config, "tokens", profile);
+	const showModel = config.segments.model && !minimal;
+	const showTokens = config.segments.tokens && tokensProfile !== "minimal" && (!minimal || hasSegmentProfileOverride(config, "tokens"));
 	const left = joinSegments([
-		config.segments.cwd ? theme.fg("dim", formatCwd(ctx.cwd, profile)) : undefined,
+		config.segments.cwd ? theme.fg("dim", formatCwd(snapshot.cwd, cwdProfile)) : undefined,
 		config.segments.branch ? formatGitBranch(branch, theme, gitStatus) : undefined,
 	]);
 	const middle = config.segments.statuses
-		? formatExtensionStatuses(footerData.getExtensionStatuses(), theme, config.nerdFont, compact ? "active" : "full")
+		? formatExtensionStatuses(snapshot.formattedStatuses, statusesProfile === "full" ? "full" : "active")
 		: undefined;
 	const right = joinSegments([
-		config.segments.timer ? formatPromptTimer(promptTimer, theme, config.nerdFont) : undefined,
+		config.segments.timer ? formatPromptTimer(promptTimer, theme, config.nerdFont, snapshot.now) : undefined,
 		config.segments.queue ? formatPromptQueue(promptTimer, theme, config.nerdFont) : undefined,
-		config.segments.tokens && !minimal ? formatSessionTokenTotals(ctx, theme, compact ? "compact" : "full") : undefined,
-		config.segments.context ? formatContextUsage(ctx, theme, compact ? "compact" : "full") : undefined,
-		config.segments.model && !minimal ? theme.fg("muted", formatModelName(ctx.model?.provider, ctx.model?.id, compact ? "compact" : "full")) : undefined,
-		config.segments.thinking && !minimal ? formatThinkingDot(pi.getThinkingLevel(), theme, config.nerdFont) : undefined,
+		showTokens ? formatSessionTokenTotals(snapshot.sessionTokenTotals, theme, tokensProfile === "full" ? "full" : "compact") : undefined,
+		config.segments.context ? formatContextUsage(snapshot.contextUsage, snapshot.modelContextWindow, theme, contextProfile === "full" ? "full" : "compact") : undefined,
+		showModel ? theme.fg("muted", formatModelName(snapshot.modelProvider, snapshot.modelId, modelProfile)) : undefined,
+		config.segments.thinking && !minimal ? formatThinkingDot(snapshot.thinkingLevel, theme, config.nerdFont) : undefined,
 	]);
 
 	return { left, middle, right };
@@ -348,9 +417,10 @@ function formatPromptTimer(
 	timer: PromptTimerState,
 	theme: Theme,
 	nerdFont: boolean,
+	now = Date.now(),
 ): string | undefined {
 	const running = timer.startedAt !== undefined;
-	const durationMs = running ? Date.now() - timer.startedAt : timer.lastDurationMs;
+	const durationMs = running ? now - timer.startedAt : timer.lastDurationMs;
 	if (durationMs === undefined) return undefined;
 
 	const glyph = nerdFont
@@ -393,6 +463,13 @@ function loadConfig(): FooterConfig {
 				if (typeof value === "boolean") config.segments[key] = value;
 			}
 		}
+
+		if (isRecord(parsed.segmentProfiles)) {
+			for (const key of SEGMENT_KEYS) {
+				const value = parsed.segmentProfiles[key];
+				if (isSegmentProfileOverride(value)) config.segmentProfiles[key] = value;
+			}
+		}
 	} catch {
 		return config;
 	}
@@ -402,13 +479,28 @@ function loadConfig(): FooterConfig {
 
 function createDefaultConfig(): FooterConfig {
 	return {
-		segments: { ...DEFAULT_CONFIG.segments },
 		nerdFont: DEFAULT_CONFIG.nerdFont,
+		segmentProfiles: { ...DEFAULT_CONFIG.segmentProfiles },
+		segments: { ...DEFAULT_CONFIG.segments },
 	};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isSegmentProfileOverride(value: unknown): value is SegmentProfileOverride {
+	return value === "inherit" || value === "full" || value === "compact" || value === "minimal";
+}
+
+function resolveSegmentProfile(config: FooterConfig, segment: SegmentName, footerProfile: FooterProfile): FooterProfile {
+	const override = config.segmentProfiles[segment];
+	return override && override !== "inherit" ? override : footerProfile;
+}
+
+function hasSegmentProfileOverride(config: FooterConfig, segment: SegmentName): boolean {
+	const override = config.segmentProfiles[segment];
+	return Boolean(override && override !== "inherit");
 }
 
 function formatCommandStatus(
@@ -418,15 +510,24 @@ function formatCommandStatus(
 	branch: string | null | undefined,
 ): string {
 	const enabledSegments = SEGMENT_KEYS.filter((key) => config.segments[key]).join(", ");
+	const segmentProfiles = formatSegmentProfileOverrides(config);
 	return [
 		"gc-footer",
 		`segments: ${enabledSegments || "none"}`,
+		...(segmentProfiles ? [`segmentProfiles: ${segmentProfiles}`] : []),
 		`theme: ${getActiveThemeName(ctx)}`,
 		`model: ${formatModelName(ctx.model?.provider, ctx.model?.id)}`,
 		`thinking: ${thinkingLevel}`,
 		`branch: ${formatBranchStatus(branch)}`,
 		`nerdFont: ${config.nerdFont ? "on" : "off"}`,
 	].join("\n");
+}
+
+function formatSegmentProfileOverrides(config: FooterConfig): string {
+	return SEGMENT_KEYS.map((key) => {
+		const override = config.segmentProfiles[key];
+		return override && override !== "inherit" ? `${key}=${override}` : undefined;
+	}).filter(Boolean).join(", ");
 }
 
 function getActiveThemeName(ctx: ExtensionContext): string {
@@ -495,9 +596,17 @@ function scheduleGitStatusRefresh(
 	branch: string | null,
 	force = false,
 ): void {
+	if (!branch) {
+		clearScheduledGitStatusRefresh(state);
+		state.cached = undefined;
+		state.cwd = cwd;
+		state.refreshedAt = 0;
+		return;
+	}
+
 	const now = Date.now();
 	const cwdChanged = state.cwd !== cwd;
-	const branchChanged = Boolean(branch && state.cached?.branch && state.cached.branch !== branch);
+	const branchChanged = Boolean(state.cached?.branch && state.cached.branch !== branch);
 	if (cwdChanged) {
 		state.cwd = cwd;
 		state.cached = branch ? { branch, dirty: false, ahead: 0, behind: 0 } : undefined;
@@ -629,15 +738,21 @@ function clearScheduledGitStatusRefresh(state: GitStatusState): void {
 	state.scheduled = undefined;
 }
 
-function formatExtensionStatuses(
+function formatExtensionStatusEntries(
 	statuses: ReadonlyMap<string, string>,
 	theme: Theme,
 	nerdFont: boolean,
+): FormattedExtensionStatus[] {
+	return Array.from(statuses.entries())
+		.sort(([a], [b]) => a.localeCompare(b))
+		.map(([, text]) => formatExtensionStatus(sanitizeStatusText(text), theme, nerdFont));
+}
+
+function formatExtensionStatuses(
+	statuses: FormattedExtensionStatus[],
 	mode: "full" | "active" = "full",
 ): string | undefined {
-	const statusText = Array.from(statuses.entries())
-		.sort(([a], [b]) => a.localeCompare(b))
-		.map(([, text]) => formatExtensionStatus(sanitizeStatusText(text), theme, nerdFont))
+	const statusText = statuses
 		.filter((status) => mode === "full" || status.keepInCompact)
 		.map((status) => status.text)
 		.filter(Boolean)
@@ -646,7 +761,7 @@ function formatExtensionStatuses(
 	return statusText || undefined;
 }
 
-function formatExtensionStatus(text: string, theme: Theme, nerdFont: boolean): { text: string; keepInCompact: boolean } {
+function formatExtensionStatus(text: string, theme: Theme, nerdFont: boolean): FormattedExtensionStatus {
 	const plainText = stripAnsi(text);
 	const agentMemoryMatch = plainText.match(/^🧠\s*agentmemory(?:\s+(off))?$/i);
 	if (agentMemoryMatch) {
@@ -678,11 +793,7 @@ function preserveVisibleTextStyle(text: string, visibleText: string, compactText
 	return text.includes(visibleText) ? text.replace(visibleText, compactText) : compactText;
 }
 
-function formatSessionTokenTotals(
-	ctx: ExtensionContext,
-	theme: Theme,
-	profile: "full" | "compact" = "full",
-): string | undefined {
+function getSessionTokenTotals(ctx: ExtensionContext): SessionTokenTotals | undefined {
 	let input = 0;
 	let output = 0;
 	let cacheRead = 0;
@@ -697,22 +808,32 @@ function formatSessionTokenTotals(
 		cacheWrite += usage.cacheWrite;
 	}
 
-	if (!input && !output && !cacheRead && !cacheWrite) return undefined;
+	return input || output || cacheRead || cacheWrite
+		? { cacheRead, cacheWrite, input, output }
+		: undefined;
+}
 
-	const inputPart = `↑${formatTokens(input)}${profile === "full" && cacheRead ? `/R${formatTokens(cacheRead)}` : ""}`;
-	const outputPart = `↓${formatTokens(output)}${profile === "full" && cacheWrite ? `/W${formatTokens(cacheWrite)}` : ""}`;
+function formatSessionTokenTotals(
+	totals: SessionTokenTotals | undefined,
+	theme: Theme,
+	profile: "full" | "compact" = "full",
+): string | undefined {
+	if (!totals) return undefined;
+
+	const inputPart = `↑${formatTokens(totals.input)}${profile === "full" && totals.cacheRead ? `/R${formatTokens(totals.cacheRead)}` : ""}`;
+	const outputPart = `↓${formatTokens(totals.output)}${profile === "full" && totals.cacheWrite ? `/W${formatTokens(totals.cacheWrite)}` : ""}`;
 	return theme.fg("muted", `${inputPart} ${outputPart}`);
 }
 
 function formatContextUsage(
-	ctx: ExtensionContext,
+	usage: ContextUsageSnapshot,
+	modelContextWindow: number | undefined,
 	theme: Theme,
 	profile: "full" | "compact" = "full",
 ): string | undefined {
-	const usage = ctx.getContextUsage();
 	if (!usage || usage.tokens === null) return undefined;
 
-	const contextWindow = usage.contextWindow || ctx.model?.contextWindow;
+	const contextWindow = usage.contextWindow || modelContextWindow;
 	if (!contextWindow) return undefined;
 
 	const percent = getTokenPercent(usage.tokens, contextWindow, usage.percent);
@@ -832,51 +953,54 @@ function formatCompactModelName(
 	}
 
 	if (profile === "minimal") return model;
+
+	if (provider === "minimax" || provider === "opencode-go") return model;
 	return provider ? `${provider}/${model}` : model;
 }
 
-function footerSectionsFit(parts: FooterParts, width: number): boolean {
-	if (width <= 0) return false;
-	const leftWidth = visibleWidth(parts.left);
-	const middleWidth = visibleWidth(parts.middle ?? "");
-	const rightWidth = visibleWidth(parts.right);
-	const gapWidth = (parts.left && parts.middle ? 1 : 0) + (parts.middle && parts.right ? 1 : 0) + (!parts.middle && parts.left && parts.right ? 1 : 0);
-	return leftWidth + middleWidth + rightWidth + gapWidth <= width;
+function measureFooterParts(parts: FooterParts): FooterPartWidths {
+	const left = visibleWidth(parts.left);
+	const middle = visibleWidth(parts.middle ?? "");
+	const right = visibleWidth(parts.right);
+	const gap = (parts.left && parts.middle ? 1 : 0)
+		+ (parts.middle && parts.right ? 1 : 0)
+		+ (!parts.middle && parts.left && parts.right ? 1 : 0);
+	return { gap, left, middle, right, total: left + middle + right + gap };
 }
 
-function joinFooterSections(
+function footerSectionsFit(widths: FooterPartWidths, width: number): boolean {
+	return width > 0 && widths.total <= width;
+}
+
+function joinFooterSections(parts: FooterParts, width: number, widths = measureFooterParts(parts)): string {
+	if (width <= 0) return "";
+	if (!parts.middle) return joinLeftRight(parts.left, parts.right, width, widths.left, widths.right);
+
+	if (widths.total <= width) {
+		return joinLeftMiddleRight(parts.left, parts.middle, parts.right, width, widths.left, widths.middle, widths.right);
+	}
+
+	const availableMiddleWidth = width - widths.left - widths.right - widths.gap;
+	if (availableMiddleWidth <= 0) {
+		return joinLeftRight(parts.left, parts.right, width, widths.left, widths.right);
+	}
+
+	const shortenedMiddle = truncateToWidth(parts.middle, availableMiddleWidth, "");
+	const shortenedMiddleWidth = visibleWidth(shortenedMiddle);
+	return shortenedMiddleWidth > 0
+		? joinLeftMiddleRight(parts.left, shortenedMiddle, parts.right, width, widths.left, shortenedMiddleWidth, widths.right)
+		: joinLeftRight(parts.left, parts.right, width, widths.left, widths.right);
+}
+
+function joinLeftMiddleRight(
 	left: string,
-	middle: string | undefined,
+	middle: string,
 	right: string,
 	width: number,
+	leftWidth: number,
+	middleWidth: number,
+	rightWidth: number,
 ): string {
-	if (width <= 0) return "";
-	if (!middle) return joinLeftRight(left, right, width);
-
-	const leftWidth = visibleWidth(left);
-	const middleWidth = visibleWidth(middle);
-	const rightWidth = visibleWidth(right);
-	const gapWidth = (left && middle ? 1 : 0) + (middle && right ? 1 : 0);
-
-	if (leftWidth + middleWidth + rightWidth + gapWidth <= width) {
-		return joinLeftMiddleRight(left, middle, right, width);
-	}
-
-	const availableMiddleWidth = width - leftWidth - rightWidth - gapWidth;
-	if (availableMiddleWidth <= 0) {
-		return joinLeftRight(left, right, width);
-	}
-
-	const shortenedMiddle = truncateToWidth(middle, availableMiddleWidth, "");
-	return visibleWidth(shortenedMiddle) > 0
-		? joinLeftMiddleRight(left, shortenedMiddle, right, width)
-		: joinLeftRight(left, right, width);
-}
-
-function joinLeftMiddleRight(left: string, middle: string, right: string, width: number): string {
-	const leftWidth = visibleWidth(left);
-	const middleWidth = visibleWidth(middle);
-	const rightWidth = visibleWidth(right);
 	const paddingWidth = Math.max(0, width - leftWidth - middleWidth - rightWidth);
 	const leftPaddingWidth = left && middle ? Math.max(1, Math.floor(paddingWidth / 2)) : 0;
 	const rightPaddingWidth = middle && right ? Math.max(1, paddingWidth - leftPaddingWidth) : 0;
@@ -891,11 +1015,9 @@ function joinLeftMiddleRight(left: string, middle: string, right: string, width:
 	return truncateToWidth(line, width, "");
 }
 
-function joinLeftRight(left: string, right: string, width: number): string {
+function joinLeftRight(left: string, right: string, width: number, leftWidth: number, rightWidth: number): string {
 	if (width <= 0) return "";
 
-	const leftWidth = visibleWidth(left);
-	const rightWidth = visibleWidth(right);
 	const gapWidth = left && right ? 1 : 0;
 
 	if (leftWidth + gapWidth + rightWidth <= width) {

@@ -15,7 +15,39 @@ Custom Pi footer extension for a compact local status line.
 
 ## Optional config
 
-Create `config.json` next to `index.ts`:
+By default, gc-footer reads config from:
+
+```text
+agent/extensions/gc-footer/config.json
+```
+
+You can point the extension at another file with `GC_FOOTER_CONFIG_PATH`. Restart or reload Pi after changing config; the file is read when the extension loads.
+
+### Compact model only
+
+Use this when you want the footer to stay in its normal full layout, but want the model item to render in compact form. The extension's built-in fallback still drops the model in the minimal layout for very narrow terminals; this override only changes model text when the model segment is rendered.
+
+This config repo tracks `config.json` with the override below so the local Pi install uses compact model names after reload. Remove the file or set `"model": "inherit"` to return to the built-in full model-name behavior.
+
+```json
+{
+  "segmentProfiles": {
+    "model": "compact"
+  }
+}
+```
+
+Example output change:
+
+```text
+openai-codex/gpt-5.5 -> codex/gpt-5.5
+opencode-go/deepseek-v4-flash -> deepseek-v4-flash
+minimax/MiniMax-M2.7 -> MiniMax-M2.7
+```
+
+### Full config shape
+
+All keys are optional. Missing keys keep the defaults. Unknown keys or invalid values are ignored.
 
 ```json
 {
@@ -30,9 +62,37 @@ Create `config.json` next to `index.ts`:
     "context": true,
     "model": true,
     "thinking": true
+  },
+  "segmentProfiles": {
+    "model": "compact"
   }
 }
 ```
+
+### Config keys
+
+- `nerdFont`: `true` uses Nerd Font glyphs. `false` uses text or Unicode fallbacks.
+- `segments`: enables or disables footer segments. For example, set `"model": false` to hide the model entirely.
+- `segmentProfiles`: overrides the display profile for individual profile-aware segments without changing the main footer profile.
+
+`segmentProfiles` values:
+
+- `inherit`: use the main footer profile. This is also the default when a segment has no override.
+- `full`: use the full segment rendering.
+- `compact`: use the compact segment rendering.
+- `minimal`: use the minimal segment rendering when the segment supports it.
+
+Profile-aware segments:
+
+- `cwd`: full path vs basename.
+- `statuses`: full statuses vs active compact statuses.
+- `tokens`: full cache-aware totals vs compact totals.
+- `context`: percent plus token/window details vs percent only.
+- `model`: full provider/model vs compact provider-aware model.
+
+`branch`, `timer`, `queue`, and `thinking` currently do not have profile-specific variants.
+
+Use `/gc-footer` or `/gc-footer status` to inspect the active config. Active overrides are shown as `segmentProfiles: model=compact`.
 
 ## Behavior notes
 
