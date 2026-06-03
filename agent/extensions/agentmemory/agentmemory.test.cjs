@@ -921,6 +921,12 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.containsSecretLikeContent({ "ＴＯＫＥＮ": "short" }), true);
   assert.equal(security.containsSecretLikeContent({ "TO\u200bKEN": "short" }), true);
   assert.equal(security.containsSecretLikeContent({ "api&hyphen;key": "short" }), true);
+  assert.equal(security.containsSecretLikeContent("РАSSWORD=actual_credential_value_1234567890"), true);
+  assert.equal(security.containsSecretLikeContent("АUTH=real_bearer_token_abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("СREDENTIAL=non_obvious_secret_abcdefgh12345"), true);
+  assert.equal(security.containsSecretLikeContent("АРІ_КЕY=secret_value"), true);
+  assert.equal(security.containsSecretLikeContent("SЕCRET=sneaky_value_that_looks_normal"), true);
+  assert.equal(security.containsSecretLikeContent({ "РАSSWORD": "short" }), true);
   assert.deepEqual(security.redactSecretLikeValue({ "ＴＯＫＥＮ": "short", safe: "value" }), { "ＴＯＫＥＮ": "<redacted>", safe: "value" });
   assert.deepEqual(security.redactSecretLikeValue({ "TO\u200bKEN": "short" }), { "TO\u200bKEN": "<redacted>" });
 
@@ -1084,6 +1090,11 @@ test("memory_save refuses secret-looking content before network calls", async ()
     "SECRET&equals;&quot;short word&quot;",
     "TOKEN%ZZ%3Aabcdefghijklmnop",
     "ＡＰＩ＿ＫＥＹ＝abcdefghijklmnop",
+    "РАSSWORD=actual_credential_value_1234567890",
+    "АUTH=real_bearer_token_abcdefghijklmnop",
+    "СREDENTIAL=non_obvious_secret_abcdefgh12345",
+    "АРІ_КЕY=secret_value",
+    "SЕCRET=sneaky_value_that_looks_normal",
     "https：／／user：pass＠example.invalid/path",
     "TOK\u200bEN=abcdefghijklmnop",
     "https%255Cu003a%2526%252347%25EF%25BC%258Fuser%25EF%25BC%259Apass%2526%252364example.invalid%25EF%25BC%258Fpath SECRET%ZZ%3A＂abcdefghijklmnop&quot",
@@ -1209,6 +1220,7 @@ test("memory_save refuses secret-looking metadata fields", async () => {
     { content: "safe durable fact", concepts: { "ＴＯＫＥＮ": "short" } },
     { content: "safe durable fact", concepts: { "TO\u200bKEN": "short" } },
     { content: "safe durable fact", concepts: { "api&hyphen;key": "short" } },
+    { content: "safe durable fact", concepts: { "РАSSWORD": "short" } },
     { content: "safe durable fact", files: ["TOKEN=abcdefghijklmnop"] },
     { content: "safe durable fact", files: [{ nest: [{ my_SECRET_x: "abcdefghijklmnop" }] }] },
     { content: "safe durable fact", files: [{ nest: [{ my_SECRET_x: "short" }] }] },
@@ -1239,6 +1251,11 @@ test("memory_save refuses invalid metadata before network calls", async () => {
     { content: "safe durable fact", concepts: circularArray },
     { content: "safe durable fact", files: ["safe.ts", { nested: "value" }] },
     { content: "safe durable fact", project: { name: "project" } },
+    { content: "safe durable fact", type: "123" },
+    { content: "safe durable fact", type: "null" },
+    { content: "safe durable fact", concepts: ["valid", "42"] },
+    { content: "safe durable fact", concepts: ["valid", "false"] },
+    { content: "safe durable fact", files: ["/valid", "true", "/also-valid"] },
   ]) {
     const harness = createHarness({
       fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "unexpected" }] }),
@@ -1361,6 +1378,31 @@ test("memory_save success output omits saved content", async () => {
     const privateResult = await harness.callTool("memory_save", { content: "private: false", type: "fact" });
     assert.equal(textContent(privateResult), "Saved memory (fact).");
     assert.equal(parseBody(harness.fetchCalls[2]).arguments.content, "private: false");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_save trims metadata fields before upstream calls", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "saved" }] }),
+  });
+  try {
+    const result = await harness.callTool("memory_save", {
+      content: "safe durable fact",
+      type: "  preference  ",
+      concepts: [" durable ", " workflow ", "  "],
+      files: [" src/index.ts ", " docs/adr.md "],
+      project: "  agentmemory  ",
+    });
+    assert.equal(textContent(result), "Saved memory (preference).");
+    assert.deepEqual(parseBody(harness.fetchCalls[0]).arguments, {
+      content: "safe durable fact",
+      type: "preference",
+      concepts: "durable,workflow",
+      files: "src/index.ts,docs/adr.md",
+      project: "agentmemory",
+    });
   } finally {
     harness.cleanup();
   }

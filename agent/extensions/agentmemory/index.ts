@@ -289,7 +289,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
       }
       if (hasInvalidSaveParams(rawArgs)) {
         return {
-          content: [{ type: "text", text: "Refusing to save memory: content and metadata fields must be strings or string arrays." }],
+          content: [{ type: "text", text: "Refusing to save memory: content and metadata fields must be strings or string arrays, not coerced scalar values." }],
           details: { ok: false, reason: "invalid-save-params" },
         };
       }

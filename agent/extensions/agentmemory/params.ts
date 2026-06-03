@@ -61,13 +61,29 @@ export function isStringOrStringArray(value: unknown): boolean {
   return typeof value === "string" || (Array.isArray(value) && value.every((entry) => typeof entry === "string"));
 }
 
+function isCoercedScalarString(value: string): boolean {
+  return /^(?:null|undefined|true|false|nan|infinity|-?(?:\d+|\d*\.\d+)(?:e[+-]?\d+)?)$/i.test(value.trim());
+}
+
+function hasInvalidMetadataString(value: string): boolean {
+  const entries = value.includes(",") ? value.split(",") : [value];
+  return entries.some((entry) => {
+    const trimmed = entry.trim();
+    return !!trimmed && isCoercedScalarString(trimmed);
+  });
+}
+
+function hasInvalidMetadataValue(value: unknown): boolean {
+  if (value === undefined || value === "") return false;
+  if (typeof value === "string") return hasInvalidMetadataString(value);
+  if (Array.isArray(value)) return value.some((entry) => typeof entry !== "string" || hasInvalidMetadataString(entry));
+  return true;
+}
+
 export function hasInvalidSaveParams(params: ToolParams): boolean {
   if (typeof params.content !== "string") return true;
-  if (params.type !== undefined && params.type !== "" && typeof params.type !== "string") return true;
-  if (params.project !== undefined && params.project !== "" && typeof params.project !== "string") return true;
-  for (const key of ["concepts", "files"] as const) {
-    const value = params[key];
-    if (value !== undefined && value !== "" && !isStringOrStringArray(value)) return true;
+  for (const key of ["type", "project", "concepts", "files"] as const) {
+    if (hasInvalidMetadataValue(params[key])) return true;
   }
   return false;
 }
@@ -76,8 +92,19 @@ export function normalizeSaveParams(params: ToolParams): ToolParams {
   const normalized: ToolParams = { content: params.content };
   for (const key of ["type", "concepts", "files", "project"] as const) {
     const value = params[key];
-    if (value === undefined || value === "") continue;
-    normalized[key] = Array.isArray(value) ? value.filter((entry) => entry.trim()).join(",") : value;
+    if (value === undefined || value === null || value === "") continue;
+    if (Array.isArray(value)) {
+      const entries = value
+        .filter((entry): entry is string => typeof entry === "string")
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+      if (entries.length) normalized[key] = entries.join(",");
+      continue;
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed) normalized[key] = trimmed;
+    }
   }
   if (!normalized.type) normalized.type = "fact";
   return normalized;
