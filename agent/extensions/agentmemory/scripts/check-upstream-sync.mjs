@@ -22,6 +22,22 @@ const GATED_DEFAULT_DENY = new Set([
   "memory_slot_replace",
   "memory_slot_delete",
 ]);
+const WORKFLOW_STATE_DEFAULT_DENY = new Set([
+  "memory_action_create",
+  "memory_action_update",
+  "memory_frontier",
+  "memory_next",
+  "memory_lease",
+  "memory_signal_send",
+  "memory_signal_read",
+  "memory_checkpoint",
+  "memory_sentinel_create",
+  "memory_sentinel_trigger",
+  "memory_routine_run",
+  "memory_sketch_create",
+  "memory_sketch_promote",
+  "memory_crystallize",
+]);
 
 function readJson(filePath) {
   return JSON.parse(readFileSync(filePath, "utf8"));
@@ -103,6 +119,12 @@ function main() {
   for (const name of sorted(memberships.keys())) {
     const listedIn = memberships.get(name) || [];
     if (listedIn.length > 1) failures.push(`${name} appears in multiple policy categories: ${listedIn.join(",")}`);
+  }
+
+  const notExposedNames = new Set(categories.notExposedTools.map(entryName).filter(Boolean));
+  for (const name of sorted(WORKFLOW_STATE_DEFAULT_DENY)) {
+    if (!upstreamNameSet.has(name)) continue;
+    if (!notExposedNames.has(name)) failures.push(`${name} is AgentMemory workflow/task-state policy and must stay not exposed until an ADR explicitly adopts it`);
   }
 
   for (const entry of categories.defaultTools) {

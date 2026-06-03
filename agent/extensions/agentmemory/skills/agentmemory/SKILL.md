@@ -84,6 +84,7 @@ AgentMemory is durable cross-session memory. It complements, but does not replac
 - When gated tools are registered, destructive or high-risk wrappers still require exact local `confirm` phrases such as `export agentmemory`, `heal agentmemory`, `delete memories:<sorted-ids>`, or `<operation> slot:<label>`. Do not invent confirmations; follow the tool schema.
 - Use Context Mode for current-session indexed output, large command/test/build/log output, and searchable local context.
 - Use CodeGraph for code structure, call flow, impact analysis, and symbol-level reasoning.
+- Use Pi plans, `handoffs/`, delegates, and normal in-session planning for active workflow/task state. Do not route task management to AgentMemory actions, frontiers, leases, signals, checkpoints, sentinels, routines, sketches, or crystallization unless a future ADR explicitly adopts that role.
 - AgentMemory is disabled in delegate child sessions by default.
 
 ## Maintenance

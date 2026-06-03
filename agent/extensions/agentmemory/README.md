@@ -125,6 +125,12 @@ memory_slot_replace: confirm="replace slot:<label>"
 memory_slot_delete: confirm="delete slot:<label>"
 ```
 
+## Workflow and task-state policy
+
+AgentMemory remains the durable memory and provenance system for Pi. It is not the default task manager or workflow-state owner. Use Pi plans, handoffs, delegates, Context Watcher, and normal in-session planning for active task state.
+
+The upstream action, frontier, lease, signal, checkpoint, sentinel, routine, sketch, and crystallize tools stay not exposed by policy. Exposing any of them requires an ADR that updates `docs/adr/0004-agentmemory-workflow-state-policy.md` and explains ownership, migration, and safety gates.
+
 ## Environment variables
 
 | Variable | Default | Description |

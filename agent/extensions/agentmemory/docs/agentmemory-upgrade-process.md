@@ -175,6 +175,8 @@ memory_slot_delete         confirm="delete slot:<label>"
 
 Tools stay not exposed when they rewrite files, export content to files, require optional providers, assume team/mesh workflows, mutate coordination/task state not adopted by Pi, or overlap with better Pi systems such as plans, handoffs, Context Mode, or CodeGraph.
 
+Workflow/task-state tools are default-deny by ADR 0004 (`docs/adr/0004-agentmemory-workflow-state-policy.md`). Do not move action, frontier, lease, signal, checkpoint, sentinel, routine, sketch, or crystallize tools into default or gated exposure unless a future ADR explicitly adopts AgentMemory for that workflow role.
+
 Current not-exposed tools:
 
 ```text
@@ -220,6 +222,7 @@ secret-content-guard
 mcp-call-endpoint
 gated-env-default-off
 local-confirm-strip
+workflow-state-default-deny
 bundled-skill-discovery
 status-output-shape
 ```
@@ -233,6 +236,7 @@ Meaning:
 - curated MCP-compatible wrappers use the upstream MCP REST bridge
 - gated AgentMemory wrappers stay default-off behind `AGENTMEMORY_PI_ENABLE_GATED=1`
 - local confirmation fields are stripped before forwarding to upstream AgentMemory
+- AgentMemory workflow/task-state tools stay not exposed unless a future ADR adopts that role
 - the AgentMemory skill stays bundled beside the extension
 - AgentMemory status text shape remains stable unless intentionally changed
 

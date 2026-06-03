@@ -220,39 +220,39 @@
     },
     {
       "name": "memory_action_create",
-      "reason": "Task-state write path overlaps with Pi plans and handoffs"
+      "reason": "Workflow/task-state write path overlaps with Pi plans and handoffs; requires ADR before exposure"
     },
     {
       "name": "memory_action_update",
-      "reason": "Task-state mutation overlaps with Pi plans and handoffs"
+      "reason": "Workflow/task-state mutation overlaps with Pi plans and handoffs; requires ADR before exposure"
     },
     {
       "name": "memory_frontier",
-      "reason": "Workflow planning surface not adopted by default"
+      "reason": "Workflow planning surface not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_next",
-      "reason": "Workflow planning surface not adopted by default"
+      "reason": "Workflow planning surface not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_lease",
-      "reason": "Coordination workflow not adopted by default"
+      "reason": "Coordination workflow not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_routine_run",
-      "reason": "Automated routine execution is not default memory recall"
+      "reason": "Automated routine execution overlaps with Pi planning; requires ADR before exposure"
     },
     {
       "name": "memory_signal_send",
-      "reason": "Coordination write path not adopted by default"
+      "reason": "Coordination write path not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_signal_read",
-      "reason": "Coordination read path not adopted by default"
+      "reason": "Coordination read path not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_checkpoint",
-      "reason": "Checkpoint workflow overlaps with Pi handoffs"
+      "reason": "Checkpoint workflow overlaps with Pi handoffs; requires ADR before exposure"
     },
     {
       "name": "memory_mesh_sync",
@@ -260,23 +260,23 @@
     },
     {
       "name": "memory_sentinel_create",
-      "reason": "Sentinel write path not adopted by default"
+      "reason": "Sentinel write path not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_sentinel_trigger",
-      "reason": "Sentinel execution path not adopted by default"
+      "reason": "Sentinel execution path not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_sketch_create",
-      "reason": "Sketch write path not adopted by default"
+      "reason": "Sketch write path not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_sketch_promote",
-      "reason": "Sketch promotion mutates memory/workflow state"
+      "reason": "Sketch promotion mutates memory/workflow state; requires ADR before exposure"
     },
     {
       "name": "memory_crystallize",
-      "reason": "Memory synthesis/mutation workflow not adopted by default"
+      "reason": "Memory synthesis/mutation workflow not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_facet_tag",
@@ -333,6 +333,12 @@
       "file": "agent/extensions/agentmemory/index.ts",
       "contains": "stripLocalGuardParams",
       "reason": "Local confirmation fields must be validated and stripped before forwarding upstream"
+    },
+    {
+      "id": "workflow-state-default-deny",
+      "file": "agent/extensions/agentmemory/scripts/check-upstream-sync.mjs",
+      "contains": "WORKFLOW_STATE_DEFAULT_DENY",
+      "reason": "AgentMemory workflow/task-state tools must remain not exposed unless Pi accepts an ADR for that role"
     },
     {
       "id": "bundled-skill-discovery",
