@@ -45,6 +45,52 @@ type McpToolResponse = {
   [key: string]: unknown;
 };
 
+type McpResource = {
+  uri?: string;
+  name?: string;
+  description?: string;
+  mimeType?: string;
+};
+type McpResourceContent = {
+  uri?: string;
+  mimeType?: string;
+  text?: string;
+};
+type McpResourcesResponse = {
+  resources?: McpResource[];
+  error?: string;
+  [key: string]: unknown;
+};
+type McpResourceReadResponse = {
+  contents?: McpResourceContent[];
+  error?: string;
+  [key: string]: unknown;
+};
+type McpPromptArgument = {
+  name?: string;
+  description?: string;
+  required?: boolean;
+};
+type McpPrompt = {
+  name?: string;
+  description?: string;
+  arguments?: McpPromptArgument[];
+};
+type McpPromptsResponse = {
+  prompts?: McpPrompt[];
+  error?: string;
+  [key: string]: unknown;
+};
+type McpPromptMessage = {
+  role?: string;
+  content?: unknown;
+};
+type McpPromptGetResponse = {
+  messages?: McpPromptMessage[];
+  error?: string;
+  [key: string]: unknown;
+};
+
 type ToolParams = Record<string, unknown>;
 type McpToolDefinition = {
   name: string;
@@ -71,6 +117,16 @@ const STRING_OR_STRING_ARRAY = (description: string) => Type.Union([
   Type.String({ description }),
   Type.Array(Type.String(), { description }),
 ]);
+
+const KNOWN_MCP_RESOURCE_PATTERNS: RegExp[] = [
+  /^agentmemory:\/\/status$/,
+  /^agentmemory:\/\/project\/[^/{}]+\/profile$/,
+  /^agentmemory:\/\/project\/[^/{}]+\/recent$/,
+  /^agentmemory:\/\/memories\/latest$/,
+  /^agentmemory:\/\/graph\/stats$/,
+  /^agentmemory:\/\/team\/[^/{}]+\/profile$/,
+];
+const KNOWN_MCP_PROMPTS = new Set(["recall_context", "session_handoff", "detect_patterns"]);
 
 const MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
   {
@@ -224,12 +280,12 @@ function displayBaseUrl(): string {
 
 function getText(content: unknown): string {
   if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
+  const parts = Array.isArray(content) ? content : [content];
+  return parts
     .flatMap((part) => {
       if (!part || typeof part !== "object") return [] as string[];
       const block = part as TextBlock;
-      if (block.type === "text" && typeof block.text === "string") return [block.text];
+      if ((block.type === undefined || block.type === "text") && typeof block.text === "string") return [block.text];
       return [] as string[];
     })
     .join("\n")
@@ -288,6 +344,116 @@ function formatMcpResult(result: McpToolResponse): string {
   if (text) return protectDisplayText(text);
   if (typeof result.error === "string" && result.error.trim()) return protectDisplayText(result.error.trim());
   return protectDisplayText(JSON.stringify(protectValue(result), null, 2));
+}
+
+function formatJsonResult(value: unknown): string {
+  return protectDisplayText(JSON.stringify(protectValue(value), null, 2));
+}
+
+function formatMcpResources(result: McpResourcesResponse): string {
+  const resources = Array.isArray(result.resources) ? result.resources : [];
+  if (!resources.length) {
+    if (typeof result.error === "string" && result.error.trim()) return protectDisplayText(result.error.trim());
+    return formatJsonResult(result);
+  }
+  return resources
+    .map((resource) => {
+      const name = protectDisplayText(resource.name?.trim() || "Unnamed resource");
+      const uri = protectDisplayText(resource.uri?.trim() || "UNKNOWN");
+      const description = protectDisplayText(resource.description?.trim() || "No description");
+      const mimeType = protectDisplayText(resource.mimeType?.trim() || "unknown MIME type");
+      return `- ${name} (${uri}, ${mimeType}): ${description}`;
+    })
+    .join("\n");
+}
+
+function formatMcpResourceRead(result: McpResourceReadResponse): string {
+  const contents = Array.isArray(result.contents) ? result.contents : [];
+  const text = contents
+    .map((content) => typeof content?.text === "string" ? content.text : "")
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+  if (text) return protectDisplayText(text);
+  if (typeof result.error === "string" && result.error.trim()) return protectDisplayText(result.error.trim());
+  return formatJsonResult(result);
+}
+
+function formatMcpPrompts(result: McpPromptsResponse): string {
+  const prompts = Array.isArray(result.prompts) ? result.prompts : [];
+  if (!prompts.length) {
+    if (typeof result.error === "string" && result.error.trim()) return protectDisplayText(result.error.trim());
+    return formatJsonResult(result);
+  }
+  return prompts
+    .map((prompt) => {
+      const name = protectDisplayText(prompt.name?.trim() || "Unnamed prompt");
+      const description = protectDisplayText(prompt.description?.trim() || "No description");
+      const args = Array.isArray(prompt.arguments) && prompt.arguments.length
+        ? prompt.arguments.map((arg) => `${protectDisplayText(arg.name?.trim() || "argument")}${arg.required ? " required" : " optional"}`).join(", ")
+        : "no arguments";
+      return `- ${name}: ${description} (args: ${args})`;
+    })
+    .join("\n");
+}
+
+function formatMcpPromptGet(result: McpPromptGetResponse): string {
+  const messages = Array.isArray(result.messages) ? result.messages : [];
+  const text = messages
+    .map((message) => getText(message.content))
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+  if (text) return protectDisplayText(text);
+  if (typeof result.error === "string" && result.error.trim()) return protectDisplayText(result.error.trim());
+  return formatJsonResult(result);
+}
+
+function isPlainObject(value: unknown): value is ToolParams {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function parsePromptArguments(value: unknown): { args: ToolParams } | { error: string } {
+  if (value === undefined || value === "") return { args: {} };
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (!isPlainObject(parsed)) return { error: "arguments JSON must be an object" };
+      return { args: parsed };
+    } catch {
+      return { error: "arguments must be a JSON object string when provided as text" };
+    }
+  }
+  if (!isPlainObject(value)) return { error: "arguments must be an object or JSON object string" };
+  return { args: value };
+}
+
+function validatePromptArguments(name: string, args: ToolParams): string | null {
+  if (name === "recall_context") {
+    const taskDescription = args.task_description;
+    if (typeof taskDescription !== "string" || !taskDescription.trim()) return "task_description argument is required and must be a string";
+  }
+  if (name === "session_handoff") {
+    const sessionId = args.session_id;
+    if (typeof sessionId !== "string" || !sessionId.trim()) return "session_id argument is required and must be a string";
+  }
+  if (name === "detect_patterns") {
+    const project = args.project;
+    if (project !== undefined && project !== "" && typeof project !== "string") return "project argument must be a string";
+  }
+  return null;
+}
+
+function normalizeMcpResourceUri(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const uri = value.trim();
+  return uri ? uri : null;
+}
+
+function isKnownMcpResourceUri(uri: string): boolean {
+  if (!uri.startsWith("agentmemory://")) return false;
+  if (/[{}]/.test(uri)) return false;
+  return KNOWN_MCP_RESOURCE_PATTERNS.some((pattern) => pattern.test(uri));
 }
 
 function cleanArgs(params: ToolParams): ToolParams {
@@ -539,6 +705,154 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
       return {
         content: [{ type: "text", text: `Saved memory (${args.type || "fact"}).` }],
         details: { ok: true, type: args.type || "fact" },
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "memory_mcp_resources",
+    label: "Memory MCP Resources",
+    description: "List read-only AgentMemory MCP resources exposed by the AgentMemory server",
+    parameters: Type.Object({}),
+    async execute() {
+      const result = await callAgentMemory<McpResourcesResponse>("mcp/resources", { method: "GET" });
+      if (!result) {
+        return {
+          content: [{ type: "text", text: `Failed to list AgentMemory MCP resources; agentmemory may be unreachable at ${displayBaseUrl()}.` }],
+          details: { ok: false, endpoint: "mcp/resources" },
+        };
+      }
+      if (typeof result.error === "string" && result.error.trim()) {
+        return {
+          content: [{ type: "text", text: `memory_mcp_resources failed: ${formatMcpResources(result)}` }],
+          details: { ok: false, result: sanitizeForLookup(result) },
+        };
+      }
+      return {
+        content: [{ type: "text", text: formatMcpResources(result) }],
+        details: { result: sanitizeForLookup(result) },
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "memory_mcp_resource_read",
+    label: "Memory MCP Resource Read",
+    description: "Read one read-only AgentMemory MCP resource by exact agentmemory:// URI",
+    parameters: Type.Object({
+      uri: Type.String({ description: "Exact AgentMemory MCP resource URI to read" }),
+    }),
+    async execute(_toolCallId, params) {
+      const uri = normalizeMcpResourceUri((params as ToolParams).uri);
+      if (!uri || !isKnownMcpResourceUri(uri)) {
+        return {
+          content: [{ type: "text", text: "Refusing to read AgentMemory MCP resource: uri must be an exact agentmemory:// URI matching a known read-only resource template." }],
+          details: { ok: false, reason: "invalid-resource-uri" },
+        };
+      }
+      if (containsBlockedSecret({ uri })) {
+        return {
+          content: [{ type: "text", text: "Refusing to read AgentMemory MCP resource: uri appears to contain a secret-looking value." }],
+          details: { ok: false, reason: "secret-like-uri" },
+        };
+      }
+      const result = await callAgentMemory<McpResourceReadResponse>("mcp/resources/read", { body: { uri } });
+      if (!result) {
+        return {
+          content: [{ type: "text", text: `Failed to read AgentMemory MCP resource; agentmemory may be unreachable at ${displayBaseUrl()}.` }],
+          details: { ok: false, uri },
+        };
+      }
+      if (typeof result.error === "string" && result.error.trim()) {
+        return {
+          content: [{ type: "text", text: `memory_mcp_resource_read failed: ${formatMcpResourceRead(result)}` }],
+          details: { ok: false, uri, result: sanitizeForLookup(result) },
+        };
+      }
+      return {
+        content: [{ type: "text", text: formatMcpResourceRead(result) }],
+        details: { uri, result: sanitizeForLookup(result) },
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "memory_mcp_prompts",
+    label: "Memory MCP Prompts",
+    description: "List AgentMemory MCP prompt templates available for agent review",
+    parameters: Type.Object({}),
+    async execute() {
+      const result = await callAgentMemory<McpPromptsResponse>("mcp/prompts", { method: "GET" });
+      if (!result) {
+        return {
+          content: [{ type: "text", text: `Failed to list AgentMemory MCP prompts; agentmemory may be unreachable at ${displayBaseUrl()}.` }],
+          details: { ok: false, endpoint: "mcp/prompts" },
+        };
+      }
+      if (typeof result.error === "string" && result.error.trim()) {
+        return {
+          content: [{ type: "text", text: `memory_mcp_prompts failed: ${formatMcpPrompts(result)}` }],
+          details: { ok: false, result: sanitizeForLookup(result) },
+        };
+      }
+      return {
+        content: [{ type: "text", text: formatMcpPrompts(result) }],
+        details: { result: sanitizeForLookup(result) },
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "memory_mcp_prompt_get",
+    label: "Memory MCP Prompt Get",
+    description: "Get an AgentMemory MCP prompt by name and arguments; returns prompt text for review, not automatic execution",
+    parameters: Type.Object({
+      name: Type.String({ description: "Prompt name: recall_context, session_handoff, or detect_patterns" }),
+      arguments: Type.Optional(Type.Union([
+        Type.Record(Type.String(), Type.Unknown(), { description: "Prompt arguments object" }),
+        Type.String({ description: "Prompt arguments as a JSON object string" }),
+      ], { description: "Prompt arguments as an object or JSON string" })),
+    }),
+    async execute(_toolCallId, params) {
+      const rawParams = params as ToolParams;
+      const name = typeof rawParams.name === "string" ? rawParams.name.trim() : "";
+      if (!KNOWN_MCP_PROMPTS.has(name)) {
+        return {
+          content: [{ type: "text", text: "Refusing to get AgentMemory MCP prompt: name must be recall_context, session_handoff, or detect_patterns." }],
+          details: { ok: false, reason: "invalid-prompt-name" },
+        };
+      }
+      const parsedArguments = parsePromptArguments(rawParams.arguments);
+      if ("error" in parsedArguments) {
+        return {
+          content: [{ type: "text", text: `Refusing to get AgentMemory MCP prompt: ${parsedArguments.error}.` }],
+          details: { ok: false, reason: "invalid-prompt-arguments" },
+        };
+      }
+      const validationError = validatePromptArguments(name, parsedArguments.args);
+      if (validationError) {
+        return {
+          content: [{ type: "text", text: `Refusing to get AgentMemory MCP prompt: ${validationError}.` }],
+          details: { ok: false, reason: "invalid-prompt-arguments" },
+        };
+      }
+      const args = cleanArgs(parsedArguments.args);
+      const result = await callAgentMemory<McpPromptGetResponse>("mcp/prompts/get", { body: { name, arguments: args } });
+      if (!result) {
+        return {
+          content: [{ type: "text", text: `Failed to get AgentMemory MCP prompt; agentmemory may be unreachable at ${displayBaseUrl()}.` }],
+          details: { ok: false, name },
+        };
+      }
+      if (typeof result.error === "string" && result.error.trim()) {
+        return {
+          content: [{ type: "text", text: `memory_mcp_prompt_get failed: ${formatMcpPromptGet(result)}` }],
+          details: { ok: false, name, result: sanitizeForLookup(result) },
+        };
+      }
+      return {
+        content: [{ type: "text", text: formatMcpPromptGet(result) }],
+        details: { name, result: sanitizeForLookup(result) },
       };
     },
   });

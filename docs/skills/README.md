@@ -4,6 +4,8 @@ Centralized maintenance notes for local Pi skills.
 
 When the user asks to update any skill, first read `local-skill-update-invariants.md`, then read `skill-slimming-process.md`, then read the relevant update-process document. Updating a skill means syncing from upstream, classifying whether to keep/slim/remove it, and reapplying local invariants before validation. Upstream content is input, not final truth.
 
+Bundled extension skills are still Local Skills for maintenance metadata unless an explicit repo policy exempts them.
+
 ## How to ask an agent to update skills
 
 Use one of these prompts:
@@ -77,6 +79,7 @@ Installing a new skill means:
 - `skill-slimming-process.md`: repeatable keep/slim/remove process for skill updates and installs.
 - `installed-skills-trim-verdict.md`: tracked inventory of installed skill slimming decisions.
 - `agent-toolkit-skills-update-process.md`: update workflow for the remaining softaworks agent-toolkit skills.
+- `agentmemory-pi-extension-update-process.md`: update workflow for the Pi-native AgentMemory extension's bundled skill metadata.
 - `astral-python-tools-update-process.md`: update workflow for Astral uv, Ruff, and ty skills.
 - `chrome-devtools-skills-update-process.md`: update workflow for Chrome DevTools MCP skills.
 - `context7-cli-update-process.md`: update workflow for the Context7 CLI skill.

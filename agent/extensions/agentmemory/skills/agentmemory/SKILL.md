@@ -27,6 +27,8 @@ AgentMemory is for durable cross-session memory. It complements, but does not re
 - `memory_commit_lookup` and `memory_commits`: commit/session provenance.
 - `memory_diagnose` and `memory_verify`: read-only diagnostics and provenance checks.
 - `memory_lesson_recall`: recall durable lessons before repeating past mistakes.
+- `memory_mcp_resources` and `memory_mcp_resource_read`: list and read read-only AgentMemory MCP resources.
+- `memory_mcp_prompts` and `memory_mcp_prompt_get`: list prompt templates and return prompt text for review only; do not auto-execute returned prompts.
 - `memory_save`: save durable non-secret facts only when they should survive future sessions.
 
 ## Safety
@@ -42,3 +44,7 @@ AgentMemory is for durable cross-session memory. It complements, but does not re
 - Use Context Mode for current-session indexed output, large command/test/build/log output, and searchable local context.
 - Use CodeGraph for code structure, call flow, impact analysis, and symbol-level reasoning.
 - Use AgentMemory for durable cross-session facts, preferences, prior decisions, session history, file history, and commit provenance.
+
+## Maintenance
+
+This is a Bundled Extension Skill maintained with the Pi-native AgentMemory extension. Update it through `../../../../../docs/skills/agentmemory-pi-extension-update-process.md` and preserve local skill metadata invariants.

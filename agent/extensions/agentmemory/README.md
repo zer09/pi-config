@@ -56,6 +56,10 @@ Default Pi tools:
 - `memory_diagnose` - read-only diagnostics
 - `memory_verify` - provenance verification by memory ID
 - `memory_lesson_recall` - recall durable lessons
+- `memory_mcp_resources` - list read-only AgentMemory MCP resources
+- `memory_mcp_resource_read` - read an exact `agentmemory://` MCP resource URI
+- `memory_mcp_prompts` - list AgentMemory MCP prompt templates
+- `memory_mcp_prompt_get` - return MCP prompt text for review, not automatic execution
 
 Command and lifecycle behavior:
 
@@ -85,6 +89,7 @@ The extension publishes that directory through Pi's `resources_discover` event. 
 - Pi-local secret refusal and AgentMemory output redaction are enabled by default; `PI_AGENTMEMORY_SECURITY_ENABLED=0` disables only those local checks.
 - `memory_save` refuses obvious secret-looking values when security is enabled.
 - Conversation capture redacts obvious secret-looking values before calling `/agentmemory/observe` when security is enabled.
+- MCP resource and prompt wrappers are read-only; prompt wrappers return text for agent review and do not auto-inject or execute returned prompts.
 - Broad, destructive, or mutating AgentMemory tools are not registered by default.
 
 Gated tools reserved for explicit future workflows:
@@ -142,7 +147,7 @@ The checker verifies that every upstream MCP tool is categorized as default, gat
 
 ## Smoke test
 
-Run pi and ask it to use `memory_health`, or call the command directly:
+Run pi and ask it to use `memory_health`, `memory_mcp_resources`, or `memory_mcp_prompts`, or call the command directly:
 
 ```text
 /agentmemory-status

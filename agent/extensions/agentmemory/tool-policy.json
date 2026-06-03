@@ -1,8 +1,8 @@
 {
   "upstream": {
     "source": "src/mcp/tools-registry.ts",
-    "lastCheckedVersion": "0.9.24",
-    "lastCheckedCommit": "fd9e3bd42d6208a33f0ee9de1442fdbb60eab106",
+    "lastCheckedVersion": "0.9.26",
+    "lastCheckedCommit": "3e9011096184de0601550662fdbd90093f2fabca",
     "toolCount": 53
   },
   "localTools": [
@@ -13,6 +13,22 @@
     {
       "name": "memory_search",
       "reason": "Pi-local friendly compatibility alias for quick smart-search output"
+    },
+    {
+      "name": "memory_mcp_resources",
+      "reason": "Pi-local read-only wrapper for listing AgentMemory MCP resources"
+    },
+    {
+      "name": "memory_mcp_resource_read",
+      "reason": "Pi-local read-only wrapper for exact AgentMemory MCP resource URIs"
+    },
+    {
+      "name": "memory_mcp_prompts",
+      "reason": "Pi-local read-only wrapper for listing AgentMemory MCP prompts"
+    },
+    {
+      "name": "memory_mcp_prompt_get",
+      "reason": "Pi-local wrapper for returning AgentMemory MCP prompt text for review only"
     }
   ],
   "defaultTools": [

@@ -1,14 +1,23 @@
 const assert = require("node:assert/strict");
 const { execFileSync } = require("node:child_process");
+const fs = require("node:fs");
 const Module = require("node:module");
 const path = require("node:path");
 
 function resolveGlobalNodeModules() {
+  const candidates = [];
   try {
-    return execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
+    candidates.push(execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim());
   } catch {
-    return path.resolve(path.dirname(process.execPath), "..", "lib", "node_modules");
+    // npm may be unavailable in minimal validation environments.
   }
+  if (process.env.HOME) candidates.push(path.join(process.env.HOME, ".bun", "install", "global", "node_modules"));
+  candidates.push(path.resolve(path.dirname(process.execPath), "..", "lib", "node_modules"));
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, "@earendil-works", "pi-coding-agent"))) return candidate;
+  }
+  return candidates[0];
 }
 
 const globalNodeModules = resolveGlobalNodeModules();
@@ -20,7 +29,16 @@ process.env.NODE_PATH = [
 ].filter(Boolean).join(path.delimiter);
 Module._initPaths();
 
-const { createJiti } = require(path.join(piPackageRoot, "node_modules", "jiti"));
+function requirePiDependency(name) {
+  try {
+    return require(path.join(piPackageRoot, "node_modules", name));
+  } catch (error) {
+    if (error?.code !== "MODULE_NOT_FOUND") throw error;
+    return require(name);
+  }
+}
+
+const { createJiti } = requirePiDependency("jiti");
 
 const extensionPath = path.join(__dirname, "index.ts");
 const securityPath = path.join(__dirname, "security.ts");
@@ -47,6 +65,10 @@ const DEFAULT_TOOL_NAMES = [
   "memory_diagnose",
   "memory_verify",
   "memory_lesson_recall",
+  "memory_mcp_resources",
+  "memory_mcp_resource_read",
+  "memory_mcp_prompts",
+  "memory_mcp_prompt_get",
 ];
 const GATED_TOOL_NAMES = [
   "memory_lesson_save",
@@ -263,6 +285,121 @@ test("MCP isError responses are surfaced as failures", async () => {
     assert.equal(result.details.ok, false);
   } finally {
     harness.cleanup();
+  }
+});
+
+test("memory_mcp_resources lists read-only MCP resources", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url, init) => {
+      assert.match(url, /\/agentmemory\/mcp\/resources$/);
+      assert.equal(init.method, "GET");
+      assert.equal(init.body, undefined);
+      return jsonResponse({
+        resources: [
+          {
+            uri: "agentmemory://status",
+            name: "Agent Memory Status",
+            description: "Current counts",
+            mimeType: "application/json",
+          },
+        ],
+      });
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_mcp_resources");
+    assert.match(textContent(result), /Agent Memory Status/);
+    assert.match(textContent(result), /agentmemory:\/\/status/);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_mcp_resource_read validates URIs and redacts output", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url, init) => {
+      assert.match(url, /\/agentmemory\/mcp\/resources\/read$/);
+      assert.deepEqual(JSON.parse(init.body), { uri: "agentmemory://status" });
+      return jsonResponse({ contents: [{ uri: "agentmemory://status", mimeType: "text/plain", text: "see https://user:pass@example.invalid/path" }] });
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_mcp_resource_read", { uri: "agentmemory://status" });
+    assert.equal(textContent(result), "see https://<redacted>@example.invalid/path");
+    assert.doesNotMatch(JSON.stringify(result), /user|pass/);
+  } finally {
+    harness.cleanup();
+  }
+
+  const invalidHarness = createHarness({
+    fetchHandler: async () => { throw new Error("invalid URI should not fetch"); },
+  });
+  try {
+    const result = await invalidHarness.callTool("memory_mcp_resource_read", { uri: "agentmemory://project/{name}/profile" });
+    assert.match(textContent(result), /Refusing to read AgentMemory MCP resource/);
+    assert.equal(invalidHarness.fetchCalls.length, 0);
+  } finally {
+    invalidHarness.cleanup();
+  }
+});
+
+test("memory_mcp_prompts lists MCP prompt templates", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url, init) => {
+      assert.match(url, /\/agentmemory\/mcp\/prompts$/);
+      assert.equal(init.method, "GET");
+      return jsonResponse({
+        prompts: [
+          {
+            name: "recall_context",
+            description: "Search observations",
+            arguments: [{ name: "task_description", required: true }],
+          },
+        ],
+      });
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_mcp_prompts");
+    assert.match(textContent(result), /recall_context/);
+    assert.match(textContent(result), /task_description required/);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_mcp_prompt_get validates prompt names and parses JSON arguments", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url, init) => {
+      assert.match(url, /\/agentmemory\/mcp\/prompts\/get$/);
+      assert.deepEqual(JSON.parse(init.body), {
+        name: "recall_context",
+        arguments: { task_description: "restore context" },
+      });
+      return jsonResponse({ messages: [{ role: "user", content: { type: "text", text: "Use recalled context only after review." } }] });
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_mcp_prompt_get", {
+      name: "recall_context",
+      arguments: '{"task_description":"restore context"}',
+    });
+    assert.equal(textContent(result), "Use recalled context only after review.");
+  } finally {
+    harness.cleanup();
+  }
+
+  const invalidHarness = createHarness({
+    fetchHandler: async () => { throw new Error("invalid prompt should not fetch"); },
+  });
+  try {
+    const result = await invalidHarness.callTool("memory_mcp_prompt_get", { name: "forget" });
+    assert.match(textContent(result), /name must be recall_context/);
+    const missingArgsResult = await invalidHarness.callTool("memory_mcp_prompt_get", { name: "recall_context" });
+    assert.match(textContent(missingArgsResult), /task_description argument is required/);
+    assert.equal(invalidHarness.fetchCalls.length, 0);
+  } finally {
+    invalidHarness.cleanup();
   }
 });
 

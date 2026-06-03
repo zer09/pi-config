@@ -94,8 +94,8 @@ The current local policy records this upstream baseline:
 
 ```text
 upstream source: src/mcp/tools-registry.ts
-last checked version: 0.9.24
-last checked commit: fd9e3bd42d6208a33f0ee9de1442fdbb60eab106
+last checked version: 0.9.26
+last checked commit: 3e9011096184de0601550662fdbd90093f2fabca
 tool count: 53
 ```
 
@@ -108,8 +108,12 @@ If the upstream clone is newer than this, run the sync workflow below and update
 These are Pi-local wrappers and are not categorized as upstream MCP tools:
 
 ```text
-memory_health  - local AgentMemory REST health check
-memory_search  - friendly compatibility alias for quick smart-search output
+memory_health             - local AgentMemory REST health check
+memory_search             - friendly compatibility alias for quick smart-search output
+memory_mcp_resources      - read-only MCP resource listing wrapper
+memory_mcp_resource_read  - read-only exact MCP resource URI wrapper
+memory_mcp_prompts        - read-only MCP prompt listing wrapper
+memory_mcp_prompt_get     - returns MCP prompt text for review only
 ```
 
 ### Default upstream-backed tools
