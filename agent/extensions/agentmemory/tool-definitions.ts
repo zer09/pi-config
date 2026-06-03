@@ -15,6 +15,7 @@ export const MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
       expandIds: Type.Optional(Type.String({ description: "Comma-separated observation IDs to expand" })),
       limit: OPTIONAL_LIMIT,
     }),
+    guard: (params) => requireNonEmptyString("memory_smart_search", "query", params),
   },
   {
     name: "memory_recall",
@@ -284,6 +285,12 @@ export const GATED_MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
     guard: (params) => guardGatedTool("memory_slot_delete", params),
   },
 ];
+
+function requireNonEmptyString(toolName: string, field: string, params: ToolParams): string | null {
+  const value = params[field];
+  if (typeof value === "string" && value.trim()) return null;
+  return `Refusing ${toolName}: ${field} must be a non-empty string.`;
+}
 
 function normalizeCsv(value: unknown): string {
   return String(value || "")

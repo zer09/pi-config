@@ -16,6 +16,7 @@ import {
   formatMcpResult,
   formatSearchResults,
   getLastAssistantText,
+  getText,
   protectDisplayText,
   protectText,
   sanitizeForLookup,
@@ -49,6 +50,45 @@ type AgentMemoryToolResult = AgentToolResult<ToolParams>;
 
 function gatedToolsEnabled(): boolean {
   return process.env.AGENTMEMORY_PI_ENABLE_GATED === "1";
+}
+
+function sessionHandoffNotFoundMessage(name: string, args: ToolParams, result: McpPromptGetResponse): string | null {
+  if (name !== "session_handoff") return null;
+  const sessionId = typeof args.session_id === "string" ? args.session_id.trim() : "";
+  const text = Array.isArray(result.messages)
+    ? result.messages.map((message) => getText(message.content)).filter(Boolean).join("\n\n")
+    : "";
+  if (!sessionId || !/### Session\s+undefined\b/.test(text) || !/No summary available/.test(text)) return null;
+  return `Session not found: ${protectDisplayText(sessionId)}.`;
+}
+
+function projectPathFallbackUri(uri: string, cwd: string | undefined): string | null {
+  if (!cwd) return null;
+  const match = /^agentmemory:\/\/project\/(.+)\/(profile|recent)$/.exec(uri);
+  if (!match) return null;
+  let projectName: string;
+  try {
+    projectName = decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+  if (!projectName || projectName.includes("/") || projectName.includes("\\")) return null;
+  if (projectName !== basename(cwd)) return null;
+  return `agentmemory://project/${encodeURIComponent(cwd)}/${match[2]}`;
+}
+
+function isEmptyProjectProfile(uri: string, result: McpResourceReadResponse): boolean {
+  if (!/^agentmemory:\/\/project\/.+\/profile$/.test(uri)) return false;
+  const text = Array.isArray(result.contents)
+    ? result.contents.map((content) => typeof content?.text === "string" ? content.text : "").filter(Boolean).join("\n").trim()
+    : "";
+  if (!text) return false;
+  try {
+    const parsed = JSON.parse(text) as { profile?: unknown; reason?: unknown };
+    return parsed.profile === null && parsed.reason === "no_sessions";
+  } catch {
+    return false;
+  }
 }
 
 export default function agentmemoryExtension(pi: ExtensionAPI) {
@@ -106,7 +146,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
           };
         }
         const args = cleanArgs(stripLocalGuardParams(prepared));
-        const result = await callAgentMemoryMcpTool(tool.name, args, "mcp/call");
+        const result = await callAgentMemoryMcpTool(tool.name, args, "mcp/call", { includeHttpErrors: true });
         if (!result) {
           return {
             content: [{ type: "text", text: `Failed to call ${tool.name}; agentmemory may be unreachable at ${displayBaseUrl()}.` }],
@@ -286,7 +326,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     parameters: Type.Object({
       uri: Type.String({ description: "Exact AgentMemory MCP resource URI to read" }),
     }),
-    async execute(_toolCallId, params): Promise<AgentMemoryToolResult> {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx): Promise<AgentMemoryToolResult> {
       const uri = normalizeMcpResourceUri((params as ToolParams).uri);
       if (!uri || !isKnownMcpResourceUri(uri)) {
         return {
@@ -300,22 +340,31 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
           details: { ok: false, reason: "secret-like-uri" },
         };
       }
-      const result = await callAgentMemory<McpResourceReadResponse>("mcp/resources/read", { body: { uri } });
+      let effectiveUri = uri;
+      let result = await callAgentMemory<McpResourceReadResponse>("mcp/resources/read", { body: { uri } });
       if (!result) {
         return {
           content: [{ type: "text", text: `Failed to read AgentMemory MCP resource; agentmemory may be unreachable at ${displayBaseUrl()}.` }],
           details: { ok: false, uri },
         };
       }
+      const fallbackUri = isEmptyProjectProfile(uri, result) ? projectPathFallbackUri(uri, ctx?.cwd || currentProject) : null;
+      if (fallbackUri && !containsBlockedSecret({ uri: fallbackUri })) {
+        const fallbackResult = await callAgentMemory<McpResourceReadResponse>("mcp/resources/read", { body: { uri: fallbackUri } });
+        if (fallbackResult && !(typeof fallbackResult.error === "string" && fallbackResult.error.trim())) {
+          effectiveUri = fallbackUri;
+          result = fallbackResult;
+        }
+      }
       if (typeof result.error === "string" && result.error.trim()) {
         return {
           content: [{ type: "text", text: `memory_mcp_resource_read failed: ${formatMcpResourceRead(result)}` }],
-          details: { ok: false, uri, result: sanitizeForLookup(result) },
+          details: { ok: false, uri: effectiveUri, requestedUri: uri, result: sanitizeForLookup(result) },
         };
       }
       return {
         content: [{ type: "text", text: formatMcpResourceRead(result) }],
-        details: { uri, result: sanitizeForLookup(result) },
+        details: { uri: effectiveUri, requestedUri: uri, result: sanitizeForLookup(result) },
       };
     },
   });
@@ -392,6 +441,13 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
         return {
           content: [{ type: "text", text: `memory_mcp_prompt_get failed: ${formatMcpPromptGet(result)}` }],
           details: { ok: false, name, result: sanitizeForLookup(result) },
+        };
+      }
+      const notFoundMessage = sessionHandoffNotFoundMessage(name, args, result);
+      if (notFoundMessage) {
+        return {
+          content: [{ type: "text", text: notFoundMessage }],
+          details: { ok: false, name, reason: "session-not-found", result: sanitizeForLookup(result) },
         };
       }
       return {

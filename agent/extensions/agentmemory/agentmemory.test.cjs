@@ -198,10 +198,10 @@ function createHarness(options = {}) {
     return result;
   }
 
-  async function callTool(name, params = {}) {
+  async function callTool(name, params = {}, customCtx = ctx) {
     const tool = tools.get(name);
     assert.equal(typeof tool?.execute, "function", `${name} should be registered`);
-    return await tool.execute("tool-1", params);
+    return await tool.execute("tool-1", params, undefined, undefined, customCtx);
   }
 
   return {
@@ -375,6 +375,34 @@ test("MCP isError responses are surfaced as failures", async () => {
     const result = await harness.callTool("memory_smart_search", { query: "prior decision" });
     assert.equal(textContent(result), "memory_smart_search failed: upstream denied request");
     assert.equal(result.details.ok, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("MCP HTTP errors surface upstream errors instead of unreachable", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ error: "Internal error" }, { ok: false, status: 500 }),
+  });
+  try {
+    const result = await harness.callTool("memory_slot_list");
+    assert.equal(textContent(result), "memory_slot_list failed: Internal error");
+    assert.equal(result.details.ok, false);
+    assert.equal(result.details.result.httpStatus, 500);
+    assert.doesNotMatch(textContent(result), /unreachable/);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_smart_search rejects empty queries before network calls", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => { throw new Error("empty query should not fetch"); },
+  });
+  try {
+    const result = await harness.callTool("memory_smart_search", { query: "   " });
+    assert.equal(textContent(result), "Refusing memory_smart_search: query must be a non-empty string.");
+    assert.equal(harness.fetchCalls.length, 0);
   } finally {
     harness.cleanup();
   }
@@ -587,6 +615,28 @@ test("memory_mcp_resource_read validates URIs and redacts output", async () => {
   }
 });
 
+test("memory_mcp_resource_read retries basename project profile resources with cwd path", async () => {
+  const harness = createHarness({
+    fetchHandler: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      if (body.uri === "agentmemory://project/project/profile") {
+        return jsonResponse({ contents: [{ uri: body.uri, mimeType: "application/json", text: JSON.stringify({ profile: null, reason: "no_sessions" }) }] });
+      }
+      assert.equal(body.uri, "agentmemory://project/%2Ftmp%2Fproject/profile");
+      return jsonResponse({ contents: [{ uri: body.uri, mimeType: "application/json", text: JSON.stringify({ profile: { project: "/tmp/project" } }) }] });
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_mcp_resource_read", { uri: "agentmemory://project/project/profile" });
+    assert.match(textContent(result), /"project": "\/tmp\/project"/);
+    assert.equal(harness.fetchCalls.length, 2);
+    assert.equal(result.details.uri, "agentmemory://project/%2Ftmp%2Fproject/profile");
+    assert.equal(result.details.requestedUri, "agentmemory://project/project/profile");
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("memory_mcp_prompts lists MCP prompt templates", async () => {
   const harness = createHarness({
     fetchHandler: async (url, init) => {
@@ -644,6 +694,25 @@ test("memory_mcp_prompt_get validates prompt names and parses JSON arguments", a
     assert.equal(invalidHarness.fetchCalls.length, 0);
   } finally {
     invalidHarness.cleanup();
+  }
+});
+
+test("memory_mcp_prompt_get reports missing session handoffs clearly", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({
+      messages: [{ role: "user", content: { type: "text", text: "## Session Handoff\n\n### Session\nundefined\n\n### Summary\n\"No summary available\"" } }],
+    }),
+  });
+  try {
+    const result = await harness.callTool("memory_mcp_prompt_get", {
+      name: "session_handoff",
+      arguments: { session_id: "missing-session" },
+    });
+    assert.equal(textContent(result), "Session not found: missing-session.");
+    assert.equal(result.details.ok, false);
+    assert.equal(result.details.reason, "session-not-found");
+  } finally {
+    harness.cleanup();
   }
 });
 
