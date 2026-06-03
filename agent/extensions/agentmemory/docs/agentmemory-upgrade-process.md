@@ -41,6 +41,7 @@ It does not automatically upgrade a running AgentMemory server, publish packages
 - Do not replace `agent/extensions/agentmemory/index.ts` with upstream `integrations/pi/index.ts` without reapplying local Pi safety deltas.
 - Do not dynamically grow the active Pi tool list from live server metadata.
 - Do not wire `agentmemory mcp --tools all` into Pi by default.
+- Do not install optional external AgentMemory integration config by default; Codex, GitHub Copilot MCP, OpenCode, OpenClaw, Hermes, generic MCP, Obsidian, team/mesh, and vision/image integrations require an active client/workflow policy.
 - Do not default-expose destructive, broad export, synthesis, coordination, file-writing, team sharing, or workflow automation tools.
 - Keep gated tools behind `AGENTMEMORY_PI_ENABLE_GATED=1` unless there is an explicit policy change.
 - Preserve delegate-child behavior: `PI_DELEGATE_CHILD` must skip AgentMemory tools, hooks, and bundled skill discovery.
@@ -177,6 +178,8 @@ Tools stay not exposed when they rewrite files, export content to files, require
 
 Workflow/task-state tools are default-deny by ADR 0004 (`docs/adr/0004-agentmemory-workflow-state-policy.md`). Do not move action, frontier, lease, signal, checkpoint, sentinel, routine, sketch, or crystallize tools into default or gated exposure unless a future ADR explicitly adopts AgentMemory for that workflow role.
 
+External integrations are default-deny by ADR 0005 (`docs/adr/0005-agentmemory-external-integrations-policy.md`). Keep Claude bridge sync, vision search, team sharing/feed, mesh sync, Obsidian export, generic MCP registration, and other optional external integration config out of the default Pi setup until an active client/workflow policy adopts them.
+
 Current not-exposed tools:
 
 ```text
@@ -223,6 +226,7 @@ mcp-call-endpoint
 gated-env-default-off
 local-confirm-strip
 workflow-state-default-deny
+external-integration-default-deny
 bundled-skill-discovery
 status-output-shape
 ```
@@ -237,6 +241,7 @@ Meaning:
 - gated AgentMemory wrappers stay default-off behind `AGENTMEMORY_PI_ENABLE_GATED=1`
 - local confirmation fields are stripped before forwarding to upstream AgentMemory
 - AgentMemory workflow/task-state tools stay not exposed unless a future ADR adopts that role
+- AgentMemory external integration tools and config stay not exposed or uninstalled unless an active client/workflow policy adopts them
 - the AgentMemory skill stays bundled beside the extension
 - AgentMemory status text shape remains stable unless intentionally changed
 

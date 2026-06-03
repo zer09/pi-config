@@ -192,7 +192,7 @@
     },
     {
       "name": "memory_vision_search",
-      "reason": "Requires optional image embedding provider and is not routine Pi memory recall"
+      "reason": "External image-memory workflow requires embedding provider, storage, privacy, and use-case policy before exposure"
     },
     {
       "name": "memory_relations",
@@ -200,7 +200,7 @@
     },
     {
       "name": "memory_claude_bridge_sync",
-      "reason": "Claude-specific bridge workflow"
+      "reason": "External Claude bridge workflow is not a Pi default and may duplicate Pi capture lifecycle"
     },
     {
       "name": "memory_graph_query",
@@ -208,11 +208,11 @@
     },
     {
       "name": "memory_team_share",
-      "reason": "Team sharing workflow is not a default local Pi operation"
+      "reason": "External team sharing crosses collaboration/privacy boundaries and needs active team policy before exposure"
     },
     {
       "name": "memory_team_feed",
-      "reason": "Team feed workflow is not a default local Pi operation"
+      "reason": "External team feed crosses collaboration/privacy boundaries and needs active team policy before exposure"
     },
     {
       "name": "memory_snapshot_create",
@@ -256,7 +256,7 @@
     },
     {
       "name": "memory_mesh_sync",
-      "reason": "Mesh sync workflow is not default local Pi operation"
+      "reason": "External mesh sync is not a default local Pi operation and needs active multi-agent policy before exposure"
     },
     {
       "name": "memory_sentinel_create",
@@ -288,7 +288,7 @@
     },
     {
       "name": "memory_obsidian_export",
-      "reason": "Exports memory content to files"
+      "reason": "External export writes private memory content to files and needs export-root, scope, confirmation, and redaction policy before exposure"
     }
   ],
   "localInvariants": [
@@ -339,6 +339,12 @@
       "file": "agent/extensions/agentmemory/scripts/check-upstream-sync.mjs",
       "contains": "WORKFLOW_STATE_DEFAULT_DENY",
       "reason": "AgentMemory workflow/task-state tools must remain not exposed unless Pi accepts an ADR for that role"
+    },
+    {
+      "id": "external-integration-default-deny",
+      "file": "agent/extensions/agentmemory/scripts/check-upstream-sync.mjs",
+      "contains": "EXTERNAL_INTEGRATION_DEFAULT_DENY",
+      "reason": "AgentMemory external integration tools must remain not exposed unless there is an active client/workflow policy"
     },
     {
       "id": "bundled-skill-discovery",

@@ -85,6 +85,7 @@ AgentMemory is durable cross-session memory. It complements, but does not replac
 - Use Context Mode for current-session indexed output, large command/test/build/log output, and searchable local context.
 - Use CodeGraph for code structure, call flow, impact analysis, and symbol-level reasoning.
 - Use Pi plans, `handoffs/`, delegates, and normal in-session planning for active workflow/task state. Do not route task management to AgentMemory actions, frontiers, leases, signals, checkpoints, sentinels, routines, sketches, or crystallization unless a future ADR explicitly adopts that role.
+- Do not add or route through optional AgentMemory external integrations such as generic MCP config, Codex/Copilot/OpenCode/OpenClaw/Hermes clients, Obsidian export, team/mesh sharing, or vision/image memory unless an active client/workflow policy adopts them.
 - AgentMemory is disabled in delegate child sessions by default.
 
 ## Maintenance

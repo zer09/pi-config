@@ -38,6 +38,14 @@ const WORKFLOW_STATE_DEFAULT_DENY = new Set([
   "memory_sketch_promote",
   "memory_crystallize",
 ]);
+const EXTERNAL_INTEGRATION_DEFAULT_DENY = new Set([
+  "memory_claude_bridge_sync",
+  "memory_vision_search",
+  "memory_team_share",
+  "memory_team_feed",
+  "memory_mesh_sync",
+  "memory_obsidian_export",
+]);
 
 function readJson(filePath) {
   return JSON.parse(readFileSync(filePath, "utf8"));
@@ -125,6 +133,10 @@ function main() {
   for (const name of sorted(WORKFLOW_STATE_DEFAULT_DENY)) {
     if (!upstreamNameSet.has(name)) continue;
     if (!notExposedNames.has(name)) failures.push(`${name} is AgentMemory workflow/task-state policy and must stay not exposed until an ADR explicitly adopts it`);
+  }
+  for (const name of sorted(EXTERNAL_INTEGRATION_DEFAULT_DENY)) {
+    if (!upstreamNameSet.has(name)) continue;
+    if (!notExposedNames.has(name)) failures.push(`${name} is AgentMemory external-integration policy and must stay not exposed until an active client/workflow policy adopts it`);
   }
 
   for (const entry of categories.defaultTools) {

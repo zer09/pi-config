@@ -131,6 +131,12 @@ AgentMemory remains the durable memory and provenance system for Pi. It is not t
 
 The upstream action, frontier, lease, signal, checkpoint, sentinel, routine, sketch, and crystallize tools stay not exposed by policy. Exposing any of them requires an ADR that updates `docs/adr/0004-agentmemory-workflow-state-policy.md` and explains ownership, migration, and safety gates.
 
+## External integration policy
+
+Do not install upstream Codex, GitHub Copilot MCP, OpenCode, OpenClaw, Hermes, generic MCP, Obsidian export, team/mesh, or vision/image integration config by default. The Pi-native extension is the canonical AgentMemory surface for Pi.
+
+Add an optional external integration only for an active client/workflow and document capture/provenance behavior, security boundaries, and removal path. Tool-backed external integration surfaces such as Obsidian export, team/mesh sharing, and vision search stay not exposed until `docs/adr/0005-agentmemory-external-integrations-policy.md` is updated or superseded.
+
 ## Environment variables
 
 | Variable | Default | Description |
