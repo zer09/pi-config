@@ -1,0 +1,84 @@
+import { KNOWN_MCP_PROMPTS, KNOWN_MCP_RESOURCE_PATTERNS } from "./constants.ts";
+import type { ToolParams } from "./types.ts";
+
+export function isPlainObject(value: unknown): value is ToolParams {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+export function parsePromptArguments(value: unknown): { args: ToolParams } | { error: string } {
+  if (value === undefined || value === "") return { args: {} };
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (!isPlainObject(parsed)) return { error: "arguments JSON must be an object" };
+      return { args: parsed };
+    } catch {
+      return { error: "arguments must be a JSON object string when provided as text" };
+    }
+  }
+  if (!isPlainObject(value)) return { error: "arguments must be an object or JSON object string" };
+  return { args: value };
+}
+
+export function validatePromptArguments(name: string, args: ToolParams): string | null {
+  if (name === "recall_context") {
+    const taskDescription = args.task_description;
+    if (typeof taskDescription !== "string" || !taskDescription.trim()) return "task_description argument is required and must be a string";
+  }
+  if (name === "session_handoff") {
+    const sessionId = args.session_id;
+    if (typeof sessionId !== "string" || !sessionId.trim()) return "session_id argument is required and must be a string";
+  }
+  if (name === "detect_patterns") {
+    const project = args.project;
+    if (project !== undefined && project !== "" && typeof project !== "string") return "project argument must be a string";
+  }
+  return null;
+}
+
+export function normalizeMcpResourceUri(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const uri = value.trim();
+  return uri ? uri : null;
+}
+
+export function isKnownMcpResourceUri(uri: string): boolean {
+  if (!uri.startsWith("agentmemory://")) return false;
+  if (/[{}]/.test(uri)) return false;
+  return KNOWN_MCP_RESOURCE_PATTERNS.some((pattern) => pattern.test(uri));
+}
+
+export function isKnownMcpPromptName(name: string): boolean {
+  return KNOWN_MCP_PROMPTS.has(name);
+}
+
+export function stripLocalGuardParams(params: ToolParams): ToolParams {
+  const { confirm, ...upstreamArgs } = params;
+  return upstreamArgs;
+}
+
+export function isStringOrStringArray(value: unknown): boolean {
+  return typeof value === "string" || (Array.isArray(value) && value.every((entry) => typeof entry === "string"));
+}
+
+export function hasInvalidSaveParams(params: ToolParams): boolean {
+  if (typeof params.content !== "string") return true;
+  if (params.type !== undefined && params.type !== "" && typeof params.type !== "string") return true;
+  if (params.project !== undefined && params.project !== "" && typeof params.project !== "string") return true;
+  for (const key of ["concepts", "files"] as const) {
+    const value = params[key];
+    if (value !== undefined && value !== "" && !isStringOrStringArray(value)) return true;
+  }
+  return false;
+}
+
+export function normalizeSaveParams(params: ToolParams): ToolParams {
+  const normalized: ToolParams = { content: params.content };
+  for (const key of ["type", "concepts", "files", "project"] as const) {
+    const value = params[key];
+    if (value === undefined || value === "") continue;
+    normalized[key] = Array.isArray(value) ? value.filter((entry) => entry.trim()).join(",") : value;
+  }
+  if (!normalized.type) normalized.type = "fact";
+  return normalized;
+}

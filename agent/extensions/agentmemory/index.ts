@@ -1,866 +1,54 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { basename } from "node:path";
 import { Type } from "typebox";
+
+import { callAgentMemory, callAgentMemoryMcpTool, configuredBaseUrl, displayBaseUrl, guardPlaintextBearerAuth } from "./client.ts";
+import { SKILLS_DIR, TOOL_GUIDANCE } from "./constants.ts";
+import { buildPiDiagnostics, formatPiDiagnosticsFooter, formatPolicyDriftWarning, isFollowupDiagnostic } from "./diagnostics.ts";
 import {
-  containsSecretLikeContent,
-  createPlaintextBearerAuthGuard,
-  isSecurityEnabled,
-  redactSecretLikeText,
-  redactSecretLikeValue,
-  sanitizeTextForDisplay,
-  sanitizeUrlForDisplay,
-} from "./security.js";
+  cleanArgs,
+  containsBlockedSecret,
+  formatMcpPromptGet,
+  formatMcpPrompts,
+  formatMcpResourceRead,
+  formatMcpResources,
+  formatMcpResult,
+  formatSearchResults,
+  getLastAssistantText,
+  protectDisplayText,
+  protectText,
+  sanitizeForLookup,
+} from "./formatting.ts";
+import {
+  hasInvalidSaveParams,
+  isKnownMcpPromptName,
+  isKnownMcpResourceUri,
+  normalizeMcpResourceUri,
+  normalizeSaveParams,
+  parsePromptArguments,
+  stripLocalGuardParams,
+  validatePromptArguments,
+} from "./params.ts";
+import { OPTIONAL_PROJECT, STRING_OR_STRING_ARRAY } from "./schemas.ts";
+import { GATED_MCP_TOOL_DEFINITIONS, MCP_TOOL_DEFINITIONS } from "./tool-definitions.ts";
+import type {
+  AgentMemoryStatusContext,
+  FollowupDiagnosticResponse,
+  HealthResponse,
+  McpPromptGetResponse,
+  McpPromptsResponse,
+  McpResourceReadResponse,
+  McpResourcesResponse,
+  McpToolDefinition,
+  SmartSearchResult,
+  ToolParams,
+} from "./types.ts";
 
-type TextBlock = { type?: string; text?: string };
-type AssistantMessage = { role?: string; content?: unknown };
-type SmartSearchResult = {
-  title?: string;
-  narrative?: string;
-  type?: string;
-  combinedScore?: number;
-  score?: number;
-  observation?: {
-    title?: string;
-    narrative?: string;
-    type?: string;
-  };
-};
-
-type HealthResponse = {
-  status?: string;
-  service?: string;
-  version?: string;
-  health?: {
-    status?: string;
-    notes?: string[];
-  };
-};
-
-type FollowupDiagnosticResponse = {
-  success?: boolean;
-  windowSeconds?: number;
-  agentInitiatedSearches?: number;
-  followupWithinWindow?: number;
-  rate?: number;
-  caveat?: string;
-  [key: string]: unknown;
-};
-
-type PolicyMetadata = {
-  lastCheckedVersion?: string;
-  lastCheckedCommit?: string;
-  toolCount?: number;
-};
-
-type McpToolResponse = {
-  content?: TextBlock[];
-  error?: string;
-  isError?: boolean;
-  [key: string]: unknown;
-};
-
-type McpResource = {
-  uri?: string;
-  name?: string;
-  description?: string;
-  mimeType?: string;
-};
-type McpResourceContent = {
-  uri?: string;
-  mimeType?: string;
-  text?: string;
-};
-type McpResourcesResponse = {
-  resources?: McpResource[];
-  error?: string;
-  [key: string]: unknown;
-};
-type McpResourceReadResponse = {
-  contents?: McpResourceContent[];
-  error?: string;
-  [key: string]: unknown;
-};
-type McpPromptArgument = {
-  name?: string;
-  description?: string;
-  required?: boolean;
-};
-type McpPrompt = {
-  name?: string;
-  description?: string;
-  arguments?: McpPromptArgument[];
-};
-type McpPromptsResponse = {
-  prompts?: McpPrompt[];
-  error?: string;
-  [key: string]: unknown;
-};
-type McpPromptMessage = {
-  role?: string;
-  content?: unknown;
-};
-type McpPromptGetResponse = {
-  messages?: McpPromptMessage[];
-  error?: string;
-  [key: string]: unknown;
-};
-
-type ToolParams = Record<string, unknown>;
-type McpToolDefinition = {
-  name: string;
-  label: string;
-  description: string;
-  parameters: ReturnType<typeof Type.Object>;
-  prepare?: (params: ToolParams) => ToolParams;
-  guard?: (params: ToolParams) => string | null;
-};
-
-const DEFAULT_URL = process.env.AGENTMEMORY_URL || "http://localhost:3111";
-const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
-const SKILLS_DIR = join(EXTENSION_DIR, "skills");
-const TOOL_POLICY_PATH = join(EXTENSION_DIR, "tool-policy.json");
-const LOCAL_POLICY_METADATA = readPolicyMetadata();
-const guardPlaintextBearerAuth = createPlaintextBearerAuthGuard();
-const TOOL_GUIDANCE = [
-  "agentmemory is available for cross-session memory.",
-  "Use memory_search or memory_smart_search to recall prior decisions, preferences, bugs, and workflows.",
-  "Use memory_file_history for file-specific prior work and memory_commit_lookup for commit provenance.",
-  "Use memory_save only for durable non-secret facts worth remembering beyond this session.",
-].join(" ");
-
-const OPTIONAL_LIMIT = Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 10, description: "Maximum results" }));
-const OPTIONAL_PROJECT = Type.Optional(Type.String({ description: "Project identifier" }));
-const STRING_OR_STRING_ARRAY = (description: string) => Type.Union([
-  Type.String({ description }),
-  Type.Array(Type.String(), { description }),
-]);
-
-const KNOWN_MCP_RESOURCE_PATTERNS: RegExp[] = [
-  /^agentmemory:\/\/status$/,
-  /^agentmemory:\/\/project\/[^/{}]+\/profile$/,
-  /^agentmemory:\/\/project\/[^/{}]+\/recent$/,
-  /^agentmemory:\/\/memories\/latest$/,
-  /^agentmemory:\/\/graph\/stats$/,
-  /^agentmemory:\/\/team\/[^/{}]+\/profile$/,
-];
-const KNOWN_MCP_PROMPTS = new Set(["recall_context", "session_handoff", "detect_patterns"]);
-
-const GATED_CONFIRM = (phrase: string) => Type.String({ description: `Required exact confirmation phrase: ${phrase}` });
-
-const MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
-  {
-    name: "memory_smart_search",
-    label: "Memory Smart Search",
-    description: "Hybrid semantic and keyword search over AgentMemory with progressive disclosure",
-    parameters: Type.Object({
-      query: Type.String({ description: "Search query" }),
-      expandIds: Type.Optional(Type.String({ description: "Comma-separated observation IDs to expand" })),
-      limit: OPTIONAL_LIMIT,
-    }),
-  },
-  {
-    name: "memory_recall",
-    label: "Memory Recall",
-    description: "Recall relevant observations from prior AgentMemory sessions",
-    parameters: Type.Object({
-      query: Type.String({ description: "Search query" }),
-      limit: OPTIONAL_LIMIT,
-      format: Type.Optional(Type.Union([
-        Type.Literal("full"),
-        Type.Literal("compact"),
-        Type.Literal("narrative"),
-      ], { description: "Result format" })),
-      token_budget: Type.Optional(Type.Integer({ minimum: 1, description: "Optional token budget" })),
-    }),
-  },
-  {
-    name: "memory_sessions",
-    label: "Memory Sessions",
-    description: "List recent AgentMemory sessions with status and observation counts",
-    parameters: Type.Object({}),
-  },
-  {
-    name: "memory_file_history",
-    label: "Memory File History",
-    description: "Get AgentMemory history for specific files",
-    parameters: Type.Object({
-      files: STRING_OR_STRING_ARRAY("Comma-separated file paths or an array of file paths"),
-      sessionId: Type.Optional(Type.String({ description: "Current session ID to exclude" })),
-    }),
-    prepare(params) {
-      const files = params.files;
-      return {
-        ...params,
-        files: Array.isArray(files) ? files.filter((file) => typeof file === "string" && file.trim()).join(",") : files,
-      };
-    },
-  },
-  {
-    name: "memory_timeline",
-    label: "Memory Timeline",
-    description: "Get chronological AgentMemory observations around an anchor point",
-    parameters: Type.Object({
-      anchor: Type.String({ description: "Anchor point: ISO date or keyword" }),
-      project: OPTIONAL_PROJECT,
-      before: Type.Optional(Type.Integer({ minimum: 0, description: "Observations before anchor" })),
-      after: Type.Optional(Type.Integer({ minimum: 0, description: "Observations after anchor" })),
-    }),
-  },
-  {
-    name: "memory_patterns",
-    label: "Memory Patterns",
-    description: "Detect recurring patterns across AgentMemory sessions",
-    parameters: Type.Object({
-      project: OPTIONAL_PROJECT,
-    }),
-  },
-  {
-    name: "memory_profile",
-    label: "Memory Profile",
-    description: "Read a user or project AgentMemory profile with concepts and file patterns",
-    parameters: Type.Object({
-      project: Type.String({ description: "Stable project identifier" }),
-      refresh: Type.Optional(Type.Boolean({ description: "Force profile rebuild" })),
-    }),
-  },
-  {
-    name: "memory_commit_lookup",
-    label: "Memory Commit Lookup",
-    description: "Look up AgentMemory sessions linked to a git commit SHA",
-    parameters: Type.Object({
-      sha: Type.String({ description: "Full git commit SHA" }),
-    }),
-  },
-  {
-    name: "memory_commits",
-    label: "Memory Commits",
-    description: "List recent commits linked to AgentMemory sessions",
-    parameters: Type.Object({
-      branch: Type.Optional(Type.String({ description: "Filter by branch name" })),
-      repo: Type.Optional(Type.String({ description: "Filter by remote URL" })),
-      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 500, default: 100, description: "Maximum commits" })),
-    }),
-  },
-  {
-    name: "memory_diagnose",
-    label: "Memory Diagnose",
-    description: "Run read-only AgentMemory diagnostics",
-    parameters: Type.Object({
-      categories: Type.Optional(Type.String({ description: "Comma-separated diagnostic categories" })),
-    }),
-  },
-  {
-    name: "memory_verify",
-    label: "Memory Verify",
-    description: "Verify and inspect provenance for an AgentMemory ID",
-    parameters: Type.Object({
-      id: Type.String({ description: "Memory or observation ID to verify" }),
-    }),
-  },
-  {
-    name: "memory_lesson_recall",
-    label: "Memory Lesson Recall",
-    description: "Recall durable lessons from AgentMemory",
-    parameters: Type.Object({
-      query: Type.String({ description: "Lesson search query" }),
-      project: OPTIONAL_PROJECT,
-      limit: OPTIONAL_LIMIT,
-      minConfidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1, description: "Minimum confidence" })),
-    }),
-  },
-  {
-    name: "memory_slot_list",
-    label: "Memory Slot List",
-    description: "List read-only AgentMemory slots, including pinned, project, and global slots",
-    parameters: Type.Object({}),
-  },
-  {
-    name: "memory_slot_get",
-    label: "Memory Slot Get",
-    description: "Read one AgentMemory slot by label",
-    parameters: Type.Object({
-      label: Type.String({ description: "Slot label" }),
-    }),
-  },
-];
-
-const GATED_MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
-  {
-    name: "memory_export",
-    label: "Memory Export",
-    description: "Export all AgentMemory data as JSON; gated broad private operation",
-    parameters: Type.Object({
-      confirm: GATED_CONFIRM("export agentmemory"),
-    }),
-    guard: (params) => guardGatedTool("memory_export", params),
-  },
-  {
-    name: "memory_consolidate",
-    label: "Memory Consolidate",
-    description: "Run the AgentMemory memory consolidation pipeline; gated mutating operation",
-    parameters: Type.Object({
-      tier: Type.Optional(Type.String({ description: "Target tier: episodic, semantic, or procedural" })),
-    }),
-    guard: (params) => guardGatedTool("memory_consolidate", params),
-  },
-  {
-    name: "memory_audit",
-    label: "Memory Audit",
-    description: "View AgentMemory audit trail entries; gated broad private inspection",
-    parameters: Type.Object({
-      operation: Type.Optional(Type.String({ description: "Filter by operation type" })),
-      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 500, default: 50, description: "Maximum audit entries" })),
-    }),
-    guard: (params) => guardGatedTool("memory_audit", params),
-  },
-  {
-    name: "memory_governance_delete",
-    label: "Memory Governance Delete",
-    description: "Delete specific AgentMemory memories with audit trail; gated destructive operation",
-    parameters: Type.Object({
-      memoryIds: Type.String({ description: "Comma-separated memory IDs to delete" }),
-      reason: Type.Optional(Type.String({ description: "Reason for deletion" })),
-      confirm: GATED_CONFIRM("delete memories:<comma-separated sorted ids>"),
-    }),
-    guard: (params) => guardGatedTool("memory_governance_delete", params),
-  },
-  {
-    name: "memory_heal",
-    label: "Memory Heal",
-    description: "Auto-fix AgentMemory diagnostic issues; gated mutating operation unless dryRun is true",
-    parameters: Type.Object({
-      categories: Type.Optional(Type.String({ description: "Comma-separated categories to heal" })),
-      dryRun: Type.Optional(Type.Union([
-        Type.Boolean({ description: "Report fixes without applying them" }),
-        Type.String({ description: "Set to 'true' for dry run" }),
-      ])),
-      confirm: Type.Optional(GATED_CONFIRM("heal agentmemory")),
-    }),
-    guard: (params) => guardGatedTool("memory_heal", params),
-  },
-  {
-    name: "memory_lesson_save",
-    label: "Memory Lesson Save",
-    description: "Save a durable lesson learned; gated additional write path",
-    parameters: Type.Object({
-      content: Type.String({ description: "The lesson learned" }),
-      context: Type.Optional(Type.String({ description: "When or where this lesson applies" })),
-      confidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1, description: "Initial confidence" })),
-      project: OPTIONAL_PROJECT,
-      tags: Type.Optional(Type.String({ description: "Comma-separated tags" })),
-    }),
-    guard: (params) => guardGatedTool("memory_lesson_save", params),
-  },
-  {
-    name: "memory_reflect",
-    label: "Memory Reflect",
-    description: "Synthesize higher-order AgentMemory insights via reflection; gated LLM-backed operation",
-    parameters: Type.Object({
-      project: OPTIONAL_PROJECT,
-      maxClusters: Type.Optional(Type.Integer({ minimum: 1, maximum: 20, description: "Maximum concept clusters to process" })),
-    }),
-    guard: (params) => guardGatedTool("memory_reflect", params),
-  },
-  {
-    name: "memory_insight_list",
-    label: "Memory Insight List",
-    description: "List synthesized AgentMemory insights; gated broad private inspection",
-    parameters: Type.Object({
-      project: OPTIONAL_PROJECT,
-      minConfidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1, description: "Minimum confidence threshold" })),
-      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 500, default: 50, description: "Maximum insights" })),
-    }),
-    guard: (params) => guardGatedTool("memory_insight_list", params),
-  },
-  {
-    name: "memory_slot_create",
-    label: "Memory Slot Create",
-    description: "Create a named AgentMemory slot; gated persistent-state write",
-    parameters: Type.Object({
-      label: Type.String({ description: "Slot label" }),
-      content: Type.Optional(Type.String({ description: "Initial slot content" })),
-      sizeLimit: Type.Optional(Type.Integer({ minimum: 1, maximum: 20000, description: "Maximum characters" })),
-      description: Type.Optional(Type.String({ description: "What this slot is for" })),
-      pinned: Type.Optional(Type.Union([
-        Type.Boolean({ description: "Whether to include in context injection" }),
-        Type.String({ description: "'false' to exclude from context injection" }),
-      ])),
-      scope: Type.Optional(Type.Union([
-        Type.Literal("project"),
-        Type.Literal("global"),
-      ], { description: "Slot scope" })),
-      confirm: GATED_CONFIRM("create slot:<label>"),
-    }),
-    guard: (params) => guardGatedTool("memory_slot_create", params),
-  },
-  {
-    name: "memory_slot_append",
-    label: "Memory Slot Append",
-    description: "Append text to an AgentMemory slot; gated persistent-state write",
-    parameters: Type.Object({
-      label: Type.String({ description: "Slot label" }),
-      text: Type.String({ description: "Text to append" }),
-      confirm: GATED_CONFIRM("append slot:<label>"),
-    }),
-    guard: (params) => guardGatedTool("memory_slot_append", params),
-  },
-  {
-    name: "memory_slot_replace",
-    label: "Memory Slot Replace",
-    description: "Replace AgentMemory slot content; gated persistent-state overwrite",
-    parameters: Type.Object({
-      label: Type.String({ description: "Slot label" }),
-      content: Type.String({ description: "New full content" }),
-      confirm: GATED_CONFIRM("replace slot:<label>"),
-    }),
-    guard: (params) => guardGatedTool("memory_slot_replace", params),
-  },
-  {
-    name: "memory_slot_delete",
-    label: "Memory Slot Delete",
-    description: "Delete an AgentMemory slot; gated destructive persistent-state operation",
-    parameters: Type.Object({
-      label: Type.String({ description: "Slot label" }),
-      confirm: GATED_CONFIRM("delete slot:<label>"),
-    }),
-    guard: (params) => guardGatedTool("memory_slot_delete", params),
-  },
-];
-
-function normalizeBaseUrl(url: string): string {
-  const trimmed = url.trim();
-  try {
-    const parsed = new URL(trimmed);
-    parsed.username = "";
-    parsed.password = "";
-    parsed.search = "";
-    parsed.hash = "";
-    return parsed.toString()
-      .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/?#@]+(?::[^\s/?#@]*)?@/gi, "$1")
-      .replace(/\/+$/, "");
-  } catch {
-    return trimmed
-      .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/?#@]+(?::[^\s/?#@]*)?@/gi, "$1")
-      .replace(/[?#].*$/, "")
-      .replace(/\/+$/, "");
-  }
-}
-
-function configuredBaseUrl(): string {
-  return normalizeBaseUrl(process.env.AGENTMEMORY_URL || DEFAULT_URL);
-}
-
-function displayBaseUrl(): string {
-  return sanitizeUrlForDisplay(configuredBaseUrl());
-}
-
-function getText(content: unknown): string {
-  if (typeof content === "string") return content;
-  const parts = Array.isArray(content) ? content : [content];
-  return parts
-    .flatMap((part) => {
-      if (!part || typeof part !== "object") return [] as string[];
-      const block = part as TextBlock;
-      if ((block.type === undefined || block.type === "text") && typeof block.text === "string") return [block.text];
-      return [] as string[];
-    })
-    .join("\n")
-    .trim();
-}
-
-function getLastAssistantText(messages: unknown[]): string {
-  for (const msg of [...messages].reverse()) {
-    if (!msg || typeof msg !== "object") continue;
-    const assistant = msg as AssistantMessage;
-    if (assistant.role !== "assistant") continue;
-    const text = getText(assistant.content);
-    if (text) return text;
-  }
-  return "";
-}
-
-function securityEnabled(): boolean {
-  return isSecurityEnabled(process.env);
-}
-
-function containsBlockedSecret(value: unknown): boolean {
-  return securityEnabled() && containsSecretLikeContent(value);
-}
-
-function protectText(text: string): string {
-  return securityEnabled() ? redactSecretLikeText(text) : text;
-}
-
-function protectDisplayText(text: string): string {
-  return securityEnabled() ? sanitizeTextForDisplay(text) : text;
-}
-
-function protectValue(value: unknown): unknown {
-  return securityEnabled() ? redactSecretLikeValue(value) : value;
-}
-
-function readPolicyMetadata(): PolicyMetadata {
-  try {
-    const parsed = JSON.parse(readFileSync(TOOL_POLICY_PATH, "utf8")) as { upstream?: PolicyMetadata };
-    const upstream = parsed.upstream || {};
-    return {
-      lastCheckedVersion: typeof upstream.lastCheckedVersion === "string" ? upstream.lastCheckedVersion : undefined,
-      lastCheckedCommit: typeof upstream.lastCheckedCommit === "string" ? upstream.lastCheckedCommit : undefined,
-      toolCount: typeof upstream.toolCount === "number" ? upstream.toolCount : undefined,
-    };
-  } catch {
-    return {};
-  }
-}
-
-function formatSearchResults(results: SmartSearchResult[]): string {
-  if (!results.length) return "No relevant memories found.";
-  return results
-    .slice(0, 5)
-    .map((result, index) => {
-      const obs = result.observation ?? result;
-      const title = protectDisplayText(obs.title?.trim() || `Memory ${index + 1}`);
-      const narrative = protectDisplayText(obs.narrative?.trim() || "");
-      const type = protectDisplayText(obs.type?.trim() || "memory");
-      const score = result.combinedScore ?? result.score;
-      const scoreText = typeof score === "number" ? ` [score=${score.toFixed(3)}]` : "";
-      return `- ${title} (${type})${scoreText}${narrative ? `: ${narrative}` : ""}`;
-    })
-    .join("\n");
-}
-
-function formatMcpResult(result: McpToolResponse): string {
-  const text = getText(result.content);
-  if (text) return protectDisplayText(text);
-  if (typeof result.error === "string" && result.error.trim()) return protectDisplayText(result.error.trim());
-  return protectDisplayText(JSON.stringify(protectValue(result), null, 2));
-}
-
-function formatJsonResult(value: unknown): string {
-  return protectDisplayText(JSON.stringify(protectValue(value), null, 2));
-}
-
-function normalizeVersion(value: unknown): string {
-  return typeof value === "string" ? value.trim().replace(/^v/i, "") : "";
-}
-
-function finiteNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function policyDriftWarning(health: HealthResponse | null | undefined): string | null {
-  const localVersion = normalizeVersion(LOCAL_POLICY_METADATA.lastCheckedVersion);
-  const serverVersion = normalizeVersion(health?.version);
-  if (!localVersion || !serverVersion || localVersion === serverVersion) return null;
-  return `local Pi policy last checked against AgentMemory v${localVersion}, but server reports v${serverVersion}`;
-}
-
-function formatPolicyDriftWarning(health: HealthResponse | null | undefined): string | null {
-  const warning = policyDriftWarning(health);
-  return warning ? protectDisplayText(`policy drift warning: ${warning}`) : null;
-}
-
-function isFollowupDiagnostic(value: unknown): value is FollowupDiagnosticResponse {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const candidate = value as FollowupDiagnosticResponse;
-  return finiteNumber(candidate.agentInitiatedSearches) !== null
-    && finiteNumber(candidate.followupWithinWindow) !== null
-    && finiteNumber(candidate.rate) !== null;
-}
-
-function formatFollowupDiagnostic(result: FollowupDiagnosticResponse | null): string | null {
-  if (!isFollowupDiagnostic(result)) return null;
-  const total = result.agentInitiatedSearches || 0;
-  const followups = result.followupWithinWindow || 0;
-  const windowSeconds = finiteNumber(result.windowSeconds);
-  const rate = finiteNumber(result.rate);
-  const rateText = rate === null ? "unknown rate" : `${(rate * 100).toFixed(1)}%`;
-  const windowText = windowSeconds === null ? "the configured window" : `${windowSeconds}s`;
-  const caveat = typeof result.caveat === "string" && result.caveat.trim()
-    ? ` ${result.caveat.trim()}`
-    : "";
-  return protectDisplayText(`smart-search followup diagnostic: ${followups}/${total} agent searches followed up within ${windowText} (${rateText}).${caveat}`);
-}
-
-function buildPiDiagnostics(health: HealthResponse | null | undefined, followup: FollowupDiagnosticResponse | null) {
-  const policyWarning = policyDriftWarning(health);
-  return {
-    policy: {
-      lastCheckedVersion: LOCAL_POLICY_METADATA.lastCheckedVersion || null,
-      lastCheckedCommit: LOCAL_POLICY_METADATA.lastCheckedCommit || null,
-      serverVersion: health?.version || null,
-      warning: policyWarning,
-    },
-    followup: isFollowupDiagnostic(followup) ? followup : null,
-  };
-}
-
-function formatPiDiagnosticsFooter(health: HealthResponse | null | undefined, followup: FollowupDiagnosticResponse | null): string {
-  const lines = [
-    formatPolicyDriftWarning(health),
-    formatFollowupDiagnostic(followup),
-  ].filter((line): line is string => Boolean(line));
-  return lines.length ? `Pi diagnostics:\n${lines.map((line) => `- ${line}`).join("\n")}` : "";
-}
-
-function formatMcpResources(result: McpResourcesResponse): string {
-  const resources = Array.isArray(result.resources) ? result.resources : [];
-  if (!resources.length) {
-    if (typeof result.error === "string" && result.error.trim()) return protectDisplayText(result.error.trim());
-    return formatJsonResult(result);
-  }
-  return resources
-    .map((resource) => {
-      const name = protectDisplayText(resource.name?.trim() || "Unnamed resource");
-      const uri = protectDisplayText(resource.uri?.trim() || "UNKNOWN");
-      const description = protectDisplayText(resource.description?.trim() || "No description");
-      const mimeType = protectDisplayText(resource.mimeType?.trim() || "unknown MIME type");
-      return `- ${name} (${uri}, ${mimeType}): ${description}`;
-    })
-    .join("\n");
-}
-
-function formatMcpResourceRead(result: McpResourceReadResponse): string {
-  const contents = Array.isArray(result.contents) ? result.contents : [];
-  const text = contents
-    .map((content) => typeof content?.text === "string" ? content.text : "")
-    .filter(Boolean)
-    .join("\n\n")
-    .trim();
-  if (text) return protectDisplayText(text);
-  if (typeof result.error === "string" && result.error.trim()) return protectDisplayText(result.error.trim());
-  return formatJsonResult(result);
-}
-
-function formatMcpPrompts(result: McpPromptsResponse): string {
-  const prompts = Array.isArray(result.prompts) ? result.prompts : [];
-  if (!prompts.length) {
-    if (typeof result.error === "string" && result.error.trim()) return protectDisplayText(result.error.trim());
-    return formatJsonResult(result);
-  }
-  return prompts
-    .map((prompt) => {
-      const name = protectDisplayText(prompt.name?.trim() || "Unnamed prompt");
-      const description = protectDisplayText(prompt.description?.trim() || "No description");
-      const args = Array.isArray(prompt.arguments) && prompt.arguments.length
-        ? prompt.arguments.map((arg) => `${protectDisplayText(arg.name?.trim() || "argument")}${arg.required ? " required" : " optional"}`).join(", ")
-        : "no arguments";
-      return `- ${name}: ${description} (args: ${args})`;
-    })
-    .join("\n");
-}
-
-function formatMcpPromptGet(result: McpPromptGetResponse): string {
-  const messages = Array.isArray(result.messages) ? result.messages : [];
-  const text = messages
-    .map((message) => getText(message.content))
-    .filter(Boolean)
-    .join("\n\n")
-    .trim();
-  if (text) return protectDisplayText(text);
-  if (typeof result.error === "string" && result.error.trim()) return protectDisplayText(result.error.trim());
-  return formatJsonResult(result);
-}
-
-function isPlainObject(value: unknown): value is ToolParams {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-function parsePromptArguments(value: unknown): { args: ToolParams } | { error: string } {
-  if (value === undefined || value === "") return { args: {} };
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      if (!isPlainObject(parsed)) return { error: "arguments JSON must be an object" };
-      return { args: parsed };
-    } catch {
-      return { error: "arguments must be a JSON object string when provided as text" };
-    }
-  }
-  if (!isPlainObject(value)) return { error: "arguments must be an object or JSON object string" };
-  return { args: value };
-}
-
-function validatePromptArguments(name: string, args: ToolParams): string | null {
-  if (name === "recall_context") {
-    const taskDescription = args.task_description;
-    if (typeof taskDescription !== "string" || !taskDescription.trim()) return "task_description argument is required and must be a string";
-  }
-  if (name === "session_handoff") {
-    const sessionId = args.session_id;
-    if (typeof sessionId !== "string" || !sessionId.trim()) return "session_id argument is required and must be a string";
-  }
-  if (name === "detect_patterns") {
-    const project = args.project;
-    if (project !== undefined && project !== "" && typeof project !== "string") return "project argument must be a string";
-  }
-  return null;
-}
-
-function normalizeMcpResourceUri(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const uri = value.trim();
-  return uri ? uri : null;
-}
-
-function isKnownMcpResourceUri(uri: string): boolean {
-  if (!uri.startsWith("agentmemory://")) return false;
-  if (/[{}]/.test(uri)) return false;
-  return KNOWN_MCP_RESOURCE_PATTERNS.some((pattern) => pattern.test(uri));
-}
+type AgentMemoryToolResult = AgentToolResult<ToolParams>;
 
 function gatedToolsEnabled(): boolean {
   return process.env.AGENTMEMORY_PI_ENABLE_GATED === "1";
-}
-
-function stripLocalGuardParams(params: ToolParams): ToolParams {
-  const { confirm, ...upstreamArgs } = params;
-  return upstreamArgs;
-}
-
-function normalizeCsv(value: unknown): string {
-  return String(value || "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .sort()
-    .join(",");
-}
-
-function normalizedLabel(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function isDryRun(value: unknown): boolean {
-  return value === true || (typeof value === "string" && value.trim().toLowerCase() === "true");
-}
-
-function confirmationForGatedTool(name: string, params: ToolParams): { expected?: string; error?: string } {
-  switch (name) {
-    case "memory_export":
-      return { expected: "export agentmemory" };
-    case "memory_governance_delete": {
-      const ids = normalizeCsv(params.memoryIds);
-      if (!ids) return { error: "memoryIds is required before confirmation" };
-      return { expected: `delete memories:${ids}` };
-    }
-    case "memory_heal":
-      return isDryRun(params.dryRun) ? {} : { expected: "heal agentmemory" };
-    case "memory_slot_create": {
-      const label = normalizedLabel(params.label);
-      if (!label) return { error: "label is required before confirmation" };
-      return { expected: `create slot:${label}` };
-    }
-    case "memory_slot_append": {
-      const label = normalizedLabel(params.label);
-      if (!label) return { error: "label is required before confirmation" };
-      return { expected: `append slot:${label}` };
-    }
-    case "memory_slot_replace": {
-      const label = normalizedLabel(params.label);
-      if (!label) return { error: "label is required before confirmation" };
-      return { expected: `replace slot:${label}` };
-    }
-    case "memory_slot_delete": {
-      const label = normalizedLabel(params.label);
-      if (!label) return { error: "label is required before confirmation" };
-      return { expected: `delete slot:${label}` };
-    }
-    default:
-      return {};
-  }
-}
-
-function guardGatedTool(name: string, params: ToolParams): string | null {
-  const upstreamArgs = stripLocalGuardParams(params);
-  if (containsBlockedSecret(upstreamArgs)) {
-    return "Refusing gated AgentMemory operation: parameters appear to contain a secret-looking value. Replace credential values with environment variable names or placeholders.";
-  }
-  const confirmation = confirmationForGatedTool(name, params);
-  if (confirmation.error) return `Refusing gated AgentMemory operation: ${confirmation.error}.`;
-  if (!confirmation.expected) return null;
-  const actual = typeof params.confirm === "string" ? params.confirm.trim() : "";
-  if (actual === confirmation.expected) return null;
-  return `Refusing gated AgentMemory operation. Set confirm to ${JSON.stringify(confirmation.expected)} to proceed.`;
-}
-
-function cleanArgs(params: ToolParams): ToolParams {
-  const args: ToolParams = {};
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === "") continue;
-    args[key] = sanitizeForLookup(value);
-  }
-  return args;
-}
-
-function sanitizeForLookup(value: unknown): unknown {
-  return protectValue(value);
-}
-
-function isStringOrStringArray(value: unknown): boolean {
-  return typeof value === "string" || (Array.isArray(value) && value.every((entry) => typeof entry === "string"));
-}
-
-function hasInvalidSaveParams(params: ToolParams): boolean {
-  if (typeof params.content !== "string") return true;
-  if (params.type !== undefined && params.type !== "" && typeof params.type !== "string") return true;
-  if (params.project !== undefined && params.project !== "" && typeof params.project !== "string") return true;
-  for (const key of ["concepts", "files"] as const) {
-    const value = params[key];
-    if (value !== undefined && value !== "" && !isStringOrStringArray(value)) return true;
-  }
-  return false;
-}
-
-function normalizeSaveParams(params: ToolParams): ToolParams {
-  const normalized: ToolParams = { content: params.content };
-  for (const key of ["type", "concepts", "files", "project"] as const) {
-    const value = params[key];
-    if (value === undefined || value === "") continue;
-    normalized[key] = Array.isArray(value) ? value.filter((entry) => entry.trim()).join(",") : value;
-  }
-  if (!normalized.type) normalized.type = "fact";
-  return normalized;
-}
-
-async function callAgentMemory<T>(
-  pathname: string,
-  options?: {
-    method?: "GET" | "POST";
-    body?: unknown;
-    baseUrl?: string;
-  },
-): Promise<T | null> {
-  const baseUrl = normalizeBaseUrl(options?.baseUrl || process.env.AGENTMEMORY_URL || DEFAULT_URL);
-  const method = options?.method || "POST";
-  const url = `${baseUrl}/agentmemory/${pathname.replace(/^\/+/, "")}`;
-  const headers: Record<string, string> = {};
-  const secret = process.env.AGENTMEMORY_SECRET;
-  guardPlaintextBearerAuth(baseUrl, secret);
-  if (options?.body !== undefined) headers["Content-Type"] = "application/json";
-  if (secret) headers.Authorization = `Bearer ${secret}`;
-
-  try {
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: options?.body !== undefined ? JSON.stringify(options.body) : undefined,
-    });
-    if (!response.ok) return null;
-    const text = await response.text();
-    return text ? (JSON.parse(text) as T) : null;
-  } catch {
-    return null;
-  }
-}
-
-async function callAgentMemoryMcpTool(name: string, args: ToolParams): Promise<McpToolResponse | null> {
-  return await callAgentMemory<McpToolResponse>("mcp/call", {
-    body: { name, arguments: args },
-  });
 }
 
 export default function agentmemoryExtension(pi: ExtensionAPI) {
@@ -895,7 +83,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     };
   }
 
-  async function refreshStatus(ctx: { hasUI?: boolean; ui?: { setStatus: (key: string, text: string) => void } }) {
+  async function refreshStatus(ctx: AgentMemoryStatusContext) {
     const health = await getHealth();
     lastHealthOk = !!health && (health.status === "healthy" || health.health?.status === "healthy");
     if (ctx.hasUI === false || !ctx.ui) return;
@@ -908,7 +96,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
       label: tool.label,
       description: tool.description,
       parameters: tool.parameters,
-      async execute(_toolCallId, params) {
+      async execute(_toolCallId, params): Promise<AgentMemoryToolResult> {
         const prepared = tool.prepare ? tool.prepare(params as ToolParams) : params as ToolParams;
         const refusal = tool.guard?.(prepared);
         if (refusal) {
@@ -918,7 +106,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
           };
         }
         const args = cleanArgs(stripLocalGuardParams(prepared));
-        const result = await callAgentMemoryMcpTool(tool.name, args);
+        const result = await callAgentMemoryMcpTool(tool.name, args, "mcp/call");
         if (!result) {
           return {
             content: [{ type: "text", text: `Failed to call ${tool.name}; agentmemory may be unreachable at ${displayBaseUrl()}.` }],
@@ -968,7 +156,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     label: "Memory Health",
     description: "Check whether the local agentmemory server is reachable and healthy",
     parameters: Type.Object({}),
-    async execute() {
+    async execute(): Promise<AgentMemoryToolResult> {
       const health = await getHealth();
       if (!health) {
         return {
@@ -998,7 +186,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
       query: Type.String({ description: "What to search for in memory" }),
       limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 10, default: 5, description: "Maximum results" })),
     }),
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params): Promise<AgentMemoryToolResult> {
       const query = protectText(params.query);
       const result = await callAgentMemory<{ results?: SmartSearchResult[] }>("smart-search", {
         body: { query, limit: params.limit ?? 5 },
@@ -1022,7 +210,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
       files: Type.Optional(STRING_OR_STRING_ARRAY("Relevant file paths")),
       project: OPTIONAL_PROJECT,
     }),
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params): Promise<AgentMemoryToolResult> {
       const rawArgs = params as ToolParams;
       if (containsBlockedSecret(rawArgs)) {
         return {
@@ -1044,7 +232,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
         };
       }
 
-      const mcpResult = await callAgentMemoryMcpTool("memory_save", args);
+      const mcpResult = await callAgentMemoryMcpTool("memory_save", args, "mcp/call");
       if (mcpResult?.isError) {
         return {
           content: [{ type: "text", text: `memory_save failed: ${formatMcpResult(mcpResult)}` }],
@@ -1070,7 +258,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     label: "Memory MCP Resources",
     description: "List read-only AgentMemory MCP resources exposed by the AgentMemory server",
     parameters: Type.Object({}),
-    async execute() {
+    async execute(): Promise<AgentMemoryToolResult> {
       const result = await callAgentMemory<McpResourcesResponse>("mcp/resources", { method: "GET" });
       if (!result) {
         return {
@@ -1098,7 +286,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     parameters: Type.Object({
       uri: Type.String({ description: "Exact AgentMemory MCP resource URI to read" }),
     }),
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params): Promise<AgentMemoryToolResult> {
       const uri = normalizeMcpResourceUri((params as ToolParams).uri);
       if (!uri || !isKnownMcpResourceUri(uri)) {
         return {
@@ -1137,7 +325,7 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     label: "Memory MCP Prompts",
     description: "List AgentMemory MCP prompt templates available for agent review",
     parameters: Type.Object({}),
-    async execute() {
+    async execute(): Promise<AgentMemoryToolResult> {
       const result = await callAgentMemory<McpPromptsResponse>("mcp/prompts", { method: "GET" });
       if (!result) {
         return {
@@ -1169,10 +357,10 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
         Type.String({ description: "Prompt arguments as a JSON object string" }),
       ], { description: "Prompt arguments as an object or JSON string" })),
     }),
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params): Promise<AgentMemoryToolResult> {
       const rawParams = params as ToolParams;
       const name = typeof rawParams.name === "string" ? rawParams.name.trim() : "";
-      if (!KNOWN_MCP_PROMPTS.has(name)) {
+      if (!isKnownMcpPromptName(name)) {
         return {
           content: [{ type: "text", text: "Refusing to get AgentMemory MCP prompt: name must be recall_context, session_handoff, or detect_patterns." }],
           details: { ok: false, reason: "invalid-prompt-name" },
