@@ -46,12 +46,12 @@ Notes:
 
 ## Context Mode tools
 
-- `ctx_batch_execute`: primary shell research tool. Run commands, index output, and search results in one call.
+- `ctx_batch_execute`: primary shell research tool. Run commands, index output, and search results in one call. For 3+ independent I/O-bound commands, use `concurrency: 4-8`. Keep `concurrency: 1` for tests, builds, locks, ports, writes, or commands sharing state. Use `query_scope: "batch"` unless global memory search is intentional.
 - `ctx_execute`: run a single sandboxed command or programmed analysis. Print only the compact answer.
 - `ctx_execute_file`: read and analyze a file inside the sandbox. Print only the compact answer.
-- `ctx_fetch_and_index`: fetch a URL, convert/index content, then use `ctx_search`.
-- `ctx_index`: index already-available documentation or knowledge content.
-- `ctx_search`: search indexed content. Batch questions in one call.
+- `ctx_fetch_and_index`: fetch URL content, convert/index it, then use `ctx_search`. For multi-URL public docs, pass `requests` and `concurrency: 4-8`; lower concurrency if the host rate-limits.
+- `ctx_index`: index already-available documentation or knowledge content. Prefer `path` plus a descriptive `source` label. Bound directory indexing with `maxDepth`, `maxFiles`, and `extensions`; avoid large inline `content`.
+- `ctx_search`: search indexed content. Batch questions in one call, and scope with `source` when an indexed label is known.
 - `ctx_stats`, `ctx_doctor`, `ctx_upgrade`, `ctx_insight`, `ctx_purge`: management commands. `ctx_insight` opens the local analytics dashboard. Destructive purge requires explicit scope.
 
 ## Think in code
@@ -77,6 +77,7 @@ Do not use these routes for normal work:
 
 - Raw `curl` or `wget` for web pages or docs. Use `ctx_fetch_and_index`.
 - Inline HTTP scripts that dump raw responses into context. Use `ctx_execute` and summarize.
+- WebFetch or browser fetches for docs when Context Mode can index the page. Use `ctx_fetch_and_index`, then `ctx_search`.
 - Direct browser/web fetches for private GitHub data. Use authenticated `gh` through Context Mode/RTK.
 - Direct Bash for commands that may produce more than 20 lines.
 - Native `read` for analysis-only reads.
@@ -103,6 +104,23 @@ Do not use these routes for normal work:
 9. Is it codebase exploration, review, caller/callee lookup, architecture review, or impact analysis?
    - Use CodeGraph first. See `codegraph-protocol.md`.
 10. If Context Mode, RTK, or CodeGraph fails, follow `fallback-and-troubleshooting.md`.
+
+## CLI fallback
+
+If Context Mode MCP tools are unavailable but the `context-mode` CLI is installed, use CLI fallbacks for read-only recovery:
+
+```text
+context-mode index <path> --source <label> --max-depth 5 --max-files 200
+context-mode search "query terms" --source <label> --limit 5
+context-mode doctor
+context-mode upgrade
+```
+
+Keep the same routing rules: do not use CLI fallbacks to write project files, print large raw output, or bypass destructive-action gates.
+
+## Platform forwarding privacy
+
+Context Mode can forward session events to a configured platform endpoint when local platform config exists. Do not create, enable, or modify platform forwarding config unless the user explicitly asks for that exact setup. Treat `platform_url`, `api_key`, and equivalent endpoint or credential fields as secrets. Prompt analytics can include derived prompt features and deduped word tokens, so consider platform forwarding an external data-sharing decision.
 
 ## Management command behavior
 

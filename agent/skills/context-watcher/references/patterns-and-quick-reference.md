@@ -105,6 +105,26 @@ ctx_execute({ language: "shell", code: "rtk uv run pytest" })
 ctx_execute({ language: "shell", code: "rtk npm run build" })
 ```
 
+Keep `concurrency: 1` for tests and builds unless each command is independent and cannot race on locks, caches, ports, or generated files.
+
+### Parallel I/O batches
+
+Use parallel Context Mode batches for independent network or read-only I/O work.
+
+```text
+ctx_batch_execute({
+  commands: [
+    { label: "issue 1", command: "gh issue view 1" },
+    { label: "issue 2", command: "gh issue view 2" },
+    { label: "issue 3", command: "gh issue view 3" }
+  ],
+  queries: ["root cause", "proposed fix", "risks"],
+  concurrency: 4
+})
+```
+
+Use `concurrency: 4-8` for I/O-bound reads. Keep `concurrency: 1` for CPU-bound or stateful commands.
+
 ### Files
 
 ```text
@@ -120,6 +140,40 @@ ctx_execute_file({ path: "path/to/file", language: "javascript", code: "..." })
 ```text
 ctx_fetch_and_index({ url: "https://example.com/docs", source: "docs" })
 ctx_search({ queries: ["specific API option"] })
+```
+
+For multiple public docs pages, fetch as a bounded batch:
+
+```text
+ctx_fetch_and_index({
+  requests: [
+    { url: "https://example.com/guide", source: "example-guide" },
+    { url: "https://example.com/api", source: "example-api" }
+  ],
+  concurrency: 5
+})
+```
+
+### Local indexing and search
+
+Index local docs or a bounded project slice when repeated search will be cheaper than repeated reads.
+
+```text
+ctx_index({
+  path: "docs",
+  source: "project-docs",
+  maxDepth: 5,
+  maxFiles: 200,
+  extensions: [".md", ".mdx", ".txt"]
+})
+ctx_search({ source: "project-docs", queries: ["routing rules", "upgrade process"], limit: 5 })
+```
+
+If MCP tools are unavailable, fall back to the CLI:
+
+```text
+context-mode index docs --source project-docs --max-depth 5 --max-files 200
+context-mode search "routing rules" --source project-docs --limit 5
 ```
 
 ### Graph review
