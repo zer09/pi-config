@@ -142,7 +142,7 @@ Default wrapper rule: if upstream required fields or accepted properties change 
 
 ### Gated tools
 
-These may exist as wrappers, but must stay gated by `AGENTMEMORY_PI_ENABLE_GATED=1` and still require exact user intent for destructive or broad-private operations.
+These wrappers are registered only when `AGENTMEMORY_PI_ENABLE_GATED=1` is set. Even when registered, they still require exact user intent for destructive, mutating, or broad-private operations. High-risk wrappers use local-only `confirm` fields that are validated and stripped before forwarding to upstream AgentMemory.
 
 ```text
 memory_export              - broad private memory export
@@ -157,6 +157,18 @@ memory_slot_create         - creates named editable persistent memory state
 memory_slot_append         - mutates named editable persistent memory state
 memory_slot_replace        - overwrites named editable persistent memory state
 memory_slot_delete         - deletes named persistent memory state
+```
+
+Confirmation phrases currently enforced in `index.ts`:
+
+```text
+memory_export              confirm="export agentmemory"
+memory_heal                confirm="heal agentmemory" unless dryRun is true
+memory_governance_delete   confirm="delete memories:<comma-separated sorted ids>"
+memory_slot_create         confirm="create slot:<label>"
+memory_slot_append         confirm="append slot:<label>"
+memory_slot_replace        confirm="replace slot:<label>"
+memory_slot_delete         confirm="delete slot:<label>"
 ```
 
 ### Not exposed tools
@@ -206,6 +218,8 @@ headless-ui-guard
 https-bearer-guard
 secret-content-guard
 mcp-call-endpoint
+gated-env-default-off
+local-confirm-strip
 bundled-skill-discovery
 status-output-shape
 ```
@@ -217,6 +231,8 @@ Meaning:
 - bearer credentials are not silently sent over non-loopback plaintext HTTP
 - durable memory writes reject obvious secret-looking content
 - curated MCP-compatible wrappers use the upstream MCP REST bridge
+- gated AgentMemory wrappers stay default-off behind `AGENTMEMORY_PI_ENABLE_GATED=1`
+- local confirmation fields are stripped before forwarding to upstream AgentMemory
 - the AgentMemory skill stays bundled beside the extension
 - AgentMemory status text shape remains stable unless intentionally changed
 

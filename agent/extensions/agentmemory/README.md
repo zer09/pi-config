@@ -94,8 +94,9 @@ The extension publishes that directory through Pi's `resources_discover` event. 
 - MCP resource and prompt wrappers are read-only; prompt wrappers return text for agent review and do not auto-inject or execute returned prompts.
 - Slot reads are default read-only tools. Slot writes are persistent state changes and stay gated; normal new memories should use `memory_save` unless the user explicitly asks for a named slot write.
 - Broad, destructive, or mutating AgentMemory tools are not registered by default.
+- Set `AGENTMEMORY_PI_ENABLE_GATED=1` to register gated wrappers. High-risk gated wrappers still require exact local `confirm` phrases and strip `confirm` before forwarding upstream.
 
-Gated tools reserved for explicit future workflows:
+Gated tools registered only when `AGENTMEMORY_PI_ENABLE_GATED=1`:
 
 ```text
 memory_lesson_save
@@ -112,6 +113,18 @@ memory_slot_replace
 memory_slot_delete
 ```
 
+Confirmation phrases:
+
+```text
+memory_export: confirm="export agentmemory"
+memory_heal: confirm="heal agentmemory" unless dryRun is true
+memory_governance_delete: confirm="delete memories:<comma-separated sorted ids>"
+memory_slot_create: confirm="create slot:<label>"
+memory_slot_append: confirm="append slot:<label>"
+memory_slot_replace: confirm="replace slot:<label>"
+memory_slot_delete: confirm="delete slot:<label>"
+```
+
 ## Environment variables
 
 | Variable | Default | Description |
@@ -119,6 +132,7 @@ memory_slot_delete
 | `AGENTMEMORY_URL` | `http://localhost:3111` | AgentMemory server URL |
 | `AGENTMEMORY_SECRET` | (none) | Bearer token for protected instances |
 | `AGENTMEMORY_REQUIRE_HTTPS` | (off) | When set to `1`, refuse bearer auth over plaintext HTTP to non-loopback hosts |
+| `AGENTMEMORY_PI_ENABLE_GATED` | (off) | When set to `1`, register gated AgentMemory wrappers. Destructive or broad-private operations still require exact user intent and local `confirm` phrases. |
 | `PI_AGENTMEMORY_SECURITY_ENABLED` | `1` | Enables Pi-local save refusal and AgentMemory output redaction. Set to `0`, `false`, `no`, `off`, or `disabled` to disable those local checks. Unknown values stay enabled. Bearer HTTPS enforcement and URL diagnostic scrubbing are independent. |
 | `PI_DELEGATE_CHILD` | (off) | Local pi delegate marker; skips AgentMemory tools, hooks, and bundled skill discovery |
 

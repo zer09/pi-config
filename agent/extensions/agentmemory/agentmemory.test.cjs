@@ -46,6 +46,7 @@ const MANAGED_ENV_KEYS = [
   "AGENTMEMORY_URL",
   "AGENTMEMORY_SECRET",
   "AGENTMEMORY_REQUIRE_HTTPS",
+  "AGENTMEMORY_PI_ENABLE_GATED",
   "PI_AGENTMEMORY_SECURITY_ENABLED",
   "PI_DELEGATE_CHILD",
 ];
@@ -238,8 +239,20 @@ test("registers curated default tools and bundled skill discovery", async () => 
   }
 });
 
+test("AGENTMEMORY_PI_ENABLE_GATED registers gated tools", () => {
+  const harness = createHarness({ env: { AGENTMEMORY_PI_ENABLE_GATED: "1" } });
+  try {
+    assert.deepEqual(
+      [...harness.tools.keys()].sort(),
+      [...DEFAULT_TOOL_NAMES, ...GATED_TOOL_NAMES].sort(),
+    );
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("delegate child sessions register no tools hooks commands or skills", () => {
-  const harness = createHarness({ env: { PI_DELEGATE_CHILD: "1" } });
+  const harness = createHarness({ env: { PI_DELEGATE_CHILD: "1", AGENTMEMORY_PI_ENABLE_GATED: "1" } });
   try {
     assert.equal(harness.tools.size, 0);
     assert.equal(harness.commands.size, 0);
@@ -330,6 +343,117 @@ test("memory_slot_get unavailable responses are clear failures", async () => {
     const result = await harness.callTool("memory_slot_get", { label: "project_context" });
     assert.equal(textContent(result), "memory_slot_get failed: slots disabled");
     assert.equal(result.details.ok, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("gated memory_export requires confirmation and strips local guard params", async () => {
+  const harness = createHarness({
+    env: { AGENTMEMORY_PI_ENABLE_GATED: "1" },
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "export ok" }] }),
+  });
+  try {
+    const refused = await harness.callTool("memory_export");
+    assert.match(textContent(refused), /confirm.*export agentmemory/);
+    assert.equal(harness.fetchCalls.length, 0);
+
+    const result = await harness.callTool("memory_export", { confirm: "export agentmemory" });
+    assert.equal(textContent(result), "export ok");
+    assert.deepEqual(parseBody(harness.fetchCalls[0]), { name: "memory_export", arguments: {} });
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("gated governance delete requires normalized confirmation", async () => {
+  const harness = createHarness({
+    env: { AGENTMEMORY_PI_ENABLE_GATED: "1" },
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "deleted" }] }),
+  });
+  try {
+    const refused = await harness.callTool("memory_governance_delete", { memoryIds: "mem_b, mem_a", reason: "duplicate" });
+    assert.match(textContent(refused), /delete memories:mem_a,mem_b/);
+    assert.equal(harness.fetchCalls.length, 0);
+
+    const result = await harness.callTool("memory_governance_delete", {
+      memoryIds: "mem_b, mem_a",
+      reason: "duplicate",
+      confirm: "delete memories:mem_a,mem_b",
+    });
+    assert.equal(textContent(result), "deleted");
+    assert.deepEqual(parseBody(harness.fetchCalls[0]), {
+      name: "memory_governance_delete",
+      arguments: { memoryIds: "mem_b, mem_a", reason: "duplicate" },
+    });
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("gated memory_heal confirmation is skipped only for dry runs", async () => {
+  const harness = createHarness({
+    env: { AGENTMEMORY_PI_ENABLE_GATED: "1" },
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "heal ok" }] }),
+  });
+  try {
+    const dryRun = await harness.callTool("memory_heal", { dryRun: true });
+    assert.equal(textContent(dryRun), "heal ok");
+    assert.deepEqual(parseBody(harness.fetchCalls[0]), { name: "memory_heal", arguments: { dryRun: true } });
+
+    const refused = await harness.callTool("memory_heal");
+    assert.match(textContent(refused), /heal agentmemory/);
+    assert.equal(harness.fetchCalls.length, 1);
+
+    await harness.callTool("memory_heal", { categories: "sessions", confirm: "heal agentmemory" });
+    assert.deepEqual(parseBody(harness.fetchCalls[1]), { name: "memory_heal", arguments: { categories: "sessions" } });
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("gated slot writes require confirmation and reject secret-looking content", async () => {
+  const harness = createHarness({
+    env: { AGENTMEMORY_PI_ENABLE_GATED: "1" },
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "slot updated" }] }),
+  });
+  try {
+    const refused = await harness.callTool("memory_slot_replace", { label: "project_context", content: "safe content" });
+    assert.match(textContent(refused), /replace slot:project_context/);
+    assert.equal(harness.fetchCalls.length, 0);
+
+    const secretRefused = await harness.callTool("memory_slot_append", {
+      label: "project_context",
+      text: "see https://user:pass@example.invalid/path",
+      confirm: "append slot:project_context",
+    });
+    assert.match(textContent(secretRefused), /secret-looking value/);
+    assert.equal(harness.fetchCalls.length, 0);
+
+    const result = await harness.callTool("memory_slot_replace", {
+      label: "project_context",
+      content: "safe content",
+      confirm: "replace slot:project_context",
+    });
+    assert.equal(textContent(result), "slot updated");
+    assert.deepEqual(parseBody(harness.fetchCalls[0]), {
+      name: "memory_slot_replace",
+      arguments: { label: "project_context", content: "safe content" },
+    });
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("gated memory_lesson_save refuses secret-looking content before network calls", async () => {
+  const harness = createHarness({
+    env: { AGENTMEMORY_PI_ENABLE_GATED: "1" },
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "unexpected" }] }),
+  });
+  try {
+    const result = await harness.callTool("memory_lesson_save", { content: "see https://user:pass@example.invalid/path" });
+    assert.match(textContent(result), /secret-looking value/);
+    assert.equal(harness.fetchCalls.length, 0);
   } finally {
     harness.cleanup();
   }

@@ -323,6 +323,18 @@
       "reason": "Curated MCP-compatible wrappers must use the upstream MCP REST bridge"
     },
     {
+      "id": "gated-env-default-off",
+      "file": "agent/extensions/agentmemory/index.ts",
+      "contains": "AGENTMEMORY_PI_ENABLE_GATED",
+      "reason": "Gated AgentMemory wrappers must stay default-off behind explicit local opt-in"
+    },
+    {
+      "id": "local-confirm-strip",
+      "file": "agent/extensions/agentmemory/index.ts",
+      "contains": "stripLocalGuardParams",
+      "reason": "Local confirmation fields must be validated and stripped before forwarding upstream"
+    },
+    {
       "id": "bundled-skill-discovery",
       "file": "agent/extensions/agentmemory/index.ts",
       "contains": "resources_discover",

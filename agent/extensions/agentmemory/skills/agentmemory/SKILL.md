@@ -38,7 +38,8 @@ AgentMemory is for durable cross-session memory. It complements, but does not re
 - Refer to credentials only by environment variable name or placeholder.
 - Do not export, delete, consolidate, reflect, heal, audit, or broadly inspect private memory unless the user explicitly asks for that exact operation.
 - Use `memory_save` for normal durable facts, preferences, decisions, and corrections. Do not create, append, replace, or delete slots unless the user explicitly asks for that named slot operation.
-- `memory_lesson_save`, `memory_consolidate`, `memory_reflect`, `memory_insight_list`, `memory_audit`, `memory_export`, `memory_governance_delete`, `memory_heal`, `memory_slot_create`, `memory_slot_append`, `memory_slot_replace`, and `memory_slot_delete` are gated and not part of the default Pi tool surface.
+- `memory_lesson_save`, `memory_consolidate`, `memory_reflect`, `memory_insight_list`, `memory_audit`, `memory_export`, `memory_governance_delete`, `memory_heal`, `memory_slot_create`, `memory_slot_append`, `memory_slot_replace`, and `memory_slot_delete` are gated and not part of the default Pi tool surface unless `AGENTMEMORY_PI_ENABLE_GATED=1` is set.
+- When gated tools are registered, destructive or high-risk wrappers still require exact local `confirm` phrases such as `export agentmemory`, `heal agentmemory`, `delete memories:<sorted-ids>`, or `<operation> slot:<label>`. Do not invent confirmations; follow the tool schema.
 - AgentMemory is disabled in delegate child sessions by default.
 
 ## Routing against other systems

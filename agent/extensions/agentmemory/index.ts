@@ -98,6 +98,7 @@ type McpToolDefinition = {
   description: string;
   parameters: ReturnType<typeof Type.Object>;
   prepare?: (params: ToolParams) => ToolParams;
+  guard?: (params: ToolParams) => string | null;
 };
 
 const DEFAULT_URL = process.env.AGENTMEMORY_URL || "http://localhost:3111";
@@ -127,6 +128,8 @@ const KNOWN_MCP_RESOURCE_PATTERNS: RegExp[] = [
   /^agentmemory:\/\/team\/[^/{}]+\/profile$/,
 ];
 const KNOWN_MCP_PROMPTS = new Set(["recall_context", "session_handoff", "detect_patterns"]);
+
+const GATED_CONFIRM = (phrase: string) => Type.String({ description: `Required exact confirmation phrase: ${phrase}` });
 
 const MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
   {
@@ -262,6 +265,149 @@ const MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
     parameters: Type.Object({
       label: Type.String({ description: "Slot label" }),
     }),
+  },
+];
+
+const GATED_MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
+  {
+    name: "memory_export",
+    label: "Memory Export",
+    description: "Export all AgentMemory data as JSON; gated broad private operation",
+    parameters: Type.Object({
+      confirm: GATED_CONFIRM("export agentmemory"),
+    }),
+    guard: (params) => guardGatedTool("memory_export", params),
+  },
+  {
+    name: "memory_consolidate",
+    label: "Memory Consolidate",
+    description: "Run the AgentMemory memory consolidation pipeline; gated mutating operation",
+    parameters: Type.Object({
+      tier: Type.Optional(Type.String({ description: "Target tier: episodic, semantic, or procedural" })),
+    }),
+    guard: (params) => guardGatedTool("memory_consolidate", params),
+  },
+  {
+    name: "memory_audit",
+    label: "Memory Audit",
+    description: "View AgentMemory audit trail entries; gated broad private inspection",
+    parameters: Type.Object({
+      operation: Type.Optional(Type.String({ description: "Filter by operation type" })),
+      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 500, default: 50, description: "Maximum audit entries" })),
+    }),
+    guard: (params) => guardGatedTool("memory_audit", params),
+  },
+  {
+    name: "memory_governance_delete",
+    label: "Memory Governance Delete",
+    description: "Delete specific AgentMemory memories with audit trail; gated destructive operation",
+    parameters: Type.Object({
+      memoryIds: Type.String({ description: "Comma-separated memory IDs to delete" }),
+      reason: Type.Optional(Type.String({ description: "Reason for deletion" })),
+      confirm: GATED_CONFIRM("delete memories:<comma-separated sorted ids>"),
+    }),
+    guard: (params) => guardGatedTool("memory_governance_delete", params),
+  },
+  {
+    name: "memory_heal",
+    label: "Memory Heal",
+    description: "Auto-fix AgentMemory diagnostic issues; gated mutating operation unless dryRun is true",
+    parameters: Type.Object({
+      categories: Type.Optional(Type.String({ description: "Comma-separated categories to heal" })),
+      dryRun: Type.Optional(Type.Union([
+        Type.Boolean({ description: "Report fixes without applying them" }),
+        Type.String({ description: "Set to 'true' for dry run" }),
+      ])),
+      confirm: Type.Optional(GATED_CONFIRM("heal agentmemory")),
+    }),
+    guard: (params) => guardGatedTool("memory_heal", params),
+  },
+  {
+    name: "memory_lesson_save",
+    label: "Memory Lesson Save",
+    description: "Save a durable lesson learned; gated additional write path",
+    parameters: Type.Object({
+      content: Type.String({ description: "The lesson learned" }),
+      context: Type.Optional(Type.String({ description: "When or where this lesson applies" })),
+      confidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1, description: "Initial confidence" })),
+      project: OPTIONAL_PROJECT,
+      tags: Type.Optional(Type.String({ description: "Comma-separated tags" })),
+    }),
+    guard: (params) => guardGatedTool("memory_lesson_save", params),
+  },
+  {
+    name: "memory_reflect",
+    label: "Memory Reflect",
+    description: "Synthesize higher-order AgentMemory insights via reflection; gated LLM-backed operation",
+    parameters: Type.Object({
+      project: OPTIONAL_PROJECT,
+      maxClusters: Type.Optional(Type.Integer({ minimum: 1, maximum: 20, description: "Maximum concept clusters to process" })),
+    }),
+    guard: (params) => guardGatedTool("memory_reflect", params),
+  },
+  {
+    name: "memory_insight_list",
+    label: "Memory Insight List",
+    description: "List synthesized AgentMemory insights; gated broad private inspection",
+    parameters: Type.Object({
+      project: OPTIONAL_PROJECT,
+      minConfidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1, description: "Minimum confidence threshold" })),
+      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 500, default: 50, description: "Maximum insights" })),
+    }),
+    guard: (params) => guardGatedTool("memory_insight_list", params),
+  },
+  {
+    name: "memory_slot_create",
+    label: "Memory Slot Create",
+    description: "Create a named AgentMemory slot; gated persistent-state write",
+    parameters: Type.Object({
+      label: Type.String({ description: "Slot label" }),
+      content: Type.Optional(Type.String({ description: "Initial slot content" })),
+      sizeLimit: Type.Optional(Type.Integer({ minimum: 1, maximum: 20000, description: "Maximum characters" })),
+      description: Type.Optional(Type.String({ description: "What this slot is for" })),
+      pinned: Type.Optional(Type.Union([
+        Type.Boolean({ description: "Whether to include in context injection" }),
+        Type.String({ description: "'false' to exclude from context injection" }),
+      ])),
+      scope: Type.Optional(Type.Union([
+        Type.Literal("project"),
+        Type.Literal("global"),
+      ], { description: "Slot scope" })),
+      confirm: GATED_CONFIRM("create slot:<label>"),
+    }),
+    guard: (params) => guardGatedTool("memory_slot_create", params),
+  },
+  {
+    name: "memory_slot_append",
+    label: "Memory Slot Append",
+    description: "Append text to an AgentMemory slot; gated persistent-state write",
+    parameters: Type.Object({
+      label: Type.String({ description: "Slot label" }),
+      text: Type.String({ description: "Text to append" }),
+      confirm: GATED_CONFIRM("append slot:<label>"),
+    }),
+    guard: (params) => guardGatedTool("memory_slot_append", params),
+  },
+  {
+    name: "memory_slot_replace",
+    label: "Memory Slot Replace",
+    description: "Replace AgentMemory slot content; gated persistent-state overwrite",
+    parameters: Type.Object({
+      label: Type.String({ description: "Slot label" }),
+      content: Type.String({ description: "New full content" }),
+      confirm: GATED_CONFIRM("replace slot:<label>"),
+    }),
+    guard: (params) => guardGatedTool("memory_slot_replace", params),
+  },
+  {
+    name: "memory_slot_delete",
+    label: "Memory Slot Delete",
+    description: "Delete an AgentMemory slot; gated destructive persistent-state operation",
+    parameters: Type.Object({
+      label: Type.String({ description: "Slot label" }),
+      confirm: GATED_CONFIRM("delete slot:<label>"),
+    }),
+    guard: (params) => guardGatedTool("memory_slot_delete", params),
   },
 ];
 
@@ -470,6 +616,81 @@ function isKnownMcpResourceUri(uri: string): boolean {
   return KNOWN_MCP_RESOURCE_PATTERNS.some((pattern) => pattern.test(uri));
 }
 
+function gatedToolsEnabled(): boolean {
+  return process.env.AGENTMEMORY_PI_ENABLE_GATED === "1";
+}
+
+function stripLocalGuardParams(params: ToolParams): ToolParams {
+  const { confirm, ...upstreamArgs } = params;
+  return upstreamArgs;
+}
+
+function normalizeCsv(value: unknown): string {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .sort()
+    .join(",");
+}
+
+function normalizedLabel(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isDryRun(value: unknown): boolean {
+  return value === true || (typeof value === "string" && value.trim().toLowerCase() === "true");
+}
+
+function confirmationForGatedTool(name: string, params: ToolParams): { expected?: string; error?: string } {
+  switch (name) {
+    case "memory_export":
+      return { expected: "export agentmemory" };
+    case "memory_governance_delete": {
+      const ids = normalizeCsv(params.memoryIds);
+      if (!ids) return { error: "memoryIds is required before confirmation" };
+      return { expected: `delete memories:${ids}` };
+    }
+    case "memory_heal":
+      return isDryRun(params.dryRun) ? {} : { expected: "heal agentmemory" };
+    case "memory_slot_create": {
+      const label = normalizedLabel(params.label);
+      if (!label) return { error: "label is required before confirmation" };
+      return { expected: `create slot:${label}` };
+    }
+    case "memory_slot_append": {
+      const label = normalizedLabel(params.label);
+      if (!label) return { error: "label is required before confirmation" };
+      return { expected: `append slot:${label}` };
+    }
+    case "memory_slot_replace": {
+      const label = normalizedLabel(params.label);
+      if (!label) return { error: "label is required before confirmation" };
+      return { expected: `replace slot:${label}` };
+    }
+    case "memory_slot_delete": {
+      const label = normalizedLabel(params.label);
+      if (!label) return { error: "label is required before confirmation" };
+      return { expected: `delete slot:${label}` };
+    }
+    default:
+      return {};
+  }
+}
+
+function guardGatedTool(name: string, params: ToolParams): string | null {
+  const upstreamArgs = stripLocalGuardParams(params);
+  if (containsBlockedSecret(upstreamArgs)) {
+    return "Refusing gated AgentMemory operation: parameters appear to contain a secret-looking value. Replace credential values with environment variable names or placeholders.";
+  }
+  const confirmation = confirmationForGatedTool(name, params);
+  if (confirmation.error) return `Refusing gated AgentMemory operation: ${confirmation.error}.`;
+  if (!confirmation.expected) return null;
+  const actual = typeof params.confirm === "string" ? params.confirm.trim() : "";
+  if (actual === confirmation.expected) return null;
+  return `Refusing gated AgentMemory operation. Set confirm to ${JSON.stringify(confirmation.expected)} to proceed.`;
+}
+
 function cleanArgs(params: ToolParams): ToolParams {
   const args: ToolParams = {};
   for (const [key, value] of Object.entries(params)) {
@@ -579,7 +800,14 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
       parameters: tool.parameters,
       async execute(_toolCallId, params) {
         const prepared = tool.prepare ? tool.prepare(params as ToolParams) : params as ToolParams;
-        const args = cleanArgs(prepared);
+        const refusal = tool.guard?.(prepared);
+        if (refusal) {
+          return {
+            content: [{ type: "text", text: refusal }],
+            details: { ok: false, tool: tool.name, reason: "gated-guard" },
+          };
+        }
+        const args = cleanArgs(stripLocalGuardParams(prepared));
         const result = await callAgentMemoryMcpTool(tool.name, args);
         if (!result) {
           return {
@@ -872,6 +1100,9 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
   });
 
   for (const tool of MCP_TOOL_DEFINITIONS) registerMcpTool(tool);
+  if (gatedToolsEnabled()) {
+    for (const tool of GATED_MCP_TOOL_DEFINITIONS) registerMcpTool(tool);
+  }
 
   pi.on("session_start", async (_event, ctx) => {
     const sessionFile = ctx.sessionManager.getSessionFile();
