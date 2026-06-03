@@ -273,8 +273,35 @@ const SECURITY_ENABLED_VALUES = new Set(["1", "true", "yes", "on", "enabled"]);
 // Separators that users and tools commonly place inside credential-like key names.
 // Includes ASCII underscore/hyphen plus Unicode dash compatibility variants.
 const SECRET_SEPARATOR_PATTERN = "_\\-\\u2010\\u2011\\u2012\\u2013\\u2014\\u2015\\u2212\\uFE58\\uFE63\\uFF0D";
-const CYRILLIC_ASCII_CONFUSABLE_PATTERN = /[АВЕІКМНОРСТХУавекмнорстухіј]/g;
-const CYRILLIC_ASCII_CONFUSABLES: Record<string, string> = {
+const COMMON_ASCII_CONFUSABLE_PATTERN = /[ΑΒΕΖΗΙΚΜΝΟΡΤΥΧαβεικμνορτυχωАВЕІКМНОРСТХУавекмнорстухіј]/g;
+const COMMON_ASCII_CONFUSABLES: Record<string, string> = {
+  Α: "A",
+  Β: "B",
+  Ε: "E",
+  Ζ: "Z",
+  Η: "H",
+  Ι: "I",
+  Κ: "K",
+  Μ: "M",
+  Ν: "N",
+  Ο: "O",
+  Ρ: "P",
+  Τ: "T",
+  Υ: "Y",
+  Χ: "X",
+  α: "a",
+  β: "b",
+  ε: "e",
+  ι: "i",
+  κ: "k",
+  μ: "m",
+  ν: "n",
+  ο: "o",
+  ρ: "p",
+  τ: "t",
+  υ: "y",
+  χ: "x",
+  ω: "w",
   А: "A",
   В: "B",
   Е: "E",
@@ -535,9 +562,9 @@ function decodeHtmlUrlEntities(text: string): string {
     .replace(/&apos;?/gi, "'");
 }
 
-/** Map common Cyrillic homoglyphs that visually obscure ASCII credential keys. */
+/** Map common Unicode homoglyphs that visually obscure ASCII credential keys. */
 function foldCommonConfusableText(text: string): string {
-  return text.replace(CYRILLIC_ASCII_CONFUSABLE_PATTERN, (char) => CYRILLIC_ASCII_CONFUSABLES[char] || char);
+  return text.replace(COMMON_ASCII_CONFUSABLE_PATTERN, (char) => COMMON_ASCII_CONFUSABLES[char] || char);
 }
 
 /** Apply Unicode NFKC so fullwidth and compatibility glyphs normalize. */

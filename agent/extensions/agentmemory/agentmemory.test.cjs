@@ -926,7 +926,11 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.containsSecretLikeContent("СREDENTIAL=non_obvious_secret_abcdefgh12345"), true);
   assert.equal(security.containsSecretLikeContent("АРІ_КЕY=secret_value"), true);
   assert.equal(security.containsSecretLikeContent("SЕCRET=sneaky_value_that_looks_normal"), true);
+  assert.equal(security.containsSecretLikeContent("ΑΡΙ_ΚΕΥ=sneaky_greek_homoglyph_value"), true);
+  assert.equal(security.containsSecretLikeContent("ΤΟΚΕΝ=greek_token_bypass_test"), true);
+  assert.equal(security.containsSecretLikeContent("ΡΑSSWΟRD=mixed_cyrillic_greek_latin"), true);
   assert.equal(security.containsSecretLikeContent({ "РАSSWORD": "short" }), true);
+  assert.equal(security.containsSecretLikeContent({ "ΤΟΚΕΝ": "short" }), true);
   assert.deepEqual(security.redactSecretLikeValue({ "ＴＯＫＥＮ": "short", safe: "value" }), { "ＴＯＫＥＮ": "<redacted>", safe: "value" });
   assert.deepEqual(security.redactSecretLikeValue({ "TO\u200bKEN": "short" }), { "TO\u200bKEN": "<redacted>" });
 
@@ -1095,6 +1099,9 @@ test("memory_save refuses secret-looking content before network calls", async ()
     "СREDENTIAL=non_obvious_secret_abcdefgh12345",
     "АРІ_КЕY=secret_value",
     "SЕCRET=sneaky_value_that_looks_normal",
+    "ΑΡΙ_ΚΕΥ=sneaky_greek_homoglyph_value",
+    "ΤΟΚΕΝ=greek_token_bypass_test",
+    "ΡΑSSWΟRD=mixed_cyrillic_greek_latin",
     "https：／／user：pass＠example.invalid/path",
     "TOK\u200bEN=abcdefghijklmnop",
     "https%255Cu003a%2526%252347%25EF%25BC%258Fuser%25EF%25BC%259Apass%2526%252364example.invalid%25EF%25BC%258Fpath SECRET%ZZ%3A＂abcdefghijklmnop&quot",
