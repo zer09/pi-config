@@ -249,6 +249,20 @@ const MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
       minConfidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1, description: "Minimum confidence" })),
     }),
   },
+  {
+    name: "memory_slot_list",
+    label: "Memory Slot List",
+    description: "List read-only AgentMemory slots, including pinned, project, and global slots",
+    parameters: Type.Object({}),
+  },
+  {
+    name: "memory_slot_get",
+    label: "Memory Slot Get",
+    description: "Read one AgentMemory slot by label",
+    parameters: Type.Object({
+      label: Type.String({ description: "Slot label" }),
+    }),
+  },
 ];
 
 function normalizeBaseUrl(url: string): string {

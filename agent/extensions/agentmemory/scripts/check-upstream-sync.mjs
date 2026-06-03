@@ -17,6 +17,10 @@ const GATED_DEFAULT_DENY = new Set([
   "memory_export",
   "memory_governance_delete",
   "memory_heal",
+  "memory_slot_create",
+  "memory_slot_append",
+  "memory_slot_replace",
+  "memory_slot_delete",
 ]);
 
 function readJson(filePath) {

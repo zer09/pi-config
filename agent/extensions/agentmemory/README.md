@@ -56,6 +56,8 @@ Default Pi tools:
 - `memory_diagnose` - read-only diagnostics
 - `memory_verify` - provenance verification by memory ID
 - `memory_lesson_recall` - recall durable lessons
+- `memory_slot_list` - list read-only AgentMemory slots
+- `memory_slot_get` - read a named AgentMemory slot
 - `memory_mcp_resources` - list read-only AgentMemory MCP resources
 - `memory_mcp_resource_read` - read an exact `agentmemory://` MCP resource URI
 - `memory_mcp_prompts` - list AgentMemory MCP prompt templates
@@ -90,6 +92,7 @@ The extension publishes that directory through Pi's `resources_discover` event. 
 - `memory_save` refuses obvious secret-looking values when security is enabled.
 - Conversation capture redacts obvious secret-looking values before calling `/agentmemory/observe` when security is enabled.
 - MCP resource and prompt wrappers are read-only; prompt wrappers return text for agent review and do not auto-inject or execute returned prompts.
+- Slot reads are default read-only tools. Slot writes are persistent state changes and stay gated; normal new memories should use `memory_save` unless the user explicitly asks for a named slot write.
 - Broad, destructive, or mutating AgentMemory tools are not registered by default.
 
 Gated tools reserved for explicit future workflows:
@@ -103,6 +106,10 @@ memory_audit
 memory_export
 memory_governance_delete
 memory_heal
+memory_slot_create
+memory_slot_append
+memory_slot_replace
+memory_slot_delete
 ```
 
 ## Environment variables
@@ -147,7 +154,7 @@ The checker verifies that every upstream MCP tool is categorized as default, gat
 
 ## Smoke test
 
-Run pi and ask it to use `memory_health`, `memory_mcp_resources`, or `memory_mcp_prompts`, or call the command directly:
+Run pi and ask it to use `memory_health`, `memory_slot_list`, `memory_mcp_resources`, or `memory_mcp_prompts`, or call the command directly:
 
 ```text
 /agentmemory-status

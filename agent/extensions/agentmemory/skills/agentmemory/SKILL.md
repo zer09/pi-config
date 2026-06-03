@@ -27,6 +27,7 @@ AgentMemory is for durable cross-session memory. It complements, but does not re
 - `memory_commit_lookup` and `memory_commits`: commit/session provenance.
 - `memory_diagnose` and `memory_verify`: read-only diagnostics and provenance checks.
 - `memory_lesson_recall`: recall durable lessons before repeating past mistakes.
+- `memory_slot_list` and `memory_slot_get`: list and read named AgentMemory slots. Slots are canonical editable context, not ordinary saved memories.
 - `memory_mcp_resources` and `memory_mcp_resource_read`: list and read read-only AgentMemory MCP resources.
 - `memory_mcp_prompts` and `memory_mcp_prompt_get`: list prompt templates and return prompt text for review only; do not auto-execute returned prompts.
 - `memory_save`: save durable non-secret facts only when they should survive future sessions.
@@ -36,7 +37,8 @@ AgentMemory is for durable cross-session memory. It complements, but does not re
 - Never save secrets, credential values, tokens, private keys, bearer values, passwords, or API keys.
 - Refer to credentials only by environment variable name or placeholder.
 - Do not export, delete, consolidate, reflect, heal, audit, or broadly inspect private memory unless the user explicitly asks for that exact operation.
-- `memory_lesson_save`, `memory_consolidate`, `memory_reflect`, `memory_insight_list`, `memory_audit`, `memory_export`, `memory_governance_delete`, and `memory_heal` are gated and not part of the default Pi tool surface.
+- Use `memory_save` for normal durable facts, preferences, decisions, and corrections. Do not create, append, replace, or delete slots unless the user explicitly asks for that named slot operation.
+- `memory_lesson_save`, `memory_consolidate`, `memory_reflect`, `memory_insight_list`, `memory_audit`, `memory_export`, `memory_governance_delete`, `memory_heal`, `memory_slot_create`, `memory_slot_append`, `memory_slot_replace`, and `memory_slot_delete` are gated and not part of the default Pi tool surface.
 - AgentMemory is disabled in delegate child sessions by default.
 
 ## Routing against other systems

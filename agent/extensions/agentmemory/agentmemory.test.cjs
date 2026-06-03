@@ -65,6 +65,8 @@ const DEFAULT_TOOL_NAMES = [
   "memory_diagnose",
   "memory_verify",
   "memory_lesson_recall",
+  "memory_slot_list",
+  "memory_slot_get",
   "memory_mcp_resources",
   "memory_mcp_resource_read",
   "memory_mcp_prompts",
@@ -79,6 +81,10 @@ const GATED_TOOL_NAMES = [
   "memory_export",
   "memory_governance_delete",
   "memory_heal",
+  "memory_slot_create",
+  "memory_slot_append",
+  "memory_slot_replace",
+  "memory_slot_delete",
 ];
 
 const tests = [];
@@ -282,6 +288,47 @@ test("MCP isError responses are surfaced as failures", async () => {
   try {
     const result = await harness.callTool("memory_smart_search", { query: "prior decision" });
     assert.equal(textContent(result), "memory_smart_search failed: upstream denied request");
+    assert.equal(result.details.ok, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_slot_list and memory_slot_get call read-only slot tools", async () => {
+  const harness = createHarness({
+    fetchHandler: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      if (body.name === "memory_slot_list") {
+        return jsonResponse({ content: [{ type: "text", text: JSON.stringify({ slots: [{ label: "project_context" }] }) }] });
+      }
+      if (body.name === "memory_slot_get") {
+        assert.deepEqual(body.arguments, { label: "project_context" });
+        return jsonResponse({ content: [{ type: "text", text: "see https://user:pass@example.invalid/path" }] });
+      }
+      throw new Error(`unexpected ${body.name}`);
+    },
+  });
+  try {
+    const listResult = await harness.callTool("memory_slot_list");
+    assert.match(textContent(listResult), /project_context/);
+    assert.deepEqual(parseBody(harness.fetchCalls[0]), { name: "memory_slot_list", arguments: {} });
+
+    const getResult = await harness.callTool("memory_slot_get", { label: "project_context" });
+    assert.equal(textContent(getResult), "see https://<redacted>@example.invalid/path");
+    assert.deepEqual(parseBody(harness.fetchCalls[1]), { name: "memory_slot_get", arguments: { label: "project_context" } });
+    assert.doesNotMatch(JSON.stringify(getResult), /user|pass/);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_slot_get unavailable responses are clear failures", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ isError: true, content: [{ type: "text", text: "slots disabled" }] }),
+  });
+  try {
+    const result = await harness.callTool("memory_slot_get", { label: "project_context" });
+    assert.equal(textContent(result), "memory_slot_get failed: slots disabled");
     assert.equal(result.details.ok, false);
   } finally {
     harness.cleanup();

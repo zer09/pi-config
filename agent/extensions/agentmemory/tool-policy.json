@@ -109,6 +109,18 @@
       "required": ["query"],
       "properties": ["limit", "minConfidence", "project", "query"],
       "reason": "Read-only lesson recall"
+    },
+    {
+      "name": "memory_slot_list",
+      "required": [],
+      "properties": [],
+      "reason": "Read-only persistent slot listing"
+    },
+    {
+      "name": "memory_slot_get",
+      "required": ["label"],
+      "properties": ["label"],
+      "reason": "Read-only access to an explicitly named persistent slot"
     }
   ],
   "gatedTools": [
@@ -151,6 +163,26 @@
       "name": "memory_insight_list",
       "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
       "reason": "Broad insight inspection coupled to reflection workflows"
+    },
+    {
+      "name": "memory_slot_create",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Creates named editable persistent memory state"
+    },
+    {
+      "name": "memory_slot_append",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Mutates named editable persistent memory state"
+    },
+    {
+      "name": "memory_slot_replace",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Overwrites named editable persistent memory state"
+    },
+    {
+      "name": "memory_slot_delete",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Deletes named persistent memory state"
     }
   ],
   "notExposedTools": [
@@ -257,30 +289,6 @@
     {
       "name": "memory_obsidian_export",
       "reason": "Exports memory content to files"
-    },
-    {
-      "name": "memory_slot_list",
-      "reason": "Slot workflows need a separate persistent-state policy"
-    },
-    {
-      "name": "memory_slot_get",
-      "reason": "Slot workflows need a separate persistent-state policy"
-    },
-    {
-      "name": "memory_slot_create",
-      "reason": "Slot workflows need a separate persistent-state policy"
-    },
-    {
-      "name": "memory_slot_append",
-      "reason": "Slot workflows need a separate persistent-state policy"
-    },
-    {
-      "name": "memory_slot_replace",
-      "reason": "Slot workflows need a separate persistent-state policy"
-    },
-    {
-      "name": "memory_slot_delete",
-      "reason": "Slot workflows need a separate persistent-state policy"
     }
   ],
   "localInvariants": [

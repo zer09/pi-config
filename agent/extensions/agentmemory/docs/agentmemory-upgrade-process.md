@@ -134,6 +134,8 @@ memory_commits
 memory_diagnose
 memory_verify
 memory_lesson_recall
+memory_slot_list
+memory_slot_get
 ```
 
 Default wrapper rule: if upstream required fields or accepted properties change for any default tool, update the Pi wrapper and tests before marking the upgrade complete.
@@ -151,6 +153,10 @@ memory_heal                - mutates memory subsystem state
 memory_lesson_save         - additional durable write path
 memory_reflect             - synthesizes higher-order memories or insights
 memory_insight_list        - broad insight inspection coupled to reflection workflows
+memory_slot_create         - creates named editable persistent memory state
+memory_slot_append         - mutates named editable persistent memory state
+memory_slot_replace        - overwrites named editable persistent memory state
+memory_slot_delete         - deletes named persistent memory state
 ```
 
 ### Not exposed tools
@@ -186,12 +192,6 @@ memory_crystallize
 memory_facet_tag
 memory_facet_query
 memory_obsidian_export
-memory_slot_list
-memory_slot_get
-memory_slot_create
-memory_slot_append
-memory_slot_replace
-memory_slot_delete
 ```
 
 If upstream adds a tool, classify it into exactly one bucket before completing the upgrade. Do not leave a new upstream tool uncategorized.
