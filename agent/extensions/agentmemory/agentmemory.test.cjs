@@ -408,6 +408,35 @@ test("memory_smart_search rejects empty queries before network calls", async () 
   }
 });
 
+test("MCP tools strip null optional arguments before upstream calls", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "recall ok" }] }),
+  });
+  try {
+    const result = await harness.callTool("memory_recall", { query: "prior decision", format: null, token_budget: null, limit: 1 });
+    assert.equal(textContent(result), "recall ok");
+    assert.deepEqual(parseBody(harness.fetchCalls[0]), {
+      name: "memory_recall",
+      arguments: { query: "prior decision", limit: 1 },
+    });
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_recall narrative empty content returns a clear explanation", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "" }] }),
+  });
+  try {
+    const result = await harness.callTool("memory_recall", { query: "prior decision", format: "narrative", token_budget: 10 });
+    assert.equal(textContent(result), "No recall narrative returned; no observations fit within the token budget.");
+    assert.equal(result.details.reason, "empty-recall-narrative");
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("memory_slot_list and memory_slot_get call read-only slot tools", async () => {
   const harness = createHarness({
     fetchHandler: async (_url, init) => {
@@ -699,9 +728,22 @@ test("memory_mcp_prompt_get validates prompt names and parses JSON arguments", a
 
 test("memory_mcp_prompt_get reports missing session handoffs clearly", async () => {
   const harness = createHarness({
-    fetchHandler: async () => jsonResponse({
-      messages: [{ role: "user", content: { type: "text", text: "## Session Handoff\n\n### Session\nundefined\n\n### Summary\n\"No summary available\"" } }],
-    }),
+    fetchHandler: async (_url, init) => {
+      const sessionId = JSON.parse(init.body).arguments.session_id;
+      if (sessionId === "missing-session") {
+        return jsonResponse({
+          messages: [{ role: "user", content: { type: "text", text: "## Session Handoff\n\n### Session\nundefined\n\n### Summary\n\"No summary available\"" } }],
+        });
+      }
+      if (sessionId === "null-session") {
+        return jsonResponse({
+          messages: [{ role: "user", content: { type: "text", text: "## Session Handoff\n\n### Session\nnull\n\n### Summary\nNo summary available" } }],
+        });
+      }
+      return jsonResponse({
+        messages: [{ role: "user", content: { type: "text", text: "## Session Handoff\n\n### Session\nother-session\n\n### Summary\nNo summary available" } }],
+      });
+    },
   });
   try {
     const result = await harness.callTool("memory_mcp_prompt_get", {
@@ -711,6 +753,18 @@ test("memory_mcp_prompt_get reports missing session handoffs clearly", async () 
     assert.equal(textContent(result), "Session not found: missing-session.");
     assert.equal(result.details.ok, false);
     assert.equal(result.details.reason, "session-not-found");
+
+    const nullResult = await harness.callTool("memory_mcp_prompt_get", {
+      name: "session_handoff",
+      arguments: { session_id: "null-session" },
+    });
+    assert.equal(textContent(nullResult), "Session not found: null-session.");
+
+    const differentResult = await harness.callTool("memory_mcp_prompt_get", {
+      name: "session_handoff",
+      arguments: { session_id: "requested-session" },
+    });
+    assert.equal(textContent(differentResult), "Session not found: requested-session.");
   } finally {
     harness.cleanup();
   }

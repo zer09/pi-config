@@ -69,7 +69,7 @@ export function sanitizeForLookup(value: unknown): unknown {
 export function cleanArgs(params: ToolParams): ToolParams {
   const args: ToolParams = {};
   for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === "") continue;
+    if (value === undefined || value === null || value === "") continue;
     args[key] = sanitizeForLookup(value);
   }
   return args;

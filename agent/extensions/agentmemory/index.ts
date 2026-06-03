@@ -39,6 +39,7 @@ import type {
   HealthResponse,
   McpPromptGetResponse,
   McpPromptsResponse,
+  McpToolResponse,
   McpResourceReadResponse,
   McpResourcesResponse,
   McpToolDefinition,
@@ -58,8 +59,29 @@ function sessionHandoffNotFoundMessage(name: string, args: ToolParams, result: M
   const text = Array.isArray(result.messages)
     ? result.messages.map((message) => getText(message.content)).filter(Boolean).join("\n\n")
     : "";
-  if (!sessionId || !/### Session\s+undefined\b/.test(text) || !/No summary available/.test(text)) return null;
+  if (!sessionId || !text || !/No summary available/i.test(text)) return null;
+
+  const sessionLine = text.match(/### Session[ \t]*\r?\n([^\r\n]*)/i)?.[1]
+    ?? text.match(/### Session[ \t]+([^\r\n#]*)/i)?.[1]
+    ?? "";
+  const returnedSession = sessionLine.trim().replace(/^["']|["']$/g, "").trim();
+  const missingSentinel = !returnedSession || /^(undefined|null|n\/a|none|unknown|missing|not found)$/i.test(returnedSession);
+  const returnedDifferentSession = !!returnedSession && returnedSession !== sessionId && !text.includes(sessionId);
+  if (!missingSentinel && !returnedDifferentSession) return null;
   return `Session not found: ${protectDisplayText(sessionId)}.`;
+}
+
+function emptyMemoryRecallMessage(args: ToolParams, result: McpToolResponse): string | null {
+  const format = typeof args.format === "string" ? args.format.trim().toLowerCase() : "";
+  if (format !== "narrative" || !Array.isArray(result.content) || !result.content.length) return null;
+  const onlyEmptyText = result.content.every((block) => {
+    if (!block || typeof block !== "object") return false;
+    const textBlock = block as { type?: unknown; text?: unknown };
+    return (textBlock.type === undefined || textBlock.type === "text") && typeof textBlock.text === "string" && !textBlock.text.trim();
+  });
+  if (!onlyEmptyText) return null;
+  if (typeof args.token_budget === "number") return "No recall narrative returned; no observations fit within the token budget.";
+  return "No recall narrative returned; no observations matched the query.";
 }
 
 function projectPathFallbackUri(uri: string, cwd: string | undefined): string | null {
@@ -157,6 +179,13 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
           return {
             content: [{ type: "text", text: `${tool.name} failed: ${formatMcpResult(result)}` }],
             details: { ok: false, tool: tool.name, result: sanitizeForLookup(result) },
+          };
+        }
+        const emptyRecallMessage = tool.name === "memory_recall" ? emptyMemoryRecallMessage(args, result) : null;
+        if (emptyRecallMessage) {
+          return {
+            content: [{ type: "text", text: emptyRecallMessage }],
+            details: { ok: true, tool: tool.name, result: sanitizeForLookup(result), reason: "empty-recall-narrative" },
           };
         }
         const diagnostics = tool.name === "memory_diagnose" ? await getPiDiagnostics() : { text: "", details: null };
