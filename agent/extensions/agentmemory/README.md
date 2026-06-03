@@ -115,7 +115,7 @@ memory_heal
 Use the canonical upgrade guide before syncing a new upstream AgentMemory version:
 
 ```text
-agentmemory-upgrade-process.md
+docs/agentmemory-upgrade-process.md
 ```
 
 The default tool policy lives in:

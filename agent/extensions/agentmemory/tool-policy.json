@@ -305,10 +305,10 @@
       "reason": "The AgentMemory skill must stay bundled beside the extension"
     },
     {
-      "id": "footer-status-shape",
+      "id": "status-output-shape",
       "file": "agent/extensions/agentmemory/index.ts",
       "contains": "🧠 agentmemory off",
-      "reason": "gc-footer compact status depends on the existing status text shape"
+      "reason": "AgentMemory status text shape must remain stable unless intentionally changed"
     }
   ]
 }
