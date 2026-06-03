@@ -96,11 +96,11 @@ For counts, filters, diffs, parsing, aggregation, or transforms, program the ana
 
 Use CodeGraph before grep/find/manual source walking for structural code work.
 
-Base route: keep CodeGraph MCP available alongside Context Mode for code work; check health with read-only `codegraph status <repo>` or exposed `codegraph_status`; ask before local index mutations; list live MCP tools before optional caller/callee/impact/status assumptions; pass `projectPath` for worktrees and non-session repos; read stale-banner files only when exact current content matters.
+Base route: keep CodeGraph MCP available alongside Context Mode for code work; check health with read-only `codegraph status <repo>` or exposed `codegraph_status`; initialize, sync, or index when graph accuracy matters and the user has authorized CodeGraph setup/freshness, otherwise ask before local index mutations; list live MCP tools before optional caller/callee/impact/status assumptions; pass `projectPath` for worktrees and non-session repos; read stale-banner files only when exact current content matters.
 
 For exact CodeGraph MCP parameter names, load `references/codegraph-protocol.md`; do not infer schemas.
 
-First tool by intent: `codegraph_context` for architecture/onboarding/bug areas, `codegraph_trace` for flow/path questions, `codegraph_search` for known symbols, `codegraph_node` for one exact symbol, and `codegraph_explore` for related source surveys. Use optional `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_files`, and `codegraph_status` when exposed for immediate lookup. Use equivalent CLI commands through Context Mode/RTK when output should be indexed, searched, batched, parsed, compared, or when optional MCP tools are hidden; strip ANSI for plain output and reserve raw JSON for programmed summaries.
+First tool by intent for CodeGraph v0.9.9+: use `codegraph_explore` first for architecture/onboarding/bug areas, flow/path questions, and related source surveys; use `codegraph_search` for known symbols; use `codegraph_node` for one exact symbol. Use `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_files`, and `codegraph_status` for direct relationship, impact, file-layout, and health lookups when exposed. Use equivalent CLI commands through Context Mode/RTK when output should be indexed, searched, batched, parsed, compared, or when an MCP tool is hidden; strip ANSI for plain output and reserve raw JSON for programmed summaries.
 
 If CodeGraph is unavailable, uninitialized, stale, hidden by tool gating, or insufficient, follow the fallback protocol and state that graph results are degraded.
 
@@ -120,7 +120,7 @@ Load references only when their trigger applies. If a rule is needed for safe ro
 |---|---|
 | [`references/context-mode-routing.md`](references/context-mode-routing.md) | Context Mode tool choice, command routing, file/log/test/build output, or examples matter. |
 | [`references/rtk-usage.md`](references/rtk-usage.md) | RTK flags, compression behavior, analytics, examples, or failure modes matter. |
-| [`references/codegraph-protocol.md`](references/codegraph-protocol.md) | Code review, exploration, graph setup/indexing, stale graph, project paths, trace, impact, or graph fallback details matter. |
+| [`references/codegraph-protocol.md`](references/codegraph-protocol.md) | Code review, exploration, graph setup/indexing, stale graph, project paths, flow/path, impact, or graph fallback details matter. |
 | [`references/github-and-context7-routing.md`](references/github-and-context7-routing.md) | GitHub/private GitHub data or current third-party library/API docs are involved. |
 | [`references/worktree-graph-protocol.md`](references/worktree-graph-protocol.md) | Creating, using, indexing, or removing worktrees. |
 | [`references/reader-protocol.md`](references/reader-protocol.md) | Delegating to `reader` delegates or orchestrating parallel investigations. |

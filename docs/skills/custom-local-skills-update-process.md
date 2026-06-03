@@ -51,6 +51,18 @@ When updating Context Watcher's CodeGraph guidance:
 - Remove stale examples that describe tool parameters not present in the current MCP schema.
 - Keep details in `agent/skills/context-watcher/references/codegraph-protocol.md`; keep `agent/skills/context-watcher/SKILL.md` compact.
 
+### CodeGraph sync checklist
+
+When syncing Context Watcher's CodeGraph guidance with an installed or tagged CodeGraph release:
+
+1. Verify the active runtime with `codegraph --version`, then compare against the installed package or checked-out tag.
+2. Verify the live MCP tool list and schemas; do not keep examples for tools or parameters that are not exposed.
+3. Compare against CodeGraph's `src/mcp/tools.ts`, `src/mcp/server-instructions.ts`, `src/installer/targets/registry.ts`, `src/bin/codegraph.ts`, and README supported-agent/tool sections.
+4. Preserve Pi MCP config as `codegraph` running `codegraph serve --mcp`; add target-specific config only as read-only `codegraph install --print-config <id>` guidance unless the user explicitly requests an install mutation.
+5. If the source repo/worktree is uninitialized or stale and graph accuracy matters, run `codegraph init <repo>`, `codegraph sync <repo>`, or `codegraph index <repo>` when setup/indexing/freshness is explicitly authorized; otherwise ask before local index mutation.
+6. Update `SKILL.md`, `references/codegraph-protocol.md`, troubleshooting/pattern references, worktree guidance, and ADR notes when durable behavior changes.
+7. Re-run Local Skill validation and scan changed files for stale tool names, literal home paths, and secret-looking values.
+
 ## Validation
 
 Run the same validation checklist used for all Local Skills:
