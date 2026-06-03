@@ -1,6 +1,6 @@
 # AgentMemory Pi upgrade process
 
-This document is the source of truth for upgrading this repository's Pi custom AgentMemory extension when upstream AgentMemory releases a new version or changes its MCP, CLI, REST, or Pi integration surface.
+This document is the source of truth for upgrading this repository's Pi-native AgentMemory extension when upstream AgentMemory releases a new version or changes its MCP, CLI, REST, or Pi integration surface.
 
 In this repository, `agent/extensions/agentmemory/` is a Pi-native extension that wraps the upstream AgentMemory server with a curated tool surface, safety gates, status hooks, and a bundled Pi skill. It is not the upstream AgentMemory project itself.
 
@@ -21,7 +21,7 @@ An upgrade is successful when:
 
 ## Scope
 
-This process covers this Pi custom extension:
+This process covers this Pi-native AgentMemory extension:
 
 ```text
 agent/extensions/agentmemory/

@@ -6,13 +6,13 @@ Accepted.
 
 ## Context
 
-This repository consumes upstream AgentMemory through a Pi custom extension at `agent/extensions/agentmemory/`. The extension wraps the upstream AgentMemory server with Pi-native tool definitions, safety gates, status hooks, and a bundled Pi skill.
+This repository consumes upstream AgentMemory through a Pi-native AgentMemory extension at `agent/extensions/agentmemory/`. The extension wraps the upstream AgentMemory server with Pi-native tool definitions, safety gates, status hooks, and a bundled Pi skill.
 
 Pi needs AgentMemory for cross-session memory, prior decisions, file history, commit/session provenance, and durable user preferences. Upstream AgentMemory exposes a large MCP surface, including read-only search tools, durable write tools, broad export/audit tools, destructive deletion, consolidation/reflection workflows, team/mesh coordination, slot editing, file compression, and optional provider features.
 
 Importing the entire upstream MCP surface into Pi by default would make normal coding sessions noisier and riskier. Some upstream tools are useful as a source of truth, but they are not all appropriate as active default Pi tools.
 
-This Pi custom extension also has safety and runtime requirements that must survive upstream syncs:
+This Pi-native AgentMemory extension also has safety and runtime requirements that must survive upstream syncs:
 
 - delegate child sessions must not register AgentMemory tools, hooks, or bundled skills
 - headless sessions must not crash when UI status is unavailable
@@ -23,7 +23,7 @@ This Pi custom extension also has safety and runtime requirements that must surv
 
 ## Decision
 
-Use this native Pi custom extension with a curated, typed, stable subset of AgentMemory tools. The extension may call upstream AgentMemory REST and MCP bridge endpoints, but it must not dynamically register every upstream MCP tool.
+Use this Pi-native AgentMemory extension with a curated, typed, stable subset of AgentMemory tools. The extension may call upstream AgentMemory REST and MCP bridge endpoints, but it must not dynamically register every upstream MCP tool.
 
 The extension owns:
 
@@ -45,7 +45,7 @@ The bundled AgentMemory skill is exposed through Pi `resources_discover` and rem
 
 Default tools are bounded and routine for Pi coding sessions. They are mostly read-only. The one default durable write path is `memory_save`, guarded against secret-looking content.
 
-This Pi custom extension also provides Pi-local helpers:
+This Pi-native extension also provides Pi-local helpers:
 
 ```text
 memory_health
@@ -123,7 +123,7 @@ Tradeoffs:
 
 - New upstream tools require manual classification before they can be used in Pi.
 - Some upstream workflows remain unavailable until intentionally adopted.
-- This Pi custom extension can diverge from upstream `integrations/pi/`, so upgrades need explicit review.
+- This Pi-native extension can diverge from upstream `integrations/pi/`, so upgrades need explicit review.
 - The checker and policy file must be maintained as upstream AgentMemory evolves.
 
 ## Upgrade rule
