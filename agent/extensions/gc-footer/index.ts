@@ -304,7 +304,7 @@ function buildFooterParts(
 	const modelProfile = resolveSegmentProfile(config, "model", profile);
 	const statusesProfile = resolveSegmentProfile(config, "statuses", profile);
 	const tokensProfile = resolveSegmentProfile(config, "tokens", profile);
-	const showModel = config.segments.model && (!minimal || hasSegmentProfileOverride(config, "model"));
+	const showModel = config.segments.model && !minimal;
 	const showTokens = config.segments.tokens && tokensProfile !== "minimal" && (!minimal || hasSegmentProfileOverride(config, "tokens"));
 	const left = joinSegments([
 		config.segments.cwd ? theme.fg("dim", formatCwd(snapshot.cwd, cwdProfile)) : undefined,
@@ -952,9 +952,9 @@ function formatCompactModelName(
 		return model.replace(/^gemini-/, "").replace(/^(\d+(?:\.\d+)?(?:-[a-z]+)?)-flash/, "flash-$1");
 	}
 
-	if (provider === "minimax" || provider === "opencode-go") return model;
-
 	if (profile === "minimal") return model;
+
+	if (provider === "minimax" || provider === "opencode-go") return model;
 	return provider ? `${provider}/${model}` : model;
 }
 

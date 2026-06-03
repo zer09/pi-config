@@ -25,7 +25,9 @@ You can point the extension at another file with `GC_FOOTER_CONFIG_PATH`. Restar
 
 ### Compact model only
 
-Use this when you want the footer to stay in its normal full layout, but want the model item to render in compact form:
+Use this when you want the footer to stay in its normal full layout, but want the model item to render in compact form. The extension's built-in fallback still drops the model in the minimal layout for very narrow terminals; this override only changes model text when the model segment is rendered.
+
+This config repo tracks `config.json` with the override below so the local Pi install uses compact model names after reload. Remove the file or set `"model": "inherit"` to return to the built-in full model-name behavior.
 
 ```json
 {

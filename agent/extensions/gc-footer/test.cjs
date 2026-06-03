@@ -710,6 +710,19 @@ async function run() {
 
 	{
 		const footer = await createFooter({
+			config: { segmentProfiles: { model: "compact" } },
+			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
+			entries: [assistantEntry({ input: 123456, output: 45678, cacheRead: 98765, cacheWrite: 8765 })],
+			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
+		});
+		const line = footer.renderPlain(40);
+		assert.ok(line.includes("path (main)"), "model compact override should keep minimal layout cwd and branch");
+		assert.ok(line.includes("(45%)"), "model compact override should keep minimal layout context percentage");
+		assert.ok(!line.includes("gpt-5.5"), "model compact override should not pin model into minimal layout");
+	}
+
+	{
+		const footer = await createFooter({
 			config: { segmentProfiles: { model: "full" } },
 			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
 			statuses: new Map([["mcp", "MCP: 0/9 servers"]]),
