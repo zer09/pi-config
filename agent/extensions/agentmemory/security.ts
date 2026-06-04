@@ -347,6 +347,9 @@ const _STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_KEY_STANDALONE_WORD_P
 // (API_KEY, session-key, KEY_ID). Standalone "key"/"primary key:" is benign.
 const _KEY_COMPOUND_SHAPE = `(?:${_PART}${_SEP})+KEY(?:${_SEP}${_PART})*|(?:${_PART}${_SEP})*KEY(?:${_SEP}${_PART})+`;
 const SECRET_KEY_PATTERN = `(?:${_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE})`;
+const SECRET_ASSIGNMENT_STANDALONE_WORD_PATTERN = `${SECRET_KEY_STANDALONE_WORD_PATTERN}|BEARER`;
+const _ASSIGNMENT_STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_ASSIGNMENT_STANDALONE_WORD_PATTERN})(?:${_SEP}${_PART})*`;
+const SECRET_ASSIGNMENT_KEY_PATTERN = `(?:${_ASSIGNMENT_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE})`;
 const SECRET_KEY_NAME_PATTERN = new RegExp(`^${SECRET_KEY_PATTERN}$`, "i");
 const CLI_SECRET_FLAG_NAME_PATTERN = `[Aa][Pp][Ii][${SECRET_SEPARATOR_PATTERN}]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Aa][Uu][Tt][Hh]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][${SECRET_SEPARATOR_PATTERN}][Kk][Ee][Yy]`;
 const CLI_SECRET_FLAG_VALUE_TERMINATOR_PATTERN = "\\s,;)}\\]>\"'`";
@@ -359,14 +362,14 @@ const SECRET_ASSIGNMENT_SEPARATOR_PATTERN = ":=\\u2010\\u2011\\u2012\\u2013\\u20
 // Unquoted assignments intentionally consume the rest of the line/string. Once a
 // secret-looking key is present, the safest default is to redact the full tail.
 const SECRET_ASSIGNMENT_PATTERN = new RegExp(
-  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}\"'\`])(${SECRET_KEY_PATTERN})(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)(?![\"'])([\\s\\S]*\\S[\\s\\S]*)`,
+  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}\"'\`])(${SECRET_ASSIGNMENT_KEY_PATTERN})(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)(?![\"'])([\\s\\S]*\\S[\\s\\S]*)`,
   "gi",
 );
 
 // Quoted assignments are parsed manually by redactQuotedSecretAssignments so we
 // can handle escaped quotes, missing closing quotes, and adjacent assignments.
 const QUOTED_SECRET_ASSIGNMENT_START_PATTERN = new RegExp(
-  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}]|(?<=[\"']))((?:[\"'])?)(${SECRET_KEY_PATTERN})\\2(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)([\"'])`,
+  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}]|(?<=[\"']))((?:[\"'])?)(${SECRET_ASSIGNMENT_KEY_PATTERN})\\2(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)([\"'])`,
   "gi",
 );
 
@@ -377,7 +380,7 @@ const BEARER_VALUE_PATTERN = /(Bearer\s+)([A-Za-z0-9._~+/=:'"-]{12,}(?:\s+[A-Za-
 const AUTHORIZATION_HEADER_PATTERN = /(Authorization\s*:\s*)(Basic|Bearer|Digest|NTLM)\s+([A-Za-z0-9._~+/=:-]{8,})(?=$|[\s,;.!?)}\]>"'`])/gi;
 const STANDALONE_PROVIDER_TOKEN_PATTERN = /(^|[^A-Za-z0-9_\-])((?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|glpat-[A-Za-z0-9_-]{20,}|AIza[A-Za-z0-9_-]{20,}))(?=$|[^A-Za-z0-9_\-])/g;
 const OUTER_QUOTED_SECRET_ASSIGNMENT_PATTERN = new RegExp(
-  `(^|[\\s([{])([\"'\`])(${SECRET_KEY_PATTERN})(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)(?![\"'])([^\"'\`\\r\\n]*\\S[^\"'\`\\r\\n]*)\\2`,
+  `(^|[\\s([{])([\"'\`])(${SECRET_ASSIGNMENT_KEY_PATTERN})(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)(?![\"'])([^\"'\`\\r\\n]*\\S[^\"'\`\\r\\n]*)\\2`,
   "gi",
 );
 const CLI_SECRET_FLAG_QUOTED_PATTERN = new RegExp(
@@ -394,7 +397,7 @@ const PRIVATE_KEY_BLOCK_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?
 // Private helpers
 // -----------------------------------------------------------------------------
 
-const BARE_STANDALONE_WORD_RE = /^(?:TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)$/i;
+const BARE_STANDALONE_WORD_RE = /^(?:TOKEN|SECRET|CREDENTIAL|AUTH|BEARER)$/i;
 
 // True when a BARE single-word keyword is paired with a low-signal value
 // (short, single opaque token / boolean / small int) -> benign prose, not a

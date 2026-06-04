@@ -914,6 +914,10 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.sanitizeTextForDisplay("pathBearer abcdefghijklmnop"), "pathBearer <redacted>");
   assert.equal(security.sanitizeTextForDisplay("`Bearer abcdefghijklmnop`"), "`Bearer <redacted>`");
   assert.equal(security.sanitizeTextForDisplay("(Bearer abcdefghijklmnop)"), "(Bearer <redacted>)");
+  assert.equal(security.sanitizeTextForDisplay("BEARER=abcdefghijklmnop"), "BEARER=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("bearer: true"), "bearer: true");
+  assert.equal(security.sanitizeTextForDisplay("password=hunter2"), "password=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("PASSWORD=abc123"), "PASSWORD=<redacted>");
   assert.equal(security.sanitizeTextForDisplay("keyboard=shortcuts"), "keyboard=shortcuts");
   assert.equal(security.sanitizeTextForDisplay("author=Alice"), "author=Alice");
   assert.equal(security.sanitizeTextForDisplay("private: false"), "private: false");
@@ -970,6 +974,10 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.containsSecretLikeContent("TOKEN='abcdefghijklmnop AUTH_TOKEN:'qrstuvwxyzabcdef'"), true);
   assert.equal(security.containsSecretLikeContent("`Bearer abcdefghijklmnop`"), true);
   assert.equal(security.containsSecretLikeContent("(Bearer abcdefghijklmnop)"), true);
+  assert.equal(security.containsSecretLikeContent("BEARER=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("bearer: true"), false);
+  assert.equal(security.containsSecretLikeContent("password=hunter2"), true);
+  assert.equal(security.containsSecretLikeContent("PASSWORD=abc123"), true);
   assert.equal(security.containsSecretLikeContent("keyboard=shortcuts"), false);
   assert.equal(security.containsSecretLikeContent("author=Alice"), false);
   assert.equal(security.containsSecretLikeContent("private: false"), false);
@@ -1183,6 +1191,9 @@ test("memory_save permits benign key and bare keyword prose", async () => {
 test("memory_save refuses secret-looking content before network calls", async () => {
   for (const content of [
     "API_KEY=abcdefghijklmnop",
+    "BEARER=abcdefghijklmnop",
+    "password=hunter2",
+    "PASSWORD=abc123",
     "https://user:pass@example.invalid/path",
     "https%3A%2F%2Fuser%3Apass%40example.invalid%2Fpath",
     "https%3A%2F%2Fuser%ZZ%3Apass%40example.invalid%2Fpath",

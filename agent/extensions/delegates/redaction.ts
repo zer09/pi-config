@@ -8,6 +8,7 @@ const SECRET_KEY_STANDALONE_WORD_PATTERN = `API${_SEP}?KEY|PRIVATE${_SEP}?KEY|TO
 const _STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_KEY_STANDALONE_WORD_PATTERN})(?:${_SEP}${_PART})*`;
 const _KEY_COMPOUND_SHAPE = `(?:${_PART}${_SEP})+KEY(?:${_SEP}${_PART})*|(?:${_PART}${_SEP})*KEY(?:${_SEP}${_PART})+`;
 const SECRET_KEY_NAME_PATTERN = new RegExp(`^(?:${_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE})$`, "i");
+const FUSED_SECRET_KEY_NAME_PATTERN = /^(?:[A-Za-z0-9]+)?(?:TOKEN|SECRET|PASSWORD|CREDENTIAL)(?:[0-9]+|ID|KEY|VALUE|HASH)?$/i;
 const SECRET_KEY_VALUE_PATTERN = /(\b[A-Za-z0-9][A-Za-z0-9_\-\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFE58\uFE63\uFF0D]*)(\s*[:=]\s*)(["']?)([^\s"'`,}]+)\3?/gi;
 const SECRET_VALUE_PATTERNS = [
 	/\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}\b/g,
@@ -34,9 +35,19 @@ function keyNameVariants(key: string): string[] {
 
 function isSecretLikeKey(key: string): boolean {
 	for (const variant of keyNameVariants(key.trim())) {
-		if (SECRET_KEY_NAME_PATTERN.test(variant)) return true;
+		if (SECRET_KEY_NAME_PATTERN.test(variant) || FUSED_SECRET_KEY_NAME_PATTERN.test(variant)) return true;
 	}
 	return false;
+}
+
+function normalizedAssignmentValue(value: string): string {
+	return value.trim().replace(/^["']+/, "").replace(/["']+$/, "").trim();
+}
+
+function isSecretLikeAssignmentKey(key: string, value: string): boolean {
+	const normalizedKey = key.trim();
+	if (/^BEARER$/i.test(normalizedKey)) return normalizedAssignmentValue(value).length >= 8;
+	return isSecretLikeKey(normalizedKey);
 }
 
 function redactKeyValue(_match: string, key: string, separator: string, quote = ""): string {
@@ -52,10 +63,10 @@ export function redactSensitiveText(text: string): string {
 	for (const pattern of SECRET_VALUE_PATTERNS) redacted = redacted.replace(pattern, "<redacted>");
 	redacted = redacted.replace(
 		SECRET_KEY_VALUE_PATTERN,
-		(match, key, separator, quote) => isSecretLikeKey(key) ? redactKeyValue(match, key, separator, quote) : match,
+		(match, key, separator, quote, value) => isSecretLikeAssignmentKey(key, value) ? redactKeyValue(match, key, separator, quote) : match,
 	);
-	redacted = redacted.replace(/(["'])([^"']+)\1(\s*:\s*)(["'])([^"']+)\4/g, (match, keyQuote, key, separator, valueQuote) => {
-		if (!isSecretLikeKey(key)) return match;
+	redacted = redacted.replace(/(["'])([^"']+)\1(\s*:\s*)(["'])([^"']+)\4/g, (match, keyQuote, key, separator, valueQuote, value) => {
+		if (!isSecretLikeAssignmentKey(key, value)) return match;
 		return `${keyQuote}${key}${keyQuote}${separator}${valueQuote}<redacted>${valueQuote}`;
 	});
 	return redacted;
