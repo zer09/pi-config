@@ -8,7 +8,7 @@ const SECRET_KEY_STANDALONE_WORD_PATTERN = `API${_SEP}?KEY|PRIVATE${_SEP}?KEY|TO
 const _STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_KEY_STANDALONE_WORD_PATTERN})(?:${_SEP}${_PART})*`;
 const _KEY_COMPOUND_SHAPE = `(?:${_PART}${_SEP})+KEY(?:${_SEP}${_PART})*|(?:${_PART}${_SEP})*KEY(?:${_SEP}${_PART})+`;
 const SECRET_KEY_NAME_PATTERN = new RegExp(`^(?:${_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE})$`, "i");
-const FUSED_SECRET_KEY_NAME_PATTERN = /^(?:[A-Za-z0-9]+)?(?:TOKEN|SECRET|PASSWORD|CREDENTIAL)(?:[0-9]+|ID|KEY|VALUE|HASH)?$/i;
+const FUSED_SECRET_KEY_NAME_PATTERN = /^(?:[A-Za-z0-9]+)?(?:TOKEN|SECRET|PASSWORD|CREDENTIAL)S?(?:[0-9]+|ID|KEY|VALUE|HASH)?$/i;
 const SECRET_KEY_VALUE_PATTERN = /(\b[A-Za-z0-9][A-Za-z0-9_\-\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFE58\uFE63\uFF0D]*)(\s*[:=]\s*)(["']?)([^\s"'`,}]+)\3?/gi;
 const SECRET_VALUE_PATTERNS = [
 	/\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}\b/g,

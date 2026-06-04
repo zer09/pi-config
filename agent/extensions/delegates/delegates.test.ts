@@ -1184,7 +1184,7 @@ test("redaction covers separator-aware secret keys and transport secrets", () =>
 	const fusedToken = "fusedtokenvalue123";
 	const pem = "-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----";
 	const redacted = redactSensitiveText(
-		`API_KEY=abcdefghijklmnop AUTH_TOKEN=qrstuvwxyzabcdef PRIVATE_KEY=privatevalue123 PRIVATE='privatevalue123' Authorization: Basic dXNlcjpwYXNz authorization=Bearer ${bearerAssignment} BEARER=${bearerAssignment} authtoken=${fusedToken} dbpassword=hunter2 token1=tokenvalue123 ${githubClassic} Bearer ${bearer} ${pem}`,
+		`API_KEY=abcdefghijklmnop AUTH_TOKEN=qrstuvwxyzabcdef PRIVATE_KEY=privatevalue123 PRIVATE='privatevalue123' Authorization: Basic dXNlcjpwYXNz authorization=Bearer ${bearerAssignment} BEARER=${bearerAssignment} authtoken=${fusedToken} dbpassword=hunter2 token1=tokenvalue123 tokens=tokencollectionvalue secrets=hunter2 {"credentials":"hunter2"} ${githubClassic} Bearer ${bearer} ${pem}`,
 	);
 	assert.match(redacted, /API_KEY=<redacted>/);
 	assert.match(redacted, /AUTH_TOKEN=<redacted>/);
@@ -1196,9 +1196,12 @@ test("redaction covers separator-aware secret keys and transport secrets", () =>
 	assert.match(redacted, /authtoken=<redacted>/);
 	assert.match(redacted, /dbpassword=<redacted>/);
 	assert.match(redacted, /token1=<redacted>/);
+	assert.match(redacted, /tokens=<redacted>/);
+	assert.match(redacted, /secrets=<redacted>/);
+	assert.match(redacted, /"credentials":"<redacted>"/);
 	assert.match(redacted, /Bearer <redacted>/);
 	assert.match(redacted, /<redacted private key>/);
-	assert.doesNotMatch(redacted, /abcdefghijklmnop|qrstuvwxyzabcdef|privatevalue123|dXNlcjpwYXNz|mnopabcdefghijkl|fusedtokenvalue123|hunter2|tokenvalue123|abc123/);
+	assert.doesNotMatch(redacted, /abcdefghijklmnop|qrstuvwxyzabcdef|privatevalue123|dXNlcjpwYXNz|mnopabcdefghijkl|fusedtokenvalue123|tokencollectionvalue|hunter2|tokenvalue123|abc123/);
 	assert.doesNotMatch(redacted, new RegExp(githubClassic));
 });
 
