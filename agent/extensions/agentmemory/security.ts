@@ -346,10 +346,13 @@ const _STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_KEY_STANDALONE_WORD_P
 // Bare KEY is only a secret-name when joined to another token by a separator
 // (API_KEY, session-key, KEY_ID). Standalone "key"/"primary key:" is benign.
 const _KEY_COMPOUND_SHAPE = `(?:${_PART}${_SEP})+KEY(?:${_SEP}${_PART})*|(?:${_PART}${_SEP})*KEY(?:${_SEP}${_PART})+`;
-const SECRET_KEY_PATTERN = `(?:${_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE})`;
+// Restore fused credential names (authtoken, dbpassword, token1) without
+// substring-matching benign words like tokenizer, monkey, or keystone.
+const FUSED_SECRET_KEY_PATTERN = `[A-Za-z0-9]*(?:TOKEN|SECRET|PASSWORD|CREDENTIAL)(?:[0-9]+|ID|KEY|VALUE|HASH)?`;
+const SECRET_KEY_PATTERN = `(?:${_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE}|${FUSED_SECRET_KEY_PATTERN})`;
 const SECRET_ASSIGNMENT_STANDALONE_WORD_PATTERN = `${SECRET_KEY_STANDALONE_WORD_PATTERN}|BEARER`;
 const _ASSIGNMENT_STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_ASSIGNMENT_STANDALONE_WORD_PATTERN})(?:${_SEP}${_PART})*`;
-const SECRET_ASSIGNMENT_KEY_PATTERN = `(?:${_ASSIGNMENT_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE})`;
+const SECRET_ASSIGNMENT_KEY_PATTERN = `(?:${_ASSIGNMENT_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE}|${FUSED_SECRET_KEY_PATTERN})`;
 const SECRET_KEY_NAME_PATTERN = new RegExp(`^${SECRET_KEY_PATTERN}$`, "i");
 const CLI_SECRET_FLAG_NAME_PATTERN = `[Aa][Pp][Ii][${SECRET_SEPARATOR_PATTERN}]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Aa][Uu][Tt][Hh]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][${SECRET_SEPARATOR_PATTERN}][Kk][Ee][Yy]`;
 const CLI_SECRET_FLAG_VALUE_TERMINATOR_PATTERN = "\\s,;)}\\]>\"'`";

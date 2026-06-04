@@ -924,6 +924,9 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.sanitizeTextForDisplay('{"author":"Alice","authoredBy":"Bob","private":false}'), '{\n  "author": "Alice",\n  "authoredBy": "Bob",\n  "private": false\n}');
   assert.equal(security.sanitizeTextForDisplay("Use AWS_SECRET_ACCESS_KEY from the environment"), "Use AWS_SECRET_ACCESS_KEY from the environment");
   assert.equal(security.sanitizeTextForDisplay("AUTH_TOKEN=abcdefghijklmnop"), "AUTH_TOKEN=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("authtoken=abcdefghijklmnop"), "authtoken=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("tokenizer=id"), "tokenizer=id");
+  assert.equal(security.sanitizeTextForDisplay('{"dbpassword":"hunter2","tokenizer":"id"}'), '{\n  "dbpassword": "<redacted>",\n  "tokenizer": "id"\n}');
   assert.equal(security.sanitizeTextForDisplay('{"accessToken":"short value","clientSecret":"another value","dbPassword":"pw"}'), '{\n  "accessToken": "<redacted>",\n  "clientSecret": "<redacted>",\n  "dbPassword": "<redacted>"\n}');
   assert.equal(security.sanitizeTextForDisplay("--api-key sk-abcdefghijklmnop"), "--api-key <redacted>");
   assert.equal(security.sanitizeTextForDisplay("tool --token abcdefghijklmnop --safe next"), "tool --token <redacted> --safe next");
@@ -985,6 +988,9 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.containsSecretLikeContent("SECRET_KEY"), false);
   assert.equal(security.containsSecretLikeContent("Use AWS_SECRET_ACCESS_KEY from the environment"), false);
   assert.equal(security.containsSecretLikeContent("AUTH_TOKEN=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("authtoken=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("tokenizer=id"), false);
+  assert.equal(security.containsSecretLikeContent({ dbpassword: "hunter2", tokenizer: "id" }), true);
   assert.equal(security.containsSecretLikeContent({ accessToken: "short", refreshToken: "short", secretKey: "short", dbPassword: "short" }), true);
   assert.equal(security.containsSecretLikeContent("--api-key sk-abcdefghijklmnop"), true);
   assert.equal(security.containsSecretLikeContent("tool --token abcdefghijklmnop --safe next"), true);
@@ -1173,6 +1179,8 @@ test("memory_save permits benign key and bare keyword prose", async () => {
       "token: id",
       "secret: no",
       "bearer: true",
+      "tokenizer=id",
+      '{"tokenizer":"id"}',
     ]) {
       const result = await harness.callTool("memory_save", { content, type: "fact" });
       assert.equal(textContent(result), "Saved memory (fact).");
@@ -1194,6 +1202,8 @@ test("memory_save refuses secret-looking content before network calls", async ()
     "BEARER=abcdefghijklmnop",
     "password=hunter2",
     "PASSWORD=abc123",
+    "authtoken=abcdefghijklmnop",
+    '{"dbpassword":"hunter2"}',
     "https://user:pass@example.invalid/path",
     "https%3A%2F%2Fuser%3Apass%40example.invalid%2Fpath",
     "https%3A%2F%2Fuser%ZZ%3Apass%40example.invalid%2Fpath",
