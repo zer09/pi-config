@@ -7,6 +7,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | Status | Skill | How good without skill | Rating | Action | Verdict |
 |---|---|---:|---:|---|---|
 | ✓ | a11y-debugging | Strong | 8 | make it slim | Slimmed to Chrome MCP a11y workflow, browser mutation safety, large-output handling, and snippet references. |
+| ✓ | agentmemory | Weak | 3 | keep it | Retained because it provides custom local memory tooling, safety gates, exact Pi integration, and cross-session memory workflows. |
 | ✓ | chrome-devtools | Good | 7 | make it slim | Slimmed to MCP page workflow, tool selection, browser mutation gates, and troubleshooting handoff. |
 | ✓ | chrome-devtools-cli | Medium | 5 | make it slim | Slimmed to CLI command shape, command groups, Context Mode routing, setup gate, and gotchas. |
 | x | codegraph | Weak | 3 | remove it | Removed as a standalone Local Skill and merged into Context Watcher; CodeGraph remains the graph-first capability through `context-watcher/references/codegraph-protocol.md`. |

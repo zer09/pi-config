@@ -56,6 +56,12 @@ Default Pi tools:
 - `memory_diagnose` - read-only diagnostics
 - `memory_verify` - provenance verification by memory ID
 - `memory_lesson_recall` - recall durable lessons
+- `memory_slot_list` - list read-only AgentMemory slots
+- `memory_slot_get` - read a named AgentMemory slot
+- `memory_mcp_resources` - list read-only AgentMemory MCP resources
+- `memory_mcp_resource_read` - read an exact `agentmemory://` MCP resource URI
+- `memory_mcp_prompts` - list AgentMemory MCP prompt templates
+- `memory_mcp_prompt_get` - return MCP prompt text for review, not automatic execution
 
 Command and lifecycle behavior:
 
@@ -85,9 +91,12 @@ The extension publishes that directory through Pi's `resources_discover` event. 
 - Pi-local secret refusal and AgentMemory output redaction are enabled by default; `PI_AGENTMEMORY_SECURITY_ENABLED=0` disables only those local checks.
 - `memory_save` refuses obvious secret-looking values when security is enabled.
 - Conversation capture redacts obvious secret-looking values before calling `/agentmemory/observe` when security is enabled.
+- MCP resource and prompt wrappers are read-only; prompt wrappers return text for agent review and do not auto-inject or execute returned prompts.
+- Slot reads are default read-only tools. Slot writes are persistent state changes and stay gated; normal new memories should use `memory_save` unless the user explicitly asks for a named slot write.
 - Broad, destructive, or mutating AgentMemory tools are not registered by default.
+- Set `AGENTMEMORY_PI_ENABLE_GATED=1` to register gated wrappers. High-risk gated wrappers still require exact local `confirm` phrases and strip `confirm` before forwarding upstream.
 
-Gated tools reserved for explicit future workflows:
+Gated tools registered only when `AGENTMEMORY_PI_ENABLE_GATED=1`:
 
 ```text
 memory_lesson_save
@@ -98,7 +107,40 @@ memory_audit
 memory_export
 memory_governance_delete
 memory_heal
+memory_slot_create
+memory_slot_append
+memory_slot_replace
+memory_slot_delete
 ```
+
+Confirmation phrases:
+
+```text
+memory_lesson_save: confirm="save agentmemory lesson"
+memory_consolidate: confirm="consolidate agentmemory"
+memory_reflect: confirm="reflect agentmemory"
+memory_insight_list: confirm="list agentmemory insights"
+memory_audit: confirm="audit agentmemory"
+memory_export: confirm="export agentmemory"
+memory_heal: confirm="heal agentmemory" unless dryRun is true
+memory_governance_delete: confirm="delete memories:<comma-separated sorted ids>"
+memory_slot_create: confirm="create slot:<label>"
+memory_slot_append: confirm="append slot:<label>"
+memory_slot_replace: confirm="replace slot:<label>"
+memory_slot_delete: confirm="delete slot:<label>"
+```
+
+## Workflow and task-state policy
+
+AgentMemory remains the durable memory and provenance system for Pi. It is not the default task manager or workflow-state owner. Use Pi plans, handoffs, delegates, Context Watcher, and normal in-session planning for active task state.
+
+The upstream action, frontier, lease, signal, checkpoint, sentinel, routine, sketch, and crystallize tools stay not exposed by policy. Exposing any of them requires an ADR that updates `docs/adr/0004-agentmemory-workflow-state-policy.md` and explains ownership, migration, and safety gates.
+
+## External integration policy
+
+Do not install upstream Codex, GitHub Copilot MCP, OpenCode, OpenClaw, Hermes, generic MCP, Obsidian export, team/mesh, or vision/image integration config by default. The Pi-native extension is the canonical AgentMemory surface for Pi.
+
+Add an optional external integration only for an active client/workflow and document capture/provenance behavior, security boundaries, and removal path. Tool-backed external integration surfaces such as Obsidian export, team/mesh sharing, and vision search stay not exposed until `docs/adr/0005-agentmemory-external-integrations-policy.md` is updated or superseded.
 
 ## Environment variables
 
@@ -107,6 +149,7 @@ memory_heal
 | `AGENTMEMORY_URL` | `http://localhost:3111` | AgentMemory server URL |
 | `AGENTMEMORY_SECRET` | (none) | Bearer token for protected instances |
 | `AGENTMEMORY_REQUIRE_HTTPS` | (off) | When set to `1`, refuse bearer auth over plaintext HTTP to non-loopback hosts |
+| `AGENTMEMORY_PI_ENABLE_GATED` | (off) | When set to `1`, register gated AgentMemory wrappers. Destructive or broad-private operations still require exact user intent and local `confirm` phrases. |
 | `PI_AGENTMEMORY_SECURITY_ENABLED` | `1` | Enables Pi-local save refusal and AgentMemory output redaction. Set to `0`, `false`, `no`, `off`, or `disabled` to disable those local checks. Unknown values stay enabled. Bearer HTTPS enforcement and URL diagnostic scrubbing are independent. |
 | `PI_DELEGATE_CHILD` | (off) | Local pi delegate marker; skips AgentMemory tools, hooks, and bundled skill discovery |
 
@@ -130,6 +173,8 @@ Run the local sync checker after updating or selecting the upstream AgentMemory 
 npm run check:sync -- --upstream <path-to-agentmemory-clone>
 ```
 
+`check:sync` requires either `--upstream` or `AGENTMEMORY_UPSTREAM` because it compares local Pi policy against a local AgentMemory checkout. Running it without one intentionally fails with `AgentMemory upstream path is required`.
+
 You can also set `AGENTMEMORY_UPSTREAM=<path-to-agentmemory-clone>` and run `npm run check:sync`.
 
 Useful inspection command:
@@ -142,13 +187,25 @@ The checker verifies that every upstream MCP tool is categorized as default, gat
 
 ## Smoke test
 
-Run pi and ask it to use `memory_health`, or call the command directly:
+Run pi and ask it to use these read-only checks:
 
 ```text
+memory_health
+memory_diagnose
+memory_slot_list
+memory_mcp_resources
+memory_mcp_prompts
 /agentmemory-status
 ```
 
-You should see `agentmemory healthy` and a footer status like `🧠 agentmemory`.
+For direct HTTP smoke checks against the default local server:
+
+```bash
+curl http://localhost:3111/agentmemory/health
+curl http://localhost:3111/agentmemory/diagnostics/followup
+```
+
+You should see `agentmemory healthy`, a footer status like `🧠 agentmemory`, no policy drift warning when the server version matches `tool-policy.json`, and followup diagnostic data when the server exposes `/agentmemory/diagnostics/followup`.
 
 ## See also
 

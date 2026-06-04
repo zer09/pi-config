@@ -1,14 +1,23 @@
 const assert = require("node:assert/strict");
 const { execFileSync } = require("node:child_process");
+const fs = require("node:fs");
 const Module = require("node:module");
 const path = require("node:path");
 
 function resolveGlobalNodeModules() {
+  const candidates = [];
   try {
-    return execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
+    candidates.push(execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim());
   } catch {
-    return path.resolve(path.dirname(process.execPath), "..", "lib", "node_modules");
+    // npm may be unavailable in minimal validation environments.
   }
+  if (process.env.HOME) candidates.push(path.join(process.env.HOME, ".bun", "install", "global", "node_modules"));
+  candidates.push(path.resolve(path.dirname(process.execPath), "..", "lib", "node_modules"));
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, "@earendil-works", "pi-coding-agent"))) return candidate;
+  }
+  return candidates[0];
 }
 
 const globalNodeModules = resolveGlobalNodeModules();
@@ -20,7 +29,16 @@ process.env.NODE_PATH = [
 ].filter(Boolean).join(path.delimiter);
 Module._initPaths();
 
-const { createJiti } = require(path.join(piPackageRoot, "node_modules", "jiti"));
+function requirePiDependency(name) {
+  try {
+    return require(path.join(piPackageRoot, "node_modules", name));
+  } catch (error) {
+    if (error?.code !== "MODULE_NOT_FOUND") throw error;
+    return require(name);
+  }
+}
+
+const { createJiti } = requirePiDependency("jiti");
 
 const extensionPath = path.join(__dirname, "index.ts");
 const securityPath = path.join(__dirname, "security.ts");
@@ -28,6 +46,7 @@ const MANAGED_ENV_KEYS = [
   "AGENTMEMORY_URL",
   "AGENTMEMORY_SECRET",
   "AGENTMEMORY_REQUIRE_HTTPS",
+  "AGENTMEMORY_PI_ENABLE_GATED",
   "PI_AGENTMEMORY_SECURITY_ENABLED",
   "PI_DELEGATE_CHILD",
 ];
@@ -47,6 +66,12 @@ const DEFAULT_TOOL_NAMES = [
   "memory_diagnose",
   "memory_verify",
   "memory_lesson_recall",
+  "memory_slot_list",
+  "memory_slot_get",
+  "memory_mcp_resources",
+  "memory_mcp_resource_read",
+  "memory_mcp_prompts",
+  "memory_mcp_prompt_get",
 ];
 const GATED_TOOL_NAMES = [
   "memory_lesson_save",
@@ -57,6 +82,10 @@ const GATED_TOOL_NAMES = [
   "memory_export",
   "memory_governance_delete",
   "memory_heal",
+  "memory_slot_create",
+  "memory_slot_append",
+  "memory_slot_replace",
+  "memory_slot_delete",
 ];
 
 const tests = [];
@@ -169,10 +198,10 @@ function createHarness(options = {}) {
     return result;
   }
 
-  async function callTool(name, params = {}) {
+  async function callTool(name, params = {}, customCtx = ctx) {
     const tool = tools.get(name);
     assert.equal(typeof tool?.execute, "function", `${name} should be registered`);
-    return await tool.execute("tool-1", params);
+    return await tool.execute("tool-1", params, undefined, undefined, customCtx);
   }
 
   return {
@@ -210,8 +239,20 @@ test("registers curated default tools and bundled skill discovery", async () => 
   }
 });
 
+test("AGENTMEMORY_PI_ENABLE_GATED registers gated tools", () => {
+  const harness = createHarness({ env: { AGENTMEMORY_PI_ENABLE_GATED: "1" } });
+  try {
+    assert.deepEqual(
+      [...harness.tools.keys()].sort(),
+      [...DEFAULT_TOOL_NAMES, ...GATED_TOOL_NAMES].sort(),
+    );
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("delegate child sessions register no tools hooks commands or skills", () => {
-  const harness = createHarness({ env: { PI_DELEGATE_CHILD: "1" } });
+  const harness = createHarness({ env: { PI_DELEGATE_CHILD: "1", AGENTMEMORY_PI_ENABLE_GATED: "1" } });
   try {
     assert.equal(harness.tools.size, 0);
     assert.equal(harness.commands.size, 0);
@@ -229,6 +270,106 @@ test("memory_health failure reports configured URL", async () => {
   try {
     const result = await harness.callTool("memory_health");
     assert.match(textContent(result), /http:\/\/localhost:5999/);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_health reports policy drift and followup diagnostics", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url) => {
+      if (url.endsWith("/agentmemory/health")) return jsonResponse({ status: "healthy", version: "0.9.27" });
+      if (url.endsWith("/agentmemory/diagnostics/followup")) {
+        return jsonResponse({
+          success: true,
+          windowSeconds: 120,
+          agentInitiatedSearches: 4,
+          followupWithinWindow: 1,
+          rate: 0.25,
+          caveat: "Directional signal only.",
+        });
+      }
+      throw new Error(`unexpected ${url}`);
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_health");
+    const text = textContent(result);
+    assert.match(text, /agentmemory status: healthy \(v0\.9\.27\)/);
+    assert.match(text, /policy drift warning: local Pi policy last checked against AgentMemory v0\.9\.26, but server reports v0\.9\.27/);
+    assert.match(text, /smart-search followup diagnostic: 1\/4 agent searches followed up within 120s \(25\.0%\)/);
+    assert.match(text, /Directional signal only/);
+    assert.equal(harness.fetchCalls.length, 2);
+    assert.equal(result.details.piDiagnostics.policy.lastCheckedVersion, "0.9.26");
+    assert.equal(result.details.piDiagnostics.policy.serverVersion, "0.9.27");
+    assert.equal(result.details.piDiagnostics.followup.rate, 0.25);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_health formats followup diagnostics with unknown rate and configured window", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url) => {
+      if (url.endsWith("/agentmemory/health")) return jsonResponse({ status: "healthy", version: "0.9.26" });
+      if (url.endsWith("/agentmemory/diagnostics/followup")) {
+        return jsonResponse({
+          success: true,
+          windowSeconds: null,
+          agentInitiatedSearches: 3,
+          followupWithinWindow: 0,
+          rate: null,
+        });
+      }
+      throw new Error(`unexpected ${url}`);
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_health");
+    const text = textContent(result);
+    assert.match(text, /smart-search followup diagnostic: 0\/3 agent searches followed up within the configured window \(unknown rate\)\./);
+    assert.equal(result.details.piDiagnostics.followup.rate, null);
+    assert.equal(result.details.piDiagnostics.followup.windowSeconds, null);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("agentmemory-status reports policy drift without leaking raw health text", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ status: "healthy", version: "0.9.27" }),
+  });
+  try {
+    const command = harness.commands.get("agentmemory-status");
+    await command.handler("", harness.ctx);
+    assert.equal(harness.notifications.length, 1);
+    assert.match(harness.notifications[0].message, /agentmemory healthy v0\.9\.27; policy drift warning:/);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_diagnose appends policy and followup diagnostics", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url, init) => {
+      if (url.endsWith("/agentmemory/mcp/call")) {
+        assert.deepEqual(JSON.parse(init.body), { name: "memory_diagnose", arguments: { categories: "sessions" } });
+        return jsonResponse({ content: [{ type: "text", text: "diagnostics ok" }] });
+      }
+      if (url.endsWith("/agentmemory/health")) return jsonResponse({ status: "healthy", version: "0.9.27" });
+      if (url.endsWith("/agentmemory/diagnostics/followup")) {
+        return jsonResponse({ success: true, windowSeconds: 60, agentInitiatedSearches: 2, followupWithinWindow: 1, rate: 0.5 });
+      }
+      throw new Error(`unexpected ${url}`);
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_diagnose", { categories: "sessions" });
+    const text = textContent(result);
+    assert.match(text, /diagnostics ok/);
+    assert.match(text, /policy drift warning: local Pi policy last checked against AgentMemory v0\.9\.26, but server reports v0\.9\.27/);
+    assert.match(text, /smart-search followup diagnostic: 1\/2 agent searches followed up within 60s \(50\.0%\)/);
+    assert.equal(harness.fetchCalls.length, 3);
   } finally {
     harness.cleanup();
   }
@@ -261,6 +402,436 @@ test("MCP isError responses are surfaced as failures", async () => {
     const result = await harness.callTool("memory_smart_search", { query: "prior decision" });
     assert.equal(textContent(result), "memory_smart_search failed: upstream denied request");
     assert.equal(result.details.ok, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("MCP HTTP errors surface upstream errors instead of unreachable", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ error: "Internal error" }, { ok: false, status: 500 }),
+  });
+  try {
+    const result = await harness.callTool("memory_slot_list");
+    assert.equal(textContent(result), "memory_slot_list failed: Internal error");
+    assert.equal(result.details.ok, false);
+    assert.equal(result.details.result.httpStatus, 500);
+    assert.doesNotMatch(textContent(result), /unreachable/);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_smart_search rejects empty queries before network calls", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => { throw new Error("empty query should not fetch"); },
+  });
+  try {
+    const result = await harness.callTool("memory_smart_search", { query: "   " });
+    assert.equal(textContent(result), "Refusing memory_smart_search: query must be a non-empty string.");
+    assert.equal(harness.fetchCalls.length, 0);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("MCP tools strip null optional arguments before upstream calls", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "recall ok" }] }),
+  });
+  try {
+    const result = await harness.callTool("memory_recall", { query: "prior decision", format: null, token_budget: null, limit: 1 });
+    assert.equal(textContent(result), "recall ok");
+    assert.deepEqual(parseBody(harness.fetchCalls[0]), {
+      name: "memory_recall",
+      arguments: { query: "prior decision", limit: 1 },
+    });
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_recall narrative empty content returns a clear explanation", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "" }] }),
+  });
+  try {
+    const result = await harness.callTool("memory_recall", { query: "prior decision", format: "narrative", token_budget: 10 });
+    assert.equal(textContent(result), "No recall narrative returned; no observations fit within the token budget.");
+    assert.equal(result.details.reason, "empty-recall-narrative");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_slot_list and memory_slot_get call read-only slot tools", async () => {
+  const harness = createHarness({
+    fetchHandler: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      if (body.name === "memory_slot_list") {
+        return jsonResponse({ content: [{ type: "text", text: JSON.stringify({ slots: [{ label: "project_context" }] }) }] });
+      }
+      if (body.name === "memory_slot_get") {
+        assert.deepEqual(body.arguments, { label: "project_context" });
+        return jsonResponse({ content: [{ type: "text", text: "see https://user:pass@example.invalid/path" }] });
+      }
+      throw new Error(`unexpected ${body.name}`);
+    },
+  });
+  try {
+    const listResult = await harness.callTool("memory_slot_list");
+    assert.match(textContent(listResult), /project_context/);
+    assert.deepEqual(parseBody(harness.fetchCalls[0]), { name: "memory_slot_list", arguments: {} });
+
+    const getResult = await harness.callTool("memory_slot_get", { label: "project_context" });
+    assert.equal(textContent(getResult), "see https://<redacted>@example.invalid/path");
+    assert.deepEqual(parseBody(harness.fetchCalls[1]), { name: "memory_slot_get", arguments: { label: "project_context" } });
+    assert.doesNotMatch(JSON.stringify(getResult), /user|pass/);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_slot_get unavailable responses are clear failures", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ isError: true, content: [{ type: "text", text: "slots disabled" }] }),
+  });
+  try {
+    const result = await harness.callTool("memory_slot_get", { label: "project_context" });
+    assert.equal(textContent(result), "memory_slot_get failed: slots disabled");
+    assert.equal(result.details.ok, false);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("gated memory_export requires confirmation and strips local guard params", async () => {
+  const harness = createHarness({
+    env: { AGENTMEMORY_PI_ENABLE_GATED: "1" },
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "export ok" }] }),
+  });
+  try {
+    const refused = await harness.callTool("memory_export");
+    assert.match(textContent(refused), /confirm.*export agentmemory/);
+    assert.equal(harness.fetchCalls.length, 0);
+
+    const result = await harness.callTool("memory_export", { confirm: "export agentmemory" });
+    assert.equal(textContent(result), "export ok");
+    assert.deepEqual(parseBody(harness.fetchCalls[0]), { name: "memory_export", arguments: {} });
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("gated governance delete requires normalized confirmation", async () => {
+  const harness = createHarness({
+    env: { AGENTMEMORY_PI_ENABLE_GATED: "1" },
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "deleted" }] }),
+  });
+  try {
+    const refused = await harness.callTool("memory_governance_delete", { memoryIds: "mem_b, mem_a", reason: "duplicate" });
+    assert.match(textContent(refused), /delete memories:mem_a,mem_b/);
+    assert.equal(harness.fetchCalls.length, 0);
+
+    const result = await harness.callTool("memory_governance_delete", {
+      memoryIds: "mem_b, mem_a",
+      reason: "duplicate",
+      confirm: "delete memories:mem_a,mem_b",
+    });
+    assert.equal(textContent(result), "deleted");
+    assert.deepEqual(parseBody(harness.fetchCalls[0]), {
+      name: "memory_governance_delete",
+      arguments: { memoryIds: "mem_b, mem_a", reason: "duplicate" },
+    });
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("gated memory_heal confirmation is skipped only for dry runs", async () => {
+  const harness = createHarness({
+    env: { AGENTMEMORY_PI_ENABLE_GATED: "1" },
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "heal ok" }] }),
+  });
+  try {
+    const dryRun = await harness.callTool("memory_heal", { dryRun: true });
+    assert.equal(textContent(dryRun), "heal ok");
+    assert.deepEqual(parseBody(harness.fetchCalls[0]), { name: "memory_heal", arguments: { dryRun: true } });
+
+    const refused = await harness.callTool("memory_heal");
+    assert.match(textContent(refused), /heal agentmemory/);
+    assert.equal(harness.fetchCalls.length, 1);
+
+    await harness.callTool("memory_heal", { categories: "sessions", confirm: "heal agentmemory" });
+    assert.deepEqual(parseBody(harness.fetchCalls[1]), { name: "memory_heal", arguments: { categories: "sessions" } });
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("gated high-risk tools require exact confirmations", async () => {
+  const successfulCalls = [];
+  const harness = createHarness({
+    env: { AGENTMEMORY_PI_ENABLE_GATED: "1" },
+    fetchHandler: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      successfulCalls.push(body);
+      return jsonResponse({ content: [{ type: "text", text: `${body.name} ok` }] });
+    },
+  });
+  const cases = [
+    ["memory_consolidate", { tier: "semantic" }, "consolidate agentmemory", { tier: "semantic" }],
+    ["memory_audit", { operation: "delete", limit: 5 }, "audit agentmemory", { operation: "delete", limit: 5 }],
+    ["memory_lesson_save", { content: "Use regression tests" }, "save agentmemory lesson", { content: "Use regression tests" }],
+    ["memory_reflect", { project: "pi-config", maxClusters: 2 }, "reflect agentmemory", { project: "pi-config", maxClusters: 2 }],
+    ["memory_insight_list", { project: "pi-config", limit: 1 }, "list agentmemory insights", { project: "pi-config", limit: 1 }],
+  ];
+  try {
+    for (const [name, params, confirm, expectedArgs] of cases) {
+      const refused = await harness.callTool(name, params);
+      assert.match(textContent(refused), new RegExp(confirm));
+      assert.equal(harness.fetchCalls.length, successfulCalls.length);
+
+      const result = await harness.callTool(name, { ...params, confirm });
+      assert.equal(textContent(result), `${name} ok`);
+      assert.deepEqual(successfulCalls.at(-1), { name, arguments: expectedArgs });
+    }
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("gated slot writes require confirmation and reject secret-looking content", async () => {
+  const harness = createHarness({
+    env: { AGENTMEMORY_PI_ENABLE_GATED: "1" },
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "slot updated" }] }),
+  });
+  try {
+    const refused = await harness.callTool("memory_slot_replace", { label: "project_context", content: "safe content" });
+    assert.match(textContent(refused), /replace slot:project_context/);
+    assert.equal(harness.fetchCalls.length, 0);
+
+    const missingLabel = await harness.callTool("memory_slot_create", { content: "safe content", confirm: "create slot:" });
+    assert.match(textContent(missingLabel), /label is required before confirmation/);
+    assert.equal(harness.fetchCalls.length, 0);
+
+    const secretRefused = await harness.callTool("memory_slot_append", {
+      label: "project_context",
+      text: "see https://user:pass@example.invalid/path",
+      confirm: "append slot:project_context",
+    });
+    assert.match(textContent(secretRefused), /secret-looking value/);
+    assert.equal(harness.fetchCalls.length, 0);
+
+    const result = await harness.callTool("memory_slot_replace", {
+      label: "project_context",
+      content: "safe content",
+      confirm: "replace slot:project_context",
+    });
+    assert.equal(textContent(result), "slot updated");
+    assert.deepEqual(parseBody(harness.fetchCalls[0]), {
+      name: "memory_slot_replace",
+      arguments: { label: "project_context", content: "safe content" },
+    });
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("gated memory_lesson_save refuses secret-looking content before network calls", async () => {
+  const harness = createHarness({
+    env: { AGENTMEMORY_PI_ENABLE_GATED: "1" },
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "unexpected" }] }),
+  });
+  try {
+    const result = await harness.callTool("memory_lesson_save", { content: "see https://user:pass@example.invalid/path" });
+    assert.match(textContent(result), /secret-looking value/);
+    assert.equal(harness.fetchCalls.length, 0);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_mcp_resources lists read-only MCP resources", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url, init) => {
+      assert.match(url, /\/agentmemory\/mcp\/resources$/);
+      assert.equal(init.method, "GET");
+      assert.equal(init.body, undefined);
+      return jsonResponse({
+        resources: [
+          {
+            uri: "agentmemory://status",
+            name: "Agent Memory Status",
+            description: "Current counts",
+            mimeType: "application/json",
+          },
+        ],
+      });
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_mcp_resources");
+    assert.match(textContent(result), /Agent Memory Status/);
+    assert.match(textContent(result), /agentmemory:\/\/status/);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_mcp_resource_read validates URIs and redacts output", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url, init) => {
+      assert.match(url, /\/agentmemory\/mcp\/resources\/read$/);
+      assert.deepEqual(JSON.parse(init.body), { uri: "agentmemory://status" });
+      return jsonResponse({ contents: [{ uri: "agentmemory://status", mimeType: "text/plain", text: "see https://user:pass@example.invalid/path" }] });
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_mcp_resource_read", { uri: "agentmemory://status" });
+    assert.equal(textContent(result), "see https://<redacted>@example.invalid/path");
+    assert.doesNotMatch(JSON.stringify(result), /user|pass/);
+  } finally {
+    harness.cleanup();
+  }
+
+  const invalidHarness = createHarness({
+    fetchHandler: async () => { throw new Error("invalid URI should not fetch"); },
+  });
+  try {
+    const result = await invalidHarness.callTool("memory_mcp_resource_read", { uri: "agentmemory://project/{name}/profile" });
+    assert.match(textContent(result), /Refusing to read AgentMemory MCP resource/);
+    assert.equal(invalidHarness.fetchCalls.length, 0);
+
+    const teamResult = await invalidHarness.callTool("memory_mcp_resource_read", { uri: "agentmemory://team/team-1/profile" });
+    assert.match(textContent(teamResult), /Refusing to read AgentMemory MCP resource/);
+    assert.equal(invalidHarness.fetchCalls.length, 0);
+  } finally {
+    invalidHarness.cleanup();
+  }
+});
+
+test("memory_mcp_resource_read retries basename project profile resources with cwd path", async () => {
+  const harness = createHarness({
+    fetchHandler: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      if (body.uri === "agentmemory://project/project/profile") {
+        return jsonResponse({ contents: [{ uri: body.uri, mimeType: "application/json", text: JSON.stringify({ profile: null, reason: "no_sessions" }) }] });
+      }
+      assert.equal(body.uri, "agentmemory://project/%2Ftmp%2Fproject/profile");
+      return jsonResponse({ contents: [{ uri: body.uri, mimeType: "application/json", text: JSON.stringify({ profile: { project: "/tmp/project" } }) }] });
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_mcp_resource_read", { uri: "agentmemory://project/project/profile" });
+    assert.match(textContent(result), /"project": "\/tmp\/project"/);
+    assert.equal(harness.fetchCalls.length, 2);
+    assert.equal(result.details.uri, "agentmemory://project/%2Ftmp%2Fproject/profile");
+    assert.equal(result.details.requestedUri, "agentmemory://project/project/profile");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_mcp_prompts lists MCP prompt templates", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url, init) => {
+      assert.match(url, /\/agentmemory\/mcp\/prompts$/);
+      assert.equal(init.method, "GET");
+      return jsonResponse({
+        prompts: [
+          {
+            name: "recall_context",
+            description: "Search observations",
+            arguments: [{ name: "task_description", required: true }],
+          },
+        ],
+      });
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_mcp_prompts");
+    assert.match(textContent(result), /recall_context/);
+    assert.match(textContent(result), /task_description required/);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("memory_mcp_prompt_get validates prompt names and parses JSON arguments", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url, init) => {
+      assert.match(url, /\/agentmemory\/mcp\/prompts\/get$/);
+      assert.deepEqual(JSON.parse(init.body), {
+        name: "recall_context",
+        arguments: { task_description: "restore context" },
+      });
+      return jsonResponse({ messages: [{ role: "user", content: { type: "text", text: "Use recalled context only after review." } }] });
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_mcp_prompt_get", {
+      name: "recall_context",
+      arguments: '{"task_description":"restore context"}',
+    });
+    assert.equal(textContent(result), "Use recalled context only after review.");
+  } finally {
+    harness.cleanup();
+  }
+
+  const invalidHarness = createHarness({
+    fetchHandler: async () => { throw new Error("invalid prompt should not fetch"); },
+  });
+  try {
+    const result = await invalidHarness.callTool("memory_mcp_prompt_get", { name: "forget" });
+    assert.match(textContent(result), /name must be recall_context/);
+    const missingArgsResult = await invalidHarness.callTool("memory_mcp_prompt_get", { name: "recall_context" });
+    assert.match(textContent(missingArgsResult), /task_description argument is required/);
+    assert.equal(invalidHarness.fetchCalls.length, 0);
+  } finally {
+    invalidHarness.cleanup();
+  }
+});
+
+test("memory_mcp_prompt_get reports missing session handoffs clearly", async () => {
+  const harness = createHarness({
+    fetchHandler: async (_url, init) => {
+      const sessionId = JSON.parse(init.body).arguments.session_id;
+      if (sessionId === "missing-session") {
+        return jsonResponse({
+          messages: [{ role: "user", content: { type: "text", text: "## Session Handoff\n\n### Session\nundefined\n\n### Summary\n\"No summary available\"" } }],
+        });
+      }
+      if (sessionId === "null-session") {
+        return jsonResponse({
+          messages: [{ role: "user", content: { type: "text", text: "## Session Handoff\n\n### Session\nnull\n\n### Summary\nNo summary available" } }],
+        });
+      }
+      return jsonResponse({
+        messages: [{ role: "user", content: { type: "text", text: "## Session Handoff\n\n### Session\nother-session\n\n### Summary\nNo summary available" } }],
+      });
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_mcp_prompt_get", {
+      name: "session_handoff",
+      arguments: { session_id: "missing-session" },
+    });
+    assert.equal(textContent(result), "Session not found: missing-session.");
+    assert.equal(result.details.ok, false);
+    assert.equal(result.details.reason, "session-not-found");
+
+    const nullResult = await harness.callTool("memory_mcp_prompt_get", {
+      name: "session_handoff",
+      arguments: { session_id: "null-session" },
+    });
+    assert.equal(textContent(nullResult), "Session not found: null-session.");
+
+    const differentResult = await harness.callTool("memory_mcp_prompt_get", {
+      name: "session_handoff",
+      arguments: { session_id: "requested-session" },
+    });
+    assert.equal(textContent(differentResult), "Session not found: requested-session.");
   } finally {
     harness.cleanup();
   }
@@ -417,6 +988,16 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.containsSecretLikeContent({ "ＴＯＫＥＮ": "short" }), true);
   assert.equal(security.containsSecretLikeContent({ "TO\u200bKEN": "short" }), true);
   assert.equal(security.containsSecretLikeContent({ "api&hyphen;key": "short" }), true);
+  assert.equal(security.containsSecretLikeContent("РАSSWORD=actual_credential_value_1234567890"), true);
+  assert.equal(security.containsSecretLikeContent("АUTH=real_bearer_token_abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("СREDENTIAL=non_obvious_secret_abcdefgh12345"), true);
+  assert.equal(security.containsSecretLikeContent("АРІ_КЕY=secret_value"), true);
+  assert.equal(security.containsSecretLikeContent("SЕCRET=sneaky_value_that_looks_normal"), true);
+  assert.equal(security.containsSecretLikeContent("ΑΡΙ_ΚΕΥ=sneaky_greek_homoglyph_value"), true);
+  assert.equal(security.containsSecretLikeContent("ΤΟΚΕΝ=greek_token_bypass_test"), true);
+  assert.equal(security.containsSecretLikeContent("ΡΑSSWΟRD=mixed_cyrillic_greek_latin"), true);
+  assert.equal(security.containsSecretLikeContent({ "РАSSWORD": "short" }), true);
+  assert.equal(security.containsSecretLikeContent({ "ΤΟΚΕΝ": "short" }), true);
   assert.deepEqual(security.redactSecretLikeValue({ "ＴＯＫＥＮ": "short", safe: "value" }), { "ＴＯＫＥＮ": "<redacted>", safe: "value" });
   assert.deepEqual(security.redactSecretLikeValue({ "TO\u200bKEN": "short" }), { "TO\u200bKEN": "<redacted>" });
 
@@ -580,6 +1161,14 @@ test("memory_save refuses secret-looking content before network calls", async ()
     "SECRET&equals;&quot;short word&quot;",
     "TOKEN%ZZ%3Aabcdefghijklmnop",
     "ＡＰＩ＿ＫＥＹ＝abcdefghijklmnop",
+    "РАSSWORD=actual_credential_value_1234567890",
+    "АUTH=real_bearer_token_abcdefghijklmnop",
+    "СREDENTIAL=non_obvious_secret_abcdefgh12345",
+    "АРІ_КЕY=secret_value",
+    "SЕCRET=sneaky_value_that_looks_normal",
+    "ΑΡΙ_ΚΕΥ=sneaky_greek_homoglyph_value",
+    "ΤΟΚΕΝ=greek_token_bypass_test",
+    "ΡΑSSWΟRD=mixed_cyrillic_greek_latin",
     "https：／／user：pass＠example.invalid/path",
     "TOK\u200bEN=abcdefghijklmnop",
     "https%255Cu003a%2526%252347%25EF%25BC%258Fuser%25EF%25BC%259Apass%2526%252364example.invalid%25EF%25BC%258Fpath SECRET%ZZ%3A＂abcdefghijklmnop&quot",
@@ -705,6 +1294,7 @@ test("memory_save refuses secret-looking metadata fields", async () => {
     { content: "safe durable fact", concepts: { "ＴＯＫＥＮ": "short" } },
     { content: "safe durable fact", concepts: { "TO\u200bKEN": "short" } },
     { content: "safe durable fact", concepts: { "api&hyphen;key": "short" } },
+    { content: "safe durable fact", concepts: { "РАSSWORD": "short" } },
     { content: "safe durable fact", files: ["TOKEN=abcdefghijklmnop"] },
     { content: "safe durable fact", files: [{ nest: [{ my_SECRET_x: "abcdefghijklmnop" }] }] },
     { content: "safe durable fact", files: [{ nest: [{ my_SECRET_x: "short" }] }] },
@@ -735,6 +1325,11 @@ test("memory_save refuses invalid metadata before network calls", async () => {
     { content: "safe durable fact", concepts: circularArray },
     { content: "safe durable fact", files: ["safe.ts", { nested: "value" }] },
     { content: "safe durable fact", project: { name: "project" } },
+    { content: "safe durable fact", type: "123" },
+    { content: "safe durable fact", type: "null" },
+    { content: "safe durable fact", concepts: ["valid", "42"] },
+    { content: "safe durable fact", concepts: ["valid", "false"] },
+    { content: "safe durable fact", files: ["/valid", "true", "/also-valid"] },
   ]) {
     const harness = createHarness({
       fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "unexpected" }] }),
@@ -862,6 +1457,31 @@ test("memory_save success output omits saved content", async () => {
   }
 });
 
+test("memory_save trims metadata fields before upstream calls", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "saved" }] }),
+  });
+  try {
+    const result = await harness.callTool("memory_save", {
+      content: "safe durable fact",
+      type: "  preference  ",
+      concepts: [" durable ", " workflow ", "  "],
+      files: [" src/index.ts ", " docs/adr.md "],
+      project: "  agentmemory  ",
+    });
+    assert.equal(textContent(result), "Saved memory (preference).");
+    assert.deepEqual(parseBody(harness.fetchCalls[0]).arguments, {
+      content: "safe durable fact",
+      type: "preference",
+      concepts: "durable,workflow",
+      files: "src/index.ts,docs/adr.md",
+      project: "agentmemory",
+    });
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("memory_save falls back to legacy remember endpoint when MCP save is unavailable", async () => {
   const harness = createHarness({
     fetchHandler: async (url) => {
@@ -876,6 +1496,33 @@ test("memory_save falls back to legacy remember endpoint when MCP save is unavai
     assert.doesNotMatch(JSON.stringify(result), /Remember this durable preference/);
     assert.equal(harness.fetchCalls.length, 2);
     assert.equal(parseBody(harness.fetchCalls[1]).content, "Remember this durable preference");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("before_agent_start prepends non-empty recall block", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url, init) => {
+      if (url.endsWith("/agentmemory/smart-search")) {
+        assert.equal(JSON.parse(init.body).query, "What should I remember?");
+        return jsonResponse({
+          results: [{ title: "Prior decision", narrative: "Use Context Watcher first", type: "decision", combinedScore: 0.875 }],
+        });
+      }
+      if (url.endsWith("/agentmemory/health")) return jsonResponse({ status: "healthy", version: "0.9.26" });
+      throw new Error(`unexpected ${url}`);
+    },
+  });
+  try {
+    const result = await harness.emit("before_agent_start", {
+      systemPrompt: "base",
+      systemPromptOptions: { cwd: "/tmp/project" },
+      prompt: "What should I remember?",
+    });
+    assert.match(result.systemPrompt, /^base\n\n/);
+    assert.match(result.systemPrompt, /Relevant long-term memory from agentmemory:\n- Prior decision \(decision\) \[score=0\.875\]: Use Context Watcher first/);
+    assert.equal(harness.fetchCalls.length, 2);
   } finally {
     harness.cleanup();
   }

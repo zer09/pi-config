@@ -41,6 +41,7 @@ It does not automatically upgrade a running AgentMemory server, publish packages
 - Do not replace `agent/extensions/agentmemory/index.ts` with upstream `integrations/pi/index.ts` without reapplying local Pi safety deltas.
 - Do not dynamically grow the active Pi tool list from live server metadata.
 - Do not wire `agentmemory mcp --tools all` into Pi by default.
+- Do not install optional external AgentMemory integration config by default; Codex, GitHub Copilot MCP, OpenCode, OpenClaw, Hermes, generic MCP, Obsidian, team/mesh, and vision/image integrations require an active client/workflow policy.
 - Do not default-expose destructive, broad export, synthesis, coordination, file-writing, team sharing, or workflow automation tools.
 - Keep gated tools behind `AGENTMEMORY_PI_ENABLE_GATED=1` unless there is an explicit policy change.
 - Preserve delegate-child behavior: `PI_DELEGATE_CHILD` must skip AgentMemory tools, hooks, and bundled skill discovery.
@@ -94,8 +95,8 @@ The current local policy records this upstream baseline:
 
 ```text
 upstream source: src/mcp/tools-registry.ts
-last checked version: 0.9.24
-last checked commit: fd9e3bd42d6208a33f0ee9de1442fdbb60eab106
+last checked version: 0.9.26
+last checked commit: 3e9011096184de0601550662fdbd90093f2fabca
 tool count: 53
 ```
 
@@ -108,8 +109,12 @@ If the upstream clone is newer than this, run the sync workflow below and update
 These are Pi-local wrappers and are not categorized as upstream MCP tools:
 
 ```text
-memory_health  - local AgentMemory REST health check
-memory_search  - friendly compatibility alias for quick smart-search output
+memory_health             - local AgentMemory REST health check
+memory_search             - friendly compatibility alias for quick smart-search output
+memory_mcp_resources      - read-only MCP resource listing wrapper
+memory_mcp_resource_read  - read-only exact MCP resource URI wrapper
+memory_mcp_prompts        - read-only MCP prompt listing wrapper
+memory_mcp_prompt_get     - returns MCP prompt text for review only
 ```
 
 ### Default upstream-backed tools
@@ -130,13 +135,15 @@ memory_commits
 memory_diagnose
 memory_verify
 memory_lesson_recall
+memory_slot_list
+memory_slot_get
 ```
 
 Default wrapper rule: if upstream required fields or accepted properties change for any default tool, update the Pi wrapper and tests before marking the upgrade complete.
 
 ### Gated tools
 
-These may exist as wrappers, but must stay gated by `AGENTMEMORY_PI_ENABLE_GATED=1` and still require exact user intent for destructive or broad-private operations.
+These wrappers are registered only when `AGENTMEMORY_PI_ENABLE_GATED=1` is set. Even when registered, they still require exact user intent for destructive, mutating, or broad-private operations. High-risk wrappers use local-only `confirm` fields that are validated and stripped before forwarding to upstream AgentMemory.
 
 ```text
 memory_export              - broad private memory export
@@ -147,11 +154,36 @@ memory_heal                - mutates memory subsystem state
 memory_lesson_save         - additional durable write path
 memory_reflect             - synthesizes higher-order memories or insights
 memory_insight_list        - broad insight inspection coupled to reflection workflows
+memory_slot_create         - creates named editable persistent memory state
+memory_slot_append         - mutates named editable persistent memory state
+memory_slot_replace        - overwrites named editable persistent memory state
+memory_slot_delete         - deletes named persistent memory state
+```
+
+Confirmation phrases currently enforced in `tool-definitions.ts`:
+
+```text
+memory_lesson_save         confirm="save agentmemory lesson"
+memory_consolidate         confirm="consolidate agentmemory"
+memory_reflect             confirm="reflect agentmemory"
+memory_insight_list        confirm="list agentmemory insights"
+memory_audit               confirm="audit agentmemory"
+memory_export              confirm="export agentmemory"
+memory_heal                confirm="heal agentmemory" unless dryRun is true
+memory_governance_delete   confirm="delete memories:<comma-separated sorted ids>"
+memory_slot_create         confirm="create slot:<label>"
+memory_slot_append         confirm="append slot:<label>"
+memory_slot_replace        confirm="replace slot:<label>"
+memory_slot_delete         confirm="delete slot:<label>"
 ```
 
 ### Not exposed tools
 
 Tools stay not exposed when they rewrite files, export content to files, require optional providers, assume team/mesh workflows, mutate coordination/task state not adopted by Pi, or overlap with better Pi systems such as plans, handoffs, Context Mode, or CodeGraph.
+
+Workflow/task-state tools are default-deny by ADR 0004 (`docs/adr/0004-agentmemory-workflow-state-policy.md`). Do not move action, frontier, lease, signal, checkpoint, sentinel, routine, sketch, or crystallize tools into default or gated exposure unless a future ADR explicitly adopts AgentMemory for that workflow role.
+
+External integrations are default-deny by ADR 0005 (`docs/adr/0005-agentmemory-external-integrations-policy.md`). Keep Claude bridge sync, vision search, team sharing/feed, mesh sync, Obsidian export, generic MCP registration, and other optional external integration config out of the default Pi setup until an active client/workflow policy adopts them.
 
 Current not-exposed tools:
 
@@ -182,12 +214,6 @@ memory_crystallize
 memory_facet_tag
 memory_facet_query
 memory_obsidian_export
-memory_slot_list
-memory_slot_get
-memory_slot_create
-memory_slot_append
-memory_slot_replace
-memory_slot_delete
 ```
 
 If upstream adds a tool, classify it into exactly one bucket before completing the upgrade. Do not leave a new upstream tool uncategorized.
@@ -202,6 +228,10 @@ headless-ui-guard
 https-bearer-guard
 secret-content-guard
 mcp-call-endpoint
+gated-env-default-off
+local-confirm-strip
+workflow-state-default-deny
+external-integration-default-deny
 bundled-skill-discovery
 status-output-shape
 ```
@@ -213,6 +243,10 @@ Meaning:
 - bearer credentials are not silently sent over non-loopback plaintext HTTP
 - durable memory writes reject obvious secret-looking content
 - curated MCP-compatible wrappers use the upstream MCP REST bridge
+- gated AgentMemory wrappers stay default-off behind `AGENTMEMORY_PI_ENABLE_GATED=1`
+- local confirmation fields are stripped before forwarding to upstream AgentMemory
+- AgentMemory workflow/task-state tools stay not exposed unless a future ADR adopts that role
+- AgentMemory external integration tools and config stay not exposed or uninstalled unless an active client/workflow policy adopts them
 - the AgentMemory skill stays bundled beside the extension
 - AgentMemory status text shape remains stable unless intentionally changed
 

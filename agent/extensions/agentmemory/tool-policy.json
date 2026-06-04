@@ -1,8 +1,8 @@
 {
   "upstream": {
     "source": "src/mcp/tools-registry.ts",
-    "lastCheckedVersion": "0.9.24",
-    "lastCheckedCommit": "fd9e3bd42d6208a33f0ee9de1442fdbb60eab106",
+    "lastCheckedVersion": "0.9.26",
+    "lastCheckedCommit": "3e9011096184de0601550662fdbd90093f2fabca",
     "toolCount": 53
   },
   "localTools": [
@@ -13,6 +13,22 @@
     {
       "name": "memory_search",
       "reason": "Pi-local friendly compatibility alias for quick smart-search output"
+    },
+    {
+      "name": "memory_mcp_resources",
+      "reason": "Pi-local read-only wrapper for listing AgentMemory MCP resources"
+    },
+    {
+      "name": "memory_mcp_resource_read",
+      "reason": "Pi-local read-only wrapper for exact AgentMemory MCP resource URIs"
+    },
+    {
+      "name": "memory_mcp_prompts",
+      "reason": "Pi-local read-only wrapper for listing AgentMemory MCP prompts"
+    },
+    {
+      "name": "memory_mcp_prompt_get",
+      "reason": "Pi-local wrapper for returning AgentMemory MCP prompt text for review only"
     }
   ],
   "defaultTools": [
@@ -93,6 +109,18 @@
       "required": ["query"],
       "properties": ["limit", "minConfidence", "project", "query"],
       "reason": "Read-only lesson recall"
+    },
+    {
+      "name": "memory_slot_list",
+      "required": [],
+      "properties": [],
+      "reason": "Read-only persistent slot listing"
+    },
+    {
+      "name": "memory_slot_get",
+      "required": ["label"],
+      "properties": ["label"],
+      "reason": "Read-only access to an explicitly named persistent slot"
     }
   ],
   "gatedTools": [
@@ -135,6 +163,26 @@
       "name": "memory_insight_list",
       "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
       "reason": "Broad insight inspection coupled to reflection workflows"
+    },
+    {
+      "name": "memory_slot_create",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Creates named editable persistent memory state"
+    },
+    {
+      "name": "memory_slot_append",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Mutates named editable persistent memory state"
+    },
+    {
+      "name": "memory_slot_replace",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Overwrites named editable persistent memory state"
+    },
+    {
+      "name": "memory_slot_delete",
+      "gate": "AGENTMEMORY_PI_ENABLE_GATED=1",
+      "reason": "Deletes named persistent memory state"
     }
   ],
   "notExposedTools": [
@@ -144,7 +192,7 @@
     },
     {
       "name": "memory_vision_search",
-      "reason": "Requires optional image embedding provider and is not routine Pi memory recall"
+      "reason": "External image-memory workflow requires embedding provider, storage, privacy, and use-case policy before exposure"
     },
     {
       "name": "memory_relations",
@@ -152,7 +200,7 @@
     },
     {
       "name": "memory_claude_bridge_sync",
-      "reason": "Claude-specific bridge workflow"
+      "reason": "External Claude bridge workflow is not a Pi default and may duplicate Pi capture lifecycle"
     },
     {
       "name": "memory_graph_query",
@@ -160,11 +208,11 @@
     },
     {
       "name": "memory_team_share",
-      "reason": "Team sharing workflow is not a default local Pi operation"
+      "reason": "External team sharing crosses collaboration/privacy boundaries and needs active team policy before exposure"
     },
     {
       "name": "memory_team_feed",
-      "reason": "Team feed workflow is not a default local Pi operation"
+      "reason": "External team feed crosses collaboration/privacy boundaries and needs active team policy before exposure"
     },
     {
       "name": "memory_snapshot_create",
@@ -172,63 +220,63 @@
     },
     {
       "name": "memory_action_create",
-      "reason": "Task-state write path overlaps with Pi plans and handoffs"
+      "reason": "Workflow/task-state write path overlaps with Pi plans and handoffs; requires ADR before exposure"
     },
     {
       "name": "memory_action_update",
-      "reason": "Task-state mutation overlaps with Pi plans and handoffs"
+      "reason": "Workflow/task-state mutation overlaps with Pi plans and handoffs; requires ADR before exposure"
     },
     {
       "name": "memory_frontier",
-      "reason": "Workflow planning surface not adopted by default"
+      "reason": "Workflow planning surface not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_next",
-      "reason": "Workflow planning surface not adopted by default"
+      "reason": "Workflow planning surface not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_lease",
-      "reason": "Coordination workflow not adopted by default"
+      "reason": "Coordination workflow not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_routine_run",
-      "reason": "Automated routine execution is not default memory recall"
+      "reason": "Automated routine execution overlaps with Pi planning; requires ADR before exposure"
     },
     {
       "name": "memory_signal_send",
-      "reason": "Coordination write path not adopted by default"
+      "reason": "Coordination write path not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_signal_read",
-      "reason": "Coordination read path not adopted by default"
+      "reason": "Coordination read path not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_checkpoint",
-      "reason": "Checkpoint workflow overlaps with Pi handoffs"
+      "reason": "Checkpoint workflow overlaps with Pi handoffs; requires ADR before exposure"
     },
     {
       "name": "memory_mesh_sync",
-      "reason": "Mesh sync workflow is not default local Pi operation"
+      "reason": "External mesh sync is not a default local Pi operation and needs active multi-agent policy before exposure"
     },
     {
       "name": "memory_sentinel_create",
-      "reason": "Sentinel write path not adopted by default"
+      "reason": "Sentinel write path not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_sentinel_trigger",
-      "reason": "Sentinel execution path not adopted by default"
+      "reason": "Sentinel execution path not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_sketch_create",
-      "reason": "Sketch write path not adopted by default"
+      "reason": "Sketch write path not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_sketch_promote",
-      "reason": "Sketch promotion mutates memory/workflow state"
+      "reason": "Sketch promotion mutates memory/workflow state; requires ADR before exposure"
     },
     {
       "name": "memory_crystallize",
-      "reason": "Memory synthesis/mutation workflow not adopted by default"
+      "reason": "Memory synthesis/mutation workflow not adopted by default; requires ADR before exposure"
     },
     {
       "name": "memory_facet_tag",
@@ -240,31 +288,7 @@
     },
     {
       "name": "memory_obsidian_export",
-      "reason": "Exports memory content to files"
-    },
-    {
-      "name": "memory_slot_list",
-      "reason": "Slot workflows need a separate persistent-state policy"
-    },
-    {
-      "name": "memory_slot_get",
-      "reason": "Slot workflows need a separate persistent-state policy"
-    },
-    {
-      "name": "memory_slot_create",
-      "reason": "Slot workflows need a separate persistent-state policy"
-    },
-    {
-      "name": "memory_slot_append",
-      "reason": "Slot workflows need a separate persistent-state policy"
-    },
-    {
-      "name": "memory_slot_replace",
-      "reason": "Slot workflows need a separate persistent-state policy"
-    },
-    {
-      "name": "memory_slot_delete",
-      "reason": "Slot workflows need a separate persistent-state policy"
+      "reason": "External export writes private memory content to files and needs export-root, scope, confirmation, and redaction policy before exposure"
     }
   ],
   "localInvariants": [
@@ -297,6 +321,30 @@
       "file": "agent/extensions/agentmemory/index.ts",
       "contains": "mcp/call",
       "reason": "Curated MCP-compatible wrappers must use the upstream MCP REST bridge"
+    },
+    {
+      "id": "gated-env-default-off",
+      "file": "agent/extensions/agentmemory/index.ts",
+      "contains": "AGENTMEMORY_PI_ENABLE_GATED",
+      "reason": "Gated AgentMemory wrappers must stay default-off behind explicit local opt-in"
+    },
+    {
+      "id": "local-confirm-strip",
+      "file": "agent/extensions/agentmemory/index.ts",
+      "contains": "stripLocalGuardParams",
+      "reason": "Local confirmation fields must be validated and stripped before forwarding upstream"
+    },
+    {
+      "id": "workflow-state-default-deny",
+      "file": "agent/extensions/agentmemory/scripts/check-upstream-sync.mjs",
+      "contains": "WORKFLOW_STATE_DEFAULT_DENY",
+      "reason": "AgentMemory workflow/task-state tools must remain not exposed unless Pi accepts an ADR for that role"
+    },
+    {
+      "id": "external-integration-default-deny",
+      "file": "agent/extensions/agentmemory/scripts/check-upstream-sync.mjs",
+      "contains": "EXTERNAL_INTEGRATION_DEFAULT_DENY",
+      "reason": "AgentMemory external integration tools must remain not exposed unless there is an active client/workflow policy"
     },
     {
       "id": "bundled-skill-discovery",

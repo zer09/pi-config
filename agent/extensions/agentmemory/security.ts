@@ -273,6 +273,63 @@ const SECURITY_ENABLED_VALUES = new Set(["1", "true", "yes", "on", "enabled"]);
 // Separators that users and tools commonly place inside credential-like key names.
 // Includes ASCII underscore/hyphen plus Unicode dash compatibility variants.
 const SECRET_SEPARATOR_PATTERN = "_\\-\\u2010\\u2011\\u2012\\u2013\\u2014\\u2015\\u2212\\uFE58\\uFE63\\uFF0D";
+const COMMON_ASCII_CONFUSABLE_PATTERN = /[ΑΒΕΖΗΙΚΜΝΟΡΤΥΧαβεικμνορτυχωАВЕІКМНОРСТХУавекмнорстухіј]/g;
+const COMMON_ASCII_CONFUSABLES: Record<string, string> = {
+  Α: "A",
+  Β: "B",
+  Ε: "E",
+  Ζ: "Z",
+  Η: "H",
+  Ι: "I",
+  Κ: "K",
+  Μ: "M",
+  Ν: "N",
+  Ο: "O",
+  Ρ: "P",
+  Τ: "T",
+  Υ: "Y",
+  Χ: "X",
+  α: "a",
+  β: "b",
+  ε: "e",
+  ι: "i",
+  κ: "k",
+  μ: "m",
+  ν: "n",
+  ο: "o",
+  ρ: "p",
+  τ: "t",
+  υ: "y",
+  χ: "x",
+  ω: "w",
+  А: "A",
+  В: "B",
+  Е: "E",
+  І: "I",
+  К: "K",
+  М: "M",
+  Н: "H",
+  О: "O",
+  Р: "P",
+  С: "C",
+  Т: "T",
+  Х: "X",
+  У: "Y",
+  а: "a",
+  в: "b",
+  е: "e",
+  к: "k",
+  м: "m",
+  н: "h",
+  о: "o",
+  р: "p",
+  с: "c",
+  т: "t",
+  у: "y",
+  х: "x",
+  і: "i",
+  ј: "j",
+};
 const SECRET_KEY_PART_PATTERN = "[A-Za-z0-9]+";
 const SECRET_KEY_WORD_PATTERN = `API[${SECRET_SEPARATOR_PATTERN}]?KEY|PRIVATE[${SECRET_SEPARATOR_PATTERN}]?KEY|KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|BEARER`;
 const SECRET_KEY_PATTERN = `(?:${SECRET_KEY_PART_PATTERN}[${SECRET_SEPARATOR_PATTERN}])*(?:${SECRET_KEY_WORD_PATTERN})(?:[${SECRET_SEPARATOR_PATTERN}]${SECRET_KEY_PART_PATTERN})*`;
@@ -505,9 +562,14 @@ function decodeHtmlUrlEntities(text: string): string {
     .replace(/&apos;?/gi, "'");
 }
 
+/** Map common Unicode homoglyphs that visually obscure ASCII credential keys. */
+function foldCommonConfusableText(text: string): string {
+  return text.replace(COMMON_ASCII_CONFUSABLE_PATTERN, (char) => COMMON_ASCII_CONFUSABLES[char] || char);
+}
+
 /** Apply Unicode NFKC so fullwidth and compatibility glyphs normalize. */
 function normalizeCompatibilityText(text: string): string {
-  return text.normalize("NFKC");
+  return foldCommonConfusableText(text.normalize("NFKC"));
 }
 
 /** Remove invisible format characters that can split secret key names. */
@@ -652,9 +714,8 @@ function matchesSecretText(text: string): boolean {
 
 /** Find nested assignments inside an unterminated or adjacent quoted value. */
 function nestedSecretAssignmentIndex(text: string): number {
-  for (const pattern of [QUOTED_SECRET_ASSIGNMENT_START_PATTERN, SECRET_ASSIGNMENT_PATTERN]) {
-    pattern.lastIndex = 0;
-    const match = pattern.exec(text);
+  for (const sourcePattern of [QUOTED_SECRET_ASSIGNMENT_START_PATTERN, SECRET_ASSIGNMENT_PATTERN]) {
+    const match = new RegExp(sourcePattern.source, sourcePattern.flags).exec(text);
     if (match && match.index > 0) return match.index;
   }
   return -1;
