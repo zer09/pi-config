@@ -1,0 +1,82 @@
+{
+  "_comment": "pi-blackhole config tuned for auto compaction, minimal tail, high-context session model, and separate worker fallback chains",
+  "_notes": [
+    "Thresholds are fixed token counts; pi-blackhole does not currently support percentage-based thresholds.",
+    "compactAfterTokens is set to the recommended high-context preset: 180000, about 65% of the current 272K session model.",
+    "Worker input caps follow the documented high-context preset and fit the 512K MiniMax-M3 fallback with the 8000-token agent loop reserve.",
+    "Resolution order per worker: primary model, stage fallback, then the current session model as final fallback."
+  ],
+  "debug": false,
+  "compaction": "auto",
+  "compactionEngine": "blackhole",
+  "tailBehavior": "minimal",
+
+  "observerModel": {
+    "_comment": "Observer primary: fast extraction model for frequent observation runs.",
+    "provider": "google",
+    "id": "gemini-3.1-flash-lite-preview",
+    "thinking": "low",
+    "cooldownHours": 6,
+    "contextWindow": 1000000
+  },
+  "observerFallbackModels": [
+    {
+      "provider": "minimax",
+      "id": "MiniMax-M3",
+      "thinking": "low",
+      "cooldownHours": 6,
+      "contextWindow": 512000
+    }
+  ],
+
+  "reflectorModel": {
+    "_comment": "Reflector primary: stronger synthesis model for durable reflections.",
+    "provider": "google",
+    "id": "gemini-3.1-pro-preview",
+    "thinking": "medium",
+    "cooldownHours": 6,
+    "contextWindow": 1000000
+  },
+  "reflectorFallbackModels": [
+    {
+      "provider": "minimax",
+      "id": "MiniMax-M3",
+      "thinking": "low",
+      "cooldownHours": 6,
+      "contextWindow": 512000
+    }
+  ],
+
+  "dropperModel": {
+    "_comment": "Dropper primary: judgment/prioritization model for pruning observations.",
+    "provider": "google",
+    "id": "gemini-3.1-pro-preview",
+    "thinking": "low",
+    "cooldownHours": 6,
+    "contextWindow": 1000000
+  },
+  "dropperFallbackModels": [
+    {
+      "provider": "minimax",
+      "id": "MiniMax-M3",
+      "thinking": "low",
+      "cooldownHours": 6,
+      "contextWindow": 512000
+    }
+  ],
+
+  "observeAfterTokens": 20000,
+  "reflectAfterTokens": 40000,
+  "compactAfterTokens": 180000,
+  "observationsPoolMaxTokens": 40000,
+  "observationsPoolTargetTokens": 20000,
+  "reflectorInputMaxTokens": 160000,
+  "dropperInputMaxTokens": 160000,
+  "observerChunkMaxTokens": 80000,
+  "observerPreambleMaxTokens": 0,
+  "agentMaxTurns": 16,
+
+  "memory": true,
+  "sessionFallback": true,
+  "debugLog": false
+}
