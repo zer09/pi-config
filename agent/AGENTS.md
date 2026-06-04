@@ -17,14 +17,27 @@ Before work begins:
 
 Do not ask permission for startup steps.
 
+## Glossary
+
+Use these definitions to keep rule files and skills concise:
+
+- Native `read`: the Pi file-read tool that loads exact file content into the session.
+- Read-equivalent source: exact source returned by a trusted tool such as CodeGraph when it is explicitly marked current, verbatim, complete, already read, Read-equivalent, full source inlined, or "do not Read/re-open".
+- Trusted source snapshot: native `read` output or read-equivalent source that covers the exact region being used. It is not trusted if stale, truncated, changed after retrieval, or outside the shown content.
+- Read-before-edit: before changing existing content, obtain a trusted source snapshot for the exact region being modified. Use native `read` only when no trusted source snapshot covers that region.
+- Hosted-service mutation: any create, update, delete, post, comment, react, assign, label, merge, deploy, publish, invite, rotate-key, quota, or remote-job action on an external service.
+- Exact explicit write: a user request that names the service or local target, action, and intended scope of a mutation. Broad goals like "handle this PR" or "clean up" are not exact explicit writes.
+- Large output: output likely over 20 lines, or output that needs filtering, parsing, comparison, aggregation, or summarization before use.
+- Fallback route: a stated alternate route used only after the preferred tool or workflow is unavailable, insufficient, stale, or failing.
+
 ## Mandatory preflight before every tool call
 
 Silently check:
 
-- External hosted service mutation? Only perform exact writes the user explicitly requested. Otherwise stay read-only or provide a draft/checklist.
-- Read-only shell, tests, builds, logs, git reads, or output likely over 20 lines? Use Context Mode, preferably `ctx_batch_execute`, with RTK when available.
+- Hosted-service mutation? Only perform exact explicit writes. Otherwise stay read-only or provide a draft/checklist.
+- Read-only shell, tests, builds, logs, git reads, or large output? Use Context Mode, preferably `ctx_batch_execute`, with RTK when available.
 - Data analysis, counting, filtering, parsing, or aggregation? Write code inside `ctx_execute` or `ctx_execute_file`; print only the compact result.
-- File read for editing? Use native `read`, then native `edit` or `write`. Never write file content through Bash or Context Mode.
+- File read for editing? Satisfy read-before-edit. Never write file content through Bash or Context Mode.
 - GitHub repo, PR, issue, review, workflow, release, or private data? Load `gh-cli`; use authenticated `gh` through Context Mode/RTK. Writes still need exact user instruction.
 - Git commit/amend/squash? Only create or modify commits when the user explicitly asks for a commit. Do not infer commit permission from "fix it", "finish", "save", "clean up", or "handle this".
 - URL or web document? Use `ctx_fetch_and_index`, then `ctx_search`.
@@ -65,7 +78,7 @@ Every task follows `~/.pi/agent/AGENTS.md` plus `~/.pi/agent/rules/freedom.md`. 
 
 ## General behavior
 
-- Read existing files before writing. Do not re-read unless changed.
+- Satisfy read-before-edit before changing existing files. Do not re-read unless changed or no trusted source snapshot covers the needed region.
 - Be thorough in reasoning and concise in output.
 - Skip files over 100 KB unless required.
 - Do not guess APIs, versions, flags, commit SHAs, package names, file paths, endpoints, or fields. Verify first.
@@ -77,7 +90,7 @@ Every task follows `~/.pi/agent/AGENTS.md` plus `~/.pi/agent/rules/freedom.md`. 
 ## Tool routing summary
 
 - Context Watcher is authoritative for shell, large output, RTK, CodeGraph, GitHub, Context7, worktrees, delegates, and fallbacks.
-- Use native `read` only for files you intend to edit. Use `ctx_execute_file` for analysis reads.
+- Use native `read` only when no trusted source snapshot covers the edit region. Use `ctx_execute_file` for analysis reads.
 - Use native `write` or `edit` for all file creation/modification.
 - Use `ctx_search(sort: "timeline")` after resume/compaction before asking the user to repeat context.
 - Use browser/web tools only for public web research or visual inspection; do not fetch private GitHub data through them.

@@ -17,7 +17,9 @@ Load and apply it for shell commands, tests/builds/lints, git reads, GitHub CLI 
 - When Context Mode is started for code work, treat CodeGraph MCP as part of the same Context Watcher runtime and verify/reconnect it when needed.
 - Prefer CodeGraph MCP for first-pass reasoning, ambiguity detection, and source/flow tools; use CodeGraph CLI inside Context Mode for durable, indexed, batched, parsed, or compared graph output.
 - For CLI graph output, strip ANSI from plain output; use JSON only inside programmed analysis that prints a compact summary.
-- Native `read` is for files you intend to edit; `ctx_execute_file` is for analysis reads.
+- Satisfy read-before-edit for existing-file edits; `ctx_execute_file` is for analysis reads.
+- In this skill, read-before-edit means having exact current source for the edit region via native `read` or a trusted source snapshot.
+  A trusted source snapshot includes CodeGraph source marked current/verbatim/complete/read-equivalent and excludes stale, truncated, changed after retrieval, or outside shown source.
 - Native `write` and `edit` are the only tools for file creation or modification.
 - External hosted services are read-only unless the user explicitly requests the exact mutation.
 - GitHub repo/PR/issue/review/workflow/release/private data uses the `gh-cli` skill and authenticated `gh` through Context Mode/RTK.
@@ -33,7 +35,7 @@ Before every tool call, silently route by this checklist:
 2. Direct Bash whitelist? If the command is not whitelisted, or is read-only output work, use Context Mode.
 3. Read-only shell, tests, builds, logs, git reads, searches, or output over 20 lines? Use `ctx_batch_execute` by default, `ctx_execute` for one focused command, with `rtk` when available.
 4. Counting, filtering, parsing, comparing, aggregating, or transforming? Write code in `ctx_execute` or `ctx_execute_file` and print only the compact result.
-5. File read? Use native `read` only before editing that file; otherwise use `ctx_execute_file`.
+5. File read? Satisfy read-before-edit for edit regions; otherwise use `ctx_execute_file`.
 6. File creation or modification? Use native `write` or `edit`; never write content through Bash or Context Mode.
 7. GitHub data or operations? Load `gh-cli`, use authenticated `gh` through Context Mode/RTK, and keep private data out of browser/web fetch tools unless explicitly requested.
 8. URL or web document? Use `ctx_fetch_and_index`, then `ctx_search`.
@@ -68,7 +70,7 @@ Rules:
 | Multiple shell checks, tests, builds, git reads, searches | `ctx_batch_execute`, with `rtk` when available |
 | Single shell check or programmed analysis | `ctx_execute` |
 | Analyze a file, log, JSON, CSV, snapshot, or large source file | `ctx_execute_file` |
-| Edit an existing file | native `read`, then native `edit` |
+| Edit an existing file | satisfy read-before-edit, then native `edit` |
 | Create or replace a file | native `write` |
 | Fetch a URL or web docs | `ctx_fetch_and_index`, then `ctx_search` |
 | Search indexed docs or prior session state | `ctx_search` |
@@ -130,7 +132,7 @@ Load references only when their trigger applies. If a rule is needed for safe ro
 
 ## Behavioral self-check
 
-Before committing changes to this skill, verify that base-only loading still routes: large logs to `ctx_execute_file`; tests/builds/git reads to Context Mode plus RTK; source edits to native `read`/`edit`; new files to `write`; structural review to CodeGraph first; third-party APIs to Context7; private GitHub to `gh-cli` plus authenticated `gh`; broad PR handling as read-only unless exact mutation is requested; URLs to `ctx_fetch_and_index`/`ctx_search`; worktrees to story roots plus graph lifecycle; readers with inherited routing and mutation gates; failures to explicit fallback; resumed sessions to `ctx_search(sort: "timeline")` before asking the user.
+Before committing changes to this skill, verify that base-only loading still routes: large logs to `ctx_execute_file`; tests/builds/git reads to Context Mode plus RTK; source edits to read-before-edit plus native `edit`; new files to `write`; structural review to CodeGraph first; third-party APIs to Context7; private GitHub to `gh-cli` plus authenticated `gh`; broad PR handling as read-only unless exact mutation is requested; URLs to `ctx_fetch_and_index`/`ctx_search`; worktrees to story roots plus graph lifecycle; readers with inherited routing and mutation gates; failures to explicit fallback; resumed sessions to `ctx_search(sort: "timeline")` before asking the user.
 
 ## Maintenance
 

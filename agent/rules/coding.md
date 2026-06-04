@@ -12,7 +12,7 @@ Read `~/.pi/agent/rules/coding.md` and `~/.pi/agent/rules/agent.md` before Codin
 
 ## Code changes
 
-- Read the file before modifying it.
+- Satisfy read-before-edit before modifying existing content.
 - When ambiguity would change the implementation, state it and ask or choose the safest narrow interpretation.
 - For multi-step coding work, define concrete success checks before editing when practical.
 - Make the simplest working change.
