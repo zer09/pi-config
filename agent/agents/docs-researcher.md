@@ -1,6 +1,6 @@
 ---
 name: docs-researcher
-model: openai-codex/gpt-5.3-codex
+model: openai-codex/gpt-5.5:medium
 description: Documentation, API, and library behavior research reader delegate.
 ---
 

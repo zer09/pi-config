@@ -1,6 +1,6 @@
 ---
 name: reviewer
-model: openai-codex/gpt-5.5
+model: openai-codex/gpt-5.5:medium
 description: Read-only correctness, safety, and scope review reader delegate.
 ---
 

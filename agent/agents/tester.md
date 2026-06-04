@@ -1,6 +1,6 @@
 ---
 name: tester
-model: openai-codex/gpt-5.3-codex
+model: openai-codex/gpt-5.5:medium
 description: Targeted validation and test-running reader delegate.
 ---
 

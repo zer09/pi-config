@@ -1,6 +1,6 @@
 ---
 name: investigator
-model: openai-codex/gpt-5.3-codex
+model: openai-codex/gpt-5.5:medium
 description: Read-only root cause and codebase investigation reader delegate.
 ---
 
