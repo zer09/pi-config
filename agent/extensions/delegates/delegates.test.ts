@@ -1172,6 +1172,27 @@ test("redaction covers common bare provider tokens and quoted secret values", ()
 	assert.match(redacted, /<redacted>/);
 });
 
+test("redaction does not redact separator-aware false positives", () => {
+	const input = 'monkey=banana keystone:rock tokenizer=id {"monkey":"banana","keystone":"rock","tokenizer":"id"}';
+	assert.equal(redactSensitiveText(input), input);
+});
+
+test("redaction covers separator-aware secret keys and transport secrets", () => {
+	const githubClassic = `ghp_${"4".repeat(36)}`;
+	const bearer = "abcdefghijklmnop";
+	const pem = "-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----";
+	const redacted = redactSensitiveText(
+		`API_KEY=abcdefghijklmnop AUTH_TOKEN=qrstuvwxyzabcdef PRIVATE_KEY=privatevalue123 ${githubClassic} Bearer ${bearer} ${pem}`,
+	);
+	assert.match(redacted, /API_KEY=<redacted>/);
+	assert.match(redacted, /AUTH_TOKEN=<redacted>/);
+	assert.match(redacted, /PRIVATE_KEY=<redacted>/);
+	assert.match(redacted, /Bearer <redacted>/);
+	assert.match(redacted, /<redacted private key>/);
+	assert.doesNotMatch(redacted, /abcdefghijklmnop|qrstuvwxyzabcdef|privatevalue123|abc123/);
+	assert.doesNotMatch(redacted, new RegExp(githubClassic));
+});
+
 test("writer diff details prioritize changed files over unchanged allowed paths", async () => {
 	const project = makeTempDir("pi-delegates-detail-priority-");
 	const filePaths = Array.from({ length: WRITER_DIFF_MAX_CHANGED_FILES + 5 }, (_, index) => path.join(project, `file-${index}.txt`));

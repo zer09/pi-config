@@ -927,6 +927,8 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.sanitizeTextForDisplay("Authorization: Basic dXNlcjpwYXNz"), "Authorization: Basic <redacted>");
   assert.equal(security.sanitizeTextForDisplay("token sk-abcdefghijklmnop done"), "token <redacted token> done");
   assert.equal(security.sanitizeTextForDisplay("ghp_abcdefghijklmnopqrst"), "<redacted token>");
+  assert.equal(security.sanitizeTextForDisplay(`AIza${"A".repeat(32)}`), "<redacted token>");
+  assert.equal(security.sanitizeTextForDisplay(`xoxb-${"1".repeat(12)}-${"2".repeat(12)}-${"a".repeat(16)}`), "<redacted token>");
   assert.equal(security.sanitizeTextForDisplay("-----BEGIN PRIVATE KEY-----\nabc123"), "<redacted private key>");
   assert.equal(security.sanitizeTextForDisplay('"token: abcdefghijklmnop" done'), '"token: <redacted>" done');
   assert.equal(security.sanitizeTextForDisplay('curl -H "Authorization: Bearer abcdefghijklmnop" https://example.invalid'), 'curl -H "Authorization: Bearer <redacted>" https://example.invalid');
@@ -982,6 +984,8 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.containsSecretLikeContent("Authorization: Basic dXNlcjpwYXNz"), true);
   assert.equal(security.containsSecretLikeContent("token sk-abcdefghijklmnop done"), true);
   assert.equal(security.containsSecretLikeContent("ghp_abcdefghijklmnopqrst"), true);
+  assert.equal(security.containsSecretLikeContent(`AIza${"A".repeat(32)}`), true);
+  assert.equal(security.containsSecretLikeContent(`xoxb-${"1".repeat(12)}-${"2".repeat(12)}-${"a".repeat(16)}`), true);
   assert.equal(security.containsSecretLikeContent("-----BEGIN PRIVATE KEY-----\nabc123"), true);
   assert.equal(security.containsSecretLikeContent('"token: abcdefghijklmnop" done'), true);
   assert.equal(security.containsSecretLikeContent({ monkey: "banana" }), false);
@@ -1143,6 +1147,39 @@ test("memory_file_history maps file arrays to upstream comma-separated input", a
   }
 });
 
+test("memory_save permits benign key and bare keyword prose", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "saved" }] }),
+  });
+  try {
+    for (const content of [
+      "The primary key: customer_id is indexed",
+      "foreign key: user_id",
+      "partition key: region",
+      "cache key: abc",
+      '{"key":"value"}',
+      '{"key":"hello world"}',
+      "auth: oauth2",
+      "auth: enabled",
+      "auth=true",
+      "token: id",
+      "secret: no",
+      "bearer: true",
+    ]) {
+      const result = await harness.callTool("memory_save", { content, type: "fact" });
+      assert.equal(textContent(result), "Saved memory (fact).");
+      assert.equal(parseBody(harness.fetchCalls[harness.fetchCalls.length - 1]).arguments.content, content);
+    }
+
+    const monkeyContent = '{"monkey":"banana"}';
+    const monkeyResult = await harness.callTool("memory_save", { content: monkeyContent, type: "fact" });
+    assert.equal(textContent(monkeyResult), "Saved memory (fact).");
+    assert.equal(parseBody(harness.fetchCalls[harness.fetchCalls.length - 1]).arguments.content, monkeyContent);
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("memory_save refuses secret-looking content before network calls", async () => {
   for (const content of [
     "API_KEY=abcdefghijklmnop",
@@ -1201,8 +1238,11 @@ test("memory_save refuses secret-looking content before network calls", async ()
     "--api-key sk-abcdefghijklmnop",
     "tool --token abcdefghijklmnop --safe next",
     "Authorization: Basic dXNlcjpwYXNz",
+    "Authorization: Bearer abcdefghijklmnop",
     "token sk-abcdefghijklmnop done",
     "ghp_abcdefghijklmnopqrst",
+    `AIza${"A".repeat(32)}`,
+    `xoxb-${"1".repeat(12)}-${"2".repeat(12)}-${"a".repeat(16)}`,
     "-----BEGIN PRIVATE KEY-----\nabc123",
   ]) {
     const harness = createHarness({
@@ -1245,6 +1285,7 @@ test("PI_AGENTMEMORY_SECURITY_ENABLED=0 disables save guard and display redactio
 test("memory_save refuses JSON-style secret-looking content", async () => {
   for (const content of [
     '{"API_KEY":"abcdefghijklmnop"}',
+    '{"api-key":"abcdefghijklmnop"}',
     '{"token":["abcdefghijklmnop"]}',
     '{"token":{"value":"abcdefghijklmnop"}}',
     '{"api–key":"abcdefghijklmnop"}',

@@ -179,11 +179,17 @@ export function redactSecretLikeText(text: string): string {
   return redactQuotedSecretAssignments(redactedTransportSecrets)
     .replace(
       OUTER_QUOTED_SECRET_ASSIGNMENT_PATTERN,
-      (_match, prefix: string, quote: string, key: string, separator: string) => `${prefix}${quote}${key}${separator}<redacted>${quote}`,
+      (match, prefix: string, quote: string, key: string, separator: string, value: string) =>
+        bareAssignmentIsLowSignal(key, value)
+          ? match
+          : `${prefix}${quote}${key}${separator}<redacted>${quote}`,
     )
     .replace(
       SECRET_ASSIGNMENT_PATTERN,
-      (_match, prefix: string, key: string, separator: string) => `${prefix}${key}${separator}<redacted>`,
+      (match, prefix: string, key: string, separator: string, value: string) =>
+        bareAssignmentIsLowSignal(key, value)
+          ? match
+          : `${prefix}${key}${separator}<redacted>`,
     );
 }
 
@@ -331,8 +337,16 @@ const COMMON_ASCII_CONFUSABLES: Record<string, string> = {
   ј: "j",
 };
 const SECRET_KEY_PART_PATTERN = "[A-Za-z0-9]+";
-const SECRET_KEY_WORD_PATTERN = `API[${SECRET_SEPARATOR_PATTERN}]?KEY|PRIVATE[${SECRET_SEPARATOR_PATTERN}]?KEY|KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|BEARER`;
-const SECRET_KEY_PATTERN = `(?:${SECRET_KEY_PART_PATTERN}[${SECRET_SEPARATOR_PATTERN}])*(?:${SECRET_KEY_WORD_PATTERN})(?:[${SECRET_SEPARATOR_PATTERN}]${SECRET_KEY_PART_PATTERN})*`;
+const _SEP = `[${SECRET_SEPARATOR_PATTERN}]`;
+const _PART = SECRET_KEY_PART_PATTERN;
+// Words strong enough to flag even when bare. NOTE: bare KEY and bare BEARER
+// are intentionally absent. API/PRIVATE KEY kept fused so "apikey" matches.
+const SECRET_KEY_STANDALONE_WORD_PATTERN = `API${_SEP}?KEY|PRIVATE${_SEP}?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH`;
+const _STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_KEY_STANDALONE_WORD_PATTERN})(?:${_SEP}${_PART})*`;
+// Bare KEY is only a secret-name when joined to another token by a separator
+// (API_KEY, session-key, KEY_ID). Standalone "key"/"primary key:" is benign.
+const _KEY_COMPOUND_SHAPE = `(?:${_PART}${_SEP})+KEY(?:${_SEP}${_PART})*|(?:${_PART}${_SEP})*KEY(?:${_SEP}${_PART})+`;
+const SECRET_KEY_PATTERN = `(?:${_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE})`;
 const SECRET_KEY_NAME_PATTERN = new RegExp(`^${SECRET_KEY_PATTERN}$`, "i");
 const CLI_SECRET_FLAG_NAME_PATTERN = `[Aa][Pp][Ii][${SECRET_SEPARATOR_PATTERN}]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Aa][Uu][Tt][Hh]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][${SECRET_SEPARATOR_PATTERN}][Kk][Ee][Yy]`;
 const CLI_SECRET_FLAG_VALUE_TERMINATOR_PATTERN = "\\s,;)}\\]>\"'`";
@@ -379,6 +393,37 @@ const PRIVATE_KEY_BLOCK_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?
 // -----------------------------------------------------------------------------
 // Private helpers
 // -----------------------------------------------------------------------------
+
+const BARE_STANDALONE_WORD_RE = /^(?:TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)$/i;
+
+// True when a BARE single-word keyword is paired with a low-signal value
+// (short, single opaque token / boolean / small int) -> benign prose, not a
+// secret. Compound keys and API_KEY/PRIVATE_KEY are NEVER gated.
+function bareAssignmentIsLowSignal(key: string, rawValue: string): boolean {
+  if (!BARE_STANDALONE_WORD_RE.test(key.trim())) return false;
+  const v = rawValue.trim().replace(/^["'`]+/, "").replace(/["'`]+$/, "").trim();
+  if (v.length >= 8) return false;
+  return /^[A-Za-z0-9_.+-]*$/.test(v);
+}
+
+// Count an assignment pattern as "secret signal present" only if it has at
+// least one match that is NOT a gated bare-word/low-signal assignment.
+// keyGroup/valueGroup are 1-based capture indices; valueGroup 0 = no value
+// capture (treated as always-signal). A fresh RegExp avoids shared lastIndex.
+function assignmentPatternHasSecretSignal(
+  pattern: RegExp, text: string, keyGroup: number, valueGroup: number,
+): boolean {
+  const flags = pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g";
+  const re = new RegExp(pattern.source, flags);
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    if (match[0] === "") { re.lastIndex += 1; continue; }
+    const key = match[keyGroup] ?? "";
+    const value = valueGroup > 0 ? (match[valueGroup] ?? "") : "";
+    if (valueGroup === 0 || !bareAssignmentIsLowSignal(key, value)) return true;
+  }
+  return false;
+}
 
 /** Normalize URL hostnames before loopback comparison. */
 function normalizedHostname(hostname: string): string {
@@ -699,10 +744,16 @@ function isSecretLikeKey(key: string): boolean {
 function secretSignalScore(text: string): number {
   let score = hasUrlUserinfo(text) ? 2 : 0;
   if (hasCanonicalUrlUserinfo(text)) score += 1;
-  for (const pattern of [PRIVATE_KEY_BLOCK_PATTERN, AUTHORIZATION_HEADER_PATTERN, BEARER_VALUE_PATTERN, STANDALONE_PROVIDER_TOKEN_PATTERN, CLI_SECRET_FLAG_QUOTED_PATTERN, CLI_SECRET_FLAG_PATTERN, QUOTED_SECRET_ASSIGNMENT_START_PATTERN, OUTER_QUOTED_SECRET_ASSIGNMENT_PATTERN, SECRET_ASSIGNMENT_PATTERN]) {
+  for (const pattern of [
+    PRIVATE_KEY_BLOCK_PATTERN, AUTHORIZATION_HEADER_PATTERN, BEARER_VALUE_PATTERN,
+    STANDALONE_PROVIDER_TOKEN_PATTERN, CLI_SECRET_FLAG_QUOTED_PATTERN,
+    CLI_SECRET_FLAG_PATTERN, QUOTED_SECRET_ASSIGNMENT_START_PATTERN,
+  ]) {
     pattern.lastIndex = 0;
     if (pattern.test(text)) score += 1;
   }
+  if (assignmentPatternHasSecretSignal(OUTER_QUOTED_SECRET_ASSIGNMENT_PATTERN, text, 3, 5)) score += 1;
+  if (assignmentPatternHasSecretSignal(SECRET_ASSIGNMENT_PATTERN, text, 2, 4)) score += 1;
   return score;
 }
 

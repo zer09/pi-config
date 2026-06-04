@@ -1,6 +1,14 @@
 import * as os from "node:os";
 
-const SECRET_KEY_PATTERN = /[A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|BEARER|API_KEY|PRIVATE)[A-Za-z0-9_]*/i;
+const SECRET_SEPARATOR_PATTERN = "_\\-\\u2010\\u2011\\u2012\\u2013\\u2014\\u2015\\u2212\\uFE58\\uFE63\\uFF0D";
+const SECRET_KEY_PART_PATTERN = "[A-Za-z0-9]+";
+const _SEP = `[${SECRET_SEPARATOR_PATTERN}]`;
+const _PART = SECRET_KEY_PART_PATTERN;
+const SECRET_KEY_STANDALONE_WORD_PATTERN = `API${_SEP}?KEY|PRIVATE${_SEP}?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH`;
+const _STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_KEY_STANDALONE_WORD_PATTERN})(?:${_SEP}${_PART})*`;
+const _KEY_COMPOUND_SHAPE = `(?:${_PART}${_SEP})+KEY(?:${_SEP}${_PART})*|(?:${_PART}${_SEP})*KEY(?:${_SEP}${_PART})+`;
+const SECRET_KEY_NAME_PATTERN = new RegExp(`^(?:${_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE})$`, "i");
+const SECRET_KEY_VALUE_PATTERN = /(\b[A-Za-z0-9][A-Za-z0-9_\-\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFE58\uFE63\uFF0D]*)(\s*[:=]\s*)(["']?)([^\s"'`,}]+)\3?/gi;
 const SECRET_VALUE_PATTERNS = [
 	/\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}\b/g,
 	/\bgithub_pat_[A-Za-z0-9_]{20,}\b/g,
@@ -19,6 +27,18 @@ export function containsSecretValue(text: string): boolean {
 	});
 }
 
+function keyNameVariants(key: string): string[] {
+	const camelCase = key.replace(/([a-z0-9])([A-Z])/g, "$1-$2");
+	return camelCase === key ? [key] : [key, camelCase];
+}
+
+function isSecretLikeKey(key: string): boolean {
+	for (const variant of keyNameVariants(key.trim())) {
+		if (SECRET_KEY_NAME_PATTERN.test(variant)) return true;
+	}
+	return false;
+}
+
 function redactKeyValue(_match: string, key: string, separator: string, quote = ""): string {
 	return `${key}${separator}${quote}<redacted>${quote}`;
 }
@@ -31,11 +51,11 @@ export function redactSensitiveText(text: string): string {
 	redacted = redacted.replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, "$1<redacted>");
 	for (const pattern of SECRET_VALUE_PATTERNS) redacted = redacted.replace(pattern, "<redacted>");
 	redacted = redacted.replace(
-		/(\b[A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|BEARER|API_KEY|PRIVATE)[A-Za-z0-9_]*)(\s*[:=]\s*)(["']?)([^\s"'`,}]+)/gi,
-		(match, key, separator, quote) => redactKeyValue(match, key, separator, quote),
+		SECRET_KEY_VALUE_PATTERN,
+		(match, key, separator, quote) => isSecretLikeKey(key) ? redactKeyValue(match, key, separator, quote) : match,
 	);
 	redacted = redacted.replace(/(["'])([^"']+)\1(\s*:\s*)(["'])([^"']+)\4/g, (match, keyQuote, key, separator, valueQuote) => {
-		if (!SECRET_KEY_PATTERN.test(key)) return match;
+		if (!isSecretLikeKey(key)) return match;
 		return `${keyQuote}${key}${keyQuote}${separator}${valueQuote}<redacted>${valueQuote}`;
 	});
 	return redacted;
