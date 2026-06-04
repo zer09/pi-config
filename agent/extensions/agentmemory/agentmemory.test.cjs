@@ -929,9 +929,14 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.sanitizeTextForDisplay("token=abc123"), "token=<redacted>");
   assert.equal(security.sanitizeTextForDisplay("secret=hunter2"), "secret=<redacted>");
   assert.equal(security.sanitizeTextForDisplay("credential=hunter2"), "credential=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("tokens=abcdefghijklmnop"), "tokens=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("secrets=hunter2"), "secrets=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("key=abcdefghijklmnop"), "key=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay('key: "hunter2"'), 'key: "<redacted>"');
   assert.equal(security.sanitizeTextForDisplay('{"author":"Alice","authoredBy":"Bob","private":false}'), '{\n  "author": "Alice",\n  "authoredBy": "Bob",\n  "private": false\n}');
   assert.equal(security.sanitizeTextForDisplay('{"authorization":"Basic dXNlcjpwYXNz"}'), '{\n  "authorization": "<redacted>"\n}');
   assert.equal(security.sanitizeTextForDisplay('{"bearer":"abcdefghijklmnop","enabled":true}'), '{\n  "bearer": "<redacted>",\n  "enabled": true\n}');
+  assert.equal(security.sanitizeTextForDisplay('{"credentials":"hunter2"}'), '{\n  "credentials": "<redacted>"\n}');
   assert.equal(security.sanitizeTextForDisplay("Use AWS_SECRET_ACCESS_KEY from the environment"), "Use AWS_SECRET_ACCESS_KEY from the environment");
   assert.equal(security.sanitizeTextForDisplay("AUTH_TOKEN=abcdefghijklmnop"), "AUTH_TOKEN=<redacted>");
   assert.equal(security.sanitizeTextForDisplay("authtoken=abcdefghijklmnop"), "authtoken=<redacted>");
@@ -1005,10 +1010,15 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.containsSecretLikeContent("token=abc123"), true);
   assert.equal(security.containsSecretLikeContent("secret=hunter2"), true);
   assert.equal(security.containsSecretLikeContent("credential=hunter2"), true);
+  assert.equal(security.containsSecretLikeContent("tokens=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("secrets=hunter2"), true);
+  assert.equal(security.containsSecretLikeContent("key=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent('key: "hunter2"'), true);
   assert.equal(security.containsSecretLikeContent({ author: "Alice", authoredBy: "Bob", private: false }), false);
   assert.equal(security.containsSecretLikeContent({ bearer: true }), false);
   assert.equal(security.containsSecretLikeContent({ authorization: "Basic dXNlcjpwYXNz" }), true);
   assert.equal(security.containsSecretLikeContent({ bearer: "abcdefghijklmnop" }), true);
+  assert.equal(security.containsSecretLikeContent({ credentials: "hunter2" }), true);
   assert.equal(security.containsSecretLikeContent("SECRET_KEY"), false);
   assert.equal(security.containsSecretLikeContent("Use AWS_SECRET_ACCESS_KEY from the environment"), false);
   assert.equal(security.containsSecretLikeContent("AUTH_TOKEN=abcdefghijklmnop"), true);
@@ -1198,6 +1208,7 @@ test("memory_save permits benign key and bare keyword prose", async () => {
       "foreign key: user_id",
       "partition key: region",
       "cache key: abc",
+      "key: value",
       '{"key":"value"}',
       '{"key":"hello world"}',
       "auth: oauth2",
@@ -1237,6 +1248,10 @@ test("memory_save refuses secret-looking content before network calls", async ()
     "secret=hunter2",
     "token=abc123",
     "credential=hunter2",
+    "tokens=abcdefghijklmnop",
+    "secrets=hunter2",
+    "key=abcdefghijklmnop",
+    'key: "hunter2"',
     "authtoken=abcdefghijklmnop",
     "sessionKey=abcdefghijklmnop",
     "accessKey=abcdefghijklmnop",
@@ -1244,6 +1259,7 @@ test("memory_save refuses secret-looking content before network calls", async ()
     'TOKEN="abcdefghijklmnop"',
     '{"authorization":"Basic dXNlcjpwYXNz"}',
     '{"bearer":"abcdefghijklmnop"}',
+    '{"credentials":"hunter2"}',
     '{"dbpassword":"hunter2"}',
     "https://user:pass@example.invalid/path",
     "https%3A%2F%2Fuser%3Apass%40example.invalid%2Fpath",

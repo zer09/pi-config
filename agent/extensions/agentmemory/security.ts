@@ -123,16 +123,16 @@ export function containsSecretLikeContent(
   if (value === undefined || value === null) return false;
 
   if (typeof value === "string") {
-    if (matchesSecretText(value)) return true;
     const trimmed = value.trim();
     if (secretKeyContext && trimmed) return true;
     if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
       try {
         return containsSecretLikeContent(JSON.parse(trimmed), seen, secretKeyContext);
       } catch {
-        return false;
+        return matchesSecretText(value);
       }
     }
+    if (matchesSecretText(value)) return true;
     return false;
   }
 
@@ -191,13 +191,16 @@ export function redactSecretLikeText(text: string): string {
     .replace(
       SECRET_ASSIGNMENT_PATTERN,
       (match, prefix: string, key: string, separator: string, value: string) =>
-        isRedactedAuthorizationHeaderAssignment(key, value) || bareAssignmentIsLowSignal(key, value)
+        isRedactedAssignmentValue(value) || isRedactedAuthorizationHeaderAssignment(key, value) || bareAssignmentIsLowSignal(key, value)
           ? match
           : `${prefix}${key}${separator}<redacted>`,
     )
     .replace(
       CAMEL_CASE_SECRET_ASSIGNMENT_PATTERN,
-      (_match, prefix: string, key: string, separator: string) => `${prefix}${key}${separator}<redacted>`,
+      (match, prefix: string, key: string, separator: string, value: string) =>
+        isRedactedAssignmentValue(value)
+          ? match
+          : `${prefix}${key}${separator}<redacted>`,
     );
 }
 
@@ -354,11 +357,11 @@ const _STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_KEY_STANDALONE_WORD_P
 // Bare KEY is only a secret-name when joined to another token by a separator
 // (API_KEY, session-key, KEY_ID). Standalone "key"/"primary key:" is benign.
 const _KEY_COMPOUND_SHAPE = `(?:${_PART}${_SEP})+KEY(?:${_SEP}${_PART})*|(?:${_PART}${_SEP})*KEY(?:${_SEP}${_PART})+`;
-// Restore fused credential names (authtoken, dbpassword, token1) without
+// Restore fused credential names (authtoken, dbpassword, tokens) without
 // substring-matching benign words like tokenizer, monkey, or keystone.
-const FUSED_SECRET_KEY_PATTERN = `[A-Za-z0-9]*(?:(?:TOKEN|SECRET|PASSWORD|CREDENTIAL)(?:[0-9]+|ID|KEY|VALUE|HASH)?|PRIVATEKEY)`;
+const FUSED_SECRET_KEY_PATTERN = `[A-Za-z0-9]*(?:(?:TOKEN|SECRET|PASSWORD|CREDENTIAL)S?(?:[0-9]+|ID|KEY|VALUE|HASH)?|PRIVATEKEY)`;
 const SECRET_KEY_PATTERN = `(?:${_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE}|${FUSED_SECRET_KEY_PATTERN})`;
-const SECRET_ASSIGNMENT_STANDALONE_WORD_PATTERN = `${SECRET_KEY_STANDALONE_WORD_PATTERN}|BEARER|PRIVATE`;
+const SECRET_ASSIGNMENT_STANDALONE_WORD_PATTERN = `${SECRET_KEY_STANDALONE_WORD_PATTERN}|BEARER|PRIVATE|KEY`;
 const _ASSIGNMENT_STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_ASSIGNMENT_STANDALONE_WORD_PATTERN})(?:${_SEP}${_PART})*`;
 const SECRET_ASSIGNMENT_KEY_PATTERN = `(?:${_ASSIGNMENT_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE}|${FUSED_SECRET_KEY_PATTERN})`;
 const CAMEL_CASE_SECRET_ASSIGNMENT_KEY_PATTERN = `[A-Za-z0-9]+(?:Key|Authorization|Authentication)(?:[0-9]+|Id|ID|Value|Hash)?`;
@@ -421,15 +424,26 @@ const PRIVATE_KEY_BLOCK_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?
 // Private helpers
 // -----------------------------------------------------------------------------
 
-const BARE_STANDALONE_WORD_RE = /^(?:TOKEN|SECRET|CREDENTIAL|AUTH|AUTHORIZATION|AUTHENTICATION|BEARER|PRIVATE)$/i;
+const BARE_STANDALONE_WORD_RE = /^(?:KEY|TOKEN|SECRET|CREDENTIAL|AUTH|AUTHORIZATION|AUTHENTICATION|BEARER|PRIVATE)$/i;
 
 // True when a BARE single-word keyword is paired with a low-signal value
 // (short, single opaque token / boolean / small int) -> benign prose, not a
 // secret. Compound keys and API_KEY/PRIVATE_KEY are NEVER gated.
 function bareAssignmentIsLowSignal(key: string, rawValue: string): boolean {
-  if (!BARE_STANDALONE_WORD_RE.test(key.trim())) return false;
-  const v = rawValue.trim().replace(/^["'`]+/, "").replace(/["'`]+$/, "").trim();
+  const normalizedKey = key.trim();
+  if (!BARE_STANDALONE_WORD_RE.test(normalizedKey)) return false;
+  const trimmed = rawValue.trim();
+  const quoted = /^["'`]/.test(trimmed);
+  const v = trimmed.replace(/^["'`]+/, "").replace(/["'`]+$/, "").trim();
+  if (/^KEY$/i.test(normalizedKey)) {
+    return !quoted && (/^(?:true|false|yes|no|on|off|enabled|disabled|id|abc|value|region)$/i.test(v)
+      || /^[A-Za-z_]+_id(?:\s+is\s+[A-Za-z]+)?$/i.test(v));
+  }
   return /^(?:true|false|yes|no|on|off|enabled|disabled|id|abc|oauth2)$/i.test(v);
+}
+
+function isRedactedAssignmentValue(rawValue: string): boolean {
+  return /^["'`]?<redacted(?: [^>]*)?>["'`]?$/i.test(rawValue.trim());
 }
 
 function isRedactedAuthorizationHeaderAssignment(key: string, rawValue: string): boolean {
