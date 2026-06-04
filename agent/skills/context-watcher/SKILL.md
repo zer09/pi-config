@@ -18,6 +18,8 @@ Load and apply it for shell commands, tests/builds/lints, git reads, GitHub CLI 
 - Prefer CodeGraph MCP for first-pass reasoning, ambiguity detection, and source/flow tools; use CodeGraph CLI inside Context Mode for durable, indexed, batched, parsed, or compared graph output.
 - For CLI graph output, strip ANSI from plain output; use JSON only inside programmed analysis that prints a compact summary.
 - Satisfy read-before-edit for existing-file edits; `ctx_execute_file` is for analysis reads.
+- In this skill, read-before-edit means having exact current source for the edit region via native `read` or a trusted source snapshot.
+  A trusted source snapshot includes CodeGraph source marked current/verbatim/complete/read-equivalent and excludes stale, truncated, changed after retrieval, or outside shown source.
 - Native `write` and `edit` are the only tools for file creation or modification.
 - External hosted services are read-only unless the user explicitly requests the exact mutation.
 - GitHub repo/PR/issue/review/workflow/release/private data uses the `gh-cli` skill and authenticated `gh` through Context Mode/RTK.
