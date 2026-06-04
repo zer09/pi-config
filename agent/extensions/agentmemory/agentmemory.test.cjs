@@ -936,10 +936,16 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.sanitizeTextForDisplay('{"author":"Alice","authoredBy":"Bob","private":false}'), '{\n  "author": "Alice",\n  "authoredBy": "Bob",\n  "private": false\n}');
   assert.equal(security.sanitizeTextForDisplay('{"authorization":"Basic dXNlcjpwYXNz"}'), '{\n  "authorization": "<redacted>"\n}');
   assert.equal(security.sanitizeTextForDisplay('{"bearer":"abcdefghijklmnop","enabled":true}'), '{\n  "bearer": "<redacted>",\n  "enabled": true\n}');
+  assert.equal(security.sanitizeTextForDisplay('{"bearer":{"value":"abcdefghijklmnop"}}'), '{\n  "bearer": {\n    "value": "<redacted>"\n  }\n}');
+  assert.equal(security.sanitizeTextForDisplay('{"bearer":["abcdefghijklmnop"]}'), '{\n  "bearer": [\n    "<redacted>"\n  ]\n}');
+  assert.equal(security.sanitizeTextForDisplay('{"key":"hunter2"}'), '{\n  "key": "<redacted>"\n}');
   assert.equal(security.sanitizeTextForDisplay('{"credentials":"hunter2"}'), '{\n  "credentials": "<redacted>"\n}');
+  assert.equal(security.sanitizeTextForDisplay('{"private":"abcdefghijklmnop"}'), '{\n  "private": "<redacted>"\n}');
+  assert.equal(security.sanitizeTextForDisplay('{"PRIVATE":{"value":"abcdefghijklmnop"}}'), '{\n  "PRIVATE": {\n    "value": "<redacted>"\n  }\n}');
   assert.equal(security.sanitizeTextForDisplay("Use AWS_SECRET_ACCESS_KEY from the environment"), "Use AWS_SECRET_ACCESS_KEY from the environment");
   assert.equal(security.sanitizeTextForDisplay("AUTH_TOKEN=abcdefghijklmnop"), "AUTH_TOKEN=<redacted>");
   assert.equal(security.sanitizeTextForDisplay("authtoken=abcdefghijklmnop"), "authtoken=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("authkey=abcdefghijklmnop"), "authkey=<redacted>");
   assert.equal(security.sanitizeTextForDisplay("sessionKey=abcdefghijklmnop"), "sessionKey=<redacted>");
   assert.equal(security.sanitizeTextForDisplay("accessKey=abcdefghijklmnop"), "accessKey=<redacted>");
   assert.equal(security.sanitizeTextForDisplay("sshPrivateKey=abcdefghijklmnop"), "sshPrivateKey=<redacted>");
@@ -1016,13 +1022,21 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.containsSecretLikeContent('key: "hunter2"'), true);
   assert.equal(security.containsSecretLikeContent({ author: "Alice", authoredBy: "Bob", private: false }), false);
   assert.equal(security.containsSecretLikeContent({ bearer: true }), false);
+  assert.equal(security.containsSecretLikeContent({ key: "hello world" }), false);
   assert.equal(security.containsSecretLikeContent({ authorization: "Basic dXNlcjpwYXNz" }), true);
   assert.equal(security.containsSecretLikeContent({ bearer: "abcdefghijklmnop" }), true);
+  assert.equal(security.containsSecretLikeContent({ bearer: { value: "abcdefghijklmnop" } }), true);
+  assert.equal(security.containsSecretLikeContent({ bearer: ["abcdefghijklmnop"] }), true);
+  assert.equal(security.containsSecretLikeContent({ key: "hunter2" }), true);
   assert.equal(security.containsSecretLikeContent({ credentials: "hunter2" }), true);
+  assert.equal(security.containsSecretLikeContent({ private: "abcdefghijklmnop" }), true);
+  assert.equal(security.containsSecretLikeContent({ PRIVATE: { value: "abcdefghijklmnop" } }), true);
   assert.equal(security.containsSecretLikeContent("SECRET_KEY"), false);
   assert.equal(security.containsSecretLikeContent("Use AWS_SECRET_ACCESS_KEY from the environment"), false);
   assert.equal(security.containsSecretLikeContent("AUTH_TOKEN=abcdefghijklmnop"), true);
   assert.equal(security.containsSecretLikeContent("authtoken=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("authkey=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent({ authkey: "abcdefghijklmnop" }), true);
   assert.equal(security.containsSecretLikeContent("sessionKey=abcdefghijklmnop"), true);
   assert.equal(security.containsSecretLikeContent("accessKey=abcdefghijklmnop"), true);
   assert.equal(security.containsSecretLikeContent("sshPrivateKey=abcdefghijklmnop"), true);
@@ -1253,13 +1267,20 @@ test("memory_save refuses secret-looking content before network calls", async ()
     "key=abcdefghijklmnop",
     'key: "hunter2"',
     "authtoken=abcdefghijklmnop",
+    "authkey=abcdefghijklmnop",
     "sessionKey=abcdefghijklmnop",
     "accessKey=abcdefghijklmnop",
     "sshPrivateKey=abcdefghijklmnop",
     'TOKEN="abcdefghijklmnop"',
     '{"authorization":"Basic dXNlcjpwYXNz"}',
     '{"bearer":"abcdefghijklmnop"}',
+    '{"bearer":{"value":"abcdefghijklmnop"}}',
+    '{"bearer":["abcdefghijklmnop"]}',
+    '{"key":"hunter2"}',
     '{"credentials":"hunter2"}',
+    '{"authkey":"abcdefghijklmnop"}',
+    '{"private":"abcdefghijklmnop"}',
+    '{"PRIVATE":{"value":"abcdefghijklmnop"}}',
     '{"dbpassword":"hunter2"}',
     "https://user:pass@example.invalid/path",
     "https%3A%2F%2Fuser%3Apass%40example.invalid%2Fpath",

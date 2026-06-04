@@ -359,7 +359,7 @@ const _STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_KEY_STANDALONE_WORD_P
 const _KEY_COMPOUND_SHAPE = `(?:${_PART}${_SEP})+KEY(?:${_SEP}${_PART})*|(?:${_PART}${_SEP})*KEY(?:${_SEP}${_PART})+`;
 // Restore fused credential names (authtoken, dbpassword, tokens) without
 // substring-matching benign words like tokenizer, monkey, or keystone.
-const FUSED_SECRET_KEY_PATTERN = `[A-Za-z0-9]*(?:(?:TOKEN|SECRET|PASSWORD|CREDENTIAL)S?(?:[0-9]+|ID|KEY|VALUE|HASH)?|PRIVATEKEY)`;
+const FUSED_SECRET_KEY_PATTERN = `[A-Za-z0-9]*(?:(?:TOKEN|SECRET|PASSWORD|CREDENTIAL)S?(?:[0-9]+|ID|KEY|VALUE|HASH)?|AUTH(?:[0-9]+|ID|KEY|VALUE|HASH|TOKEN)|PRIVATEKEY)`;
 const SECRET_KEY_PATTERN = `(?:${_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE}|${FUSED_SECRET_KEY_PATTERN})`;
 const SECRET_ASSIGNMENT_STANDALONE_WORD_PATTERN = `${SECRET_KEY_STANDALONE_WORD_PATTERN}|BEARER|PRIVATE|KEY`;
 const _ASSIGNMENT_STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_ASSIGNMENT_STANDALONE_WORD_PATTERN})(?:${_SEP}${_PART})*`;
@@ -797,15 +797,32 @@ function isSecretLikeKey(key: string): boolean {
   return false;
 }
 
-function isStructuredBearerKey(key: string): boolean {
-  return keyNameVariants(key).some((variant) => /^BEARER$/i.test(variant.trim()));
+function structuredKeyCategory(key: string): "bearer" | "key" | "private" | null {
+  for (const variant of keyNameVariants(key)) {
+    const normalized = variant.trim();
+    if (/^BEARER$/i.test(normalized)) return "bearer";
+    if (/^KEY$/i.test(normalized)) return "key";
+    if (/^PRIVATE$/i.test(normalized)) return "private";
+  }
+  return null;
+}
+
+function structuredKeyValueIsLowSignal(category: "bearer" | "key" | "private", value: unknown): boolean {
+  if (typeof value === "boolean") return true;
+  if (value === undefined || value === null) return true;
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  if (category === "key") {
+    return /^(?:true|false|yes|no|on|off|enabled|disabled|id|abc|value|hello world|[A-Za-z_]+_id)$/i.test(trimmed);
+  }
+  return /^(?:true|false|yes|no|on|off|enabled|disabled|id|abc|oauth2)$/i.test(trimmed);
 }
 
 function isSecretLikeKeyForValue(key: string, value: unknown): boolean {
   if (isSecretLikeKey(key)) return true;
-  if (!isStructuredBearerKey(key) || typeof value !== "string") return false;
-  const trimmed = value.trim();
-  return Boolean(trimmed) && !bareAssignmentIsLowSignal("bearer", trimmed);
+  const category = structuredKeyCategory(key);
+  return category !== null && !structuredKeyValueIsLowSignal(category, value);
 }
 
 /**
