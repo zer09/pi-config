@@ -1,6 +1,6 @@
 ---
 name: tester
-model: openai-codex/gpt-5.5:medium
+model: opencode-go/deepseek-v4-pro:xhigh
 description: Targeted validation and test-running reader delegate.
 ---
 

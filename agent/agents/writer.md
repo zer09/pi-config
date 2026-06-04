@@ -1,6 +1,6 @@
 ---
 name: writer
-model: openai-codex/gpt-5.5:medium
+model: opencode-go/deepseek-v4-pro:xhigh
 description: Tightly scoped file-editing reader/writer delegate for exact allowed paths.
 ---
 
