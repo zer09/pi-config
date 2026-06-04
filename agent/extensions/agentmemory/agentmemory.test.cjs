@@ -308,6 +308,33 @@ test("memory_health reports policy drift and followup diagnostics", async () => 
   }
 });
 
+test("memory_health formats followup diagnostics with unknown rate and configured window", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url) => {
+      if (url.endsWith("/agentmemory/health")) return jsonResponse({ status: "healthy", version: "0.9.26" });
+      if (url.endsWith("/agentmemory/diagnostics/followup")) {
+        return jsonResponse({
+          success: true,
+          windowSeconds: null,
+          agentInitiatedSearches: 3,
+          followupWithinWindow: 0,
+          rate: null,
+        });
+      }
+      throw new Error(`unexpected ${url}`);
+    },
+  });
+  try {
+    const result = await harness.callTool("memory_health");
+    const text = textContent(result);
+    assert.match(text, /smart-search followup diagnostic: 0\/3 agent searches followed up within the configured window \(unknown rate\)\./);
+    assert.equal(result.details.piDiagnostics.followup.rate, null);
+    assert.equal(result.details.piDiagnostics.followup.windowSeconds, null);
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("agentmemory-status reports policy drift without leaking raw health text", async () => {
   const harness = createHarness({
     fetchHandler: async () => jsonResponse({ status: "healthy", version: "0.9.27" }),
@@ -550,6 +577,10 @@ test("gated slot writes require confirmation and reject secret-looking content",
   try {
     const refused = await harness.callTool("memory_slot_replace", { label: "project_context", content: "safe content" });
     assert.match(textContent(refused), /replace slot:project_context/);
+    assert.equal(harness.fetchCalls.length, 0);
+
+    const missingLabel = await harness.callTool("memory_slot_create", { content: "safe content", confirm: "create slot:" });
+    assert.match(textContent(missingLabel), /label is required before confirmation/);
     assert.equal(harness.fetchCalls.length, 0);
 
     const secretRefused = await harness.callTool("memory_slot_append", {
@@ -1429,6 +1460,33 @@ test("memory_save falls back to legacy remember endpoint when MCP save is unavai
     assert.doesNotMatch(JSON.stringify(result), /Remember this durable preference/);
     assert.equal(harness.fetchCalls.length, 2);
     assert.equal(parseBody(harness.fetchCalls[1]).content, "Remember this durable preference");
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test("before_agent_start prepends non-empty recall block", async () => {
+  const harness = createHarness({
+    fetchHandler: async (url, init) => {
+      if (url.endsWith("/agentmemory/smart-search")) {
+        assert.equal(JSON.parse(init.body).query, "What should I remember?");
+        return jsonResponse({
+          results: [{ title: "Prior decision", narrative: "Use Context Watcher first", type: "decision", combinedScore: 0.875 }],
+        });
+      }
+      if (url.endsWith("/agentmemory/health")) return jsonResponse({ status: "healthy", version: "0.9.26" });
+      throw new Error(`unexpected ${url}`);
+    },
+  });
+  try {
+    const result = await harness.emit("before_agent_start", {
+      systemPrompt: "base",
+      systemPromptOptions: { cwd: "/tmp/project" },
+      prompt: "What should I remember?",
+    });
+    assert.match(result.systemPrompt, /^base\n\n/);
+    assert.match(result.systemPrompt, /Relevant long-term memory from agentmemory:\n- Prior decision \(decision\) \[score=0\.875\]: Use Context Watcher first/);
+    assert.equal(harness.fetchCalls.length, 2);
   } finally {
     harness.cleanup();
   }

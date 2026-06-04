@@ -44,8 +44,7 @@ export function isFollowupDiagnostic(value: unknown): value is FollowupDiagnosti
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const candidate = value as FollowupDiagnosticResponse;
   return finiteNumber(candidate.agentInitiatedSearches) !== null
-    && finiteNumber(candidate.followupWithinWindow) !== null
-    && finiteNumber(candidate.rate) !== null;
+    && finiteNumber(candidate.followupWithinWindow) !== null;
 }
 
 function formatFollowupDiagnostic(result: FollowupDiagnosticResponse | null): string | null {

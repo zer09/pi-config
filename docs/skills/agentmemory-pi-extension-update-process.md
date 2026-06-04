@@ -68,4 +68,6 @@ npm test
 npm run check:sync -- --upstream <agentmemory-upstream>
 ```
 
+`check:sync` needs either `--upstream` or `AGENTMEMORY_UPSTREAM`; a bare `npm run check:sync` fails by design because there is no local AgentMemory checkout to compare against.
+
 Before finishing, check changed files for literal home paths, secret-looking values, stale update-doc references, and generated caches.

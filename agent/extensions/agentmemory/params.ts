@@ -57,10 +57,6 @@ export function stripLocalGuardParams(params: ToolParams): ToolParams {
   return upstreamArgs;
 }
 
-export function isStringOrStringArray(value: unknown): boolean {
-  return typeof value === "string" || (Array.isArray(value) && value.every((entry) => typeof entry === "string"));
-}
-
 function isCoercedScalarString(value: string): boolean {
   return /^(?:null|undefined|true|false|nan|infinity|-?(?:\d+|\d*\.\d+)(?:e[+-]?\d+)?)$/i.test(value.trim());
 }

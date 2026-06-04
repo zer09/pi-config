@@ -714,9 +714,8 @@ function matchesSecretText(text: string): boolean {
 
 /** Find nested assignments inside an unterminated or adjacent quoted value. */
 function nestedSecretAssignmentIndex(text: string): number {
-  for (const pattern of [QUOTED_SECRET_ASSIGNMENT_START_PATTERN, SECRET_ASSIGNMENT_PATTERN]) {
-    pattern.lastIndex = 0;
-    const match = pattern.exec(text);
+  for (const sourcePattern of [QUOTED_SECRET_ASSIGNMENT_START_PATTERN, SECRET_ASSIGNMENT_PATTERN]) {
+    const match = new RegExp(sourcePattern.source, sourcePattern.flags).exec(text);
     if (match && match.index > 0) return match.index;
   }
   return -1;

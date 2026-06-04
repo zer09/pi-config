@@ -168,6 +168,8 @@ Run the local sync checker after updating or selecting the upstream AgentMemory 
 npm run check:sync -- --upstream <path-to-agentmemory-clone>
 ```
 
+`check:sync` requires either `--upstream` or `AGENTMEMORY_UPSTREAM` because it compares local Pi policy against a local AgentMemory checkout. Running it without one intentionally fails with `AgentMemory upstream path is required`.
+
 You can also set `AGENTMEMORY_UPSTREAM=<path-to-agentmemory-clone>` and run `npm run check:sync`.
 
 Useful inspection command:
