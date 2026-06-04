@@ -181,7 +181,7 @@ Example search args:
 5. Use `codegraph_search` for known symbol names and `codegraph_node` for one exact symbol only.
 6. Use callers/callees/impact/files/status for focused relationship, file-layout, and health evidence.
 7. Use CLI `codegraph affected -p <repo> --stdin --quiet` to map changed files to tests when planning validation; empty output means no tests were found by the graph, not that validation is unnecessary.
-8. Use native `read` only for files you intend to edit or files named in a stale banner.
+8. Use native `read` only when no trusted source snapshot covers the needed edit region, or when a stale banner names the file.
 
 Avoid repeated `codegraph_node` calls. One `codegraph_explore` call usually returns better agent context.
 

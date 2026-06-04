@@ -27,7 +27,7 @@ Notes:
 
 ## File read and write policy
 
-- For editing a file: native `read` is allowed so you can make precise native `edit` calls.
+- For editing a file: satisfy read-before-edit for the exact region, then use native `edit`.
 - For analysis of a file: use `ctx_execute_file`.
 - For creating or modifying files: use native `write` or `edit` only.
 - Do not use `ctx_execute`, `ctx_execute_file`, or Bash to write files.
@@ -41,7 +41,7 @@ Notes:
 4. `ctx_execute(language, code)` for one-off commands, API calls, and programmed analysis.
 5. `ctx_execute_file(path, language, code)` for file/log/data analysis.
 6. `ctx_fetch_and_index` followed by `ctx_search` for URLs and web docs.
-7. Native `read`, `write`, and `edit` only for file editing and file creation.
+7. Native `write` and `edit`, plus native `read` when read-before-edit requires it, only for file editing and creation.
 8. CodeGraph for structural code questions before grep/find/manual file reading.
 
 ## Context Mode tools
@@ -98,7 +98,7 @@ Do not use these routes for normal work:
 6. Is it a file read for analysis?
    - Use `ctx_execute_file`.
 7. Is it a file read for editing?
-   - Use native `read`, then native `edit`.
+   - Satisfy read-before-edit, then use native `edit`.
 8. Is it a URL or web docs?
    - Use `ctx_fetch_and_index`, then `ctx_search`.
 9. Is it codebase exploration, review, caller/callee lookup, architecture review, or impact analysis?
