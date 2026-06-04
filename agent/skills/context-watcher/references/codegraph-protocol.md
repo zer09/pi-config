@@ -76,6 +76,8 @@ CLI inside Context Mode for capturing: durable indexed output, batches, comparis
 
 Prefer MCP when a symbol name may be ambiguous. MCP can surface aggregation notes, relationship maps, and source grouped by file that plain CLI output does not provide. After narrowing the exact symbol/file, CLI is safe for batching and indexing.
 
+When CodeGraph MCP labels returned source as verbatim/current/on-disk/Read-equivalent, already read, complete source included, full source inlined, or says not to Read/re-open shown files, treat those displayed file regions as already read for both analysis and subsequent edits. Do not call native `read`, `cat`, grep, or broad search for the same shown content just to re-check currentness or satisfy read-before-edit. Continue from the graph output, or request narrower missing source with `codegraph_explore` or `codegraph_node`. Native `read` remains appropriate only when the needed source was not shown, was truncated or outside the shown region, is flagged stale, changed after the graph call, or CodeGraph is unavailable/degraded.
+
 Use MCP-first tools for source and flows: `codegraph_explore` for most structural questions and `codegraph_node` for one exact symbol.
 
 For CLI capture, default to plain output with ANSI stripped:
@@ -181,7 +183,7 @@ Example search args:
 5. Use `codegraph_search` for known symbol names and `codegraph_node` for one exact symbol only.
 6. Use callers/callees/impact/files/status for focused relationship, file-layout, and health evidence.
 7. Use CLI `codegraph affected -p <repo> --stdin --quiet` to map changed files to tests when planning validation; empty output means no tests were found by the graph, not that validation is unnecessary.
-8. Use native `read` only for files you intend to edit or files named in a stale banner.
+8. Use native `read` only when the needed source was not shown by a Read-equivalent CodeGraph block, was truncated or outside the shown region, is flagged stale, changed after the graph call, or CodeGraph is unavailable/degraded.
 
 Avoid repeated `codegraph_node` calls. One `codegraph_explore` call usually returns better agent context.
 

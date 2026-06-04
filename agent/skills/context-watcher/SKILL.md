@@ -17,7 +17,10 @@ Load and apply it for shell commands, tests/builds/lints, git reads, GitHub CLI 
 - When Context Mode is started for code work, treat CodeGraph MCP as part of the same Context Watcher runtime and verify/reconnect it when needed.
 - Prefer CodeGraph MCP for first-pass reasoning, ambiguity detection, and source/flow tools; use CodeGraph CLI inside Context Mode for durable, indexed, batched, parsed, or compared graph output.
 - For CLI graph output, strip ANSI from plain output; use JSON only inside programmed analysis that prints a compact summary.
-- Native `read` is for files you intend to edit; `ctx_execute_file` is for analysis reads.
+- Native `read` is for edit targets that lack a trusted source snapshot; `ctx_execute_file` is for analysis reads.
+  Trust CodeGraph source cues such as verbatim/current/Read-equivalent, already read, complete source included,
+  full source inlined, or "do not Read/re-open shown files".
+  Treat those shown regions as already read for analysis and edits; use native `read` only for stale, truncated, changed after the graph call, or outside shown content.
 - Native `write` and `edit` are the only tools for file creation or modification.
 - External hosted services are read-only unless the user explicitly requests the exact mutation.
 - GitHub repo/PR/issue/review/workflow/release/private data uses the `gh-cli` skill and authenticated `gh` through Context Mode/RTK.
@@ -33,7 +36,8 @@ Before every tool call, silently route by this checklist:
 2. Direct Bash whitelist? If the command is not whitelisted, or is read-only output work, use Context Mode.
 3. Read-only shell, tests, builds, logs, git reads, searches, or output over 20 lines? Use `ctx_batch_execute` by default, `ctx_execute` for one focused command, with `rtk` when available.
 4. Counting, filtering, parsing, comparing, aggregating, or transforming? Write code in `ctx_execute` or `ctx_execute_file` and print only the compact result.
-5. File read? Use native `read` only before editing that file; otherwise use `ctx_execute_file`.
+5. File read? Use CodeGraph source for any needed region with a read-equivalent cue; do not native-read it before editing.
+   Use native `read` only for source that is missing, stale, truncated, changed after the graph call, or outside shown content; use `ctx_execute_file` for analysis reads.
 6. File creation or modification? Use native `write` or `edit`; never write content through Bash or Context Mode.
 7. GitHub data or operations? Load `gh-cli`, use authenticated `gh` through Context Mode/RTK, and keep private data out of browser/web fetch tools unless explicitly requested.
 8. URL or web document? Use `ctx_fetch_and_index`, then `ctx_search`.
@@ -68,7 +72,7 @@ Rules:
 | Multiple shell checks, tests, builds, git reads, searches | `ctx_batch_execute`, with `rtk` when available |
 | Single shell check or programmed analysis | `ctx_execute` |
 | Analyze a file, log, JSON, CSV, snapshot, or large source file | `ctx_execute_file` |
-| Edit an existing file | native `read`, then native `edit` |
+| Edit an existing file | CodeGraph read-equivalent source for covered regions, otherwise native `read`; then native `edit` |
 | Create or replace a file | native `write` |
 | Fetch a URL or web docs | `ctx_fetch_and_index`, then `ctx_search` |
 | Search indexed docs or prior session state | `ctx_search` |
