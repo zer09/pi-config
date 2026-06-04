@@ -143,7 +143,7 @@ export function containsSecretLikeContent(
 
   for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
     if (matchesSecretText(key)) return true;
-    if (containsSecretLikeContent(inner, seen, secretKeyContext || isSecretLikeKey(key))) return true;
+    if (containsSecretLikeContent(inner, seen, secretKeyContext || isSecretLikeKeyForValue(key, inner))) return true;
   }
   return false;
 }
@@ -268,7 +268,7 @@ export function redactSecretLikeValue(
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>).map(([key, inner]) => [
       redactSecretLikeText(key),
-      redactSecretLikeValue(inner, seen, secretKeyContext || isSecretLikeKey(key), contextObjects),
+      redactSecretLikeValue(inner, seen, secretKeyContext || isSecretLikeKeyForValue(key, inner), contextObjects),
     ]),
   );
 }
@@ -429,8 +429,7 @@ const BARE_STANDALONE_WORD_RE = /^(?:TOKEN|SECRET|CREDENTIAL|AUTH|AUTHORIZATION|
 function bareAssignmentIsLowSignal(key: string, rawValue: string): boolean {
   if (!BARE_STANDALONE_WORD_RE.test(key.trim())) return false;
   const v = rawValue.trim().replace(/^["'`]+/, "").replace(/["'`]+$/, "").trim();
-  if (v.length >= 8) return false;
-  return /^[A-Za-z0-9_.+-]*$/.test(v);
+  return /^(?:true|false|yes|no|on|off|enabled|disabled|id|abc|oauth2)$/i.test(v);
 }
 
 function isRedactedAuthorizationHeaderAssignment(key: string, rawValue: string): boolean {
@@ -784,6 +783,17 @@ function isSecretLikeKey(key: string): boolean {
   return false;
 }
 
+function isStructuredBearerKey(key: string): boolean {
+  return keyNameVariants(key).some((variant) => /^BEARER$/i.test(variant.trim()));
+}
+
+function isSecretLikeKeyForValue(key: string, value: unknown): boolean {
+  if (isSecretLikeKey(key)) return true;
+  if (!isStructuredBearerKey(key) || typeof value !== "string") return false;
+  const trimmed = value.trim();
+  return Boolean(trimmed) && !bareAssignmentIsLowSignal("bearer", trimmed);
+}
+
 /**
  * Score secret signals in one decoded variant.
  *
@@ -924,7 +934,7 @@ function collectSecretContextObjects(
   }
 
   for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
-    collectSecretContextObjects(inner, targets, seen, secretKeyContext || isSecretLikeKey(key));
+    collectSecretContextObjects(inner, targets, seen, secretKeyContext || isSecretLikeKeyForValue(key, inner));
   }
   return targets;
 }

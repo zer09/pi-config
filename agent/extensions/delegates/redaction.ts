@@ -4,7 +4,7 @@ const SECRET_SEPARATOR_PATTERN = "_\\-\\u2010\\u2011\\u2012\\u2013\\u2014\\u2015
 const SECRET_KEY_PART_PATTERN = "[A-Za-z0-9]+";
 const _SEP = `[${SECRET_SEPARATOR_PATTERN}]`;
 const _PART = SECRET_KEY_PART_PATTERN;
-const SECRET_KEY_STANDALONE_WORD_PATTERN = `API${_SEP}?KEY|PRIVATE${_SEP}?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH`;
+const SECRET_KEY_STANDALONE_WORD_PATTERN = `API${_SEP}?KEY|PRIVATE${_SEP}?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTHORIZATION|AUTHENTICATION|AUTH`;
 const _STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_KEY_STANDALONE_WORD_PATTERN})(?:${_SEP}${_PART})*`;
 const _KEY_COMPOUND_SHAPE = `(?:${_PART}${_SEP})+KEY(?:${_SEP}${_PART})*|(?:${_PART}${_SEP})*KEY(?:${_SEP}${_PART})+`;
 const SECRET_KEY_NAME_PATTERN = new RegExp(`^(?:${_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE})$`, "i");
@@ -22,6 +22,7 @@ const SECRET_VALUE_PATTERNS = [
 export function containsSecretValue(text: string): boolean {
 	if (/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/.test(text)) return true;
 	if (/\bBearer\s+[A-Za-z0-9._~+/=-]+/i.test(text)) return true;
+	if (/\bAuthorization\s*:\s*(?:Basic|Bearer|Digest|NTLM)\s+[A-Za-z0-9._~+/=:-]+/i.test(text)) return true;
 	return SECRET_VALUE_PATTERNS.some((pattern) => {
 		pattern.lastIndex = 0;
 		return pattern.test(text);
@@ -44,9 +45,19 @@ function normalizedAssignmentValue(value: string): string {
 	return value.trim().replace(/^["']+/, "").replace(/["']+$/, "").trim();
 }
 
+function isLowSignalAssignmentValue(value: string): boolean {
+	return /^(?:true|false|yes|no|on|off|enabled|disabled|id|abc|oauth2)$/i.test(normalizedAssignmentValue(value));
+}
+
 function isSecretLikeAssignmentKey(key: string, value: string): boolean {
 	const normalizedKey = key.trim();
-	if (/^BEARER$/i.test(normalizedKey)) return normalizedAssignmentValue(value).length >= 8;
+	const normalizedValue = normalizedAssignmentValue(value);
+	if (/^BEARER$/i.test(normalizedKey)) return normalizedValue.length >= 8 && !isLowSignalAssignmentValue(value);
+	if (/^PRIVATE$/i.test(normalizedKey)) return !isLowSignalAssignmentValue(value);
+	if (/^AUTH(?:ORIZATION|ENTICATION)?$/i.test(normalizedKey)) {
+		if (/^(?:Basic|Bearer|Digest|NTLM)$/i.test(normalizedValue)) return false;
+		return !isLowSignalAssignmentValue(value);
+	}
 	return isSecretLikeKey(normalizedKey);
 }
 
@@ -65,6 +76,8 @@ export function redactSensitiveText(text: string): string {
 		SECRET_KEY_VALUE_PATTERN,
 		(match, key, separator, quote, value) => isSecretLikeAssignmentKey(key, value) ? redactKeyValue(match, key, separator, quote) : match,
 	);
+	redacted = redacted.replace(/\b(Authorization\s*:\s*)(Basic|Bearer|Digest|NTLM)\s+[A-Za-z0-9._~+/=:-]+/gi, "$1$2 <redacted>");
+	redacted = redacted.replace(/\b(authorization\s*=\s*)(Basic|Bearer|Digest|NTLM)\s+[A-Za-z0-9._~+/=:-]+/gi, "$1$2 <redacted>");
 	redacted = redacted.replace(/(["'])([^"']+)\1(\s*:\s*)(["'])([^"']+)\4/g, (match, keyQuote, key, separator, valueQuote, value) => {
 		if (!isSecretLikeAssignmentKey(key, value)) return match;
 		return `${keyQuote}${key}${keyQuote}${separator}${valueQuote}<redacted>${valueQuote}`;

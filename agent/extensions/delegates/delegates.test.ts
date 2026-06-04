@@ -1173,7 +1173,7 @@ test("redaction covers common bare provider tokens and quoted secret values", ()
 });
 
 test("redaction does not redact separator-aware false positives", () => {
-	const input = 'monkey=banana keystone:rock tokenizer=id bearer=true oauth=enabled {"monkey":"banana","keystone":"rock","tokenizer":"id"}';
+	const input = 'monkey=banana keystone:rock tokenizer=id bearer=true oauth=enabled private=false {"monkey":"banana","keystone":"rock","tokenizer":"id"}';
 	assert.equal(redactSensitiveText(input), input);
 });
 
@@ -1184,18 +1184,21 @@ test("redaction covers separator-aware secret keys and transport secrets", () =>
 	const fusedToken = "fusedtokenvalue123";
 	const pem = "-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----";
 	const redacted = redactSensitiveText(
-		`API_KEY=abcdefghijklmnop AUTH_TOKEN=qrstuvwxyzabcdef PRIVATE_KEY=privatevalue123 BEARER=${bearerAssignment} authtoken=${fusedToken} dbpassword=hunter2 token1=tokenvalue123 ${githubClassic} Bearer ${bearer} ${pem}`,
+		`API_KEY=abcdefghijklmnop AUTH_TOKEN=qrstuvwxyzabcdef PRIVATE_KEY=privatevalue123 PRIVATE='privatevalue123' Authorization: Basic dXNlcjpwYXNz authorization=Bearer ${bearerAssignment} BEARER=${bearerAssignment} authtoken=${fusedToken} dbpassword=hunter2 token1=tokenvalue123 ${githubClassic} Bearer ${bearer} ${pem}`,
 	);
 	assert.match(redacted, /API_KEY=<redacted>/);
 	assert.match(redacted, /AUTH_TOKEN=<redacted>/);
 	assert.match(redacted, /PRIVATE_KEY=<redacted>/);
+	assert.match(redacted, /PRIVATE='<redacted>'/);
+	assert.match(redacted, /Authorization: Basic <redacted>/);
+	assert.match(redacted, /authorization=Bearer <redacted>/);
 	assert.match(redacted, /BEARER=<redacted>/);
 	assert.match(redacted, /authtoken=<redacted>/);
 	assert.match(redacted, /dbpassword=<redacted>/);
 	assert.match(redacted, /token1=<redacted>/);
 	assert.match(redacted, /Bearer <redacted>/);
 	assert.match(redacted, /<redacted private key>/);
-	assert.doesNotMatch(redacted, /abcdefghijklmnop|qrstuvwxyzabcdef|privatevalue123|mnopabcdefghijkl|fusedtokenvalue123|hunter2|tokenvalue123|abc123/);
+	assert.doesNotMatch(redacted, /abcdefghijklmnop|qrstuvwxyzabcdef|privatevalue123|dXNlcjpwYXNz|mnopabcdefghijkl|fusedtokenvalue123|hunter2|tokenvalue123|abc123/);
 	assert.doesNotMatch(redacted, new RegExp(githubClassic));
 });
 
