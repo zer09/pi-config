@@ -1,4 +1,4 @@
-import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, BuildSystemPromptOptions, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
 import { Type } from "typebox";
@@ -145,6 +145,23 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     };
   }
 
+  function formatPromptOptionsSummary(options: BuildSystemPromptOptions | undefined): string[] {
+    if (!options) return [];
+    const selectedTools = options.selectedTools?.length
+      ? options.selectedTools.map(protectDisplayText).join(", ")
+      : "default";
+    const skillNames = options.skills?.map((skill) => protectDisplayText(skill.name)).filter(Boolean) ?? [];
+    const displayedSkills = skillNames.length
+      ? ` (${skillNames.slice(0, 5).join(", ")}${skillNames.length > 5 ? ", ..." : ""})`
+      : "";
+    return [
+      `cwd: ${protectDisplayText(options.cwd || currentProject)}`,
+      `tools: ${selectedTools}`,
+      `context files: ${options.contextFiles?.length ?? 0}`,
+      `skills: ${skillNames.length}${displayedSkills}`,
+    ];
+  }
+
   async function refreshStatus(ctx: AgentMemoryStatusContext) {
     const health = await getHealth();
     lastHealthOk = !!health && (health.status === "healthy" || health.health?.status === "healthy");
@@ -213,8 +230,12 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
       const status = protectDisplayText(health.status || health.health?.status || "unknown");
       const version = health.version ? ` v${protectDisplayText(health.version)}` : "";
       const drift = formatPolicyDriftWarning(health);
+      const promptOptions = ctx.getSystemPromptOptions?.();
       ctx.ui.notify(
-        `agentmemory ${status}${version}${drift ? `; ${drift}` : ""}`,
+        [
+          `agentmemory ${status}${version}${drift ? `; ${drift}` : ""}`,
+          ...formatPromptOptionsSummary(promptOptions),
+        ].join("\n"),
         "info",
       );
     },

@@ -166,7 +166,7 @@ export default function gcFooter(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		if (!ctx.hasUI) return;
+		if (ctx.mode !== "tui") return;
 
 		ctx.ui.setFooter((tui, theme, footerData) => {
 			const getBranch = () => {
@@ -212,12 +212,12 @@ export default function gcFooter(pi: ExtensionAPI): void {
 	});
 
 	pi.on("input", async (event, ctx) => {
-		if (!ctx.hasUI) return;
+		if (ctx.mode !== "tui") return;
 		recordPendingPromptStart(promptTimer, event.source, event.text, event.images, event.streamingBehavior);
 	});
 
 	pi.on("before_agent_start", async (_event, ctx) => {
-		if (!ctx.hasUI) return;
+		if (ctx.mode !== "tui") return;
 		startPromptTimer(promptTimer, takePendingPromptStart(promptTimer) ?? Date.now());
 	});
 
@@ -236,7 +236,7 @@ export default function gcFooter(pi: ExtensionAPI): void {
 	pi.on("session_shutdown", async (_event, ctx) => {
 		clearPromptTimer(promptTimer);
 		clearGitStatus(gitStatus);
-		if (ctx.hasUI) ctx.ui.setFooter(undefined);
+		if (ctx.mode === "tui") ctx.ui.setFooter(undefined);
 		requestRender = undefined;
 		currentBranch = undefined;
 	});
@@ -513,6 +513,8 @@ function formatCommandStatus(
 	const segmentProfiles = formatSegmentProfileOverrides(config);
 	return [
 		"gc-footer",
+		`mode: ${ctx.mode}`,
+		`footer: ${ctx.mode === "tui" ? "active" : "TUI-only"}`,
 		`segments: ${enabledSegments || "none"}`,
 		...(segmentProfiles ? [`segmentProfiles: ${segmentProfiles}`] : []),
 		`theme: ${getActiveThemeName(ctx)}`,
@@ -531,6 +533,8 @@ function formatSegmentProfileOverrides(config: FooterConfig): string {
 }
 
 function getActiveThemeName(ctx: ExtensionContext): string {
+	if (ctx.mode !== "tui") return `unavailable in ${ctx.mode}`;
+
 	const currentTheme = ctx.ui.theme;
 	for (const theme of ctx.ui.getAllThemes()) {
 		if (ctx.ui.getTheme(theme.name) === currentTheme) return theme.name;

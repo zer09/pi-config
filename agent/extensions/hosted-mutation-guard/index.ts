@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import type { ExtensionAPI, ToolCallEvent, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
+import type { BuildSystemPromptOptions, ExtensionAPI, ToolCallEvent, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
 
 export type MutationSource = "bash" | "ctx_execute" | "ctx_batch_execute" | "ctx_execute_file" | "mcp";
 export type AuthorizationSource = "prompt" | "command";
@@ -148,6 +148,24 @@ function normalizeWord(value: string): string {
 function normalizeTarget(value: string | undefined): string | undefined {
 	if (value === undefined) return undefined;
 	return value.trim().replace(/^#/, "").toLowerCase();
+}
+
+function formatDisplayPath(value: string | undefined): string {
+	if (!value) return "unknown";
+	const home = process.env.HOME;
+	if (home && value === home) return "~";
+	return home && value.startsWith(`${home}/`) ? `~${value.slice(home.length)}` : value;
+}
+
+function formatPromptContextSummary(options: BuildSystemPromptOptions | undefined): string[] {
+	if (!options) return [];
+	const selectedTools = options.selectedTools?.length ? String(options.selectedTools.length) : "default";
+	return [
+		`cwd: ${formatDisplayPath(options.cwd)}`,
+		`tools in prompt: ${selectedTools}`,
+		`context files: ${options.contextFiles?.length ?? 0}`,
+		`skills: ${options.skills?.length ?? 0}`,
+	];
 }
 
 function executableName(value: string | undefined): string | undefined {
@@ -1446,7 +1464,17 @@ export default function hostedMutationGuard(pi: ExtensionAPI): void {
 			const command = args.trim() || "status";
 			if (command === "status") {
 				const activeOneTime = commandAuthorizations.filter((authorization) => !authorization.consumed && (authorization.expiresAt === undefined || authorization.expiresAt >= Date.now())).length;
-				ctx.ui.notify(`Hosted mutation guard active. Prompt authorizations: ${promptAuthorizations.length}. One-time authorizations: ${activeOneTime}. Blocked attempts logged: ${auditEntries.length}.`, "info");
+				const promptOptions = ctx.getSystemPromptOptions?.();
+				ctx.ui.notify(
+					[
+						"Hosted mutation guard active.",
+						`Prompt authorizations: ${promptAuthorizations.length}`,
+						`One-time authorizations: ${activeOneTime}`,
+						`Blocked attempts logged: ${auditEntries.length}`,
+						...formatPromptContextSummary(promptOptions),
+					].join("\n"),
+					"info",
+				);
 				return;
 			}
 			if (command === "audit") {
