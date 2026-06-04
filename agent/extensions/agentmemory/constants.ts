@@ -19,7 +19,6 @@ export const KNOWN_MCP_RESOURCE_PATTERNS: RegExp[] = [
   /^agentmemory:\/\/project\/[^/{}]+\/recent$/,
   /^agentmemory:\/\/memories\/latest$/,
   /^agentmemory:\/\/graph\/stats$/,
-  /^agentmemory:\/\/team\/[^/{}]+\/profile$/,
 ];
 
 export const KNOWN_MCP_PROMPTS = new Set(["recall_context", "session_handoff", "detect_patterns"]);

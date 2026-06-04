@@ -159,6 +159,7 @@ export const GATED_MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
     description: "Run the AgentMemory memory consolidation pipeline; gated mutating operation",
     parameters: Type.Object({
       tier: Type.Optional(Type.String({ description: "Target tier: episodic, semantic, or procedural" })),
+      confirm: GATED_CONFIRM("consolidate agentmemory"),
     }),
     guard: (params) => guardGatedTool("memory_consolidate", params),
   },
@@ -169,6 +170,7 @@ export const GATED_MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
     parameters: Type.Object({
       operation: Type.Optional(Type.String({ description: "Filter by operation type" })),
       limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 500, default: 50, description: "Maximum audit entries" })),
+      confirm: GATED_CONFIRM("audit agentmemory"),
     }),
     guard: (params) => guardGatedTool("memory_audit", params),
   },
@@ -207,6 +209,7 @@ export const GATED_MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
       confidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1, description: "Initial confidence" })),
       project: OPTIONAL_PROJECT,
       tags: Type.Optional(Type.String({ description: "Comma-separated tags" })),
+      confirm: GATED_CONFIRM("save agentmemory lesson"),
     }),
     guard: (params) => guardGatedTool("memory_lesson_save", params),
   },
@@ -217,6 +220,7 @@ export const GATED_MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
     parameters: Type.Object({
       project: OPTIONAL_PROJECT,
       maxClusters: Type.Optional(Type.Integer({ minimum: 1, maximum: 20, description: "Maximum concept clusters to process" })),
+      confirm: GATED_CONFIRM("reflect agentmemory"),
     }),
     guard: (params) => guardGatedTool("memory_reflect", params),
   },
@@ -228,6 +232,7 @@ export const GATED_MCP_TOOL_DEFINITIONS: McpToolDefinition[] = [
       project: OPTIONAL_PROJECT,
       minConfidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1, description: "Minimum confidence threshold" })),
       limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 500, default: 50, description: "Maximum insights" })),
+      confirm: GATED_CONFIRM("list agentmemory insights"),
     }),
     guard: (params) => guardGatedTool("memory_insight_list", params),
   },
@@ -313,6 +318,16 @@ function confirmationForGatedTool(name: string, params: ToolParams): { expected?
   switch (name) {
     case "memory_export":
       return { expected: "export agentmemory" };
+    case "memory_consolidate":
+      return { expected: "consolidate agentmemory" };
+    case "memory_audit":
+      return { expected: "audit agentmemory" };
+    case "memory_lesson_save":
+      return { expected: "save agentmemory lesson" };
+    case "memory_reflect":
+      return { expected: "reflect agentmemory" };
+    case "memory_insight_list":
+      return { expected: "list agentmemory insights" };
     case "memory_governance_delete": {
       const ids = normalizeCsv(params.memoryIds);
       if (!ids) return { error: "memoryIds is required before confirmation" };
@@ -341,7 +356,7 @@ function confirmationForGatedTool(name: string, params: ToolParams): { expected?
       return { expected: `delete slot:${label}` };
     }
     default:
-      return {};
+      return { error: `${name} has no local confirmation policy` };
   }
 }
 

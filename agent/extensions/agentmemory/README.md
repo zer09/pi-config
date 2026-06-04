@@ -116,6 +116,11 @@ memory_slot_delete
 Confirmation phrases:
 
 ```text
+memory_lesson_save: confirm="save agentmemory lesson"
+memory_consolidate: confirm="consolidate agentmemory"
+memory_reflect: confirm="reflect agentmemory"
+memory_insight_list: confirm="list agentmemory insights"
+memory_audit: confirm="audit agentmemory"
 memory_export: confirm="export agentmemory"
 memory_heal: confirm="heal agentmemory" unless dryRun is true
 memory_governance_delete: confirm="delete memories:<comma-separated sorted ids>"

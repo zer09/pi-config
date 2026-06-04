@@ -569,6 +569,38 @@ test("gated memory_heal confirmation is skipped only for dry runs", async () => 
   }
 });
 
+test("gated high-risk tools require exact confirmations", async () => {
+  const successfulCalls = [];
+  const harness = createHarness({
+    env: { AGENTMEMORY_PI_ENABLE_GATED: "1" },
+    fetchHandler: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      successfulCalls.push(body);
+      return jsonResponse({ content: [{ type: "text", text: `${body.name} ok` }] });
+    },
+  });
+  const cases = [
+    ["memory_consolidate", { tier: "semantic" }, "consolidate agentmemory", { tier: "semantic" }],
+    ["memory_audit", { operation: "delete", limit: 5 }, "audit agentmemory", { operation: "delete", limit: 5 }],
+    ["memory_lesson_save", { content: "Use regression tests" }, "save agentmemory lesson", { content: "Use regression tests" }],
+    ["memory_reflect", { project: "pi-config", maxClusters: 2 }, "reflect agentmemory", { project: "pi-config", maxClusters: 2 }],
+    ["memory_insight_list", { project: "pi-config", limit: 1 }, "list agentmemory insights", { project: "pi-config", limit: 1 }],
+  ];
+  try {
+    for (const [name, params, confirm, expectedArgs] of cases) {
+      const refused = await harness.callTool(name, params);
+      assert.match(textContent(refused), new RegExp(confirm));
+      assert.equal(harness.fetchCalls.length, successfulCalls.length);
+
+      const result = await harness.callTool(name, { ...params, confirm });
+      assert.equal(textContent(result), `${name} ok`);
+      assert.deepEqual(successfulCalls.at(-1), { name, arguments: expectedArgs });
+    }
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("gated slot writes require confirmation and reject secret-looking content", async () => {
   const harness = createHarness({
     env: { AGENTMEMORY_PI_ENABLE_GATED: "1" },
@@ -669,6 +701,10 @@ test("memory_mcp_resource_read validates URIs and redacts output", async () => {
   try {
     const result = await invalidHarness.callTool("memory_mcp_resource_read", { uri: "agentmemory://project/{name}/profile" });
     assert.match(textContent(result), /Refusing to read AgentMemory MCP resource/);
+    assert.equal(invalidHarness.fetchCalls.length, 0);
+
+    const teamResult = await invalidHarness.callTool("memory_mcp_resource_read", { uri: "agentmemory://team/team-1/profile" });
+    assert.match(textContent(teamResult), /Refusing to read AgentMemory MCP resource/);
     assert.equal(invalidHarness.fetchCalls.length, 0);
   } finally {
     invalidHarness.cleanup();
