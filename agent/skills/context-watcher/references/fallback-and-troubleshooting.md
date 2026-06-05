@@ -88,7 +88,7 @@ If writing a log file, use native file tools only when appropriate. Do not expos
 
 1. Identify the active repository or worktree path.
 2. Run read-only `codegraph status <repo>` or call `codegraph_status` with `projectPath` when that MCP tool is exposed.
-3. If status says the project is not initialized and graph accuracy matters, run `codegraph init <repo>` when setup/indexing/freshness was explicitly requested; otherwise ask before initializing.
+3. If status says the project is not initialized and graph accuracy matters, initialize/index it without asking; keep `.codegraph/` local-only and ignored, preferably in `.git/info/exclude`.
 4. Pass `projectPath` for worktrees, multi-repo tasks, and repos outside the session root.
 5. If CodeGraph still cannot find the right project, report a degraded graph fallback. Do not guess based on folder names alone.
 
@@ -120,7 +120,7 @@ Review local fallback logs with Context Mode, not raw `tail`, when output may be
 - Restarting or upgrading Context Mode.
 - Reinstalling RTK hooks.
 - Restarting Pi to refresh MCP server metadata.
-- Initializing, syncing, or indexing CodeGraph only when setup/indexing/freshness is authorized.
+- Initializing missing CodeGraph projects for graph-first code work; syncing or reindexing stale projects only when freshness is authorized.
 - Checking for SQLite locks.
 
 ## Troubleshooting uv not found for local tooling

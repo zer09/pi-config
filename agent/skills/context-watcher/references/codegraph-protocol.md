@@ -29,7 +29,7 @@ Start graph work with:
 1. Identify the active repo/worktree path.
 2. When Context Mode is started or used for code work, also list or reconnect the `codegraph` MCP server; CodeGraph MCP is part of Context Watcher's runtime, not a separate Local Skill.
 3. If project health is unknown, run read-only `codegraph status <repo>` through Context Mode, or use `codegraph_status` with `projectPath` when the live MCP server exposes it.
-4. If status says the repo is not initialized and graph accuracy matters, run `codegraph init <repo>` when setup/indexing/freshness is explicitly authorized; otherwise ask before initializing.
+4. If status says the repo is not initialized and graph accuracy matters, initialize/index it without asking; keep `.codegraph/` local-only and ignored, preferably in `.git/info/exclude`.
 5. If status or an MCP banner says the graph is stale and graph accuracy matters, run `codegraph sync <repo>` or `codegraph index <repo>` when sync/index/freshness is explicitly authorized; otherwise read only stale-banner files for exact current content or ask before mutating the local index.
 6. List the live `codegraph` MCP tools before relying on relationship/status tools. CodeGraph v0.9.9 normally exposes 8 MCP tools: `codegraph_explore`, `codegraph_search`, `codegraph_node`, `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_files`, and `codegraph_status`. If fewer tools are visible, check server metadata freshness and `CODEGRAPH_MCP_TOOLS`.
 7. For worktrees, multi-repo tasks, or repos outside the session root, pass `projectPath` on every CodeGraph MCP call.
@@ -48,7 +48,7 @@ codegraph impact -p <repo> <symbol>
 codegraph affected -p <repo> [files...] --quiet
 ```
 
-Local index mutations, only when authorized:
+Local index mutations. Missing-project initialization is allowed for graph-first code work; other mutations still require explicit permission:
 
 ```text
 codegraph init <repo>
@@ -63,7 +63,7 @@ Keep `.codegraph/` ignored before or immediately after initializing a repo. Pref
 
 CLI path rule: `status`, `init`, `index`, `sync`, `uninit`, and `unlock` accept a positional repo path. `files`, `query`, `callers`, `callees`, `impact`, and `affected` use `-p/--path`. The CLI symbol search command is `query`; the MCP symbol search tool is `codegraph_search`.
 
-Practical CLI notes: `codegraph files` has no positional repo argument; use `-p <repo>`. `codegraph query --json` returns `{ node, score }` entries; useful node fields include `name`, `kind`, `filePath`, `startLine`, and `signature`. CLI `query`, `callers`, `callees`, `impact`, `files`, and `affected` remain useful when durable indexed output is preferable or when an MCP tool is hidden. After authorized `init`, `index`, or `sync`, `codegraph status <repo>` is the authoritative health/count check. `codegraph serve --no-watch` disables auto-sync and should be reserved for slow or problematic filesystems.
+Practical CLI notes: `codegraph files` has no positional repo argument; use `-p <repo>`. `codegraph query --json` returns `{ node, score }` entries; useful node fields include `name`, `kind`, `filePath`, `startLine`, and `signature`. CLI `query`, `callers`, `callees`, `impact`, `files`, and `affected` remain useful when durable indexed output is preferable or when an MCP tool is hidden. After `init`, or after authorized `index` or `sync`, `codegraph status <repo>` is the authoritative health/count check. `codegraph serve --no-watch` disables auto-sync and should be reserved for slow or problematic filesystems.
 
 ## MCP vs CLI routing
 
@@ -175,7 +175,7 @@ Example search args:
 ## Exploration workflow
 
 1. Check status if project health is unknown with CLI `codegraph status <repo>` or exposed `codegraph_status`.
-2. If the repo is uninitialized or stale and graph accuracy matters, initialize, sync, or index when setup/indexing/freshness is explicitly authorized; otherwise ask before local index mutation.
+2. If the repo is uninitialized and graph accuracy matters, initialize/index it without asking and keep `.codegraph/` local-only/ignored. If the repo is stale and graph accuracy matters, sync or index when freshness is explicitly authorized; otherwise ask before local index mutation.
 3. Ensure the `codegraph` MCP server is listed or reconnectable when Context Mode is already being started for code work.
 4. Use `codegraph_explore` first for first-pass code orientation, architecture, bug areas, source surveys, and flow/path questions.
 5. Use `codegraph_search` for known symbol names and `codegraph_node` for one exact symbol only.
@@ -228,7 +228,7 @@ CodeGraph MCP starts a watcher and performs catch-up sync, but results can lag r
 Fallback to Context Mode plus RTK when:
 
 - CodeGraph MCP is unavailable and cannot be reconnected quickly.
-- The project is not initialized and setup is not authorized, or authorized setup fails.
+- Initialization fails, the project cannot be indexed, or graph setup is not applicable to the task.
 - The graph is stale and sync/index/freshness is not authorized, or authorized refresh fails.
 - A relationship/status tool is unavailable and the CLI equivalent through Context Mode plus `codegraph_explore` is insufficient.
 - The question is about literals, config, errors, docs, generated files, non-code files, logs, or data files.
