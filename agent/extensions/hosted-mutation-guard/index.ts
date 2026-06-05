@@ -135,6 +135,28 @@ const READONLY_WORDS = new Set([
 	"checks",
 ]);
 
+const POSTHOG_SQL_FORBIDDEN_WORDS = new Set([
+	"insert",
+	"update",
+	"delete",
+	"drop",
+	"create",
+	"alter",
+	"truncate",
+	"optimize",
+	"attach",
+	"detach",
+	"rename",
+	"grant",
+	"revoke",
+	"kill",
+	"copy",
+	"load",
+	"replace",
+	"upsert",
+]);
+const POSTHOG_SQL_FORBIDDEN_START_WORDS = new Set(["set", "system", "use"]);
+
 const MUTATING_HTTP_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 export function normalizeBody(body: string): string {
@@ -1148,14 +1170,33 @@ function regexEscape(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function decodeJsonStringFragment(value: string): string {
+	try {
+		const parsed = JSON.parse(`"${value}"`);
+		if (typeof parsed === "string") return parsed;
+	} catch {
+		// Fall back to a small common escape decoder for JSON-like single-quoted payloads.
+	}
+	return value
+		.replace(/\\n/g, "\n")
+		.replace(/\\r/g, "\r")
+		.replace(/\\t/g, "\t")
+		.replace(/\\b/g, "\b")
+		.replace(/\\f/g, "\f")
+		.replace(/\\(["'\\\\/])/g, "$1");
+}
+
 function findJsonStringField(value: string, names: Set<string>): string | undefined {
 	const trimmed = value.trim();
 	if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return undefined;
 	const half = Math.floor(MAX_JSON_STRING_LENGTH / 2);
 	const scanText = trimmed.length <= MAX_JSON_STRING_LENGTH ? trimmed : `${trimmed.slice(0, half)}\n${trimmed.slice(-half)}`;
 	for (const name of names) {
-		const match = scanText.match(new RegExp(`["']${regexEscape(name)}["']\\s*:\\s*["']([^"'\\\\]*(?:\\\\.[^"'\\\\]*)*)["']`, "i"));
-		if (match) return match[1].replace(/\\(["'\\\\/bfnrt])/g, "$1");
+		const escapedName = regexEscape(name);
+		const doubleQuoted = scanText.match(new RegExp(`["']${escapedName}["']\\s*:\\s*"([^"\\\\]*(?:\\\\.[^"\\\\]*)*)"`, "i"));
+		if (doubleQuoted) return decodeJsonStringFragment(doubleQuoted[1]);
+		const singleQuoted = scanText.match(new RegExp(`["']${escapedName}["']\\s*:\\s*'([^'\\\\]*(?:\\\\.[^'\\\\]*)*)'`, "i"));
+		if (singleQuoted) return decodeJsonStringFragment(singleQuoted[1]);
 	}
 	return undefined;
 }
@@ -1174,10 +1215,13 @@ function findInputString(input: unknown, names: string[]): string | undefined {
 			const loweredKey = key.toLowerCase();
 			if (loweredNames.has(loweredKey) && typeof value === "string") return value;
 			if (typeof value === "string") {
+				const parsed = parseInspectionJson(key, value);
+				if (parsed && typeof parsed === "object") {
+					stack.push(parsed);
+					continue;
+				}
 				const extracted = findJsonStringField(value, loweredNames);
 				if (extracted !== undefined) return extracted;
-				const parsed = parseInspectionJson(key, value);
-				if (parsed && typeof parsed === "object") stack.push(parsed);
 				continue;
 			}
 			if (value && typeof value === "object") stack.push(value);
@@ -1189,6 +1233,83 @@ function findInputString(input: unknown, names: string[]): string | undefined {
 function findInputMethod(input: unknown): string | undefined {
 	const method = findInputString(input, ["method"]);
 	return method?.toUpperCase();
+}
+
+function tokenizeSqlForGuard(query: string): { words: string[]; hasStatementSeparator: boolean; hasUnterminatedLiteral: boolean } {
+	const words: string[] = [];
+	let hasStatementSeparator = false;
+	let i = 0;
+	while (i < query.length) {
+		const char = query[i];
+		const next = query[i + 1];
+		if (char === "-" && next === "-") {
+			i += 2;
+			while (i < query.length && query[i] !== "\n") i++;
+			continue;
+		}
+		if (char === "/" && next === "*") {
+			const end = query.indexOf("*/", i + 2);
+			if (end === -1) return { words, hasStatementSeparator, hasUnterminatedLiteral: true };
+			i = end + 2;
+			continue;
+		}
+		if (char === "'" || char === '"' || char === "`") {
+			const quote = char;
+			i++;
+			let closed = false;
+			while (i < query.length) {
+				if (query[i] === "\\") {
+					i += 2;
+					continue;
+				}
+				if (query[i] === quote) {
+					if (query[i + 1] === quote) {
+						i += 2;
+						continue;
+					}
+					i++;
+					closed = true;
+					break;
+				}
+				i++;
+			}
+			if (!closed) return { words, hasStatementSeparator, hasUnterminatedLiteral: true };
+			continue;
+		}
+		if (char === ";") {
+			hasStatementSeparator = true;
+			i++;
+			continue;
+		}
+		if (/[A-Za-z_]/.test(char)) {
+			const start = i;
+			i++;
+			while (i < query.length && /[A-Za-z0-9_]/.test(query[i])) i++;
+			words.push(query.slice(start, i).toLowerCase());
+			continue;
+		}
+		i++;
+	}
+	return { words, hasStatementSeparator, hasUnterminatedLiteral: false };
+}
+
+function isReadOnlyPosthogSqlQuery(query: string): boolean {
+	const tokens = tokenizeSqlForGuard(query);
+	const firstWord = tokens.words[0];
+	if (tokens.hasUnterminatedLiteral || tokens.hasStatementSeparator || firstWord === undefined) return false;
+	if (POSTHOG_SQL_FORBIDDEN_START_WORDS.has(firstWord)) return false;
+	if (tokens.words.some((word) => POSTHOG_SQL_FORBIDDEN_WORDS.has(word))) return false;
+	if (firstWord === "select") return true;
+	if (firstWord === "with") return tokens.words.includes("select");
+	return false;
+}
+
+function isPosthogSqlTool(service: string, words: string[]): boolean {
+	return service === "posthog" && words.includes("execute") && words.includes("sql");
+}
+
+function isNativePosthogSql(input: unknown): boolean {
+	return findInputString(input, ["connectionId"]) === undefined;
 }
 
 function isGraphqlMutationQuery(value: string): boolean {
@@ -1262,6 +1383,12 @@ function classifyMcpTool(toolName: string, input: unknown): MutationIntent[] {
 	const hosted = includesHostedService(effectiveName) || endpointService !== undefined;
 	if (!hosted) return [];
 
+	const service = serviceFromWords(words, endpointService ?? "");
+	if (isPosthogSqlTool(service, words) && isNativePosthogSql(input)) {
+		const query = findInputString(input, ["query"]);
+		if (query !== undefined && isReadOnlyPosthogSqlQuery(query)) return [];
+	}
+
 	const method = findInputMethod(input);
 	const graphqlMutation = hasGraphqlMutation(input);
 	const mutationWord = words.find((word) => MUTATION_WORDS.includes(word));
@@ -1272,7 +1399,6 @@ function classifyMcpTool(toolName: string, input: unknown): MutationIntent[] {
 	if (method && !MUTATING_HTTP_METHODS.has(method) && !graphqlMutation && !inputAction) return [];
 	if (!method && !graphqlMutation && !mutationWord && !inputAction) return [];
 
-	const service = serviceFromWords(words, endpointService ?? "");
 	const action = actionFromMcp(service, words, input);
 	return [makeIntent({ service, action, tier: tierForAction(action), target: targetFromMcp(service, input, words), body: bodyFromMcp(input), source: "mcp", reason: `${service} ${action} tool`, toolName: effectiveName })];
 }
