@@ -21,7 +21,7 @@
     "posthog": {
       "url": "https://mcp.posthog.com/mcp",
       "auth": "bearer",
-      "bearerToken": "${POSTHOG_BEARER_TOKEN}"
+      "bearerToken": "${POSTHOG_PERSONAL_API_KEY}"
     },
     "firebase": {
       "command": "npx",
