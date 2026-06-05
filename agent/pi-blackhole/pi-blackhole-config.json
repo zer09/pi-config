@@ -14,7 +14,7 @@
   "observerModel": {
     "_comment": "Observer primary: fast extraction model for frequent observation runs.",
     "provider": "google",
-    "id": "gemini-3.1-flash-lite-preview",
+    "id": "gemini-3.1-flash-lite",
     "thinking": "low",
     "cooldownHours": 6,
     "contextWindow": 1000000

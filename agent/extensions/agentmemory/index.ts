@@ -145,18 +145,25 @@ export default function agentmemoryExtension(pi: ExtensionAPI) {
     };
   }
 
+  function formatDisplayPath(value: string | undefined): string {
+    if (!value) return "unknown";
+    const home = process.env.HOME;
+    let displayPath = value;
+    if (home && value === home) displayPath = "~";
+    else if (home && value.startsWith(`${home}/`)) displayPath = `~${value.slice(home.length)}`;
+    return protectDisplayText(displayPath);
+  }
+
   function formatPromptOptionsSummary(options: BuildSystemPromptOptions | undefined): string[] {
     if (!options) return [];
-    const selectedTools = options.selectedTools?.length
-      ? options.selectedTools.map(protectDisplayText).join(", ")
-      : "default";
+    const selectedTools = options.selectedTools?.length ? String(options.selectedTools.length) : "default";
     const skillNames = options.skills?.map((skill) => protectDisplayText(skill.name)).filter(Boolean) ?? [];
     const displayedSkills = skillNames.length
       ? ` (${skillNames.slice(0, 5).join(", ")}${skillNames.length > 5 ? ", ..." : ""})`
       : "";
     return [
-      `cwd: ${protectDisplayText(options.cwd || currentProject)}`,
-      `tools: ${selectedTools}`,
+      `cwd: ${formatDisplayPath(options.cwd || currentProject)}`,
+      `tools in prompt: ${selectedTools}`,
       `context files: ${options.contextFiles?.length ?? 0}`,
       `skills: ${skillNames.length}${displayedSkills}`,
     ];
