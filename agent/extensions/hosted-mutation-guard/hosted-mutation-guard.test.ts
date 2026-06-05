@@ -725,6 +725,69 @@ test("MCP classifier blocks hosted mutating HTTP methods", () => {
 	assert.equal(intents[0].action, "api-delete");
 });
 
+test("MCP classifier assigns a stable PostHog SQL target", () => {
+	const intents = classifyToolCall("mcp", {
+		server: "posthog",
+		tool: "posthog_execute-sql",
+		args: JSON.stringify({ query: "SELECT 1", truncate: true }),
+	});
+
+	assert.equal(intents.length, 1);
+	assert.equal(intents[0].service, "posthog");
+	assert.equal(intents[0].action, "execute");
+	assert.equal(intents[0].target, "sql");
+	assert.equal(intents[0].source, "mcp");
+});
+
+test("MCP classifier scopes PostHog SQL connection targets", () => {
+	const intents = classifyToolCall("mcp", {
+		server: "posthog",
+		tool: "posthog_execute-sql",
+		args: JSON.stringify({ query: "SELECT 1", connectionId: "conn-123" }),
+	});
+
+	assert.equal(intents.length, 1);
+	assert.equal(intents[0].target, "sql:conn-123");
+});
+
+test("PostHog SQL one-time authorization matches retry", () => {
+	const intent = classifyToolCall("mcp", {
+		server: "posthog",
+		tool: "posthog_execute-sql",
+		args: JSON.stringify({ query: "SELECT 1", truncate: true }),
+	})[0];
+	const auth = parseOneTimeAuthorization("posthog execute sql");
+
+	assert.ok(!("error" in auth));
+	assert.equal(matchesAuthorization(intent, auth), true);
+});
+
+test("PostHog SQL authorization rejects wrong target", () => {
+	const intent = classifyToolCall("mcp", {
+		server: "posthog",
+		tool: "posthog_execute-sql",
+		args: JSON.stringify({ query: "SELECT 1", connectionId: "conn-123" }),
+	})[0];
+	const auth = parseOneTimeAuthorization("posthog execute sql");
+
+	assert.ok(!("error" in auth));
+	assert.equal(matchesAuthorization(intent, auth), false);
+});
+
+test("PostHog SQL command authorization is consumed once", async () => {
+	const harness = makeHarness();
+	const input = {
+		server: "posthog",
+		tool: "posthog_execute-sql",
+		args: JSON.stringify({ query: "SELECT 1", truncate: true }),
+	};
+
+	assertBlocked(await harness.call("mcp", input));
+	await harness.runCommand("authorize-hosted-mutation", "posthog execute sql");
+	assert.equal(await harness.call("mcp", input), undefined);
+	assertBlocked(await harness.call("mcp", input));
+});
+
 test("MCP classifier blocks hosted action mutations but allows hosted reads", () => {
 	assert.deepEqual(classifyToolCall("mcp", { server: "directus_prod", tool: "directus_prod_fields", args: '{"action":"read","collection":"block_richtext"}' }), []);
 	const intents = classifyToolCall("mcp", { server: "directus_prod", tool: "directus_prod_fields", args: '{"action":"update","collection":"block_richtext"}' });

@@ -1239,7 +1239,11 @@ function actionFromMcp(service: string, words: string[], input: unknown): string
 	return mutationActionFromInput(input) ?? words.find((word) => MUTATION_WORDS.includes(word)) ?? "mutation";
 }
 
-function targetFromMcp(service: string, input: unknown): string | undefined {
+function targetFromMcp(service: string, input: unknown, words: string[] = []): string | undefined {
+	if (service === "posthog" && words.includes("execute") && words.includes("sql")) {
+		const connectionId = findInputString(input, ["connectionId"]);
+		return connectionId ? `sql:${connectionId}` : "sql";
+	}
 	if (service === "github") return findInputString(input, ["prNumber", "pullNumber", "pull_request_number", "issueNumber", "number", "target", "path", "url", "endpoint", "id"]);
 	if (service === "linear") return findInputString(input, ["issueId", "issueKey", "key", "id", "target", "path", "url"]);
 	if (service === "slack") return findInputString(input, ["channel", "channelId", "target"]);
@@ -1270,7 +1274,7 @@ function classifyMcpTool(toolName: string, input: unknown): MutationIntent[] {
 
 	const service = serviceFromWords(words, endpointService ?? "");
 	const action = actionFromMcp(service, words, input);
-	return [makeIntent({ service, action, tier: tierForAction(action), target: targetFromMcp(service, input), body: bodyFromMcp(input), source: "mcp", reason: `${service} ${action} tool`, toolName: effectiveName })];
+	return [makeIntent({ service, action, tier: tierForAction(action), target: targetFromMcp(service, input, words), body: bodyFromMcp(input), source: "mcp", reason: `${service} ${action} tool`, toolName: effectiveName })];
 }
 
 export function classifyToolCall(toolName: string, input: unknown): MutationIntent[] {
