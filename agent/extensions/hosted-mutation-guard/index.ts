@@ -135,7 +135,7 @@ const READONLY_WORDS = new Set([
 	"checks",
 ]);
 
-const POSTHOG_SQL_FORBIDDEN_WORDS = new Set([
+const POSTHOG_SQL_FORBIDDEN_START_WORDS = new Set([
 	"insert",
 	"update",
 	"delete",
@@ -154,8 +154,10 @@ const POSTHOG_SQL_FORBIDDEN_WORDS = new Set([
 	"load",
 	"replace",
 	"upsert",
+	"set",
+	"system",
+	"use",
 ]);
-const POSTHOG_SQL_FORBIDDEN_START_WORDS = new Set(["set", "system", "use"]);
 
 const MUTATING_HTTP_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -1298,7 +1300,6 @@ function isReadOnlyPosthogSqlQuery(query: string): boolean {
 	const firstWord = tokens.words[0];
 	if (tokens.hasUnterminatedLiteral || tokens.hasStatementSeparator || firstWord === undefined) return false;
 	if (POSTHOG_SQL_FORBIDDEN_START_WORDS.has(firstWord)) return false;
-	if (tokens.words.some((word) => POSTHOG_SQL_FORBIDDEN_WORDS.has(word))) return false;
 	if (firstWord === "select") return true;
 	if (firstWord === "with") return tokens.words.includes("select");
 	return false;
@@ -1308,8 +1309,24 @@ function isPosthogSqlTool(service: string, words: string[]): boolean {
 	return service === "posthog" && words.includes("execute") && words.includes("sql");
 }
 
+function posthogSqlInspectionInput(input: unknown): unknown | undefined {
+	if (!input || typeof input !== "object" || !("args" in input)) return input;
+	const args = (input as { args?: unknown }).args;
+	if (typeof args === "string") {
+		const parsed = parseInspectionJson("args", args);
+		return parsed && typeof parsed === "object" ? parsed : undefined;
+	}
+	return args && typeof args === "object" ? args : undefined;
+}
+
+function findPosthogSqlInputString(input: unknown, names: string[]): string | undefined {
+	const sqlInput = posthogSqlInspectionInput(input);
+	return sqlInput === undefined ? undefined : findInputString(sqlInput, names);
+}
+
 function isNativePosthogSql(input: unknown): boolean {
-	return findInputString(input, ["connectionId"]) === undefined;
+	const sqlInput = posthogSqlInspectionInput(input);
+	return sqlInput !== undefined && findInputString(sqlInput, ["connectionId"]) === undefined;
 }
 
 function isGraphqlMutationQuery(value: string): boolean {
@@ -1362,7 +1379,7 @@ function actionFromMcp(service: string, words: string[], input: unknown): string
 
 function targetFromMcp(service: string, input: unknown, words: string[] = []): string | undefined {
 	if (service === "posthog" && words.includes("execute") && words.includes("sql")) {
-		const connectionId = findInputString(input, ["connectionId"]);
+		const connectionId = findPosthogSqlInputString(input, ["connectionId"]);
 		return connectionId ? `sql:${connectionId}` : "sql";
 	}
 	if (service === "github") return findInputString(input, ["prNumber", "pullNumber", "pull_request_number", "issueNumber", "number", "target", "path", "url", "endpoint", "id"]);
@@ -1385,7 +1402,7 @@ function classifyMcpTool(toolName: string, input: unknown): MutationIntent[] {
 
 	const service = serviceFromWords(words, endpointService ?? "");
 	if (isPosthogSqlTool(service, words) && isNativePosthogSql(input)) {
-		const query = findInputString(input, ["query"]);
+		const query = findPosthogSqlInputString(input, ["query"]);
 		if (query !== undefined && isReadOnlyPosthogSqlQuery(query)) return [];
 	}
 

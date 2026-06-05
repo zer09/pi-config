@@ -757,6 +757,14 @@ test("MCP classifier ignores SQL mutation words inside string literals", () => {
 	}), []);
 });
 
+test("MCP classifier allows read-only PostHog SELECT functions", () => {
+	assert.deepEqual(classifyToolCall("mcp", {
+		server: "posthog",
+		tool: "posthog_execute-sql",
+		args: JSON.stringify({ query: "SELECT replace('abc', 'a', 'b') AS value LIMIT 100" }),
+	}), []);
+});
+
 test("MCP classifier allows native PostHog system table SELECT SQL by default", () => {
 	assert.deepEqual(classifyToolCall("mcp", {
 		server: "posthog",
@@ -777,6 +785,30 @@ test("MCP classifier assigns a stable PostHog SQL target for blocked native SQL"
 	assert.equal(intents[0].action, "execute");
 	assert.equal(intents[0].target, "sql");
 	assert.equal(intents[0].source, "mcp");
+});
+
+test("MCP classifier reads PostHog SQL from tool args before top-level query", () => {
+	const intents = classifyToolCall("mcp", {
+		server: "posthog",
+		tool: "posthog_execute-sql",
+		query: "SELECT 1 LIMIT 100",
+		args: JSON.stringify({ query: "DROP TABLE example" }),
+	});
+
+	assert.equal(intents.length, 1);
+	assert.equal(intents[0].target, "sql");
+});
+
+test("MCP classifier blocks PostHog SQL when tool args are uninspectable", () => {
+	const intents = classifyToolCall("mcp", {
+		server: "posthog",
+		tool: "posthog_execute-sql",
+		query: "SELECT 1 LIMIT 100",
+		args: "{not-json",
+	});
+
+	assert.equal(intents.length, 1);
+	assert.equal(intents[0].target, "sql");
 });
 
 test("MCP classifier blocks PostHog external connection SELECT SQL", () => {
@@ -800,6 +832,7 @@ test("MCP classifier blocks non-read-only PostHog SQL", () => {
 		"DROP TABLE example",
 		"CREATE TABLE example (id Int64)",
 		"ALTER TABLE example ADD COLUMN value String",
+		"REPLACE INTO example VALUES (1)",
 	]) {
 		const intents = classifyToolCall("mcp", {
 			server: "posthog",
