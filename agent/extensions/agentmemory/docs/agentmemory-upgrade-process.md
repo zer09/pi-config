@@ -233,7 +233,6 @@ local-confirm-strip
 workflow-state-default-deny
 external-integration-default-deny
 bundled-skill-discovery
-status-output-shape
 ```
 
 Meaning:
@@ -248,7 +247,6 @@ Meaning:
 - AgentMemory workflow/task-state tools stay not exposed unless a future ADR adopts that role
 - AgentMemory external integration tools and config stay not exposed or uninstalled unless an active client/workflow policy adopts them
 - the AgentMemory skill stays bundled beside the extension
-- AgentMemory status text shape remains stable unless intentionally changed
 
 ## Upgrade workflow
 
@@ -333,7 +331,6 @@ Keep these local deltas unless intentionally changed:
 - headless UI guard
 - Pi security toggle and secret safeguards
 - bundled skill discovery
-- AgentMemory status text shape and matching tests/docs
 
 If upstream ships a Pi-specific skill, compare it with the bundled local skill and preserve local safety additions.
 

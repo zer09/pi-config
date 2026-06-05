@@ -944,12 +944,43 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.sanitizeTextForDisplay("pathBearer abcdefghijklmnop"), "pathBearer <redacted>");
   assert.equal(security.sanitizeTextForDisplay("`Bearer abcdefghijklmnop`"), "`Bearer <redacted>`");
   assert.equal(security.sanitizeTextForDisplay("(Bearer abcdefghijklmnop)"), "(Bearer <redacted>)");
+  assert.equal(security.sanitizeTextForDisplay("BEARER=abcdefghijklmnop"), "BEARER=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("bearer: true"), "bearer: true");
+  assert.equal(security.sanitizeTextForDisplay('bearer: "true"'), 'bearer: "true"');
+  assert.equal(security.sanitizeTextForDisplay('TOKEN="abc"'), 'TOKEN="abc"');
+  assert.equal(security.sanitizeTextForDisplay('TOKEN="abcdefghijklmnop"'), 'TOKEN="<redacted>"');
+  assert.equal(security.sanitizeTextForDisplay("password=hunter2"), "password=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("PASSWORD=abc123"), "PASSWORD=<redacted>");
   assert.equal(security.sanitizeTextForDisplay("keyboard=shortcuts"), "keyboard=shortcuts");
   assert.equal(security.sanitizeTextForDisplay("author=Alice"), "author=Alice");
   assert.equal(security.sanitizeTextForDisplay("private: false"), "private: false");
+  assert.equal(security.sanitizeTextForDisplay('private: "false"'), 'private: "false"');
+  assert.equal(security.sanitizeTextForDisplay("PRIVATE=abcdefghijklmnop"), "PRIVATE=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("token=abc123"), "token=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("secret=hunter2"), "secret=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("credential=hunter2"), "credential=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("tokens=abcdefghijklmnop"), "tokens=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("secrets=hunter2"), "secrets=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("key=abcdefghijklmnop"), "key=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay('key: "hunter2"'), 'key: "<redacted>"');
   assert.equal(security.sanitizeTextForDisplay('{"author":"Alice","authoredBy":"Bob","private":false}'), '{\n  "author": "Alice",\n  "authoredBy": "Bob",\n  "private": false\n}');
+  assert.equal(security.sanitizeTextForDisplay('{"authorization":"Basic dXNlcjpwYXNz"}'), '{\n  "authorization": "<redacted>"\n}');
+  assert.equal(security.sanitizeTextForDisplay('{"bearer":"abcdefghijklmnop","enabled":true}'), '{\n  "bearer": "<redacted>",\n  "enabled": true\n}');
+  assert.equal(security.sanitizeTextForDisplay('{"bearer":{"value":"abcdefghijklmnop"}}'), '{\n  "bearer": {\n    "value": "<redacted>"\n  }\n}');
+  assert.equal(security.sanitizeTextForDisplay('{"bearer":["abcdefghijklmnop"]}'), '{\n  "bearer": [\n    "<redacted>"\n  ]\n}');
+  assert.equal(security.sanitizeTextForDisplay('{"key":"hunter2"}'), '{\n  "key": "<redacted>"\n}');
+  assert.equal(security.sanitizeTextForDisplay('{"credentials":"hunter2"}'), '{\n  "credentials": "<redacted>"\n}');
+  assert.equal(security.sanitizeTextForDisplay('{"private":"abcdefghijklmnop"}'), '{\n  "private": "<redacted>"\n}');
+  assert.equal(security.sanitizeTextForDisplay('{"PRIVATE":{"value":"abcdefghijklmnop"}}'), '{\n  "PRIVATE": {\n    "value": "<redacted>"\n  }\n}');
   assert.equal(security.sanitizeTextForDisplay("Use AWS_SECRET_ACCESS_KEY from the environment"), "Use AWS_SECRET_ACCESS_KEY from the environment");
   assert.equal(security.sanitizeTextForDisplay("AUTH_TOKEN=abcdefghijklmnop"), "AUTH_TOKEN=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("authtoken=abcdefghijklmnop"), "authtoken=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("authkey=abcdefghijklmnop"), "authkey=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("sessionKey=abcdefghijklmnop"), "sessionKey=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("accessKey=abcdefghijklmnop"), "accessKey=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("sshPrivateKey=abcdefghijklmnop"), "sshPrivateKey=<redacted>");
+  assert.equal(security.sanitizeTextForDisplay("tokenizer=id"), "tokenizer=id");
+  assert.equal(security.sanitizeTextForDisplay('{"dbpassword":"hunter2","tokenizer":"id"}'), '{\n  "dbpassword": "<redacted>",\n  "tokenizer": "id"\n}');
   assert.equal(security.sanitizeTextForDisplay('{"accessToken":"short value","clientSecret":"another value","dbPassword":"pw"}'), '{\n  "accessToken": "<redacted>",\n  "clientSecret": "<redacted>",\n  "dbPassword": "<redacted>"\n}');
   assert.equal(security.sanitizeTextForDisplay("--api-key sk-abcdefghijklmnop"), "--api-key <redacted>");
   assert.equal(security.sanitizeTextForDisplay("tool --token abcdefghijklmnop --safe next"), "tool --token <redacted> --safe next");
@@ -957,6 +988,8 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.sanitizeTextForDisplay("Authorization: Basic dXNlcjpwYXNz"), "Authorization: Basic <redacted>");
   assert.equal(security.sanitizeTextForDisplay("token sk-abcdefghijklmnop done"), "token <redacted token> done");
   assert.equal(security.sanitizeTextForDisplay("ghp_abcdefghijklmnopqrst"), "<redacted token>");
+  assert.equal(security.sanitizeTextForDisplay(`AIza${"A".repeat(32)}`), "<redacted token>");
+  assert.equal(security.sanitizeTextForDisplay(`xoxb-${"1".repeat(12)}-${"2".repeat(12)}-${"a".repeat(16)}`), "<redacted token>");
   assert.equal(security.sanitizeTextForDisplay("-----BEGIN PRIVATE KEY-----\nabc123"), "<redacted private key>");
   assert.equal(security.sanitizeTextForDisplay('"token: abcdefghijklmnop" done'), '"token: <redacted>" done');
   assert.equal(security.sanitizeTextForDisplay('curl -H "Authorization: Bearer abcdefghijklmnop" https://example.invalid'), 'curl -H "Authorization: Bearer <redacted>" https://example.invalid');
@@ -998,13 +1031,47 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.containsSecretLikeContent("TOKEN='abcdefghijklmnop AUTH_TOKEN:'qrstuvwxyzabcdef'"), true);
   assert.equal(security.containsSecretLikeContent("`Bearer abcdefghijklmnop`"), true);
   assert.equal(security.containsSecretLikeContent("(Bearer abcdefghijklmnop)"), true);
+  assert.equal(security.containsSecretLikeContent("BEARER=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("bearer: true"), false);
+  assert.equal(security.containsSecretLikeContent('bearer: "true"'), false);
+  assert.equal(security.containsSecretLikeContent('TOKEN="abc"'), false);
+  assert.equal(security.containsSecretLikeContent('TOKEN="abcdefghijklmnop"'), true);
+  assert.equal(security.containsSecretLikeContent("password=hunter2"), true);
+  assert.equal(security.containsSecretLikeContent("PASSWORD=abc123"), true);
   assert.equal(security.containsSecretLikeContent("keyboard=shortcuts"), false);
   assert.equal(security.containsSecretLikeContent("author=Alice"), false);
   assert.equal(security.containsSecretLikeContent("private: false"), false);
+  assert.equal(security.containsSecretLikeContent('private: "false"'), false);
+  assert.equal(security.containsSecretLikeContent("PRIVATE=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("token=abc123"), true);
+  assert.equal(security.containsSecretLikeContent("secret=hunter2"), true);
+  assert.equal(security.containsSecretLikeContent("credential=hunter2"), true);
+  assert.equal(security.containsSecretLikeContent("tokens=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("secrets=hunter2"), true);
+  assert.equal(security.containsSecretLikeContent("key=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent('key: "hunter2"'), true);
   assert.equal(security.containsSecretLikeContent({ author: "Alice", authoredBy: "Bob", private: false }), false);
+  assert.equal(security.containsSecretLikeContent({ bearer: true }), false);
+  assert.equal(security.containsSecretLikeContent({ key: "hello world" }), false);
+  assert.equal(security.containsSecretLikeContent({ authorization: "Basic dXNlcjpwYXNz" }), true);
+  assert.equal(security.containsSecretLikeContent({ bearer: "abcdefghijklmnop" }), true);
+  assert.equal(security.containsSecretLikeContent({ bearer: { value: "abcdefghijklmnop" } }), true);
+  assert.equal(security.containsSecretLikeContent({ bearer: ["abcdefghijklmnop"] }), true);
+  assert.equal(security.containsSecretLikeContent({ key: "hunter2" }), true);
+  assert.equal(security.containsSecretLikeContent({ credentials: "hunter2" }), true);
+  assert.equal(security.containsSecretLikeContent({ private: "abcdefghijklmnop" }), true);
+  assert.equal(security.containsSecretLikeContent({ PRIVATE: { value: "abcdefghijklmnop" } }), true);
   assert.equal(security.containsSecretLikeContent("SECRET_KEY"), false);
   assert.equal(security.containsSecretLikeContent("Use AWS_SECRET_ACCESS_KEY from the environment"), false);
   assert.equal(security.containsSecretLikeContent("AUTH_TOKEN=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("authtoken=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("authkey=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent({ authkey: "abcdefghijklmnop" }), true);
+  assert.equal(security.containsSecretLikeContent("sessionKey=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("accessKey=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("sshPrivateKey=abcdefghijklmnop"), true);
+  assert.equal(security.containsSecretLikeContent("tokenizer=id"), false);
+  assert.equal(security.containsSecretLikeContent({ dbpassword: "hunter2", tokenizer: "id" }), true);
   assert.equal(security.containsSecretLikeContent({ accessToken: "short", refreshToken: "short", secretKey: "short", dbPassword: "short" }), true);
   assert.equal(security.containsSecretLikeContent("--api-key sk-abcdefghijklmnop"), true);
   assert.equal(security.containsSecretLikeContent("tool --token abcdefghijklmnop --safe next"), true);
@@ -1012,6 +1079,8 @@ test("security helpers redact protocol-relative URLs and shared secret-context o
   assert.equal(security.containsSecretLikeContent("Authorization: Basic dXNlcjpwYXNz"), true);
   assert.equal(security.containsSecretLikeContent("token sk-abcdefghijklmnop done"), true);
   assert.equal(security.containsSecretLikeContent("ghp_abcdefghijklmnopqrst"), true);
+  assert.equal(security.containsSecretLikeContent(`AIza${"A".repeat(32)}`), true);
+  assert.equal(security.containsSecretLikeContent(`xoxb-${"1".repeat(12)}-${"2".repeat(12)}-${"a".repeat(16)}`), true);
   assert.equal(security.containsSecretLikeContent("-----BEGIN PRIVATE KEY-----\nabc123"), true);
   assert.equal(security.containsSecretLikeContent('"token: abcdefghijklmnop" done'), true);
   assert.equal(security.containsSecretLikeContent({ monkey: "banana" }), false);
@@ -1173,9 +1242,76 @@ test("memory_file_history maps file arrays to upstream comma-separated input", a
   }
 });
 
+test("memory_save permits benign key and bare keyword prose", async () => {
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ content: [{ type: "text", text: "saved" }] }),
+  });
+  try {
+    for (const content of [
+      "The primary key: customer_id is indexed",
+      "foreign key: user_id",
+      "partition key: region",
+      "cache key: abc",
+      "key: value",
+      '{"key":"value"}',
+      '{"key":"hello world"}',
+      "auth: oauth2",
+      "auth: enabled",
+      "auth=true",
+      "token: id",
+      "secret: no",
+      "bearer: true",
+      'bearer: "true"',
+      'TOKEN="abc"',
+      'private: "false"',
+      "tokenizer=id",
+      '{"bearer":true}',
+      '{"tokenizer":"id"}',
+    ]) {
+      const result = await harness.callTool("memory_save", { content, type: "fact" });
+      assert.equal(textContent(result), "Saved memory (fact).");
+      assert.equal(parseBody(harness.fetchCalls[harness.fetchCalls.length - 1]).arguments.content, content);
+    }
+
+    const monkeyContent = '{"monkey":"banana"}';
+    const monkeyResult = await harness.callTool("memory_save", { content: monkeyContent, type: "fact" });
+    assert.equal(textContent(monkeyResult), "Saved memory (fact).");
+    assert.equal(parseBody(harness.fetchCalls[harness.fetchCalls.length - 1]).arguments.content, monkeyContent);
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test("memory_save refuses secret-looking content before network calls", async () => {
   for (const content of [
     "API_KEY=abcdefghijklmnop",
+    "BEARER=abcdefghijklmnop",
+    "password=hunter2",
+    "PASSWORD=abc123",
+    "PRIVATE=abcdefghijklmnop",
+    "secret=hunter2",
+    "token=abc123",
+    "credential=hunter2",
+    "tokens=abcdefghijklmnop",
+    "secrets=hunter2",
+    "key=abcdefghijklmnop",
+    'key: "hunter2"',
+    "authtoken=abcdefghijklmnop",
+    "authkey=abcdefghijklmnop",
+    "sessionKey=abcdefghijklmnop",
+    "accessKey=abcdefghijklmnop",
+    "sshPrivateKey=abcdefghijklmnop",
+    'TOKEN="abcdefghijklmnop"',
+    '{"authorization":"Basic dXNlcjpwYXNz"}',
+    '{"bearer":"abcdefghijklmnop"}',
+    '{"bearer":{"value":"abcdefghijklmnop"}}',
+    '{"bearer":["abcdefghijklmnop"]}',
+    '{"key":"hunter2"}',
+    '{"credentials":"hunter2"}',
+    '{"authkey":"abcdefghijklmnop"}',
+    '{"private":"abcdefghijklmnop"}',
+    '{"PRIVATE":{"value":"abcdefghijklmnop"}}',
+    '{"dbpassword":"hunter2"}',
     "https://user:pass@example.invalid/path",
     "https%3A%2F%2Fuser%3Apass%40example.invalid%2Fpath",
     "https%3A%2F%2Fuser%ZZ%3Apass%40example.invalid%2Fpath",
@@ -1231,8 +1367,11 @@ test("memory_save refuses secret-looking content before network calls", async ()
     "--api-key sk-abcdefghijklmnop",
     "tool --token abcdefghijklmnop --safe next",
     "Authorization: Basic dXNlcjpwYXNz",
+    "Authorization: Bearer abcdefghijklmnop",
     "token sk-abcdefghijklmnop done",
     "ghp_abcdefghijklmnopqrst",
+    `AIza${"A".repeat(32)}`,
+    `xoxb-${"1".repeat(12)}-${"2".repeat(12)}-${"a".repeat(16)}`,
     "-----BEGIN PRIVATE KEY-----\nabc123",
   ]) {
     const harness = createHarness({
@@ -1275,6 +1414,7 @@ test("PI_AGENTMEMORY_SECURITY_ENABLED=0 disables save guard and display redactio
 test("memory_save refuses JSON-style secret-looking content", async () => {
   for (const content of [
     '{"API_KEY":"abcdefghijklmnop"}',
+    '{"api-key":"abcdefghijklmnop"}',
     '{"token":["abcdefghijklmnop"]}',
     '{"token":{"value":"abcdefghijklmnop"}}',
     '{"api–key":"abcdefghijklmnop"}',

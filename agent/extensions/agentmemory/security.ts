@@ -123,16 +123,16 @@ export function containsSecretLikeContent(
   if (value === undefined || value === null) return false;
 
   if (typeof value === "string") {
-    if (matchesSecretText(value)) return true;
     const trimmed = value.trim();
     if (secretKeyContext && trimmed) return true;
     if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
       try {
         return containsSecretLikeContent(JSON.parse(trimmed), seen, secretKeyContext);
       } catch {
-        return false;
+        return matchesSecretText(value);
       }
     }
+    if (matchesSecretText(value)) return true;
     return false;
   }
 
@@ -143,7 +143,7 @@ export function containsSecretLikeContent(
 
   for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
     if (matchesSecretText(key)) return true;
-    if (containsSecretLikeContent(inner, seen, secretKeyContext || isSecretLikeKey(key))) return true;
+    if (containsSecretLikeContent(inner, seen, secretKeyContext || isSecretLikeKeyForValue(key, inner))) return true;
   }
   return false;
 }
@@ -179,11 +179,28 @@ export function redactSecretLikeText(text: string): string {
   return redactQuotedSecretAssignments(redactedTransportSecrets)
     .replace(
       OUTER_QUOTED_SECRET_ASSIGNMENT_PATTERN,
+      (match, prefix: string, quote: string, key: string, separator: string, value: string) =>
+        isRedactedAuthorizationHeaderAssignment(key, value) || bareAssignmentIsLowSignal(key, value)
+          ? match
+          : `${prefix}${quote}${key}${separator}<redacted>${quote}`,
+    )
+    .replace(
+      CAMEL_CASE_OUTER_QUOTED_SECRET_ASSIGNMENT_PATTERN,
       (_match, prefix: string, quote: string, key: string, separator: string) => `${prefix}${quote}${key}${separator}<redacted>${quote}`,
     )
     .replace(
       SECRET_ASSIGNMENT_PATTERN,
-      (_match, prefix: string, key: string, separator: string) => `${prefix}${key}${separator}<redacted>`,
+      (match, prefix: string, key: string, separator: string, value: string) =>
+        isRedactedAssignmentValue(value) || isRedactedAuthorizationHeaderAssignment(key, value) || bareAssignmentIsLowSignal(key, value)
+          ? match
+          : `${prefix}${key}${separator}<redacted>`,
+    )
+    .replace(
+      CAMEL_CASE_SECRET_ASSIGNMENT_PATTERN,
+      (match, prefix: string, key: string, separator: string, value: string) =>
+        isRedactedAssignmentValue(value)
+          ? match
+          : `${prefix}${key}${separator}<redacted>`,
     );
 }
 
@@ -254,7 +271,7 @@ export function redactSecretLikeValue(
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>).map(([key, inner]) => [
       redactSecretLikeText(key),
-      redactSecretLikeValue(inner, seen, secretKeyContext || isSecretLikeKey(key), contextObjects),
+      redactSecretLikeValue(inner, seen, secretKeyContext || isSecretLikeKeyForValue(key, inner), contextObjects),
     ]),
   );
 }
@@ -331,8 +348,23 @@ const COMMON_ASCII_CONFUSABLES: Record<string, string> = {
   ј: "j",
 };
 const SECRET_KEY_PART_PATTERN = "[A-Za-z0-9]+";
-const SECRET_KEY_WORD_PATTERN = `API[${SECRET_SEPARATOR_PATTERN}]?KEY|PRIVATE[${SECRET_SEPARATOR_PATTERN}]?KEY|KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|BEARER`;
-const SECRET_KEY_PATTERN = `(?:${SECRET_KEY_PART_PATTERN}[${SECRET_SEPARATOR_PATTERN}])*(?:${SECRET_KEY_WORD_PATTERN})(?:[${SECRET_SEPARATOR_PATTERN}]${SECRET_KEY_PART_PATTERN})*`;
+const _SEP = `[${SECRET_SEPARATOR_PATTERN}]`;
+const _PART = SECRET_KEY_PART_PATTERN;
+// Words strong enough to flag even when bare. NOTE: bare KEY and bare BEARER
+// are intentionally absent. API/PRIVATE KEY kept fused so "apikey" matches.
+const SECRET_KEY_STANDALONE_WORD_PATTERN = `API${_SEP}?KEY|PRIVATE${_SEP}?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTHORIZATION|AUTHENTICATION|AUTH`;
+const _STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_KEY_STANDALONE_WORD_PATTERN})(?:${_SEP}${_PART})*`;
+// Bare KEY is only a secret-name when joined to another token by a separator
+// (API_KEY, session-key, KEY_ID). Standalone "key"/"primary key:" is benign.
+const _KEY_COMPOUND_SHAPE = `(?:${_PART}${_SEP})+KEY(?:${_SEP}${_PART})*|(?:${_PART}${_SEP})*KEY(?:${_SEP}${_PART})+`;
+// Restore fused credential names (authtoken, dbpassword, tokens) without
+// substring-matching benign words like tokenizer, monkey, or keystone.
+const FUSED_SECRET_KEY_PATTERN = `[A-Za-z0-9]*(?:(?:TOKEN|SECRET|PASSWORD|CREDENTIAL)S?(?:[0-9]+|ID|KEY|VALUE|HASH)?|AUTH(?:[0-9]+|ID|KEY|VALUE|HASH|TOKEN)|PRIVATEKEY)`;
+const SECRET_KEY_PATTERN = `(?:${_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE}|${FUSED_SECRET_KEY_PATTERN})`;
+const SECRET_ASSIGNMENT_STANDALONE_WORD_PATTERN = `${SECRET_KEY_STANDALONE_WORD_PATTERN}|BEARER|PRIVATE|KEY`;
+const _ASSIGNMENT_STANDALONE_SHAPE = `(?:${_PART}${_SEP})*(?:${SECRET_ASSIGNMENT_STANDALONE_WORD_PATTERN})(?:${_SEP}${_PART})*`;
+const SECRET_ASSIGNMENT_KEY_PATTERN = `(?:${_ASSIGNMENT_STANDALONE_SHAPE}|${_KEY_COMPOUND_SHAPE}|${FUSED_SECRET_KEY_PATTERN})`;
+const CAMEL_CASE_SECRET_ASSIGNMENT_KEY_PATTERN = `[A-Za-z0-9]+(?:Key|Authorization|Authentication)(?:[0-9]+|Id|ID|Value|Hash)?`;
 const SECRET_KEY_NAME_PATTERN = new RegExp(`^${SECRET_KEY_PATTERN}$`, "i");
 const CLI_SECRET_FLAG_NAME_PATTERN = `[Aa][Pp][Ii][${SECRET_SEPARATOR_PATTERN}]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Aa][Uu][Tt][Hh]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][${SECRET_SEPARATOR_PATTERN}][Kk][Ee][Yy]`;
 const CLI_SECRET_FLAG_VALUE_TERMINATOR_PATTERN = "\\s,;)}\\]>\"'`";
@@ -345,15 +377,23 @@ const SECRET_ASSIGNMENT_SEPARATOR_PATTERN = ":=\\u2010\\u2011\\u2012\\u2013\\u20
 // Unquoted assignments intentionally consume the rest of the line/string. Once a
 // secret-looking key is present, the safest default is to redact the full tail.
 const SECRET_ASSIGNMENT_PATTERN = new RegExp(
-  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}\"'\`])(${SECRET_KEY_PATTERN})(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)(?![\"'])([\\s\\S]*\\S[\\s\\S]*)`,
+  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}\"'\`])(${SECRET_ASSIGNMENT_KEY_PATTERN})(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)(?![\"'])([\\s\\S]*\\S[\\s\\S]*)`,
   "gi",
+);
+const CAMEL_CASE_SECRET_ASSIGNMENT_PATTERN = new RegExp(
+  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}\"'\`])(${CAMEL_CASE_SECRET_ASSIGNMENT_KEY_PATTERN})(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)(?![\"'])([\\s\\S]*\\S[\\s\\S]*)`,
+  "g",
 );
 
 // Quoted assignments are parsed manually by redactQuotedSecretAssignments so we
 // can handle escaped quotes, missing closing quotes, and adjacent assignments.
 const QUOTED_SECRET_ASSIGNMENT_START_PATTERN = new RegExp(
-  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}]|(?<=[\"']))((?:[\"'])?)(${SECRET_KEY_PATTERN})\\2(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)([\"'])`,
+  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}]|(?<=[\"']))((?:[\"'])?)(${SECRET_ASSIGNMENT_KEY_PATTERN})\\2(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)([\"'])`,
   "gi",
+);
+const CAMEL_CASE_QUOTED_SECRET_ASSIGNMENT_START_PATTERN = new RegExp(
+  `(^|[^A-Za-z0-9${SECRET_SEPARATOR_PATTERN}]|(?<=[\"']))((?:[\"'])?)(${CAMEL_CASE_SECRET_ASSIGNMENT_KEY_PATTERN})\\2(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)([\"'])`,
+  "g",
 );
 
 // Bearer values may arrive split across whitespace after decoding CSS, octal, or
@@ -363,8 +403,12 @@ const BEARER_VALUE_PATTERN = /(Bearer\s+)([A-Za-z0-9._~+/=:'"-]{12,}(?:\s+[A-Za-
 const AUTHORIZATION_HEADER_PATTERN = /(Authorization\s*:\s*)(Basic|Bearer|Digest|NTLM)\s+([A-Za-z0-9._~+/=:-]{8,})(?=$|[\s,;.!?)}\]>"'`])/gi;
 const STANDALONE_PROVIDER_TOKEN_PATTERN = /(^|[^A-Za-z0-9_\-])((?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|glpat-[A-Za-z0-9_-]{20,}|AIza[A-Za-z0-9_-]{20,}))(?=$|[^A-Za-z0-9_\-])/g;
 const OUTER_QUOTED_SECRET_ASSIGNMENT_PATTERN = new RegExp(
-  `(^|[\\s([{])([\"'\`])(${SECRET_KEY_PATTERN})(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)(?![\"'])([^\"'\`\\r\\n]*\\S[^\"'\`\\r\\n]*)\\2`,
+  `(^|[\\s([{])([\"'\`])(${SECRET_ASSIGNMENT_KEY_PATTERN})(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)(?![\"'])([^\"'\`\\r\\n]*\\S[^\"'\`\\r\\n]*)\\2`,
   "gi",
+);
+const CAMEL_CASE_OUTER_QUOTED_SECRET_ASSIGNMENT_PATTERN = new RegExp(
+  `(^|[\\s([{])([\"'\`])(${CAMEL_CASE_SECRET_ASSIGNMENT_KEY_PATTERN})(\\s*[${SECRET_ASSIGNMENT_SEPARATOR_PATTERN}]\\s*)(?![\"'])([^\"'\`\\r\\n]*\\S[^\"'\`\\r\\n]*)\\2`,
+  "g",
 );
 const CLI_SECRET_FLAG_QUOTED_PATTERN = new RegExp(
   `(^|[\\s([{])(--(?:${CLI_SECRET_FLAG_NAME_PATTERN}))(=|\\s+)(["'])((?!${CLI_SECRET_FLAG_PLACEHOLDER_PATTERN}\\4)[\\s\\S]*?\\S[\\s\\S]*?)\\4`,
@@ -379,6 +423,70 @@ const PRIVATE_KEY_BLOCK_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?
 // -----------------------------------------------------------------------------
 // Private helpers
 // -----------------------------------------------------------------------------
+
+const BARE_STANDALONE_WORD_RE = /^(?:KEY|TOKEN|SECRET|CREDENTIAL|AUTH|AUTHORIZATION|AUTHENTICATION|BEARER|PRIVATE)$/i;
+
+// True when a BARE single-word keyword is paired with a low-signal value
+// (short, single opaque token / boolean / small int) -> benign prose, not a
+// secret. Compound keys and API_KEY/PRIVATE_KEY are NEVER gated.
+function bareAssignmentIsLowSignal(key: string, rawValue: string): boolean {
+  const normalizedKey = key.trim();
+  if (!BARE_STANDALONE_WORD_RE.test(normalizedKey)) return false;
+  const trimmed = rawValue.trim();
+  const quoted = /^["'`]/.test(trimmed);
+  const v = trimmed.replace(/^["'`]+/, "").replace(/["'`]+$/, "").trim();
+  if (/^KEY$/i.test(normalizedKey)) {
+    return !quoted && (/^(?:true|false|yes|no|on|off|enabled|disabled|id|abc|value|region)$/i.test(v)
+      || /^[A-Za-z_]+_id(?:\s+is\s+[A-Za-z]+)?$/i.test(v));
+  }
+  return /^(?:true|false|yes|no|on|off|enabled|disabled|id|abc|oauth2)$/i.test(v);
+}
+
+function isRedactedAssignmentValue(rawValue: string): boolean {
+  return /^["'`]?<redacted(?: [^>]*)?>["'`]?$/i.test(rawValue.trim());
+}
+
+function isRedactedAuthorizationHeaderAssignment(key: string, rawValue: string): boolean {
+  return /^authorization$/i.test(key.trim())
+    && /^(?:Basic|Bearer|Digest|NTLM)\s+<redacted>$/i.test(rawValue.trim());
+}
+
+// Count an assignment pattern as "secret signal present" only if it has at
+// least one match that is NOT a gated bare-word/low-signal assignment.
+// keyGroup/valueGroup are 1-based capture indices; valueGroup 0 = no value
+// capture (treated as always-signal). A fresh RegExp avoids shared lastIndex.
+function assignmentPatternHasSecretSignal(
+  pattern: RegExp, text: string, keyGroup: number, valueGroup: number,
+): boolean {
+  const flags = pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g";
+  const re = new RegExp(pattern.source, flags);
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    if (match[0] === "") { re.lastIndex += 1; continue; }
+    const key = match[keyGroup] ?? "";
+    const value = valueGroup > 0 ? (match[valueGroup] ?? "") : "";
+    if (valueGroup === 0 || !bareAssignmentIsLowSignal(key, value)) return true;
+  }
+  return false;
+}
+
+function quotedAssignmentPatternHasSecretSignal(pattern: RegExp, text: string): boolean {
+  const re = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g");
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    if (match[0] === "") { re.lastIndex += 1; continue; }
+    const [, , , key, , valueQuote] = match;
+    const valueStart = match.index + match[0].length;
+    const { nestedIndex, value } = quotedAssignmentValue(text, valueStart, valueQuote);
+    if (nestedIndex >= 0 || !bareAssignmentIsLowSignal(key, value)) return true;
+  }
+  return false;
+}
+
+function quotedAssignmentHasSecretSignal(text: string): boolean {
+  return quotedAssignmentPatternHasSecretSignal(QUOTED_SECRET_ASSIGNMENT_START_PATTERN, text)
+    || quotedAssignmentPatternHasSecretSignal(CAMEL_CASE_QUOTED_SECRET_ASSIGNMENT_START_PATTERN, text);
+}
 
 /** Normalize URL hostnames before loopback comparison. */
 function normalizedHostname(hostname: string): string {
@@ -689,6 +797,34 @@ function isSecretLikeKey(key: string): boolean {
   return false;
 }
 
+function structuredKeyCategory(key: string): "bearer" | "key" | "private" | null {
+  for (const variant of keyNameVariants(key)) {
+    const normalized = variant.trim();
+    if (/^BEARER$/i.test(normalized)) return "bearer";
+    if (/^KEY$/i.test(normalized)) return "key";
+    if (/^PRIVATE$/i.test(normalized)) return "private";
+  }
+  return null;
+}
+
+function structuredKeyValueIsLowSignal(category: "bearer" | "key" | "private", value: unknown): boolean {
+  if (typeof value === "boolean") return true;
+  if (value === undefined || value === null) return true;
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  if (category === "key") {
+    return /^(?:true|false|yes|no|on|off|enabled|disabled|id|abc|value|hello world|[A-Za-z_]+_id)$/i.test(trimmed);
+  }
+  return /^(?:true|false|yes|no|on|off|enabled|disabled|id|abc|oauth2)$/i.test(trimmed);
+}
+
+function isSecretLikeKeyForValue(key: string, value: unknown): boolean {
+  if (isSecretLikeKey(key)) return true;
+  const category = structuredKeyCategory(key);
+  return category !== null && !structuredKeyValueIsLowSignal(category, value);
+}
+
 /**
  * Score secret signals in one decoded variant.
  *
@@ -699,10 +835,19 @@ function isSecretLikeKey(key: string): boolean {
 function secretSignalScore(text: string): number {
   let score = hasUrlUserinfo(text) ? 2 : 0;
   if (hasCanonicalUrlUserinfo(text)) score += 1;
-  for (const pattern of [PRIVATE_KEY_BLOCK_PATTERN, AUTHORIZATION_HEADER_PATTERN, BEARER_VALUE_PATTERN, STANDALONE_PROVIDER_TOKEN_PATTERN, CLI_SECRET_FLAG_QUOTED_PATTERN, CLI_SECRET_FLAG_PATTERN, QUOTED_SECRET_ASSIGNMENT_START_PATTERN, OUTER_QUOTED_SECRET_ASSIGNMENT_PATTERN, SECRET_ASSIGNMENT_PATTERN]) {
+  for (const pattern of [
+    PRIVATE_KEY_BLOCK_PATTERN, AUTHORIZATION_HEADER_PATTERN, BEARER_VALUE_PATTERN,
+    STANDALONE_PROVIDER_TOKEN_PATTERN, CLI_SECRET_FLAG_QUOTED_PATTERN,
+    CLI_SECRET_FLAG_PATTERN,
+  ]) {
     pattern.lastIndex = 0;
     if (pattern.test(text)) score += 1;
   }
+  if (quotedAssignmentHasSecretSignal(text)) score += 1;
+  if (assignmentPatternHasSecretSignal(OUTER_QUOTED_SECRET_ASSIGNMENT_PATTERN, text, 3, 5)) score += 1;
+  if (assignmentPatternHasSecretSignal(CAMEL_CASE_OUTER_QUOTED_SECRET_ASSIGNMENT_PATTERN, text, 3, 5)) score += 1;
+  if (assignmentPatternHasSecretSignal(SECRET_ASSIGNMENT_PATTERN, text, 2, 4)) score += 1;
+  if (assignmentPatternHasSecretSignal(CAMEL_CASE_SECRET_ASSIGNMENT_PATTERN, text, 2, 4)) score += 1;
   return score;
 }
 
@@ -714,11 +859,52 @@ function matchesSecretText(text: string): boolean {
 
 /** Find nested assignments inside an unterminated or adjacent quoted value. */
 function nestedSecretAssignmentIndex(text: string): number {
-  for (const sourcePattern of [QUOTED_SECRET_ASSIGNMENT_START_PATTERN, SECRET_ASSIGNMENT_PATTERN]) {
+  for (const sourcePattern of [
+    QUOTED_SECRET_ASSIGNMENT_START_PATTERN,
+    CAMEL_CASE_QUOTED_SECRET_ASSIGNMENT_START_PATTERN,
+    SECRET_ASSIGNMENT_PATTERN,
+    CAMEL_CASE_SECRET_ASSIGNMENT_PATTERN,
+  ]) {
     const match = new RegExp(sourcePattern.source, sourcePattern.flags).exec(text);
     if (match && match.index > 0) return match.index;
   }
   return -1;
+}
+
+function quotedAssignmentValue(text: string, valueStart: number, valueQuote: string): {
+  closed: boolean;
+  nestedIndex: number;
+  value: string;
+  valueEnd: number;
+} {
+  let valueEnd = valueStart;
+  let escaped = false;
+  let closed = false;
+  while (valueEnd < text.length) {
+    const char = text[valueEnd];
+    if (escaped) {
+      escaped = false;
+      valueEnd += 1;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      valueEnd += 1;
+      continue;
+    }
+    if (char === valueQuote) {
+      closed = true;
+      break;
+    }
+    valueEnd += 1;
+  }
+
+  const nestedIndex = nestedSecretAssignmentIndex(text.slice(valueStart, closed ? valueEnd + 1 : valueEnd));
+  if (nestedIndex >= 0) {
+    valueEnd = valueStart + nestedIndex;
+    closed = false;
+  }
+  return { closed, nestedIndex, value: text.slice(valueStart, valueEnd), valueEnd };
 }
 
 /**
@@ -728,48 +914,34 @@ function nestedSecretAssignmentIndex(text: string): number {
  * must handle escaped quotes, missing closing quotes, and adjacent assignments
  * produced after decoding multiple obfuscation schemes.
  */
-function redactQuotedSecretAssignments(text: string): string {
-  QUOTED_SECRET_ASSIGNMENT_START_PATTERN.lastIndex = 0;
+function redactQuotedSecretAssignmentsByPattern(text: string, pattern: RegExp): string {
+  pattern.lastIndex = 0;
   let output = "";
   let cursor = 0;
   let match: RegExpExecArray | null;
-  while ((match = QUOTED_SECRET_ASSIGNMENT_START_PATTERN.exec(text)) !== null) {
+  while ((match = pattern.exec(text)) !== null) {
     const [fullMatch, prefix, keyQuote, key, separator, valueQuote] = match;
     const valueStart = match.index + fullMatch.length;
-    let valueEnd = valueStart;
-    let escaped = false;
-    let closed = false;
-    while (valueEnd < text.length) {
-      const char = text[valueEnd];
-      if (escaped) {
-        escaped = false;
-        valueEnd += 1;
-        continue;
-      }
-      if (char === "\\") {
-        escaped = true;
-        valueEnd += 1;
-        continue;
-      }
-      if (char === valueQuote) {
-        closed = true;
-        break;
-      }
-      valueEnd += 1;
-    }
-
-    const nestedIndex = nestedSecretAssignmentIndex(text.slice(valueStart, closed ? valueEnd + 1 : valueEnd));
-    if (nestedIndex >= 0) {
-      valueEnd = valueStart + nestedIndex;
-      closed = false;
-    }
+    const { closed, nestedIndex, value, valueEnd } = quotedAssignmentValue(text, valueStart, valueQuote);
+    const end = closed ? valueEnd + 1 : valueEnd;
 
     output += text.slice(cursor, match.index);
-    output += `${prefix}${keyQuote}${key}${keyQuote}${separator}${valueQuote}<redacted>${closed ? valueQuote : ""}`;
-    cursor = closed ? valueEnd + 1 : valueEnd;
-    QUOTED_SECRET_ASSIGNMENT_START_PATTERN.lastIndex = cursor;
+    if (nestedIndex < 0 && bareAssignmentIsLowSignal(key, value)) {
+      output += text.slice(match.index, end);
+    } else {
+      output += `${prefix}${keyQuote}${key}${keyQuote}${separator}${valueQuote}<redacted>${closed ? valueQuote : ""}`;
+    }
+    cursor = end;
+    pattern.lastIndex = cursor;
   }
   return output + text.slice(cursor);
+}
+
+function redactQuotedSecretAssignments(text: string): string {
+  return redactQuotedSecretAssignmentsByPattern(
+    redactQuotedSecretAssignmentsByPattern(text, QUOTED_SECRET_ASSIGNMENT_START_PATTERN),
+    CAMEL_CASE_QUOTED_SECRET_ASSIGNMENT_START_PATTERN,
+  );
 }
 
 /**
@@ -793,7 +965,7 @@ function collectSecretContextObjects(
   }
 
   for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
-    collectSecretContextObjects(inner, targets, seen, secretKeyContext || isSecretLikeKey(key));
+    collectSecretContextObjects(inner, targets, seen, secretKeyContext || isSecretLikeKeyForValue(key, inner));
   }
   return targets;
 }

@@ -351,12 +351,6 @@
       "file": "agent/extensions/agentmemory/index.ts",
       "contains": "resources_discover",
       "reason": "The AgentMemory skill must stay bundled beside the extension"
-    },
-    {
-      "id": "status-output-shape",
-      "file": "agent/extensions/agentmemory/index.ts",
-      "contains": "🧠 agentmemory off",
-      "reason": "AgentMemory status text shape must remain stable unless intentionally changed"
     }
   ]
 }

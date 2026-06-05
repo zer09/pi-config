@@ -1172,6 +1172,43 @@ test("redaction covers common bare provider tokens and quoted secret values", ()
 	assert.match(redacted, /<redacted>/);
 });
 
+test("redaction does not redact separator-aware false positives", () => {
+	const input = 'monkey=banana keystone:rock tokenizer=id bearer=true oauth=enabled private=false {"monkey":"banana","keystone":"rock","tokenizer":"id"}';
+	assert.equal(redactSensitiveText(input), input);
+});
+
+test("redaction covers separator-aware secret keys and transport secrets", () => {
+	const githubClassic = `ghp_${"4".repeat(36)}`;
+	const bearer = "abcdefghijklmnop";
+	const bearerAssignment = "mnopabcdefghijkl";
+	const fusedToken = "fusedtokenvalue123";
+	const pem = "-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----";
+	const redacted = redactSensitiveText(
+		`API_KEY=abcdefghijklmnop KEY=keyvalue123 AUTH_TOKEN=qrstuvwxyzabcdef PRIVATE_KEY=privatevalue123 PRIVATE='privatevalue123' Authorization: Basic dXNlcjpwYXNz authorization=Bearer ${bearerAssignment} BEARER=${bearerAssignment} authtoken=${fusedToken} authkey=authkeyvalue123 dbpassword=hunter2 token1=tokenvalue123 tokens=tokencollectionvalue secrets=hunter2 {"key":"hunter2","credentials":"hunter2","authkey":"authkeyvalue123"} ${githubClassic} Bearer ${bearer} ${pem}`,
+	);
+	assert.match(redacted, /API_KEY=<redacted>/);
+	assert.match(redacted, /KEY=<redacted>/);
+	assert.match(redacted, /AUTH_TOKEN=<redacted>/);
+	assert.match(redacted, /PRIVATE_KEY=<redacted>/);
+	assert.match(redacted, /PRIVATE='<redacted>'/);
+	assert.match(redacted, /Authorization: Basic <redacted>/);
+	assert.match(redacted, /authorization=Bearer <redacted>/);
+	assert.match(redacted, /BEARER=<redacted>/);
+	assert.match(redacted, /authtoken=<redacted>/);
+	assert.match(redacted, /authkey=<redacted>/);
+	assert.match(redacted, /dbpassword=<redacted>/);
+	assert.match(redacted, /token1=<redacted>/);
+	assert.match(redacted, /tokens=<redacted>/);
+	assert.match(redacted, /secrets=<redacted>/);
+	assert.match(redacted, /"key":"<redacted>"/);
+	assert.match(redacted, /"credentials":"<redacted>"/);
+	assert.match(redacted, /"authkey":"<redacted>"/);
+	assert.match(redacted, /Bearer <redacted>/);
+	assert.match(redacted, /<redacted private key>/);
+	assert.doesNotMatch(redacted, /abcdefghijklmnop|keyvalue123|qrstuvwxyzabcdef|privatevalue123|dXNlcjpwYXNz|mnopabcdefghijkl|fusedtokenvalue123|authkeyvalue123|tokencollectionvalue|hunter2|tokenvalue123|abc123/);
+	assert.doesNotMatch(redacted, new RegExp(githubClassic));
+});
+
 test("writer diff details prioritize changed files over unchanged allowed paths", async () => {
 	const project = makeTempDir("pi-delegates-detail-priority-");
 	const filePaths = Array.from({ length: WRITER_DIFF_MAX_CHANGED_FILES + 5 }, (_, index) => path.join(project, `file-${index}.txt`));
