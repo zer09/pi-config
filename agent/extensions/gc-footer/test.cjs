@@ -6,11 +6,19 @@ const os = require("node:os");
 const path = require("node:path");
 
 function resolveGlobalNodeModules() {
+	const candidates = [];
 	try {
-		return execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
+		candidates.push(execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim());
 	} catch {
-		return path.resolve(path.dirname(process.execPath), "..", "lib", "node_modules");
+		// npm may be unavailable in minimal validation environments.
 	}
+	if (process.env.HOME) candidates.push(path.join(process.env.HOME, ".bun", "install", "global", "node_modules"));
+	candidates.push(path.resolve(path.dirname(process.execPath), "..", "lib", "node_modules"));
+
+	for (const candidate of candidates) {
+		if (fs.existsSync(path.join(candidate, "@earendil-works", "pi-coding-agent"))) return candidate;
+	}
+	return candidates[0];
 }
 
 const globalNodeModules = resolveGlobalNodeModules();
@@ -22,7 +30,16 @@ process.env.NODE_PATH = [
 ].filter(Boolean).join(path.delimiter);
 Module._initPaths();
 
-const { createJiti } = require(path.join(piPackageRoot, "node_modules", "jiti"));
+function requirePiDependency(name) {
+	try {
+		return require(path.join(piPackageRoot, "node_modules", name));
+	} catch (error) {
+		if (error?.code !== "MODULE_NOT_FOUND") throw error;
+		return require(name);
+	}
+}
+
+const { createJiti } = requirePiDependency("jiti");
 const { visibleWidth } = require("@earendil-works/pi-tui");
 
 const extensionPath = path.join(__dirname, "index.ts");
@@ -123,6 +140,7 @@ async function createFooter(options = {}) {
 
 	const ctx = {
 		hasUI: true,
+		mode: "tui",
 		cwd: options.cwd ?? path.join(process.env.HOME ?? "/home/test", "project"),
 		model: options.model ?? {
 			provider: "openai-codex",

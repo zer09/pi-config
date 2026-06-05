@@ -774,6 +774,34 @@ test("MCP classifier allows docs search with natural-language mutation wording",
 	);
 });
 
+test("extension command reports prompt context summary", async () => {
+	const harness = makeHarness();
+	const oldHome = process.env.HOME;
+	const home = path.join(os.tmpdir(), "hosted-guard-home");
+	process.env.HOME = home;
+	try {
+		await harness.commands["hosted-mutation-guard"].handler("status", {
+			getSystemPromptOptions: () => ({
+				cwd: path.join(home, "repo"),
+				selectedTools: ["read", "edit"],
+				contextFiles: ["AGENTS.md", "README.md"],
+				skills: ["context-watcher", "gh-cli", "ruff"].map((name) => ({ name })),
+			}),
+			ui: {
+				notify: (message: string, type?: string) => harness.notifications.push({ message, type }),
+			},
+		});
+		const message = harness.notifications.at(-1)?.message ?? "";
+		assert.match(message, /cwd: ~\/repo/);
+		assert.match(message, /tools in prompt: 2/);
+		assert.match(message, /context files: 2/);
+		assert.match(message, /skills: 3/);
+	} finally {
+		if (oldHome === undefined) delete process.env.HOME;
+		else process.env.HOME = oldHome;
+	}
+});
+
 test("extension command exposes guard status and clear", async () => {
 	const harness = makeHarness();
 	await harness.runCommand("authorize-hosted-mutation", "github pr-merge 123");

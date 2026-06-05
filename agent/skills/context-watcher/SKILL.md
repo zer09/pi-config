@@ -98,7 +98,7 @@ For counts, filters, diffs, parsing, aggregation, or transforms, program the ana
 
 Use CodeGraph before grep/find/manual source walking for structural code work.
 
-Base route: keep CodeGraph MCP available alongside Context Mode for code work; check health with read-only `codegraph status <repo>` or exposed `codegraph_status`; initialize, sync, or index when graph accuracy matters and the user has authorized CodeGraph setup/freshness, otherwise ask before local index mutations; list live MCP tools before optional caller/callee/impact/status assumptions; pass `projectPath` for worktrees and non-session repos; read stale-banner files only when exact current content matters.
+Base route: keep CodeGraph MCP available alongside Context Mode for code work; check health with read-only `codegraph status <repo>` or exposed `codegraph_status`; if a target project is not initialized and graph accuracy matters, initialize/index it without asking and keep `.codegraph/` local-only/ignored; for stale indexes, sync/index when freshness is explicitly authorized, otherwise ask before local index mutations; list live MCP tools before optional caller/callee/impact/status assumptions; pass `projectPath` for worktrees and non-session repos; read stale-banner files only when exact current content matters.
 
 For exact CodeGraph MCP parameter names, load `references/codegraph-protocol.md`; do not infer schemas.
 

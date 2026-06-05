@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const Module = require("node:module");
+const os = require("node:os");
 const path = require("node:path");
 
 function resolveGlobalNodeModules() {
@@ -346,6 +347,35 @@ test("agentmemory-status reports policy drift without leaking raw health text", 
     assert.match(harness.notifications[0].message, /agentmemory healthy v0\.9\.27; policy drift warning:/);
   } finally {
     harness.cleanup();
+  }
+});
+
+test("agentmemory-status summarizes prompt options with collapsed cwd and truncated skills", async () => {
+  const oldHome = process.env.HOME;
+  const home = path.join(os.tmpdir(), "agentmemory-home");
+  process.env.HOME = home;
+  const harness = createHarness({
+    fetchHandler: async () => jsonResponse({ status: "healthy", version: "0.9.27" }),
+  });
+  try {
+    harness.ctx.getSystemPromptOptions = () => ({
+      cwd: path.join(home, "project"),
+      selectedTools: ["memory_health", "memory_search"],
+      contextFiles: ["AGENTS.md", "README.md"],
+      skills: ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"].map((name) => ({ name })),
+    });
+    const command = harness.commands.get("agentmemory-status");
+    await command.handler("", harness.ctx);
+    const message = harness.notifications[0].message;
+    assert.match(message, /cwd: ~\/project/);
+    assert.match(message, /tools in prompt: 2/);
+    assert.match(message, /context files: 2/);
+    assert.match(message, /skills: 6 \(alpha, beta, gamma, delta, epsilon, \.\.\.\)/);
+    assert.doesNotMatch(message, /memory_health, memory_search/);
+  } finally {
+    harness.cleanup();
+    if (oldHome === undefined) delete process.env.HOME;
+    else process.env.HOME = oldHome;
   }
 });
 
