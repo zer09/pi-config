@@ -1,0 +1,105 @@
+# Agent runtime state and caches
+agent/sessions/
+agent/delegate-sessions/
+agent/subagent-sessions/
+agent/intercom/
+agent/handoff/
+handoffs/
+agent/mcp-oauth/
+agent/mcp-cache.json
+agent/mcp-npx-cache.json
+agent/run-history.jsonl
+
+# Local auth and sensitive local-only files
+agent/auth.json
+agent/settings.json
+agent/settings.json.bak
+agent/mcp-onboarding.json
+agent/agents-enforcer.log
+agent/claude-bridge.log
+agent/cc-cli-logs/
+agent/cursor-debug.jsonl
+agent/cursor-model-cache.json
+agent/cursor-proxy.json
+
+# Local working dirs and logs
+agent/npm/
+data/
+tmp/
+scratch/
+logs/
+plans/
+notes/
+context-mode/
+context7/
+.pi/
+
+# Local misc files
+note.txt
+exa-usage.json
+
+# Generic local-only files
+.env
+.env.local
+.env.*.local
+.envrc
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local code graph db/cache
+.codebase-memory/
+.codegraph/
+
+# Skills CLI project-local install/cache targets
+/.agents/
+/skills/
+/skills-lock.json
+/.adal/
+/.aider-desk/
+/.augment/
+/.bob/
+/.claude/
+/.codeartsdoer/
+/.codebuddy/
+/.codemaker/
+/.codestudio/
+/.commandcode/
+/.continue/
+/.cortex/
+/.crush/
+/.devin/
+/.factory/
+/.forge/
+/.goose/
+/.hermes/
+/.iflow/
+/.junie/
+/.kilocode/
+/.kiro/
+/.kode/
+/.mcpjam/
+/.mux/
+/.neovate/
+/.openhands/
+/.pochi/
+/.qoder/
+/.qwen/
+/.roo/
+/.rovodev/
+/.tabnine/
+/.trae/
+/.vibe/
+/.windsurf/
+/.zencoder/
+
+# Skills are now tracked as regular files in this repo.
+# Do not ignore agent/skills/* here.
