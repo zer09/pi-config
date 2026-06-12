@@ -9,6 +9,11 @@ These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `C
 - Ask before making ambiguous, destructive, or broad changes.
 - Do not expose secrets, tokens, credentials, or private local data in responses.
 
+## Version Control
+
+- Do not commit changes unless explicitly told to commit.
+- Do not push changes unless explicitly told to push.
+
 ## Glossary
 
 - "read-only" or "investigate" means analyze only; do not create, edit, update, delete, or otherwise alter anything.

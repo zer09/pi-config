@@ -1,5 +1,9 @@
 {
   "lastChangelogVersion": "0.79.1",
-  "packages": ["npm:@schultzp2020/pi-cursor", "npm:pi-blackhole", "npm:pi-btw"]
+  "packages": [
+    "npm:@schultzp2020/pi-cursor",
+    "npm:pi-blackhole",
+    "npm:pi-btw",
+    "npm:pi-browser-harness"
+  ]
 }
-
