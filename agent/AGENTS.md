@@ -14,6 +14,10 @@ These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `C
 - Do not commit changes unless explicitly told to commit.
 - Do not push changes unless explicitly told to push.
 
+## File Editing
+
+- Avoid shell redirection (`>`, `>>`, heredocs, `tee`) when editing files; use the available file-editing tools instead.
+
 ## Glossary
 
 - "read-only" or "investigate" means analyze only; do not create, edit, update, delete, or otherwise alter anything.
