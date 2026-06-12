@@ -1,12 +1,14 @@
 // Override Pi's built-in dark/light appearances without registering new selector themes.
 
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
+import { platform, release } from "node:os"
 import { join } from "node:path"
 import { getAgentDir, type ExtensionAPI, type ExtensionContext, type Theme, type ThemeColor } from "@earendil-works/pi-coding-agent"
 
 type ColorValue = string | number
 type ColorMode = "truecolor" | "256color"
 type ThemeKind = "dark" | "light"
+type DetectedOS = "Linux" | "Darwin" | "Windows_NT" | "WSL" | "OrbStack" | "unsupported"
 
 type ThemeJson = {
   name: string
@@ -27,8 +29,10 @@ type ThemeConstructor = new (
 ) => Theme
 
 const SETTINGS_PATH = join(getAgentDir(), "settings.json")
-const APPLY_INTERVAL_MS = 1_000
+const FALLBACK_THEME: ThemeKind = "dark"
+const APPLY_INTERVAL_MS = 3_000
 const APPLY_RETRY_DELAYS_MS = [50, 250, 1_000]
+const QUERY_TIMEOUT_MS = 1_500
 
 const INLINE_SOURCE_PATHS: Record<ThemeKind, string> = {
   dark: "inline:theme-overrides/dark",
@@ -346,20 +350,9 @@ function currentThemeInfo(ctx: ExtensionContext): {
   }
 }
 
-function desiredThemeKind(ctx: ExtensionContext): ThemeKind | undefined {
+function isThemeOverrideAllowed(ctx: ExtensionContext): boolean {
   const configured = readConfiguredTheme()
-  if (configured === "dark" || configured === "light") return configured
-  if (configured) return undefined
-
-  const current = currentThemeInfo(ctx)
-  return current.name === "dark" || current.name === "light" ? current.name : undefined
-}
-
-function applyOverride(ctx: ExtensionContext): void {
-  if (ctx.mode !== "tui") return
-
-  const kind = desiredThemeKind(ctx)
-  if (!kind) return
+  if (configured && configured !== "dark" && configured !== "light") return false
 
   const current = currentThemeInfo(ctx)
   const overrideSources = new Set(Object.values(INLINE_SOURCE_PATHS))
@@ -371,9 +364,115 @@ function applyOverride(ctx: ExtensionContext): void {
     current.name !== "light" &&
     !overrideSources.has(current.sourcePath ?? "")
   ) {
-    return
+    return false
   }
 
+  return true
+}
+
+function detectOS(): DetectedOS {
+  const osPlatform = platform()
+  const osRelease = release()
+
+  if (/microsoft|wsl/i.test(osRelease)) return "WSL"
+  if (/orbstack/i.test(osRelease)) return "OrbStack"
+  if (osPlatform === "darwin") return "Darwin"
+  if (osPlatform === "win32") return "Windows_NT"
+  if (osPlatform === "linux") return "Linux"
+  return "unsupported"
+}
+
+async function execOutput(
+  pi: ExtensionAPI,
+  command: string,
+  args: string[],
+  options: { allowNonZero?: boolean; timeout?: number } = {},
+): Promise<{ stdout: string; stderr: string; code: number } | undefined> {
+  try {
+    const result = await pi.exec(command, args, { timeout: options.timeout ?? QUERY_TIMEOUT_MS })
+    if (result.killed) return undefined
+    if (!options.allowNonZero && result.code !== 0) return undefined
+    return { stdout: result.stdout, stderr: result.stderr, code: result.code }
+  } catch {
+    return undefined
+  }
+}
+
+function getWindowsRegCommand(): string {
+  const candidates = [
+    "/mnt/c/Windows/System32/reg.exe",
+    "/mnt/c/WINDOWS/system32/reg.exe",
+    "/mnt/c/Windows/system32/reg.exe",
+  ]
+
+  return candidates.find((candidate) => existsSync(candidate)) ?? "reg.exe"
+}
+
+async function detectWindowsAppearance(pi: ExtensionAPI): Promise<ThemeKind | undefined> {
+  const result = await execOutput(
+    pi,
+    getWindowsRegCommand(),
+    ["Query", "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", "/v", "AppsUseLightTheme"],
+  )
+  if (!result) return undefined
+
+  const output = `${result.stdout}\n${result.stderr}`
+  if (!/AppsUseLightTheme/i.test(output)) return undefined
+  return /0x1\b/i.test(output) ? "light" : "dark"
+}
+
+async function detectLinuxAppearance(pi: ExtensionAPI): Promise<ThemeKind | undefined> {
+  const result = await execOutput(pi, "dbus-send", [
+    "--session",
+    "--print-reply=literal",
+    "--reply-timeout=1000",
+    "--dest=org.freedesktop.portal.Desktop",
+    "/org/freedesktop/portal/desktop",
+    "org.freedesktop.portal.Settings.Read",
+    "string:org.freedesktop.appearance",
+    "string:color-scheme",
+  ])
+  if (!result || result.stderr.trim() !== "") return undefined
+
+  // xdg-desktop-portal color-scheme: 0 = no preference, 1 = dark, 2 = light.
+  if (/uint32\s+1\b/.test(result.stdout)) return "dark"
+  if (/uint32\s+[02]\b/.test(result.stdout)) return "light"
+  return undefined
+}
+
+async function detectDarwinAppearance(pi: ExtensionAPI, viaOrbStack = false): Promise<ThemeKind | undefined> {
+  const command = viaOrbStack ? "mac" : "defaults"
+  const args = viaOrbStack ? ["defaults", "read", "-g", "AppleInterfaceStyle"] : ["read", "-g", "AppleInterfaceStyle"]
+  const result = await execOutput(pi, command, args, { allowNonZero: true })
+  if (!result) return undefined
+
+  return result.stdout.trim() === "Dark" ? "dark" : "light"
+}
+
+async function detectSystemAppearance(pi: ExtensionAPI): Promise<ThemeKind> {
+  const detectedOS = detectOS()
+  const detected =
+    detectedOS === "WSL" || detectedOS === "Windows_NT"
+      ? await detectWindowsAppearance(pi)
+      : detectedOS === "Linux"
+        ? await detectLinuxAppearance(pi)
+        : detectedOS === "Darwin"
+          ? await detectDarwinAppearance(pi)
+          : detectedOS === "OrbStack"
+            ? await detectDarwinAppearance(pi, true)
+            : undefined
+
+  return detected ?? FALLBACK_THEME
+}
+
+async function applyOverride(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
+  if (ctx.mode !== "tui") return
+  if (!isThemeOverrideAllowed(ctx)) return
+
+  const kind = await detectSystemAppearance(pi)
+  if (!isThemeOverrideAllowed(ctx)) return
+
+  const current = currentThemeInfo(ctx)
   if (current.sourcePath === INLINE_SOURCE_PATHS[kind]) return
 
   ctx.ui.setTheme(buildOverrideTheme(ctx, kind, current.mode))
@@ -383,15 +482,22 @@ export default function (pi: ExtensionAPI) {
   let interval: ReturnType<typeof setInterval> | undefined
   let retryTimers: Array<ReturnType<typeof setTimeout>> = []
   let warned = false
+  let applying = false
+  let generation = 0
 
-  const safeApply = (ctx: ExtensionContext) => {
+  const safeApply = async (ctx: ExtensionContext, activeGeneration: number) => {
+    if (applying || activeGeneration !== generation) return
+
+    applying = true
     try {
-      applyOverride(ctx)
+      await applyOverride(pi, ctx)
     } catch (error) {
       if (!warned) {
         warned = true
         console.warn("[theme-overrides] failed to apply built-in theme override", error)
       }
+    } finally {
+      applying = false
     }
   }
 
@@ -401,16 +507,20 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.on("session_start", (_event, ctx) => {
-    safeApply(ctx)
+    generation += 1
+    const activeGeneration = generation
+
+    void safeApply(ctx, activeGeneration)
 
     clearRetryTimers()
-    retryTimers = APPLY_RETRY_DELAYS_MS.map((delay) => setTimeout(() => safeApply(ctx), delay))
+    retryTimers = APPLY_RETRY_DELAYS_MS.map((delay) => setTimeout(() => void safeApply(ctx, activeGeneration), delay))
 
     if (interval) clearInterval(interval)
-    interval = setInterval(() => safeApply(ctx), APPLY_INTERVAL_MS)
+    interval = setInterval(() => void safeApply(ctx, activeGeneration), APPLY_INTERVAL_MS)
   })
 
   pi.on("session_shutdown", () => {
+    generation += 1
     clearRetryTimers()
     if (interval) {
       clearInterval(interval)
