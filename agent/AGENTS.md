@@ -17,3 +17,7 @@ These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `C
 ## Glossary
 
 - "read-only" or "investigate" means analyze only; do not create, edit, update, delete, or otherwise alter anything.
+- "leave changes unstaged" means edit files only; do not stage, unstage, stash, revert, commit, or push changes unless explicitly told.
+- First-person singular terms ("I", "me", "my") refer to the human user/prompter.
+- Second-person terms ("you", "your", "yourself") refer to the assistant/agent/AI.
+- First-person plural terms ("we", "us", "our") refer to the human user and assistant collectively.
