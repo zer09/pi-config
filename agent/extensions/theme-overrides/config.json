@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "fallbackTheme": "dark",
+  "pollIntervalMs": 3000,
+  "queryTimeoutMs": 1500,
+  "themes": {
+    "dark": "./themes/dark.json",
+    "light": "./themes/light.json"
+  }
+}
