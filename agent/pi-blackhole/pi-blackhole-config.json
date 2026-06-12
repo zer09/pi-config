@@ -4,13 +4,12 @@
   "compactionEngine": "blackhole",
   "tailBehavior": "pi-default",
   "memory": true,
-
   "observerModel": {
     "_comment": "Cursor primary: very cheap/fast thinking-capable model for frequent observation extraction.",
     "provider": "cursor",
     "id": "gpt-5.4-nano-low",
     "thinking": "low",
-    "cooldownHours": 6,
+    "cooldownHours": 1,
     "contextWindow": 200000
   },
   "observerFallbackModels": [
@@ -19,7 +18,7 @@
       "provider": "google",
       "id": "gemini-2.5-flash-lite",
       "thinking": "low",
-      "cooldownHours": 6,
+      "cooldownHours": 1,
       "contextWindow": 1000000
     },
     {
@@ -27,17 +26,16 @@
       "provider": "opencode-go",
       "id": "deepseek-v4-flash",
       "thinking": "low",
-      "cooldownHours": 6,
+      "cooldownHours": 1,
       "contextWindow": 1000000
     }
   ],
-
   "reflectorModel": {
     "_comment": "Cursor primary: Cursor default/auto model for synthesis/reflection. Thinking is off because cursor/default is listed as non-thinking.",
     "provider": "cursor",
     "id": "default",
     "thinking": "off",
-    "cooldownHours": 6,
+    "cooldownHours": 1,
     "contextWindow": 200000
   },
   "reflectorFallbackModels": [
@@ -46,7 +44,7 @@
       "provider": "opencode-go",
       "id": "deepseek-v4-pro",
       "thinking": "low",
-      "cooldownHours": 6,
+      "cooldownHours": 1,
       "contextWindow": 1000000
     },
     {
@@ -54,17 +52,16 @@
       "provider": "google",
       "id": "gemini-2.5-flash",
       "thinking": "medium",
-      "cooldownHours": 6,
+      "cooldownHours": 1,
       "contextWindow": 1000000
     }
   ],
-
   "dropperModel": {
     "_comment": "Cursor primary: cheap mini model with low thinking for memory pruning/judgment.",
     "provider": "cursor",
     "id": "gpt-5.4-mini-low",
     "thinking": "low",
-    "cooldownHours": 6,
+    "cooldownHours": 1,
     "contextWindow": 200000
   },
   "dropperFallbackModels": [
@@ -73,7 +70,7 @@
       "provider": "opencode-go",
       "id": "deepseek-v4-pro",
       "thinking": "low",
-      "cooldownHours": 6,
+      "cooldownHours": 1,
       "contextWindow": 1000000
     },
     {
@@ -81,13 +78,11 @@
       "provider": "google",
       "id": "gemini-2.5-flash",
       "thinking": "low",
-      "cooldownHours": 6,
+      "cooldownHours": 1,
       "contextWindow": 1000000
     }
   ],
-
   "sessionFallback": true,
-
   "observeAfterTokens": 20000,
   "reflectAfterTokens": 40000,
   "compactAfterTokens": 180000,
@@ -98,16 +93,15 @@
   "reflectorInputMaxTokens": 160000,
   "dropperInputMaxTokens": 160000,
   "agentMaxTurns": 16,
-
-  "debug": false,
-  "debugLog": false,
-
+  "debug": true,
+  "debugLog": true,
   "_notes": [
     "Daily driver/session model: openai-codex/gpt-5.5, context window from pi --list-models: 272K.",
     "compactAfterTokens: 180000 = 66.2% of 272K; formula target was 272000 * 0.65 = 176800, rounded to high preset.",
     "tailBehavior is pi-default only: blackhole still owns compaction, but Pi's gentler recent-tail cut is used.",
     "Cursor primary workers all have 200K context. Reflector primary is cursor/default (Cursor default/auto). The largest worker input cap is 160K = 80.0% of the Cursor worker context.",
     "Fallbacks are deliberately non-Cursor so primary and fallback providers differ.",
-    "Final emergency fallback remains the session model because sessionFallback is true: openai-codex/gpt-5.5."
+    "Final emergency fallback remains the session model because sessionFallback is true: openai-codex/gpt-5.5.",
+    "2026-06-12: Enabled debug/debugLog and set all configured worker/fallback cooldownHours to 1 hour after transient Cursor proxy connection cooldowns."
   ]
 }
