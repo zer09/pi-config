@@ -14,7 +14,14 @@ These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `C
 - Do not commit changes unless explicitly told to commit.
 - Do not push changes unless explicitly told to push.
 
-## File Editing
+## File Operations
+
+### File Reading
+
+- Use `offset` and `limit` to target relevant sections unless a full-file read is necessary.
+- Avoid re-reading entire large files when only a section is needed.
+
+### File Editing
 
 - Avoid shell redirection (`>`, `>>`, heredocs, `tee`) when editing files; use the available file-editing tools instead.
 
@@ -25,3 +32,35 @@ These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `C
 - First-person singular terms ("I", "me", "my") refer to the human user/prompter.
 - Second-person terms ("you", "your", "yourself") refer to the assistant/agent/AI.
 - First-person plural terms ("we", "us", "our") refer to the human user and assistant collectively.
+
+## Task Mode
+
+Classify each request by the action requested, not by the topic.
+
+### Read-only mode default
+
+- Default to read-only investigation unless the latest user request explicitly asks to change files, git state, hosted services, or other persistent state.
+- Treat questions, reviews, audits, explanations, and requests using words like "analyze", "investigate", "check", "look at", or "review" as read-only.
+- In read-only mode, do not create, edit, delete, stage, unstage, commit, push, or run state-changing commands.
+
+### Change mode
+
+- Enter change mode only when the user clearly asks for a specific change, such as "edit", "update", "fix", "implement", "apply", "create", "delete", "stage", "commit", or "push".
+- Make the smallest change that satisfies the request.
+- Ask before proceeding when the requested change is ambiguous, destructive, or broader than the stated scope.
+
+## Response Style
+
+### Change tasks
+
+- Start with changed file paths or the commit hash when applicable.
+- Summarize what changed and mention any tests or checks run.
+- Explain only non-obvious decisions, risks, or follow-ups.
+- Avoid boilerplate, praise, and unrelated suggestions.
+
+### Read-only tasks
+
+- Lead with the finding or conclusion.
+- Prefer bullets and tables over long prose.
+- Put context and method after the result.
+- End with caveats or limits when relevant.
