@@ -93,8 +93,8 @@
   "reflectorInputMaxTokens": 160000,
   "dropperInputMaxTokens": 160000,
   "agentMaxTurns": 16,
-  "debug": true,
-  "debugLog": true,
+  "debug": false,
+  "debugLog": false,
   "_notes": [
     "Daily driver/session model: openai-codex/gpt-5.5, context window from pi --list-models: 272K.",
     "compactAfterTokens: 180000 = 66.2% of 272K; formula target was 272000 * 0.65 = 176800, rounded to high preset.",
@@ -102,6 +102,6 @@
     "Cursor primary workers all have 200K context. Reflector primary is cursor/default (Cursor default/auto). The largest worker input cap is 160K = 80.0% of the Cursor worker context.",
     "Fallbacks are deliberately non-Cursor so primary and fallback providers differ.",
     "Final emergency fallback remains the session model because sessionFallback is true: openai-codex/gpt-5.5.",
-    "2026-06-12: Enabled debug/debugLog and set all configured worker/fallback cooldownHours to 1 hour after transient Cursor proxy connection cooldowns."
+    "2026-06-12: Disabled debug/debugLog after transient Cursor proxy debugging; worker/fallback cooldownHours remain 1 hour."
   ]
 }
