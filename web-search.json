@@ -1,0 +1,5 @@
+{
+  "exaApiKey": "${EXA_API_KEY}",
+  "geminiApiKey": "${GEMINI_API_KEY}",
+  "chromeProfile": "Pi-Agent"
+}

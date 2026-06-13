@@ -1,10 +1,11 @@
 {
-  "lastChangelogVersion": "0.79.2",
+  "lastChangelogVersion": "0.79.3",
   "packages": [
     "npm:@schultzp2020/pi-cursor",
     "npm:pi-blackhole",
     "npm:pi-btw",
     "npm:pi-browser-harness",
-    "npm:pi-claude-bridge"
+    "npm:pi-claude-bridge",
+    "npm:pi-web-access"
   ]
 }

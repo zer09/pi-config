@@ -12,7 +12,7 @@ agent/run-history.jsonl
 
 # Local auth and sensitive local-only files
 agent/auth.json
-agent/settings.json
+# agent/settings.json
 agent/settings.json.bak
 agent/mcp-onboarding.json
 agent/agents-enforcer.log
