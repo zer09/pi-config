@@ -25,6 +25,12 @@ These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `C
 
 - Avoid shell redirection (`>`, `>>`, heredocs, `tee`) when editing files; use the available file-editing tools instead.
 
+## Python tooling
+
+- Use `uv` for Python project/package/script workflows when applicable; do not override Poetry/PDM unless asked.
+- Use `uv run <tool>` for project tools/deps, `uvx <tool>` for one-off Python CLIs.
+- Use `python3`, `ruff` for lint/format, and `ty` for type checks by default when applicable.
+
 ## Glossary
 
 - "read-only" or "investigate" means analyze only; do not create, edit, update, delete, or otherwise alter anything.
