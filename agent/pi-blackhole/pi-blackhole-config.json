@@ -5,10 +5,10 @@
   "tailBehavior": "pi-default",
   "memory": true,
   "observerModel": {
-    "_comment": "Cursor primary: Auto model for frequent observation extraction.",
+    "_comment": "Cursor primary: very cheap/fast thinking-capable model for frequent observation extraction.",
     "provider": "cursor",
-    "id": "default",
-    "thinking": "off",
+    "id": "gpt-5.4-nano-low",
+    "thinking": "low",
     "cooldownHours": 1,
     "contextWindow": 200000
   },
@@ -99,7 +99,7 @@
     "Daily driver/session model: openai-codex/gpt-5.5, context window from pi --list-models: 272K.",
     "compactAfterTokens: 180000 = 66.2% of 272K; formula target was 272000 * 0.65 = 176800, rounded to high preset.",
     "tailBehavior is pi-default only: blackhole still owns compaction, but Pi's gentler recent-tail cut is used.",
-    "Cursor observer/dropper primaries and Claude Bridge reflector primary all have 200K context. Observer primary is cursor/default (Cursor Auto); reflector primary is claude-bridge/claude-haiku-4-5. The largest worker input cap is 160K = 80.0% of the worker context.",
+    "Cursor observer/dropper primaries and Claude Bridge reflector primary all have 200K context. Observer primary is cursor/gpt-5.4-nano-low; reflector primary is claude-bridge/claude-haiku-4-5. The largest worker input cap is 160K = 80.0% of the worker context.",
     "Fallbacks are deliberately non-Cursor so primary and fallback providers differ.",
     "Final emergency fallback remains the session model because sessionFallback is true: openai-codex/gpt-5.5.",
     "2026-06-12: Disabled debug/debugLog after transient Cursor proxy debugging; worker/fallback cooldownHours remain 1 hour."
