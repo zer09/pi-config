@@ -1,0 +1,15 @@
+{
+  "name": "pi-codegraph-extension",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "dependencies": {
+    "@colbymchenry/codegraph": "^1.0.1",
+    "typebox": "^1.2.10"
+  }
+}

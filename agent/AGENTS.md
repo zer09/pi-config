@@ -25,6 +25,12 @@ These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `C
 
 - Avoid shell redirection (`>`, `>>`, heredocs, `tee`) when editing files; use the available file-editing tools instead.
 
+## CodeGraph tooling
+
+- When `codegraph_*` tools are available, use CodeGraph as the primary source-code understanding path for indexed projects; prefer `codegraph_explore` over `read`/`grep`/`find` exploration.
+- Use `codegraph_node` for one symbol or indexed source file, `codegraph_search` only to locate symbols, `codegraph_callers`/`codegraph_callees` for call relationships, `codegraph_impact` before refactors, and `codegraph_status` for index/sync health.
+- Trust CodeGraph results and avoid re-verifying with grep/read loops; fall back to raw file tools for docs/configs/unindexed files, exact ranges not covered, or stale files after edits.
+
 ## Python tooling
 
 - Use `uv` for Python project/package/script workflows when applicable; do not override Poetry/PDM unless asked.
