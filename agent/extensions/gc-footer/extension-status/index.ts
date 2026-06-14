@@ -14,14 +14,15 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import { ANSI_PATTERN } from "../constants";
 import type { FormattedExtensionStatus } from "../types";
 import { formatter as agentmemoryFormatter } from "./agentmemory";
+import { formatter as browserFormatter } from "./browser";
 import { formatter as mcpFormatter } from "./mcp";
 import type { ExtensionStatusFormatter, ExtensionStatusFormatterInput } from "./types";
 
 const FORMATTER_DIR = dirname(fileURLToPath(import.meta.url));
 const FORMATTER_MODULE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
-const BUILTIN_FORMATTER_FILES = new Set(["agentmemory.ts", "agentmemory.js", "mcp.ts", "mcp.js"]);
+const BUILTIN_FORMATTER_FILES = new Set(["agentmemory.ts", "agentmemory.js", "browser.ts", "browser.js", "mcp.ts", "mcp.js"]);
 const INFRASTRUCTURE_FILES = new Set(["index.ts", "index.tsx", "index.js", "types.ts", "types.tsx", "types.js"]);
-const BUILTIN_FORMATTERS: readonly ExtensionStatusFormatter[] = [agentmemoryFormatter, mcpFormatter];
+const BUILTIN_FORMATTERS: readonly ExtensionStatusFormatter[] = [agentmemoryFormatter, browserFormatter, mcpFormatter];
 const requireFormatter = createRequire(import.meta.url);
 const loadFormatter = createFormatterLoader();
 const FORMATTERS = [...BUILTIN_FORMATTERS, ...discoverExtensionStatusFormatters()];

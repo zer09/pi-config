@@ -403,6 +403,30 @@ async function run() {
 		assert.ok(line.indexOf("a:on") < line.indexOf("openai-codex/gpt-5.5"), "statuses should render before model");
 	}
 
+	for (const [statusText, dot, description] of [
+		["⚪ Browser disabled", "⚪", "disabled"],
+		["⚪ Browser enabled lazily", "⚪", "enabled lazy"],
+		["🔴 Browser disconnected", "🔴", "disconnected"],
+		["🟢 Browser connected", "🟢", "connected"],
+		["🟢 Browser enabled", "🟢", "enabled connected"],
+		["Browser: 🔴 Disconnected", "🔴", "status command disconnected"],
+	]) {
+		const footer = await createFooter({
+			statuses: new Map([["browser", statusText]]),
+		});
+		const line = footer.renderPlain();
+		assert.ok(line.includes(dot), `browser ${description} status should keep only the status dot`);
+		assert.ok(!line.includes("Browser"), `browser ${description} status should omit the label`);
+	}
+
+	{
+		const footer = await createFooter({
+			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
+			statuses: new Map([["browser", "🔴 Browser disconnected"]]),
+		});
+		assert.ok(footer.renderPlain(60).includes("🔴"), "compact layout should keep browser status dot");
+	}
+
 	{
 		const footer = await createFooter({
 			statuses: new Map([["agentmemory", "🧠 agentmemory"]]),

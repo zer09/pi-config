@@ -102,6 +102,7 @@ Formatter files in that directory are loaded in filename order when the extensio
 Built-in formatters:
 
 - `extension-status/agentmemory.ts` handles `🧠 agentmemory` statuses.
+- `extension-status/browser.ts` handles pi-browser-harness `⚪`/`🔴`/`🟢` browser statuses.
 - `extension-status/mcp.ts` handles `MCP: n/m servers` statuses.
 
 After adding or editing formatter files, run `/reload` in Pi.
