@@ -1,0 +1,4 @@
+interface:
+  display_name: "MySQL"
+  short_description: "Plan and tune MySQL databases"
+  default_prompt: "Use $mysql to design, review, tune, or troubleshoot MySQL and InnoDB schemas, indexes, queries, migrations, transactions, locking, or replication."

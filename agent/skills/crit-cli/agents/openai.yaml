@@ -1,0 +1,4 @@
+interface:
+  display_name: "Crit CLI"
+  short_description: "Manage crit comments and shared reviews"
+  default_prompt: "Use $crit-cli to add or reply to crit review comments."

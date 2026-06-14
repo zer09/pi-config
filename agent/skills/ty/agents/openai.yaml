@@ -1,0 +1,4 @@
+interface:
+  display_name: "ty"
+  short_description: "Type check Python code with ty"
+  default_prompt: "Use $ty to type check Python code or set up ty for a Python project."

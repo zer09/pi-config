@@ -1,0 +1,4 @@
+interface:
+  display_name: "Crit Review"
+  short_description: "Run interactive inline reviews with crit"
+  default_prompt: "Use $crit to open an inline review for this change."

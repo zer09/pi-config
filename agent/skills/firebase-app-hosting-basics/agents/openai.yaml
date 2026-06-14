@@ -1,0 +1,4 @@
+interface:
+  display_name: "Firebase App Hosting"
+  short_description: "Deploy apps with App Hosting"
+  default_prompt: "Use $firebase-app-hosting-basics to deploy and manage Next.js or Angular apps with Firebase App Hosting."

@@ -1,0 +1,48 @@
+# gh repo gitignore view
+
+Source: https://cli.github.com/manual/gh_repo_gitignore_view
+Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo gitignore view`.
+
+## Summary
+
+View an available repository `.gitignore` template.
+
+## Subcommands
+
+- None
+
+## Manual
+
+```text
+View an available repository `.gitignore` template.
+
+`<template>` is a case-sensitive `.gitignore` template name.
+
+For a list of available templates, run `gh repo gitignore list`.
+
+
+USAGE
+  gh repo gitignore view <template> [flags]
+
+INHERITED FLAGS
+  --help   Show help for command
+
+EXAMPLES
+  # View the Go gitignore template
+  $ gh repo gitignore view Go
+  
+  # View the Python gitignore template
+  $ gh repo gitignore view Python
+  
+  # Create a new .gitignore file using the Go template
+  $ gh repo gitignore view Go > .gitignore
+  
+  # Create a new .gitignore file using the Python template
+  $ gh repo gitignore view Python > .gitignore
+
+LEARN MORE
+  Use `gh <command> <subcommand> --help` for more information about a command.
+  Read the manual at https://cli.github.com/manual
+  Learn about exit codes using `gh help exit-codes`
+  Learn about accessibility experiences using `gh help accessibility`
+```

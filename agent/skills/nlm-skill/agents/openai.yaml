@@ -1,0 +1,10 @@
+interface:
+  display_name: "NotebookLM CLI"
+  short_description: "Automate NotebookLM with nlm and MCP"
+  default_prompt: "Use $nlm-skill to create a NotebookLM workflow, add sources, and generate the requested artifact."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "notebooklm-mcp"
+      description: "NotebookLM MCP server"

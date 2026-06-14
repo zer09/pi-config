@@ -1,0 +1,12 @@
+interface:
+  display_name: "Figma"
+  short_description: "Use Figma MCP for design-to-code work"
+  default_prompt: "Use $figma to inspect the target design and translate it into implementable UI decisions."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "figma"
+      description: "Figma MCP server"
+      transport: "streamable_http"
+      url: "https://mcp.figma.com/mcp"

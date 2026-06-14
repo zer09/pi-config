@@ -1,0 +1,4 @@
+interface:
+  display_name: "Genkit Dart"
+  short_description: "Build Genkit apps in Dart"
+  default_prompt: "Use $developing-genkit-dart to build AI agents, flows, tools, or LLM integrations with the Genkit Dart SDK."

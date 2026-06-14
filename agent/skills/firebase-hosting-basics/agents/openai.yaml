@@ -1,0 +1,4 @@
+interface:
+  display_name: "Firebase Hosting"
+  short_description: "Deploy with Firebase Hosting"
+  default_prompt: "Use $firebase-hosting-basics to deploy static sites, SPAs, and simple microservices with Firebase Hosting Classic."

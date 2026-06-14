@@ -1,0 +1,38 @@
+# gh project field-delete
+
+Source: https://cli.github.com/manual/gh_project_field-delete
+Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help project field-delete`.
+
+## Summary
+
+Delete a field in a project
+
+## Subcommands
+
+- None
+
+## Manual
+
+```text
+Delete a field in a project
+
+For more information about output formatting flags, see `gh help formatting`.
+
+USAGE
+  gh project field-delete [flags]
+
+FLAGS
+      --format string     Output format: {json}
+      --id string         ID of the field to delete
+  -q, --jq expression     Filter JSON output using a jq expression
+  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
+
+INHERITED FLAGS
+  --help   Show help for command
+
+LEARN MORE
+  Use `gh <command> <subcommand> --help` for more information about a command.
+  Read the manual at https://cli.github.com/manual
+  Learn about exit codes using `gh help exit-codes`
+  Learn about accessibility experiences using `gh help accessibility`
+```
