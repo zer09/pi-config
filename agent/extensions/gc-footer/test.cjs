@@ -230,21 +230,27 @@ function assistantEntry(usage) {
 async function run() {
 	{
 		const footer = await createFooter({ thinkingLevel: "off" });
-		assert.match(footer.renderPlain(), /\uf10c$/, "off thinking should use outline circle");
-		footer.setThinkingLevel("medium");
-		assert.match(footer.renderPlain(), /\uf111$/, "enabled thinking should use filled circle");
+		for (const [level, glyph] of [
+			["off", "○"],
+			["minimal", "·"],
+			["low", "◦"],
+			["medium", "◇"],
+			["high", "◆"],
+			["xhigh", "●"],
+		]) {
+			footer.setThinkingLevel(level);
+			assert.match(footer.renderPlain(), new RegExp(`${glyph}$`), `${level} thinking should use ${glyph}`);
+		}
 	}
 
 	{
 		const footer = await createFooter({
-			thinkingLevel: "off",
+			thinkingLevel: "xhigh",
 			config: { nerdFont: false },
 		});
-		assert.match(footer.renderPlain(), /\u25cb$/, "fallback off thinking should use unicode outline circle");
-		footer.setThinkingLevel("medium");
 		const line = footer.renderPlain();
-		assert.match(line, /\u25cf$/, "fallback enabled thinking should use unicode filled circle");
-		assert.ok(!line.includes("\uf111"), "fallback thinking should not use Nerd Font glyphs");
+		assert.match(line, /●$/, "thinking should use unicode glyphs even when Nerd Font is disabled");
+		assert.ok(!line.includes("\uf111") && !line.includes("\uf10c"), "thinking should not use Nerd Font glyphs");
 	}
 
 	{
@@ -806,7 +812,7 @@ async function run() {
 		assert.ok(!line.includes("status:on"), "statuses config should hide statuses");
 		assert.ok(!line.includes("↑") && !line.includes("↓"), "tokens config should hide token totals");
 		assert.ok(!line.includes("%") && !line.includes("/272k"), "context config should hide context percentage and usage");
-		assert.ok(!line.includes("\uf111"), "thinking config should hide thinking dot");
+		assert.ok(!line.includes("◇"), "thinking config should hide thinking glyph");
 	}
 
 	{
@@ -816,7 +822,7 @@ async function run() {
 		const line = footer.renderPlain();
 		assert.match(line, /^~\/project \(main\)/, "invalid config should fall back to defaults");
 		assert.ok(line.includes("openai-codex/gpt-5.5"), "invalid config should keep default model segment");
-		assert.ok(line.includes("\uf111"), "invalid config should keep default thinking segment");
+		assert.ok(line.includes("◇"), "invalid config should keep default thinking segment");
 	}
 
 	for (const config of [

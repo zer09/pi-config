@@ -1,28 +1,30 @@
 /**
  * Thinking-level display helpers for gc-footer.
  *
- * The footer renders a single colored dot whose color follows Pi's active
- * thinking level and whose glyph respects the Nerd Font configuration.
+ * The footer renders a colored Unicode shape whose color and glyph follow Pi's
+ * active thinking level. These glyphs intentionally do not require Nerd Font.
  */
 
 import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
-import {
-	FALLBACK_THINKING_FILLED_CIRCLE,
-	FALLBACK_THINKING_OUTLINE_CIRCLE,
-	THINKING_FILLED_CIRCLE,
-	THINKING_OUTLINE_CIRCLE,
-} from "./constants";
+
+const THINKING_GLYPHS = {
+	off: "○",
+	minimal: "·",
+	low: "◦",
+	medium: "◇",
+	high: "◆",
+	xhigh: "●",
+} as const;
 
 /**
  * Format the thinking-level indicator dot.
  *
  * @param level - Active thinking level from Pi.
  * @param theme - Active Pi theme.
- * @param nerdFont - Whether Nerd Font glyphs should be used.
- * @returns The themed thinking dot segment.
+ * @returns The themed thinking shape segment.
  */
-export function formatThinkingDot(level: string, theme: Theme, nerdFont: boolean): string {
-	return theme.fg(thinkingColor(level), thinkingGlyph(level, nerdFont));
+export function formatThinkingDot(level: string, theme: Theme): string {
+	return theme.fg(thinkingColor(level), thinkingGlyph(level));
 }
 
 function thinkingColor(level: string): ThemeColor {
@@ -44,9 +46,11 @@ function thinkingColor(level: string): ThemeColor {
 	}
 }
 
-function thinkingGlyph(level: string, nerdFont: boolean): string {
-	if (level === "off") {
-		return nerdFont ? THINKING_OUTLINE_CIRCLE : FALLBACK_THINKING_OUTLINE_CIRCLE;
-	}
-	return nerdFont ? THINKING_FILLED_CIRCLE : FALLBACK_THINKING_FILLED_CIRCLE;
+function thinkingGlyph(level: string): string {
+	if (isThinkingGlyphLevel(level)) return THINKING_GLYPHS[level];
+	return THINKING_GLYPHS.xhigh;
+}
+
+function isThinkingGlyphLevel(level: string): level is keyof typeof THINKING_GLYPHS {
+	return level in THINKING_GLYPHS;
 }

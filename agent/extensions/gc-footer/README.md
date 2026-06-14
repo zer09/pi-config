@@ -6,11 +6,11 @@ Custom Pi footer extension for a compact local status line.
 
 - Pi coding agent with extension support.
 - Node.js runtime used by Pi.
-- A Nerd Font configured in your terminal is recommended for the default timer, queue, MCP, and thinking status glyphs.
+- A Nerd Font configured in your terminal is recommended for the default timer, queue, and MCP status glyphs.
   - Timer glyphs use `\uf017` while running and `\uf00c` after completion, with `4.1s` under a minute and `m:ss` after.
   - Queued follow-ups use `\uf46c 1` in Nerd Font mode and `q 1` with `"nerdFont": false`.
-  - Thinking glyphs use `\uf10c` for thinking off and `\uf111` for thinking on.
-  - If your terminal does not use a Nerd Font, set `"nerdFont": false` in `config.json` to use text timer labels, text queue labels, and Unicode circle thinking fallbacks.
+  - Thinking uses Unicode-only shapes for every level: `○` off, `·` minimal, `◦` low, `◇` medium, `◆` high, and `●` xhigh.
+  - If your terminal does not use a Nerd Font, set `"nerdFont": false` in `config.json` to use text timer labels and text queue labels. Thinking glyphs do not require Nerd Font.
 - No extra npm packages are required. The extension uses Pi-provided packages and Node built-ins.
 
 ## Optional config

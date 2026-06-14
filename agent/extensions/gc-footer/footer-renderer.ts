@@ -120,7 +120,7 @@ function buildFooterParts(
 		showTokens ? formatSessionTokenTotals(snapshot.sessionTokenTotals, theme, tokensProfile === "full" ? "full" : "compact") : undefined,
 		config.segments.context ? formatContextUsage(snapshot.contextUsage, snapshot.modelContextWindow, theme, contextProfile === "full" ? "full" : "compact") : undefined,
 		showModel ? theme.fg("muted", formatModelName(snapshot.modelProvider, snapshot.modelId, modelProfile)) : undefined,
-		config.segments.thinking && !minimal ? formatThinkingDot(snapshot.thinkingLevel, theme, config.nerdFont) : undefined,
+		config.segments.thinking && !minimal ? formatThinkingDot(snapshot.thinkingLevel, theme) : undefined,
 	]);
 
 	return { left, middle, right };

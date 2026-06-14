@@ -16,12 +16,6 @@ export const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
 /** Default config path next to this extension's source files. */
 export const CONFIG_PATH = join(dirname(fileURLToPath(import.meta.url)), "config.json");
 
-/** Unicode filled circle used when Nerd Font glyphs are disabled. */
-export const FALLBACK_THINKING_FILLED_CIRCLE = "\u25cf";
-
-/** Unicode outline circle used when Nerd Font glyphs are disabled. */
-export const FALLBACK_THINKING_OUTLINE_CIRCLE = "\u25cb";
-
 /** Maximum time to wait for `git status` before falling back to cached state. */
 export const GIT_STATUS_TIMEOUT_MS = 500;
 
@@ -30,12 +24,6 @@ export const GIT_STATUS_TTL_MS = 5000;
 
 /** Nerd Font glyph shown for queued follow-up prompts. */
 export const QUEUE_GLYPH = "\uf46c";
-
-/** Nerd Font filled-circle glyph used for active thinking levels. */
-export const THINKING_FILLED_CIRCLE = "\uf111";
-
-/** Nerd Font outline-circle glyph used when thinking is off. */
-export const THINKING_OUTLINE_CIRCLE = "\uf10c";
 
 /** Nerd Font check glyph shown for a completed prompt timer. */
 export const TIMER_DONE_GLYPH = "\uf00c";
