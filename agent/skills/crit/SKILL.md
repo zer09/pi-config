@@ -26,7 +26,7 @@ If no arguments, check conversation context:
 
 **CRITICAL — you MUST run this step. Do NOT skip it. Do NOT proceed without it.**
 
-Run `crit` in the foreground and block until it exits:
+Run `crit` in the foreground and block until it exits. When invoking through a tool runner, set the timeout to at least 3600 seconds for every foreground `crit` command (initial and next-round). Do not rely on short defaults like 600 seconds for human review time.
 
 ```bash
 crit <plan-file>   # specific file
@@ -39,7 +39,7 @@ If a crit server is already running from earlier in this conversation, `crit` au
 
 > **"Crit is open at http://localhost:<port>. Leave inline comments, then click Finish Review."**
 
-**Do NOT proceed until `crit` completes.** Do NOT ask the user to type anything. Do NOT read the review file early. Wait for the foreground command to finish — that is how you know the human is done reviewing.
+**Do NOT proceed until `crit` completes.** Do NOT ask the user to type anything. Do NOT read the review file early. Wait for the foreground command to finish — that is how you know the human is done reviewing. If the tool runner times out first, rerun the exact same `crit` command to reconnect and continue waiting.
 
 ## Step 3: Read the review output
 
