@@ -9,6 +9,15 @@ These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `C
 - Ask before making ambiguous, destructive, or broad changes.
 - Do not expose secrets, tokens, credentials, or private local data in responses.
 
+## Glossary
+
+- "Pi" or "pi" means the Pi agent harness from pi.dev unless context clearly indicates otherwise.
+- "read-only" or "investigate" means analyze only; do not create, edit, update, delete, or otherwise alter anything.
+- "leave changes unstaged" means edit files only; do not stage, unstage, stash, revert, commit, or push changes unless explicitly told.
+- First-person singular terms ("I", "me", "my") refer to the human user/prompter.
+- Second-person terms ("you", "your", "yourself") refer to the assistant/agent/AI.
+- First-person plural terms ("we", "us", "our") refer to the human user and assistant collectively.
+
 ## Version Control
 
 - Do not commit changes unless explicitly told to commit.
@@ -36,14 +45,6 @@ These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `C
 - Use `uv` for Python project/package/script workflows when applicable; do not override Poetry/PDM unless asked.
 - Use `uv run <tool>` for project tools/deps, `uvx <tool>` for one-off Python CLIs.
 - Use `python3`, `ruff` for lint/format, and `ty` for type checks by default when applicable.
-
-## Glossary
-
-- "read-only" or "investigate" means analyze only; do not create, edit, update, delete, or otherwise alter anything.
-- "leave changes unstaged" means edit files only; do not stage, unstage, stash, revert, commit, or push changes unless explicitly told.
-- First-person singular terms ("I", "me", "my") refer to the human user/prompter.
-- Second-person terms ("you", "your", "yourself") refer to the assistant/agent/AI.
-- First-person plural terms ("we", "us", "our") refer to the human user and assistant collectively.
 
 ## Task Mode
 
