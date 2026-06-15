@@ -1,0 +1,4 @@
+interface:
+  display_name: "PostHog CLI"
+  short_description: "Query PostHog safely with posthog-pp-cli"
+  default_prompt: "Use $pp-posthog to check PostHog feature flags and summarize the result."

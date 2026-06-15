@@ -52,6 +52,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | ✓ | nlm-skill | Weak | 3 | keep it | Retained because NotebookLM CLI/MCP workflows are niche and exact enough to keep available. |
 | x | notion-cli | Medium | 5 | remove it | Removed because the local `ntn` CLI output was not a good fit for routine agent workflows. |
 | ✓ | postgres | Strong | 8 | make it slim | DB expertise is strong; keep only operational checklists. |
+| ✓ | pp-posthog | Medium | 5 | make it slim | Installed from Printing Press for exact PostHog CLI routing, local sync/search, and hosted-service safety gates. |
 | x | refine-linear-task | Very strong | 9 | remove it | Generic issue-writing task; no skill needed. |
 | ✓ | ruff | Strong | 8 | make it slim | Commands are simple; keep only preferred invocation. |
 | ✓ | session-handoff | Medium | 6 | keep it | Retained because local handoff location and continuity conventions are important. |

@@ -95,6 +95,7 @@ Installing a new skill means:
 - `notion-cli-update-process.md`: retired-skill notes and reinstall checklist for the former Notion CLI skill.
 - `openai-skills-update-process.md`: update workflow for OpenAI-derived skills, including skill-creator and Figma skills.
 - `planetscale-database-skills-update-process.md`: update workflow for PlanetScale MySQL and Postgres skills.
+- `pp-posthog-update-process.md`: update workflow for the Printing Press PostHog CLI skill.
 - `refine-linear-task-update-process.md`: retired-skill notes and reinstall checklist for the former Linear task refinement skill.
 
 ## Retired skills
