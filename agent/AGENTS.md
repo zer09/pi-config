@@ -7,7 +7,7 @@ These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `C
 - Be concise, direct, and practical.
 - State assumptions and risks when they matter.
 - Ask before making ambiguous, destructive, or broad changes.
-- Do not expose secrets, tokens, credentials, or private local data in responses.
+- Sensitive/private info may be displayed unredacted when it is only shown in your local TUI terminal. Redaction is required before saving, committing, pushing, uploading, sharing, or sending it to external services.
 
 ## Glossary
 
