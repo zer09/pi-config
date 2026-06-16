@@ -37,8 +37,10 @@ These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `C
 ## CodeGraph tooling
 
 - When `codegraph_*` tools are available, use CodeGraph as the primary source-code understanding path for indexed projects; prefer `codegraph_explore` over `read`/`grep`/`find` exploration.
-- Use `codegraph_node` for one symbol or indexed source file, `codegraph_search` only to locate symbols, `codegraph_callers`/`codegraph_callees` for call relationships, `codegraph_impact` before refactors, and `codegraph_status` for index/sync health.
-- Trust CodeGraph results and avoid re-verifying with grep/read loops; fall back to raw file tools for docs/configs/unindexed files, exact ranges not covered, or stale files after edits.
+- Use `codegraph_files` to list/discover CodeGraph-indexed source files, verify whether a source file is indexed, browse by path/language/error state, or replace raw `find`/`rg --files` only when the question is specifically about indexed files. It does not read contents.
+- Use `codegraph_node` for one indexed symbol body or indexed source file; prefer it over `read` for indexed source because it includes graph context. For “what does this call?”, prefer `codegraph_node` because the symbol body and trail include callees; use `codegraph_callees` only for a terse callee list.
+- Use `codegraph_search` only to locate indexed symbols by name, `codegraph_callers` before refactoring a named symbol to find call sites/callback registrations, `codegraph_impact` for explicit deeper blast-radius analysis, and `codegraph_status` for index/sync health.
+- Trust CodeGraph results and avoid re-verifying with grep/read loops; fall back to raw file tools for docs/configs/unindexed files, exact ranges not covered, real filesystem questions, or stale files after edits.
 
 ## Python tooling
 

@@ -10,6 +10,7 @@ import type { ExtensionAPI } from "../types.ts";
 import { registerCalleesTool } from "./callees-tool.ts";
 import { registerCallersTool } from "./callers-tool.ts";
 import { registerExploreTool } from "./explore-tool.ts";
+import { registerFilesTool } from "./files-tool.ts";
 import { registerImpactTool } from "./impact-tool.ts";
 import { registerNodeTool } from "./node-tool.ts";
 import { registerSearchTool } from "./search-tool.ts";
@@ -30,6 +31,7 @@ import { registerStatusTool } from "./status-tool.ts";
 export function registerCodeGraphTools(pi: ExtensionAPI, manager: GraphManager): void {
   registerExploreTool(pi, manager);
   registerSearchTool(pi, manager);
+  registerFilesTool(pi, manager);
   registerCallersTool(pi, manager);
   registerCalleesTool(pi, manager);
   registerImpactTool(pi, manager);

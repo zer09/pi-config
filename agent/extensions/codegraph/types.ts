@@ -308,5 +308,34 @@ export interface NodeToolParams extends ProjectPathParam {
   readonly symbolsOnly?: boolean;
 }
 
+/** Output layouts supported by codegraph_files. */
+export type FilesFormat = "tree" | "flat" | "grouped";
+
+/** Parameters for codegraph_files. */
+export interface FilesToolParams extends ProjectPathParam {
+  /** Optional directory/file prefix filter matched against indexed paths. */
+  readonly path?: string;
+  /** Optional glob pattern matched against indexed paths. */
+  readonly pattern?: string;
+  /** Output layout for indexed files. */
+  readonly format?: FilesFormat;
+  /** Whether compact language/symbol/error metadata should be rendered. */
+  readonly includeMetadata?: boolean;
+  /** Maximum directory depth rendered in tree format. */
+  readonly maxDepth?: number;
+  /** Optional case-insensitive substring filter matched against indexed paths. */
+  readonly query?: string;
+  /** Optional exact language filter, case-insensitive. */
+  readonly language?: string;
+  /** Whether to include only files with extraction errors. */
+  readonly errorsOnly?: boolean;
+  /** Whether to include size and timestamp metadata. */
+  readonly includeStats?: boolean;
+  /** Optional maximum number of matching files to render. */
+  readonly limit?: number;
+  /** Number of matching files to skip before rendering. */
+  readonly offset?: number;
+}
+
 /** Parameters for codegraph_status. */
 export type StatusToolParams = ProjectPathParam;
