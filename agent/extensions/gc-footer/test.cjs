@@ -259,7 +259,7 @@ async function run() {
 			model: { provider: "anthropic", id: "claude-sonnet-4-20250514", contextWindow: 200000 },
 		});
 		const line = footer.renderPlain();
-		assert.match(line, /^~\/project \(main\)/, "cwd should abbreviate home and show branch");
+		assert.match(line, /^\(main\) ~\/project/, "branch should show before abbreviated cwd");
 		assert.ok(line.includes("anthropic/claude-sonnet-4"), "model date suffix should be removed");
 	}
 
@@ -741,7 +741,7 @@ async function run() {
 			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
 		});
 		const compactLine = footer.renderPlain(90);
-		assert.ok(compactLine.includes("path (main)"), "compact layout should use cwd basename");
+		assert.ok(compactLine.includes("(main) path"), "compact layout should show branch before cwd basename");
 		assert.ok(compactLine.includes("↑123k ↓46k"), "compact layout should omit cache token details");
 		assert.ok(compactLine.includes("(45%)"), "compact layout should keep context percentage");
 		assert.ok(!compactLine.includes("/272k"), "compact layout should omit full context window details");
@@ -750,7 +750,7 @@ async function run() {
 		assert.ok(!compactLine.includes("\uf233 0/9"), "compact layout should drop inactive MCP status first");
 
 		const minimalLine = footer.renderPlain(40);
-		assert.ok(minimalLine.includes("path (main)"), "minimal layout should keep cwd basename and branch");
+		assert.ok(minimalLine.includes("(main) path"), "minimal layout should keep branch before cwd basename");
 		assert.ok(minimalLine.includes("(45%)"), "minimal layout should keep context percentage");
 		assert.ok(!minimalLine.includes("codex/gpt-5.5"), "minimal layout should hide model");
 		assert.ok(!minimalLine.includes("↑"), "minimal layout should hide token totals");
@@ -764,7 +764,7 @@ async function run() {
 			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
 		});
 		const line = footer.renderPlain(40);
-		assert.ok(line.includes("path (main)"), "model compact override should keep minimal layout cwd and branch");
+		assert.ok(line.includes("(main) path"), "model compact override should keep minimal layout branch and cwd");
 		assert.ok(line.includes("(45%)"), "model compact override should keep minimal layout context percentage");
 		assert.ok(!line.includes("gpt-5.5"), "model compact override should not pin model into minimal layout");
 	}
@@ -778,7 +778,7 @@ async function run() {
 			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
 		});
 		const line = footer.renderPlain(90);
-		assert.ok(line.includes("path (main)"), "main compact layout should still use cwd basename with model full override");
+		assert.ok(line.includes("(main) path"), "main compact layout should still use branch before cwd basename with model full override");
 		assert.ok(line.includes("↑123k ↓46k"), "main compact layout should still compact token totals with model full override");
 		assert.ok(line.includes("openai-codex/gpt-5.5"), "model full override should keep full provider label in compact layout");
 	}
@@ -844,7 +844,7 @@ async function run() {
 			config: "{",
 		});
 		const line = footer.renderPlain();
-		assert.match(line, /^~\/project \(main\)/, "invalid config should fall back to defaults");
+		assert.match(line, /^\(main\) ~\/project/, "invalid config should fall back to defaults");
 		assert.ok(line.includes("openai-codex/gpt-5.5"), "invalid config should keep default model segment");
 		assert.ok(line.includes("◇"), "invalid config should keep default thinking segment");
 	}

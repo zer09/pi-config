@@ -108,8 +108,8 @@ function buildFooterParts(
 	const showModel = config.segments.model && !minimal;
 	const showTokens = config.segments.tokens && tokensProfile !== "minimal" && (!minimal || hasSegmentProfileOverride(config, "tokens"));
 	const left = joinSegments([
-		config.segments.cwd ? theme.fg("dim", formatCwd(snapshot.cwd, cwdProfile)) : undefined,
 		config.segments.branch ? formatGitBranch(branch, theme, gitStatus) : undefined,
+		config.segments.cwd ? theme.fg("dim", formatCwd(snapshot.cwd, cwdProfile)) : undefined,
 	]);
 	const middle = config.segments.statuses
 		? formatExtensionStatuses(snapshot.formattedStatuses, statusesProfile === "full" ? "full" : "active")
