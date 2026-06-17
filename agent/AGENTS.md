@@ -64,6 +64,16 @@ Classify each request by the action requested, not by the topic.
 - Make the smallest change that satisfies the request.
 - Ask before proceeding when the requested change is ambiguous, destructive, or broader than the stated scope.
 
+#### Code changes
+
+- When ambiguity would change the implementation, state it and ask or choose the safest narrow interpretation.
+- For multi-step coding work, define concrete success checks before editing when practical.
+- Make the simplest working change. Do not declare dead variables or add parameters (even with defaults) if they are never actively used.
+- Keep changes surgical and style-matched.
+- Do not add speculative features, premature abstractions, or impossible-case handling.
+- Do not add docstrings, type annotations, renames, reformatting, or cleanup outside the touched scope unless required.
+- Three similar lines are better than a premature abstraction or extracting a tiny, single-use function.
+
 ## Response Style
 
 ### Change tasks
