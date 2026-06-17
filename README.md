@@ -1,105 +1,210 @@
 # pi-config
 
-`pi-config` is a starter repository for keeping Raspberry Pi configuration files, setup notes, and repeatable setup steps in one place.
+Configuration and reusable resources for [Pi](https://pi.dev), the minimal terminal coding harness.
 
-Use this repo to document how a Raspberry Pi is configured, track useful scripts, and make future rebuilds or migrations easier.
+Pi is designed to stay small at the core and be adapted through project settings, TypeScript extensions, Agent Skills, prompt templates, themes, and Pi packages. This repository is a place to version those customizations so a preferred Pi environment can be reused across projects and machines.
 
-## Goals
+> This is **not** Raspberry Pi configuration. It is configuration for the Pi coding agent harness.
 
-- Keep Raspberry Pi configuration documented and versioned.
-- Store reusable setup, maintenance, and troubleshooting scripts.
-- Make a fresh Raspberry Pi setup easier to reproduce.
-- Avoid relying on undocumented manual changes.
+## What belongs here
 
-## Suggested repository structure
+Use this repo for project-level Pi resources such as:
+
+- `.pi/settings.json` — project settings that override global Pi settings
+- `.pi/extensions/` — TypeScript extensions loaded after the project is trusted
+- `.pi/skills/` — Agent Skills loaded on demand by the model
+- `.pi/prompts/` — reusable slash-command prompt templates
+- `.pi/themes/` — custom TUI themes
+- `AGENTS.md` — project instructions loaded by Pi at startup
+- `SYSTEM.md` — optional per-project system prompt replacement or append
+- docs and notes for workflows that should be easy to reproduce
+
+## Suggested layout
 
 ```text
 .
-├── configs/        # System, service, and application configuration files
-├── scripts/        # Setup, maintenance, and helper scripts
-├── docs/           # Notes, runbooks, and troubleshooting guides
-└── README.md       # Project overview and usage notes
+├── .pi/
+│   ├── settings.json
+│   ├── extensions/
+│   │   └── example.ts
+│   ├── skills/
+│   │   └── example-skill/
+│   │       └── SKILL.md
+│   ├── prompts/
+│   │   └── review.md
+│   └── themes/
+│       └── custom.json
+├── AGENTS.md
+├── SYSTEM.md
+└── README.md
 ```
 
-The repository is intentionally lightweight. Add folders as the project grows.
+The repository can start with only this README. Add `.pi` resources as you create real settings, extensions, skills, prompts, or themes.
 
-## Getting started
+## Install Pi
 
-Clone the repository:
+Install the Pi CLI with npm:
 
 ```bash
-git clone https://github.com/zer09/pi-config.git
-cd pi-config
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-Create folders for configuration, scripts, or documentation as needed:
+Or use the Linux/macOS installer:
 
 ```bash
-mkdir -p configs scripts docs
+curl -fsSL https://pi.dev/install.sh | sh
 ```
 
-## Recommended workflow
-
-1. Add configuration files or setup notes to this repo.
-2. Document where each file should be installed on the Raspberry Pi.
-3. Back up existing system files before replacing them.
-4. Keep secrets, passwords, tokens, private keys, and Wi-Fi credentials out of Git.
-5. Use example files such as `.env.example` when a configuration needs private values.
-
-Before applying a system configuration, make a backup:
+Then run Pi from a project directory:
 
 ```bash
-sudo cp /path/to/config /path/to/config.bak
+pi
 ```
 
-Then copy the reviewed configuration into place:
+Authenticate with `/login` for subscription providers, or set provider API keys in your shell environment before starting Pi.
+
+## Project settings
+
+Pi uses JSON settings files. Global settings live in `~/.pi/agent/settings.json`; project settings live in `.pi/settings.json` and override global values.
+
+Example `.pi/settings.json`:
+
+```json
+{
+  "defaultProvider": "anthropic",
+  "defaultThinkingLevel": "medium",
+  "theme": "dark",
+  "enableSkillCommands": true,
+  "packages": []
+}
+```
+
+Keep personal tokens, API keys, OAuth credentials, and machine-specific paths out of committed settings. Prefer environment variables or private global settings for secrets.
+
+## Skills
+
+Skills are self-contained capability packages. A typical project skill looks like this:
+
+```text
+.pi/skills/code-review/
+├── SKILL.md
+├── scripts/
+└── references/
+```
+
+Minimal `SKILL.md`:
+
+```markdown
+---
+name: code-review
+description: Review code changes for correctness, security, and maintainability.
+---
+
+# Code Review
+
+Review the current changes. Focus on bugs, edge cases, security issues, and tests.
+```
+
+When skill commands are enabled, a skill can also be invoked with `/skill:code-review`.
+
+## Prompt templates
+
+Prompt templates are Markdown snippets that expand from slash commands. For example, `.pi/prompts/review.md` becomes `/review`:
+
+```markdown
+---
+description: Review staged git changes
+argument-hint: "[focus area]"
+---
+
+Review the staged changes with `git diff --cached`.
+Focus on $ARGUMENTS.
+```
+
+## Extensions
+
+Extensions are TypeScript modules that can register tools, commands, shortcuts, providers, event handlers, and custom TUI behavior.
+
+Project-local extensions can live in `.pi/extensions/`:
+
+```text
+.pi/extensions/
+└── my-extension.ts
+```
+
+After editing project extensions, use `/reload` in Pi to reload trusted project resources.
+
+## Themes
+
+Custom themes are JSON files in `.pi/themes/`. Select a theme by name in `.pi/settings.json`:
+
+```json
+{
+  "theme": "custom"
+}
+```
+
+## Pi packages
+
+Pi packages bundle extensions, skills, prompt templates, and themes so they can be shared through npm, git, or local paths.
+
+Install a package globally:
 
 ```bash
-sudo cp configs/example.conf /etc/example.conf
+pi install npm:some-pi-package
 ```
 
-Restart the related service when required:
+Install a package into this project's `.pi/settings.json`:
 
 ```bash
-sudo systemctl restart example
+pi install -l npm:some-pi-package
 ```
 
-Replace the example paths and service names with the real files used by this project.
+List and update configured packages:
+
+```bash
+pi list
+pi update --extensions
+```
+
+Review third-party packages before installing them. Extensions execute code with your system permissions, and skills can instruct the agent to run commands.
+
+## Useful Pi commands
+
+```bash
+pi                         # start interactive TUI
+pi -p "summarize this repo" # print mode for scripts
+pi --mode json -p "task"    # JSON event stream mode
+pi install -l npm:pkg       # add a package to project settings
+pi update --extensions      # update configured packages/extensions
+```
+
+Inside the TUI, useful commands include:
+
+```text
+/login      authenticate providers
+/settings   edit common settings
+/model      switch models
+/tree       navigate session history
+/reload     reload project resources
+/trust      save a project trust decision
+```
 
 ## Security notes
 
-Do not commit sensitive files such as:
+Do not commit:
 
-- SSH private keys
-- API tokens
-- Passwords
-- Wi-Fi credentials
-- `.env` files with real values
-- Machine-specific secrets
+- API keys or OAuth tokens
+- `.env` files with real credentials
+- private SSH keys
+- provider-specific auth files
+- local package caches such as `.pi/npm/` or `.pi/git/`
+- session logs that may contain secrets
 
-Consider adding a `.gitignore` file before storing generated files, logs, credentials, or local-only configuration.
+Project resources are loaded only after the project is trusted. Review `.pi/settings.json`, extensions, skills, and packages before trusting a project folder.
 
-## Documentation ideas
+## References
 
-Useful notes to add over time:
-
-- Raspberry Pi model and OS version
-- Network and hostname setup
-- Installed packages
-- Enabled services
-- Cron jobs or scheduled tasks
-- Backup and restore steps
-- Troubleshooting commands
-
-## Contributing
-
-When adding or changing configuration, include enough context for someone else to understand:
-
-- What the file or script does
-- Where it should be installed or run
-- Any required dependencies
-- How to verify that it worked
-
-## License
-
-No license has been specified yet. Add a license file if this repository will be shared or reused by others.
+- Pi: https://pi.dev
+- Documentation: https://pi.dev/docs/latest
+- Package catalog: https://pi.dev/packages
