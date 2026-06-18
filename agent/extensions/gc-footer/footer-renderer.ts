@@ -11,6 +11,7 @@ import { visibleWidth } from "@earendil-works/pi-tui";
 import { FOOTER_PROFILES } from "./constants";
 import { hasSegmentProfileOverride, resolveSegmentProfile } from "./config";
 import { formatExtensionStatusEntries, formatExtensionStatuses } from "./extension-status";
+import { areExperimentalFeaturesEnabled, formatExperimentalMarker } from "./experimental-format";
 import { formatGitBranch } from "./git-format";
 import { footerSectionsFit, joinFooterSections, measureFooterParts } from "./layout";
 import { formatModelName } from "./model-format";
@@ -78,6 +79,7 @@ function createRenderSnapshot(
 	return {
 		contextUsage: config.segments.context ? ctx.getContextUsage() : undefined,
 		cwd: ctx.cwd,
+		experimentalFeaturesEnabled: areExperimentalFeaturesEnabled(),
 		formattedStatuses: config.segments.statuses
 			? formatExtensionStatusEntries(footerData.getExtensionStatuses(), theme, config.nerdFont)
 			: [],
@@ -121,6 +123,7 @@ function buildFooterParts(
 		config.segments.context ? formatContextUsage(snapshot.contextUsage, snapshot.modelContextWindow, theme, contextProfile === "full" ? "full" : "compact") : undefined,
 		showModel ? theme.fg("muted", formatModelName(snapshot.modelProvider, snapshot.modelId, modelProfile)) : undefined,
 		config.segments.thinking && !minimal ? formatThinkingDot(snapshot.thinkingLevel, theme) : undefined,
+		config.segments.experimental && snapshot.experimentalFeaturesEnabled ? formatExperimentalMarker(theme, config.nerdFont) : undefined,
 	]);
 
 	return { left, middle, right };

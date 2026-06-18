@@ -6,9 +6,10 @@ Custom Pi footer extension for a compact local status line.
 
 - Pi coding agent with extension support.
 - Node.js runtime used by Pi.
-- A Nerd Font configured in your terminal is recommended for the default timer, queue, and MCP status glyphs.
+- A Nerd Font configured in your terminal is recommended for the default timer, queue, MCP status, and experimental-feature glyphs.
   - Timer glyphs use `\uf017` while running and `\uf00c` after completion, with `4.1s` under a minute and `m:ss` after.
   - Queued follow-ups use `\uf46c 1` in Nerd Font mode and `q 1` with `"nerdFont": false`.
+  - Experimental Pi features use a red `\uf00d` marker when `PI_EXPERIMENTAL=1`, or red `x` with `"nerdFont": false`.
   - Thinking uses Unicode-only shapes for every level: `○` off, `·` minimal, `◦` low, `◇` medium, `◆` high, and `●` xhigh.
   - If your terminal does not use a Nerd Font, set `"nerdFont": false` in `config.json` to use text timer labels and text queue labels. Thinking glyphs do not require Nerd Font.
 - No extra npm packages are required. The extension uses Pi-provided packages and Node built-ins.
@@ -61,7 +62,8 @@ All keys are optional. Missing keys keep the defaults. Unknown keys or invalid v
     "tokens": true,
     "context": true,
     "model": true,
-    "thinking": true
+    "thinking": true,
+    "experimental": true
   },
   "segmentProfiles": {
     "model": "compact"
@@ -73,6 +75,7 @@ All keys are optional. Missing keys keep the defaults. Unknown keys or invalid v
 
 - `nerdFont`: `true` uses Nerd Font glyphs. `false` uses text or Unicode fallbacks.
 - `segments`: enables or disables footer segments. For example, set `"model": false` to hide the model entirely.
+  - `experimental`: shows the red Nerd Font `\uf00d` marker when `PI_EXPERIMENTAL=1`, or red `x` with `"nerdFont": false`.
 - `segmentProfiles`: overrides the display profile for individual profile-aware segments without changing the main footer profile.
 
 `segmentProfiles` values:
@@ -90,7 +93,7 @@ Profile-aware segments:
 - `context`: percent plus token/window details vs percent only.
 - `model`: full provider/model vs compact provider-aware model.
 
-`branch`, `timer`, `queue`, and `thinking` currently do not have profile-specific variants.
+`branch`, `timer`, `queue`, `thinking`, and `experimental` currently do not have profile-specific variants.
 
 Use `/gc-footer` or `/gc-footer status` to inspect the active config. Active overrides are shown as `segmentProfiles: model=compact`.
 
@@ -112,6 +115,7 @@ After adding or editing formatter files, run `/reload` in Pi.
 - Git branches stay compact but add useful state when available: `(main*)`, `(main +2)`, `(main -1)`, or `(main +2/-1*)`.
 - Git status is cached and refreshed asynchronously with a short TTL, so footer rendering does not run `git status` directly or block on slow repositories.
 - Narrow terminals use compact layouts before falling back to truncation: cwd basename, compact tokens, percent-only context, and shortened model names.
+- When Pi experimental features are enabled with `PI_EXPERIMENTAL=1`, gc-footer shows a red Nerd Font `\uf00d` marker at the end of the footer by default. With `"nerdFont": false`, it uses red `x` instead. Set `"segments": { "experimental": false }` to hide it.
 
 ## Testing
 

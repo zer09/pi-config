@@ -16,6 +16,9 @@ export const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
 /** Default config path next to this extension's source files. */
 export const CONFIG_PATH = join(dirname(fileURLToPath(import.meta.url)), "config.json");
 
+/** Nerd Font times glyph shown when Pi experimental features are enabled. */
+export const EXPERIMENTAL_GLYPH = "\uf00d";
+
 /** Maximum time to wait for `git status` before falling back to cached state. */
 export const GIT_STATUS_TIMEOUT_MS = 500;
 
@@ -42,6 +45,7 @@ export const SEGMENT_KEYS: readonly SegmentName[] = [
 	"context",
 	"model",
 	"thinking",
+	"experimental",
 ] as const;
 
 /** Ordered footer density profiles attempted while fitting to terminal width. */
@@ -61,5 +65,6 @@ export const DEFAULT_CONFIG: FooterConfig = {
 		context: true,
 		model: true,
 		thinking: true,
+		experimental: true,
 	},
 };

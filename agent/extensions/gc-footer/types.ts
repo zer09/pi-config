@@ -6,7 +6,7 @@
  * Pi extension API remains the default export from {@link ./index.ts}.
  */
 
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext, ReadonlyFooterDataProvider } from "@earendil-works/pi-coding-agent";
 
 /**
  * Names of configurable footer segments.
@@ -20,7 +20,8 @@ export type SegmentName =
 	| "tokens"
 	| "context"
 	| "model"
-	| "thinking";
+	| "thinking"
+	| "experimental";
 
 /**
  * Per-segment enablement map loaded from footer configuration.
@@ -71,6 +72,7 @@ export type SessionTokenTotals = {
 export type RenderSnapshot = {
 	readonly contextUsage: ContextUsageSnapshot;
 	readonly cwd: string;
+	readonly experimentalFeaturesEnabled: boolean;
 	readonly formattedStatuses: readonly FormattedExtensionStatus[];
 	readonly modelContextWindow: number | undefined;
 	readonly modelId: string | undefined;
@@ -92,11 +94,7 @@ export type FooterConfig = {
 /**
  * Pi footer data made available only inside a custom footer renderer.
  */
-export type FooterData = {
-	getGitBranch(): string | null;
-	getExtensionStatuses(): ReadonlyMap<string, string>;
-	onBranchChange(callback: () => void): () => void;
-};
+export type FooterData = ReadonlyFooterDataProvider;
 
 /**
  * Mutable prompt timer state owned by one extension instance.

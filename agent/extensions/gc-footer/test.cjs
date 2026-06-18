@@ -44,6 +44,7 @@ const { visibleWidth } = require("@earendil-works/pi-tui");
 
 const extensionPath = path.join(__dirname, "index.ts");
 const ansiPattern = /\x1b\[[0-9;]*m/g;
+const experimentalGlyph = "\uf00d";
 
 function stripAnsi(value) {
 	return value.replace(ansiPattern, "");
@@ -55,6 +56,24 @@ async function waitFor(predicate, message) {
 		await new Promise((resolve) => setTimeout(resolve, 10));
 	}
 	assert.ok(predicate(), message);
+}
+
+async function withExperimental(value, fn) {
+	const oldValue = process.env.PI_EXPERIMENTAL;
+	if (value === undefined) {
+		delete process.env.PI_EXPERIMENTAL;
+	} else {
+		process.env.PI_EXPERIMENTAL = value;
+	}
+	try {
+		return await fn();
+	} finally {
+		if (oldValue === undefined) {
+			delete process.env.PI_EXPERIMENTAL;
+		} else {
+			process.env.PI_EXPERIMENTAL = oldValue;
+		}
+	}
 }
 
 async function withFakeGitStatus(output, fn) {
@@ -109,6 +128,9 @@ async function createFooter(options = {}) {
 		fg(color, text) {
 			colorCalls.push({ color, text });
 			return `\x1b[2m${text}\x1b[0m`;
+		},
+		bold(text) {
+			return `\x1b[1m${text}\x1b[0m`;
 		},
 	};
 	let thinkingLevel = options.thinkingLevel ?? "medium";
@@ -177,6 +199,7 @@ async function createFooter(options = {}) {
 		{
 			getGitBranch: () => branch,
 			getExtensionStatuses: () => statuses,
+			getAvailableProviderCount: () => options.availableProviderCount ?? 1,
 			onBranchChange: (callback) => {
 				createFooter.lastBranchCallback = callback;
 				return () => {};
@@ -228,6 +251,10 @@ function assistantEntry(usage) {
 }
 
 async function run() {
+	return withExperimental(undefined, runTests);
+}
+
+async function runTests() {
 	{
 		const footer = await createFooter({ thinkingLevel: "off" });
 		for (const [level, glyph] of [
@@ -252,6 +279,37 @@ async function run() {
 		assert.match(line, /●$/, "thinking should use unicode glyphs even when Nerd Font is disabled");
 		assert.ok(!line.includes("\uf111") && !line.includes("\uf10c"), "thinking should not use Nerd Font glyphs");
 	}
+
+	await withExperimental(undefined, async () => {
+		const footer = await createFooter();
+		assert.ok(!footer.renderPlain().includes(experimentalGlyph), "experimental marker should be hidden by default");
+	});
+
+	await withExperimental("1", async () => {
+		const footer = await createFooter();
+		assert.ok(footer.renderPlain().endsWith(experimentalGlyph), "experimental marker should show at the end when enabled");
+		assert.ok(
+			footer.getColorCalls().some((call) => call.color === "error" && call.text === experimentalGlyph),
+			"experimental marker should use the error color",
+		);
+	});
+
+	await withExperimental("1", async () => {
+		const footer = await createFooter({ config: { nerdFont: false } });
+		assert.ok(footer.renderPlain().endsWith("x"), "experimental marker should use a text fallback without Nerd Font");
+		assert.ok(!footer.renderPlain().includes(experimentalGlyph), "fallback experimental marker should not use Nerd Font glyphs");
+		assert.ok(
+			footer.getColorCalls().some((call) => call.color === "error" && call.text === "x"),
+			"fallback experimental marker should use the error color",
+		);
+	});
+
+	await withExperimental("1", async () => {
+		const footer = await createFooter({
+			config: { segments: { experimental: false } },
+		});
+		assert.ok(!footer.renderPlain().includes(experimentalGlyph), "experimental segment config should hide the marker");
+	});
 
 	{
 		const footer = await createFooter({
@@ -352,14 +410,21 @@ async function run() {
 		const footer = await createFooter();
 		const notification = await footer.runCommand();
 		assert.equal(notification.level, "info", "gc-footer command should report status");
-		assert.ok(notification.message.includes("segments: cwd, branch, statuses, timer, queue, tokens, context, model, thinking"), "command should list enabled segments");
+		assert.ok(notification.message.includes("segments: cwd, branch, statuses, timer, queue, tokens, context, model, thinking, experimental"), "command should list enabled segments");
 		assert.ok(notification.message.includes("theme: dark"), "command should report active theme name");
 		assert.ok(notification.message.includes("model: openai-codex/gpt-5.5"), "command should report current model");
 		assert.ok(!notification.message.includes("segmentProfiles:"), "command should omit absent segment profile overrides");
 		assert.ok(notification.message.includes("thinking: medium"), "command should report current thinking level");
+		assert.ok(notification.message.includes("experimental: off"), "command should report disabled experimental mode");
 		assert.ok(notification.message.includes("branch: main"), "command should report current branch");
 		assert.ok(notification.message.includes("nerdFont: on"), "command should report Nerd Font mode");
 	}
+
+	await withExperimental("1", async () => {
+		const footer = await createFooter();
+		const notification = await footer.runCommand();
+		assert.ok(notification.message.includes("experimental: on"), "command should report enabled experimental mode");
+	});
 
 	{
 		const footer = await createFooter({
@@ -374,7 +439,7 @@ async function run() {
 		});
 		const notification = await footer.runCommand("status");
 		assert.equal(notification.level, "info", "gc-footer status alias should report status");
-		assert.ok(notification.message.includes("segments: cwd, timer, queue, context, model, thinking"), "command should show config-disabled segments as omitted");
+		assert.ok(notification.message.includes("segments: cwd, timer, queue, context, model, thinking, experimental"), "command should show config-disabled segments as omitted");
 		assert.ok(notification.message.includes("nerdFont: off"), "command should report disabled Nerd Font mode");
 
 		const error = await footer.runCommand("toggle branch");
@@ -876,6 +941,22 @@ async function run() {
 			assert.ok(visibleWidth(footer.render(width)) <= width, `render should fit width ${width}`);
 		}
 	}
+
+	await withExperimental("1", async () => {
+		const footer = await createFooter({
+			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
+			statuses: new Map([
+				["a", "alpha-status-is-long"],
+				["b", "beta-status-is-long"],
+			]),
+			entries: [assistantEntry({ input: 123456, output: 45678, cacheRead: 98765, cacheWrite: 8765 })],
+			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
+		});
+		for (let width = 0; width <= 140; width += 1) {
+			assert.doesNotThrow(() => footer.render(width), `experimental render should not throw at width ${width}`);
+			assert.ok(visibleWidth(footer.render(width)) <= width, `experimental render should fit width ${width}`);
+		}
+	});
 
 	console.log("gc-footer tests passed");
 }

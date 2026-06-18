@@ -7,6 +7,7 @@
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { SEGMENT_KEYS } from "./constants";
+import { areExperimentalFeaturesEnabled } from "./experimental-format";
 import { formatModelName } from "./model-format";
 import type { FooterConfig } from "./types";
 
@@ -36,6 +37,7 @@ export function formatCommandStatus(
 		`theme: ${getActiveThemeName(ctx)}`,
 		`model: ${formatModelName(ctx.model?.provider, ctx.model?.id)}`,
 		`thinking: ${thinkingLevel}`,
+		`experimental: ${areExperimentalFeaturesEnabled() ? "on" : "off"}`,
 		`branch: ${formatBranchStatus(branch)}`,
 		`nerdFont: ${config.nerdFont ? "on" : "off"}`,
 	].join("\n");
