@@ -41,6 +41,20 @@ export function formatSize(bytes: number): string {
  * const truncated = truncateHead(markdown, { maxBytes: 1024, maxLines: 100 });
  * ```
  */
+function utf8Prefix(value: string, maxBytes: number): string {
+  if (maxBytes <= 0) return "";
+
+  let bytes = 0;
+  let end = 0;
+  for (const char of value) {
+    const charBytes = Buffer.byteLength(char, "utf8");
+    if (bytes + charBytes > maxBytes) break;
+    bytes += charBytes;
+    end += char.length;
+  }
+  return value.slice(0, end);
+}
+
 export function truncateHead(content: string, options: { readonly maxBytes: number; readonly maxLines: number }): TruncationResult {
   const totalBytes = Buffer.byteLength(content, "utf8");
   const totalLines = content.length === 0 ? 0 : content.split("\n").length;
@@ -58,7 +72,8 @@ export function truncateHead(content: string, options: { readonly maxBytes: numb
     const chunkBytes = Buffer.byteLength(chunk, "utf8");
     if (outputBytes + chunkBytes > options.maxBytes) {
       const remaining = Math.max(0, options.maxBytes - outputBytes);
-      if (remaining > 0) output.push(Buffer.from(chunk).subarray(0, remaining).toString("utf8"));
+      const partial = utf8Prefix(chunk, remaining);
+      if (partial) output.push(partial);
       break;
     }
     output.push(chunk);

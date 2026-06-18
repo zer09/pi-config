@@ -106,7 +106,7 @@ export function registerNodeTool(pi: ExtensionAPI, manager: GraphManager): void 
         sections.push(`## ${nodeTitle(node)}`);
         if (params.includeCode ?? true) {
           const code = await graph.cg.getCode(node.id);
-          if (code) sections.push("", "```" + node.language, code, "```");
+          if (typeof code === "string" && code) sections.push("", "```" + node.language, code, "```");
           else sections.push("", "_No source available for this symbol._");
         }
         const callers = graph.cg.getCallers(node.id, 1).slice(0, 8);
