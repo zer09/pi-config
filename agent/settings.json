@@ -6,6 +6,7 @@
     "npm:pi-btw",
     "npm:pi-browser-harness",
     "npm:pi-claude-bridge",
-    "npm:pi-web-access"
+    "npm:pi-web-access",
+    "npm:pi-theme-overrides"
   ]
 }
