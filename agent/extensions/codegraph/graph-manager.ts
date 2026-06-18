@@ -51,6 +51,10 @@ export interface InitializeGraphResult {
   readonly message?: string;
 }
 
+function isLockUnavailableSyncResult(result: { readonly filesChecked: number; readonly durationMs: number }): boolean {
+  return result.filesChecked === 0 && result.durationMs === 0;
+}
+
 /**
  * Manage open CodeGraph instances, readiness checks, lazy sync, and cleanup.
  *
@@ -65,6 +69,7 @@ export class GraphManager {
   private readonly syncTtlMs: number;
   private readonly autoInitPolicy: AutoInitPolicy;
   private readonly graphs = new Map<string, CachedGraph>();
+  private readonly opening = new Map<string, Promise<CachedGraph>>();
 
   /**
    * Create a manager for one Pi extension registration.
@@ -81,15 +86,27 @@ export class GraphManager {
     const canonicalRoot = await canonicalPath(root);
     const existing = this.graphs.get(canonicalRoot);
     if (existing) return existing;
-    const cg = await CodeGraph.open(canonicalRoot, { sync: false });
-    const entry: CachedGraph = {
-      root: canonicalRoot,
-      cg,
-      openedAt: Date.now(),
-      lastSyncedAt: 0,
-    };
-    this.graphs.set(canonicalRoot, entry);
-    return entry;
+
+    const inFlight = this.opening.get(canonicalRoot);
+    if (inFlight) return inFlight;
+
+    const openPromise = CodeGraph.open(canonicalRoot, { sync: false })
+      .then((cg) => {
+        const entry: CachedGraph = {
+          root: canonicalRoot,
+          cg,
+          openedAt: Date.now(),
+          lastSyncedAt: 0,
+        };
+        this.graphs.set(canonicalRoot, entry);
+        return entry;
+      })
+      .finally(() => {
+        this.opening.delete(canonicalRoot);
+      });
+
+    this.opening.set(canonicalRoot, openPromise);
+    return openPromise;
   }
 
   /**
@@ -174,7 +191,7 @@ export class GraphManager {
    * @param onUpdate - Optional progress callback.
    * @param signal - Optional abort signal for indexing.
    * @returns Initialization result and optional user-facing message.
-   * @throws Propagates CodeGraph init/index errors not represented by CodeGraph's result object.
+   * @throws Propagates CodeGraph init errors; index failures are returned as warnings.
    */
   async initializeGraph(
     root: string,
@@ -182,40 +199,54 @@ export class GraphManager {
     onUpdate?: ToolUpdateHandler,
     signal?: AbortSignal,
   ): Promise<InitializeGraphResult> {
-    const unsafe = await unsafeRootReason(root);
-    if (unsafe) return { message: `Refusing to initialize CodeGraph at ${root}: candidate root looks like ${unsafe}.` };
-    if (this.autoInitPolicy === "never") return { message: `CodeGraph is not initialized at ${root}; auto-init is disabled by CODEGRAPH_PI_AUTO_INIT=never.` };
+    const canonicalRoot = await canonicalPath(root);
+    const unsafe = await unsafeRootReason(canonicalRoot);
+    if (unsafe) return { message: `Refusing to initialize CodeGraph at ${canonicalRoot}: candidate root looks like ${unsafe}.` };
+    if (this.autoInitPolicy === "never") return { message: `CodeGraph is not initialized at ${canonicalRoot}; auto-init is disabled by CODEGRAPH_PI_AUTO_INIT=never.` };
 
     if (this.autoInitPolicy === "confirm") {
       if (!ctx.hasUI) {
-        return { message: `CodeGraph is not initialized at ${root}; no UI is available to confirm initialization. Run \`codegraph init ${root}\` or set CODEGRAPH_PI_AUTO_INIT=always for trusted roots.` };
+        return { message: `CodeGraph is not initialized at ${canonicalRoot}; no UI is available to confirm initialization. Run \`codegraph init ${canonicalRoot}\` or set CODEGRAPH_PI_AUTO_INIT=always for trusted roots.` };
       }
-      const ok = await ctx.ui.confirm("Initialize CodeGraph?", `Create .codegraph and index ${root}?`);
-      if (!ok) return { message: `CodeGraph initialization declined for ${root}.` };
+      const ok = await ctx.ui.confirm("Initialize CodeGraph?", `Create .codegraph and index ${canonicalRoot}?`);
+      if (!ok) return { message: `CodeGraph initialization declined for ${canonicalRoot}.` };
     }
 
-    onUpdate?.(textResult(`Initializing CodeGraph at ${root}...`));
-    const cg = await CodeGraph.init(root, { index: false });
+    onUpdate?.(textResult(`Initializing CodeGraph at ${canonicalRoot}...`));
+    const cg = await CodeGraph.init(canonicalRoot, { index: false });
     const entry: CachedGraph = {
-      root,
+      root: canonicalRoot,
       cg,
       openedAt: Date.now(),
       lastSyncedAt: 0,
     };
-    this.graphs.set(root, entry);
+    this.graphs.set(canonicalRoot, entry);
 
-    onUpdate?.(textResult(`Indexing ${root} with CodeGraph...`));
-    const result = await cg.indexAll({
+    onUpdate?.(textResult(`Indexing ${canonicalRoot} with CodeGraph...`));
+    const indexPromise = cg.indexAll({
       signal,
       onProgress(progress) {
-        onUpdate?.(textResult(`Indexing ${root}: ${progress.phase} ${progress.current}/${progress.total}`));
+        onUpdate?.(textResult(`Indexing ${canonicalRoot}: ${progress.phase} ${progress.current}/${progress.total}`));
       },
-    });
-    if (!result.success) {
-      return { entry, message: `CodeGraph initialized at ${root}, but initial indexing failed: ${result.errors.map((e) => e.message).join("; ")}` };
+    })
+      .then((result) => {
+        if (!result.success) {
+          throw new Error(result.errors.map((e) => e.message).join("; "));
+        }
+        entry.lastSyncedAt = Date.now();
+      })
+      .finally(() => {
+        entry.indexInFlight = undefined;
+      });
+
+    entry.indexInFlight = indexPromise;
+
+    try {
+      await indexPromise;
+      return { entry, message: `Initialized and indexed CodeGraph at ${canonicalRoot}.` };
+    } catch (error) {
+      return { entry, message: `CodeGraph initialized at ${canonicalRoot}, but initial indexing failed: ${error instanceof Error ? error.message : String(error)}` };
     }
-    entry.lastSyncedAt = Date.now();
-    return { entry, message: `Initialized and indexed CodeGraph at ${root}.` };
   }
 
   private async ensureFresh(entry: CachedGraph): Promise<string | undefined> {
@@ -240,7 +271,10 @@ export class GraphManager {
     }
 
     entry.syncInFlight = entry.cg.sync()
-      .then(() => {
+      .then((result) => {
+        if (isLockUnavailableSyncResult(result)) {
+          throw new Error("CodeGraph sync skipped because another process holds the CodeGraph write lock.");
+        }
         entry.lastSyncedAt = Date.now();
       })
       .finally(() => {
@@ -303,19 +337,50 @@ export class GraphManager {
     return graph.syncWarning ? `> ${graph.syncWarning}\n\n${content}` : content;
   }
 
+  private async closeEntry(entry: CachedGraph): Promise<void> {
+    try {
+      entry.cg.unwatch();
+    } catch {
+      // CodeGraph.close() also unwatches; this is a defensive, idempotent stop.
+    }
+
+    const operations = [entry.syncInFlight, entry.indexInFlight].filter(
+      (operation): operation is Promise<void> => !!operation,
+    );
+    await Promise.allSettled(operations);
+
+    try {
+      const deadline = Date.now() + 5_000;
+      while (entry.cg.isIndexing() && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    } catch {
+      // If indexing state cannot be read during shutdown, still attempt close.
+    }
+
+    try {
+      entry.cg.close();
+    } catch {
+      // Ignore cleanup failures during runtime shutdown.
+    }
+  }
+
   /**
    * Close all open CodeGraph instances and clear the cache.
    *
-   * @returns Nothing.
+   * @returns Promise that settles after best-effort cleanup.
    */
-  closeAll(): void {
-    for (const entry of this.graphs.values()) {
-      try {
-        entry.cg.close();
-      } catch {
-        // Ignore cleanup failures during runtime shutdown.
-      }
+  async closeAll(): Promise<void> {
+    const opening = [...this.opening.values()];
+    this.opening.clear();
+
+    if (opening.length) {
+      await Promise.allSettled(opening);
     }
+
+    const entries = [...this.graphs.values()];
     this.graphs.clear();
+
+    await Promise.allSettled(entries.map((entry) => this.closeEntry(entry)));
   }
 }

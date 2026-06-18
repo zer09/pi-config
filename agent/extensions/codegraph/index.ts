@@ -31,8 +31,8 @@ export default function codegraphExtension(pi: ExtensionAPI): void {
     autoInitPolicy: parseAutoInitPolicy(),
   });
 
-  pi.on("session_shutdown", () => {
-    manager.closeAll();
+  pi.on("session_shutdown", async () => {
+    await manager.closeAll();
   });
 
   registerCodeGraphTools(pi, manager);

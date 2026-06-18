@@ -164,6 +164,8 @@ export interface CachedGraph {
   lastSyncedAt: number;
   /** In-flight sync promise used to deduplicate concurrent sync requests. */
   syncInFlight?: Promise<void>;
+  /** In-flight initial indexing promise used to avoid closing active index work. */
+  indexInFlight?: Promise<void>;
 }
 
 /** Graph readiness success result returned to tool implementations. */
