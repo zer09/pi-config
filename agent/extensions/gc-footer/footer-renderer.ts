@@ -20,6 +20,7 @@ import { formatPromptQueue, formatPromptTimer } from "./prompt-timer";
 import { formatThinkingDot } from "./thinking-format";
 import { formatContextUsage, formatSessionTokenTotals, getSessionTokenTotals } from "./token-format";
 import type {
+	FastlaneDisplayState,
 	FooterConfig,
 	FooterData,
 	FooterPartWidths,
@@ -42,6 +43,7 @@ import type {
  * @param promptTimer - Prompt timer state.
  * @param branch - Current git branch from Pi footer data.
  * @param gitStatus - Optional richer async git status snapshot.
+ * @param fastlane - Fastlane glyph display state.
  * @returns One footer line that fits the requested width.
  */
 export function renderFooterLine(
@@ -54,10 +56,11 @@ export function renderFooterLine(
 	promptTimer: PromptTimerState,
 	branch: string | null,
 	gitStatus: GitStatus | undefined,
+	fastlane: FastlaneDisplayState,
 ): string {
 	if (width <= 0) return "";
 
-	const snapshot = createRenderSnapshot(pi, ctx, theme, footerData, config);
+	const snapshot = createRenderSnapshot(pi, ctx, theme, footerData, config, fastlane);
 	let fallback: { parts: FooterParts; widths: FooterPartWidths } | undefined;
 	for (const profile of FOOTER_PROFILES) {
 		const parts = buildFooterParts(profile, theme, config, promptTimer, branch, gitStatus, snapshot);
@@ -75,11 +78,13 @@ function createRenderSnapshot(
 	theme: Theme,
 	footerData: FooterData,
 	config: FooterConfig,
+	fastlane: FastlaneDisplayState,
 ): RenderSnapshot {
 	return {
 		contextUsage: config.segments.context ? ctx.getContextUsage() : undefined,
 		cwd: ctx.cwd,
 		experimentalFeaturesEnabled: areExperimentalFeaturesEnabled(),
+		fastlane,
 		formattedStatuses: config.segments.statuses
 			? formatExtensionStatusEntries(footerData.getExtensionStatuses(), theme, config.nerdFont)
 			: [],
@@ -122,7 +127,7 @@ function buildFooterParts(
 		showTokens ? formatSessionTokenTotals(snapshot.sessionTokenTotals, theme, tokensProfile === "full" ? "full" : "compact") : undefined,
 		config.segments.context ? formatContextUsage(snapshot.contextUsage, snapshot.modelContextWindow, theme, contextProfile === "full" ? "full" : "compact") : undefined,
 		showModel ? theme.fg("muted", formatModelName(snapshot.modelProvider, snapshot.modelId, modelProfile)) : undefined,
-		config.segments.thinking && !minimal ? formatThinkingDot(snapshot.thinkingLevel, theme) : undefined,
+		config.segments.thinking && !minimal ? formatThinkingDot(snapshot.thinkingLevel, theme, getThinkingGlyphCount(snapshot.fastlane)) : undefined,
 		config.segments.experimental && snapshot.experimentalFeaturesEnabled ? formatExperimentalMarker(theme, config.nerdFont) : undefined,
 	]);
 
@@ -131,4 +136,8 @@ function buildFooterParts(
 
 function joinSegments(segments: Array<string | undefined>): string {
 	return segments.filter((segment) => segment && visibleWidth(segment) > 0).join(" ");
+}
+
+function getThinkingGlyphCount(fastlane: FastlaneDisplayState): number {
+	return fastlane.active ? fastlane.thinkingGlyphCount : 1;
 }

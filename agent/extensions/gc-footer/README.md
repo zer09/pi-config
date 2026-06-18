@@ -11,6 +11,7 @@ Custom Pi footer extension for a compact local status line.
   - Queued follow-ups use `\uf46c 1` in Nerd Font mode and `q 1` with `"nerdFont": false`.
   - Experimental Pi features use a red `\uf00d` marker when `PI_EXPERIMENTAL=1`, or red `x` with `"nerdFont": false`.
   - Thinking uses Unicode-only shapes for every level: `○` off, `·` minimal, `◦` low, `◇` medium, `◆` high, and `●` xhigh.
+  - When the local `fastlane` extension reports active state, the thinking glyph is repeated according to Fastlane config, for example `●●●`. No `fast` text indicator is shown.
   - If your terminal does not use a Nerd Font, set `"nerdFont": false` in `config.json` to use text timer labels and text queue labels. Thinking glyphs do not require Nerd Font.
 - No extra npm packages are required. The extension uses Pi-provided packages and Node built-ins.
 
@@ -96,6 +97,19 @@ Profile-aware segments:
 `branch`, `timer`, `queue`, `thinking`, and `experimental` currently do not have profile-specific variants.
 
 Use `/gc-footer` or `/gc-footer status` to inspect the active config. Active overrides are shown as `segmentProfiles: model=compact`.
+
+## Fastlane glyph integration
+
+`gc-footer` listens for `fastlane:state` events from the local `agent/extensions/fastlane` extension.
+
+When Fastlane is active, the footer keeps the normal thinking segment but repeats the active thinking glyph by Fastlane's configured `thinkingGlyphCount`:
+
+```text
+●   -> ●●●
+◆   -> ◆◆◆
+```
+
+The footer intentionally does not render the word `fast`; repeated thinking glyphs are the indicator.
 
 ## Extension-status formatters
 

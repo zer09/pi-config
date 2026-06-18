@@ -73,6 +73,7 @@ export type RenderSnapshot = {
 	readonly contextUsage: ContextUsageSnapshot;
 	readonly cwd: string;
 	readonly experimentalFeaturesEnabled: boolean;
+	readonly fastlane: FastlaneDisplayState;
 	readonly formattedStatuses: readonly FormattedExtensionStatus[];
 	readonly modelContextWindow: number | undefined;
 	readonly modelId: string | undefined;
@@ -89,6 +90,14 @@ export type FooterConfig = {
 	nerdFont: boolean;
 	segmentProfiles: SegmentProfileConfig;
 	segments: SegmentConfig;
+};
+
+/**
+ * Render-time Fastlane display state consumed by gc-footer.
+ */
+export type FastlaneDisplayState = {
+	readonly active: boolean;
+	readonly thinkingGlyphCount: number;
 };
 
 /**

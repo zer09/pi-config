@@ -138,9 +138,21 @@ async function createFooter(options = {}) {
 	let statuses = options.statuses ?? new Map();
 	let renderRequests = 0;
 	let footerFactory;
+	const eventHandlers = new Map();
+	const events = {
+		on(name, handler) {
+			const list = eventHandlers.get(name) ?? [];
+			list.push(handler);
+			eventHandlers.set(name, list);
+		},
+		emit(name, data) {
+			for (const handler of eventHandlers.get(name) ?? []) handler(data);
+		},
+	};
 
 	try {
 		factory({
+			events,
 			on(event, handler) {
 				handlers.set(event, handler);
 			},
@@ -231,6 +243,9 @@ async function createFooter(options = {}) {
 		getRenderRequests() {
 			return renderRequests;
 		},
+		emitFastlaneState(payload) {
+			events.emit("fastlane:state", payload);
+		},
 		async emit(event, payload = {}) {
 			await handlers.get(event)?.(payload, ctx);
 		},
@@ -278,6 +293,22 @@ async function runTests() {
 		const line = footer.renderPlain();
 		assert.match(line, /●$/, "thinking should use unicode glyphs even when Nerd Font is disabled");
 		assert.ok(!line.includes("\uf111") && !line.includes("\uf10c"), "thinking should not use Nerd Font glyphs");
+	}
+
+	{
+		const footer = await createFooter({ thinkingLevel: "xhigh" });
+		footer.emitFastlaneState({ active: true, thinkingGlyphCount: 3 });
+		assert.match(footer.renderPlain(), /●●●$/, "active Fastlane should repeat the thinking glyph three times");
+		assert.ok(!footer.renderPlain().includes("fast"), "Fastlane should not render a text indicator in gc-footer");
+		assert.ok(footer.getRenderRequests() > 0, "Fastlane state changes should request a footer render");
+	}
+
+	{
+		const footer = await createFooter({ thinkingLevel: "high" });
+		footer.emitFastlaneState({ active: true, thinkingGlyphCount: 5 });
+		assert.match(footer.renderPlain(), /◆◆◆◆◆$/, "Fastlane should use the configured thinking glyph count");
+		footer.emitFastlaneState({ active: false, thinkingGlyphCount: 5 });
+		assert.match(footer.renderPlain(), /◆$/, "inactive Fastlane should restore the single thinking glyph");
 	}
 
 	await withExperimental(undefined, async () => {

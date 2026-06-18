@@ -27,6 +27,9 @@ import {
 	takePendingPromptStart,
 } from "./prompt-timer";
 import { clearRequestRender, requestFooterRender, setRequestRender } from "./render-request";
+import type { FastlaneDisplayState } from "./types";
+
+const FASTLANE_STATE_EVENT = "fastlane:state";
 
 /**
  * Register the gc-footer extension with Pi.
@@ -38,6 +41,7 @@ export default function gcFooter(pi: ExtensionAPI): void {
 	const promptTimer = createPromptTimerState();
 	const gitStatus = createGitStatusState();
 	let currentBranch: string | null | undefined;
+	let fastlaneDisplay = createInactiveFastlaneDisplayState();
 
 	pi.registerCommand("gc-footer", {
 		description: "Show gc footer status",
@@ -50,8 +54,13 @@ export default function gcFooter(pi: ExtensionAPI): void {
 				return;
 			}
 
-			ctx.ui.notify(formatCommandStatus(config, ctx, pi.getThinkingLevel(), currentBranch), "info");
+			ctx.ui.notify(formatCommandStatus(config, ctx, pi.getThinkingLevel(), currentBranch, fastlaneDisplay), "info");
 		},
+	});
+
+	pi.events.on(FASTLANE_STATE_EVENT, (data) => {
+		fastlaneDisplay = parseFastlaneDisplayState(data);
+		requestFooterRender();
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
@@ -94,6 +103,7 @@ export default function gcFooter(pi: ExtensionAPI): void {
 						promptTimer,
 						branch,
 						config.segments.branch ? getGitStatusForRender(gitStatus, ctx.cwd, branch) : undefined,
+						fastlaneDisplay,
 					)];
 				},
 			};
@@ -128,5 +138,27 @@ export default function gcFooter(pi: ExtensionAPI): void {
 		if (ctx.mode === "tui") ctx.ui.setFooter(undefined);
 		clearRequestRender();
 		currentBranch = undefined;
+		fastlaneDisplay = createInactiveFastlaneDisplayState();
 	});
+}
+
+function createInactiveFastlaneDisplayState(): FastlaneDisplayState {
+	return { active: false, thinkingGlyphCount: 1 };
+}
+
+function parseFastlaneDisplayState(data: unknown): FastlaneDisplayState {
+	if (typeof data !== "object" || data === null || Array.isArray(data)) {
+		return createInactiveFastlaneDisplayState();
+	}
+
+	const event = data as { active?: unknown; thinkingGlyphCount?: unknown };
+	return {
+		active: event.active === true,
+		thinkingGlyphCount: normalizeThinkingGlyphCount(event.thinkingGlyphCount),
+	};
+}
+
+function normalizeThinkingGlyphCount(value: unknown): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) return 1;
+	return Math.max(1, Math.min(12, Math.trunc(value)));
 }

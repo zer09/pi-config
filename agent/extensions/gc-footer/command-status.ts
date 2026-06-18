@@ -9,7 +9,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { SEGMENT_KEYS } from "./constants";
 import { areExperimentalFeaturesEnabled } from "./experimental-format";
 import { formatModelName } from "./model-format";
-import type { FooterConfig } from "./types";
+import type { FastlaneDisplayState, FooterConfig } from "./types";
 
 /**
  * Build the diagnostic status message shown by `/gc-footer`.
@@ -18,6 +18,7 @@ import type { FooterConfig } from "./types";
  * @param ctx - Current Pi extension context.
  * @param thinkingLevel - Active thinking level reported by Pi.
  * @param branch - Last branch value observed by the footer renderer.
+ * @param fastlane - Current Fastlane display state.
  * @returns Multiline status text for a Pi notification.
  */
 export function formatCommandStatus(
@@ -25,6 +26,7 @@ export function formatCommandStatus(
 	ctx: ExtensionContext,
 	thinkingLevel: string,
 	branch: string | null | undefined,
+	fastlane: FastlaneDisplayState,
 ): string {
 	const enabledSegments = SEGMENT_KEYS.filter((key) => config.segments[key]).join(", ");
 	const segmentProfiles = formatSegmentProfileOverrides(config);
@@ -37,6 +39,7 @@ export function formatCommandStatus(
 		`theme: ${getActiveThemeName(ctx)}`,
 		`model: ${formatModelName(ctx.model?.provider, ctx.model?.id)}`,
 		`thinking: ${thinkingLevel}`,
+		`fastlaneGlyphs: ${formatFastlaneStatus(fastlane)}`,
 		`experimental: ${areExperimentalFeaturesEnabled() ? "on" : "off"}`,
 		`branch: ${formatBranchStatus(branch)}`,
 		`nerdFont: ${config.nerdFont ? "on" : "off"}`,
@@ -48,6 +51,10 @@ function formatSegmentProfileOverrides(config: FooterConfig): string {
 		const override = config.segmentProfiles[key];
 		return override && override !== "inherit" ? `${key}=${override}` : undefined;
 	}).filter(Boolean).join(", ");
+}
+
+function formatFastlaneStatus(fastlane: FastlaneDisplayState): string {
+	return fastlane.active ? `active x${fastlane.thinkingGlyphCount}` : "inactive";
 }
 
 function getActiveThemeName(ctx: ExtensionContext): string {
