@@ -19,7 +19,7 @@ import type { CodeGraphInstance } from "./types.ts";
  */
 export function normalizeFileFilter(file: string | undefined): string | undefined {
   if (!file?.trim()) return undefined;
-  return normalizeSlashes(stripAtPath(file.trim())).replace(/^\.\//, "");
+  return normalizeSlashes(stripAtPath(file.trim())).replace(/^(?:\.\/)+/, "");
 }
 
 /**
@@ -31,7 +31,7 @@ export function normalizeFileFilter(file: string | undefined): string | undefine
  */
 export function fileMatches(filePath: string, filter: string): boolean {
   const file = normalizeSlashes(filePath);
-  const wanted = normalizeSlashes(filter).replace(/^\.\//, "");
+  const wanted = normalizeSlashes(filter).replace(/^(?:\.\/)+/, "");
   return file === wanted || file.endsWith(`/${wanted}`) || path.posix.basename(file) === wanted;
 }
 
@@ -91,8 +91,11 @@ export interface LineNumberedSource {
 export function lineNumbered(content: string, offset?: number, limit?: number): LineNumberedSource {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
   if (lines.length && lines[lines.length - 1] === "") lines.pop();
-  const start = Math.max(1, Math.floor(offset ?? 1));
-  const end = limit ? Math.min(lines.length, start + Math.max(1, Math.floor(limit)) - 1) : lines.length;
+  const rawStart = typeof offset === "number" && Number.isFinite(offset) ? Math.floor(offset) : 1;
+  const start = Math.max(1, rawStart);
+  const rawLimit = typeof limit === "number" && Number.isFinite(limit) ? Math.floor(limit) : undefined;
+  const count = rawLimit !== undefined ? Math.max(1, rawLimit) : lines.length;
+  const end = Math.min(lines.length, start + count - 1);
   const selected = lines.slice(start - 1, end).map((line, index) => `${start + index}\t${line}`).join("\n");
   return { text: selected, shownStart: start, shownEnd: end, total: lines.length };
 }

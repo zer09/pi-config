@@ -8,7 +8,7 @@
 
 import { Type } from "typebox";
 import type { TSchema } from "typebox";
-import { MAX_TOOL_RESULTS } from "./constants.ts";
+import { MAX_CODEGRAPH_QUERY_CHARS, MAX_TOOL_RESULTS } from "./constants.ts";
 
 /** Shared optional `projectPath` schema used by every CodeGraph tool. */
 export const ProjectPathSchema = Type.Optional(Type.String({
@@ -68,4 +68,40 @@ export function createStringEnumSchema<T extends readonly string[]>(values: T, o
 export function coerceLimit(value: unknown, defaultValue: number, max = MAX_TOOL_RESULTS): number {
   const n = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : defaultValue;
   return Math.max(1, Math.min(max, n));
+}
+
+/** Result of validating user text before passing it to CodeGraph search APIs. */
+export type QueryTextValidation =
+  | { readonly ok: true; readonly value: string }
+  | { readonly ok: false; readonly message: string };
+
+/**
+ * Trim and bound user text before passing it to SQLite-backed CodeGraph APIs.
+ *
+ * @param value - User-provided query or symbol text.
+ * @param label - Human-readable parameter label for error messages.
+ * @returns Trimmed text or a user-facing validation message.
+ */
+export function validateQueryText(value: unknown, label: string): QueryTextValidation {
+  if (typeof value !== "string") return { ok: false, message: `${label} must be a string.` };
+  const query = value.trim();
+  if (!query) return { ok: false, message: `${label} requires a non-empty value.` };
+  if (query.length > MAX_CODEGRAPH_QUERY_CHARS) {
+    return { ok: false, message: `${label} is too long (${query.length} characters; max ${MAX_CODEGRAPH_QUERY_CHARS}). Use a shorter, more specific query.` };
+  }
+  return { ok: true, value: query };
+}
+
+/**
+ * Convert known CodeGraph search-query failures into user-facing messages.
+ *
+ * @param error - Error thrown by CodeGraph search/context APIs.
+ * @returns Message for known user-input failures, otherwise undefined.
+ */
+export function formatCodeGraphQueryError(error: unknown): string | undefined {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  if (/LIKE or GLOB pattern too complex/i.test(message)) {
+    return "CodeGraph query is too complex for SQLite pattern matching. Use a shorter, more specific query.";
+  }
+  return undefined;
 }

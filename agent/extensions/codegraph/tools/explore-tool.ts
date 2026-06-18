@@ -6,10 +6,10 @@
  */
 
 import { Type } from "typebox";
-import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "../constants.ts";
+import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, MAX_CODEGRAPH_QUERY_CHARS } from "../constants.ts";
 import type { GraphManager } from "../graph-manager.ts";
 import { formatSize, textResult } from "../result.ts";
-import { coerceLimit, createLimitSchema, ProjectPathSchema } from "../tool-parameters.ts";
+import { coerceLimit, createLimitSchema, formatCodeGraphQueryError, ProjectPathSchema, validateQueryText } from "../tool-parameters.ts";
 import type { ExploreToolParams, ExtensionAPI, ExtensionContext, ToolDefinition, ToolResult, ToolUpdateHandler } from "../types.ts";
 
 /**
@@ -35,7 +35,7 @@ export function registerExploreTool(pi: ExtensionAPI, manager: GraphManager): vo
       "Use codegraph_explore instead of grep/read exploration for indexed source code; fall back to raw file tools only for docs/configs/unindexed or stale files.",
     ],
     parameters: Type.Object({
-      query: Type.String({ description: "Natural-language question or symbol/file names to explore." }),
+      query: Type.String({ description: "Natural-language question or symbol/file names to explore.", minLength: 1, maxLength: MAX_CODEGRAPH_QUERY_CHARS }),
       maxNodes: createLimitSchema(30, 200),
       includeCode: Type.Optional(Type.Boolean({ description: "Include source blocks in the response.", default: true })),
       projectPath: ProjectPathSchema,
@@ -47,13 +47,23 @@ export function registerExploreTool(pi: ExtensionAPI, manager: GraphManager): vo
       onUpdate: ToolUpdateHandler | undefined,
       ctx: ExtensionContext,
     ): Promise<ToolResult> {
+      const query = validateQueryText(params.query, "codegraph_explore query");
+      if (!query.ok) return textResult(query.message);
+
       const graph = await manager.ensureReady(params.projectPath, ctx, onUpdate, signal);
       if (graph.ok === false) return textResult(graph.message, { snapshot: graph.snapshot });
-      const output = await graph.cg.buildContext(params.query, {
-        maxNodes: coerceLimit(params.maxNodes, 30, 200),
-        includeCode: params.includeCode ?? true,
-        format: "markdown",
-      });
+      let output: unknown;
+      try {
+        output = await graph.cg.buildContext(query.value, {
+          maxNodes: coerceLimit(params.maxNodes, 30, 200),
+          includeCode: params.includeCode ?? true,
+          format: "markdown",
+        });
+      } catch (error) {
+        const message = formatCodeGraphQueryError(error);
+        if (message) return textResult(message, { root: graph.root, snapshot: graph.snapshot });
+        throw error;
+      }
       return textResult(manager.withWarningPrefix(graph, String(output)), { root: graph.root, snapshot: graph.snapshot });
     },
   };

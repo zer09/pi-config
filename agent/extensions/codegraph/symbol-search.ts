@@ -7,6 +7,7 @@
  */
 
 import type { NodeKind, SearchResult } from "@colbymchenry/codegraph";
+import { MAX_CODEGRAPH_QUERY_CHARS } from "./constants.ts";
 import { fileMatches, normalizeFileFilter } from "./source-files.ts";
 import type { CodeGraphInstance } from "./types.ts";
 
@@ -45,7 +46,7 @@ export interface SearchMatchesOptions {
  */
 export function searchMatches(cg: CodeGraphInstance, symbol: string, options: SearchMatchesOptions = {}): SearchResult[] {
   const query = symbol.trim();
-  if (!query) return [];
+  if (!query || query.length > MAX_CODEGRAPH_QUERY_CHARS) return [];
 
   const searchLimit = Math.max(options.limit ?? 10, 50);
   const exact = /^[\w$#:.<>-]+$/.test(query)

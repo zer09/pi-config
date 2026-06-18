@@ -21,6 +21,9 @@ export const DEFAULT_GIT_TIMEOUT_MS = 2_000;
 /** Default maximum number of tool results accepted by shared schemas. */
 export const MAX_TOOL_RESULTS = 100;
 
+/** Maximum query/symbol characters passed to SQLite-backed CodeGraph search APIs. */
+export const MAX_CODEGRAPH_QUERY_CHARS = 4_096;
+
 /** Fixed set of CodeGraph node kinds exposed by the search tool schema. */
 export const NODE_KIND_VALUES = [
   "file",

@@ -5,12 +5,13 @@
  * kind filter and shared output truncation.
  */
 
+import type { SearchResult } from "@colbymchenry/codegraph";
 import { Type } from "typebox";
-import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, NODE_KIND_VALUES } from "../constants.ts";
+import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, MAX_CODEGRAPH_QUERY_CHARS, NODE_KIND_VALUES } from "../constants.ts";
 import type { GraphManager } from "../graph-manager.ts";
 import { formatNodeLine } from "../node-format.ts";
 import { formatSize, textResult } from "../result.ts";
-import { coerceLimit, createLimitSchema, createStringEnumSchema, ProjectPathSchema } from "../tool-parameters.ts";
+import { coerceLimit, createLimitSchema, createStringEnumSchema, formatCodeGraphQueryError, ProjectPathSchema, validateQueryText } from "../tool-parameters.ts";
 import type { ExtensionAPI, ExtensionContext, SearchToolParams, ToolDefinition, ToolResult, ToolUpdateHandler } from "../types.ts";
 
 /**
@@ -30,7 +31,7 @@ export function registerSearchTool(pi: ExtensionAPI, manager: GraphManager): voi
       "Use codegraph_search only to locate indexed symbols by name; use codegraph_explore for understanding an area.",
     ],
     parameters: Type.Object({
-      query: Type.String({ description: "Symbol name or text to search for.", minLength: 1 }),
+      query: Type.String({ description: "Symbol name or text to search for.", minLength: 1, maxLength: MAX_CODEGRAPH_QUERY_CHARS }),
       kind: Type.Optional(createStringEnumSchema(NODE_KIND_VALUES, { description: "Optional node kind filter." })),
       limit: createLimitSchema(20),
       projectPath: ProjectPathSchema,
@@ -42,19 +43,26 @@ export function registerSearchTool(pi: ExtensionAPI, manager: GraphManager): voi
       onUpdate: ToolUpdateHandler | undefined,
       ctx: ExtensionContext,
     ): Promise<ToolResult> {
-      const query = params.query.trim();
-      if (!query) return textResult("codegraph_search requires a non-empty query.");
+      const query = validateQueryText(params.query, "codegraph_search query");
+      if (!query.ok) return textResult(query.message);
 
       const graph = await manager.ensureReady(params.projectPath, ctx, onUpdate, signal);
       if (graph.ok === false) return textResult(graph.message, { snapshot: graph.snapshot });
       const limit = coerceLimit(params.limit, 20);
-      const results = graph.cg.searchNodes(query, {
-        limit,
-        kinds: params.kind ? [params.kind] : undefined,
-      });
+      let results: SearchResult[];
+      try {
+        results = graph.cg.searchNodes(query.value, {
+          limit,
+          kinds: params.kind ? [params.kind] : undefined,
+        });
+      } catch (error) {
+        const message = formatCodeGraphQueryError(error);
+        if (message) return textResult(message, { root: graph.root, snapshot: graph.snapshot });
+        throw error;
+      }
       const lines = results.length
         ? results.map((result) => formatNodeLine(result.node, { score: result.score }))
-        : [`No CodeGraph symbols found for ${JSON.stringify(query)}.`];
+        : [`No CodeGraph symbols found for ${JSON.stringify(query.value)}.`];
       return textResult(manager.withWarningPrefix(graph, lines.join("\n")), { root: graph.root, count: results.length, snapshot: graph.snapshot });
     },
   };

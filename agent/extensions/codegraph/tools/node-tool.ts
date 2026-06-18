@@ -8,14 +8,14 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { Type } from "typebox";
-import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "../constants.ts";
+import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, MAX_CODEGRAPH_QUERY_CHARS } from "../constants.ts";
 import type { GraphManager } from "../graph-manager.ts";
 import { formatReferenceLine, nodeTitle } from "../node-format.ts";
 import { fileExists } from "../paths.ts";
 import { formatSize, textResult } from "../result.ts";
 import { findIndexedFiles, formatFileChoices, formatSymbolOutline, lineNumbered } from "../source-files.ts";
 import { formatNoMatches, searchMatches } from "../symbol-search.ts";
-import { coerceLimit, ProjectPathSchema } from "../tool-parameters.ts";
+import { coerceLimit, formatCodeGraphQueryError, ProjectPathSchema, validateQueryText } from "../tool-parameters.ts";
 import type { ExtensionAPI, ExtensionContext, NodeToolParams, ToolDefinition, ToolResult, ToolUpdateHandler } from "../types.ts";
 
 /**
@@ -36,7 +36,7 @@ export function registerNodeTool(pi: ExtensionAPI, manager: GraphManager): void 
       "Use codegraph_node for exact source after codegraph_explore when one specific indexed symbol or file needs more detail.",
     ],
     parameters: Type.Object({
-      symbol: Type.Optional(Type.String({ description: "Symbol name to inspect. Provide either symbol or file." })),
+      symbol: Type.Optional(Type.String({ description: "Symbol name to inspect. Provide either symbol or file.", minLength: 1, maxLength: MAX_CODEGRAPH_QUERY_CHARS })),
       file: Type.Optional(Type.String({ description: "Indexed file path/suffix to read. Provide either symbol or file." })),
       includeCode: Type.Optional(Type.Boolean({ description: "Include source code for symbol mode.", default: true })),
       offset: Type.Optional(Type.Integer({ description: "1-indexed starting line for file mode.", minimum: 1 })),
@@ -86,9 +86,19 @@ export function registerNodeTool(pi: ExtensionAPI, manager: GraphManager): void 
         throw new Error("codegraph_node requires either `symbol` or `file`.");
       }
 
+      const symbol = validateQueryText(params.symbol, "Symbol name");
+      if (!symbol.ok) return textResult(symbol.message, { root: graph.root, snapshot: graph.snapshot });
+
       const definitionLimit = coerceLimit(params.limit, 5, 25);
-      const matches = searchMatches(graph.cg, params.symbol, { limit: definitionLimit });
-      if (matches.length === 0) return textResult(formatNoMatches(params.symbol), { root: graph.root, snapshot: graph.snapshot });
+      let matches: ReturnType<typeof searchMatches>;
+      try {
+        matches = searchMatches(graph.cg, symbol.value, { limit: definitionLimit });
+      } catch (error) {
+        const message = formatCodeGraphQueryError(error);
+        if (message) return textResult(message, { root: graph.root, snapshot: graph.snapshot });
+        throw error;
+      }
+      if (matches.length === 0) return textResult(formatNoMatches(symbol.value), { root: graph.root, snapshot: graph.snapshot });
 
       const sections: string[] = [];
       for (const match of matches) {
