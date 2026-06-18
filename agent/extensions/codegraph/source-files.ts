@@ -91,13 +91,18 @@ export interface LineNumberedSource {
 export function lineNumbered(content: string, offset?: number, limit?: number): LineNumberedSource {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
   if (lines.length && lines[lines.length - 1] === "") lines.pop();
+  const total = lines.length;
+  if (total === 0) return { text: "", shownStart: 0, shownEnd: 0, total };
+
   const rawStart = typeof offset === "number" && Number.isFinite(offset) ? Math.floor(offset) : 1;
   const start = Math.max(1, rawStart);
+  if (start > total) return { text: "", shownStart: 0, shownEnd: 0, total };
+
   const rawLimit = typeof limit === "number" && Number.isFinite(limit) ? Math.floor(limit) : undefined;
-  const count = rawLimit !== undefined ? Math.max(1, rawLimit) : lines.length;
-  const end = Math.min(lines.length, start + count - 1);
+  const count = rawLimit !== undefined ? Math.max(1, rawLimit) : total;
+  const end = Math.min(total, start + count - 1);
   const selected = lines.slice(start - 1, end).map((line, index) => `${start + index}\t${line}`).join("\n");
-  return { text: selected, shownStart: start, shownEnd: end, total: lines.length };
+  return { text: selected, shownStart: start, shownEnd: end, total };
 }
 
 /**

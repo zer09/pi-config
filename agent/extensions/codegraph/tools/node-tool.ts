@@ -78,12 +78,16 @@ export function registerNodeTool(pi: ExtensionAPI, manager: GraphManager): void 
         }
         const source = await readFile(absoluteFile, "utf8");
         const numbered = lineNumbered(source, params.offset, params.limit);
-        const range = `(lines ${numbered.shownStart}-${numbered.shownEnd} of ${numbered.total})`;
+        const range = numbered.shownStart > 0
+          ? `(lines ${numbered.shownStart}-${numbered.shownEnd} of ${numbered.total})`
+          : numbered.total === 0
+            ? `(no source lines; file is empty)`
+            : `(no source lines at offset ${params.offset}; file has ${numbered.total} lines)`;
         return textResult(manager.withWarningPrefix(graph, `${header.join("\n")}## Source ${range}\n\n${numbered.text}`), { root: graph.root, file: file.path, range, snapshot: graph.snapshot });
       }
 
-      if (!params.symbol) {
-        throw new Error("codegraph_node requires either `symbol` or `file`.");
+      if (params.symbol === undefined) {
+        return textResult("codegraph_node requires either `symbol` or `file`.", { root: graph.root, snapshot: graph.snapshot });
       }
 
       const symbol = validateQueryText(params.symbol, "Symbol name");
