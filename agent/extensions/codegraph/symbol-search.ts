@@ -45,6 +45,8 @@ export interface SearchMatchesOptions {
  */
 export function searchMatches(cg: CodeGraphInstance, symbol: string, options: SearchMatchesOptions = {}): SearchResult[] {
   const query = symbol.trim();
+  if (!query) return [];
+
   const searchLimit = Math.max(options.limit ?? 10, 50);
   const exact = /^[\w$#:.<>-]+$/.test(query)
     ? cg.getNodesByName(query).map((node) => ({ node, score: 1 }))

@@ -30,7 +30,7 @@ export function registerSearchTool(pi: ExtensionAPI, manager: GraphManager): voi
       "Use codegraph_search only to locate indexed symbols by name; use codegraph_explore for understanding an area.",
     ],
     parameters: Type.Object({
-      query: Type.String({ description: "Symbol name or text to search for." }),
+      query: Type.String({ description: "Symbol name or text to search for.", minLength: 1 }),
       kind: Type.Optional(createStringEnumSchema(NODE_KIND_VALUES, { description: "Optional node kind filter." })),
       limit: createLimitSchema(20),
       projectPath: ProjectPathSchema,
@@ -42,16 +42,19 @@ export function registerSearchTool(pi: ExtensionAPI, manager: GraphManager): voi
       onUpdate: ToolUpdateHandler | undefined,
       ctx: ExtensionContext,
     ): Promise<ToolResult> {
+      const query = params.query.trim();
+      if (!query) return textResult("codegraph_search requires a non-empty query.");
+
       const graph = await manager.ensureReady(params.projectPath, ctx, onUpdate, signal);
       if (graph.ok === false) return textResult(graph.message, { snapshot: graph.snapshot });
       const limit = coerceLimit(params.limit, 20);
-      const results = graph.cg.searchNodes(params.query, {
+      const results = graph.cg.searchNodes(query, {
         limit,
         kinds: params.kind ? [params.kind] : undefined,
       });
       const lines = results.length
         ? results.map((result) => formatNodeLine(result.node, { score: result.score }))
-        : [`No CodeGraph symbols found for ${JSON.stringify(params.query)}.`];
+        : [`No CodeGraph symbols found for ${JSON.stringify(query)}.`];
       return textResult(manager.withWarningPrefix(graph, lines.join("\n")), { root: graph.root, count: results.length, snapshot: graph.snapshot });
     },
   };
