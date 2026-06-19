@@ -42,6 +42,7 @@ export default function gcFooter(pi: ExtensionAPI): void {
 	const gitStatus = createGitStatusState();
 	let currentBranch: string | null | undefined;
 	let fastlaneDisplay = createInactiveFastlaneDisplayState();
+	let unsubscribeFastlaneState: (() => void) | undefined;
 
 	pi.registerCommand("gc-footer", {
 		description: "Show gc footer status",
@@ -58,7 +59,7 @@ export default function gcFooter(pi: ExtensionAPI): void {
 		},
 	});
 
-	pi.events.on(FASTLANE_STATE_EVENT, (data) => {
+	unsubscribeFastlaneState = pi.events.on(FASTLANE_STATE_EVENT, (data) => {
 		fastlaneDisplay = parseFastlaneDisplayState(data);
 		requestFooterRender();
 	});
@@ -133,6 +134,8 @@ export default function gcFooter(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
+		unsubscribeFastlaneState?.();
+		unsubscribeFastlaneState = undefined;
 		clearPromptTimer(promptTimer);
 		clearGitStatus(gitStatus);
 		if (ctx.mode === "tui") ctx.ui.setFooter(undefined);

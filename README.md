@@ -167,6 +167,8 @@ pi list
 pi update --extensions
 ```
 
+Pi 0.79.7 and newer changed update defaults: bare `pi update` updates the Pi CLI only. Use `pi update --extensions` for configured packages, or `pi update --all` when you intentionally want both the CLI and configured packages updated.
+
 Review third-party packages before installing them. Extensions execute code with your system permissions, and skills can instruct the agent to run commands.
 
 ## Useful Pi commands
@@ -176,7 +178,9 @@ pi                         # start interactive TUI
 pi -p "summarize this repo" # print mode for scripts
 pi --mode json -p "task"    # JSON event stream mode
 pi install -l npm:pkg       # add a package to project settings
-pi update --extensions      # update configured packages/extensions
+pi update                   # update Pi CLI only
+pi update --extensions      # update configured packages/extensions only
+pi update --all             # update Pi CLI and configured packages/extensions
 ```
 
 Inside the TUI, useful commands include:
