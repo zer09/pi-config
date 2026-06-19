@@ -9,6 +9,7 @@ import { Type } from "typebox";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, MAX_CODEGRAPH_QUERY_CHARS } from "../constants.ts";
 import type { GraphManager } from "../graph-manager.ts";
 import { formatReferenceLine, nodeTitle } from "../node-format.ts";
+import { registerCodeGraphTool } from "../render.ts";
 import { formatSize, textResult } from "../result.ts";
 import { formatNoMatches, searchMatches } from "../symbol-search.ts";
 import { coerceLimit, createLimitSchema, formatCodeGraphQueryError, ProjectPathSchema, validateQueryText } from "../tool-parameters.ts";
@@ -70,5 +71,5 @@ export function registerCalleesTool(pi: ExtensionAPI, manager: GraphManager): vo
     },
   };
 
-  pi.registerTool(tool);
+  registerCodeGraphTool(pi, tool);
 }

@@ -10,6 +10,7 @@ import { Type } from "typebox";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, MAX_CODEGRAPH_QUERY_CHARS, NODE_KIND_VALUES } from "../constants.ts";
 import type { GraphManager } from "../graph-manager.ts";
 import { formatNodeLine } from "../node-format.ts";
+import { registerCodeGraphTool } from "../render.ts";
 import { formatSize, textResult } from "../result.ts";
 import { coerceLimit, createLimitSchema, createStringEnumSchema, formatCodeGraphQueryError, ProjectPathSchema, validateQueryText } from "../tool-parameters.ts";
 import type { ExtensionAPI, ExtensionContext, SearchToolParams, ToolDefinition, ToolResult, ToolUpdateHandler } from "../types.ts";
@@ -67,5 +68,5 @@ export function registerSearchTool(pi: ExtensionAPI, manager: GraphManager): voi
     },
   };
 
-  pi.registerTool(tool);
+  registerCodeGraphTool(pi, tool);
 }

@@ -9,6 +9,7 @@
 import { Type } from "typebox";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "../constants.ts";
 import type { GraphManager } from "../graph-manager.ts";
+import { registerCodeGraphTool } from "../render.ts";
 import { formatSize, textResult } from "../result.ts";
 import { formatStatus } from "../status-format.ts";
 import { ProjectPathSchema } from "../tool-parameters.ts";
@@ -56,5 +57,5 @@ export function registerStatusTool(pi: ExtensionAPI, manager: GraphManager): voi
     },
   };
 
-  pi.registerTool(tool);
+  registerCodeGraphTool(pi, tool);
 }

@@ -8,6 +8,7 @@
 import { Type } from "typebox";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, MAX_CODEGRAPH_QUERY_CHARS } from "../constants.ts";
 import type { GraphManager } from "../graph-manager.ts";
+import { registerCodeGraphTool } from "../render.ts";
 import { formatSize, textResult } from "../result.ts";
 import { coerceLimit, createLimitSchema, formatCodeGraphQueryError, ProjectPathSchema, validateQueryText } from "../tool-parameters.ts";
 import type { ExploreToolParams, ExtensionAPI, ExtensionContext, ToolDefinition, ToolResult, ToolUpdateHandler } from "../types.ts";
@@ -68,5 +69,5 @@ export function registerExploreTool(pi: ExtensionAPI, manager: GraphManager): vo
     },
   };
 
-  pi.registerTool(tool);
+  registerCodeGraphTool(pi, tool);
 }

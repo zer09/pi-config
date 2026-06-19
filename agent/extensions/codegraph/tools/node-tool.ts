@@ -12,6 +12,7 @@ import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, MAX_CODEGRAPH_QUERY_CHARS } from 
 import type { GraphManager } from "../graph-manager.ts";
 import { formatReferenceLine, nodeTitle } from "../node-format.ts";
 import { fileExists } from "../paths.ts";
+import { registerCodeGraphTool } from "../render.ts";
 import { formatSize, textResult } from "../result.ts";
 import { findIndexedFiles, formatFileChoices, formatSymbolOutline, lineNumbered } from "../source-files.ts";
 import { formatNoMatches, searchMatches } from "../symbol-search.ts";
@@ -123,5 +124,5 @@ export function registerNodeTool(pi: ExtensionAPI, manager: GraphManager): void 
     },
   };
 
-  pi.registerTool(tool);
+  registerCodeGraphTool(pi, tool);
 }

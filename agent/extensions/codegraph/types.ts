@@ -9,6 +9,8 @@
 
 import type * as CodeGraphTypes from "@colbymchenry/codegraph";
 import type { NodeKind } from "@colbymchenry/codegraph";
+import type { Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
+import type { Component } from "@earendil-works/pi-tui";
 
 /** CodeGraph library instance type used by the extension runtime. */
 export type CodeGraphInstance = CodeGraphTypes.CodeGraph;
@@ -103,6 +105,34 @@ export interface ToolResult {
 /** Callback used to stream progress updates from long-running tool calls. */
 export type ToolUpdateHandler = (result: ToolResult) => void;
 
+/** Minimal TUI context passed by Pi to custom tool renderers. */
+export interface ToolRenderContext<TState = unknown, TArgs = unknown> {
+  /** Current tool call arguments. */
+  readonly args: TArgs;
+  /** Unique id for this tool execution. */
+  readonly toolCallId: string;
+  /** Request a rerender of this tool execution component. */
+  readonly invalidate: () => void;
+  /** Previously returned component for this render slot, if any. */
+  readonly lastComponent: Component | undefined;
+  /** Shared renderer state for this tool row. */
+  readonly state: TState;
+  /** Working directory for this tool execution. */
+  readonly cwd: string;
+  /** Whether execution has started. */
+  readonly executionStarted: boolean;
+  /** Whether tool call arguments are complete. */
+  readonly argsComplete: boolean;
+  /** Whether the result is partial/streaming. */
+  readonly isPartial: boolean;
+  /** Whether the result view is expanded. */
+  readonly expanded: boolean;
+  /** Whether inline images are currently shown. */
+  readonly showImages: boolean;
+  /** Whether the current result is an error. */
+  readonly isError: boolean;
+}
+
 /** Generic Pi custom tool definition used by this extension. */
 export interface ToolDefinition<Params extends object = Record<string, unknown>> {
   /** Stable tool name exposed to the model. */
@@ -117,6 +147,12 @@ export interface ToolDefinition<Params extends object = Record<string, unknown>>
   readonly promptGuidelines: readonly string[];
   /** TypeBox schema for tool parameters. */
   readonly parameters: unknown;
+  /** Controls whether Pi or the tool renders the surrounding TUI shell. */
+  readonly renderShell?: "default" | "self";
+  /** Custom TUI rendering for the tool call row. */
+  readonly renderCall?: (args: Params | undefined, theme: Theme, context: ToolRenderContext<unknown, Params>) => Component;
+  /** Custom TUI rendering for the tool result row. */
+  readonly renderResult?: (result: ToolResult, options: ToolRenderResultOptions, theme: Theme, context: ToolRenderContext) => Component;
   /**
    * Execute the tool.
    *

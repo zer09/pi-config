@@ -12,6 +12,7 @@ import { Type } from "typebox";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "../constants.ts";
 import type { GraphManager } from "../graph-manager.ts";
 import { expandHome, isPathInside, normalizeSlashes, stripAtPath } from "../paths.ts";
+import { registerCodeGraphTool } from "../render.ts";
 import { formatSize, textResult } from "../result.ts";
 import { createStringEnumSchema, ProjectPathSchema } from "../tool-parameters.ts";
 import type { ExtensionAPI, ExtensionContext, FilesFormat, FilesToolParams, ToolDefinition, ToolResult, ToolUpdateHandler } from "../types.ts";
@@ -115,7 +116,7 @@ export function registerFilesTool(pi: ExtensionAPI, manager: GraphManager): void
     },
   };
 
-  pi.registerTool(tool);
+  registerCodeGraphTool(pi, tool);
 }
 
 function normalizeFilters(params: FilesToolParams, root: string): NormalizedFilters {
