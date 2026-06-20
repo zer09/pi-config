@@ -62,7 +62,7 @@ export function formatSessionTokenTotals(
 	const outputPart = `↓${formatTokens(totals.output)}${profile === "full" && totals.cacheWrite ? `/W${formatTokens(totals.cacheWrite)}` : ""}`;
 	const hitRatePart = totals.latestCacheHitRate === undefined
 		? undefined
-		: `(${getDisplayedTokenPercent(totals.latestCacheHitRate, "fixed").text})`;
+		: `(${Math.floor(totals.latestCacheHitRate)}%)`;
 	const tokenPart = `(${inputPart} · ${outputPart})`;
 	return theme.fg("muted", [hitRatePart, tokenPart].filter(Boolean).join(" "));
 }
@@ -101,13 +101,7 @@ function getTokenPercent(tokens: number, contextWindow: number, percent: number 
 		: (tokens / contextWindow) * 100;
 }
 
-function getDisplayedTokenPercent(percent: number, mode: "context" | "fixed" = "context"): { text: string; value: number } {
-	if (mode === "fixed") {
-		if (percent === 0) return { text: "0%", value: 0 };
-		const text = percent.toFixed(1);
-		return { text: `${text}%`, value: Number(text) };
-	}
-
+function getDisplayedTokenPercent(percent: number): { text: string; value: number } {
 	if (percent < 10 && !Number.isInteger(percent)) {
 		const text = percent.toFixed(1);
 		return { text: `${text}%`, value: Number(text) };

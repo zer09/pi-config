@@ -727,7 +727,7 @@ async function runTests() {
 			contextUsage: { tokens: 9400, contextWindow: 272000, percent: 3.45 },
 		});
 		assert.ok(
-			footer.renderPlain().includes("(20.0%) (↑12k/R4k · ↓3k/W4k) (3.5%) (9.4k/272k) openai-codex/gpt-5.5"),
+			footer.renderPlain().includes("(20%) (↑12k/R4k · ↓3k/W4k) (3.5%) (9.4k/272k) openai-codex/gpt-5.5"),
 			"right side should include cache hit rate, token totals, context percentage, context usage, model, and thinking",
 		);
 	}
@@ -739,7 +739,7 @@ async function runTests() {
 			contextUsage: { tokens: 9400, contextWindow: 272000, percent: 3.45 },
 		});
 		const line = footer.renderPlain(160);
-		assert.ok(line.includes("(20.0%) (↑12k/R4k · ↓3k/W4k) (3.5%) (9.4k/272k)"), "model profile override should leave other full-profile segments unchanged");
+		assert.ok(line.includes("(20%) (↑12k/R4k · ↓3k/W4k) (3.5%) (9.4k/272k)"), "model profile override should leave other full-profile segments unchanged");
 		assert.ok(line.includes("codex/gpt-5.5"), "model compact override should shorten the model in full layout");
 		assert.ok(!line.includes("openai-codex/gpt-5.5"), "model compact override should omit the full provider label");
 	}
@@ -797,7 +797,7 @@ async function runTests() {
 			contextUsage: { tokens: 76000, contextWindow: 272000, percent: null },
 		});
 		assert.ok(
-			footer.renderPlain().includes("(94.2%) (↑742k/R12M · ↓80k) (28%) (76k/272k) openai-codex/gpt-5.5"),
+			footer.renderPlain().includes("(94%) (↑742k/R12M · ↓80k) (28%) (76k/272k) openai-codex/gpt-5.5"),
 			"context percentage should be computed when usage percent is absent",
 		);
 	}
