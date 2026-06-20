@@ -26,17 +26,6 @@ export function measureFooterParts(parts: FooterParts): FooterPartWidths {
 }
 
 /**
- * Check if measured footer sections fit within the available width.
- *
- * @param widths - Measured footer widths.
- * @param width - Available terminal width.
- * @returns `true` when the sections fit without truncation.
- */
-export function footerSectionsFit(widths: FooterPartWidths, width: number): boolean {
-	return width > 0 && widths.total <= width;
-}
-
-/**
  * Join footer sections into one width-constrained line.
  *
  * @param parts - Rendered footer sections.
@@ -45,7 +34,6 @@ export function footerSectionsFit(widths: FooterPartWidths, width: number): bool
  * @returns One footer line truncated to the available width.
  */
 export function joinFooterSections(parts: FooterParts, width: number, widths = measureFooterParts(parts)): string {
-	if (width <= 0) return "";
 	if (!parts.middle) return joinLeftRight(parts.left, parts.right, width, widths.left, widths.right);
 
 	if (widths.total <= width) {
@@ -88,8 +76,6 @@ function joinLeftMiddleRight(
 }
 
 function joinLeftRight(left: string, right: string, width: number, leftWidth: number, rightWidth: number): string {
-	if (width <= 0) return "";
-
 	const gapWidth = left && right ? 1 : 0;
 
 	if (leftWidth + gapWidth + rightWidth <= width) {

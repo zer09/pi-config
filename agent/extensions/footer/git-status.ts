@@ -1,5 +1,5 @@
 /**
- * Async git-status polling and cache management for gc-footer.
+ * Async git-status polling and cache management for footer.
  *
  * Footer rendering stays synchronous; this module schedules short-lived
  * `git status --porcelain=v2 --branch` reads, caches the result, and asks the

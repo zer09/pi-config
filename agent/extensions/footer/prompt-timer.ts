@@ -1,5 +1,5 @@
 /**
- * Prompt timing and queued follow-up tracking for gc-footer.
+ * Prompt timing and queued follow-up tracking for footer.
  *
  * This module records when interactive prompts are submitted, carries that start
  * time through Pi's input/agent lifecycle, and formats running or completed
@@ -43,7 +43,8 @@ export function recordPendingPromptStart(
 	images: readonly unknown[] | undefined,
 	streamingBehavior: "steer" | "followUp" | undefined,
 ): void {
-	if (source !== "interactive" || !hasPromptContent(text, images) || streamingBehavior === "steer") {
+	const hasContent = text.trim().length > 0 || Boolean(images?.length);
+	if (source !== "interactive" || !hasContent || streamingBehavior === "steer") {
 		clearPendingPromptStart(timer);
 		return;
 	}
@@ -120,23 +121,19 @@ export function clearPromptTimer(timer: PromptTimerState): void {
  *
  * @param timer - Prompt timer state.
  * @param theme - Active Pi theme.
- * @param nerdFont - Whether Nerd Font glyphs should be used.
  * @param now - Current timestamp, injectable for tests.
  * @returns The themed timer segment, or `undefined` before any prompt has run.
  */
 export function formatPromptTimer(
 	timer: PromptTimerState,
 	theme: Theme,
-	nerdFont: boolean,
 	now = Date.now(),
 ): string | undefined {
 	const running = timer.startedAt !== undefined;
 	const durationMs = running ? now - timer.startedAt : timer.lastDurationMs;
 	if (durationMs === undefined) return undefined;
 
-	const glyph = nerdFont
-		? (running ? TIMER_RUNNING_GLYPH : TIMER_DONE_GLYPH)
-		: (running ? "time" : "done");
+	const glyph = running ? TIMER_RUNNING_GLYPH : TIMER_DONE_GLYPH;
 	const glyphColor: ThemeColor = running ? "accent" : "success";
 	return `${theme.fg(glyphColor, glyph)} ${theme.fg("muted", formatDuration(durationMs))}`;
 }
@@ -146,17 +143,12 @@ export function formatPromptTimer(
  *
  * @param timer - Prompt timer state.
  * @param theme - Active Pi theme.
- * @param nerdFont - Whether Nerd Font glyphs should be used.
  * @returns The themed queue segment, or `undefined` when no follow-ups are queued.
  */
-export function formatPromptQueue(timer: PromptTimerState, theme: Theme, nerdFont: boolean): string | undefined {
+export function formatPromptQueue(timer: PromptTimerState, theme: Theme): string | undefined {
 	const count = timer.queuedStartedAts.length;
 	if (!count) return undefined;
-	return theme.fg("muted", `${nerdFont ? QUEUE_GLYPH : "q"} ${count}`);
-}
-
-function hasPromptContent(text: string, images: readonly unknown[] | undefined): boolean {
-	return text.trim().length > 0 || Boolean(images?.length);
+	return theme.fg("muted", `${QUEUE_GLYPH} ${count}`);
 }
 
 function schedulePendingPromptStartClear(timer: PromptTimerState, startedAt: number): void {

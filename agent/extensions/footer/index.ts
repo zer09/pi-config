@@ -1,15 +1,11 @@
 /**
- * gc-footer Pi extension entrypoint.
+ * Footer Pi extension entrypoint.
  *
- * This file preserves the public extension discovery path while delegating config,
- * rendering, prompt timing, git status, and formatting details to focused modules
- * in this directory. It remains the public facade/orchestrator and is not a
- * re-export-only shim.
+ * This file preserves the public extension discovery path while orchestrating
+ * rendering, prompt timing, git status, and Fastlane glyph state.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { formatCommandStatus } from "./command-status";
-import { loadConfig } from "./config";
 import { renderFooterLine } from "./footer-renderer";
 import {
 	clearGitStatus,
@@ -32,32 +28,15 @@ import type { FastlaneDisplayState } from "./types";
 const FASTLANE_STATE_EVENT = "fastlane:state";
 
 /**
- * Register the gc-footer extension with Pi.
+ * Register the footer extension with Pi.
  *
- * @param pi - Pi extension API used to register commands and lifecycle handlers.
+ * @param pi - Pi extension API used to register lifecycle handlers.
  */
-export default function gcFooter(pi: ExtensionAPI): void {
-	const config = loadConfig();
+export default function footer(pi: ExtensionAPI): void {
 	const promptTimer = createPromptTimerState();
 	const gitStatus = createGitStatusState();
-	let currentBranch: string | null | undefined;
 	let fastlaneDisplay = createInactiveFastlaneDisplayState();
 	let unsubscribeFastlaneState: (() => void) | undefined;
-
-	pi.registerCommand("gc-footer", {
-		description: "Show gc footer status",
-		handler: async (args, ctx) => {
-			const command = args.trim();
-			// TODO(gc-footer): Add mutating subcommands after config writes are stable:
-			// /gc-footer toggle <segment>, /gc-footer nerd-font <on|off>.
-			if (command && command !== "status") {
-				ctx.ui.notify("Usage: /gc-footer", "error");
-				return;
-			}
-
-			ctx.ui.notify(formatCommandStatus(config, ctx, pi.getThinkingLevel(), currentBranch, fastlaneDisplay), "info");
-		},
-	});
 
 	unsubscribeFastlaneState = pi.events.on(FASTLANE_STATE_EVENT, (data) => {
 		fastlaneDisplay = parseFastlaneDisplayState(data);
@@ -68,19 +47,15 @@ export default function gcFooter(pi: ExtensionAPI): void {
 		if (ctx.mode !== "tui") return;
 
 		ctx.ui.setFooter((tui, theme, footerData) => {
-			const getBranch = () => {
-				currentBranch = footerData.getGitBranch();
-				return currentBranch;
-			};
+			const getBranch = () => footerData.getGitBranch();
 			const render = () => tui.requestRender();
 			const renderBranchChange = () => {
 				const branch = getBranch();
-				if (config.segments.branch) scheduleGitStatusRefresh(gitStatus, ctx.cwd, branch, true);
+				scheduleGitStatusRefresh(gitStatus, ctx.cwd, branch, true);
 				render();
 			};
 			setRequestRender(render);
-			const initialBranch = getBranch();
-			if (config.segments.branch) scheduleGitStatusRefresh(gitStatus, ctx.cwd, initialBranch, true);
+			scheduleGitStatusRefresh(gitStatus, ctx.cwd, getBranch(), true);
 
 			const unsubscribeBranch = footerData.onBranchChange(renderBranchChange);
 
@@ -93,17 +68,16 @@ export default function gcFooter(pi: ExtensionAPI): void {
 				invalidate() {},
 				render(width: number): string[] {
 					const branch = getBranch();
-					if (config.segments.branch) scheduleGitStatusRefresh(gitStatus, ctx.cwd, branch);
+					scheduleGitStatusRefresh(gitStatus, ctx.cwd, branch);
 					return [renderFooterLine(
 						width,
 						pi,
 						ctx,
 						theme,
 						footerData,
-						config,
 						promptTimer,
 						branch,
-						config.segments.branch ? getGitStatusForRender(gitStatus, ctx.cwd, branch) : undefined,
+						getGitStatusForRender(gitStatus, ctx.cwd, branch),
 						fastlaneDisplay,
 					)];
 				},
@@ -140,7 +114,6 @@ export default function gcFooter(pi: ExtensionAPI): void {
 		clearGitStatus(gitStatus);
 		if (ctx.mode === "tui") ctx.ui.setFooter(undefined);
 		clearRequestRender();
-		currentBranch = undefined;
 		fastlaneDisplay = createInactiveFastlaneDisplayState();
 	});
 }

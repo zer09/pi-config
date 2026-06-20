@@ -1,5 +1,5 @@
 /**
- * High-level footer rendering for gc-footer.
+ * High-level footer rendering for the footer extension.
  *
  * The entrypoint passes live Pi state into this module, which snapshots the data
  * needed for one render, attempts full/compact/minimal layouts, and delegates
@@ -9,11 +9,10 @@
 import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { FOOTER_PROFILES } from "./constants";
-import { hasSegmentProfileOverride, resolveSegmentProfile } from "./config";
 import { formatExtensionStatusEntries, formatExtensionStatuses } from "./extension-status";
 import { areExperimentalFeaturesEnabled, formatExperimentalMarker } from "./experimental-format";
 import { formatGitBranch } from "./git-format";
-import { footerSectionsFit, joinFooterSections, measureFooterParts } from "./layout";
+import { joinFooterSections, measureFooterParts } from "./layout";
 import { formatModelName } from "./model-format";
 import { formatCwd } from "./path-format";
 import { formatPromptQueue, formatPromptTimer } from "./prompt-timer";
@@ -21,7 +20,6 @@ import { formatThinkingDot } from "./thinking-format";
 import { formatContextUsage, formatSessionTokenTotals } from "./token-format";
 import type {
 	FastlaneDisplayState,
-	FooterConfig,
 	FooterData,
 	FooterPartWidths,
 	FooterParts,
@@ -39,7 +37,6 @@ import type {
  * @param ctx - Current extension context.
  * @param theme - Active Pi theme.
  * @param footerData - Footer-only data supplied by Pi.
- * @param config - Active footer configuration.
  * @param promptTimer - Prompt timer state.
  * @param branch - Current git branch from Pi footer data.
  * @param gitStatus - Optional richer async git status snapshot.
@@ -52,7 +49,6 @@ export function renderFooterLine(
 	ctx: ExtensionContext,
 	theme: Theme,
 	footerData: FooterData,
-	config: FooterConfig,
 	promptTimer: PromptTimerState,
 	branch: string | null,
 	gitStatus: GitStatus | undefined,
@@ -60,13 +56,13 @@ export function renderFooterLine(
 ): string {
 	if (width <= 0) return "";
 
-	const snapshot = createRenderSnapshot(pi, ctx, theme, footerData, config, fastlane);
+	const snapshot = createRenderSnapshot(pi, ctx, theme, footerData, fastlane);
 	let fallback: { parts: FooterParts; widths: FooterPartWidths } | undefined;
 	for (const profile of FOOTER_PROFILES) {
-		const parts = buildFooterParts(profile, ctx, theme, config, promptTimer, branch, gitStatus, snapshot);
+		const parts = buildFooterParts(profile, ctx, theme, promptTimer, branch, gitStatus, snapshot);
 		const widths = measureFooterParts(parts);
 		fallback = { parts, widths };
-		if (footerSectionsFit(widths, width)) return joinFooterSections(parts, width, widths);
+		if (widths.total <= width) return joinFooterSections(parts, width, widths);
 	}
 
 	return fallback ? joinFooterSections(fallback.parts, width, fallback.widths) : "";
@@ -77,22 +73,19 @@ function createRenderSnapshot(
 	ctx: ExtensionContext,
 	theme: Theme,
 	footerData: FooterData,
-	config: FooterConfig,
 	fastlane: FastlaneDisplayState,
 ): RenderSnapshot {
 	return {
-		contextUsage: config.segments.context ? ctx.getContextUsage() : undefined,
+		contextUsage: ctx.getContextUsage(),
 		cwd: ctx.cwd,
 		experimentalFeaturesEnabled: areExperimentalFeaturesEnabled(),
 		fastlane,
-		formattedStatuses: config.segments.statuses
-			? formatExtensionStatusEntries(footerData.getExtensionStatuses(), theme, config.nerdFont)
-			: [],
+		formattedStatuses: formatExtensionStatusEntries(footerData.getExtensionStatuses(), theme),
 		modelContextWindow: ctx.model?.contextWindow,
 		modelId: ctx.model?.id,
 		modelProvider: ctx.model?.provider,
 		now: Date.now(),
-		thinkingLevel: config.segments.thinking ? pi.getThinkingLevel() : "off",
+		thinkingLevel: pi.getThinkingLevel(),
 	};
 }
 
@@ -100,35 +93,26 @@ function buildFooterParts(
 	profile: FooterProfile,
 	ctx: ExtensionContext,
 	theme: Theme,
-	config: FooterConfig,
 	promptTimer: PromptTimerState,
 	branch: string | null,
 	gitStatus: GitStatus | undefined,
 	snapshot: RenderSnapshot,
 ): FooterParts {
 	const minimal = profile === "minimal";
-	const contextProfile = resolveSegmentProfile(config, "context", profile);
-	const cwdProfile = resolveSegmentProfile(config, "cwd", profile);
-	const modelProfile = resolveSegmentProfile(config, "model", profile);
-	const statusesProfile = resolveSegmentProfile(config, "statuses", profile);
-	const tokensProfile = resolveSegmentProfile(config, "tokens", profile);
-	const showModel = config.segments.model && !minimal;
-	const showTokens = config.segments.tokens && tokensProfile !== "minimal" && (!minimal || hasSegmentProfileOverride(config, "tokens"));
+	const showTokens = profile !== "minimal";
 	const left = joinSegments([
-		config.segments.branch ? formatGitBranch(branch, theme, gitStatus) : undefined,
-		config.segments.cwd ? theme.fg("dim", formatCwd(snapshot.cwd, cwdProfile)) : undefined,
+		formatGitBranch(branch, theme, gitStatus),
+		theme.fg("dim", formatCwd(snapshot.cwd, profile)),
 	]);
-	const middle = config.segments.statuses
-		? formatExtensionStatuses(snapshot.formattedStatuses, statusesProfile === "full" ? "full" : "active")
-		: undefined;
+	const middle = formatExtensionStatuses(snapshot.formattedStatuses, profile === "full" ? "full" : "active");
 	const right = joinSegments([
-		config.segments.timer ? formatPromptTimer(promptTimer, theme, config.nerdFont, snapshot.now) : undefined,
-		config.segments.queue ? formatPromptQueue(promptTimer, theme, config.nerdFont) : undefined,
-		showTokens ? formatSessionTokenTotals(ctx, theme, tokensProfile === "full" ? "full" : "compact") : undefined,
-		config.segments.context ? formatContextUsage(snapshot.contextUsage, snapshot.modelContextWindow, theme, contextProfile === "full" ? "full" : "compact") : undefined,
-		showModel ? theme.fg("muted", formatModelName(snapshot.modelProvider, snapshot.modelId, modelProfile)) : undefined,
-		config.segments.thinking && !minimal ? formatThinkingDot(snapshot.thinkingLevel, theme, getThinkingGlyphCount(snapshot.fastlane)) : undefined,
-		config.segments.experimental && snapshot.experimentalFeaturesEnabled ? formatExperimentalMarker(theme, config.nerdFont) : undefined,
+		formatPromptTimer(promptTimer, theme, snapshot.now),
+		formatPromptQueue(promptTimer, theme),
+		showTokens ? formatSessionTokenTotals(ctx, theme, profile === "full" ? "full" : "compact") : undefined,
+		formatContextUsage(snapshot.contextUsage, snapshot.modelContextWindow, theme, profile === "full" ? "full" : "compact"),
+		!minimal ? theme.fg("muted", formatModelName(snapshot.modelProvider, snapshot.modelId, profile)) : undefined,
+		!minimal ? formatThinkingDot(snapshot.thinkingLevel, theme, getThinkingGlyphCount(snapshot.fastlane)) : undefined,
+		snapshot.experimentalFeaturesEnabled ? formatExperimentalMarker(theme) : undefined,
 	]);
 
 	return { left, middle, right };

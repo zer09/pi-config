@@ -2,7 +2,7 @@
  * Pi Browser Harness extension-status formatter.
  *
  * This plugin recognizes the status text produced by pi-browser-harness and
- * keeps only its connection-state dot for gc-footer's middle status segment.
+ * keeps only its connection-state dot for footer's middle status segment.
  */
 
 import type { ExtensionStatusFormatter } from "./types";
@@ -12,7 +12,7 @@ import type { ExtensionStatusFormatter } from "./types";
  *
  * @example
  * ```ts
- * formatter.format({ text: "🔴 Browser disconnected", plainText: "🔴 Browser disconnected", theme, nerdFont: true });
+ * formatter.format({ text: "🔴 Browser disconnected", plainText: "🔴 Browser disconnected", theme });
  * ```
  */
 export const formatter: ExtensionStatusFormatter = {

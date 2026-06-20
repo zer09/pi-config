@@ -82,7 +82,7 @@ async function withFakeGitStatus(output, fn) {
 
 async function withFakeGitScript(script, fn) {
 	const oldPath = process.env.PATH;
-	const binDir = fs.mkdtempSync(path.join(os.tmpdir(), "gc-footer-git-"));
+	const binDir = fs.mkdtempSync(path.join(os.tmpdir(), "footer-git-"));
 	const gitPath = path.join(binDir, "git");
 	fs.writeFileSync(gitPath, `#!/usr/bin/env node\n${script}`, "utf8");
 	fs.chmodSync(gitPath, 0o755);
@@ -106,21 +106,7 @@ function loadExtension() {
 }
 
 async function createFooter(options = {}) {
-	const oldConfigPath = process.env.GC_FOOTER_CONFIG_PATH;
-	const tempConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), "gc-footer-test-"));
-	const configPath = path.join(tempConfigDir, "config.json");
-
-	if (Object.hasOwn(options, "config")) {
-		const configText = typeof options.config === "string"
-			? options.config
-			: JSON.stringify(options.config);
-		fs.writeFileSync(configPath, configText, "utf8");
-	}
-	process.env.GC_FOOTER_CONFIG_PATH = configPath;
-
 	const handlers = new Map();
-	const commands = new Map();
-	const notifications = [];
 	const factory = loadExtension();
 	const themeName = options.themeName ?? "dark";
 	const colorCalls = [];
@@ -150,27 +136,15 @@ async function createFooter(options = {}) {
 		},
 	};
 
-	try {
-		factory({
-			events,
-			on(event, handler) {
-				handlers.set(event, handler);
-			},
-			registerCommand(name, command) {
-				commands.set(name, command);
-			},
-			getThinkingLevel() {
-				return thinkingLevel;
-			},
-		});
-	} finally {
-		if (oldConfigPath === undefined) {
-			delete process.env.GC_FOOTER_CONFIG_PATH;
-		} else {
-			process.env.GC_FOOTER_CONFIG_PATH = oldConfigPath;
-		}
-		fs.rmSync(tempConfigDir, { recursive: true, force: true });
-	}
+	factory({
+		events,
+		on(event, handler) {
+			handlers.set(event, handler);
+		},
+		getThinkingLevel() {
+			return thinkingLevel;
+		},
+	});
 
 	const ctx = {
 		hasUI: true,
@@ -187,9 +161,6 @@ async function createFooter(options = {}) {
 		getContextUsage: () => options.contextUsage,
 		ui: {
 			theme,
-			notify(message, level = "info") {
-				notifications.push({ message, level });
-			},
 			getAllThemes() {
 				return [{ name: themeName, path: undefined }];
 			},
@@ -222,8 +193,6 @@ async function createFooter(options = {}) {
 	return {
 		component,
 		handlers,
-		commands,
-		notifications,
 		colorCalls,
 		render(width = 120) {
 			return component.render(width)[0] ?? "";
@@ -252,12 +221,6 @@ async function createFooter(options = {}) {
 		getColorCalls() {
 			return colorCalls;
 		},
-		async runCommand(args = "") {
-			const command = commands.get("gc-footer");
-			assert.equal(typeof command?.handler, "function", "gc-footer command should be registered");
-			await command.handler(args, ctx);
-			return notifications[notifications.length - 1];
-		},
 	};
 }
 
@@ -285,21 +248,12 @@ async function runTests() {
 		}
 	}
 
-	{
-		const footer = await createFooter({
-			thinkingLevel: "xhigh",
-			config: { nerdFont: false },
-		});
-		const line = footer.renderPlain();
-		assert.match(line, /●$/, "thinking should use unicode glyphs even when Nerd Font is disabled");
-		assert.ok(!line.includes("\uf111") && !line.includes("\uf10c"), "thinking should not use Nerd Font glyphs");
-	}
 
 	{
 		const footer = await createFooter({ thinkingLevel: "xhigh" });
 		footer.emitFastlaneState({ active: true, thinkingGlyphCount: 3 });
 		assert.match(footer.renderPlain(), /●●●$/, "active Fastlane should repeat the thinking glyph three times");
-		assert.ok(!footer.renderPlain().includes("fast"), "Fastlane should not render a text indicator in gc-footer");
+		assert.ok(!footer.renderPlain().includes("fast"), "Fastlane should not render a text indicator in footer");
 		assert.ok(footer.getRenderRequests() > 0, "Fastlane state changes should request a footer render");
 	}
 
@@ -325,22 +279,6 @@ async function runTests() {
 		);
 	});
 
-	await withExperimental("1", async () => {
-		const footer = await createFooter({ config: { nerdFont: false } });
-		assert.ok(footer.renderPlain().endsWith("x"), "experimental marker should use a text fallback without Nerd Font");
-		assert.ok(!footer.renderPlain().includes(experimentalGlyph), "fallback experimental marker should not use Nerd Font glyphs");
-		assert.ok(
-			footer.getColorCalls().some((call) => call.color === "error" && call.text === "x"),
-			"fallback experimental marker should use the error color",
-		);
-	});
-
-	await withExperimental("1", async () => {
-		const footer = await createFooter({
-			config: { segments: { experimental: false } },
-		});
-		assert.ok(!footer.renderPlain().includes(experimentalGlyph), "experimental segment config should hide the marker");
-	});
 
 	{
 		const footer = await createFooter({
@@ -396,29 +334,9 @@ async function runTests() {
 		});
 	}
 
-	{
-		const markerPath = path.join(os.tmpdir(), `gc-footer-git-disabled-${process.pid}-${Date.now()}`);
-		try {
-			await withFakeGitScript(
-				`require("node:fs").writeFileSync(${JSON.stringify(markerPath)}, "ran");\nprocess.stdout.write("# branch.head main\\n# branch.ab +0 -0\\n");\n`,
-				async () => {
-					const footer = await createFooter({
-						cwd: __dirname,
-						branch: "main",
-						config: { segments: { branch: false } },
-					});
-					footer.renderPlain();
-					await new Promise((resolve) => setTimeout(resolve, 20));
-					assert.equal(fs.existsSync(markerPath), false, "disabled branch segment should not spawn git status");
-				},
-			);
-		} finally {
-			fs.rmSync(markerPath, { force: true });
-		}
-	}
 
 	{
-		const markerPath = path.join(os.tmpdir(), `gc-footer-git-null-branch-${process.pid}-${Date.now()}`);
+		const markerPath = path.join(os.tmpdir(), `footer-git-null-branch-${process.pid}-${Date.now()}`);
 		try {
 			await withFakeGitScript(
 				`require("node:fs").writeFileSync(${JSON.stringify(markerPath)}, "ran");\nprocess.stdout.write("# branch.head main\\n# branch.ab +0 -0\\n");\n`,
@@ -437,55 +355,6 @@ async function runTests() {
 		}
 	}
 
-	{
-		const footer = await createFooter();
-		const notification = await footer.runCommand();
-		assert.equal(notification.level, "info", "gc-footer command should report status");
-		assert.ok(notification.message.includes("segments: cwd, branch, statuses, timer, queue, tokens, context, model, thinking, experimental"), "command should list enabled segments");
-		assert.ok(notification.message.includes("theme: dark"), "command should report active theme name");
-		assert.ok(notification.message.includes("model: openai-codex/gpt-5.5"), "command should report current model");
-		assert.ok(!notification.message.includes("segmentProfiles:"), "command should omit absent segment profile overrides");
-		assert.ok(notification.message.includes("thinking: medium"), "command should report current thinking level");
-		assert.ok(notification.message.includes("experimental: off"), "command should report disabled experimental mode");
-		assert.ok(notification.message.includes("branch: main"), "command should report current branch");
-		assert.ok(notification.message.includes("nerdFont: on"), "command should report Nerd Font mode");
-	}
-
-	await withExperimental("1", async () => {
-		const footer = await createFooter();
-		const notification = await footer.runCommand();
-		assert.ok(notification.message.includes("experimental: on"), "command should report enabled experimental mode");
-	});
-
-	{
-		const footer = await createFooter({
-			config: {
-				segments: {
-					branch: false,
-					statuses: false,
-					tokens: false,
-				},
-				nerdFont: false,
-			},
-		});
-		const notification = await footer.runCommand("status");
-		assert.equal(notification.level, "info", "gc-footer status alias should report status");
-		assert.ok(notification.message.includes("segments: cwd, timer, queue, context, model, thinking, experimental"), "command should show config-disabled segments as omitted");
-		assert.ok(notification.message.includes("nerdFont: off"), "command should report disabled Nerd Font mode");
-
-		const error = await footer.runCommand("toggle branch");
-		assert.equal(error.level, "error", "gc-footer command should reject mutating subcommands");
-		assert.equal(error.message, "Usage: /gc-footer", "gc-footer command should remain read-only");
-	}
-
-	{
-		const footer = await createFooter({
-			config: { segmentProfiles: { model: "compact" } },
-		});
-		const notification = await footer.runCommand();
-		assert.equal(notification.level, "info", "gc-footer command should report segment profile overrides");
-		assert.ok(notification.message.includes("segmentProfiles: model=compact"), "command should list configured segment profile overrides");
-	}
 
 	{
 		const footer = await createFooter({
@@ -548,15 +417,6 @@ async function runTests() {
 		);
 	}
 
-	{
-		const footer = await createFooter({
-			config: { nerdFont: false },
-			statuses: new Map([["agentmemory", "🧠 agentmemory"]]),
-		});
-		const line = footer.renderPlain();
-		assert.ok(line.includes("mem"), "agentmemory status should use text fallback without Nerd Font");
-		assert.ok(!line.includes("\uf0c7"), "fallback agentmemory status should not use Nerd Font glyph");
-	}
 
 	{
 		const footer = await createFooter({
@@ -577,15 +437,6 @@ async function runTests() {
 		assert.ok(footer.render().includes("\x1b[32m\uf233 2/9\x1b[0m"), "active MCP status should preserve changed upstream color");
 	}
 
-	{
-		const footer = await createFooter({
-			config: { nerdFont: false },
-			statuses: new Map([["mcp", "MCP: 0/9 servers"]]),
-		});
-		const line = footer.renderPlain();
-		assert.ok(line.includes("MCP 0/9"), "MCP status should use compact text fallback without Nerd Font");
-		assert.ok(!line.includes("\uf233"), "fallback MCP status should not use Nerd Font glyph");
-	}
 
 	{
 		const footer = await createFooter({
@@ -671,18 +522,6 @@ async function runTests() {
 		}
 	}
 
-	{
-		const footer = await createFooter({ config: { nerdFont: false } });
-		await footer.emit("input", { source: "interactive", text: "first", images: [] });
-		await footer.emit("before_agent_start");
-		await footer.emit("input", { source: "interactive", text: "queued one", images: [], streamingBehavior: "followUp" });
-		await footer.emit("input", { source: "interactive", text: "queued two", images: [], streamingBehavior: "followUp" });
-		assert.ok(footer.renderPlain().includes("q 2"), "fallback queue indicator should show multiple queued follow-ups");
-		await footer.emit("agent_end");
-		await footer.emit("before_agent_start");
-		assert.ok(footer.renderPlain().includes("q 1"), "fallback queue indicator should decrement when a queued prompt starts");
-		await footer.emit("agent_end");
-	}
 
 	{
 		const footer = await createFooter();
@@ -703,23 +542,6 @@ async function runTests() {
 		}
 	}
 
-	{
-		const footer = await createFooter({ config: { nerdFont: false } });
-		const originalNow = Date.now;
-		try {
-			let now = 200000;
-			Date.now = () => now;
-
-			await footer.emit("before_agent_start");
-			now += 500;
-			assert.ok(footer.renderPlain().includes("time 0.5s"), "fallback running timer should use text label");
-
-			await footer.emit("agent_end");
-			assert.ok(footer.renderPlain().includes("done 0.5s"), "fallback completed timer should use text label");
-		} finally {
-			Date.now = originalNow;
-		}
-	}
 
 	{
 		const footer = await createFooter({
@@ -732,64 +554,7 @@ async function runTests() {
 		);
 	}
 
-	{
-		const footer = await createFooter({
-			config: { segmentProfiles: { model: "compact" } },
-			entries: [assistantEntry({ input: 12000, output: 3000, cacheRead: 4000, cacheWrite: 4000 })],
-			contextUsage: { tokens: 9400, contextWindow: 272000, percent: 3.45 },
-		});
-		const line = footer.renderPlain(160);
-		assert.ok(line.includes("(20%) (↑12k/R4k · ↓3k/W4k) (3.5%) (9.4k/272k)"), "model profile override should leave other full-profile segments unchanged");
-		assert.ok(line.includes("codex/gpt-5.5"), "model compact override should shorten the model in full layout");
-		assert.ok(!line.includes("openai-codex/gpt-5.5"), "model compact override should omit the full provider label");
-	}
 
-	for (const { provider, models } of [
-		{
-			provider: "opencode-go",
-			models: [
-				"deepseek-v4-flash",
-				"deepseek-v4-pro",
-				"glm-5",
-				"glm-5.1",
-				"kimi-k2.5",
-				"kimi-k2.6",
-				"mimo-v2.5",
-				"mimo-v2.5-pro",
-				"minimax-m2.5",
-				"minimax-m2.7",
-				"qwen3.6-plus",
-				"qwen3.7-max",
-			],
-		},
-		{
-			provider: "minimax",
-			models: [
-				"MiniMax-M2.7",
-				"MiniMax-M2.7-highspeed",
-			],
-		},
-	]) {
-		for (const model of models) {
-			const footer = await createFooter({
-				config: {
-					segments: {
-						branch: false,
-						context: false,
-						cwd: false,
-						queue: false,
-						statuses: false,
-						thinking: false,
-						timer: false,
-						tokens: false,
-					},
-					segmentProfiles: { model: "compact" },
-				},
-				model: { provider, id: model, contextWindow: 200000 },
-			});
-			assert.equal(footer.renderPlain().trim(), model, `${provider}/${model} compact name should omit provider prefix`);
-		}
-	}
 
 	{
 		const footer = await createFooter({
@@ -838,7 +603,7 @@ async function runTests() {
 		});
 		const compactLine = footer.renderPlain(90);
 		assert.ok(compactLine.includes("(main) path"), "compact layout should show branch before cwd basename");
-		assert.ok(compactLine.includes("↑123k · ↓46k"), "compact layout should omit cache token details");
+		assert.ok(compactLine.includes("↑123.5k · ↓45.7k"), "compact layout should omit cache token details");
 		assert.ok(compactLine.includes("(45%)"), "compact layout should keep context percentage");
 		assert.ok(!compactLine.includes("/272k"), "compact layout should omit full context window details");
 		assert.ok(compactLine.includes("codex/gpt-5.5"), "compact layout should shorten Codex model name");
@@ -852,32 +617,6 @@ async function runTests() {
 		assert.ok(!minimalLine.includes("↑"), "minimal layout should hide token totals");
 	}
 
-	{
-		const footer = await createFooter({
-			config: { segmentProfiles: { model: "compact" } },
-			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
-			entries: [assistantEntry({ input: 123456, output: 45678, cacheRead: 98765, cacheWrite: 8765 })],
-			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
-		});
-		const line = footer.renderPlain(40);
-		assert.ok(line.includes("(main) path"), "model compact override should keep minimal layout branch and cwd");
-		assert.ok(line.includes("(45%)"), "model compact override should keep minimal layout context percentage");
-		assert.ok(!line.includes("gpt-5.5"), "model compact override should not pin model into minimal layout");
-	}
-
-	{
-		const footer = await createFooter({
-			config: { segmentProfiles: { model: "full" } },
-			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
-			statuses: new Map([["mcp", "MCP: 0/9 servers"]]),
-			entries: [assistantEntry({ input: 123456, output: 45678, cacheRead: 98765, cacheWrite: 8765 })],
-			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
-		});
-		const line = footer.renderPlain(90);
-		assert.ok(line.includes("(main) path"), "main compact layout should still use branch before cwd basename with model full override");
-		assert.ok(line.includes("↑123k · ↓46k"), "main compact layout should still compact token totals with model full override");
-		assert.ok(line.includes("openai-codex/gpt-5.5"), "model full override should keep full provider label in compact layout");
-	}
 
 	{
 		const footer = await createFooter({
@@ -910,55 +649,9 @@ async function runTests() {
 		assert.ok(!line.includes("anthropic/"), "compact layout should omit Anthropic provider prefix");
 	}
 
-	{
-		const footer = await createFooter({
-			config: {
-				segments: {
-					branch: false,
-					statuses: false,
-					tokens: false,
-					context: false,
-					thinking: false,
-				},
-			},
-			statuses: new Map([["status", "status:on"]]),
-			entries: [assistantEntry({ input: 12000, output: 3000, cacheRead: 4000, cacheWrite: 4000 })],
-			contextUsage: { tokens: 9400, contextWindow: 272000, percent: 3.45 },
-		});
-		const line = footer.renderPlain();
-		assert.ok(line.includes("~/project"), "cwd should remain enabled by default");
-		assert.ok(line.includes("openai-codex/gpt-5.5"), "model should remain enabled by default");
-		assert.ok(!line.includes("(main)"), "branch config should hide branch");
-		assert.ok(!line.includes("status:on"), "statuses config should hide statuses");
-		assert.ok(!line.includes("↑") && !line.includes("↓"), "tokens config should hide token totals");
-		assert.ok(!line.includes("%") && !line.includes("/272k"), "context config should hide context percentage and usage");
-		assert.ok(!line.includes("◇"), "thinking config should hide thinking glyph");
-	}
 
 	{
 		const footer = await createFooter({
-			config: "{",
-		});
-		const line = footer.renderPlain();
-		assert.match(line, /^\(main\) ~\/project/, "invalid config should fall back to defaults");
-		assert.ok(line.includes("openai-codex/gpt-5.5"), "invalid config should keep default model segment");
-		assert.ok(line.includes("◇"), "invalid config should keep default thinking segment");
-	}
-
-	for (const config of [
-		{ segmentProfiles: { model: "inherit" } },
-		{ segmentProfiles: { model: "tiny", unknown: "compact" } },
-	]) {
-		const footer = await createFooter({ config });
-		const line = footer.renderPlain();
-		assert.ok(line.includes("openai-codex/gpt-5.5"), "ignored segment profile overrides should keep default model rendering");
-		const notification = await footer.runCommand();
-		assert.ok(!notification.message.includes("segmentProfiles:"), "ignored segment profile overrides should not be reported");
-	}
-
-	for (const config of [undefined, { nerdFont: false }]) {
-		const footer = await createFooter({
-			...(config ? { config } : {}),
 			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
 			statuses: new Map([
 				["a", "alpha-status-is-long"],
@@ -989,7 +682,7 @@ async function runTests() {
 		}
 	});
 
-	console.log("gc-footer tests passed");
+	console.log("footer tests passed");
 }
 
 run().catch((error) => {

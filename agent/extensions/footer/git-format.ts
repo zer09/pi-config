@@ -1,5 +1,5 @@
 /**
- * Git branch display formatting for gc-footer.
+ * Git branch display formatting for footer.
  *
  * This module is intentionally pure: async git polling and cache management live
  * in `git-status.ts`, while this file only turns status snapshots into footer

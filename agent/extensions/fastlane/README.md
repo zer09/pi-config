@@ -1,6 +1,6 @@
 # fastlane
 
-Local Pi extension that enables Codex Fast mode and publishes state for `gc-footer`.
+Local Pi extension that enables Codex Fast mode and publishes state for `footer`.
 
 ## Behavior
 
@@ -20,7 +20,7 @@ The initial backend matches `@diegopetrucci/pi-openai-fast@0.1.4`:
 - ChatGPT OAuth/subscription auth, not API-key auth
 - payload does not already include `service_tier`
 
-Fastlane does not show a `fast` text indicator. It emits `fastlane:state`; `gc-footer` uses that state to repeat the existing thinking glyph, e.g. `●●●`.
+Fastlane does not show a `fast` text indicator. It emits `fastlane:state`; `footer` uses that state to repeat the existing thinking glyph, e.g. `●●●`.
 
 ## Command
 
@@ -57,5 +57,5 @@ Code defaults are safe (`enabled: false`) if the config file is absent or invali
 
 ```sh
 node agent/extensions/fastlane/test.cjs
-node agent/extensions/gc-footer/test.cjs
+node agent/extensions/footer/test.cjs
 ```

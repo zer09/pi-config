@@ -1,47 +1,17 @@
 /**
- * Shared internal types for the gc-footer extension.
+ * Shared internal types for the footer extension.
  *
  * These definitions describe the data contracts exchanged between the entrypoint,
- * renderer, git-status, timer, configuration, and formatting modules. The public
- * Pi extension API remains the default export from {@link ./index.ts}.
+ * renderer, git-status, timer, and formatting modules. The public Pi extension
+ * API remains the default export from {@link ./index.ts}.
  */
 
 import type { ExtensionContext, ReadonlyFooterDataProvider } from "@earendil-works/pi-coding-agent";
 
 /**
- * Names of configurable footer segments.
- */
-export type SegmentName =
-	| "cwd"
-	| "branch"
-	| "statuses"
-	| "timer"
-	| "queue"
-	| "tokens"
-	| "context"
-	| "model"
-	| "thinking"
-	| "experimental";
-
-/**
- * Per-segment enablement map loaded from footer configuration.
- */
-export type SegmentConfig = Record<SegmentName, boolean>;
-
-/**
  * Footer density profile selected while fitting the line to terminal width.
  */
 export type FooterProfile = "full" | "compact" | "minimal";
-
-/**
- * Segment-specific profile override from user configuration.
- */
-export type SegmentProfileOverride = FooterProfile | "inherit";
-
-/**
- * Sparse map of segment profile overrides.
- */
-export type SegmentProfileConfig = Partial<Record<SegmentName, SegmentProfileOverride>>;
 
 /**
  * Snapshot returned by Pi for the active context-window usage.
@@ -73,16 +43,7 @@ export type RenderSnapshot = {
 };
 
 /**
- * User configuration for gc-footer behavior and segment visibility.
- */
-export type FooterConfig = {
-	nerdFont: boolean;
-	segmentProfiles: SegmentProfileConfig;
-	segments: SegmentConfig;
-};
-
-/**
- * Render-time Fastlane display state consumed by gc-footer.
+ * Render-time Fastlane display state consumed by footer.
  */
 export type FastlaneDisplayState = {
 	readonly active: boolean;

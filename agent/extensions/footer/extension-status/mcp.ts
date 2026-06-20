@@ -15,18 +15,18 @@ const MCP_SERVER_GLYPH = "\uf233";
  *
  * @example
  * ```ts
- * formatter.format({ text: "MCP: 2/9 servers", plainText: "MCP: 2/9 servers", theme, nerdFont: true });
+ * formatter.format({ text: "MCP: 2/9 servers", plainText: "MCP: 2/9 servers", theme });
  * ```
  */
 export const formatter: ExtensionStatusFormatter = {
 	name: "mcp",
-	format({ text, plainText, theme, nerdFont }) {
+	format({ text, plainText, theme }) {
 		const mcpMatch = plainText.match(/^MCP:\s*(\d+)\s*\/\s*(\d+)\s+servers?$/i);
 		if (!mcpMatch) return undefined;
 
 		const [visibleText, connected, total] = mcpMatch;
 		const active = Number(connected) > 0;
-		const compactText = `${nerdFont ? MCP_SERVER_GLYPH : "MCP"} ${connected}/${total}`;
+		const compactText = `${MCP_SERVER_GLYPH} ${connected}/${total}`;
 		return {
 			keepInCompact: active,
 			text: active

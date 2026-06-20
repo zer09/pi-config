@@ -1,5 +1,5 @@
 /**
- * Formatter contracts for gc-footer extension-status plugins.
+ * Formatter contracts for footer extension-status plugins.
  *
  * Modules in this directory can export an {@link ExtensionStatusFormatter} as a
  * default export or a named `formatter` export. The registry in `index.ts` loads
@@ -20,8 +20,6 @@ export interface ExtensionStatusFormatterInput {
 	readonly plainText: string;
 	/** Active Pi theme used to apply footer-compatible colors. */
 	readonly theme: Theme;
-	/** Whether Nerd Font glyphs should be used for compact symbols. */
-	readonly nerdFont: boolean;
 }
 
 /**

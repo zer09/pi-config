@@ -1,20 +1,11 @@
 /**
- * Thinking-level display helpers for gc-footer.
+ * Thinking-level display helpers for footer.
  *
  * The footer renders colored Unicode shapes whose color and glyph follow Pi's
  * active thinking level. These glyphs intentionally do not require Nerd Font.
  */
 
 import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
-
-const THINKING_GLYPHS = {
-	off: "○",
-	minimal: "·",
-	low: "◦",
-	medium: "◇",
-	high: "◆",
-	xhigh: "●",
-} as const;
 
 /**
  * Format the thinking-level indicator glyph.
@@ -48,8 +39,22 @@ function thinkingColor(level: string): ThemeColor {
 }
 
 function thinkingGlyph(level: string): string {
-	if (isThinkingGlyphLevel(level)) return THINKING_GLYPHS[level];
-	return THINKING_GLYPHS.xhigh;
+	switch (level) {
+		case "off":
+			return "○";
+		case "minimal":
+			return "·";
+		case "low":
+			return "◦";
+		case "medium":
+			return "◇";
+		case "high":
+			return "◆";
+		case "xhigh":
+			return "●";
+		default:
+			return "●";
+	}
 }
 
 function normalizeGlyphCount(glyphCount: number): number {
@@ -57,6 +62,3 @@ function normalizeGlyphCount(glyphCount: number): number {
 	return Math.max(1, Math.min(12, Math.trunc(glyphCount)));
 }
 
-function isThinkingGlyphLevel(level: string): level is keyof typeof THINKING_GLYPHS {
-	return level in THINKING_GLYPHS;
-}

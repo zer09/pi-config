@@ -1,9 +1,11 @@
 /**
- * Provider-aware model-name formatting for gc-footer.
+ * Provider-aware model-name formatting for footer.
  *
  * The footer removes dated model suffixes and applies compact provider-specific
  * labels in constrained layouts while preserving full labels when requested.
  */
+
+import type { FooterProfile } from "./types";
 
 /**
  * Format a model identifier for the active footer profile.
@@ -16,7 +18,7 @@
 export function formatModelName(
 	provider: string | undefined,
 	id: string | undefined,
-	profile: "full" | "compact" | "minimal" = "full",
+	profile: FooterProfile = "full",
 ): string {
 	if (!id) return "no-model";
 	const base = id.includes("/") ? (id.split("/").pop() ?? id) : id;
@@ -28,7 +30,7 @@ export function formatModelName(
 function formatCompactModelName(
 	provider: string | undefined,
 	model: string,
-	profile: "compact" | "minimal",
+	profile: Exclude<FooterProfile, "full">,
 ): string {
 	if (provider === "openai-codex" && model.startsWith("gpt-")) {
 		return profile === "minimal" ? model : `codex/${model}`;

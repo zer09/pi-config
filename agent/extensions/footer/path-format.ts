@@ -1,5 +1,5 @@
 /**
- * Current-working-directory display helpers for gc-footer.
+ * Current-working-directory display helpers for footer.
  *
  * The renderer uses these helpers to switch between full and compact path labels
  * while preserving the existing home-directory abbreviation behavior.

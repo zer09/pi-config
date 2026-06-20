@@ -1,5 +1,5 @@
 /**
- * Token and context-usage formatting for gc-footer.
+ * Token and context-usage formatting for footer.
  *
  * This module aggregates assistant usage from the session and formats both token
  * totals and context-window percentages for full and compact footer layouts.
@@ -8,11 +8,7 @@
 import type { ExtensionContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import type { ContextUsageSnapshot } from "./types";
 
-const TOKEN_FORMATTERS = {
-	compactFraction: new Intl.NumberFormat("en-US", { maximumFractionDigits: 1, notation: "compact" }),
-	compactInteger: new Intl.NumberFormat("en-US", { maximumFractionDigits: 0, notation: "compact" }),
-	plain: new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }),
-};
+const TOKEN_FORMATTER = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1, notation: "compact" });
 
 /**
  * Format session token totals from assistant messages.
@@ -105,11 +101,5 @@ function contextUsageColor(percent: number): ThemeColor {
 }
 
 function formatTokens(count: number): string {
-	let formatter = TOKEN_FORMATTERS.compactInteger;
-	if (count < 1000) {
-		formatter = TOKEN_FORMATTERS.plain;
-	} else if (count < 10000 || (count >= 1000000 && count < 10000000)) {
-		formatter = TOKEN_FORMATTERS.compactFraction;
-	}
-	return formatter.format(count).replace("K", "k");
+	return TOKEN_FORMATTER.format(count).replace("K", "k");
 }

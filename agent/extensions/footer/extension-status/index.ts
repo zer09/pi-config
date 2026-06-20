@@ -1,7 +1,7 @@
 /**
  * Extension-status formatter registry and formatting pipeline.
  *
- * This module powers the middle gc-footer segment. It automatically loads
+ * This module powers the middle footer segment. It automatically loads
  * formatter modules from this directory, applies them in deterministic filename
  * order, and falls back to the original status text when no formatter matches.
  */
@@ -32,17 +32,15 @@ const FORMATTERS = [...BUILTIN_FORMATTERS, ...discoverExtensionStatusFormatters(
  *
  * @param statuses - Status text map supplied by Pi footer data.
  * @param theme - Active Pi theme used for formatter colors.
- * @param nerdFont - Whether compact formatter glyphs may use Nerd Font symbols.
  * @returns Formatted statuses sorted by their original status key.
  */
 export function formatExtensionStatusEntries(
 	statuses: ReadonlyMap<string, string>,
 	theme: Theme,
-	nerdFont: boolean,
 ): FormattedExtensionStatus[] {
 	return Array.from(statuses.entries())
 		.sort(([a], [b]) => a.localeCompare(b))
-		.map(([, text]) => formatExtensionStatus(sanitizeStatusText(text), theme, nerdFont));
+		.map(([, text]) => formatExtensionStatus(sanitizeStatusText(text), theme));
 }
 
 /**
@@ -65,12 +63,11 @@ export function formatExtensionStatuses(
 	return statusText || undefined;
 }
 
-function formatExtensionStatus(text: string, theme: Theme, nerdFont: boolean): FormattedExtensionStatus {
+function formatExtensionStatus(text: string, theme: Theme): FormattedExtensionStatus {
 	const input: ExtensionStatusFormatterInput = {
 		text,
 		plainText: stripAnsi(text),
 		theme,
-		nerdFont,
 	};
 
 	for (const formatter of FORMATTERS) {

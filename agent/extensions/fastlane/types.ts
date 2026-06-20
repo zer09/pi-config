@@ -9,7 +9,7 @@ export type FastlaneOverride = "auto" | "on" | "off";
 export type FastlaneConfig = {
 	/** Default Fastlane state when there is no session override. */
 	enabled: boolean;
-	/** Number of thinking glyphs gc-footer should render while Fastlane is active. */
+	/** Number of thinking glyphs footer should render while Fastlane is active. */
 	thinkingGlyphCount: number;
 };
 
@@ -28,7 +28,7 @@ export type Eligibility = {
 	reason?: string;
 };
 
-/** Event payload consumed by gc-footer to render Fastlane's glyph indicator. */
+/** Event payload consumed by footer to render Fastlane's glyph indicator. */
 export type FastlaneStateEvent = {
 	active: boolean;
 	eligible: boolean;
