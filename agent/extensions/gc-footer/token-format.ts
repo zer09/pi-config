@@ -78,7 +78,7 @@ export function formatContextUsage(
 	const percentText = theme.fg(contextUsageColor(displayedPercent.value), `(${displayedPercent.text})`);
 	return profile === "compact"
 		? percentText
-		: [percentText, theme.fg("muted", `(${formatTokens(usage.tokens)}/${formatTokens(contextWindow)})`)].join(" ");
+		: [percentText, theme.fg("accent", `(${formatTokens(usage.tokens)}/${formatTokens(contextWindow)})`)].join(" ");
 }
 
 function getTokenPercent(tokens: number, contextWindow: number, percent: number | null | undefined): number {
