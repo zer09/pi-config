@@ -70,6 +70,7 @@ Classify each request by the action requested, not by the topic.
 - For multi-step coding work, define concrete success checks before editing when practical.
 - Make the simplest working change. Do not declare dead variables or add parameters (even with defaults) if they are never actively used.
 - Follow YAGNI: implement only what is needed now. Prefer simple one-liner solutions when they are clear, readable, and sufficient.
+- Use ternary expressions only for simple two-way conditionals when they improve clarity; avoid nested or chained ternaries, and prefer `if`/`else`, guard clauses, or named intermediate variables for multi-branch logic.
 - Keep changes surgical and style-matched.
 - Do not add speculative features, premature abstractions, or impossible-case handling.
 - Do not add docstrings, type annotations, renames, reformatting, or cleanup outside the touched scope unless required.
