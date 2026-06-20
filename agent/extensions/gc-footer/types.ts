@@ -63,6 +63,7 @@ export type SessionTokenTotals = {
 	readonly cacheRead: number;
 	readonly cacheWrite: number;
 	readonly input: number;
+	readonly latestCacheHitRate: number | undefined;
 	readonly output: number;
 };
 

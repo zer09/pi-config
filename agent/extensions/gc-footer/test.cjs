@@ -727,8 +727,8 @@ async function runTests() {
 			contextUsage: { tokens: 9400, contextWindow: 272000, percent: 3.45 },
 		});
 		assert.ok(
-			footer.renderPlain().includes("↑12k/R4k ↓3k/W4k (3.5%) (9.4k/272k) openai-codex/gpt-5.5"),
-			"right side should include token totals, context percentage, context usage, model, and thinking",
+			footer.renderPlain().includes("(20.0%) (↑12k/R4k · ↓3k/W4k) (3.5%) (9.4k/272k) openai-codex/gpt-5.5"),
+			"right side should include cache hit rate, token totals, context percentage, context usage, model, and thinking",
 		);
 	}
 
@@ -739,7 +739,7 @@ async function runTests() {
 			contextUsage: { tokens: 9400, contextWindow: 272000, percent: 3.45 },
 		});
 		const line = footer.renderPlain(160);
-		assert.ok(line.includes("↑12k/R4k ↓3k/W4k (3.5%) (9.4k/272k)"), "model profile override should leave other full-profile segments unchanged");
+		assert.ok(line.includes("(20.0%) (↑12k/R4k · ↓3k/W4k) (3.5%) (9.4k/272k)"), "model profile override should leave other full-profile segments unchanged");
 		assert.ok(line.includes("codex/gpt-5.5"), "model compact override should shorten the model in full layout");
 		assert.ok(!line.includes("openai-codex/gpt-5.5"), "model compact override should omit the full provider label");
 	}
@@ -797,7 +797,7 @@ async function runTests() {
 			contextUsage: { tokens: 76000, contextWindow: 272000, percent: null },
 		});
 		assert.ok(
-			footer.renderPlain().includes("↑742k/R12M ↓80k (28%) (76k/272k) openai-codex/gpt-5.5"),
+			footer.renderPlain().includes("(94.2%) (↑742k/R12M · ↓80k) (28%) (76k/272k) openai-codex/gpt-5.5"),
 			"context percentage should be computed when usage percent is absent",
 		);
 	}
@@ -825,7 +825,7 @@ async function runTests() {
 			contextUsage: { tokens: null, contextWindow: 272000, percent: null },
 		});
 		const line = footer.renderPlain();
-		assert.ok(line.includes("↑12k ↓3k openai-codex/gpt-5.5"), "cache segments should be omitted when zero");
+		assert.ok(line.includes("(0%) (↑12k · ↓3k) openai-codex/gpt-5.5"), "cache segments should be omitted when zero");
 		assert.ok(!line.includes("/272k"), "context usage should be hidden when tokens are unknown");
 	}
 
@@ -838,7 +838,7 @@ async function runTests() {
 		});
 		const compactLine = footer.renderPlain(90);
 		assert.ok(compactLine.includes("(main) path"), "compact layout should show branch before cwd basename");
-		assert.ok(compactLine.includes("↑123k ↓46k"), "compact layout should omit cache token details");
+		assert.ok(compactLine.includes("↑123k · ↓46k"), "compact layout should omit cache token details");
 		assert.ok(compactLine.includes("(45%)"), "compact layout should keep context percentage");
 		assert.ok(!compactLine.includes("/272k"), "compact layout should omit full context window details");
 		assert.ok(compactLine.includes("codex/gpt-5.5"), "compact layout should shorten Codex model name");
@@ -875,7 +875,7 @@ async function runTests() {
 		});
 		const line = footer.renderPlain(90);
 		assert.ok(line.includes("(main) path"), "main compact layout should still use branch before cwd basename with model full override");
-		assert.ok(line.includes("↑123k ↓46k"), "main compact layout should still compact token totals with model full override");
+		assert.ok(line.includes("↑123k · ↓46k"), "main compact layout should still compact token totals with model full override");
 		assert.ok(line.includes("openai-codex/gpt-5.5"), "model full override should keep full provider label in compact layout");
 	}
 

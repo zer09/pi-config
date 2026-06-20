@@ -8,6 +8,12 @@
 import type { ExtensionContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import type { ContextUsageSnapshot, SessionTokenTotals } from "./types";
 
+const TOKEN_FORMATTERS = {
+	compactFraction: new Intl.NumberFormat("en-US", { maximumFractionDigits: 1, notation: "compact" }),
+	compactInteger: new Intl.NumberFormat("en-US", { maximumFractionDigits: 0, notation: "compact" }),
+	plain: new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }),
+};
+
 /**
  * Aggregate token totals from assistant messages in the current session.
  *
@@ -19,6 +25,7 @@ export function getSessionTokenTotals(ctx: ExtensionContext): SessionTokenTotals
 	let output = 0;
 	let cacheRead = 0;
 	let cacheWrite = 0;
+	let latestCacheHitRate: number | undefined;
 
 	for (const entry of ctx.sessionManager.getEntries()) {
 		if (entry.type !== "message" || entry.message.role !== "assistant") continue;
@@ -27,10 +34,13 @@ export function getSessionTokenTotals(ctx: ExtensionContext): SessionTokenTotals
 		output += usage.output;
 		cacheRead += usage.cacheRead;
 		cacheWrite += usage.cacheWrite;
+
+		const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite;
+		latestCacheHitRate = promptTokens > 0 ? (usage.cacheRead / promptTokens) * 100 : undefined;
 	}
 
 	const hasUsage = input > 0 || output > 0 || cacheRead > 0 || cacheWrite > 0;
-	return hasUsage ? { cacheRead, cacheWrite, input, output } : undefined;
+	return hasUsage ? { cacheRead, cacheWrite, input, latestCacheHitRate, output } : undefined;
 }
 
 /**
@@ -50,7 +60,11 @@ export function formatSessionTokenTotals(
 
 	const inputPart = `↑${formatTokens(totals.input)}${profile === "full" && totals.cacheRead ? `/R${formatTokens(totals.cacheRead)}` : ""}`;
 	const outputPart = `↓${formatTokens(totals.output)}${profile === "full" && totals.cacheWrite ? `/W${formatTokens(totals.cacheWrite)}` : ""}`;
-	return theme.fg("muted", `${inputPart} ${outputPart}`);
+	const hitRatePart = totals.latestCacheHitRate === undefined
+		? undefined
+		: `(${getDisplayedTokenPercent(totals.latestCacheHitRate, "fixed").text})`;
+	const tokenPart = `(${inputPart} · ${outputPart})`;
+	return theme.fg("muted", [hitRatePart, tokenPart].filter(Boolean).join(" "));
 }
 
 /**
@@ -87,7 +101,13 @@ function getTokenPercent(tokens: number, contextWindow: number, percent: number 
 		: (tokens / contextWindow) * 100;
 }
 
-function getDisplayedTokenPercent(percent: number): { text: string; value: number } {
+function getDisplayedTokenPercent(percent: number, mode: "context" | "fixed" = "context"): { text: string; value: number } {
+	if (mode === "fixed") {
+		if (percent === 0) return { text: "0%", value: 0 };
+		const text = percent.toFixed(1);
+		return { text: `${text}%`, value: Number(text) };
+	}
+
 	if (percent < 10 && !Number.isInteger(percent)) {
 		const text = percent.toFixed(1);
 		return { text: `${text}%`, value: Number(text) };
@@ -104,15 +124,10 @@ function contextUsageColor(percent: number): ThemeColor {
 }
 
 function formatTokens(count: number): string {
-	if (count < 1000) return count.toString();
-	if (count < 10000) {
-		const thousands = count / 1000;
-		return Number.isInteger(thousands) ? `${thousands}k` : `${thousands.toFixed(1)}k`;
-	}
-	if (count < 1000000) return `${Math.round(count / 1000)}k`;
-	if (count < 10000000) {
-		const millions = count / 1000000;
-		return Number.isInteger(millions) ? `${millions}M` : `${millions.toFixed(1)}M`;
-	}
-	return `${Math.round(count / 1000000)}M`;
+	const formatter = count < 1000
+		? TOKEN_FORMATTERS.plain
+		: count < 10000 || (count >= 1000000 && count < 10000000)
+			? TOKEN_FORMATTERS.compactFraction
+			: TOKEN_FORMATTERS.compactInteger;
+	return formatter.format(count).replace("K", "k");
 }
