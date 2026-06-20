@@ -57,17 +57,6 @@ export type FormattedExtensionStatus = {
 };
 
 /**
- * Aggregated token totals for assistant messages in the current session.
- */
-export type SessionTokenTotals = {
-	readonly cacheRead: number;
-	readonly cacheWrite: number;
-	readonly input: number;
-	readonly latestCacheHitRate: number | undefined;
-	readonly output: number;
-};
-
-/**
  * Immutable render-time data collected before composing footer segments.
  */
 export type RenderSnapshot = {
@@ -80,7 +69,6 @@ export type RenderSnapshot = {
 	readonly modelId: string | undefined;
 	readonly modelProvider: string | undefined;
 	readonly now: number;
-	readonly sessionTokenTotals: SessionTokenTotals | undefined;
 	readonly thinkingLevel: string;
 };
 

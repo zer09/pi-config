@@ -18,7 +18,7 @@ import { formatModelName } from "./model-format";
 import { formatCwd } from "./path-format";
 import { formatPromptQueue, formatPromptTimer } from "./prompt-timer";
 import { formatThinkingDot } from "./thinking-format";
-import { formatContextUsage, formatSessionTokenTotals, getSessionTokenTotals } from "./token-format";
+import { formatContextUsage, formatSessionTokenTotals } from "./token-format";
 import type {
 	FastlaneDisplayState,
 	FooterConfig,
@@ -63,7 +63,7 @@ export function renderFooterLine(
 	const snapshot = createRenderSnapshot(pi, ctx, theme, footerData, config, fastlane);
 	let fallback: { parts: FooterParts; widths: FooterPartWidths } | undefined;
 	for (const profile of FOOTER_PROFILES) {
-		const parts = buildFooterParts(profile, theme, config, promptTimer, branch, gitStatus, snapshot);
+		const parts = buildFooterParts(profile, ctx, theme, config, promptTimer, branch, gitStatus, snapshot);
 		const widths = measureFooterParts(parts);
 		fallback = { parts, widths };
 		if (footerSectionsFit(widths, width)) return joinFooterSections(parts, width, widths);
@@ -92,13 +92,13 @@ function createRenderSnapshot(
 		modelId: ctx.model?.id,
 		modelProvider: ctx.model?.provider,
 		now: Date.now(),
-		sessionTokenTotals: config.segments.tokens ? getSessionTokenTotals(ctx) : undefined,
 		thinkingLevel: config.segments.thinking ? pi.getThinkingLevel() : "off",
 	};
 }
 
 function buildFooterParts(
 	profile: FooterProfile,
+	ctx: ExtensionContext,
 	theme: Theme,
 	config: FooterConfig,
 	promptTimer: PromptTimerState,
@@ -124,7 +124,7 @@ function buildFooterParts(
 	const right = joinSegments([
 		config.segments.timer ? formatPromptTimer(promptTimer, theme, config.nerdFont, snapshot.now) : undefined,
 		config.segments.queue ? formatPromptQueue(promptTimer, theme, config.nerdFont) : undefined,
-		showTokens ? formatSessionTokenTotals(snapshot.sessionTokenTotals, theme, tokensProfile === "full" ? "full" : "compact") : undefined,
+		showTokens ? formatSessionTokenTotals(ctx, theme, tokensProfile === "full" ? "full" : "compact") : undefined,
 		config.segments.context ? formatContextUsage(snapshot.contextUsage, snapshot.modelContextWindow, theme, contextProfile === "full" ? "full" : "compact") : undefined,
 		showModel ? theme.fg("muted", formatModelName(snapshot.modelProvider, snapshot.modelId, modelProfile)) : undefined,
 		config.segments.thinking && !minimal ? formatThinkingDot(snapshot.thinkingLevel, theme, getThinkingGlyphCount(snapshot.fastlane)) : undefined,

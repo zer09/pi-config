@@ -6,7 +6,7 @@
  */
 
 import type { ExtensionContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
-import type { ContextUsageSnapshot, SessionTokenTotals } from "./types";
+import type { ContextUsageSnapshot } from "./types";
 
 const TOKEN_FORMATTERS = {
 	compactFraction: new Intl.NumberFormat("en-US", { maximumFractionDigits: 1, notation: "compact" }),
@@ -15,12 +15,18 @@ const TOKEN_FORMATTERS = {
 };
 
 /**
- * Aggregate token totals from assistant messages in the current session.
+ * Format session token totals from assistant messages.
  *
  * @param ctx - Current Pi extension context.
- * @returns Token totals, or `undefined` when no usage exists yet.
+ * @param theme - Active Pi theme.
+ * @param profile - Full output includes cache read/write details; compact omits them.
+ * @returns The themed token segment, or `undefined` when no usage exists yet.
  */
-export function getSessionTokenTotals(ctx: ExtensionContext): SessionTokenTotals | undefined {
+export function formatSessionTokenTotals(
+	ctx: ExtensionContext,
+	theme: Theme,
+	profile: "full" | "compact" = "full",
+): string | undefined {
 	let input = 0;
 	let output = 0;
 	let cacheRead = 0;
@@ -39,30 +45,11 @@ export function getSessionTokenTotals(ctx: ExtensionContext): SessionTokenTotals
 		latestCacheHitRate = promptTokens > 0 ? (usage.cacheRead / promptTokens) * 100 : undefined;
 	}
 
-	const hasUsage = input > 0 || output > 0 || cacheRead > 0 || cacheWrite > 0;
-	return hasUsage ? { cacheRead, cacheWrite, input, latestCacheHitRate, output } : undefined;
-}
+	if (input === 0 && output === 0 && cacheRead === 0 && cacheWrite === 0) return undefined;
 
-/**
- * Format aggregated session token totals.
- *
- * @param totals - Aggregated token totals.
- * @param theme - Active Pi theme.
- * @param profile - Full output includes cache read/write details; compact omits them.
- * @returns The themed token segment, or `undefined` when no totals exist.
- */
-export function formatSessionTokenTotals(
-	totals: SessionTokenTotals | undefined,
-	theme: Theme,
-	profile: "full" | "compact" = "full",
-): string | undefined {
-	if (!totals) return undefined;
-
-	const inputPart = `↑${formatTokens(totals.input)}${profile === "full" && totals.cacheRead ? `/R${formatTokens(totals.cacheRead)}` : ""}`;
-	const outputPart = `↓${formatTokens(totals.output)}${profile === "full" && totals.cacheWrite ? `/W${formatTokens(totals.cacheWrite)}` : ""}`;
-	const hitRatePart = totals.latestCacheHitRate === undefined
-		? undefined
-		: `(${Math.floor(totals.latestCacheHitRate)}%)`;
+	const inputPart = `↑${formatTokens(input)}${profile === "full" && cacheRead ? `/R${formatTokens(cacheRead)}` : ""}`;
+	const outputPart = `↓${formatTokens(output)}${profile === "full" && cacheWrite ? `/W${formatTokens(cacheWrite)}` : ""}`;
+	const hitRatePart = latestCacheHitRate === undefined ? undefined : `(${Math.floor(latestCacheHitRate)}%)`;
 	const tokenPart = `(${inputPart} · ${outputPart})`;
 	return theme.fg("muted", [hitRatePart, tokenPart].filter(Boolean).join(" "));
 }
@@ -118,10 +105,11 @@ function contextUsageColor(percent: number): ThemeColor {
 }
 
 function formatTokens(count: number): string {
-	const formatter = count < 1000
-		? TOKEN_FORMATTERS.plain
-		: count < 10000 || (count >= 1000000 && count < 10000000)
-			? TOKEN_FORMATTERS.compactFraction
-			: TOKEN_FORMATTERS.compactInteger;
+	let formatter = TOKEN_FORMATTERS.compactInteger;
+	if (count < 1000) {
+		formatter = TOKEN_FORMATTERS.plain;
+	} else if (count < 10000 || (count >= 1000000 && count < 10000000)) {
+		formatter = TOKEN_FORMATTERS.compactFraction;
+	}
 	return formatter.format(count).replace("K", "k");
 }
