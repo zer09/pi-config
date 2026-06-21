@@ -515,6 +515,7 @@ async function runTests() {
 			await footer.emit("agent_end");
 			now += 500;
 			await footer.emit("before_agent_start");
+			await footer.emit("message_start", { message: { role: "user" } });
 			const queuedLine = footer.renderPlain();
 			assert.ok(queuedLine.includes("\uf017 1.5s"), "queued follow-up timer should start when the follow-up was submitted");
 			assert.ok(!queuedLine.includes("\uf46c"), "queued follow-up count should hide after the queued prompt starts");
@@ -522,6 +523,14 @@ async function runTests() {
 		} finally {
 			Date.now = originalNow;
 		}
+	}
+
+	{
+		const footer = await createFooter();
+		await footer.emit("input", { source: "interactive", text: "steer", images: [], streamingBehavior: "steer" });
+		assert.ok(footer.renderPlain().includes("\uf46c 1"), "steering prompts should be counted while queued");
+		await footer.emit("message_start", { message: { role: "user" } });
+		assert.ok(!footer.renderPlain().includes("\uf46c"), "steering queue count should hide after the queued prompt starts");
 	}
 
 

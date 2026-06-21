@@ -21,6 +21,7 @@ export function createPromptTimerState(): PromptTimerState {
 		pendingStartedAt: undefined,
 		pendingClearImmediate: undefined,
 		queuedStartedAts: [],
+		queuedCount: 0,
 		startedAt: undefined,
 		lastDurationMs: undefined,
 		interval: undefined,
@@ -44,15 +45,17 @@ export function recordPendingPromptStart(
 	streamingBehavior: "steer" | "followUp" | undefined,
 ): void {
 	const hasContent = text.trim().length > 0 || Boolean(images?.length);
-	if (source !== "interactive" || !hasContent || streamingBehavior === "steer") {
+	if (source !== "interactive" || !hasContent) {
 		clearPendingPromptStart(timer);
 		return;
 	}
 
 	const startedAt = Date.now();
-	if (streamingBehavior === "followUp") {
+	if (streamingBehavior === "steer" || streamingBehavior === "followUp") {
 		clearPendingPromptStart(timer);
-		timer.queuedStartedAts.push(startedAt);
+		timer.queuedCount += 1;
+		if (streamingBehavior === "followUp") timer.queuedStartedAts.push(startedAt);
+		requestFooterRender();
 		return;
 	}
 
@@ -111,6 +114,7 @@ export function stopPromptTimer(timer: PromptTimerState): boolean {
 export function clearPromptTimer(timer: PromptTimerState): void {
 	clearPendingPromptStart(timer);
 	timer.queuedStartedAts = [];
+	timer.queuedCount = 0;
 	timer.startedAt = undefined;
 	timer.lastDurationMs = undefined;
 	clearPromptTimerInterval(timer);
@@ -139,16 +143,26 @@ export function formatPromptTimer(
 }
 
 /**
- * Format the queued follow-up prompt count for the footer.
+ * Format the queued prompt count for the footer.
  *
  * @param timer - Prompt timer state.
  * @param theme - Active Pi theme.
- * @returns The themed queue segment, or `undefined` when no follow-ups are queued.
+ * @returns The themed queue segment, or `undefined` when no prompts are queued.
  */
 export function formatPromptQueue(timer: PromptTimerState, theme: Theme): string | undefined {
-	const count = timer.queuedStartedAts.length;
-	if (!count) return undefined;
-	return theme.fg("muted", `${QUEUE_GLYPH} ${count}`);
+	if (!timer.queuedCount) return undefined;
+	return theme.fg("muted", `${QUEUE_GLYPH} ${timer.queuedCount}`);
+}
+
+/**
+ * Mark one queued prompt as started so the displayed queue count decreases.
+ *
+ * @param timer - Prompt timer state.
+ */
+export function markQueuedPromptStarted(timer: PromptTimerState): void {
+	if (!timer.queuedCount) return;
+	timer.queuedCount -= 1;
+	requestFooterRender();
 }
 
 function schedulePendingPromptStartClear(timer: PromptTimerState, startedAt: number): void {

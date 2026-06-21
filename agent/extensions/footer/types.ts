@@ -54,6 +54,7 @@ export type PromptTimerState = {
 	pendingStartedAt: number | undefined;
 	pendingClearImmediate: ReturnType<typeof setImmediate> | undefined;
 	queuedStartedAts: number[];
+	queuedCount: number;
 	startedAt: number | undefined;
 	lastDurationMs: number | undefined;
 	interval: ReturnType<typeof setInterval> | undefined;
