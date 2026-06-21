@@ -15,13 +15,11 @@ const TOKEN_FORMATTER = new Intl.NumberFormat("en-US", { maximumFractionDigits: 
  *
  * @param ctx - Current Pi extension context.
  * @param theme - Active Pi theme.
- * @param profile - Full output includes cache read/write details; compact omits them.
  * @returns The themed token segment, or `undefined` when no usage exists yet.
  */
 export function formatSessionTokenTotals(
 	ctx: ExtensionContext,
 	theme: Theme,
-	profile: "full" | "compact" = "full",
 ): string | undefined {
 	let input = 0;
 	let output = 0;
@@ -43,8 +41,8 @@ export function formatSessionTokenTotals(
 
 	if (input === 0 && output === 0 && cacheRead === 0 && cacheWrite === 0) return undefined;
 
-	const inputPart = `↑${formatTokens(input)}${profile === "full" && cacheRead ? `/R${formatTokens(cacheRead)}` : ""}`;
-	const outputPart = `↓${formatTokens(output)}${profile === "full" && cacheWrite ? `/W${formatTokens(cacheWrite)}` : ""}`;
+	const inputPart = `↑${formatTokens(input)}${cacheRead ? `/R${formatTokens(cacheRead)}` : ""}`;
+	const outputPart = `↓${formatTokens(output)}${cacheWrite ? `/W${formatTokens(cacheWrite)}` : ""}`;
 	const hitRatePart = latestCacheHitRate === undefined ? undefined : `(${Math.floor(latestCacheHitRate)}%)`;
 	const tokenPart = `(${inputPart} · ${outputPart})`;
 	return theme.fg("muted", [hitRatePart, tokenPart].filter(Boolean).join(" "));

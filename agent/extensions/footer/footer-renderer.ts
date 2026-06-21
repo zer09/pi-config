@@ -97,20 +97,20 @@ function buildFooterParts(
 	gitStatus: GitStatus | undefined,
 	snapshot: RenderSnapshot,
 ): FooterParts {
+	const full = profile === "full";
 	const minimal = profile === "minimal";
-	const showTokens = profile !== "minimal";
 	const left = joinSegments([
 		formatGitBranch(branch, theme, gitStatus),
 		theme.fg("dim", formatCwd(snapshot.cwd, profile)),
 	]);
 	const middle = formatExtensionStatuses(snapshot.formattedStatuses, profile === "full" ? "full" : "active");
 	const right = joinSegments([
-		formatPromptTimer(promptTimer, theme, snapshot.now),
-		formatPromptQueue(promptTimer, theme),
-		showTokens ? formatSessionTokenTotals(ctx, theme, profile === "full" ? "full" : "compact") : undefined,
-		formatContextUsage(snapshot.contextUsage, snapshot.modelContextWindow, theme, profile === "full" ? "full" : "compact"),
-		!minimal ? theme.fg("muted", formatModelName(snapshot.modelProvider, snapshot.modelId, profile)) : undefined,
-		!minimal ? formatThinkingDot(snapshot.thinkingLevel, theme, snapshot.fastlaneActive ? 3 : 1) : undefined,
+		!minimal ? formatPromptTimer(promptTimer, theme, snapshot.now) : undefined,
+		full ? formatPromptQueue(promptTimer, theme) : undefined,
+		full ? formatSessionTokenTotals(ctx, theme) : undefined,
+		formatContextUsage(snapshot.contextUsage, snapshot.modelContextWindow, theme, full ? "full" : "compact"),
+		theme.fg("muted", formatModelName(snapshot.modelProvider, snapshot.modelId, profile)),
+		formatThinkingDot(snapshot.thinkingLevel, theme, snapshot.fastlaneActive ? 3 : 1),
 		snapshot.experimentalFeaturesEnabled ? formatExperimentalMarker(theme) : undefined,
 	]);
 

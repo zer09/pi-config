@@ -603,9 +603,11 @@ async function runTests() {
 			entries: [assistantEntry({ input: 123456, output: 45678, cacheRead: 98765, cacheWrite: 8765 })],
 			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
 		});
+		await footer.emit("input", { source: "interactive", text: "queued", images: [], streamingBehavior: "followUp" });
 		const compactLine = footer.renderPlain(90);
 		assert.ok(compactLine.includes("(main) path"), "compact layout should show branch before cwd basename");
-		assert.ok(compactLine.includes("↑123.5k · ↓45.7k"), "compact layout should omit cache token details");
+		assert.ok(!compactLine.includes("↑"), "compact layout should hide token totals");
+		assert.ok(!compactLine.includes("\uf46c"), "compact layout should hide queued follow-up count");
 		assert.ok(compactLine.includes("(45%)"), "compact layout should keep context percentage");
 		assert.ok(!compactLine.includes("/272k"), "compact layout should omit full context window details");
 		assert.ok(compactLine.includes("codex/gpt-5.5"), "compact layout should shorten Codex model name");
@@ -615,10 +617,26 @@ async function runTests() {
 		const minimalLine = footer.renderPlain(40);
 		assert.ok(minimalLine.includes("(main) path"), "minimal layout should keep branch before cwd basename");
 		assert.ok(minimalLine.includes("(45%)"), "minimal layout should keep context percentage");
-		assert.ok(!minimalLine.includes("codex/gpt-5.5"), "minimal layout should hide model");
+		assert.ok(minimalLine.includes("gpt-5.5"), "minimal layout should keep model");
+		assert.ok(minimalLine.includes("◇"), "minimal layout should keep thinking glyph");
 		assert.ok(!minimalLine.includes("↑"), "minimal layout should hide token totals");
+		assert.ok(!minimalLine.includes("\uf46c"), "minimal layout should hide queued follow-up count");
 	}
 
+
+	{
+		const footer = await createFooter({
+			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
+			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
+		});
+		await footer.emit("before_agent_start");
+		const line = footer.renderPlain(35);
+		assert.ok(line.includes("(45%)"), "minimal layout should keep context usage instead of the prompt timer");
+		assert.ok(line.includes("gpt-5.5"), "minimal layout should keep model instead of the prompt timer");
+		assert.ok(line.includes("◇"), "minimal layout should keep thinking glyph instead of the prompt timer");
+		assert.ok(!line.includes("\uf017"), "minimal layout should hide running prompt timer");
+		await footer.emit("agent_end");
+	}
 
 	{
 		const footer = await createFooter({

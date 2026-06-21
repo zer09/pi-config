@@ -31,7 +31,7 @@ Enabled segments are fixed in code:
 - thinking glyph
 - experimental marker when `PI_EXPERIMENTAL=1`
 
-Narrow terminals use compact layouts before falling back to truncation: cwd basename, compact tokens, percent-only context, and shortened model names. Minimal layout hides model, token totals, and thinking glyph when needed.
+Narrow terminals use compact layouts before falling back to truncation: cwd basename, percent-only context, and shortened model names. Compact layout hides token totals and queued follow-up count first. Minimal layout keeps model, context usage, and thinking level while hiding prompt timer, queued follow-up count, and token totals.
 
 ## Fastlane glyph integration
 
