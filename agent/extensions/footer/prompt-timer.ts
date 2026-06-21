@@ -151,7 +151,7 @@ export function formatPromptTimer(
  */
 export function formatPromptQueue(timer: PromptTimerState, theme: Theme): string | undefined {
 	if (!timer.queuedCount) return undefined;
-	return theme.fg("muted", `${QUEUE_GLYPH} ${timer.queuedCount}`);
+	return theme.fg("warning", `${QUEUE_GLYPH} ${timer.queuedCount}`);
 }
 
 /**
