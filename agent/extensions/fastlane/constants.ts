@@ -2,13 +2,6 @@
  * Shared constants for the Fastlane extension.
  */
 
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import type { FastlaneConfig } from "./types";
-
-/** Default config path next to this extension's source files. */
-export const CONFIG_PATH = join(dirname(fileURLToPath(import.meta.url)), "config.json");
-
 /** Event emitted when Fastlane active/display state changes. */
 export const FASTLANE_STATE_EVENT = "fastlane:state";
 
@@ -22,13 +15,4 @@ export const OPENAI_CODEX_API_ID = "openai-codex-responses";
 export const FAST_SERVICE_TIER = "priority";
 
 /** Codex models supported by the upstream openai-fast package. */
-export const SUPPORTED_OPENAI_CODEX_MODELS = new Set(["gpt-5.4", "gpt-5.5"]);
-
-/** Maximum glyph repeat count accepted from config or events. */
-export const MAX_THINKING_GLYPH_COUNT = 12;
-
-/** Built-in Fastlane configuration used when no config file is present or valid. */
-export const DEFAULT_CONFIG: FastlaneConfig = {
-	enabled: false,
-	thinkingGlyphCount: 3,
-};
+export const SUPPORTED_OPENAI_CODEX_MODELS: ReadonlySet<string> = new Set(["gpt-5.4", "gpt-5.5"]);

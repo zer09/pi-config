@@ -16,7 +16,7 @@ import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
  * @returns The themed thinking shape segment.
  */
 export function formatThinkingDot(level: string, theme: Theme, glyphCount = 1): string {
-	return theme.fg(thinkingColor(level), thinkingGlyph(level).repeat(normalizeGlyphCount(glyphCount)));
+	return theme.fg(thinkingColor(level), thinkingGlyph(level).repeat(glyphCount));
 }
 
 function thinkingColor(level: string): ThemeColor {
@@ -55,10 +55,5 @@ function thinkingGlyph(level: string): string {
 		default:
 			return "●";
 	}
-}
-
-function normalizeGlyphCount(glyphCount: number): number {
-	if (!Number.isFinite(glyphCount)) return 1;
-	return Math.max(1, Math.min(12, Math.trunc(glyphCount)));
 }
 

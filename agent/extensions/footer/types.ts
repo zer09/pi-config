@@ -47,7 +47,6 @@ export type RenderSnapshot = {
  */
 export type FastlaneDisplayState = {
 	readonly active: boolean;
-	readonly thinkingGlyphCount: number;
 };
 
 /**

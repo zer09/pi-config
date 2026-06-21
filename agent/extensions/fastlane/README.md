@@ -1,8 +1,10 @@
 # fastlane
 
-Local Pi extension that enables Codex Fast mode and publishes state for `footer`.
+Local Pi extension that enables Codex Fast mode and publishes active state for `footer`.
 
 ## Behavior
+
+Fastlane is disabled by default. Run `/fastlane` to enable it for the current session.
 
 When enabled and the current model is eligible, Fastlane injects:
 
@@ -20,38 +22,20 @@ The initial backend matches `@diegopetrucci/pi-openai-fast@0.1.4`:
 - ChatGPT OAuth/subscription auth, not API-key auth
 - payload does not already include `service_tier`
 
-Fastlane does not show a `fast` text indicator. It emits `fastlane:state`; `footer` uses that state to repeat the existing thinking glyph, e.g. `●●●`.
+If the current model is not eligible, `/fastlane` shows a warning and leaves Fastlane disabled.
+
+Fastlane does not show a `fast` text indicator. It emits `fastlane:state`; `footer` uses that active/inactive state to repeat the existing thinking glyph three times, e.g. `●●●`.
 
 ## Command
 
 ```text
 /fastlane
-/fastlane status
 ```
 
-- `/fastlane` toggles the session override on/off.
-- `/fastlane status` reports config, override, eligibility, and last injection age.
+- `/fastlane` toggles the session on/off.
+- Unsupported arguments show `Usage: /fastlane`.
 
 There is intentionally no `/fast` command.
-
-## Config
-
-Fastlane reads:
-
-```text
-agent/extensions/fastlane/config.json
-```
-
-For tests or alternate local setups, set `FASTLANE_CONFIG_PATH`.
-
-```json
-{
-  "enabled": true,
-  "thinkingGlyphCount": 3
-}
-```
-
-Code defaults are safe (`enabled: false`) if the config file is absent or invalid.
 
 ## Testing
 

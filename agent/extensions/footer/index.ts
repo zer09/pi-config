@@ -119,7 +119,7 @@ export default function footer(pi: ExtensionAPI): void {
 }
 
 function createInactiveFastlaneDisplayState(): FastlaneDisplayState {
-	return { active: false, thinkingGlyphCount: 1 };
+	return { active: false };
 }
 
 function parseFastlaneDisplayState(data: unknown): FastlaneDisplayState {
@@ -127,14 +127,6 @@ function parseFastlaneDisplayState(data: unknown): FastlaneDisplayState {
 		return createInactiveFastlaneDisplayState();
 	}
 
-	const event = data as { active?: unknown; thinkingGlyphCount?: unknown };
-	return {
-		active: event.active === true,
-		thinkingGlyphCount: normalizeThinkingGlyphCount(event.thinkingGlyphCount),
-	};
-}
-
-function normalizeThinkingGlyphCount(value: unknown): number {
-	if (typeof value !== "number" || !Number.isFinite(value)) return 1;
-	return Math.max(1, Math.min(12, Math.trunc(value)));
+	const event = data as { active?: unknown };
+	return { active: event.active === true };
 }

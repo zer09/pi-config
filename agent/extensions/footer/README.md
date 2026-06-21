@@ -11,7 +11,7 @@ Custom Pi footer extension for a compact local status line.
   - Queued follow-ups use `\uf46c 1`.
   - Experimental Pi features use a red `\uf00d` marker when `PI_EXPERIMENTAL=1`.
   - Thinking uses Unicode-only shapes for every level: `○` off, `·` minimal, `◦` low, `◇` medium, `◆` high, and `●` xhigh.
-  - When the local `fastlane` extension reports active state, the thinking glyph is repeated according to Fastlane config, for example `●●●`. No `fast` text indicator is shown.
+  - When the local `fastlane` extension reports active state, the thinking glyph is repeated three times, for example `●●●`. No `fast` text indicator is shown.
 - No extra npm packages are required. The extension uses Pi-provided packages and Node built-ins.
 
 ## Behavior
@@ -37,7 +37,7 @@ Narrow terminals use compact layouts before falling back to truncation: cwd base
 
 `footer` listens for `fastlane:state` events from the local `agent/extensions/fastlane` extension.
 
-When Fastlane is active, the footer keeps the normal thinking segment but repeats the active thinking glyph by Fastlane's configured `thinkingGlyphCount`:
+When Fastlane is active, the footer keeps the normal thinking segment but repeats the active thinking glyph three times:
 
 ```text
 ●   -> ●●●

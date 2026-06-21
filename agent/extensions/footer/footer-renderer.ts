@@ -111,7 +111,7 @@ function buildFooterParts(
 		showTokens ? formatSessionTokenTotals(ctx, theme, profile === "full" ? "full" : "compact") : undefined,
 		formatContextUsage(snapshot.contextUsage, snapshot.modelContextWindow, theme, profile === "full" ? "full" : "compact"),
 		!minimal ? theme.fg("muted", formatModelName(snapshot.modelProvider, snapshot.modelId, profile)) : undefined,
-		!minimal ? formatThinkingDot(snapshot.thinkingLevel, theme, getThinkingGlyphCount(snapshot.fastlane)) : undefined,
+		!minimal ? formatThinkingDot(snapshot.thinkingLevel, theme, snapshot.fastlane.active ? 3 : 1) : undefined,
 		snapshot.experimentalFeaturesEnabled ? formatExperimentalMarker(theme) : undefined,
 	]);
 
@@ -120,8 +120,4 @@ function buildFooterParts(
 
 function joinSegments(segments: Array<string | undefined>): string {
 	return segments.filter((segment) => segment && visibleWidth(segment) > 0).join(" ");
-}
-
-function getThinkingGlyphCount(fastlane: FastlaneDisplayState): number {
-	return fastlane.active ? fastlane.thinkingGlyphCount : 1;
 }

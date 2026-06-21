@@ -2,7 +2,6 @@ const assert = require("node:assert/strict");
 const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const Module = require("node:module");
-const os = require("node:os");
 const path = require("node:path");
 
 function resolveGlobalNodeModules() {
@@ -49,18 +48,6 @@ function loadExtension() {
 }
 
 async function createFastlane(options = {}) {
-	const oldConfigPath = process.env.FASTLANE_CONFIG_PATH;
-	const tempConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), "fastlane-test-"));
-	const configPath = path.join(tempConfigDir, "config.json");
-
-	if (Object.hasOwn(options, "config")) {
-		const configText = typeof options.config === "string"
-			? options.config
-			: JSON.stringify(options.config);
-		fs.writeFileSync(configPath, configText, "utf8");
-	}
-	process.env.FASTLANE_CONFIG_PATH = configPath;
-
 	const handlers = new Map();
 	const commands = new Map();
 	const notifications = [];
@@ -92,30 +79,21 @@ async function createFastlane(options = {}) {
 		},
 	};
 
-	try {
-		factory({
-			events: {
-				emit(name, data) {
-					emitted.push({ name, data });
-				},
-				on() {},
+	factory({
+		events: {
+			emit(name, data) {
+				emitted.push({ name, data });
 			},
-			on(event, handler) {
-				handlers.set(event, handler);
-			},
-			registerCommand(name, command) {
-				commands.set(name, command);
-			},
-		});
-		await handlers.get("session_start")?.({}, ctx);
-	} finally {
-		if (oldConfigPath === undefined) {
-			delete process.env.FASTLANE_CONFIG_PATH;
-		} else {
-			process.env.FASTLANE_CONFIG_PATH = oldConfigPath;
-		}
-		fs.rmSync(tempConfigDir, { recursive: true, force: true });
-	}
+			on() {},
+		},
+		on(event, handler) {
+			handlers.set(event, handler);
+		},
+		registerCommand(name, command) {
+			commands.set(name, command);
+		},
+	});
+	await handlers.get("session_start")?.({}, ctx);
 
 	return {
 		handlers,
@@ -151,65 +129,77 @@ async function run() {
 		const fastlane = await createFastlane();
 		assert.ok(fastlane.commands.has("fastlane"), "fastlane command should be registered");
 		assert.equal(fastlane.commands.has("fast"), false, "fast command should not be registered");
-		assert.equal(fastlane.lastEvent().name, "fastlane:state", "session start should emit Fastlane state");
-		assert.equal(fastlane.lastEvent().data.active, false, "safe code default should keep Fastlane inactive");
+		assert.deepEqual(fastlane.lastEvent(), { name: "fastlane:state", data: { active: false } }, "session start should emit inactive state");
 		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.5" }), undefined, "default-off Fastlane should not inject service tier");
-	}
-
-	{
-		const fastlane = await createFastlane({ config: { enabled: true } });
-		const payload = await fastlane.beforeProvider({ model: "gpt-5.5", input: "hello" });
-		assert.deepEqual(payload, { model: "gpt-5.5", input: "hello", service_tier: "priority" }, "eligible payload should receive priority service tier");
-		assert.equal(fastlane.lastEvent().data.active, true, "eligible enabled Fastlane should be active");
-		assert.equal(fastlane.lastEvent().data.thinkingGlyphCount, 3, "default glyph count should be emitted");
-	}
-
-	{
-		const fastlane = await createFastlane({ config: { enabled: true, thinkingGlyphCount: 5 } });
-		await fastlane.beforeProvider({ model: "gpt-5.5" });
-		assert.equal(fastlane.lastEvent().data.thinkingGlyphCount, 5, "configured glyph count should be emitted");
 	}
 
 	{
 		const fastlane = await createFastlane();
 		const notification = await fastlane.runCommand();
-		assert.equal(notification.level, "info", "toggle should notify");
-		assert.equal(fastlane.lastEvent().data.active, true, "toggle should enable Fastlane for the session");
-		const payload = await fastlane.beforeProvider({ model: "gpt-5.5" });
-		assert.equal(payload.service_tier, "priority", "session override should enable injection");
+		assert.deepEqual(notification, { message: "Fastlane enabled.", level: "info" }, "eligible toggle should enable Fastlane");
+		assert.deepEqual(fastlane.lastEvent().data, { active: true }, "eligible toggle should publish active state");
+
+		const payload = await fastlane.beforeProvider({ model: "gpt-5.5", input: "hello" });
+		assert.deepEqual(payload, { model: "gpt-5.5", input: "hello", service_tier: "priority" }, "eligible payload should receive priority service tier");
+		assert.deepEqual(fastlane.lastEvent().data, { active: true }, "eligible enabled Fastlane should stay active");
 	}
 
 	{
-		const fastlane = await createFastlane({ config: { enabled: true } });
+		const fastlane = await createFastlane();
+		await fastlane.runCommand();
+		const notification = await fastlane.runCommand();
+		assert.deepEqual(notification, { message: "Fastlane disabled.", level: "info" }, "second toggle should disable Fastlane");
+		assert.deepEqual(fastlane.lastEvent().data, { active: false }, "disabled Fastlane should publish inactive state");
+		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.5" }), undefined, "disabled Fastlane should not inject");
+	}
+
+	{
+		const fastlane = await createFastlane();
 		const notification = await fastlane.runCommand("status");
-		assert.equal(notification.level, "info", "status should notify");
-		assert.ok(notification.message.includes("Fastlane is on"), "status should include mode");
-		assert.equal(fastlane.lastEvent().data.active, true, "status should publish current state");
+		assert.deepEqual(notification, { message: "Usage: /fastlane", level: "warning" }, "arguments should show usage");
+		assert.deepEqual(fastlane.lastEvent().data, { active: false }, "invalid command should leave Fastlane inactive");
 	}
 
 	{
 		const fastlane = await createFastlane({
-			config: { enabled: true },
 			model: { provider: "anthropic", id: "claude-sonnet-4-5", api: "anthropic-messages" },
 		});
+		const notification = await fastlane.runCommand();
+		assert.equal(notification.level, "warning", "ineligible model should warn");
+		assert.ok(notification.message.includes("Fastlane cannot be enabled for anthropic/claude-sonnet-4-5"), "warning should name the ineligible model");
+		assert.ok(notification.message.includes("current provider is anthropic"), "warning should explain why the model is ineligible");
+		assert.deepEqual(fastlane.lastEvent().data, { active: false }, "ineligible model should not enable Fastlane");
 		assert.equal(await fastlane.beforeProvider({ model: "claude-sonnet-4-5" }), undefined, "ineligible provider should not inject");
-		assert.equal(fastlane.lastEvent().data.active, false, "ineligible provider should not be active");
 	}
 
 	{
-		const fastlane = await createFastlane({ config: { enabled: true }, usingOAuth: false });
+		const fastlane = await createFastlane({ usingOAuth: false });
+		const notification = await fastlane.runCommand();
+		assert.equal(notification.level, "warning", "API-key auth should warn");
+		assert.ok(notification.message.includes("ChatGPT OAuth auth is required"), "warning should explain OAuth requirement");
+		assert.deepEqual(fastlane.lastEvent().data, { active: false }, "API-key auth should not enable Fastlane");
 		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.5" }), undefined, "API-key auth should not inject");
-		assert.equal(fastlane.lastEvent().data.active, false, "API-key auth should not be active");
 	}
 
 	{
-		const fastlane = await createFastlane({ config: { enabled: true } });
+		const fastlane = await createFastlane();
+		await fastlane.runCommand();
 		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.5", service_tier: "default" }), undefined, "existing service tier should not be overwritten");
 	}
 
 	{
-		const fastlane = await createFastlane({ config: "{" });
-		assert.equal(fastlane.lastEvent().data.active, false, "invalid config should fall back to safe defaults");
+		const fastlane = await createFastlane();
+		await fastlane.runCommand();
+		fastlane.setModel({ provider: "anthropic", id: "claude-sonnet-4-5", api: "anthropic-messages" });
+		await fastlane.modelSelect();
+		assert.deepEqual(fastlane.lastEvent().data, { active: false }, "model changes should publish inactive state when enabled Fastlane is no longer eligible");
+
+		fastlane.setModel({ provider: "openai-codex", id: "gpt-5.5", api: "openai-codex-responses" });
+		await fastlane.modelSelect();
+		assert.deepEqual(fastlane.lastEvent().data, { active: false }, "Fastlane should stay disabled after switching back to an eligible model");
+
+		await fastlane.runCommand();
+		assert.deepEqual(fastlane.lastEvent().data, { active: true }, "Fastlane can be enabled again after returning to an eligible model");
 	}
 
 	console.log("fastlane tests passed");
