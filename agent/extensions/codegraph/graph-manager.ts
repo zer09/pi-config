@@ -249,6 +249,67 @@ export class GraphManager {
     }
   }
 
+  private async ensureCurrentIndex(
+    entry: CachedGraph,
+    ctx: ExtensionContext,
+    onUpdate?: ToolUpdateHandler,
+    signal?: AbortSignal,
+  ): Promise<string | undefined> {
+    if (entry.indexInFlight) {
+      try {
+        await entry.indexInFlight;
+      } catch (error) {
+        return `CodeGraph full reindex failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
+
+    if (!entry.cg.isIndexStale()) {
+      entry.staleReindexDeclined = false;
+      return undefined;
+    }
+
+    if (entry.staleReindexDeclined) {
+      return `CodeGraph index was built with an older extraction version; full reindex was declined earlier this session. Run \`codegraph index ${entry.root}\` to rebuild.`;
+    }
+
+    if (!ctx.hasUI) {
+      return `CodeGraph index was built with an older extraction version. Run \`codegraph index ${entry.root}\` to rebuild.`;
+    }
+
+    const ok = await ctx.ui.confirm("Reindex CodeGraph?", `The CodeGraph index at ${entry.root} was built with an older extraction version. Rebuild the full index now?`);
+    if (!ok) {
+      entry.staleReindexDeclined = true;
+      return `CodeGraph index was built with an older extraction version; using existing index. Run \`codegraph index ${entry.root}\` to rebuild.`;
+    }
+
+    onUpdate?.(textResult(`Reindexing CodeGraph at ${entry.root}...`));
+    const indexPromise = entry.cg.indexAll({
+      signal,
+      onProgress(progress) {
+        onUpdate?.(textResult(`Reindexing ${entry.root}: ${progress.phase} ${progress.current}/${progress.total}`));
+      },
+    })
+      .then((result) => {
+        if (!result.success) {
+          throw new Error(result.errors.map((e) => e.message).join("; ") || "CodeGraph indexing failed.");
+        }
+        entry.lastSyncedAt = Date.now();
+        entry.staleReindexDeclined = false;
+      })
+      .finally(() => {
+        entry.indexInFlight = undefined;
+      });
+
+    entry.indexInFlight = indexPromise;
+
+    try {
+      await indexPromise;
+      return `Reindexed CodeGraph at ${entry.root}.`;
+    } catch (error) {
+      return `CodeGraph full reindex failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
   private async ensureFresh(entry: CachedGraph): Promise<string | undefined> {
     if (this.syncTtlMs < 0) return undefined;
 
@@ -321,9 +382,12 @@ export class GraphManager {
     }
 
     const entry = await this.getEntry(snapshot.root!);
-    const syncWarning = await this.ensureFresh(entry);
+    const warnings = [
+      await this.ensureCurrentIndex(entry, ctx, onUpdate, signal),
+      await this.ensureFresh(entry),
+    ].filter((warning): warning is string => !!warning);
     const refreshedSnapshot = await this.buildStatusSnapshot(entry.root, ctx, { explicitProjectPath: true });
-    return { ok: true, root: entry.root, cg: entry.cg, entry, snapshot: refreshedSnapshot, syncWarning };
+    return { ok: true, root: entry.root, cg: entry.cg, entry, snapshot: refreshedSnapshot, syncWarning: warnings.join(" ") || undefined };
   }
 
   /**

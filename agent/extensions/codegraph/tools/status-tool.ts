@@ -3,7 +3,7 @@
  *
  * The tool reports initialization, freshness, sync TTL, watcher, and stale-index
  * state. It may initialize a safe unindexed root according to the configured
- * auto-init policy, matching the original extension behavior.
+ * auto-init policy, and may confirm a full reindex for stale indexes.
  */
 
 import { Type } from "typebox";
@@ -51,6 +51,11 @@ export function registerStatusTool(pi: ExtensionAPI, manager: GraphManager): voi
         if (init.entry) {
           snapshot = await manager.buildStatusSnapshot(init.entry.root, ctx, { explicitProjectPath: true });
         }
+      } else if (snapshot.initialized && snapshot.indexStale) {
+        const graph = await manager.ensureReady(params.projectPath, ctx, onUpdate, signal);
+        if (graph.ok === false) return textResult(graph.message, { snapshot: graph.snapshot });
+        snapshot = graph.snapshot;
+        initMessage = graph.syncWarning;
       }
 
       return textResult(formatStatus(snapshot, initMessage), { snapshot });

@@ -200,8 +200,10 @@ export interface CachedGraph {
   lastSyncedAt: number;
   /** In-flight sync promise used to deduplicate concurrent sync requests. */
   syncInFlight?: Promise<void>;
-  /** In-flight initial indexing promise used to avoid closing active index work. */
+  /** In-flight full indexing promise used to avoid duplicate/closing active index work. */
   indexInFlight?: Promise<void>;
+  /** Whether stale-index reindex confirmation was declined in this session. */
+  staleReindexDeclined?: boolean;
 }
 
 /** Graph readiness success result returned to tool implementations. */
