@@ -15,9 +15,4 @@ export type Eligibility = {
 	reason?: string;
 };
 
-/** Event payload consumed by footer to render Fastlane's glyph indicator. */
-export type FastlaneStateEvent = {
-	active: boolean;
-};
-
 export type PayloadRecord = Record<string, unknown>;

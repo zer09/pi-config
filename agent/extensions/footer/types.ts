@@ -33,20 +33,13 @@ export type RenderSnapshot = {
 	readonly contextUsage: ContextUsageSnapshot;
 	readonly cwd: string;
 	readonly experimentalFeaturesEnabled: boolean;
-	readonly fastlane: FastlaneDisplayState;
+	readonly fastlaneActive: boolean;
 	readonly formattedStatuses: readonly FormattedExtensionStatus[];
 	readonly modelContextWindow: number | undefined;
 	readonly modelId: string | undefined;
 	readonly modelProvider: string | undefined;
 	readonly now: number;
 	readonly thinkingLevel: string;
-};
-
-/**
- * Render-time Fastlane display state consumed by footer.
- */
-export type FastlaneDisplayState = {
-	readonly active: boolean;
 };
 
 /**

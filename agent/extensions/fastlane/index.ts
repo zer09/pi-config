@@ -14,7 +14,7 @@ import {
 	OPENAI_CODEX_PROVIDER_ID,
 	SUPPORTED_OPENAI_CODEX_MODELS,
 } from "./constants";
-import type { Eligibility, FastlaneStateEvent, PayloadRecord, SessionState } from "./types";
+import type { Eligibility, PayloadRecord, SessionState } from "./types";
 
 function isPayloadRecord(payload: unknown): payload is PayloadRecord {
 	return typeof payload === "object" && payload !== null && !Array.isArray(payload);
@@ -62,12 +62,8 @@ function getEligibility(ctx: ExtensionContext): Eligibility {
 	return { eligible: true, modelKey: key };
 }
 
-function createStateEvent(state: SessionState): FastlaneStateEvent {
-	return { active: state.enabled };
-}
-
 function publishState(pi: ExtensionAPI, state: SessionState): void {
-	pi.events.emit(FASTLANE_STATE_EVENT, createStateEvent(state));
+	pi.events.emit(FASTLANE_STATE_EVENT, { active: state.enabled });
 }
 
 function injectFastServiceTier(

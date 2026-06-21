@@ -253,6 +253,8 @@ async function runTests() {
 		const footer = await createFooter({ thinkingLevel: "xhigh" });
 		footer.emitFastlaneState({ active: true });
 		assert.match(footer.renderPlain(), /●●●$/, "active Fastlane should repeat the thinking glyph three times");
+		footer.emitFastlaneState({});
+		assert.match(footer.renderPlain(), /●●●$/, "malformed Fastlane events should not override the last active state");
 		assert.ok(!footer.renderPlain().includes("fast"), "Fastlane should not render a text indicator in footer");
 		assert.ok(footer.getRenderRequests() > 0, "Fastlane state changes should request a footer render");
 	}

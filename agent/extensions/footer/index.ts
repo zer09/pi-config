@@ -6,6 +6,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { FASTLANE_STATE_EVENT } from "../fastlane/constants";
 import { renderFooterLine } from "./footer-renderer";
 import {
 	clearGitStatus,
@@ -23,9 +24,6 @@ import {
 	takePendingPromptStart,
 } from "./prompt-timer";
 import { clearRequestRender, requestFooterRender, setRequestRender } from "./render-request";
-import type { FastlaneDisplayState } from "./types";
-
-const FASTLANE_STATE_EVENT = "fastlane:state";
 
 /**
  * Register the footer extension with Pi.
@@ -35,11 +33,16 @@ const FASTLANE_STATE_EVENT = "fastlane:state";
 export default function footer(pi: ExtensionAPI): void {
 	const promptTimer = createPromptTimerState();
 	const gitStatus = createGitStatusState();
-	let fastlaneDisplay = createInactiveFastlaneDisplayState();
+	let fastlaneActive = false;
 	let unsubscribeFastlaneState: (() => void) | undefined;
 
 	unsubscribeFastlaneState = pi.events.on(FASTLANE_STATE_EVENT, (data) => {
-		fastlaneDisplay = parseFastlaneDisplayState(data);
+		if (typeof data !== "object" || data === null || Array.isArray(data)) return;
+
+		const event = data as { active?: unknown };
+		if (typeof event.active !== "boolean") return;
+
+		fastlaneActive = event.active;
 		requestFooterRender();
 	});
 
@@ -78,7 +81,7 @@ export default function footer(pi: ExtensionAPI): void {
 						promptTimer,
 						branch,
 						getGitStatusForRender(gitStatus, ctx.cwd, branch),
-						fastlaneDisplay,
+						fastlaneActive,
 					)];
 				},
 			};
@@ -114,19 +117,6 @@ export default function footer(pi: ExtensionAPI): void {
 		clearGitStatus(gitStatus);
 		if (ctx.mode === "tui") ctx.ui.setFooter(undefined);
 		clearRequestRender();
-		fastlaneDisplay = createInactiveFastlaneDisplayState();
+		fastlaneActive = false;
 	});
-}
-
-function createInactiveFastlaneDisplayState(): FastlaneDisplayState {
-	return { active: false };
-}
-
-function parseFastlaneDisplayState(data: unknown): FastlaneDisplayState {
-	if (typeof data !== "object" || data === null || Array.isArray(data)) {
-		return createInactiveFastlaneDisplayState();
-	}
-
-	const event = data as { active?: unknown };
-	return { active: event.active === true };
 }

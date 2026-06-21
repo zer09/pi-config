@@ -19,7 +19,6 @@ import { formatPromptQueue, formatPromptTimer } from "./prompt-timer";
 import { formatThinkingDot } from "./thinking-format";
 import { formatContextUsage, formatSessionTokenTotals } from "./token-format";
 import type {
-	FastlaneDisplayState,
 	FooterData,
 	FooterPartWidths,
 	FooterParts,
@@ -40,7 +39,7 @@ import type {
  * @param promptTimer - Prompt timer state.
  * @param branch - Current git branch from Pi footer data.
  * @param gitStatus - Optional richer async git status snapshot.
- * @param fastlane - Fastlane glyph display state.
+ * @param fastlaneActive - Whether Fastlane's latest state event says it is active.
  * @returns One footer line that fits the requested width.
  */
 export function renderFooterLine(
@@ -52,11 +51,11 @@ export function renderFooterLine(
 	promptTimer: PromptTimerState,
 	branch: string | null,
 	gitStatus: GitStatus | undefined,
-	fastlane: FastlaneDisplayState,
+	fastlaneActive: boolean,
 ): string {
 	if (width <= 0) return "";
 
-	const snapshot = createRenderSnapshot(pi, ctx, theme, footerData, fastlane);
+	const snapshot = createRenderSnapshot(pi, ctx, theme, footerData, fastlaneActive);
 	let fallback: { parts: FooterParts; widths: FooterPartWidths } | undefined;
 	for (const profile of FOOTER_PROFILES) {
 		const parts = buildFooterParts(profile, ctx, theme, promptTimer, branch, gitStatus, snapshot);
@@ -73,13 +72,13 @@ function createRenderSnapshot(
 	ctx: ExtensionContext,
 	theme: Theme,
 	footerData: FooterData,
-	fastlane: FastlaneDisplayState,
+	fastlaneActive: boolean,
 ): RenderSnapshot {
 	return {
 		contextUsage: ctx.getContextUsage(),
 		cwd: ctx.cwd,
 		experimentalFeaturesEnabled: areExperimentalFeaturesEnabled(),
-		fastlane,
+		fastlaneActive,
 		formattedStatuses: formatExtensionStatusEntries(footerData.getExtensionStatuses(), theme),
 		modelContextWindow: ctx.model?.contextWindow,
 		modelId: ctx.model?.id,
@@ -111,7 +110,7 @@ function buildFooterParts(
 		showTokens ? formatSessionTokenTotals(ctx, theme, profile === "full" ? "full" : "compact") : undefined,
 		formatContextUsage(snapshot.contextUsage, snapshot.modelContextWindow, theme, profile === "full" ? "full" : "compact"),
 		!minimal ? theme.fg("muted", formatModelName(snapshot.modelProvider, snapshot.modelId, profile)) : undefined,
-		!minimal ? formatThinkingDot(snapshot.thinkingLevel, theme, snapshot.fastlane.active ? 3 : 1) : undefined,
+		!minimal ? formatThinkingDot(snapshot.thinkingLevel, theme, snapshot.fastlaneActive ? 3 : 1) : undefined,
 		snapshot.experimentalFeaturesEnabled ? formatExperimentalMarker(theme) : undefined,
 	]);
 
