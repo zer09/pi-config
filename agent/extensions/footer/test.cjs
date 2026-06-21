@@ -374,6 +374,7 @@ async function runTests() {
 		["⚪ Browser disabled", "⚪", "disabled"],
 		["⚪ Browser enabled lazily", "⚪", "enabled lazy"],
 		["🔴 Browser disconnected", "🔴", "disconnected"],
+		["🔴 Browser — run /browser-setup", "🔴", "lazy setup prompt"],
 		["🟢 Browser connected", "🟢", "connected"],
 		["🟢 Browser enabled", "🟢", "enabled connected"],
 		["Browser: 🔴 Disconnected", "🔴", "status command disconnected"],

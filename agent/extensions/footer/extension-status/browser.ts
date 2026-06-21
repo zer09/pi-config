@@ -30,7 +30,7 @@ export const formatter: ExtensionStatusFormatter = {
 
 function getBrowserStatusDot(plainText: string): string | undefined {
 	const leadingDotMatch = plainText.match(
-		/^([⚪🔴🟢])\s+Browser\s+(?:connected|disconnected|enabled(?:\s+lazily)?|disabled)\b/iu,
+		/^([⚪🔴🟢])\s+Browser(?:\s+(?:connected|disconnected|enabled(?:\s+lazily)?|disabled)\b|\s*[—-]\s*run\s+\/browser-setup\b)/iu,
 	);
 	if (leadingDotMatch) return leadingDotMatch[1];
 
