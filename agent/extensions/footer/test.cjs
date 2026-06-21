@@ -594,6 +594,10 @@ async function runTests() {
 			footer.getColorCalls().some((call) => call.text === text && call.color === color),
 			`context percentage ${text} should use ${color}`,
 		);
+		assert.ok(
+			footer.getColorCalls().some((call) => call.text === "(1k/10k)" && call.color === color),
+			`context usage count should use ${color}`,
+		);
 	}
 
 	{
