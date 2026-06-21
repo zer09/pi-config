@@ -287,7 +287,7 @@ async function runTests() {
 		});
 		const line = footer.renderPlain();
 		assert.match(line, /^\(main\) ~\/project/, "branch should show before abbreviated cwd");
-		assert.ok(line.includes("anthropic/claude-sonnet-4"), "model date suffix should be removed");
+		assert.ok(line.includes("sonnet-4"), "model date suffix should be removed and model label should be compact");
 	}
 
 	{
@@ -365,7 +365,7 @@ async function runTests() {
 		});
 		const line = footer.renderPlain();
 		assert.ok(line.includes("a:on z: on ready"), "statuses should sort by key and sanitize whitespace");
-		assert.ok(line.indexOf("a:on") < line.indexOf("openai-codex/gpt-5.5"), "statuses should render before model");
+		assert.ok(line.indexOf("a:on") < line.indexOf("codex/gpt-5.5"), "statuses should render before model");
 	}
 
 	for (const [statusText, dot, description] of [
@@ -549,7 +549,7 @@ async function runTests() {
 			contextUsage: { tokens: 9400, contextWindow: 272000, percent: 3.45 },
 		});
 		assert.ok(
-			footer.renderPlain().includes("(20%) (↑12k/R4k · ↓3k/W4k) (3.5%) (9.4k/272k) openai-codex/gpt-5.5"),
+			footer.renderPlain().includes("(20%) (↑12k/R4k · ↓3k/W4k) (3.5%) (9.4k/272k) codex/gpt-5.5"),
 			"right side should include cache hit rate, token totals, context percentage, context usage, model, and thinking",
 		);
 	}
@@ -562,7 +562,7 @@ async function runTests() {
 			contextUsage: { tokens: 76000, contextWindow: 272000, percent: null },
 		});
 		assert.ok(
-			footer.renderPlain().includes("(94%) (↑742k/R12M · ↓80k) (28%) (76k/272k) openai-codex/gpt-5.5"),
+			footer.renderPlain().includes("(94%) (↑742k/R12M · ↓80k) (28%) (76k/272k) codex/gpt-5.5"),
 			"context percentage should be computed when usage percent is absent",
 		);
 	}
@@ -590,7 +590,7 @@ async function runTests() {
 			contextUsage: { tokens: null, contextWindow: 272000, percent: null },
 		});
 		const line = footer.renderPlain();
-		assert.ok(line.includes("(0%) (↑12k · ↓3k) openai-codex/gpt-5.5"), "cache segments should be omitted when zero");
+		assert.ok(line.includes("(0%) (↑12k · ↓3k) codex/gpt-5.5"), "cache segments should be omitted when zero");
 		assert.ok(!line.includes("/272k"), "context usage should be hidden when tokens are unknown");
 	}
 

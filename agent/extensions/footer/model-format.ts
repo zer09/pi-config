@@ -2,7 +2,7 @@
  * Provider-aware model-name formatting for footer.
  *
  * The footer removes dated model suffixes and applies compact provider-specific
- * labels in constrained layouts while preserving full labels when requested.
+ * labels. Full footer layouts still use compact model labels.
  */
 
 import type { FooterProfile } from "./types";
@@ -12,7 +12,7 @@ import type { FooterProfile } from "./types";
  *
  * @param provider - Current provider id from Pi.
  * @param id - Current model id from Pi.
- * @param profile - Desired display density.
+ * @param profile - Desired display density, capped at compact.
  * @returns A full or compact model label, or `no-model` when no model is selected.
  */
 export function formatModelName(
@@ -23,8 +23,7 @@ export function formatModelName(
 	if (!id) return "no-model";
 	const base = id.includes("/") ? (id.split("/").pop() ?? id) : id;
 	const model = base.replace(/-\d{8}$/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "");
-	if (profile === "full") return provider ? `${provider}/${model}` : model;
-	return formatCompactModelName(provider, model, profile);
+	return formatCompactModelName(provider, model, profile === "minimal" ? "minimal" : "compact");
 }
 
 function formatCompactModelName(
