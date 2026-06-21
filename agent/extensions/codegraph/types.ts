@@ -15,9 +15,6 @@ import type { Component } from "@earendil-works/pi-tui";
 /** CodeGraph library instance type used by the extension runtime. */
 export type CodeGraphInstance = CodeGraphTypes.CodeGraph;
 
-/** Auto-initialization policy read from CODEGRAPH_PI_AUTO_INIT. */
-export type AutoInitPolicy = "confirm" | "always" | "never";
-
 /** Result returned by Pi's process execution helper. */
 export interface ExecResult {
   /** Captured stdout from the command. */
@@ -278,14 +275,14 @@ export interface StatusSnapshot {
   readonly isIndexing?: boolean;
   /** Whether CodeGraph's watcher is active. */
   readonly isWatching?: boolean;
-  /** Extension-level sync TTL in milliseconds; negative disables sync. */
+  /** Extension-level sync TTL in milliseconds. */
   readonly syncTtlMs: number;
   /** Last successful extension-triggered sync timestamp. */
   readonly lastSyncedAt?: number;
   /** Whether an extension-triggered sync is in flight. */
   readonly syncInFlight?: boolean;
   /** What the next query tool would do about syncing. */
-  readonly nextQuerySync?: "disabled" | "not-needed" | "in-flight" | "now" | "after-ttl";
+  readonly nextQuerySync?: "not-needed" | "in-flight" | "now" | "after-ttl";
   /** Milliseconds until the next query would sync when TTL is active. */
   readonly nextQuerySyncAfterMs?: number;
 }

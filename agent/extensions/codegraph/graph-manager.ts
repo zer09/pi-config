@@ -7,6 +7,7 @@
  */
 
 import { CodeGraph, findNearestCodeGraphRoot } from "./codegraph-package.ts";
+import { DEFAULT_SYNC_TTL_MS } from "./constants.ts";
 import {
   canonicalPath,
   existingSearchPath,
@@ -17,7 +18,6 @@ import {
 import { textResult } from "./result.ts";
 import { changedCount } from "./status-format.ts";
 import type {
-  AutoInitPolicy,
   CachedGraph,
   ExtensionAPI,
   ExtensionContext,
@@ -31,10 +31,6 @@ import type {
 export interface GraphManagerOptions {
   /** Pi API used for git root detection and UI confirmations. */
   readonly pi: ExtensionAPI;
-  /** Query-time sync TTL in milliseconds; negative disables automatic sync. */
-  readonly syncTtlMs: number;
-  /** Auto-initialization policy for unindexed projects. */
-  readonly autoInitPolicy: AutoInitPolicy;
 }
 
 /** Options for building a status snapshot. */
@@ -60,26 +56,23 @@ function isLockUnavailableSyncResult(result: { readonly filesChecked: number; re
  *
  * @example
  * ```ts
- * const manager = new GraphManager({ pi, syncTtlMs, autoInitPolicy });
+ * const manager = new GraphManager({ pi });
  * const graph = await manager.ensureReady(params.projectPath, ctx);
  * ```
  */
 export class GraphManager {
   private readonly pi: ExtensionAPI;
-  private readonly syncTtlMs: number;
-  private readonly autoInitPolicy: AutoInitPolicy;
+  private readonly syncTtlMs = DEFAULT_SYNC_TTL_MS;
   private readonly graphs = new Map<string, CachedGraph>();
   private readonly opening = new Map<string, Promise<CachedGraph>>();
 
   /**
    * Create a manager for one Pi extension registration.
    *
-   * @param options - Pi API plus sync and auto-init configuration.
+   * @param options - Pi API used for root detection and UI confirmations.
    */
   constructor(options: GraphManagerOptions) {
     this.pi = options.pi;
-    this.syncTtlMs = options.syncTtlMs;
-    this.autoInitPolicy = options.autoInitPolicy;
   }
 
   private async getEntry(root: string): Promise<CachedGraph> {
@@ -147,9 +140,7 @@ export class GraphManager {
     let nextQuerySync: StatusSnapshot["nextQuerySync"];
     let nextQuerySyncAfterMs: number | undefined;
 
-    if (this.syncTtlMs < 0) {
-      nextQuerySync = "disabled";
-    } else if (entry.syncInFlight) {
+    if (entry.syncInFlight) {
       nextQuerySync = "in-flight";
     } else if (pending === 0) {
       nextQuerySync = "not-needed";
@@ -202,15 +193,12 @@ export class GraphManager {
     const canonicalRoot = await canonicalPath(root);
     const unsafe = await unsafeRootReason(canonicalRoot);
     if (unsafe) return { message: `Refusing to initialize CodeGraph at ${canonicalRoot}: candidate root looks like ${unsafe}.` };
-    if (this.autoInitPolicy === "never") return { message: `CodeGraph is not initialized at ${canonicalRoot}; auto-init is disabled by CODEGRAPH_PI_AUTO_INIT=never.` };
 
-    if (this.autoInitPolicy === "confirm") {
-      if (!ctx.hasUI) {
-        return { message: `CodeGraph is not initialized at ${canonicalRoot}; no UI is available to confirm initialization. Run \`codegraph init ${canonicalRoot}\` or set CODEGRAPH_PI_AUTO_INIT=always for trusted roots.` };
-      }
-      const ok = await ctx.ui.confirm("Initialize CodeGraph?", `Create .codegraph and index ${canonicalRoot}?`);
-      if (!ok) return { message: `CodeGraph initialization declined for ${canonicalRoot}.` };
+    if (!ctx.hasUI) {
+      return { message: `CodeGraph is not initialized at ${canonicalRoot}; no UI is available to confirm initialization. Run \`codegraph init ${canonicalRoot}\`.` };
     }
+    const ok = await ctx.ui.confirm("Initialize CodeGraph?", `Create .codegraph and index ${canonicalRoot}?`);
+    if (!ok) return { message: `CodeGraph initialization declined for ${canonicalRoot}.` };
 
     onUpdate?.(textResult(`Initializing CodeGraph at ${canonicalRoot}...`));
     const cg = await CodeGraph.init(canonicalRoot, { index: false });
@@ -311,8 +299,6 @@ export class GraphManager {
   }
 
   private async ensureFresh(entry: CachedGraph): Promise<string | undefined> {
-    if (this.syncTtlMs < 0) return undefined;
-
     if (entry.syncInFlight) {
       try {
         await entry.syncInFlight;

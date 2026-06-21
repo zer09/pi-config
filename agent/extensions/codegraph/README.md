@@ -12,10 +12,10 @@ Native Pi tools for CodeGraph using the public `@colbymchenry/codegraph` library
 - `codegraph_impact` — estimate refactor blast radius.
 - `codegraph_status` — inspect initialization, staleness, pending changes, and extension sync state.
 
-## Configuration
+## Behavior
 
-- `CODEGRAPH_PI_SYNC_TTL_MS=10000` by default. Set `0` to sync whenever pending changes exist; set `-1` to disable automatic sync.
-- `CODEGRAPH_PI_AUTO_INIT=confirm` by default. Options: `confirm`, `always`, `never`.
+- Query-time sync uses a fixed 10s TTL between extension-triggered syncs.
+- Safe uninitialized roots always require confirmation before initialization.
 
 The extension refuses to initialize unsafe roots such as `$HOME`, filesystem roots, or parents of `$HOME`.
 

@@ -12,7 +12,7 @@ export const DEFAULT_MAX_BYTES = 50 * 1024;
 /** Maximum lines returned in one tool response before head truncation. */
 export const DEFAULT_MAX_LINES = 2_000;
 
-/** Default TTL for extension-triggered CodeGraph syncs, in milliseconds. */
+/** TTL for extension-triggered CodeGraph syncs, in milliseconds. */
 export const DEFAULT_SYNC_TTL_MS = 10_000;
 
 /** Timeout for `git rev-parse --show-toplevel` used in root detection. */

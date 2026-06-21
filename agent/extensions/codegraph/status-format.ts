@@ -65,7 +65,7 @@ export function formatStatus(snapshot: StatusSnapshot, initMessage?: string): st
     lines.push(`- searched from: ${snapshot.searchPath}`);
     if (snapshot.candidateRoot) lines.push(`- candidate root: ${snapshot.candidateRoot}`);
     if (snapshot.unsafeReason) lines.push(`- blocked: candidate root looks like ${snapshot.unsafeReason}`);
-    lines.push("", "CodeGraph is unavailable for this project until it is initialized. Query tools will ask before initializing safe roots unless `CODEGRAPH_PI_AUTO_INIT=always` or `never` changes that policy.");
+    lines.push("", "CodeGraph is unavailable for this project until it is initialized. Query tools will ask before initializing safe roots.");
     return lines.join("\n");
   }
 
@@ -102,7 +102,7 @@ export function formatStatus(snapshot: StatusSnapshot, initMessage?: string): st
   }
   if (pendingWatcher.length > 20) lines.push(`  - ... ${pendingWatcher.length - 20} more`);
 
-  lines.push(`- extension sync TTL: ${snapshot.syncTtlMs < 0 ? "disabled" : `${snapshot.syncTtlMs}ms`}`);
+  lines.push(`- extension sync TTL: ${snapshot.syncTtlMs}ms`);
   lines.push(`- extension last sync: ${formatTimestamp(snapshot.lastSyncedAt)}`);
   lines.push(`- extension sync in flight: ${snapshot.syncInFlight ? "yes" : "no"}`);
   lines.push(`- next query sync: ${snapshot.nextQuerySync ?? "unknown"}${snapshot.nextQuerySyncAfterMs ? ` in ~${snapshot.nextQuerySyncAfterMs}ms` : ""}`);

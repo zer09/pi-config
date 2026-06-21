@@ -7,7 +7,6 @@
  * registers the focused tool modules.
  */
 
-import { parseAutoInitPolicy, parseSyncTtlMs } from "./config.ts";
 import { GraphManager } from "./graph-manager.ts";
 import { registerCodeGraphTools } from "./tools/register-tools.ts";
 import type { ExtensionAPI } from "./types.ts";
@@ -25,11 +24,7 @@ import type { ExtensionAPI } from "./types.ts";
  * ```
  */
 export default function codegraphExtension(pi: ExtensionAPI): void {
-  const manager = new GraphManager({
-    pi,
-    syncTtlMs: parseSyncTtlMs(),
-    autoInitPolicy: parseAutoInitPolicy(),
-  });
+  const manager = new GraphManager({ pi });
 
   pi.on("session_shutdown", async () => {
     await manager.closeAll();

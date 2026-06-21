@@ -2,8 +2,8 @@
  * Registration for the `codegraph_status` Pi tool.
  *
  * The tool reports initialization, freshness, sync TTL, watcher, and stale-index
- * state. It may initialize a safe unindexed root according to the configured
- * auto-init policy, and may confirm a full reindex for stale indexes.
+ * state. It may ask to initialize a safe unindexed root, and may confirm a full
+ * reindex for stale indexes.
  */
 
 import { Type } from "typebox";
