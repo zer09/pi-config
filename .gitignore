@@ -28,9 +28,9 @@ data/
 tmp/
 scratch/
 logs/
+node_modules/
 plans/
 notes/
-context-mode/
 context7/
 .pi/
 

@@ -1,0 +1,29 @@
+{
+  "name": "pi-context-mode-lean",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Lean Pi extension wrapper around context-mode large-output tools.",
+  "scripts": {
+    "test": "vitest run",
+    "check": "tsc --noEmit",
+    "fuzz": "tsx scripts/fuzz.ts"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "dependencies": {
+    "context-mode": "1.0.163"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.11",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}
