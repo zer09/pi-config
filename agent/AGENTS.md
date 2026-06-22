@@ -42,6 +42,16 @@ These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `C
 - Use `codegraph_search` only to locate indexed symbols by name, `codegraph_callers` before refactoring a named symbol to find call sites/callback registrations, `codegraph_impact` for explicit deeper blast-radius analysis, and `codegraph_status` for index/sync health.
 - Trust CodeGraph results and avoid re-verifying with grep/read loops; fall back to raw file tools for docs/configs/unindexed files, exact ranges not covered, real filesystem questions, or stale files after edits.
 
+## Context-mode tooling
+
+- Use `ctx_execute_file`, `ctx_batch_execute`, and `ctx_search` only for large-output workflows; do not use them for normal targeted source reading, exact edits, or small command output.
+- Prefer CodeGraph for indexed source understanding, `read` for specific file ranges, `bash` for short commands, and `edit`/`write` for changes.
+- Use `ctx_batch_execute` for noisy test/build/lint/typecheck logs, multi-command diagnostic research, CI/log dumps, and long runtime traces where only matching snippets are needed.
+- Use `ctx_execute_file` for one large local log/JSON/CSV/report when the full file should not enter chat; print only the needed answer/snippet.
+- Use `ctx_search` to search previously indexed context-mode output; prefer exact error IDs, tokens, filenames, or distinctive terms.
+- Keep `ctx_batch_execute` diagnostic/read-heavy. Use concurrency `1` for tests/builds/stateful commands; use higher concurrency only for independent read-only I/O commands.
+- Do not use context-mode tools to bypass normal safety expectations, RTK behavior, or version-control rules.
+
 ## Python tooling
 
 - Use `uv` for Python project/package/script workflows when applicable; do not override Poetry/PDM unless asked.
