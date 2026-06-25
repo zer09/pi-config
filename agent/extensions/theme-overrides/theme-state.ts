@@ -5,10 +5,10 @@
  * apply orchestration can decide whether it is safe to replace the theme.
  */
 
-import { readFileSync } from "node:fs"
+import { readFileSync, writeFileSync } from "node:fs"
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent"
 import { SETTINGS_PATH } from "./paths.ts"
-import type { ColorMode, CurrentThemeInfo, ResolvedConfig } from "./types.ts"
+import type { ColorMode, CurrentThemeInfo, ResolvedConfig, ThemeKind } from "./types.ts"
 
 /**
  * Read the theme configured in Pi settings.json, if one is present.
@@ -22,6 +22,25 @@ export function readConfiguredTheme(): string | undefined {
     return typeof json.theme === "string" ? json.theme : undefined
   } catch {
     return undefined
+  }
+}
+
+/**
+ * Keep Pi's persistent theme setting aligned with the detected system theme.
+ *
+ * The pre-session `pi --resume` selector reads settings before extensions can
+ * run, so persisting the last detected built-in theme keeps that selector
+ * readable on the next startup.
+ *
+ * @param kind - Detected built-in theme kind.
+ */
+export function syncConfiguredTheme(kind: ThemeKind): void {
+  try {
+    const json = JSON.parse(readFileSync(SETTINGS_PATH, "utf8")) as { theme?: unknown }
+    if (json.theme === kind) return
+    writeFileSync(SETTINGS_PATH, `${JSON.stringify({ ...json, theme: kind }, null, 2)}\n`, "utf8")
+  } catch {
+    // Theme application should still succeed if settings cannot be synchronized.
   }
 }
 

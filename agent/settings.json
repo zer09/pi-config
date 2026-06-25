@@ -7,5 +7,15 @@
     "npm:pi-browser-harness",
     "npm:pi-claude-bridge",
     "npm:pi-web-access"
-  ]
+  ],
+  "enabledModels": [
+    "openai-codex/gpt-5.5",
+    "opencode-go/deepseek-v4-pro",
+    "cursor/default"
+  ],
+  "defaultProvider": "claude-bridge",
+  "defaultModel": "claude-opus-4-6",
+  "defaultThinkingLevel": "xhigh",
+  "theme": "light",
+  "transport": "websocket-cached"
 }
