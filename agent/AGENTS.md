@@ -8,6 +8,7 @@ These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `C
 - State assumptions and risks when they matter.
 - Ask before making ambiguous, destructive, or broad changes.
 - Sensitive/private info may be displayed unredacted when it is only shown in your local TUI terminal. Redaction is required before saving, committing, pushing, uploading, sharing, or sending it to external services.
+- When showing a code block from a file, include the block's starting line number when known.
 
 ## Glossary
 
