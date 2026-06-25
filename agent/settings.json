@@ -16,6 +16,6 @@
   "defaultProvider": "claude-bridge",
   "defaultModel": "claude-opus-4-6",
   "defaultThinkingLevel": "xhigh",
-  "theme": "light",
+  "theme": "resume-light",
   "transport": "websocket-cached"
 }

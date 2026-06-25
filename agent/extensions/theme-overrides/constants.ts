@@ -9,6 +9,12 @@
 import type { ThemeKind, ThemeOverridesConfig } from "./types.ts"
 
 /**
+ * Global custom theme used by pre-session UI such as `pi --resume` before this
+ * extension can apply its in-memory light override.
+ */
+export const RESUME_LIGHT_THEME_NAME = "resume-light"
+
+/**
  * Built-in fallback configuration used when config.default.json is absent or
  * omits a value. Theme paths are package-relative until config loading resolves
  * them to absolute paths.

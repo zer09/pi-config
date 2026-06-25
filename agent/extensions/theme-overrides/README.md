@@ -11,7 +11,7 @@ This built-in global Pi extension watches your host system appearance and automa
 - Lets you override either palette with user-provided theme JSON.
 - Detects system appearance on macOS, Linux, Windows, WSL, and OrbStack.
 - Re-applies on startup and periodically checks for appearance changes.
-- Backs off when you choose a non-built-in/custom Pi theme.
+- Backs off when you choose a custom Pi theme other than its managed `resume-light` helper theme.
 
 ## Location
 
@@ -19,6 +19,12 @@ This extension is auto-discovered from:
 
 ```text
 ~/.pi/agent/extensions/theme-overrides/index.ts
+```
+
+The companion pre-session light theme is loaded from:
+
+```text
+~/.pi/agent/themes/resume-light.json
 ```
 
 ## Configuration
@@ -98,7 +104,7 @@ Pi extensions run with your local user permissions. This extension reads local J
 
 ## Troubleshooting
 
-- **Theme does not change:** make sure Pi's selected theme is `dark` or `light`. The extension intentionally backs off for other theme names.
+- **Theme does not change:** make sure Pi's selected theme is `dark`, `light`, or `resume-light`. The extension intentionally backs off for other theme names.
 - **Linux always falls back:** ensure a DBus session and `xdg-desktop-portal` are available.
 - **WSL always falls back:** ensure Windows' `reg.exe` is available at `/mnt/c/Windows/System32/reg.exe` or on PATH.
 - **Theme flickers or keeps changing:** make sure you are not loading both this built-in copy and another package/development copy at the same time.
