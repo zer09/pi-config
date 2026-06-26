@@ -1,6 +1,6 @@
-# Global Pi Agent Instructions
+# Global Agent Instructions
 
-These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `CLAUDE.md` files may add more specific instructions; follow the most specific applicable instruction when they differ.
+These are my global preferences for Agent sessions. Project-local `AGENTS.md` or `CLAUDE.md` files may add more specific instructions; follow the most specific applicable instruction when they differ.
 
 ## Communication
 
@@ -35,23 +35,14 @@ These are my global preferences for Pi sessions. Project-local `AGENTS.md` or `C
 
 - Avoid shell redirection (`>`, `>>`, heredocs, `tee`) when editing files; use the available file-editing tools instead.
 
-## CodeGraph tooling
+## Tool routing
 
-- When `codegraph_*` tools are available, use CodeGraph as the primary source-code understanding path for indexed projects; prefer `codegraph_explore` over `read`/`grep`/`find` exploration.
-- Use `codegraph_files` to list/discover CodeGraph-indexed source files, verify whether a source file is indexed, browse by path/language/error state, or replace raw `find`/`rg --files` only when the question is specifically about indexed files. It does not read contents.
-- Use `codegraph_node` for one indexed symbol body or indexed source file; prefer it over `read` for indexed source because it includes graph context. For “what does this call?”, prefer `codegraph_node` because the symbol body and trail include callees; use `codegraph_callees` only for a terse callee list.
-- Use `codegraph_search` only to locate indexed symbols by name, `codegraph_callers` before refactoring a named symbol to find call sites/callback registrations, `codegraph_impact` for explicit deeper blast-radius analysis, and `codegraph_status` for index/sync health.
-- Trust CodeGraph results and avoid re-verifying with grep/read loops; fall back to raw file tools for docs/configs/unindexed files, exact ranges not covered, real filesystem questions, or stale files after edits.
-
-## Context-mode tooling
-
-- Use `ctx_execute_file`, `ctx_batch_execute`, and `ctx_search` only for large-output workflows; do not use them for normal targeted source reading, exact edits, or small command output.
-- Prefer CodeGraph for indexed source understanding, `read` for specific file ranges, `bash` for short commands, and `edit`/`write` for changes.
-- Use `ctx_batch_execute` for noisy test/build/lint/typecheck logs, multi-command diagnostic research, CI/log dumps, and long runtime traces where only matching snippets are needed.
-- Use `ctx_execute_file` for one large local log/JSON/CSV/report when the full file should not enter chat; print only the needed answer/snippet.
-- Use `ctx_search` to search previously indexed context-mode output; prefer exact error IDs, tokens, filenames, or distinctive terms.
-- Keep `ctx_batch_execute` diagnostic/read-heavy. Use concurrency `1` for tests/builds/stateful commands; use higher concurrency only for independent read-only I/O commands.
-- Do not use context-mode tools to bypass normal safety expectations, RTK behavior, or version-control rules.
+- For source-code understanding in indexed projects, use CodeGraph first: `codegraph_explore` for areas/flows/reviews/bugs, `codegraph_node` for exact indexed files/symbols, `codegraph_search` for known names, and `codegraph_callers`/`codegraph_impact` before refactors. Trust CodeGraph results; do not re-read or grep just to verify them. Fall back only for docs/configs/unindexed/stale/exact edit-region reads.
+- Use Context Mode tools (`ctx_batch_execute`, `ctx_execute_file`, `ctx_search`) for read-only shell work likely to exceed ~20 lines, multiple diagnostics, searches, git history/diffs, tests/builds/lints/typechecks, logs, large JSON/CSV, or any truncated command output.
+- Prefer `ctx_batch_execute` for command sets/noisy output and `ctx_execute_file` for large local files or saved command output. If they do not surface the needed answer, use `ctx_search` on the indexed output before rerunning, switching tools, or asking the user.
+- For GitHub repo/issue/PR/release/workflow reads or writes, use the `gh-cli` skill and authenticated `gh`; do not use browser/web tools on github.com unless explicitly asked for public web research.
+- Use direct `bash` only for short low-output local checks or explicitly requested state-changing commands; do not use it for broad source/log/git/test output when `ctx_*` tools can index and filter.
+- Use native `read` for small targeted ranges and exact edit regions, and native `edit`/`write` for all file changes.
 
 ## Python tooling
 
@@ -80,7 +71,6 @@ Classify each request by the action requested, not by the topic.
 - When ambiguity would change the implementation, state it and ask or choose the safest narrow interpretation.
 - For multi-step coding work, define concrete success checks before editing when practical.
 - Make the simplest working change. Do not declare dead variables or add parameters (even with defaults) if they are never actively used.
-- Follow YAGNI: implement only what is needed now. Prefer simple one-liner solutions when they are clear, readable, and sufficient.
 - Use ternary expressions only for simple two-way conditionals when they improve clarity; avoid nested or chained ternaries, and prefer `if`/`else`, guard clauses, or named intermediate variables for multi-branch logic.
 - Keep changes surgical and style-matched.
 - Do not add speculative features, premature abstractions, or impossible-case handling.
