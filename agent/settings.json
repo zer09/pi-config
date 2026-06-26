@@ -1,12 +1,12 @@
 {
   "lastChangelogVersion": "0.80.2",
   "packages": [
-    "npm:@schultzp2020/pi-cursor",
-    "npm:pi-blackhole",
-    "npm:pi-btw",
-    "npm:pi-browser-harness",
-    "npm:pi-claude-bridge",
-    "npm:pi-web-access"
+    "npm:@schultzp2020/pi-cursor@0.5.0",
+    "npm:pi-blackhole@0.3.9",
+    "npm:pi-btw@0.4.1",
+    "npm:pi-browser-harness@0.6.0",
+    "npm:pi-claude-bridge@0.5.0",
+    "npm:pi-web-access@0.13.0"
   ],
   "enabledModels": [
     "openai-codex/gpt-5.5",
