@@ -10,6 +10,13 @@ agent/mcp-cache.json
 agent/mcp-npx-cache.json
 agent/run-history.jsonl
 
+# Pi blackhole runtime queue; keep config and update helper files tracked
+agent/pi-blackhole/**
+!agent/pi-blackhole/
+!agent/pi-blackhole/pi-blackhole-config.json
+!agent/pi-blackhole/LOCAL_PATCHES.md
+!agent/pi-blackhole/reapply-compact-after-percent-patch.mjs
+
 # Local auth and sensitive local-only files
 agent/auth.json
 # agent/settings.json
