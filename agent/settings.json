@@ -11,10 +11,11 @@
   "enabledModels": [
     "openai-codex/gpt-5.5",
     "opencode-go/deepseek-v4-pro",
-    "cursor/default"
+    "cursor/default",
+    "claude-bridge/claude-opus-4-6"
   ],
-  "defaultProvider": "claude-bridge",
-  "defaultModel": "claude-opus-4-6",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.5",
   "defaultThinkingLevel": "xhigh",
   "theme": "resume-light",
   "transport": "websocket-cached"
