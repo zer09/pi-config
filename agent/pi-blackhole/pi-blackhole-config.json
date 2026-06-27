@@ -86,6 +86,7 @@
   "observeAfterTokens": 20000,
   "reflectAfterTokens": 40000,
   "compactAfterTokens": 180000,
+  "compactAfterPercent": 0.65,
   "observerChunkMaxTokens": 80000,
   "observerPreambleMaxTokens": 0,
   "observationsPoolMaxTokens": 40000,
@@ -97,7 +98,8 @@
   "debugLog": false,
   "_notes": [
     "Daily driver/session model: openai-codex/gpt-5.5, context window from pi --list-models: 272K.",
-    "compactAfterTokens: 180000 = 66.2% of 272K; formula target was 272000 * 0.65 = 176800, rounded to high preset.",
+    "compactAfterTokens: 180000 = fallback if the session model contextWindow is unavailable.",
+    "LOCAL PATCH 2026-06-26: compactAfterPercent: 0.65 makes auto-compaction threshold derive from the active session model contextWindow; reapply after pi-blackhole upgrades if lost. See ~/.pi/agent/pi-blackhole/LOCAL_PATCHES.md.",
     "tailBehavior is pi-default only: blackhole still owns compaction, but Pi's gentler recent-tail cut is used.",
     "Cursor observer/dropper primaries and Claude Bridge reflector primary all have 200K context. Observer primary is cursor/gpt-5.4-mini-low; dropper primary is cursor/gpt-5.4-mini-medium; reflector primary is claude-bridge/claude-haiku-4-5. The largest worker input cap is 160K = 80.0% of the worker context.",
     "Fallbacks are deliberately non-Cursor so primary and fallback providers differ.",
