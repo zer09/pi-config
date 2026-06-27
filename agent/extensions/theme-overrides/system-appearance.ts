@@ -2,18 +2,17 @@
  * Operating-system and system appearance detection.
  *
  * This module contains the platform-specific probes used to map the host system
- * appearance to Pi's built-in "dark" or "light" theme selectors.
+ * appearance to Pi's `dark` or `light` theme selectors.
  */
 
 import { platform, release } from "node:os"
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent"
+import { QUERY_TIMEOUT_MS } from "./constants.ts"
 import { execOutput, getWindowsRegCommand } from "./system-commands.ts"
-import type { DetectedOS, ResolvedConfig, ThemeKind } from "./types.ts"
+import type { DetectedOS, ThemeKind } from "./types.ts"
 
 /**
  * Detect the host OS category relevant to appearance querying.
- *
- * @returns A normalized OS category used by system appearance detection.
  */
 export function detectOS(): DetectedOS {
   const osPlatform = platform()
@@ -29,10 +28,6 @@ export function detectOS(): DetectedOS {
 
 /**
  * Detect Windows app appearance from the registry.
- *
- * @param pi - Pi extension API used to execute the registry command.
- * @param queryTimeoutMs - Timeout for the registry query.
- * @returns Detected theme kind, or undefined when detection fails.
  */
 export async function detectWindowsAppearance(
   pi: ExtensionAPI,
@@ -53,10 +48,6 @@ export async function detectWindowsAppearance(
 
 /**
  * Detect Linux desktop appearance through xdg-desktop-portal.
- *
- * @param pi - Pi extension API used to execute dbus-send.
- * @param queryTimeoutMs - Timeout for the DBus query.
- * @returns Detected theme kind, or undefined when detection fails.
  */
 export async function detectLinuxAppearance(pi: ExtensionAPI, queryTimeoutMs: number): Promise<ThemeKind | undefined> {
   const result = await execOutput(
@@ -84,11 +75,6 @@ export async function detectLinuxAppearance(pi: ExtensionAPI, queryTimeoutMs: nu
 
 /**
  * Detect macOS appearance using defaults, optionally through OrbStack's mac shim.
- *
- * @param pi - Pi extension API used to execute the query command.
- * @param queryTimeoutMs - Timeout for the appearance query.
- * @param viaOrbStack - Whether to query the macOS host through OrbStack.
- * @returns Detected theme kind, or undefined when command execution fails.
  */
 export async function detectDarwinAppearance(
   pi: ExtensionAPI,
@@ -104,36 +90,27 @@ export async function detectDarwinAppearance(
 }
 
 /**
- * Detect the current system appearance with configured fallback behavior.
+ * Detect the current system appearance.
  *
- * @param pi - Pi extension API used to execute platform-specific probes.
- * @param config - Resolved extension configuration.
- * @returns Detected theme kind, or config.fallbackTheme when detection fails.
+ * Undefined means no reliable signal was available; callers should leave Pi's
+ * current/default theme alone.
  */
-export async function detectSystemAppearance(pi: ExtensionAPI, config: ResolvedConfig): Promise<ThemeKind> {
-  let detected: ThemeKind | undefined
-
+export async function detectSystemAppearance(pi: ExtensionAPI): Promise<ThemeKind | undefined> {
   switch (detectOS()) {
     case "WSL":
     case "Windows_NT":
-      detected = await detectWindowsAppearance(pi, config.queryTimeoutMs)
-      break
+      return detectWindowsAppearance(pi, QUERY_TIMEOUT_MS)
 
     case "Linux":
-      detected = await detectLinuxAppearance(pi, config.queryTimeoutMs)
-      break
+      return detectLinuxAppearance(pi, QUERY_TIMEOUT_MS)
 
     case "Darwin":
-      detected = await detectDarwinAppearance(pi, config.queryTimeoutMs)
-      break
+      return detectDarwinAppearance(pi, QUERY_TIMEOUT_MS)
 
     case "OrbStack":
-      detected = await detectDarwinAppearance(pi, config.queryTimeoutMs, true)
-      break
+      return detectDarwinAppearance(pi, QUERY_TIMEOUT_MS, true)
 
     case "unsupported":
-      break
+      return undefined
   }
-
-  return detected ?? config.fallbackTheme
 }

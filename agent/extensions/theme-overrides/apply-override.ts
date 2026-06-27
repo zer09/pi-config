@@ -1,42 +1,35 @@
 /**
  * One-shot theme override orchestration.
  *
- * This module coordinates configuration loading, override policy checks, system
- * appearance detection, and Pi theme construction for a single apply attempt.
+ * This module detects system appearance and switches Pi's active runtime theme
+ * without writing agent/settings.json.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent"
-import { loadConfig } from "./config.ts"
+import { THEME_PATHS } from "./constants.ts"
 import { detectSystemAppearance } from "./system-appearance.ts"
-import { buildOverrideTheme } from "./theme-builder.ts"
-import { currentThemeInfo, isThemeOverrideAllowed, syncConfiguredTheme } from "./theme-state.ts"
+import { currentThemeInfo, isThemeOverrideAllowed } from "./theme-state.ts"
 
 /**
- * Apply the configured built-in dark/light theme override if it is currently safe.
- *
- * The override is skipped when disabled, outside TUI mode, when the user has
- * selected a non-built-in theme, or when the desired override theme is already
- * active.
- *
- * @param pi - Pi extension API used for system appearance queries.
- * @param ctx - Current Pi extension context.
- * @returns A promise that resolves after the attempt completes or is skipped.
- * @throws Propagates configuration, palette, and theme-construction errors to
- * the caller so lifecycle code can warn once and continue running.
+ * Apply the matching dark/light runtime theme if it is currently safe.
  */
 export async function applyOverride(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
-  const config = loadConfig()
+  if (ctx.mode !== "tui") return
+  if (!isThemeOverrideAllowed(ctx)) return
 
-  if (!config.enabled || ctx.mode !== "tui") return
-  if (!isThemeOverrideAllowed(ctx, config)) return
+  const kind = await detectSystemAppearance(pi)
+  if (!kind) return
+  if (!isThemeOverrideAllowed(ctx)) return
 
-  const kind = await detectSystemAppearance(pi, config)
-  if (!isThemeOverrideAllowed(ctx, config)) return
-
-  syncConfiguredTheme(kind)
+  const theme = ctx.ui.getTheme(kind)
+  if (!theme) {
+    throw new Error(`Theme "${kind}" is not available; expected ${THEME_PATHS[kind]}`)
+  }
 
   const current = currentThemeInfo(ctx)
-  if (current.sourcePath === config.themes[kind]) return
+  if (theme.sourcePath ? current.sourcePath === theme.sourcePath : current.name === kind && !current.sourcePath) {
+    return
+  }
 
-  ctx.ui.setTheme(buildOverrideTheme(ctx, kind, current.mode, config))
+  ctx.ui.setTheme(theme)
 }

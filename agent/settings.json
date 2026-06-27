@@ -17,6 +17,6 @@
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.5",
   "defaultThinkingLevel": "xhigh",
-  "theme": "resume-light",
+  "theme": "light",
   "transport": "websocket-cached"
 }

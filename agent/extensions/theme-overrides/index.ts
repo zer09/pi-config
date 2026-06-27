@@ -4,26 +4,15 @@
  * Pi auto-discovers this file at extensions/theme-overrides/index.ts. It owns the
  * mutable timer and generation state needed to apply theme overrides at session
  * startup, retry shortly after startup, poll periodically, and clean up reliably
- * on session shutdown. The actual override, config, palette, and system-detection
- * logic lives in focused helper modules.
+ * on session shutdown.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent"
 import { applyOverride } from "./apply-override.ts"
-import { readPollIntervalMs } from "./config.ts"
-import { APPLY_RETRY_DELAYS_MS } from "./constants.ts"
+import { APPLY_RETRY_DELAYS_MS, POLL_INTERVAL_MS } from "./constants.ts"
 
 /**
  * Register the theme-overrides Pi extension.
- *
- * @param pi - Pi extension API used to subscribe to session lifecycle events.
- * @returns Nothing; handlers remain registered for the lifetime of the extension runtime.
- *
- * @example
- * ```ts
- * import themeOverrides from "./theme-overrides/index.ts"
- * themeOverrides(pi)
- * ```
  */
 export default function themeOverridesExtension(pi: ExtensionAPI): void {
   let interval: ReturnType<typeof setInterval> | undefined
@@ -41,7 +30,8 @@ export default function themeOverridesExtension(pi: ExtensionAPI): void {
     } catch (error) {
       if (!warned) {
         warned = true
-        console.warn("[theme-overrides] failed to apply built-in theme override", error)
+        const message = error instanceof Error ? error.message : String(error)
+        ctx.ui.notify(`Theme override failed: ${message}`, "warning")
       }
     } finally {
       applying = false
@@ -56,7 +46,6 @@ export default function themeOverridesExtension(pi: ExtensionAPI): void {
   pi.on("session_start", (_event, ctx) => {
     generation += 1
     const activeGeneration = generation
-    const pollIntervalMs = readPollIntervalMs()
 
     void safeApply(ctx, activeGeneration)
 
@@ -64,7 +53,7 @@ export default function themeOverridesExtension(pi: ExtensionAPI): void {
     retryTimers = APPLY_RETRY_DELAYS_MS.map((delay) => setTimeout(() => void safeApply(ctx, activeGeneration), delay))
 
     if (interval) clearInterval(interval)
-    interval = setInterval(() => void safeApply(ctx, activeGeneration), pollIntervalMs)
+    interval = setInterval(() => void safeApply(ctx, activeGeneration), POLL_INTERVAL_MS)
   })
 
   pi.on("session_shutdown", () => {
