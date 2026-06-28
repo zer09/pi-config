@@ -97,9 +97,11 @@ function reuseTextComponent(context: PiRenderContext | undefined, mode: "line" |
     : new LeanTextComponent("", mode);
 }
 
+const MAX_CALL_SUMMARY_CHARS = 480;
+
 function summarizeArg(value: unknown, fallback: string): string {
   if (typeof value !== "string" || value.length === 0) return fallback;
-  return value.length > 80 ? `${value.slice(0, 77)}...` : value;
+  return value.length > MAX_CALL_SUMMARY_CHARS ? `${value.slice(0, MAX_CALL_SUMMARY_CHARS - 3)}...` : value;
 }
 
 export function createCallRenderer(toolName: string) {

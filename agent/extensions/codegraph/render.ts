@@ -12,7 +12,7 @@ import { Text } from "@earendil-works/pi-tui";
 import type { ExtensionAPI, ToolDefinition, ToolRenderContext, ToolResult } from "./types.ts";
 
 const COLLAPSED_RESULT_LINES = 20;
-const MAX_CALL_SUMMARY_CHARS = 120;
+const MAX_CALL_SUMMARY_CHARS = 480;
 const CALL_ARG_PRIORITY = [
   "query",
   "symbol",

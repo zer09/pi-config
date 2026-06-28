@@ -10,7 +10,7 @@ type RenderContext = { lastComponent?: unknown };
 type RenderOptions = { expanded?: boolean; isPartial?: boolean };
 
 const COLLAPSED_RESULT_LINES = 20;
-const MAX_CALL_SUMMARY_CHARS = 120;
+const MAX_CALL_SUMMARY_CHARS = 480;
 
 function reuseText(context?: RenderContext): Text {
   return context?.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);

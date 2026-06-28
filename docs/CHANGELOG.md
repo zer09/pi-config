@@ -10,6 +10,8 @@ This document summarizes local Pi configuration changes. Detailed upgrade notes 
 - Added disk-backed raw response and content caches under `~/.pi/web_search_exa` with TTL, atomic writes, secret redaction, and cache-size safeguards.
 - Removed `npm:pi-web-access@0.13.0` from configured packages; existing installed files remain on disk and can be re-enabled later if needed.
 - Validation: `bun test` passed for the extension and import smoke confirmed `web_search,fetch_grounding,fetch_contents`.
+- Added compact/expanded TUI renderers for the web search tools.
+- Increased tool-call summary truncation to 480 characters for web-search, CodeGraph, and context-mode renderers.
 
 ## 2026-06-25 — Pi 0.79.9 to 0.80.2
 
