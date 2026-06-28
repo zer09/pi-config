@@ -2,6 +2,7 @@ import { callCodeSearchFallback, callExaSearchFallback, callGeminiExaGrounding }
 import { fetchContentsEntries } from "./contents.js";
 import { formatCleanGeminiSuccess, formatFallbackResult, formatFetchedContents, formatGroundingSources } from "./format.js";
 import { loadConfig, readConfiguredEnv } from "./config.js";
+import { createWebSearchCallRenderer, createWebSearchResultRenderer } from "./render.js";
 import { fetchContentsSchema, fetchGroundingSchema, webSearchExaSchema } from "./schemas.js";
 import { fallbackReasonFromPrimary, selectFallbackRoute, assertMode } from "./routing.js";
 import { generateResponseId, readStoredResponse, writeStoredResponse } from "./storage.js";
@@ -224,6 +225,8 @@ export function createToolRegistrations(): ToolRegistration[] {
         "When web_search returns Source Grounding Supports, use fetch_grounding with the Raw response ID to resolve URLs before fetching full page content.",
       ],
       parameters: webSearchExaSchema,
+      renderCall: createWebSearchCallRenderer("web_search"),
+      renderResult: createWebSearchResultRenderer("web_search"),
       async execute(_toolCallId, params, signalFromTool, _onUpdate, ctx?: ExtensionContextLike) {
         return executeWebSearchExa(params, signalFromTool ?? ctx?.signal);
       },
@@ -237,6 +240,8 @@ export function createToolRegistrations(): ToolRegistration[] {
         "Use fetch_grounding after web_search when source URLs are needed for specific grounded claims.",
       ],
       parameters: fetchGroundingSchema,
+      renderCall: createWebSearchCallRenderer("fetch_grounding"),
+      renderResult: createWebSearchResultRenderer("fetch_grounding"),
       async execute(_toolCallId, params) {
         return executeFetchGrounding(params);
       },
@@ -250,6 +255,8 @@ export function createToolRegistrations(): ToolRegistration[] {
         "Use fetch_contents only when full Markdown page text is needed for explicit URLs, especially after fetch_grounding.",
       ],
       parameters: fetchContentsSchema,
+      renderCall: createWebSearchCallRenderer("fetch_contents"),
+      renderResult: createWebSearchResultRenderer("fetch_contents"),
       async execute(_toolCallId, params, signalFromTool, _onUpdate, ctx?: ExtensionContextLike) {
         return executeFetchContents(params, signalFromTool ?? ctx?.signal);
       },

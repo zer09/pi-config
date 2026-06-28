@@ -11,6 +11,20 @@ export type ToolResult = {
   terminate?: boolean;
 };
 
+export type ToolRenderThemeLike = {
+  fg?: (name: string, value: string) => string;
+  bold?: (value: string) => string;
+};
+
+export type ToolRenderOptionsLike = {
+  expanded?: boolean;
+  isPartial?: boolean;
+};
+
+export type ToolRenderContextLike = {
+  lastComponent?: unknown;
+};
+
 export type ToolRegistration = {
   name: string;
   label: string;
@@ -18,6 +32,13 @@ export type ToolRegistration = {
   promptSnippet?: string;
   promptGuidelines?: string[];
   parameters: JsonSchema;
+  renderCall?: (args: unknown, theme: ToolRenderThemeLike, context?: ToolRenderContextLike) => unknown;
+  renderResult?: (
+    result: ToolResult,
+    options: ToolRenderOptionsLike,
+    theme: ToolRenderThemeLike,
+    context?: ToolRenderContextLike,
+  ) => unknown;
   execute: (
     toolCallId: string,
     params: unknown,
