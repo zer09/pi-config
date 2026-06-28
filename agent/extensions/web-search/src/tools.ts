@@ -1,12 +1,32 @@
 import { callCodeSearchFallback, callExaSearchFallback } from "./exa-search.js";
 import { callGeminiExaGrounding } from "./gemini.js";
 import { fetchContentsEntries } from "./contents.js";
-import { formatCleanGeminiSuccess, formatFallbackResult, formatFetchedContents, formatGroundingSources } from "./format.js";
+import {
+  formatCleanGeminiSuccess,
+  formatFallbackResult,
+  formatFetchedContents,
+  formatGroundingSources,
+} from "./format.js";
 import { loadConfig, readConfiguredEnv } from "./config.js";
-import { createWebSearchCallRenderer, createWebSearchResultRenderer } from "./render.js";
-import { fetchContentsSchema, fetchGroundingSchema, webSearchExaSchema } from "./schemas.js";
-import { fallbackReasonFromPrimary, selectFallbackRoute, assertMode } from "./routing.js";
-import { generateResponseId, readStoredResponse, writeStoredResponse } from "./storage.js";
+import {
+  createWebSearchCallRenderer,
+  createWebSearchResultRenderer,
+} from "./render.js";
+import {
+  fetchContentsSchema,
+  fetchGroundingSchema,
+  webSearchExaSchema,
+} from "./schemas.js";
+import {
+  fallbackReasonFromPrimary,
+  selectFallbackRoute,
+  assertMode,
+} from "./routing.js";
+import {
+  generateResponseId,
+  readStoredResponse,
+  writeStoredResponse,
+} from "./storage.js";
 import type {
   ExtensionContextLike,
   FallbackAttempt,
@@ -19,29 +39,37 @@ import type {
 import type { SecretForRedaction } from "./redact.js";
 
 function assertQuery(value: unknown): string {
-  if (typeof value !== "string" || value.trim().length === 0) throw new Error("query must be a non-empty string");
+  if (typeof value !== "string" || value.trim().length === 0)
+    throw new Error("query must be a non-empty string");
   return value.trim();
 }
 
 function assertResponseId(value: unknown): string {
-  if (typeof value !== "string" || value.trim().length === 0) throw new Error("responseId must be a non-empty string");
+  if (typeof value !== "string" || value.trim().length === 0)
+    throw new Error("responseId must be a non-empty string");
   return value.trim();
 }
 
 function assertGroundingIds(value: unknown): number[] {
-  if (!Array.isArray(value)) throw new Error("groundingIds must be an array of integers");
+  if (!Array.isArray(value))
+    throw new Error("groundingIds must be an array of integers");
   return value.map((id) => {
-    if (!Number.isInteger(id) || id < 0) throw new Error("groundingIds must be non-negative integers");
+    if (!Number.isInteger(id) || id < 0)
+      throw new Error("groundingIds must be non-negative integers");
     return id as number;
   });
 }
 
 function asParams(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("parameters must be an object");
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("parameters must be an object");
   return value as Record<string, unknown>;
 }
 
-function buildSecrets(configEnv: { googleCloudApiKeyEnv: string; exaApiKeyEnv: string }, keys: { google?: string; exa?: string }): SecretForRedaction[] {
+function buildSecrets(
+  configEnv: { googleCloudApiKeyEnv: string; exaApiKeyEnv: string },
+  keys: { google?: string; exa?: string },
+): SecretForRedaction[] {
   return [
     { label: configEnv.googleCloudApiKeyEnv, value: keys.google },
     { label: configEnv.exaApiKeyEnv, value: keys.exa },
@@ -83,7 +111,9 @@ function buildStoredRecord(params: {
   };
 }
 
-function detailsForSearch(record: StoredSearchResponse): Record<string, unknown> {
+function detailsForSearch(
+  record: StoredSearchResponse,
+): Record<string, unknown> {
   const normalized = record.normalized ?? undefined;
   return {
     responseId: record.responseId,
@@ -99,32 +129,67 @@ function detailsForSearch(record: StoredSearchResponse): Record<string, unknown>
   };
 }
 
-export async function executeWebSearchExa(rawParams: unknown, signal?: AbortSignal): Promise<ToolResult> {
+export async function executeWebSearchExa(
+  rawParams: unknown,
+  signal?: AbortSignal,
+): Promise<ToolResult> {
   const params = asParams(rawParams);
   const query = assertQuery(params.query);
   const mode = assertMode(params.mode);
   const config = await loadConfig();
   const exaApiKey = readConfiguredEnv(config.exaApiKeyEnv);
-  if (!exaApiKey) throw new Error(`Missing required environment variable ${config.exaApiKeyEnv}`);
+  if (!exaApiKey)
+    throw new Error(
+      `Missing required environment variable ${config.exaApiKeyEnv}`,
+    );
 
   const googleCloudApiKey = readConfiguredEnv(config.googleCloudApiKeyEnv);
-  const secrets = buildSecrets(config, { google: googleCloudApiKey, exa: exaApiKey });
+  const secrets = buildSecrets(config, {
+    google: googleCloudApiKey,
+    exa: exaApiKey,
+  });
 
   let primary: PrimaryAttempt;
   if (googleCloudApiKey) {
-    primary = await callGeminiExaGrounding({ query, googleCloudApiKey, exaApiKey, config, signal });
+    primary = await callGeminiExaGrounding({
+      query,
+      googleCloudApiKey,
+      exaApiKey,
+      config,
+      signal,
+    });
   } else {
-    primary = makeSkippedPrimary(config.model, `Missing required environment variable ${config.googleCloudApiKeyEnv}`);
+    primary = makeSkippedPrimary(
+      config.model,
+      `Missing required environment variable ${config.googleCloudApiKeyEnv}`,
+    );
   }
 
   const responseId = generateResponseId();
   const now = Date.now();
 
-  if (primary.normalized?.cleanSuccess && primary.rawResponse?.status && primary.rawResponse.status >= 200 && primary.rawResponse.status < 300) {
-    const record = buildStoredRecord({ responseId, now, ttlMs: config.rawResponseTtlMs, query, primary, fallback: null });
+  if (
+    primary.normalized?.cleanSuccess &&
+    primary.rawResponse?.status &&
+    primary.rawResponse.status >= 200 &&
+    primary.rawResponse.status < 300
+  ) {
+    const record = buildStoredRecord({
+      responseId,
+      now,
+      ttlMs: config.rawResponseTtlMs,
+      query,
+      primary,
+      fallback: null,
+    });
     await writeStoredResponse(config.cacheDir, record, secrets);
     return {
-      content: [{ type: "text", text: formatCleanGeminiSuccess(primary.normalized, responseId) }],
+      content: [
+        {
+          type: "text",
+          text: formatCleanGeminiSuccess(primary.normalized, responseId),
+        },
+      ],
       details: detailsForSearch(record),
     };
   }
@@ -133,27 +198,62 @@ export async function executeWebSearchExa(rawParams: unknown, signal?: AbortSign
   const fallbackRoute = selectFallbackRoute(query, mode);
   let fallback: FallbackAttempt;
   if (fallbackRoute === "code_search") {
-    fallback = await callCodeSearchFallback({ query, exaApiKey, reason: fallbackReason, signal });
+    fallback = await callCodeSearchFallback({
+      query,
+      exaApiKey,
+      reason: fallbackReason,
+      signal,
+    });
   } else {
-    fallback = await callExaSearchFallback({ query, exaApiKey, config, reason: fallbackReason, signal });
+    fallback = await callExaSearchFallback({
+      query,
+      exaApiKey,
+      config,
+      reason: fallbackReason,
+      signal,
+    });
   }
-  const record = buildStoredRecord({ responseId, now, ttlMs: config.rawResponseTtlMs, query, primary, fallback });
+  const record = buildStoredRecord({
+    responseId,
+    now,
+    ttlMs: config.rawResponseTtlMs,
+    query,
+    primary,
+    fallback,
+  });
   await writeStoredResponse(config.cacheDir, record, secrets);
 
   return {
-    content: [{ type: "text", text: formatFallbackResult(fallback.answer, fallback.provider, fallbackReason, responseId) }],
+    content: [
+      {
+        type: "text",
+        text: formatFallbackResult(
+          fallback.answer,
+          fallback.provider,
+          fallbackReason,
+          responseId,
+        ),
+      },
+    ],
     details: detailsForSearch(record),
   };
 }
 
-export async function executeFetchGrounding(rawParams: unknown): Promise<ToolResult> {
+export async function executeFetchGrounding(
+  rawParams: unknown,
+): Promise<ToolResult> {
   const params = asParams(rawParams);
   const responseId = assertResponseId(params.responseId);
   const groundingIds = assertGroundingIds(params.groundingIds);
   const config = await loadConfig();
   const record = await readStoredResponse(config.cacheDir, responseId);
 
-  const byId = new Map((record.normalized?.sources ?? []).map((source) => [source.groundingId, source]));
+  const byId = new Map(
+    (record.normalized?.sources ?? []).map((source) => [
+      source.groundingId,
+      source,
+    ]),
+  );
   const resolved: GroundingSource[] = [];
   for (const id of [...new Set(groundingIds)]) {
     const source = byId.get(id);
@@ -161,7 +261,9 @@ export async function executeFetchGrounding(rawParams: unknown): Promise<ToolRes
   }
 
   return {
-    content: [{ type: "text", text: formatGroundingSources(responseId, resolved) }],
+    content: [
+      { type: "text", text: formatGroundingSources(responseId, resolved) },
+    ],
     details: {
       responseId,
       sources: resolved,
@@ -169,7 +271,10 @@ export async function executeFetchGrounding(rawParams: unknown): Promise<ToolRes
   };
 }
 
-export async function executeFetchContents(rawParams: unknown, signal?: AbortSignal): Promise<ToolResult> {
+export async function executeFetchContents(
+  rawParams: unknown,
+  signal?: AbortSignal,
+): Promise<ToolResult> {
   const params = asParams(rawParams);
   const entries = await fetchContentsEntries({
     rawUris: params.uris,
@@ -197,26 +302,37 @@ export function createToolRegistrations(): ToolRegistration[] {
     {
       name: "web_search",
       label: "Web Search",
-      description: "Search the web with native Gemini+Exa grounding first, then direct Exa fallback on HTTP/non-STOP failures. Supports mode: auto, web, or code for fallback routing only.",
-      promptSnippet: "Search with Gemini+Exa grounding and get source grounding supports plus a raw response ID.",
+      description:
+        "Search the web for current or source-backed information. Best results come from natural-language, semantically rich queries that describe the answer or source you need.",
+      promptSnippet:
+        "Search the web with natural-language queries for current or source-backed information.",
       promptGuidelines: [
-        "Use web_search for web research when Gemini+Exa grounding and fetch_grounding source expansion are useful.",
-        "When web_search returns Source Grounding Supports, use fetch_grounding with the Raw response ID to resolve URLs before fetching full page content.",
+        "Write queries as natural-language questions or descriptions with enough context; include exact names, errors, versions, dates, or desired source types when relevant.",
+        "For fallback routing, prefer mode: auto; use mode: web for general web/docs/news and mode: code for code-oriented results.",
+        "Avoid relying on Google-style Boolean/operator-heavy syntax unless you need exact terms or domain constraints.",
       ],
       parameters: webSearchExaSchema,
       renderCall: createWebSearchCallRenderer("web_search"),
       renderResult: createWebSearchResultRenderer("web_search"),
-      async execute(_toolCallId, params, signalFromTool, _onUpdate, ctx?: ExtensionContextLike) {
+      async execute(
+        _toolCallId,
+        params,
+        signalFromTool,
+        _onUpdate,
+        ctx?: ExtensionContextLike,
+      ) {
         return executeWebSearchExa(params, signalFromTool ?? ctx?.signal);
       },
     },
     {
       name: "fetch_grounding",
       label: "Fetch Grounding",
-      description: "Resolve grounding IDs from a stored web_search raw response into compact source URLs, titles, and domains.",
-      promptSnippet: "Resolve web_search grounding IDs into source URLs/titles/domains.",
+      description:
+        "Resolve source support IDs from a prior web_search result into compact source URLs, titles, and domains.",
+      promptSnippet:
+        "Resolve web_search source IDs into source URLs, titles, and domains.",
       promptGuidelines: [
-        "Use fetch_grounding after web_search when source URLs are needed for specific grounded claims.",
+        "Use fetch_grounding after web_search when you need URLs for specific supported claims.",
       ],
       parameters: fetchGroundingSchema,
       renderCall: createWebSearchCallRenderer("fetch_grounding"),
@@ -228,15 +344,23 @@ export function createToolRegistrations(): ToolRegistration[] {
     {
       name: "fetch_contents",
       label: "Fetch Contents",
-      description: "Fetch full Markdown text for explicit URLs through Exa /contents. Results are cached on disk by normalized URL for one month by default.",
-      promptSnippet: "Fetch full Markdown content for explicit URLs, using disk cache when available.",
+      description:
+        "Fetch full Markdown text for explicit URLs. Results are cached on disk by normalized URL for one month by default.",
+      promptSnippet:
+        "Fetch full Markdown content for explicit URLs, using disk cache when available.",
       promptGuidelines: [
-        "Use fetch_contents only when full Markdown page text is needed for explicit URLs, especially after fetch_grounding.",
+        "Use fetch_contents only when full page text is needed for explicit URLs, especially after fetch_grounding.",
       ],
       parameters: fetchContentsSchema,
       renderCall: createWebSearchCallRenderer("fetch_contents"),
       renderResult: createWebSearchResultRenderer("fetch_contents"),
-      async execute(_toolCallId, params, signalFromTool, _onUpdate, ctx?: ExtensionContextLike) {
+      async execute(
+        _toolCallId,
+        params,
+        signalFromTool,
+        _onUpdate,
+        ctx?: ExtensionContextLike,
+      ) {
         return executeFetchContents(params, signalFromTool ?? ctx?.signal);
       },
     },

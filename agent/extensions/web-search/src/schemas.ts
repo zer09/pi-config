@@ -7,12 +7,14 @@ export const webSearchExaSchema = {
     query: {
       type: "string",
       minLength: 1,
-      description: "Search query or research question.",
+      description:
+        "Plain-English search request. Prefer detailed natural-language questions/descriptions; include exact names, errors, versions, dates, or desired source types when relevant.",
     },
     mode: {
       type: "string",
       enum: ["auto", "web", "code"],
-      description: "Fallback routing only. Primary always tries native Gemini+Exa grounding first.",
+      description:
+        "Optional fallback routing hint. Use auto by default; use web for general web/docs/news and code for code-oriented results."
     },
   },
   required: ["query"],
@@ -30,7 +32,7 @@ export const fetchGroundingSchema = {
     groundingIds: {
       type: "array",
       items: { type: "integer", minimum: 0 },
-      description: "Grounding chunk IDs shown in Source Grounding Supports.",
+      description: "Source support IDs shown in a web_search result."
     },
   },
   required: ["responseId", "groundingIds"],
@@ -44,12 +46,12 @@ export const fetchContentsSchema = {
       type: "array",
       minItems: 1,
       items: { type: "string", minLength: 1 },
-      description: "Explicit URLs to fetch as full Markdown text through Exa /contents.",
+      description: "Explicit URLs to fetch as full Markdown text."
     },
     maxCharacters: {
       type: "integer",
       minimum: 1,
-      description: "Maximum Markdown characters Exa should return per URL. Defaults to 12000.",
+      description: "Maximum Markdown characters to return per URL. Defaults to 12000."
     },
   },
   required: ["uris"],
