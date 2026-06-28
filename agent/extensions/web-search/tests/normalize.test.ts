@@ -57,7 +57,10 @@ describe("Gemini+Exa response normalizer", () => {
 
     expect(output).toContain("Here are the latest major updates regarding NASA's Artemis II mission schedule and crew:\n\n*");
     expect(output).toContain("## Source Grounding Supports (claim annotations)");
+    expect(output).toContain("Use the bracketed IDs");
     expect(output).toContain("fetch_grounding({ responseId: \"wse_test\", groundingIds: [ids...] })");
+    expect(output).toMatch(/^- \[[0-9, ]+\] — "/m);
+    expect(output).not.toMatch(/^\d+\. \[[0-9, ]+\] — "/m);
     expect(output).toContain("## Raw response ID\n\nwse_test");
     expect(output).not.toContain("## Fallback");
     expect(output).not.toContain("finishReason");

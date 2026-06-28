@@ -11,16 +11,16 @@ function compactSegmentText(text: string): string {
 
 export function formatCleanGeminiSuccess(normalized: NormalizedGeminiExaResponse, responseId: string): string {
   const lines: string[] = [normalized.answer.trimEnd(), "", "## Source Grounding Supports (claim annotations)", ""];
-  lines.push("These are grounded claims/spans from the answer. Each [id] points to a source held in this response's grounding metadata.");
-  lines.push(`Use fetch_grounding({ responseId: "${responseId}", groundingIds: [ids...] }) to resolve URLs.`);
+  lines.push("These are grounded claims/spans from the answer. Each bracketed ID points to a source held in this response's grounding metadata.");
+  lines.push(`Use the bracketed IDs with fetch_grounding({ responseId: "${responseId}", groundingIds: [ids...] }) to resolve URLs.`);
   lines.push("Use fetch_contents({ uris: [...] }) only if full page Markdown is needed.");
   lines.push("");
 
   if (normalized.supports.length === 0) {
     lines.push("No grounding support annotations were returned.");
   } else {
-    normalized.supports.forEach((support, index) => {
-      lines.push(`${index + 1}. [${support.groundingChunkIndices.join(", ")}] — "${compactSegmentText(support.text)}"`);
+    normalized.supports.forEach((support) => {
+      lines.push(`- [${support.groundingChunkIndices.join(", ")}] — "${compactSegmentText(support.text)}"`);
     });
   }
 
