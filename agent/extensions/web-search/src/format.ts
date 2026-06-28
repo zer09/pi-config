@@ -10,7 +10,7 @@ function compactSegmentText(text: string): string {
 }
 
 export function formatCleanGeminiSuccess(normalized: NormalizedGeminiExaResponse, responseId: string): string {
-  const lines: string[] = [normalized.answer.trimEnd(), "", "Source Grounding Supports (claim annotations):"];
+  const lines: string[] = [normalized.answer.trimEnd(), "", "## Source Grounding Supports (claim annotations)", ""];
   lines.push("These are grounded claims/spans from the answer. Each [id] points to a source held in this response's grounding metadata.");
   lines.push(`Use fetch_grounding({ responseId: "${responseId}", groundingIds: [ids...] }) to resolve URLs.`);
   lines.push("Use fetch_contents({ uris: [...] }) only if full page Markdown is needed.");
@@ -24,7 +24,7 @@ export function formatCleanGeminiSuccess(normalized: NormalizedGeminiExaResponse
     });
   }
 
-  lines.push("", `Raw response ID: ${responseId}`);
+  lines.push("", "## Raw response ID", "", responseId);
   return lines.join("\n");
 }
 
@@ -32,11 +32,18 @@ export function formatFallbackResult(answer: string, provider: FallbackRoute, re
   return [
     answer.trimEnd(),
     "",
-    "Source Grounding Supports: unavailable for this fallback provider.",
+    "## Source Grounding Supports (claim annotations)",
+    "",
+    "Unavailable for this fallback provider.",
+    "",
+    "## Fallback",
     "",
     `Fallback: ${provider}`,
     `Fallback reason: ${reason}`,
-    `Raw response ID: ${responseId}`,
+    "",
+    "## Raw response ID",
+    "",
+    responseId,
   ].join("\n");
 }
 
