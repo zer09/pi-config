@@ -1,4 +1,5 @@
-import { callCodeSearchFallback, callExaSearchFallback, callGeminiExaGrounding } from "./api.js";
+import { callCodeSearchFallback, callExaSearchFallback } from "./exa-search.js";
+import { callGeminiExaGrounding } from "./gemini.js";
 import { fetchContentsEntries } from "./contents.js";
 import { formatCleanGeminiSuccess, formatFallbackResult, formatFetchedContents, formatGroundingSources } from "./format.js";
 import { loadConfig, readConfiguredEnv } from "./config.js";
@@ -9,7 +10,6 @@ import { generateResponseId, readStoredResponse, writeStoredResponse } from "./s
 import type {
   ExtensionContextLike,
   FallbackAttempt,
-  FallbackRoute,
   GroundingSource,
   PrimaryAttempt,
   StoredSearchResponse,
@@ -56,32 +56,6 @@ function makeSkippedPrimary(model: string, reason: string): PrimaryAttempt {
     elapsedMs: 0,
     error: reason,
   };
-}
-
-async function runFallback(params: {
-  route: FallbackRoute;
-  query: string;
-  exaApiKey: string;
-  reason: string;
-  config: Awaited<ReturnType<typeof loadConfig>>;
-  signal?: AbortSignal;
-}): Promise<FallbackAttempt> {
-  if (params.route === "code_search") {
-    return callCodeSearchFallback({
-      query: params.query,
-      exaApiKey: params.exaApiKey,
-      reason: params.reason,
-      signal: params.signal,
-    });
-  }
-
-  return callExaSearchFallback({
-    query: params.query,
-    exaApiKey: params.exaApiKey,
-    config: params.config,
-    reason: params.reason,
-    signal: params.signal,
-  });
 }
 
 function buildStoredRecord(params: {
@@ -157,7 +131,12 @@ export async function executeWebSearchExa(rawParams: unknown, signal?: AbortSign
 
   const fallbackReason = fallbackReasonFromPrimary(primary);
   const fallbackRoute = selectFallbackRoute(query, mode);
-  const fallback = await runFallback({ route: fallbackRoute, query, exaApiKey, reason: fallbackReason, config, signal });
+  let fallback: FallbackAttempt;
+  if (fallbackRoute === "code_search") {
+    fallback = await callCodeSearchFallback({ query, exaApiKey, reason: fallbackReason, signal });
+  } else {
+    fallback = await callExaSearchFallback({ query, exaApiKey, config, reason: fallbackReason, signal });
+  }
   const record = buildStoredRecord({ responseId, now, ttlMs: config.rawResponseTtlMs, query, primary, fallback });
   await writeStoredResponse(config.cacheDir, record, secrets);
 

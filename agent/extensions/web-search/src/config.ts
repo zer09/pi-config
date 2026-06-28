@@ -1,10 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { asPositiveInteger, asRecordOrEmpty, asTrimmedNonEmptyString } from "./value-guards.js";
 import type { SearchConfig } from "./types.js";
 
 export const ONE_MONTH_MS = 2_592_000_000;
-export const DEFAULT_CACHE_DIR = "~/.pi/web_search_exa";
+export const DEFAULT_CACHE_DIR = "~/.pi/web_search_cache";
+const CONFIG_FILE_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "../config.json");
 export const DEFAULT_CONFIG: SearchConfig = {
   googleCloudApiKeyEnv: "GOOGLE_CLOUD_API_KEY",
   exaApiKeyEnv: "EXA_API_KEY",
@@ -23,27 +26,18 @@ export function expandHome(path: string): string {
   return path;
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
 function optionalString(value: unknown, fallback: string): string {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : fallback;
+  return asTrimmedNonEmptyString(value) ?? fallback;
 }
 
 function optionalPositiveInteger(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback;
-}
-
-function optionalPositiveNumber(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
+  return asPositiveInteger(value) ?? fallback;
 }
 
 async function readConfigFile(): Promise<Record<string, unknown>> {
-  const configPath = join(expandHome(DEFAULT_CACHE_DIR), "config.json");
   try {
-    const text = await readFile(configPath, "utf8");
-    return asRecord(JSON.parse(text));
+    const text = await readFile(CONFIG_FILE_PATH, "utf8");
+    return asRecordOrEmpty(JSON.parse(text));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
     throw new Error(`Failed to read web_search config: ${(error as Error).message}`);
@@ -52,9 +46,9 @@ async function readConfigFile(): Promise<Record<string, unknown>> {
 
 export async function loadConfig(): Promise<SearchConfig> {
   const raw = await readConfigFile();
-  const google = asRecord(raw.google);
-  const exa = asRecord(raw.exa);
-  const grounding = asRecord(raw.geminiExaGrounding);
+  const google = asRecordOrEmpty(raw.google);
+  const exa = asRecordOrEmpty(raw.exa);
+  const grounding = asRecordOrEmpty(raw.geminiExaGrounding);
 
   const cacheDir = expandHome(optionalString(grounding.cacheDir, DEFAULT_CONFIG.cacheDir));
 
@@ -69,8 +63,8 @@ export async function loadConfig(): Promise<SearchConfig> {
       DEFAULT_CONFIG.maxHighlightCharacters,
     ),
     cacheDir: resolve(cacheDir),
-    rawResponseTtlMs: optionalPositiveNumber(grounding.rawResponseTtlMs, DEFAULT_CONFIG.rawResponseTtlMs),
-    contentCacheTtlMs: optionalPositiveNumber(grounding.contentCacheTtlMs, DEFAULT_CONFIG.contentCacheTtlMs),
+    rawResponseTtlMs: optionalPositiveInteger(grounding.rawResponseTtlMs, DEFAULT_CONFIG.rawResponseTtlMs),
+    contentCacheTtlMs: optionalPositiveInteger(grounding.contentCacheTtlMs, DEFAULT_CONFIG.contentCacheTtlMs),
   };
 }
 

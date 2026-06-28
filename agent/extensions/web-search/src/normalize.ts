@@ -1,20 +1,5 @@
+import { asArray, asFiniteNumber as asNumber, asRecord, asString } from "./value-guards.js";
 import type { GroundingSource, GroundingSupport, NormalizedGeminiExaResponse } from "./types.js";
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
-}
-
-function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
-
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-function asNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
 
 function asIntegerArray(value: unknown): number[] {
   return asArray(value).filter((item): item is number => Number.isInteger(item) && item >= 0);

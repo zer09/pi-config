@@ -1,4 +1,5 @@
 import { Text } from "@earendil-works/pi-tui";
+import { asFiniteNumber as asNumber, asNonEmptyString as asString, asRecordOrEmpty as asRecord } from "./value-guards.js";
 import type { ToolResult } from "./types.js";
 
 type WebSearchToolName = "web_search" | "fetch_grounding" | "fetch_contents";
@@ -28,18 +29,6 @@ function truncate(value: string, maxChars: number): string {
   const compact = value.replace(/\s+/g, " ").trim();
   if (compact.length <= maxChars) return compact;
   return `${compact.slice(0, maxChars - 1)}…`;
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function asNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function extractText(result: ToolResult): string {

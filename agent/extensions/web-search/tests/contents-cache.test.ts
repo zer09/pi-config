@@ -1,10 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import {
-  dedupeContentMisses,
-  isCacheableContentEntry,
-  isContentCacheEntryUsable,
-  parseExaContentsResults,
-} from "../src/contents.js";
+import { dedupeContentMisses, isCacheableContentEntry, isContentCacheEntryUsable } from "../src/content-cache.js";
+import { parseExaContentsResults } from "../src/content-parser.js";
 import type { ContentCacheEntry } from "../src/types.js";
 
 function entry(overrides: Partial<ContentCacheEntry> = {}): ContentCacheEntry {
