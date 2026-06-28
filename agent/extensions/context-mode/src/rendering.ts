@@ -104,7 +104,7 @@ function summarizeArg(value: unknown, fallback: string): string {
   return value.length > MAX_CALL_SUMMARY_CHARS ? `${value.slice(0, MAX_CALL_SUMMARY_CHARS - 3)}...` : value;
 }
 
-export function createCallRenderer(toolName: string) {
+export function createCallRenderer(toolName: string, toolLabel = toolName) {
   return (args: Record<string, unknown> | null | undefined, theme: PiRenderTheme, context?: PiRenderContext): Component => {
     const safeArgs = args && typeof args === "object" ? args : {};
     const component = reuseTextComponent(context, "line");
@@ -114,7 +114,7 @@ export function createCallRenderer(toolName: string) {
     }
     if (toolName === "ctx_batch_execute" && Array.isArray(safeArgs.commands)) suffix = ` ${safeArgs.commands.length} command(s)`;
     if (toolName === "ctx_search" && Array.isArray(safeArgs.queries)) suffix = ` ${summarizeArg(safeArgs.queries[0], "")}`;
-    component.setText(theme.fg("toolTitle", theme.bold(toolName)) + theme.fg("muted", suffix));
+    component.setText(theme.fg("toolTitle", theme.bold(toolLabel)) + theme.fg("muted", suffix));
     return component;
   };
 }

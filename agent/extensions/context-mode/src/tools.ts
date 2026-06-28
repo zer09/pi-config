@@ -168,7 +168,7 @@ export function createLeanToolRegistrations(deps: WrapperDeps = {}): ToolRegistr
     label: meta.label,
     description: meta.description,
     parameters: meta.parameters,
-    renderCall: createCallRenderer(meta.name),
+    renderCall: createCallRenderer(meta.name, meta.label),
     renderResult: createResultRenderer(meta.name, PARTIAL_TEXT[meta.name]),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       return executeLeanTool(meta.name, params as AnyLeanParams, ctx, deps);

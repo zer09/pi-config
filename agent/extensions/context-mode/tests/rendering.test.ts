@@ -37,9 +37,9 @@ describe("tool rendering", () => {
   });
 
   it("call renderer tolerates missing args and context", () => {
-    const renderer = createCallRenderer("ctx_execute_file");
-    expect(renderer(undefined, theme).render(120)).toEqual(["ctx_execute_file"]);
-    expect(renderer(null, theme).render(120)).toEqual(["ctx_execute_file"]);
+    const renderer = createCallRenderer("ctx_execute_file", "CM Execute File");
+    expect(renderer(undefined, theme).render(120)).toEqual(["CM Execute File"]);
+    expect(renderer(null, theme).render(120)).toEqual(["CM Execute File"]);
   });
 
   it("extractText handles circular objects", () => {

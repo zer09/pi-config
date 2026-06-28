@@ -45,13 +45,13 @@ const CALL_ARG_PRIORITY = [
 export function registerCodeGraphTool<Params extends object>(pi: ExtensionAPI, tool: ToolDefinition<Params>): void {
   pi.registerTool({
     ...tool,
-    renderCall: tool.renderCall ?? ((args, theme, context) => renderCodeGraphCall(tool.name, args, theme, context)),
+    renderCall: tool.renderCall ?? ((args, theme, context) => renderCodeGraphCall(tool.label, args, theme, context)),
     renderResult: tool.renderResult ?? renderCodeGraphResult,
   });
 }
 
 function renderCodeGraphCall<Params extends object>(
-  toolName: string,
+  toolLabel: string,
   args: Params | undefined,
   theme: Theme,
   context: ToolRenderContext<unknown, Params>,
@@ -59,7 +59,7 @@ function renderCodeGraphCall<Params extends object>(
   const text = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
   const summary = formatCallSummary(args);
   text.setText(
-    theme.fg("toolTitle", theme.bold(toolName)) +
+    theme.fg("toolTitle", theme.bold(toolLabel)) +
       (summary ? ` ${theme.fg("accent", summary)}` : ""),
   );
   return text;

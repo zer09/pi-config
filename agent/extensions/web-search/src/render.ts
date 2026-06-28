@@ -12,6 +12,11 @@ type RenderOptions = { expanded?: boolean; isPartial?: boolean };
 
 const COLLAPSED_RESULT_LINES = 20;
 const MAX_CALL_SUMMARY_CHARS = 480;
+const TOOL_LABELS: Record<WebSearchToolName, string> = {
+  web_search: "Web Search",
+  fetch_grounding: "Fetch Grounding",
+  fetch_contents: "Fetch Contents",
+};
 
 function reuseText(context?: RenderContext): Text {
   return context?.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
@@ -94,7 +99,7 @@ export function createWebSearchCallRenderer(toolName: WebSearchToolName) {
   return (args: unknown, theme: RenderTheme, context?: RenderContext): Text => {
     const component = reuseText(context);
     const summary = formatCallSummary(toolName, args);
-    component.setText(fg(theme, "toolTitle", bold(theme, toolName)) + (summary ? ` ${fg(theme, "accent", summary)}` : ""));
+    component.setText(fg(theme, "toolTitle", bold(theme, TOOL_LABELS[toolName])) + (summary ? ` ${fg(theme, "accent", summary)}` : ""));
     return component;
   };
 }
@@ -112,11 +117,11 @@ export function createWebSearchResultRenderer(toolName: WebSearchToolName) {
 
     if (options.expanded) {
       const detailsLine = detailsSummary ? `\n\n${fg(theme, "dim", `Details: ${detailsSummary}`)}` : "";
-      component.setText(fg(theme, "toolOutput", output || `${toolName} completed`) + detailsLine);
+      component.setText(fg(theme, "toolOutput", output || `${TOOL_LABELS[toolName]} completed`) + detailsLine);
       return component;
     }
 
-    const fullOutput = output || `${toolName} completed`;
+    const fullOutput = output || `${TOOL_LABELS[toolName]} completed`;
     const lines = fullOutput.split("\n");
     const shouldCollapse = lines.length > COLLAPSED_RESULT_LINES;
     const visibleLines = shouldCollapse ? lines.slice(0, COLLAPSED_RESULT_LINES) : lines;

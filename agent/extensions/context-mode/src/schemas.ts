@@ -117,25 +117,25 @@ export const ctxSearchSchema = {
 export const LEAN_TOOL_METADATA = [
   {
     name: "ctx_execute_file",
-    label: "ctx_execute_file",
+    label: "CM Execute File",
     description: "Run code over one local file without returning the full file. Print only the needed answer/snippet.",
     parameters: ctxExecuteFileSchema,
   },
   {
     name: "ctx_batch_execute",
-    label: "ctx_batch_execute",
+    label: "CM Batch Execute",
     description: "Run diagnostic shell commands, index large output, and return snippets matching queries.",
     parameters: ctxBatchExecuteSchema,
   },
   {
     name: "ctx_search",
-    label: "ctx_search",
+    label: "CM Search",
     description: "Search previously indexed context-mode output and return small matching snippets.",
     parameters: ctxSearchSchema,
   },
 ] as const satisfies ReadonlyArray<{
   name: LeanToolName;
-  label: LeanToolName;
+  label: string;
   description: string;
   parameters: JsonSchema;
 }>;
