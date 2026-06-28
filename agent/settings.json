@@ -5,8 +5,7 @@
     "npm:pi-blackhole@0.3.9",
     "npm:pi-btw@0.4.1",
     "npm:pi-browser-harness@0.6.0",
-    "npm:pi-claude-bridge@0.5.0",
-    "npm:pi-web-access@0.13.0"
+    "npm:pi-claude-bridge@0.5.0"
   ],
   "enabledModels": [
     "openai-codex/gpt-5.5",
@@ -17,6 +16,6 @@
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.5",
   "defaultThinkingLevel": "xhigh",
-  "theme": "light",
+  "theme": "dark",
   "transport": "websocket-cached"
 }

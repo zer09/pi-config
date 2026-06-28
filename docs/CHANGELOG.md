@@ -2,6 +2,15 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-06-28 — Native Gemini+Exa web search cutover
+
+- Added local `agent/extensions/web-search` Pi extension.
+- Registered public tools: `web_search`, `fetch_grounding`, and `fetch_contents`.
+- `web_search` now uses native Gemini + Exa grounding first, with internal direct Exa fallbacks for web/code searches.
+- Added disk-backed raw response and content caches under `~/.pi/web_search_exa` with TTL, atomic writes, secret redaction, and cache-size safeguards.
+- Removed `npm:pi-web-access@0.13.0` from configured packages; existing installed files remain on disk and can be re-enabled later if needed.
+- Validation: `bun test` passed for the extension and import smoke confirmed `web_search,fetch_grounding,fetch_contents`.
+
 ## 2026-06-25 — Pi 0.79.9 to 0.80.2
 
 Details: [`docs/changelogs/pi-0.79.9-to-0.80.2-upgrade.md`](./changelogs/pi-0.79.9-to-0.80.2-upgrade.md)

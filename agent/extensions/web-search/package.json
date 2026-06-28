@@ -1,0 +1,18 @@
+{
+  "name": "pi-web-search-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pi extension for Gemini native Exa grounding with direct Exa fallbacks.",
+  "scripts": {
+    "test": "bun test"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}
