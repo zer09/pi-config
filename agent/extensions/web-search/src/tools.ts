@@ -303,13 +303,15 @@ export function createToolRegistrations(): ToolRegistration[] {
       name: "web_search",
       label: "Web Search",
       description:
-        "Search the web for current or source-backed information. Best results come from natural-language, semantically rich queries that describe the answer or source you need.",
+        "Search the web via Gemini with Exa grounding and direct Exa fallback. Write a complete natural-language research question or description, not a keyword bag or Google-style search query. Include exact names, commands, errors, package names, versions, repos, and preferred source types/domains in prose when relevant.",
       promptSnippet:
-        "Search the web with natural-language queries for current or source-backed information.",
+        "Search the web via Gemini+Exa using complete natural-language research questions/descriptions, not keyword bags.",
       promptGuidelines: [
-        "Write queries as natural-language questions or descriptions with enough context; include exact names, errors, versions, dates, or desired source types when relevant.",
-        "For fallback routing, prefer mode: auto; use mode: web for general web/docs/news and mode: code for code-oriented results.",
-        "Avoid relying on Google-style Boolean/operator-heavy syntax unless you need exact terms or domain constraints.",
+        "Use web_search for current or source-backed web information; write the query as the full question or research task you want answered.",
+        "For web_search, include exact package names, commands, errors, versions, file extensions, repo names, or desired source types/domains in prose when relevant.",
+        "Do not send web_search keyword bags or Google-style operators like site:, OR, intitle:, or piles of quoted terms; say source preferences in prose, e.g. 'prefer official docs' or 'prefer github.com/owner/repo'.",
+        "For web_search, use one rich query before trying multiple keyword permutations; split into separate searches only when the subtopics or source targets differ.",
+        "For web_search fallback routing, prefer mode: auto; use mode: web for general docs/news and mode: code for code/package/API examples.",
       ],
       parameters: webSearchExaSchema,
       renderCall: createWebSearchCallRenderer("web_search"),

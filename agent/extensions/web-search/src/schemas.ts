@@ -8,7 +8,7 @@ export const webSearchExaSchema = {
       type: "string",
       minLength: 1,
       description:
-        "Plain-English search request. Prefer detailed natural-language questions/descriptions; include exact names, errors, versions, dates, or desired source types when relevant.",
+        "Complete natural-language research question or description to send to Gemini with Exa grounding. Do not use keyword bags or Google-style search operators; include exact names, commands, errors, package names, versions, repos, dates, and preferred source types/domains in prose when relevant.",
     },
     mode: {
       type: "string",
