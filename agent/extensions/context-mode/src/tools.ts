@@ -167,6 +167,8 @@ export function createLeanToolRegistrations(deps: WrapperDeps = {}): ToolRegistr
     name: meta.name,
     label: meta.label,
     description: meta.description,
+    promptSnippet: meta.promptSnippet,
+    promptGuidelines: [...meta.promptGuidelines],
     parameters: meta.parameters,
     renderCall: createCallRenderer(meta.name, meta.label),
     renderResult: createResultRenderer(meta.name, PARTIAL_TEXT[meta.name]),

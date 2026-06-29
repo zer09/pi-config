@@ -119,24 +119,41 @@ export const LEAN_TOOL_METADATA = [
     name: "ctx_execute_file",
     label: "CM Execute File",
     description: "Run code over one local file without returning the full file. Print only the needed answer/snippet.",
+    promptSnippet: "Run code over one local file without returning the full file.",
+    promptGuidelines: [
+      "Use ctx_execute_file for read-only analysis of one large local file when you need a focused computed answer/snippet instead of the full file.",
+      "For ctx_execute_file, print only the needed result/snippet from the analysis code; do not dump the full file.",
+    ],
     parameters: ctxExecuteFileSchema,
   },
   {
     name: "ctx_batch_execute",
     label: "CM Batch Execute",
     description: "Run diagnostic shell commands, index large output, and return snippets matching queries.",
+    promptSnippet: "Run diagnostic shell commands, index noisy output, and return query-matched snippets.",
+    promptGuidelines: [
+      "Use ctx_batch_execute for diagnostic shell command sets, tests/builds/lints/typechecks, logs, or other output likely to exceed concise terminal output.",
+      "For ctx_batch_execute, provide specific queries so indexed output returns focused snippets; use concurrency: 1 for tests/builds or state-sensitive commands.",
+    ],
     parameters: ctxBatchExecuteSchema,
   },
   {
     name: "ctx_search",
     label: "CM Search",
     description: "Search previously indexed context-mode output and return small matching snippets.",
+    promptSnippet: "Search previously indexed context-mode command/file output.",
+    promptGuidelines: [
+      "Use ctx_search to search output previously indexed by ctx_batch_execute or ctx_execute_file before rerunning noisy diagnostics.",
+      "For ctx_search, use exact error strings, IDs, filenames, or terms from earlier indexed output; pass source to narrow results when known.",
+    ],
     parameters: ctxSearchSchema,
   },
 ] as const satisfies ReadonlyArray<{
   name: LeanToolName;
   label: string;
   description: string;
+  promptSnippet: string;
+  promptGuidelines: readonly string[];
   parameters: JsonSchema;
 }>;
 
@@ -145,6 +162,8 @@ export function getLeanToolDefinitionPayloads() {
     name: tool.name,
     label: tool.label,
     description: tool.description,
+    promptSnippet: tool.promptSnippet,
+    promptGuidelines: [...tool.promptGuidelines],
     parameters: tool.parameters,
   }));
 }

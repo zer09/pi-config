@@ -93,6 +93,17 @@ describe("tool registrations", () => {
     expect(tools.map((tool) => tool.name)).toEqual(["ctx_execute_file", "ctx_batch_execute", "ctx_search"]);
   });
 
+  it("exposes prompt metadata whose guidelines name each tool", () => {
+    const tools = createLeanToolRegistrations();
+    for (const tool of tools) {
+      expect(tool.promptSnippet).toBeTruthy();
+      expect(tool.promptGuidelines?.length).toBeGreaterThan(0);
+      for (const guideline of tool.promptGuidelines ?? []) {
+        expect(guideline).toContain(tool.name);
+      }
+    }
+  });
+
   it("forwards wrapper calls to the selected upstream tool", async () => {
     const callTool = vi.fn(async () => ({ content: [{ type: "text" as const, text: "ok" }], details: {} }));
     const result = await executeLeanTool(
