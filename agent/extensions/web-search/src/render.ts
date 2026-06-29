@@ -112,7 +112,20 @@ export function createWebSearchResultRenderer(toolName: WebSearchToolName) {
       return component;
     }
 
-    const output = extractText(result).trimEnd();
+    let output = extractText(result).trimEnd();
+    const details = asRecord(result.details);
+    if (toolName === "fetch_contents" && Array.isArray(details.results)) {
+      const urls = details.results
+        .map((item) => {
+          const record = asRecord(item);
+          return asString(record.normalizedUrl) ?? asString(record.url);
+        })
+        .filter((url): url is string => typeof url === "string" && url.length > 0);
+      if (urls.length > 0) {
+        const urlList = ["Fetched URLs:", ...urls.map((url) => `- ${url}`)].join("\n");
+        output = output ? `${urlList}\n\n${output}` : urlList;
+      }
+    }
     const detailsSummary = resultDetailsSummary(toolName, result);
 
     if (options.expanded) {
