@@ -303,15 +303,16 @@ export function createToolRegistrations(): ToolRegistration[] {
       name: "web_search",
       label: "Web Search",
       description:
-        "Search the web via Gemini with Exa grounding and direct Exa fallback. Write a complete natural-language research question or description, not a keyword bag or Google-style search query. Include exact names, commands, errors, package names, versions, repos, and preferred source types/domains in prose when relevant.",
+        "Search the web for current or source-backed information. The query must be a complete research prompt: ask a question or give an investigation task. Do not submit terse keyword lists. Exact package names, commands, config keys, repos, and file extensions are encouraged, but embed them in a sentence with source preferences.",
       promptSnippet:
-        "Search the web via Gemini+Exa using complete natural-language research questions/descriptions, not keyword bags.",
+        "Search the web with a complete research question or investigation task, not a keyword/list query.",
       promptGuidelines: [
-        "Use web_search for current or source-backed web information; write the query as the full question or research task you want answered.",
-        "For web_search, include exact package names, commands, errors, versions, file extensions, repo names, or desired source types/domains in prose when relevant.",
-        "Do not send web_search keyword bags or Google-style operators like site:, OR, intitle:, or piles of quoted terms; say source preferences in prose, e.g. 'prefer official docs' or 'prefer github.com/owner/repo'.",
-        "For web_search, use one rich query before trying multiple keyword permutations; split into separate searches only when the subtopics or source targets differ.",
-        "For web_search fallback routing, prefer mode: auto; use mode: web for general docs/news and mode: code for code/package/API examples.",
+        "Use web_search for current or source-backed web information; phrase the query as a complete question or task starting with words like 'How', 'What', 'Find', 'Does', 'Determine', 'Investigate', etc.",
+        "For web_search, exact identifiers are good — package names, commands, config keys, repos, file extensions — but include them inside a sentence that states what you need to verify.",
+        "For web_search, include source preferences in prose, e.g. 'Prefer official docs, npm package pages, GitHub repositories, and maintainer documentation.'",
+        "Do not send web_search terse keyword/list queries such as 'MJML Vim Neovim syntax highlighting plugin .mjml filetype vim-mjml current status'. Rewrite them as a question or investigation task.",
+        "For web_search, use one rich query before trying multiple variants; split searches only when the external fact or source target differs.",
+        "For web_search, prefer mode: auto; use mode: web for docs/news and mode: code for code/package/API examples.",
       ],
       parameters: webSearchExaSchema,
       renderCall: createWebSearchCallRenderer("web_search"),

@@ -8,13 +8,13 @@ export const webSearchExaSchema = {
       type: "string",
       minLength: 1,
       description:
-        "Complete natural-language research question or description to send to Gemini with Exa grounding. Do not use keyword bags or Google-style search operators; include exact names, commands, errors, package names, versions, repos, dates, and preferred source types/domains in prose when relevant.",
+        "Complete research question or investigation task. Do not use a terse keyword list or Google-style search operators; embed exact names, commands, errors, package names, versions, repos, dates, config keys, file extensions, and source preferences in prose when relevant.",
     },
     mode: {
       type: "string",
       enum: ["auto", "web", "code"],
       description:
-        "Optional fallback routing hint. Use auto by default; use web for general web/docs/news and code for code-oriented results."
+        "Optional search mode hint. Use auto by default; use web for general web/docs/news and code for code-oriented results."
     },
   },
   required: ["query"],
