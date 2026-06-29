@@ -60,8 +60,8 @@ function formatCallSummary(toolName: WebSearchToolName, args: unknown): string {
 
   if (toolName === "fetch_grounding") {
     const responseId = asString(record.responseId);
-    const ids = Array.isArray(record.groundingIds) ? record.groundingIds.length : undefined;
-    return [responseId ? `responseId=${responseId}` : "", ids !== undefined ? `ids=${ids}` : ""].filter(Boolean).join(" ");
+    const groundingIds = Array.isArray(record.groundingIds) ? `[${record.groundingIds.join(", ")}]` : undefined;
+    return [responseId ? `responseId=${responseId}` : "", groundingIds !== undefined ? `groundingIds=${groundingIds}` : ""].filter(Boolean).join(" ");
   }
 
   const urls = Array.isArray(record.uris) ? record.uris.length : undefined;
