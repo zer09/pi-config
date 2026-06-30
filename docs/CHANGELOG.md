@@ -2,6 +2,15 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-06-30 — Web search grounded output simplification
+
+- Updated `agent/extensions/web-search` so successful `web_search` results enter context as final Markdown with inline citation markers and a trailing `### Sources:` section.
+- Sunset `fetch_grounding`; registered web-search extension tools are now `web_search` and `fetch_contents`.
+- Added a focused Gemini+Exa Markdown renderer that joins multipart Gemini responses, inserts citations from grounding support offsets, normalizes bullets/source-title spacing, and keeps `### Sources:` present even when no sources are returned.
+- Added local Gemini+Exa response fixtures under the extension test tree, replacing deleted absolute-path benchmark fixtures.
+- Added citation edge-case coverage for duplicate same-position supports and `endIndex: 0` insertion.
+- Validation: `bun test` passed for the extension with 18 tests.
+
 ## 2026-06-28 — Native Gemini+Exa web search cutover
 
 - Added local `agent/extensions/web-search` Pi extension.
