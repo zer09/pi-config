@@ -42,6 +42,23 @@ describe("tool rendering", () => {
     expect(renderer(null, theme).render(120)).toEqual(["CM Execute File"]);
   });
 
+  it("batch call renderer lists commands below the title", () => {
+    const renderer = createCallRenderer("ctx_batch_execute", "CM Batch Execute");
+    const initialComponent = renderer({}, theme);
+    const component = renderer(
+      {
+        commands: [
+          { label: "test", command: "npm test" },
+          { label: "lint", command: "npm run lint" },
+        ],
+      },
+      theme,
+      { lastComponent: initialComponent },
+    );
+
+    expect(component.render(120)).toEqual(["CM Batch Execute 2 command(s)", "  1. test: npm test", "  2. lint: npm run lint"]);
+  });
+
   it("extractText handles circular objects", () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;

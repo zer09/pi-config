@@ -43,7 +43,7 @@ function wrapPlainLine(line: string, width: number): string[] {
 export class LeanTextComponent implements Component {
   constructor(
     private text = "",
-    private readonly mode: "line" | "block" = "line",
+    readonly mode: "line" | "block" = "line",
   ) {}
 
   setText(text: string): void {
@@ -92,7 +92,7 @@ export function firstNonEmptyLine(text: string): string | null {
 }
 
 function reuseTextComponent(context: PiRenderContext | undefined, mode: "line" | "block"): LeanTextComponent {
-  return context?.lastComponent instanceof LeanTextComponent
+  return context?.lastComponent instanceof LeanTextComponent && context.lastComponent.mode === mode
     ? context.lastComponent
     : new LeanTextComponent("", mode);
 }
@@ -107,13 +107,29 @@ function summarizeArg(value: unknown, fallback: string): string {
 export function createCallRenderer(toolName: string, toolLabel = toolName) {
   return (args: Record<string, unknown> | null | undefined, theme: PiRenderTheme, context?: PiRenderContext): Component => {
     const safeArgs = args && typeof args === "object" ? args : {};
-    const component = reuseTextComponent(context, "line");
     let suffix = "";
     if (toolName === "ctx_execute_file" && typeof safeArgs.path === "string" && safeArgs.path.length > 0) {
       suffix = ` ${summarizeArg(safeArgs.path, "")}`;
     }
-    if (toolName === "ctx_batch_execute" && Array.isArray(safeArgs.commands)) suffix = ` ${safeArgs.commands.length} command(s)`;
+    if (toolName === "ctx_batch_execute" && Array.isArray(safeArgs.commands)) {
+      suffix = ` ${safeArgs.commands.length} command(s)`;
+      const component = reuseTextComponent(context, "block");
+      const commandLines = safeArgs.commands
+        .map((entry, index) => {
+          if (!entry || typeof entry !== "object") return null;
+          const commandEntry = entry as Record<string, unknown>;
+          if (typeof commandEntry.command !== "string" || commandEntry.command.length === 0) return null;
+          const label = typeof commandEntry.label === "string" && commandEntry.label.length > 0 ? `${commandEntry.label}: ` : "";
+          return `  ${index + 1}. ${label}${summarizeArg(commandEntry.command, "")}`;
+        })
+        .filter((line): line is string => line !== null);
+      const commandText = commandLines.map((line) => theme.fg("dim", line)).join("\n");
+      const title = theme.fg("toolTitle", theme.bold(toolLabel)) + theme.fg("muted", suffix);
+      component.setText(commandText.length > 0 ? `${title}\n${commandText}` : title);
+      return component;
+    }
     if (toolName === "ctx_search" && Array.isArray(safeArgs.queries)) suffix = ` ${summarizeArg(safeArgs.queries[0], "")}`;
+    const component = reuseTextComponent(context, "line");
     component.setText(theme.fg("toolTitle", theme.bold(toolLabel)) + theme.fg("muted", suffix));
     return component;
   };
