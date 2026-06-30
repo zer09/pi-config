@@ -43,3 +43,31 @@ rg "compactAfterPercent|effectiveCompactAfterTokens" ~/.pi/agent/npm/node_module
 Expected result: matches in the config plus the patched source files above. If the source matches disappear after an upgrade, reapply this patch or port the same logic to the new version.
 
 After reapplying, restart Pi or run `/reload`. Then `/blackhole-memory` should show compaction like `triggers at 650,000 = 65% of 1,000,000` when the active model has a 1M `contextWindow`.
+
+## 2026-06-30 — OM worker auth fallback for env-only providers
+
+Why: Pi can run built-in Google models with `GEMINI_API_KEY` from the environment, but `ModelRegistry.getApiKeyAndHeaders()` intentionally does not include provider-level env fallbacks. `pi-blackhole` used only `getApiKeyAndHeaders()` when resolving observer/reflector/dropper models, so an env-authenticated Google fallback produced `Observational memory: observer no auth for google` even though manual `pi --model google/...` worked.
+
+Behavior:
+
+- OM model resolution still tries `getApiKeyAndHeaders()` first.
+- If that returns `ok` but no `apiKey`, it falls back to `modelRegistry.getApiKeyForProvider(model.provider)`.
+- This lets env-backed providers like `google`/`GEMINI_API_KEY` work as blackhole worker models without adding duplicate entries to `auth.json`.
+
+Patched files:
+
+- `~/.pi/agent/npm/node_modules/pi-blackhole/src/om/runtime.ts`
+
+Reapply helper:
+
+```bash
+node ~/.pi/agent/pi-blackhole/reapply-om-auth-fallback-patch.mjs
+```
+
+Quick verification after an upgrade:
+
+```bash
+rg "resolveRequestAuth|getApiKeyForProvider" ~/.pi/agent/npm/node_modules/pi-blackhole/src/om/runtime.ts
+```
+
+Expected result: `runtime.ts` contains `resolveRequestAuth()` and calls `modelRegistry.getApiKeyForProvider(...)`.
