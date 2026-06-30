@@ -331,11 +331,12 @@ export function createToolRegistrations(): ToolRegistration[] {
       name: "fetch_grounding",
       label: "Fetch Grounding",
       description:
-        "Resolve source support IDs from a prior web_search result into compact source URLs, titles, and domains.",
+        "Resolve selected source support IDs from a prior web_search result into compact source URLs, titles, and domains when those details are needed; this is not a verification step.",
       promptSnippet:
-        "Resolve web_search source IDs into source URLs, titles, and domains.",
+        "Optionally resolve selected web_search source IDs into URLs, titles, and domains.",
       promptGuidelines: [
-        "Use fetch_grounding after web_search when you need URLs for specific supported claims.",
+        "Do not call fetch_grounding automatically after web_search or to verify/double-check the answer; web_search already returned grounded information.",
+        "Use fetch_grounding only when the final answer or a follow-up fetch_contents call needs URLs, titles, or domains for specific source IDs.",
       ],
       parameters: fetchGroundingSchema,
       renderCall: createWebSearchCallRenderer("fetch_grounding"),

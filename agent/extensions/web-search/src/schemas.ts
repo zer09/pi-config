@@ -32,7 +32,7 @@ export const fetchGroundingSchema = {
     groundingIds: {
       type: "array",
       items: { type: "integer", minimum: 0 },
-      description: "Source support IDs shown in a web_search result."
+      description: "Selected source support IDs shown in a web_search result; resolving them returns metadata only."
     },
   },
   required: ["responseId", "groundingIds"],

@@ -10,10 +10,11 @@ function compactSegmentText(text: string): string {
 }
 
 export function formatCleanGeminiSuccess(normalized: NormalizedGeminiExaResponse, responseId: string): string {
-  const lines: string[] = [normalized.answer.trimEnd(), "", "## Source Grounding Supports (claim annotations)", ""];
-  lines.push("These are grounded claims/spans from the answer. Each bracketed ID points to a source held in this response's grounding metadata.");
-  lines.push(`Use the bracketed IDs with fetch_grounding({ responseId: "${responseId}", groundingIds: [ids...] }) to resolve URLs.`);
-  lines.push("Use fetch_contents({ uris: [...] }) only if full page Markdown is needed.");
+  const lines: string[] = [normalized.answer.trimEnd(), "", "## Grounding Metadata (optional source IDs)", ""];
+  lines.push("The web_search answer already used these grounding spans; they are listed for traceability, not as a required follow-up checklist.");
+  lines.push("Bracketed IDs are stored source metadata handles. fetch_grounding only resolves selected IDs into URLs, titles, and domains; it does not verify claims.");
+  lines.push(`Only call fetch_grounding({ responseId: "${responseId}", groundingIds: [ids...] }) when you need those source details for the final answer or a follow-up fetch_contents call.`);
+  lines.push("Only call fetch_contents({ uris: [...] }) when full page Markdown is needed beyond the web_search answer.");
   lines.push("");
 
   if (normalized.supports.length === 0) {
@@ -32,7 +33,7 @@ export function formatFallbackResult(answer: string, provider: FallbackRoute, re
   return [
     answer.trimEnd(),
     "",
-    "## Source Grounding Supports (claim annotations)",
+    "## Grounding Metadata (optional source IDs)",
     "",
     "Unavailable for this fallback provider.",
     "",
