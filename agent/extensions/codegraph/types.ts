@@ -253,6 +253,8 @@ export interface StatusSnapshot {
   readonly root?: string;
   /** Candidate root for initialization when no index exists. */
   readonly candidateRoot?: string;
+  /** Reason candidate-root resolution failed. */
+  readonly candidateError?: string;
   /** Reason the candidate root is unsafe to initialize. */
   readonly unsafeReason?: string;
   /** Current CodeGraph database statistics. */

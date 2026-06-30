@@ -146,16 +146,32 @@ export class GraphManager {
   ): Promise<StatusSnapshot> {
     const startPath = resolvePath(startInput, ctx.cwd);
     const searchPath = await existingSearchPath(startPath);
+    let explicitCandidate: Awaited<ReturnType<typeof resolveCandidateRoot>> | undefined;
+
+    if (options.explicitProjectPath) {
+      explicitCandidate = await resolveCandidateRoot(this.pi, startPath, ctx.cwd, true, ctx.signal);
+      if (explicitCandidate.error) {
+        return {
+          initialized: false,
+          startPath,
+          searchPath,
+          candidateError: explicitCandidate.error,
+          syncTtlMs: this.syncTtlMs,
+        };
+      }
+    }
+
     const nearest = findNearestCodeGraphRoot(searchPath);
 
     if (!nearest) {
-      const candidate = await resolveCandidateRoot(this.pi, startPath, ctx.cwd, !!options.explicitProjectPath, ctx.signal);
+      const candidate = explicitCandidate ?? await resolveCandidateRoot(this.pi, startPath, ctx.cwd, false, ctx.signal);
       const unsafeReason = candidate.root ? await unsafeRootReason(candidate.root) ?? undefined : undefined;
       return {
         initialized: false,
         startPath,
         searchPath,
         candidateRoot: candidate.root,
+        candidateError: candidate.error,
         unsafeReason,
         syncTtlMs: this.syncTtlMs,
       };

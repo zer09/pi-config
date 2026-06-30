@@ -64,8 +64,14 @@ export function formatStatus(snapshot: StatusSnapshot, initMessage?: string): st
     lines.push("- initialized: no");
     lines.push(`- searched from: ${snapshot.searchPath}`);
     if (snapshot.candidateRoot) lines.push(`- candidate root: ${snapshot.candidateRoot}`);
+    if (snapshot.candidateError) lines.push(`- unavailable: ${snapshot.candidateError}`);
     if (snapshot.unsafeReason) lines.push(`- blocked: candidate root looks like ${snapshot.unsafeReason}`);
-    lines.push("", "CodeGraph is unavailable for this project until it is initialized. Query tools will ask before initializing safe roots.");
+    lines.push(
+      "",
+      snapshot.candidateError
+        ? "CodeGraph cannot inspect this explicit projectPath until the path exists and is accessible."
+        : "CodeGraph is unavailable for this project until it is initialized. Query tools will ask before initializing safe roots.",
+    );
     return lines.join("\n");
   }
 

@@ -7,6 +7,7 @@ This document summarizes local Pi configuration changes. Detailed upgrade notes 
 - Upgraded `agent/extensions/codegraph` to `@colbymchenry/codegraph@1.1.6` with an exact package pin.
 - Updated GraphManager to reopen cached graph handles when the on-disk database is replaced.
 - Aligned confirmed full reindex handling with CodeGraph 1.1.x by recreating the database before indexing.
+- Improved `codegraph_status` diagnostics for explicit missing `projectPath` values and symlinked file paths.
 - Validation: SDK export smoke test, strict TypeScript check, and Bun import smoke test passed for the extension.
 
 ## 2026-06-30 — Web search grounded output simplification

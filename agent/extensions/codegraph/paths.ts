@@ -77,7 +77,8 @@ export function resolvePath(value: string | undefined, cwd: string): string {
 export async function existingSearchPath(resolvedPath: string): Promise<string> {
   try {
     const s = await stat(resolvedPath);
-    return s.isFile() ? path.dirname(resolvedPath) : resolvedPath;
+    const canonical = await canonicalPath(resolvedPath);
+    return s.isFile() ? path.dirname(canonical) : canonical;
   } catch {
     return resolvedPath;
   }
