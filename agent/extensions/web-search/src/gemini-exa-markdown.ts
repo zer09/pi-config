@@ -20,8 +20,13 @@ function getCitationInsertionIndex(text: string, endIndex: number): number {
   return insertionIndex;
 }
 
+function formatCitation(index: number, chunkIndices: Iterable<number>): string {
+  const citationIds = [...chunkIndices].sort((left, right) => left - right).join(", ");
+  return `${index === 0 ? "" : " "}[${citationIds}]`;
+}
+
 function injectGroundingCitations(text: string, groundingSupports: GroundingSupport[]): string {
-  const insertions: Array<{ index: number; citation: string }> = [];
+  const citationIdsByIndex = new Map<number, Set<number>>();
 
   for (const support of groundingSupports) {
     const endIndex = support.endIndex;
@@ -34,12 +39,18 @@ function injectGroundingCitations(text: string, groundingSupports: GroundingSupp
       continue;
     }
 
-    insertions.push({
-      index: getCitationInsertionIndex(text, endIndex),
-      citation: ` [${support.groundingChunkIndices.join(", ")}]`,
-    });
+    const insertionIndex = getCitationInsertionIndex(text, endIndex);
+    const citationIds = citationIdsByIndex.get(insertionIndex) ?? new Set<number>();
+    for (const id of support.groundingChunkIndices) {
+      citationIds.add(id);
+    }
+    citationIdsByIndex.set(insertionIndex, citationIds);
   }
 
+  const insertions = [...citationIdsByIndex].map(([index, chunkIndices]) => ({
+    index,
+    citation: formatCitation(index, chunkIndices),
+  }));
   insertions.sort((left, right) => right.index - left.index);
 
   let result = text;
