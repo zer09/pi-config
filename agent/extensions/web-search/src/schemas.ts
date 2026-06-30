@@ -14,28 +14,10 @@ export const webSearchExaSchema = {
       type: "string",
       enum: ["auto", "web", "code"],
       description:
-        "Optional search mode hint. Use auto by default; use web for general web/docs/news and code for code-oriented results."
+        "Optional search mode hint. Use auto by default; use web for general web/docs/news and code for code-oriented results.",
     },
   },
   required: ["query"],
-} satisfies JsonSchema;
-
-export const fetchGroundingSchema = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    responseId: {
-      type: "string",
-      minLength: 1,
-      description: "Raw response ID returned by web_search.",
-    },
-    groundingIds: {
-      type: "array",
-      items: { type: "integer", minimum: 0 },
-      description: "Selected source support IDs shown in a web_search result; resolving them returns metadata only."
-    },
-  },
-  required: ["responseId", "groundingIds"],
 } satisfies JsonSchema;
 
 export const fetchContentsSchema = {
@@ -46,12 +28,12 @@ export const fetchContentsSchema = {
       type: "array",
       minItems: 1,
       items: { type: "string", minLength: 1 },
-      description: "Explicit URLs to fetch as full Markdown text."
+      description: "Explicit URLs to fetch as full Markdown text.",
     },
     maxCharacters: {
       type: "integer",
       minimum: 1,
-      description: "Maximum Markdown characters to return per URL. Defaults to 12000."
+      description: "Maximum Markdown characters to return per URL. Defaults to 12000.",
     },
   },
   required: ["uris"],

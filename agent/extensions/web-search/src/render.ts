@@ -2,7 +2,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { asFiniteNumber as asNumber, asNonEmptyString as asString, asRecordOrEmpty as asRecord } from "./value-guards.js";
 import type { ToolResult } from "./types.js";
 
-type WebSearchToolName = "web_search" | "fetch_grounding" | "fetch_contents";
+type WebSearchToolName = "web_search" | "fetch_contents";
 type RenderTheme = {
   fg?: (name: string, value: string) => string;
   bold?: (value: string) => string;
@@ -14,7 +14,6 @@ const COLLAPSED_RESULT_LINES = 20;
 const MAX_CALL_SUMMARY_CHARS = 480;
 const TOOL_LABELS: Record<WebSearchToolName, string> = {
   web_search: "Web Search",
-  fetch_grounding: "Fetch Grounding",
   fetch_contents: "Fetch Contents",
 };
 
@@ -58,12 +57,6 @@ function formatCallSummary(toolName: WebSearchToolName, args: unknown): string {
     return truncate([query ? `query=${JSON.stringify(query)}` : "", mode ? `mode=${mode}` : ""].filter(Boolean).join(" "), MAX_CALL_SUMMARY_CHARS);
   }
 
-  if (toolName === "fetch_grounding") {
-    const responseId = asString(record.responseId);
-    const groundingIds = Array.isArray(record.groundingIds) ? `[${record.groundingIds.join(", ")}]` : undefined;
-    return [responseId ? `responseId=${responseId}` : "", groundingIds !== undefined ? `groundingIds=${groundingIds}` : ""].filter(Boolean).join(" ");
-  }
-
   const urls = Array.isArray(record.uris) ? record.uris.length : undefined;
   const maxCharacters = asNumber(record.maxCharacters);
   return [urls !== undefined ? `urls=${urls}` : "", maxCharacters !== undefined ? `maxChars=${maxCharacters}` : ""]
@@ -81,12 +74,6 @@ function resultDetailsSummary(toolName: WebSearchToolName, result: ToolResult): 
     return [`sources=${sourceCount}`, `supports=${supportCount}`, `responseId=${responseId}`, fallback ? `fallback=${fallback}` : ""]
       .filter(Boolean)
       .join(" ");
-  }
-
-  if (toolName === "fetch_grounding") {
-    const responseId = asString(details.responseId) ?? "unknown";
-    const sources = Array.isArray(details.sources) ? details.sources.length : 0;
-    return `${sources} sources for responseId=${responseId}`;
   }
 
   const results = Array.isArray(details.results) ? details.results : [];

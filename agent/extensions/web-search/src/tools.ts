@@ -5,7 +5,6 @@ import {
   formatCleanGeminiSuccess,
   formatFallbackResult,
   formatFetchedContents,
-  formatGroundingSources,
 } from "./format.js";
 import { loadConfig, readConfiguredEnv } from "./config.js";
 import {
@@ -14,7 +13,6 @@ import {
 } from "./render.js";
 import {
   fetchContentsSchema,
-  fetchGroundingSchema,
   webSearchExaSchema,
 } from "./schemas.js";
 import {
@@ -24,13 +22,11 @@ import {
 } from "./routing.js";
 import {
   generateResponseId,
-  readStoredResponse,
   writeStoredResponse,
 } from "./storage.js";
 import type {
   ExtensionContextLike,
   FallbackAttempt,
-  GroundingSource,
   PrimaryAttempt,
   StoredSearchResponse,
   ToolRegistration,
@@ -42,22 +38,6 @@ function assertQuery(value: unknown): string {
   if (typeof value !== "string" || value.trim().length === 0)
     throw new Error("query must be a non-empty string");
   return value.trim();
-}
-
-function assertResponseId(value: unknown): string {
-  if (typeof value !== "string" || value.trim().length === 0)
-    throw new Error("responseId must be a non-empty string");
-  return value.trim();
-}
-
-function assertGroundingIds(value: unknown): number[] {
-  if (!Array.isArray(value))
-    throw new Error("groundingIds must be an array of integers");
-  return value.map((id) => {
-    if (!Number.isInteger(id) || id < 0)
-      throw new Error("groundingIds must be non-negative integers");
-    return id as number;
-  });
 }
 
 function asParams(value: unknown): Record<string, unknown> {
@@ -239,38 +219,6 @@ export async function executeWebSearchExa(
   };
 }
 
-export async function executeFetchGrounding(
-  rawParams: unknown,
-): Promise<ToolResult> {
-  const params = asParams(rawParams);
-  const responseId = assertResponseId(params.responseId);
-  const groundingIds = assertGroundingIds(params.groundingIds);
-  const config = await loadConfig();
-  const record = await readStoredResponse(config.cacheDir, responseId);
-
-  const byId = new Map(
-    (record.normalized?.sources ?? []).map((source) => [
-      source.groundingId,
-      source,
-    ]),
-  );
-  const resolved: GroundingSource[] = [];
-  for (const id of [...new Set(groundingIds)]) {
-    const source = byId.get(id);
-    if (source) resolved.push(source);
-  }
-
-  return {
-    content: [
-      { type: "text", text: formatGroundingSources(responseId, resolved) },
-    ],
-    details: {
-      responseId,
-      sources: resolved,
-    },
-  };
-}
-
 export async function executeFetchContents(
   rawParams: unknown,
   signal?: AbortSignal,
@@ -310,6 +258,7 @@ export function createToolRegistrations(): ToolRegistration[] {
         "Use web_search for current or source-backed web information; phrase the query as a complete question or task starting with words like 'How', 'What', 'Find', 'Does', 'Determine', 'Investigate', etc.",
         "For web_search, exact identifiers are good — package names, commands, config keys, repos, file extensions — but include them inside a sentence that states what you need to verify.",
         "For web_search, include source preferences in prose, e.g. 'Prefer official docs, npm package pages, GitHub repositories, and maintainer documentation.'",
+        "web_search returns answer text with inline citation markers and a Sources section; use those source URLs directly for final answers or fetch_contents.",
         "Do not send web_search terse keyword/list queries such as 'MJML Vim Neovim syntax highlighting plugin .mjml filetype vim-mjml current status'. Rewrite them as a question or investigation task.",
         "For web_search, use one rich query before trying multiple variants; split searches only when the external fact or source target differs.",
         "For web_search, prefer mode: auto; use mode: web for docs/news and mode: code for code/package/API examples.",
@@ -328,24 +277,6 @@ export function createToolRegistrations(): ToolRegistration[] {
       },
     },
     {
-      name: "fetch_grounding",
-      label: "Fetch Grounding",
-      description:
-        "Resolve selected source support IDs from a prior web_search result into compact source URLs, titles, and domains when those details are needed; this is not a verification step.",
-      promptSnippet:
-        "Optionally resolve selected web_search source IDs into URLs, titles, and domains.",
-      promptGuidelines: [
-        "Do not call fetch_grounding automatically after web_search or to verify/double-check the answer; web_search already returned grounded information.",
-        "Use fetch_grounding only when the final answer or a follow-up fetch_contents call needs URLs, titles, or domains for specific source IDs.",
-      ],
-      parameters: fetchGroundingSchema,
-      renderCall: createWebSearchCallRenderer("fetch_grounding"),
-      renderResult: createWebSearchResultRenderer("fetch_grounding"),
-      async execute(_toolCallId, params) {
-        return executeFetchGrounding(params);
-      },
-    },
-    {
       name: "fetch_contents",
       label: "Fetch Contents",
       description:
@@ -353,7 +284,7 @@ export function createToolRegistrations(): ToolRegistration[] {
       promptSnippet:
         "Fetch full Markdown content for explicit URLs, using disk cache when available.",
       promptGuidelines: [
-        "Use fetch_contents only when full page text is needed for explicit URLs, especially after fetch_grounding.",
+        "Use fetch_contents only when full page text is needed for explicit URLs, especially source URLs listed by web_search.",
       ],
       parameters: fetchContentsSchema,
       renderCall: createWebSearchCallRenderer("fetch_contents"),

@@ -1,0 +1,153 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {
+            "text": "To call Gemini's `generateContent` with native Exa web-search grounding from Node.js/TypeScript using raw `fetch`, you'll interact with the Google Cloud AI Platform endpoint. This integration allows Gemini models to leverage Exa's search capabilities for real-time web data.\n\n### Setup Commands/Environment Variables\n\n1.  **Google Cloud Project and Authentication:**\n    *   Ensure you have the `gcloud CLI` installed and configured.\n    *   Log in to your Google Cloud account:\n        "
+          },
+          {
+            "text": "```bash\n        gcloud auth login\n        ```"
+          },
+          {
+            "text": "\n    *   Set your Google Cloud project ID and desired location as environment variables. The `google-auth-library` will automatically pick these up.\n        "
+          },
+          {
+            "text": "```bash\n        export GOOGLE_CLOUD_PROJECT=\"your-gcp-project-id\"\n        export GOOGLE_CLOUD_LOCATION=\"us-central1\" # Or your preferred region\n        ```"
+          },
+          {
+            "text": "\n    *   Install the `google-auth-library` for programmatic token acquisition:\n        "
+          },
+          {
+            "text": "```bash\n        npm install google-auth-library\n        ```"
+          },
+          {
+            "text": "\n\n2.  **Exa API Key:**\n    *   Obtain an API key from the Exa Dashboard.\n    *   Set it as an environment variable:\n        "
+          },
+          {
+            "text": "```bash\n        export EXA_API_KEY=\"your-exa-api-key\"\n        ```"
+          },
+          {
+            "text": "\n\n### TypeScript Code Sample\n\nThe following TypeScript code demonstrates how to make a `generateContent` request to the `gemini-2.5-flash` model, incorporating Exa web-search grounding. The `tools` array in the request body includes an `exaAiSearch` object with your Exa API key and optional `customConfigs` for search parameters.\n\n"
+          },
+          {
+            "text": "```typescript\nimport { GoogleAuth } from 'google-auth-library';\n\nasync function callGeminiWithExaGrounding() {\n  const projectId = process.env.GOOGLE_CLOUD_PROJECT;\n  const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';\n  const exaApiKey = process.env.EXA_API_KEY;\n  const modelId = 'gemini-2.5-flash'; // As specified in the prompt\n\n  if (!projectId || !exaApiKey) {\n    console.error('Please set GOOGLE_CLOUD_PROJECT and EXA_API_KEY environment variables.');\n    process.exit(1);\n  }\n\n  // 1. Obtain Google Cloud Access Token\n  // The GoogleAuth library automatically handles refreshing tokens.\n  const auth = new GoogleAuth({\n    scopes: 'https://www.googleapis.com/auth/cloud-platform', // Required scope for AI Platform\n  });\n  const client = await auth.getClient();\n  const accessToken = (await client.getAccessToken()).token;\n\n  if (!accessToken) {\n    console.error('Failed to obtain Google Cloud access token. Ensure gcloud is authenticated.');\n    process.exit(1);\n  }\n\n  const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:generateContent`;\n\n  const requestBody = {\n    contents: [\n      {\n        role: 'user',\n        parts: [{ text: 'What are the latest advancements in AI in the last 6 months?' }],\n      },\n    ],\n    tools: [\n      {\n        exaAiSearch: {\n          api_key: exaApiKey,\n          customConfigs: {\n            type: 'auto', // 'auto' or 'fast' for Exa search type\n            numResults: 5, // Maximum number of search results to use for grounding\n            // includeDomains: ['techcrunch.com', 'wired.com'], // Optional: restrict search to specific domains\n            contents: {\n              highlights: {\n                maxCharacters: 200, // Max characters for highlights from search results\n              },\n            },\n          },\n        },\n      },\n    ],\n    // Optional: Configure generation parameters\n    generationConfig: {\n      temperature: 0.7,\n      maxOutputTokens: 800,\n    },\n  };\n\n  try {\n    const response = await fetch(endpoint, {\n      method: 'POST',\n      headers: {\n        'Authorization': `Bearer ${accessToken}`,\n        'Content-Type': 'application/json; charset=utf-8',\n      },\n      body: JSON.stringify(requestBody),\n    });\n\n    if (!response.ok) {\n      const errorData = await response.json();\n      console.error(`Error: ${response.status} ${response.statusText}`, errorData);\n      return;\n    }\n\n    const data = await response.json();\n    console.log('Gemini Response with Exa Grounding:');\n    console.log(JSON.stringify(data, null, 2));\n\n    // Extract and print the generated text\n    const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;\n    if (generatedText) {\n      console.log('\\nGenerated Text:');\n      console.log(generatedText);\n    }\n\n    // Extract and print grounding metadata (e.g., search queries, citations)\n    const groundingMetadata = data.candidates?.[0]?.groundingMetadata;\n    if (groundingMetadata) {\n      console.log('\\nGrounding Metadata:');\n      console.log(JSON.stringify(groundingMetadata, null, 2));\n    }\n\n  } catch (error) {\n    console.error('Failed to call Gemini API:', error);\n  }\n}\n\ncallGeminiWithExaGrounding();\n```"
+          }
+        ]
+      },
+      "finishReason": "STOP",
+      "groundingMetadata": {
+        "webSearchQueries": [
+          "Gemini API generateContent exaAiSearch tool",
+          "Google Cloud Vertex AI Gemini Exa integration",
+          "Gemini API raw fetch Node.js TypeScript generateContent",
+          "Exa AI Search API key",
+          "gcloud auth print-access-token Node.js",
+          "Vertex AI Gemini API generateContent request body tools"
+        ],
+        "groundingChunks": [
+          {
+            "web": {
+              "uri": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-exa",
+              "title": "Grounding with Exa web search  |  Gemini Enterprise Agent Platform  |  Google Cloud Documentation",
+              "domain": "google.com"
+            }
+          },
+          {
+            "web": {
+              "uri": "https://phemex.com/news/article/exa-partners-with-google-cloud-for-ai-search-integration-77276",
+              "title": "Exa Integrates with Google Cloud for Enhanced AI Search | Phemex News",
+              "domain": "phemex.com"
+            }
+          },
+          {
+            "web": {
+              "uri": "https://exa.ai/docs/reference/quickstart",
+              "title": "Get started with Exa - Exa",
+              "domain": "exa.ai"
+            }
+          },
+          {
+            "web": {
+              "uri": "https://exa.ai/docs/reference/search",
+              "title": "Search - Exa",
+              "domain": "exa.ai"
+            }
+          },
+          {
+            "web": {
+              "uri": "https://exa.ai/docs/reference/team-management/create-api-key",
+              "title": "Create API Key - Exa",
+              "domain": "exa.ai"
+            }
+          }
+        ],
+        "groundingSupports": [
+          {
+            "segment": {
+              "startIndex": 175,
+              "endIndex": 274,
+              "text": "This integration allows Gemini models to leverage Exa's search capabilities for real-time web data."
+            },
+            "groundingChunkIndices": [
+              0,
+              1
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 996,
+              "endIndex": 1062,
+              "text": "**Exa API Key:**\n    *   Obtain an API key from the Exa Dashboard."
+            },
+            "groundingChunkIndices": [
+              2,
+              3,
+              4
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 1365,
+              "endIndex": 1509,
+              "text": "The `tools` array in the request body includes an `exaAiSearch` object with your Exa API key and optional `customConfigs` for search parameters."
+            },
+            "groundingChunkIndices": [
+              0
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 105,
+    "candidatesTokenCount": 1256,
+    "totalTokenCount": 3631,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 105
+      }
+    ],
+    "candidatesTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1256
+      }
+    ],
+    "toolUsePromptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 688
+      }
+    ],
+    "toolUsePromptTokenCount": 688,
+    "thoughtsTokenCount": 1582
+  },
+  "modelVersion": "gemini-2.5-flash",
+  "createTime": "2026-06-30T07:48:36.227213Z",
+  "responseId": "1HRDao3vDaOW4vEP5YfJkAE"
+}

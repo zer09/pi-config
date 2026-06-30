@@ -1,0 +1,217 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {
+            "text": "The integration of Google Gemini and Exa offers powerful capabilities for enhancing AI agents and grounding large language model (LLM) responses with real-time, accurate web data. This collaboration primarily manifests in two key ways: through the Gemini Enterprise Agent Platform for grounding responses, and via Google's Agent Development Kit (ADK) for building AI agents with Exa's web search functionalities.\n\n### What is it?\n\nThe Gemini + Exa integration essentially allows Google's Gemini models to access and utilize Exa's advanced web search API. Exa specializes in providing publicly available web data optimized for grounding LLM responses, ensuring freshness and factual accuracy.\n\nThis integration addresses critical needs for AI applications:\n*   **Grounding LLM Responses:** Gemini models can anchor their outputs in fresh web results retrieved by Exa at the time of the request. This is particularly crucial for information that changes rapidly, such as news, product data, or technical documentation.\n*   **Empowering AI Agents:** Developers building AI agents with Google's Agent Development Kit (ADK) can equip these agents with Exa's web searching, content extraction, and research capabilities.\n\n### How does it work?\n\nThe integration works through different mechanisms depending on the use case:\n\n1.  **Grounding with Exa Web Search on Gemini Enterprise Agent Platform:**\n    *   **Purpose:** To provide Gemini models with up-to-date and relevant web information to prevent hallucinations and improve accuracy.\n    *   **Mechanism:** Exa provides a search API that connects Gemini models to public web data. Users need to obtain an API key from Exa, which is then included in their requests to Gemini.\n    *   **Process:** When making a `generateContent` request to a Gemini model, developers can specify Exa as a tool within the request body. This includes passing the Exa API key and optional custom configurations like search type (`auto` or `fast`), domains to include or exclude, maximum characters for highlights, and the number of search results.\n    *   **Exa's Role:** Exa's \"Highlights\" model extracts the most relevant excerpts from web pages, delivering concise and on-query information to Gemini's context, rather than large amounts of boilerplate text.\n\n2.  **Exa Integration with Google's Agent Development Kit (ADK):**\n    *   **Purpose:** To enable AI agents built using Google ADK to perform web searches, gather information, and extract clean text.\n    *   **Mechanism:** Google ADK works with Exa through Exa's Model Context Protocol (MCP) server. The ADK is a framework for building AI agents that can work with Gemini models and other AI systems, making agent development similar to traditional software development.\n    *   **Process:** Developers can integrate Exa into their ADK agents in two ways:\n        *   **Local MCP Server:** By configuring the agent to use a local MCP server that runs Exa's tools.\n        *   **Remote MCP Server:** By pointing the agent to Exa's remote MCP server URL, along with the necessary API key in the headers.\n    *   **Benefits:** This allows ADK agents to leverage Exa web search for tasks like searching the web, getting clean text from web pages, and conducting research.\n\nIn essence, the integration provides a robust way for Gemini-powered applications and agents to access the vast and current information available on the web, significantly enhancing their capabilities and reliability. Exa's focus on providing LLM-optimized web data and its direct integration points with Google Cloud's AI platforms make this a seamless and powerful partnership."
+          }
+        ]
+      },
+      "finishReason": "STOP",
+      "groundingMetadata": {
+        "webSearchQueries": [
+          "Gemini Exa integration official documentation",
+          "Google Cloud Exa integration how it works",
+          "Exa AI integration with Google Cloud Gemini",
+          "Google Cloud Gemini Exa connector",
+          "Exa API Google Cloud"
+        ],
+        "groundingChunks": [
+          {
+            "web": {
+              "uri": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-exa",
+              "title": "Grounding with Exa web search | Gemini Enterprise Agent Platform",
+              "domain": "google.com"
+            }
+          },
+          {
+            "web": {
+              "uri": "https://docs.cloud.google.com/vertex-ai/generative-ai/docs/grounding/grounding-with-exa",
+              "title": "Grounding with Exa web search  | Gemini Enterprise Agent Platform  | Google Cloud Documentation",
+              "domain": "google.com"
+            }
+          },
+          {
+            "web": {
+              "uri": "https://exa.ai/blog/exa-google-cloud",
+              "title": "Exa and Google Partnership | Exa Blog",
+              "domain": "exa.ai"
+            }
+          },
+          {
+            "web": {
+              "uri": "https://exa.ai/docs/integrations/google-adk",
+              "title": "Google ADK - Exa",
+              "domain": "exa.ai"
+            }
+          },
+          {
+            "web": {
+              "uri": "https://exa.ai/integrations/google-cloud",
+              "title": "Exa + Google Cloud — Partner Integration",
+              "domain": "exa.ai"
+            }
+          }
+        ],
+        "groundingSupports": [
+          {
+            "segment": {
+              "startIndex": 555,
+              "endIndex": 690,
+              "text": "Exa specializes in providing publicly available web data optimized for grounding LLM responses, ensuring freshness and factual accuracy"
+            },
+            "groundingChunkIndices": [
+              0,
+              1,
+              2
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 894,
+              "endIndex": 1015,
+              "text": "This is particularly crucial for information that changes rapidly, such as news, product data, or technical documentation"
+            },
+            "groundingChunkIndices": [
+              2
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 1017,
+              "endIndex": 1213,
+              "text": "*   **Empowering AI Agents:** Developers building AI agents with Google's Agent Development Kit (ADK) can equip these agents with Exa's web searching, content extraction, and research capabilities"
+            },
+            "groundingChunkIndices": [
+              3
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 1629,
+              "endIndex": 1721,
+              "text": "Users need to obtain an API key from Exa, which is then included in their requests to Gemini"
+            },
+            "groundingChunkIndices": [
+              0,
+              1
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 1865,
+              "endIndex": 2073,
+              "text": "This includes passing the Exa API key and optional custom configurations like search type (`auto` or `fast`), domains to include or exclude, maximum characters for highlights, and the number of search results"
+            },
+            "groundingChunkIndices": [
+              0,
+              1
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 2079,
+              "endIndex": 2286,
+              "text": "*   **Exa's Role:** Exa's \"Highlights\" model extracts the most relevant excerpts from web pages, delivering concise and on-query information to Gemini's context, rather than large amounts of boilerplate text"
+            },
+            "groundingChunkIndices": [
+              2
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 2493,
+              "endIndex": 2587,
+              "text": "*   **Mechanism:** Google ADK works with Exa through Exa's Model Context Protocol (MCP) server"
+            },
+            "groundingChunkIndices": [
+              3
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 2589,
+              "endIndex": 2758,
+              "text": "The ADK is a framework for building AI agents that can work with Gemini models and other AI systems, making agent development similar to traditional software development"
+            },
+            "groundingChunkIndices": [
+              3
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 2764,
+              "endIndex": 2951,
+              "text": "*   **Process:** Developers can integrate Exa into their ADK agents in two ways:\n        *   **Local MCP Server:** By configuring the agent to use a local MCP server that runs Exa's tools"
+            },
+            "groundingChunkIndices": [
+              3
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 2961,
+              "endIndex": 3089,
+              "text": "*   **Remote MCP Server:** By pointing the agent to Exa's remote MCP server URL, along with the necessary API key in the headers"
+            },
+            "groundingChunkIndices": [
+              3
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 3095,
+              "endIndex": 3255,
+              "text": "*   **Benefits:** This allows ADK agents to leverage Exa web search for tasks like searching the web, getting clean text from web pages, and conducting research"
+            },
+            "groundingChunkIndices": [
+              3
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 3476,
+              "endIndex": 3636,
+              "text": "Exa's focus on providing LLM-optimized web data and its direct integration points with Google Cloud's AI platforms make this a seamless and powerful partnership"
+            },
+            "groundingChunkIndices": [
+              2,
+              4
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 25,
+    "candidatesTokenCount": 761,
+    "totalTokenCount": 1131,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 25
+      }
+    ],
+    "candidatesTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 761
+      }
+    ],
+    "toolUsePromptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 77
+      }
+    ],
+    "toolUsePromptTokenCount": 77,
+    "thoughtsTokenCount": 268
+  },
+  "modelVersion": "gemini-2.5-flash",
+  "createTime": "2026-06-30T07:21:00.100788Z",
+  "responseId": "XG5DarSTBpGwk7QPvcvvgQY"
+}

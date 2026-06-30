@@ -1,0 +1,142 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {
+            "text": "Gemini native Exa grounding allows the Gemini model to enhance its responses by integrating real-time web data provided by Exa's search API. This process helps to tether the model's output to verifiable sources, thereby reducing the likelihood of generating inaccurate or ungrounded content. To utilize this feature, you need an API key from Exa, which is then passed in your request to the Gemini API.\n\nBelow is a sample TypeScript code block demonstrating how to make a `generateContent` request to the Gemini API with Exa grounding, using raw `fetch` and adhering to your specified requirements.\n\n"
+          },
+          {
+            "text": "```typescript\nimport fetch from 'node-fetch'; // Or use the native fetch in modern Node.js environments\n\nasync function generateContentWithExaGrounding(promptText: string) {\n  if (!process.env.GOOGLE_CLOUD_API_KEY) {\n    throw new Error('GOOGLE_CLOUD_API_KEY environment variable is not set.');\n  }\n  if (!process.env.EXA_API_KEY) {\n    throw new Error('EXA_API_KEY environment variable is not set.');\n  }\n\n  const API_ENDPOINT = 'https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:generateContent';\n  const GOOGLE_API_KEY = process.env.GOOGLE_CLOUD_API_KEY;\n  const EXA_API_KEY = process.env.EXA_API_KEY;\n\n  const requestBody = {\n    contents: [\n      {\n        role: 'user',\n        parts: [{ text: promptText }],\n      },\n    ],\n    tools: [\n      {\n        exaAiSearch: {\n          api_key: EXA_API_KEY,\n          customConfigs: {\n            type: 'auto',\n            numResults: 5,\n            contents: {\n              highlights: {\n                maxCharacters: 2000,\n              },\n            },\n          },\n        },\n      },\n    ],\n  };\n\n  try {\n    const response = await fetch(API_ENDPOINT, {\n      method: 'POST',\n      headers: {\n        'Content-Type': 'application/json',\n        'x-goog-api-key': GOOGLE_API_KEY,\n      },\n      body: JSON.stringify(requestBody),\n    });\n\n    if (!response.ok) {\n      const errorData = await response.json();\n      console.error('Error response from Gemini API:', errorData);\n      throw new Error(`Gemini API request failed with status ${response.status}: ${JSON.stringify(errorData)}`);\n    }\n\n    const data = await response.json();\n    console.log('Gemini API response:', JSON.stringify(data, null, 2));\n    return data;\n  } catch (error) {\n    console.error('Failed to call Gemini API:', error);\n    throw error;\n  }\n}\n\n// Example usage:\n// generateContentWithExaGrounding('What are the latest advancements in AI ethics?');\n```"
+          },
+          {
+            "text": "\n\nIn this TypeScript example, the `generateContentWithExaGrounding` function constructs a request to the Gemini API. It uses the specified `https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:generateContent` endpoint and authenticates with an `x-goog-api-key` header, which is populated from `process.env.GOOGLE_CLOUD_API_KEY`. The `tools` array within the request body includes an `exaAiSearch` object. This object contains the `api_key` for Exa, sourced from `process.env.EXA_API_KEY`, and `customConfigs` that define the search parameters: `type: 'auto'`, `numResults: 5`, and `contents.highlights.maxCharacters: 2000`. These configurations instruct the Gemini model to use Exa for grounding, specifying the search type, the number of results to consider, and the maximum character length for highlights from the search results."
+          }
+        ]
+      },
+      "finishReason": "STOP",
+      "groundingMetadata": {
+        "webSearchQueries": [
+          "Gemini API native Exa grounding documentation",
+          "Google AI Platform Gemini generateContent Exa grounding",
+          "Gemini API customConfigs Exa grounding",
+          "Gemini API raw fetch x-goog-api-key"
+        ],
+        "groundingChunks": [
+          {
+            "web": {
+              "uri": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-exa",
+              "title": "Grounding with Exa web search  |  Gemini Enterprise Agent Platform  |  Google Cloud Documentation",
+              "domain": "google.com"
+            }
+          },
+          {
+            "web": {
+              "uri": "https://docs.cloud.google.com/vertex-ai/generative-ai/docs/model-reference/grounding",
+              "title": "Grounding API  |  Gemini Enterprise Agent Platform  |  Google Cloud Documentation",
+              "domain": "google.com"
+            }
+          },
+          {
+            "web": {
+              "uri": "https://ai.google.dev/gemini-api/docs/generate-content/api-key",
+              "title": "Using Gemini API keys - generateContent API | Google AI for Developers",
+              "domain": "google.dev"
+            }
+          },
+          {
+            "web": {
+              "uri": "https://ai.google.dev/api",
+              "title": "Gemini API reference | Google AI for Developers",
+              "domain": "google.dev"
+            }
+          }
+        ],
+        "groundingSupports": [
+          {
+            "segment": {
+              "startIndex": 141,
+              "endIndex": 290,
+              "text": "This process helps to tether the model's output to verifiable sources, thereby reducing the likelihood of generating inaccurate or ungrounded content"
+            },
+            "groundingChunkIndices": [
+              0,
+              1
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 292,
+              "endIndex": 401,
+              "text": "To utilize this feature, you need an API key from Exa, which is then passed in your request to the Gemini API"
+            },
+            "groundingChunkIndices": [
+              0
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 2851,
+              "endIndex": 2872,
+              "text": "GOOGLE_CLOUD_API_KEY`"
+            },
+            "groundingChunkIndices": [
+              2,
+              3
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 3147,
+              "endIndex": 3167,
+              "text": "maxCharacters: 2000`"
+            },
+            "groundingChunkIndices": [
+              0
+            ]
+          },
+          {
+            "segment": {
+              "startIndex": 3169,
+              "endIndex": 3376,
+              "text": "These configurations instruct the Gemini model to use Exa for grounding, specifying the search type, the number of results to consider, and the maximum character length for highlights from the search results"
+            },
+            "groundingChunkIndices": [
+              0
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 179,
+    "candidatesTokenCount": 903,
+    "totalTokenCount": 2356,
+    "trafficType": "ON_DEMAND",
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 179
+      }
+    ],
+    "candidatesTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 903
+      }
+    ],
+    "toolUsePromptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 373
+      }
+    ],
+    "toolUsePromptTokenCount": 373,
+    "thoughtsTokenCount": 901
+  },
+  "modelVersion": "gemini-2.5-flash",
+  "createTime": "2026-06-30T07:50:03.657245Z",
+  "responseId": "K3VDat2OKLCc8vUP15SSiAQ"
+}
