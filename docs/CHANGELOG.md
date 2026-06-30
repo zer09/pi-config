@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-06-30 — CodeGraph extension 1.1.6 upgrade
+
+- Upgraded `agent/extensions/codegraph` to `@colbymchenry/codegraph@1.1.6` with an exact package pin.
+- Updated GraphManager to reopen cached graph handles when the on-disk database is replaced.
+- Aligned confirmed full reindex handling with CodeGraph 1.1.x by recreating the database before indexing.
+- Validation: SDK export smoke test, strict TypeScript check, and Bun import smoke test passed for the extension.
+
 ## 2026-06-30 — Web search grounded output simplification
 
 - Updated `agent/extensions/web-search` so successful `web_search` results enter context as final Markdown with inline citation markers and a trailing `### Sources:` section.

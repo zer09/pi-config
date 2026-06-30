@@ -16,6 +16,8 @@ Native Pi tools for CodeGraph using the public `@colbymchenry/codegraph` library
 
 - Query-time sync uses a fixed 10s TTL between extension-triggered syncs.
 - Safe uninitialized roots always require confirmation before initialization.
+- Confirmed full reindexes recreate the CodeGraph database before indexing, matching CodeGraph 1.1.x CLI behavior.
+- Cached graph handles are reopened when the on-disk database is replaced.
 
 The extension refuses to initialize unsafe roots such as `$HOME`, filesystem roots, or parents of `$HOME`.
 
@@ -67,6 +69,12 @@ Run from this directory:
 
 ```bash
 npm install
+```
+
+To bump CodeGraph itself, pin the target version explicitly:
+
+```bash
+npm install --save-exact @colbymchenry/codegraph@1.1.6
 ```
 
 Then reload Pi with `/reload` or restart Pi.

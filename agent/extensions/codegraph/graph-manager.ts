@@ -19,6 +19,7 @@ import { textResult } from "./result.ts";
 import { changedCount } from "./status-format.ts";
 import type {
   CachedGraph,
+  CodeGraphInstance,
   ExtensionAPI,
   ExtensionContext,
   NotReady,
@@ -75,10 +76,38 @@ export class GraphManager {
     this.pi = options.pi;
   }
 
+  private closeGraphQuietly(cg: CodeGraphInstance): void {
+    try {
+      cg.unwatch();
+    } catch {
+      // CodeGraph.close() also unwatches; this is defensive and idempotent.
+    }
+
+    try {
+      cg.close();
+    } catch {
+      // Ignore cleanup failures during runtime shutdown or reindex replacement.
+    }
+  }
+
+  private reopenIfReplaced(entry: CachedGraph): void {
+    try {
+      if (entry.cg.reopenIfReplaced()) {
+        entry.lastSyncedAt = 0;
+        entry.staleReindexDeclined = false;
+      }
+    } catch {
+      // Best-effort self-heal; keep serving from the existing handle and retry later.
+    }
+  }
+
   private async getEntry(root: string): Promise<CachedGraph> {
     const canonicalRoot = await canonicalPath(root);
     const existing = this.graphs.get(canonicalRoot);
-    if (existing) return existing;
+    if (existing) {
+      this.reopenIfReplaced(existing);
+      return existing;
+    }
 
     const inFlight = this.opening.get(canonicalRoot);
     if (inFlight) return inFlight;
@@ -237,6 +266,62 @@ export class GraphManager {
     }
   }
 
+  private async recreateAndIndex(
+    entry: CachedGraph,
+    onUpdate?: ToolUpdateHandler,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    if (entry.syncInFlight) {
+      try {
+        await entry.syncInFlight;
+      } catch {
+        // A full recreate supersedes a failed incremental sync.
+      }
+    }
+
+    const previousGraph = entry.cg;
+    let previousClosed = false;
+
+    if (process.platform === "win32") {
+      this.closeGraphQuietly(previousGraph);
+      previousClosed = true;
+    }
+
+    onUpdate?.(textResult(`Recreating CodeGraph database at ${entry.root}...`));
+    let freshGraph: CodeGraphInstance;
+    try {
+      freshGraph = await CodeGraph.recreate(entry.root);
+    } catch (error) {
+      if (previousClosed) {
+        try {
+          entry.cg = await CodeGraph.open(entry.root, { sync: false });
+        } catch {
+          this.graphs.delete(entry.root);
+        }
+      }
+      throw error;
+    }
+
+    entry.cg = freshGraph;
+    entry.lastSyncedAt = 0;
+    entry.staleReindexDeclined = false;
+    if (!previousClosed) this.closeGraphQuietly(previousGraph);
+
+    onUpdate?.(textResult(`Reindexing CodeGraph at ${entry.root}...`));
+    const result = await freshGraph.indexAll({
+      signal,
+      onProgress(progress) {
+        onUpdate?.(textResult(`Reindexing ${entry.root}: ${progress.phase} ${progress.current}/${progress.total}`));
+      },
+    });
+
+    if (!result.success) {
+      throw new Error(result.errors.map((e) => e.message).join("; ") || "CodeGraph indexing failed.");
+    }
+
+    entry.lastSyncedAt = Date.now();
+  }
+
   private async ensureCurrentIndex(
     entry: CachedGraph,
     ctx: ExtensionContext,
@@ -247,7 +332,7 @@ export class GraphManager {
       try {
         await entry.indexInFlight;
       } catch (error) {
-        return `CodeGraph full reindex failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
+        return `CodeGraph full reindex failed; the current index may be incomplete. ${error instanceof Error ? error.message : String(error)}`;
       }
     }
 
@@ -270,20 +355,7 @@ export class GraphManager {
       return `CodeGraph index was built with an older extraction version; using existing index. Run \`codegraph index ${entry.root}\` to rebuild.`;
     }
 
-    onUpdate?.(textResult(`Reindexing CodeGraph at ${entry.root}...`));
-    const indexPromise = entry.cg.indexAll({
-      signal,
-      onProgress(progress) {
-        onUpdate?.(textResult(`Reindexing ${entry.root}: ${progress.phase} ${progress.current}/${progress.total}`));
-      },
-    })
-      .then((result) => {
-        if (!result.success) {
-          throw new Error(result.errors.map((e) => e.message).join("; ") || "CodeGraph indexing failed.");
-        }
-        entry.lastSyncedAt = Date.now();
-        entry.staleReindexDeclined = false;
-      })
+    const indexPromise = this.recreateAndIndex(entry, onUpdate, signal)
       .finally(() => {
         entry.indexInFlight = undefined;
       });
@@ -294,7 +366,7 @@ export class GraphManager {
       await indexPromise;
       return `Reindexed CodeGraph at ${entry.root}.`;
     } catch (error) {
-      return `CodeGraph full reindex failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
+      return `CodeGraph full reindex failed; the current index may be incomplete. ${error instanceof Error ? error.message : String(error)}`;
     }
   }
 

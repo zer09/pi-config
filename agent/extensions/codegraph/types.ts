@@ -190,7 +190,7 @@ export interface CachedGraph {
   /** Canonical CodeGraph project root. */
   readonly root: string;
   /** Open CodeGraph instance. */
-  readonly cg: CodeGraphInstance;
+  cg: CodeGraphInstance;
   /** Timestamp when the instance was opened. */
   readonly openedAt: number;
   /** Timestamp of the last successful extension-triggered sync. */
