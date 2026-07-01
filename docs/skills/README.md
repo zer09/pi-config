@@ -82,7 +82,7 @@ Installing a new skill means:
 - `agentmemory-pi-extension-update-process.md`: retired-skill notes and reinstall checklist for the former Pi-native AgentMemory extension's bundled skill metadata.
 - `astral-python-tools-update-process.md`: update workflow for Astral uv, Ruff, and ty skills.
 - `chrome-devtools-skills-update-process.md`: retired-skill notes and reinstall checklist for the former Chrome DevTools MCP skill group.
-- `context7-cli-update-process.md`: update workflow for the Context7 CLI skill.
+- `context7-cli-update-process.md`: retired-skill notes and reinstall checklist for the former Context7 CLI skill.
 - `custom-local-skills-update-process.md`: update workflow for custom Local Skills and retired notes for the former context-watcher/codegraph runtime skills.
 - `firebase-skills-update-process.md`: update workflow for Firebase and Genkit skills.
 - `gh-cli-update-process.md`: update workflow for the generated GitHub CLI skill and its command references.
@@ -104,6 +104,7 @@ These runtime skills were removed during the skill slimming pass because their w
 
 - `agentmemory`
 - `context-watcher`
+- `context7-cli`
 - Chrome DevTools MCP skill group: `a11y-debugging`, `chrome-devtools`, `chrome-devtools-cli`, `debug-optimize-lcp`, `memory-leak-debugging`, `troubleshooting`
 - `edge-case-analysis`
 - `gh-address-comments`

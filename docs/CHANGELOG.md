@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-07-01 — Retire Context7 CLI skill
+
+- Removed `agent/skills/context7-cli` from active Local Skills.
+- Reclassified `context7-cli` as retired in the skill inventory and converted its maintenance doc to reinstall notes.
+- Updated the skill maintenance README and ADR 0001 to record the retirement decision.
+- Validation: local skill validators passed for all remaining `agent/skills/*/SKILL.md`.
+
 ## 2026-06-30 — CodeGraph extension 1.1.6 upgrade
 
 - Upgraded `agent/extensions/codegraph` to `@colbymchenry/codegraph@1.1.6` with an exact package pin.

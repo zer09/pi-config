@@ -13,7 +13,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | x | codegraph | Weak | 3 | remove it | Removed as a standalone Local Skill; CodeGraph remains available through Pi's native graph-first tooling and global guidance. |
 | ✓ | context-mode | Weak | 3 | keep it | Retained because core local context-saving behavior is tool-specific and important. |
 | x | context-watcher | Weak | 2 | remove it | Retired from the old pasted skills to avoid a broad orchestration runtime skill; preserve routing guidance in global/project instructions instead. |
-| ✓ | context7-cli | Medium | 5 | make it slim | Slimmed to docs lookup workflow, mutation gates for auth/setup/skills/upgrade commands, reference routing, and common gotchas. |
+| x | context7-cli | Medium | 5 | remove it | Retired because docs lookup can use normal research tools and Context7 skill/setup workflows are not frequent enough to justify a runtime skill. Reinstall only for a dedicated `ctx7` workflow. |
 | ✓ | crit | Medium | 5 | keep it | Retained because the interactive inline review loop is local tool-specific and benefits from exact CLI behavior. |
 | ✓ | crit-cli | Medium | 5 | keep it | Retained because programmatic crit comments, sharing, and PR sync need exact command and JSON formats. |
 | ✓ | ctx-doctor | Strong | 8 | keep it | Retained as package-provided metadata-only helper; full body loads only when triggered. |

@@ -40,7 +40,7 @@ The GitHub CLI pass kept `gh-cli`, but slimmed `SKILL.md` to authenticated GitHu
 
 The Firebase pass kept the Firebase-owned and Genkit skills, slimming the skills whose workflows are familiar enough to keep compact: `developing-genkit-js`, `firebase-ai-logic-basics`, `firebase-app-hosting-basics`, `firebase-auth-basics`, `firebase-basics`, and `firebase-hosting-basics`. It retained the more niche or safety-sensitive skills as-is: Genkit Dart/Go/Python, Data Connect, Firestore, and the security rules auditor. Current `firebase/skills` no longer contains the local Genkit paths, so those remain local snapshots until a new upstream source is verified.
 
-The Context7 CLI pass kept `context7-cli`, but slimmed runtime guidance to docs lookup workflow, mutation gates for auth/setup/skills/upgrade commands, reference navigation, and common gotchas. Detailed command behavior remains in `references/`.
+The Context7 CLI pass initially kept `context7-cli`, but a later skill-footprint cleanup retired it. Current-doc lookup can use normal research tools, and Context7 skill/setup workflows are not frequent enough in this setup to justify a runtime skill. The retired update-process doc remains as reinstall notes; future `ctx7` auth, setup, upgrade, or skill-management mutations still require exact explicit user instruction.
 
 The Chrome DevTools pass kept and slimmed `a11y-debugging`, `chrome-devtools`, `chrome-devtools-cli`, `debug-optimize-lcp`, `memory-leak-debugging`, and `troubleshooting`. Runtime guidance now emphasizes MCP/CLI routing, browser mutation gates, large-output handling, focused debugging workflows, and references for snippets or detailed command behavior.
 
