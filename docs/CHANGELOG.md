@@ -2,6 +2,12 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-07-01 — Document config context cost
+
+- Added `docs/config-context-cost.md` with a local `tiktoken` `o200k_base` breakdown of startup/first-request context cost across Pi system prompt sections, `AGENTS.md`, skill catalog entries, active tool schemas, prompt templates, extension commands, and on-demand full skill loads.
+- Added a README pointer to the context-cost snapshot and update triggers.
+- Validation: regenerated counts from a local Pi SDK runtime inspector without making a provider request.
+
 ## 2026-07-01 — Retire Context7 CLI skill
 
 - Removed `agent/skills/context7-cli` from active Local Skills.

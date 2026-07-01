@@ -53,6 +53,18 @@ Configured packages:
 
 Keep this section in sync whenever `agent/settings.json` changes.
 
+## Context-cost accounting
+
+The current startup/first-request context-cost snapshot lives in:
+
+```text
+docs/config-context-cost.md
+```
+
+It breaks down Pi system prompt, `AGENTS.md`, skill catalog, active tool schemas, prompt templates, extension commands, user prompt examples, and on-demand skill loads using local `tiktoken` `o200k_base` counts.
+
+Update it after meaningful changes to active tools, skill inventory/descriptions, prompt templates, global instructions, or package/extension resources.
+
 ## Global agent instructions
 
 `agent/AGENTS.md` is the global behavior contract for sessions.
