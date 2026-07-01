@@ -4,9 +4,11 @@ This document summarizes local Pi configuration changes. Detailed upgrade notes 
 
 ## 2026-07-01 — Document config context cost
 
-- Added `docs/config-context-cost.md` with a local `tiktoken` `o200k_base` breakdown of startup/first-request context cost across Pi system prompt sections, `AGENTS.md`, skill catalog entries, active tool schemas, prompt templates, extension commands, and on-demand full skill loads.
+- Added `docs/config-context-cost.md` with a provider-calibrated and local `tiktoken` `o200k_base` breakdown of startup/first-request context cost across Pi system prompt sections, `AGENTS.md`, skill catalog entries, active tool schemas, prompt templates, extension commands, and on-demand full skill loads.
+- Corrected the methodology to include `session_start` dynamic tool registration and `before_agent_start` prompt injection; this captures `pi-browser-harness` browser tools that a pre-`session_start` SDK snapshot misses.
+- Added reproducible provider-calibration commands so the `hi` usage baseline can be regenerated on another machine without relying on a machine-local session file.
 - Added a README pointer to the context-cost snapshot and update triggers.
-- Validation: regenerated counts from a local Pi SDK runtime inspector without making a provider request.
+- Validation: compared local runtime attribution against real `openai-codex/gpt-5.5` `hi` calibration runs and provider-reported usage stored in the session JSONL.
 
 ## 2026-07-01 — Retire Context7 CLI skill
 
