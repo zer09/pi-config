@@ -60,10 +60,11 @@ These are my global preferences for Agent sessions. Project-local `AGENTS.md` or
 
 ## Python tooling
 
-- Prefer `uv` for Python project/package/script/tool workflows unless the repo clearly uses Poetry/PDM or another manager; do not migrate managers unless asked.
-- For executing Python scripts or snippets, use `uv run python ...` or `uv run <script.py>` instead of bare `python`/`python3` so project dependencies and Python version are honored.
-- Use `uv run <tool>` for project tools/deps and `uvx <tool>` for one-off Python CLIs. Run `ruff` and `ty` through `uv run` in projects or `uvx` for one-offs.
-- Use bare `python3` only when `uv` is unavailable, the command is intentionally outside any project/dependency context, or the user explicitly requests it.
+- Do not use bare `python` or `python3` to run Python scripts, snippets, modules, tools, tests, or CLIs while `uv` is available and working.
+- First choice: use `uv run python ...`, `uv run <script.py>`, `uv run -m <module>`, or `uv run <tool>` so project dependencies and Python version are honored.
+- Use `uvx <tool>` for one-off Python CLIs. Run `ruff` and `ty` through `uv run` in projects or `uvx` for one-offs.
+- If `uv` is unavailable or failing, activate the project Python environment first (for example, `source .venv/bin/activate`, or the repo-documented environment), then use `python3`. Do not use bare `python`.
+- Use another Python project manager such as Poetry/PDM only when the repo clearly standardizes on it; do not migrate managers unless asked.
 
 ## Task Mode
 
