@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REAL_PI="$HOME/.bun/bin/pi"
+AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+SETTINGS_FILE="$AGENT_DIR/settings.json"
+
+# Escape hatch if the wrapper ever gets in the way:
+#   PI_THEME_WRAPPER_DISABLE=1 pi ...
+if [[ "${PI_THEME_WRAPPER_DISABLE:-}" == "1" ]]; then
+  exec node --liftoff-only "$REAL_PI" "$@"
+fi
+
+detect_windows_theme() {
+  local reg=""
+
+  for candidate in \
+    "/mnt/c/Windows/System32/reg.exe" \
+    "/mnt/c/WINDOWS/system32/reg.exe" \
+    "/mnt/c/Windows/system32/reg.exe" \
+    "reg.exe"
+  do
+    if [[ -f "$candidate" ]] || command -v "$candidate" >/dev/null 2>&1; then
+      reg="$candidate"
+      break
+    fi
+  done
+
+  [[ -n "$reg" ]] || return 1
+
+  local output
+  output="$("$reg" Query 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' /v AppsUseLightTheme 2>/dev/null || true)"
+
+  [[ "$output" =~ AppsUseLightTheme ]] || return 1
+
+  # Windows AppsUseLightTheme: 1 = light, 0 = dark.
+  if [[ "$output" =~ 0x1([^0-9a-fA-F]|$) ]]; then
+    printf 'light\n'
+  else
+    printf 'dark\n'
+  fi
+}
+
+theme="$(detect_windows_theme || true)"
+
+if [[ "$theme" == "dark" || "$theme" == "light" ]]; then
+  mkdir -p "$AGENT_DIR"
+
+  node - "$theme" "$SETTINGS_FILE" <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+const theme = process.argv[2];
+const settingsFile = process.argv[3];
+
+let settings = {};
+try {
+  settings = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+} catch (error) {
+  if (error.code !== "ENOENT") {
+    console.error(`pi theme wrapper: refusing to overwrite invalid settings.json: ${error.message}`);
+    process.exit(0);
+  }
+}
+
+// Back off if the user selected a custom non-managed theme.
+const current = settings.theme;
+const managed = current === undefined || current === "dark" || current === "light" || current === "light/dark";
+if (!managed) process.exit(0);
+
+if (current !== theme) {
+  settings.theme = theme;
+  const dir = path.dirname(settingsFile);
+  const tmp = path.join(dir, `.settings.json.${process.pid}.tmp`);
+  fs.writeFileSync(tmp, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+  fs.renameSync(tmp, settingsFile);
+}
+NODE
+fi
+
+exec node --liftoff-only "$REAL_PI" "$@"

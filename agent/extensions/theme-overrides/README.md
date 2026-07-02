@@ -15,18 +15,85 @@ This is a personal global Pi extension, so it intentionally has no external conf
 ## Files
 
 ```text
+~/.pi/agent/bin/pi
 ~/.pi/agent/extensions/theme-overrides/index.ts
 ~/.pi/agent/themes/dark.json
 ~/.pi/agent/themes/light.json
 ```
 
-Pi should keep `settings.json` set to the startup/default theme, currently:
+## Setup
+
+This setup has two parts:
+
+1. **Startup wrapper** fixes the first render and `pi --resume` by writing Pi's persisted theme before Pi starts.
+2. **Runtime extension** keeps the active TUI theme synced after startup by polling system appearance.
+
+### 1. Install the startup wrapper
+
+Create `~/.pi/agent/bin/pi` and make it executable:
+
+```bash
+mkdir -p "$HOME/.pi/agent/bin"
+chmod +x "$HOME/.pi/agent/bin/pi"
+```
+
+The wrapper must run before the real Pi binary. Either put `~/.pi/agent/bin` before Bun in `PATH`:
+
+```bash
+export PATH="$HOME/.pi/agent/bin:$PATH"
+```
+
+or define a shell function, which is useful if another `pi()` function already exists:
+
+```bash
+PI_THEME_WRAPPER_BIN="$HOME/.pi/agent/bin/pi"
+pi() {
+  command "$PI_THEME_WRAPPER_BIN" "$@"
+}
+```
+
+Verify resolution:
+
+```bash
+type -a pi
+```
+
+Expected output should include the wrapper before the Bun-installed Pi:
+
+```text
+pi is a function
+pi is ~/.pi/agent/bin/pi
+pi is ~/.bun/bin/pi
+```
+
+The wrapper detects Windows light/dark mode and updates `~/.pi/agent/settings.json` to a managed theme before Pi starts, for example:
 
 ```json
 {
-  "theme": "light"
+  "theme": "dark"
 }
 ```
+
+This is intentional: explicit `"dark"` / `"light"` makes Pi load the correct theme immediately, before the TUI first renders.
+
+Escape hatch:
+
+```bash
+PI_THEME_WRAPPER_DISABLE=1 pi ...
+```
+
+### 2. Keep the managed theme names
+
+The custom theme files must be named and declared as Pi's managed theme names:
+
+```text
+~/.pi/agent/themes/dark.json   # "name": "dark"
+~/.pi/agent/themes/light.json  # "name": "light"
+```
+
+Do not set a custom theme name if you want automatic switching. The wrapper and extension intentionally back off for non-managed theme names.
+
+### 3. Runtime switching
 
 If system appearance detection succeeds, the extension switches the active TUI theme after Pi starts. If detection fails, it leaves Pi's current/default theme alone.
 
