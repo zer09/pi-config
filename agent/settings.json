@@ -1,11 +1,11 @@
 {
-  "lastChangelogVersion": "0.80.2",
+  "lastChangelogVersion": "0.80.3",
   "packages": [
     "npm:@schultzp2020/pi-cursor@0.5.0",
     "npm:pi-blackhole@0.3.9",
     "npm:pi-btw@0.4.1",
     "npm:pi-browser-harness@0.6.0",
-    "npm:pi-claude-bridge@0.5.0"
+    "npm:pi-claude-bridge@0.6.1"
   ],
   "enabledModels": [
     "openai-codex/gpt-5.5",

@@ -10,17 +10,18 @@ This repository is a versioned snapshot of my global Pi agent setup. It tracks t
 
 The tracked config root is `agent/`, which maps to the local Pi agent config directory.
 
-| Path                  | Purpose                                                                                                              |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `agent/settings.json` | Main Pi settings: configured packages, enabled models, default provider/model, thinking level, theme, and transport. |
-| `agent/AGENTS.md`     | Global agent instructions, communication preferences, safety defaults, and tool-routing rules.                       |
-| `agent/extensions/`   | Local TypeScript Pi extensions.                                                                                      |
-| `agent/skills/`       | Local runtime skills, references, scripts, and agent metadata.                                                       |
-| `agent/prompts/`      | Slash-command prompt templates.                                                                                      |
-| `agent/themes/`       | Custom `dark` and `light` Pi themes.                                                                                 |
-| `agent/pi-blackhole/` | pi-blackhole config, local patch notes, and patch reapply helpers.                                                   |
-| `docs/`               | Config changelog, upgrade notes, ADRs, and skill maintenance docs.                                                   |
-| `.gitignore`          | Boundary between tracked config and local-only runtime state, caches, secrets, and generated data.                   |
+| Path                       | Purpose                                                                                                              |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `agent/settings.json`      | Main Pi settings: configured packages, enabled models, default provider/model, thinking level, theme, and transport. |
+| `agent/claude-bridge.json` | Claude Bridge package config; keeps the provider installed while disabling the AskClaude delegate tool.              |
+| `agent/AGENTS.md`          | Global agent instructions, communication preferences, safety defaults, and tool-routing rules.                       |
+| `agent/extensions/`        | Local TypeScript Pi extensions.                                                                                      |
+| `agent/skills/`            | Local runtime skills, references, scripts, and agent metadata.                                                       |
+| `agent/prompts/`           | Slash-command prompt templates.                                                                                      |
+| `agent/themes/`            | Custom `dark` and `light` Pi themes.                                                                                 |
+| `agent/pi-blackhole/`      | pi-blackhole config, local patch notes, and patch reapply helpers.                                                   |
+| `docs/`                    | Config changelog, upgrade notes, ADRs, and skill maintenance docs.                                                   |
+| `.gitignore`               | Boundary between tracked config and local-only runtime state, caches, secrets, and generated data.                   |
 
 ## Current settings snapshot
 
@@ -49,7 +50,7 @@ Configured packages:
 - `npm:pi-blackhole@0.3.9`
 - `npm:pi-btw@0.4.1`
 - `npm:pi-browser-harness@0.6.0`
-- `npm:pi-claude-bridge@0.5.0`
+- `npm:pi-claude-bridge@0.6.1`
 
 Keep this section in sync whenever `agent/settings.json` changes.
 

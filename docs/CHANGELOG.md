@@ -2,6 +2,19 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-07-02 — Pi 0.80.2 to 0.80.3
+
+Details: [`docs/changelogs/pi-0.80.2-to-0.80.3-upgrade.md`](./changelogs/pi-0.80.2-to-0.80.3-upgrade.md)
+
+- Upgraded local Pi from `0.80.2` to `0.80.3`.
+- Updated configured package `pi-claude-bridge` from `0.5.0` to `0.6.1`.
+- Added tracked `agent/claude-bridge.json` with `askClaude.enabled: false`, keeping Claude Bridge provider models available while disabling the delegate tool.
+- Kept `@schultzp2020/pi-cursor`, `pi-blackhole`, `pi-btw`, and `pi-browser-harness` pins unchanged because no newer safe npm version was found.
+- Verified Pi `0.80.3`'s `session_info_changed` event is additive for this config; no local extension currently consumes or depends on session-name metadata.
+- Kept `pi-web-access` removed from configured packages; the local `agent/extensions/web-search` remains the active web-search implementation.
+- Verified local `pi-blackhole` patches remained present after package installation.
+- Validation: `web-search` Bun tests passed, `context-mode` typecheck/tests passed, local extension import smoke passed, and Pi's loader listed the updated `claude-bridge` model catalog offline.
+
 ## 2026-07-01 — Document config context cost
 
 - Added `docs/config-context-cost.md` with a provider-calibrated and local `tiktoken` `o200k_base` breakdown of startup/first-request context cost across Pi system prompt sections, `AGENTS.md`, skill catalog entries, active tool schemas, prompt templates, extension commands, and on-demand full skill loads.
