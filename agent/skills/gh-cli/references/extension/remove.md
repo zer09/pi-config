@@ -1,7 +1,7 @@
 # gh extension remove
 
 Source: https://cli.github.com/manual/gh_extension_remove
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help extension remove`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help extension remove`.
 
 ## Summary
 
@@ -18,6 +18,9 @@ Remove an installed extension
 
 USAGE
   gh extension remove <name> [flags]
+
+ALIASES
+  gh ext uninstall, gh extension uninstall, gh extensions uninstall
 
 INHERITED FLAGS
   --help   Show help for command

@@ -1,7 +1,7 @@
 # gh gist
 
 Source: https://cli.github.com/manual/gh_gist
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help gist`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help gist`.
 
 ## Summary
 
@@ -9,13 +9,13 @@ Work with GitHub gists.
 
 ## Subcommands
 
-- `gh gist clone` - Clone a gist locally - [reference](gist/clone.md)
-- `gh gist create` - Create a new gist - [reference](gist/create.md)
-- `gh gist delete` - Delete a gist - [reference](gist/delete.md)
-- `gh gist edit` - Edit one of your gists - [reference](gist/edit.md)
-- `gh gist list` - List your gists - [reference](gist/list.md)
-- `gh gist rename` - Rename a file in a gist - [reference](gist/rename.md)
-- `gh gist view` - View a gist - [reference](gist/view.md)
+- [`clone`](gist/clone.md) - Clone a gist locally
+- [`create`](gist/create.md) - Create a new gist
+- [`delete`](gist/delete.md) - Delete a gist
+- [`edit`](gist/edit.md) - Edit one of your gists
+- [`list`](gist/list.md) - List your gists
+- [`rename`](gist/rename.md) - Rename a file in a gist
+- [`view`](gist/view.md) - View a gist
 
 ## Manual
 

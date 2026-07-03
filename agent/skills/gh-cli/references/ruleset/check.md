@@ -1,7 +1,7 @@
 # gh ruleset check
 
 Source: https://cli.github.com/manual/gh_ruleset_check
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help ruleset check`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help ruleset check`.
 
 ## Summary
 
@@ -39,16 +39,16 @@ INHERITED FLAGS
 EXAMPLES
   # View all rules that apply to the current branch
   $ gh ruleset check
-  
+
   # View all rules that apply to a branch named "my-branch" in a different repository
   $ gh ruleset check my-branch --repo owner/repo
-  
+
   # View all rules that apply to the default branch in a different repository
   $ gh ruleset check --default --repo owner/repo
-  
+
   # View a ruleset configured in a different repository or any of its parents
   $ gh ruleset view 23 --repo owner/repo
-  
+
   # View an organization-level ruleset
   $ gh ruleset view 23 --org my-org
 

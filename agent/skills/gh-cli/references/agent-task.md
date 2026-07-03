@@ -1,17 +1,17 @@
 # gh agent-task
 
 Source: https://cli.github.com/manual/gh_agent-task
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help agent-task`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help agent-task`.
 
 ## Summary
 
-Working with agent tasks in the GitHub CLI is in preview and subject to change without notice.
+Working with agent tasks in the GitHub CLI is in preview and
 
 ## Subcommands
 
-- `gh agent-task create` - Create an agent task (preview) - [reference](agent-task/create.md)
-- `gh agent-task list` - List agent tasks (preview) - [reference](agent-task/list.md)
-- `gh agent-task view` - View an agent task session (preview) - [reference](agent-task/view.md)
+- [`create`](agent-task/create.md) - Create an agent task (preview)
+- [`list`](agent-task/list.md) - List agent tasks (preview)
+- [`view`](agent-task/view.md) - View an agent task session (preview)
 
 ## Manual
 
@@ -39,20 +39,20 @@ ARGUMENTS
   - by pull request number, e.g. "123"; or
   - by session ID, e.g. "12345abc-12345-12345-12345-12345abc"; or
   - by URL, e.g. "https://github.com/OWNER/REPO/pull/123/agent-sessions/12345abc-12345-12345-12345-12345abc";
-  
+
   Identifying tasks by pull request is not recommended for non-interactive use cases as
   there may be multiple tasks for a given pull request that require disambiguation.
 
 EXAMPLES
   # List your most recent agent tasks
   $ gh agent-task list
-  
+
   # Create a new agent task on the current repository
   $ gh agent-task create "Improve the performance of the data processing pipeline"
-  
+
   # View details about agent tasks associated with a pull request
   $ gh agent-task view 123
-  
+
   # View details about a specific agent task
   $ gh agent-task view 12345abc-12345-12345-12345-12345abc
 

@@ -9,7 +9,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Source of truth
 
 - Upstream repository: https://github.com/mattpocock/skills
-- Current upstream commit checked locally: `e74f0061bb67222181640effa98c675bdb2fdaa7`
+- Current upstream commit checked locally: `1445797da5ee4e4054233878c0029e9276f9986a`
 
 | Local skill | Upstream path | Local notes |
 | --- | --- | --- |
@@ -22,6 +22,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 - `agent/skills/improve-codebase-architecture/`
 - Each skill has local `agents/openai.yaml` UI metadata.
 - `docs/skills/grill-with-docs-usage.md` is local usage guidance and should remain separate from this update process.
+- Local policy: do not install the broader Matt skill suite by default. Current upstream `improve-codebase-architecture` assumes companion skills such as `codebase-design` and `domain-modeling`; keep this Pi setup self-contained and cherry-pick useful ideas instead.
 
 ## Update workflow
 
@@ -33,7 +34,7 @@ rtk gh api repos/mattpocock/skills/contents/skills/engineering/grill-with-docs/S
 ```
 
 3. Compare upstream runtime files with local skill folders.
-4. Copy upstream runtime changes unless they conflict with local Pi routing, mutation safety gates, or OpenAI skill-creator rules.
+4. Copy upstream runtime changes unless they conflict with local Pi routing, mutation safety gates, OpenAI skill-creator rules, or the self-contained local policy above.
 5. Keep every `SKILL.md` frontmatter limited to `name` and `description`.
 6. Keep local maintenance pointers in each `SKILL.md` pointing to this grouped update process.
 7. Keep `agents/openai.yaml` valid YAML with only UI metadata fields unless UI assets are intentionally installed.

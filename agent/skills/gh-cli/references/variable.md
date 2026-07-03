@@ -1,18 +1,18 @@
 # gh variable
 
 Source: https://cli.github.com/manual/gh_variable
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help variable`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help variable`.
 
 ## Summary
 
-Variables can be set at the repository, environment or organization level for use in GitHub Actions or Dependabot. Run `gh help variable set` to learn how to get started.
+Variables can be set at the repository, environment or organization level for use in
 
 ## Subcommands
 
-- `gh variable delete` - Delete variables - [reference](variable/delete.md)
-- `gh variable get` - Get variables - [reference](variable/get.md)
-- `gh variable list` - List variables - [reference](variable/list.md)
-- `gh variable set` - Create or update variables - [reference](variable/set.md)
+- [`delete`](variable/delete.md) - Delete variables
+- [`get`](variable/get.md) - Get variables
+- [`list`](variable/list.md) - List variables
+- [`set`](variable/set.md) - Create or update variables
 
 ## Manual
 

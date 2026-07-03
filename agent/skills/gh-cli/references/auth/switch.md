@@ -1,7 +1,7 @@
 # gh auth switch
 
 Source: https://cli.github.com/manual/gh_auth_switch
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help auth switch`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help auth switch`.
 
 ## Summary
 
@@ -39,7 +39,7 @@ INHERITED FLAGS
 EXAMPLES
   # Select what host and account to switch to via a prompt
   $ gh auth switch
-  
+
   # Switch the active account on a specific host to a specific user
   $ gh auth switch --hostname enterprise.internal --user monalisa
 

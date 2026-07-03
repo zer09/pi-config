@@ -1,7 +1,7 @@
 # gh repo edit
 
 Source: https://cli.github.com/manual/gh_repo_edit
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo edit`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo edit`.
 
 ## Summary
 
@@ -77,7 +77,7 @@ ARGUMENTS
 EXAMPLES
   # Enable issues and wiki
   $ gh repo edit --enable-issues --enable-wiki
-  
+
   # Disable projects
   $ gh repo edit --enable-projects=false
 

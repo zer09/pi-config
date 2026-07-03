@@ -1,7 +1,7 @@
 # gh pr review
 
 Source: https://cli.github.com/manual/gh_pr_review
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help pr review`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help pr review`.
 
 ## Summary
 
@@ -36,13 +36,13 @@ INHERITED FLAGS
 EXAMPLES
   # Approve the pull request of the current branch
   $ gh pr review --approve
-  
+
   # Leave a review comment for the current branch
   $ gh pr review --comment -b "interesting"
-  
+
   # Add a review for a specific pull request
   $ gh pr review 123
-  
+
   # Request changes on a specific pull request
   $ gh pr review 123 -r -b "needs more ASCII art"
 

@@ -12,7 +12,7 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
 
 - Manual root: https://cli.github.com/manual/
 - Command index: https://cli.github.com/manual/gh
-- Local generator source: `gh help` output from the installed GitHub CLI. Current generation used `gh version 2.92.0 (2026-04-28)`.
+- Local generator source: `gh help` output from the installed GitHub CLI. Current generation used `gh version 2.95.0 (2026-06-20)`.
 
 ## File model
 
@@ -39,7 +39,7 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
 8. Preserve `scripts/normalize_github_url.py`; when adding URL kinds, return one primary argv array rather than shell strings, avoid alternate argv fields such as `clone_argv`, and include the exact top-level `references/...` files an agent should read before running `gh`.
 9. Keep this central update process linked from `SKILL.md`; do not add a duplicate update-process file inside the skill bundle.
 10. Validate with `uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/gh-cli` when PyYAML is not already installed.
-11. Smoke-test the URL normalizer with at least HTTPS repo, SSH repo, pull request, issue comment, review comment, action run, release, and file blob URLs. Verify valid outputs have top-level `references`, `gh.argv`, no `gh.references`, and no `clone_argv`; verify `http://github.com/...` and malformed URLs with decoded path, query, or fragment control characters are rejected as unsupported.
+11. Smoke-test the URL normalizer with at least HTTPS repo, SSH repo, pull request, issue, discussion, issue comment, review comment, action run, release, file blob, directory tree, and slash-ref blob/tree URLs. Verify valid outputs have top-level `references`, `gh.argv`, no `gh.references`, and no `clone_argv`; verify `http://github.com/...`, malformed URLs with decoded path/query/fragment control characters, and ambiguous blob/tree URLs whose refs may contain slashes are rejected as unsupported.
 
 ## Current generated command references
 
@@ -93,6 +93,12 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
 - `gh config list` -> `references/config/list.md`
 - `gh config set` -> `references/config/set.md`
 - `gh copilot` -> `references/copilot.md`
+- `gh discussion` -> `references/discussion.md`
+- `gh discussion comment` -> `references/discussion/comment.md`
+- `gh discussion create` -> `references/discussion/create.md`
+- `gh discussion edit` -> `references/discussion/edit.md`
+- `gh discussion list` -> `references/discussion/list.md`
+- `gh discussion view` -> `references/discussion/view.md`
 - `gh extension` -> `references/extension.md`
 - `gh extension browse` -> `references/extension/browse.md`
 - `gh extension create` -> `references/extension/create.md`
@@ -182,14 +188,14 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
 - `gh project view` -> `references/project/view.md`
 - `gh release` -> `references/release.md`
 - `gh release create` -> `references/release/create.md`
-- `gh release delete-asset` -> `references/release/delete-asset.md`
 - `gh release delete` -> `references/release/delete.md`
+- `gh release delete-asset` -> `references/release/delete-asset.md`
 - `gh release download` -> `references/release/download.md`
 - `gh release edit` -> `references/release/edit.md`
 - `gh release list` -> `references/release/list.md`
 - `gh release upload` -> `references/release/upload.md`
-- `gh release verify-asset` -> `references/release/verify-asset.md`
 - `gh release verify` -> `references/release/verify.md`
+- `gh release verify-asset` -> `references/release/verify-asset.md`
 - `gh release view` -> `references/release/view.md`
 - `gh repo` -> `references/repo.md`
 - `gh repo archive` -> `references/repo/archive.md`
@@ -214,6 +220,8 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
 - `gh repo license list` -> `references/repo/license/list.md`
 - `gh repo license view` -> `references/repo/license/view.md`
 - `gh repo list` -> `references/repo/list.md`
+- `gh repo read-dir` -> `references/repo/read-dir.md`
+- `gh repo read-file` -> `references/repo/read-file.md`
 - `gh repo rename` -> `references/repo/rename.md`
 - `gh repo set-default` -> `references/repo/set-default.md`
 - `gh repo sync` -> `references/repo/sync.md`
@@ -243,6 +251,7 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
 - `gh secret set` -> `references/secret/set.md`
 - `gh skill` -> `references/skill.md`
 - `gh skill install` -> `references/skill/install.md`
+- `gh skill list` -> `references/skill/list.md`
 - `gh skill preview` -> `references/skill/preview.md`
 - `gh skill publish` -> `references/skill/publish.md`
 - `gh skill search` -> `references/skill/search.md`

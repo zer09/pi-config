@@ -1,11 +1,11 @@
 ---
 name: gh-cli
-description: "GitHub CLI, or gh, is a command-line interface to GitHub for use in your terminal or scripts. Use for gh command syntax, flags, subcommands, authenticated GitHub repo/issue/PR/release/workflow operations, and GitHub automation from the command line."
+description: "GitHub CLI, or gh, is a command-line interface to GitHub for use in your terminal or scripts. Use for gh command syntax, flags, subcommands, authenticated GitHub repo/issue/PR/discussion/release/workflow operations, and GitHub automation from the command line."
 ---
 
 # GitHub CLI
 
-Use `gh` for authenticated GitHub repository, issue, pull request, release, workflow, and API work. Keep this file as the runtime router; exact command syntax lives in `references/`.
+Use `gh` for authenticated GitHub repository, issue, pull request, discussion, release, workflow, and API work. Keep this file as the runtime router; exact command syntax lives in `references/`.
 
 ## Operating rules
 

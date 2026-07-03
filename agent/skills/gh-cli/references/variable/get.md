@@ -1,11 +1,11 @@
 # gh variable get
 
 Source: https://cli.github.com/manual/gh_variable_get
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help variable get`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help variable get`.
 
 ## Summary
 
-Get a variable on one of the following levels: - repository (default): available to GitHub Actions runs or Dependabot in a repository - environment: available to GitHub Actions runs for a deployment environment in a repository - organization: available to GitHub Actions runs or Dependabot within an organization
+Get a variable on one of the following levels:
 
 ## Subcommands
 

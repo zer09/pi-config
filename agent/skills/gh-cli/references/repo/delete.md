@@ -1,7 +1,7 @@
 # gh repo delete
 
 Source: https://cli.github.com/manual/gh_repo_delete
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo delete`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo delete`.
 
 ## Summary
 
@@ -18,8 +18,8 @@ Delete a GitHub repository.
 
 With no argument, deletes the current repository. Otherwise, deletes the specified repository.
 
-For safety, when no repository argument is provided, the `--yes` flag is ignored 
-and you will be prompted for confirmation. To delete the current repository non-interactively, 
+For safety, when no repository argument is provided, the `--yes` flag is ignored
+and you will be prompted for confirmation. To delete the current repository non-interactively,
 specify it explicitly (e.g., `gh repo delete owner/repo --yes`).
 
 Deletion requires authorization with the `delete_repo` scope.

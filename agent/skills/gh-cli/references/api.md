@@ -1,7 +1,7 @@
 # gh api
 
 Source: https://cli.github.com/manual/gh_api
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help api`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help api`.
 
 ## Summary
 
@@ -99,39 +99,39 @@ INHERITED FLAGS
 EXAMPLES
   # List releases in the current repository
   $ gh api repos/{owner}/{repo}/releases
-  
+
   # Post an issue comment
   $ gh api repos/{owner}/{repo}/issues/123/comments -f body='Hi from CLI'
-  
+
   # Post nested parameter read from a file
   $ gh api gists -F 'files[myfile.txt][content]=@myfile.txt'
-  
+
   # Add parameters to a GET request
   $ gh api -X GET search/issues -f q='repo:cli/cli is:open remote'
-  
+
   # Use a JSON file as request body
   $ gh api repos/{owner}/{repo}/rulesets --input file.json
-  
+
   # Set a custom HTTP header
   $ gh api -H 'Accept: application/vnd.github.v3.raw+json' ...
-  
+
   # Opt into GitHub API previews
   $ gh api --preview baptiste,nebula ...
-  
+
   # Print only specific fields from the response
   $ gh api repos/{owner}/{repo}/issues --jq '.[].title'
-  
+
   # Use a template for the output
   $ gh api repos/{owner}/{repo}/issues --template \
     '{{range .}}{{.title}} ({{.labels | pluck "name" | join ", " | color "yellow"}}){{"\n"}}{{end}}'
-  
+
   # Update allowed values of the "environment" custom property in a deeply nested array
   $ gh api -X PATCH /orgs/{org}/properties/schema \
      -F 'properties[][property_name]=environment' \
      -F 'properties[][default_value]=production' \
      -F 'properties[][allowed_values][]=staging' \
      -F 'properties[][allowed_values][]=production'
-  
+
   # List releases with GraphQL
   $ gh api graphql -F owner='{owner}' -F name='{repo}' -f query='
     query($name: String!, $owner: String!) {
@@ -142,7 +142,7 @@ EXAMPLES
       }
     }
   '
-  
+
   # List all repositories for a user
   $ gh api graphql --paginate -f query='
     query($endCursor: String) {
@@ -157,7 +157,7 @@ EXAMPLES
       }
     }
   '
-  
+
   # Get the percentage of forks for the current user
   $ gh api graphql --paginate --slurp -f query='
     query($endCursor: String) {
@@ -177,10 +177,10 @@ EXAMPLES
 ENVIRONMENT VARIABLES
   GH_TOKEN, GITHUB_TOKEN (in order of precedence): an authentication token for
   `github.com` API requests.
-  
+
   GH_ENTERPRISE_TOKEN, GITHUB_ENTERPRISE_TOKEN (in order of precedence): an
   authentication token for API requests to GitHub Enterprise.
-  
+
   GH_HOST: make the request to a GitHub host other than `github.com`.
 
 LEARN MORE

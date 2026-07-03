@@ -1,11 +1,11 @@
 # gh skill update
 
 Source: https://cli.github.com/manual/gh_skill_update
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help skill update`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help skill update`.
 
 ## Summary
 
-Checks installed skills for available updates by comparing the local tree SHA (from `SKILL.md` frontmatter) against the remote repository.
+Checks installed skills for available updates by comparing the local
 
 ## Subcommands
 
@@ -29,6 +29,7 @@ in the update.
 
 Skills without GitHub metadata (e.g. installed manually or by another
 tool) are prompted for their source repository in interactive mode.
+With `--all` or in non-interactive mode, they are skipped with a notice.
 The update re-downloads the skill with metadata injected, so future
 updates work automatically.
 
@@ -57,19 +58,19 @@ INHERITED FLAGS
 EXAMPLES
   # Check and update all skills interactively
   $ gh skill update
-  
+
   # Update specific skills
   $ gh skill update mcp-cli git-commit
-  
+
   # Update all without prompting
   $ gh skill update --all
-  
+
   # Re-download all skills (restore locally modified files)
   $ gh skill update --force --all
-  
+
   # Check for updates without applying (read-only)
   $ gh skill update --dry-run
-  
+
   # Unpin skills and update them to latest
   $ gh skill update --unpin
 

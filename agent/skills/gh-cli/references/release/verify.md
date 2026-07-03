@@ -1,7 +1,7 @@
 # gh release verify
 
 Source: https://cli.github.com/manual/gh_release_verify
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help release verify`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help release verify`.
 
 ## Summary
 
@@ -18,7 +18,7 @@ Verify that a GitHub Release is accompanied by a valid cryptographically signed 
 
 An attestation is a claim made by GitHub regarding a release and its assets.
 
-This command checks that the specified release (or the latest release, if no tag is given) has a valid attestation. 
+This command checks that the specified release (or the latest release, if no tag is given) has a valid attestation.
 It fetches the attestation for the release and prints metadata about all assets referenced in the attestation, including their digests.
 
 For more information about output formatting flags, see `gh help formatting`.
@@ -38,10 +38,10 @@ INHERITED FLAGS
 EXAMPLES
   # Verify the latest release
   gh release verify
-  
+
   # Verify a specific release by tag
   gh release verify v1.2.3
-  
+
   # Verify a specific release by tag and output the attestation in JSON format
   gh release verify v1.2.3 --format json
 

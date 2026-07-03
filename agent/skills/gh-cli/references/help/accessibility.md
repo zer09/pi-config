@@ -1,7 +1,7 @@
 # gh help accessibility
 
 Source: https://cli.github.com/manual/gh_help_accessibility
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help accessibility`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help accessibility`.
 
 ## Summary
 
@@ -74,7 +74,7 @@ Join the conversation
 We invite you to join us in improving GitHub CLI accessibility by sharing your
 feedback and ideas through GitHub Accessibility feedback channels:
 
-https://accessibility.github.com/conformance/cli/
+https://github.com/orgs/community/discussions/categories/accessibility
 
 
 USAGE
@@ -92,13 +92,13 @@ INHERITED FLAGS
 EXAMPLES
   # Open the GitHub Accessibility site in your browser
   $ gh accessibility --web
-  
+
   # Display color using customizable, 4-bit accessible colors
   $ gh config set accessible_colors enabled
-  
+
   # Use input prompts without redrawing the screen
   $ gh config set accessible_prompter enabled
-  
+
   # Disable motion-based spinners for progress indicators in favor of text
   $ gh config set spinner disabled
 

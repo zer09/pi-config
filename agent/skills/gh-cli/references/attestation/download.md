@@ -1,7 +1,7 @@
 # gh attestation download
 
 Source: https://cli.github.com/manual/gh_attestation_download
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help attestation download`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help attestation download`.
 
 ## Summary
 
@@ -61,10 +61,10 @@ INHERITED FLAGS
 EXAMPLES
   # Download attestations for a local artifact linked with an organization
   $ gh attestation download example.bin -o github
-  
+
   # Download attestations for a local artifact linked with a repository
   $ gh attestation download example.bin -R github/example
-  
+
   # Download attestations for an OCI image linked with an organization
   $ gh attestation download oci://example.com/foo/bar:latest -o github
 

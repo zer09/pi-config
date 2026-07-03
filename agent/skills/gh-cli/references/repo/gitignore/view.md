@@ -1,7 +1,7 @@
 # gh repo gitignore view
 
 Source: https://cli.github.com/manual/gh_repo_gitignore_view
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo gitignore view`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo gitignore view`.
 
 ## Summary
 
@@ -30,13 +30,13 @@ INHERITED FLAGS
 EXAMPLES
   # View the Go gitignore template
   $ gh repo gitignore view Go
-  
+
   # View the Python gitignore template
   $ gh repo gitignore view Python
-  
+
   # Create a new .gitignore file using the Go template
   $ gh repo gitignore view Go > .gitignore
-  
+
   # Create a new .gitignore file using the Python template
   $ gh repo gitignore view Python > .gitignore
 

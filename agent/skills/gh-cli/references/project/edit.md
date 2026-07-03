@@ -1,7 +1,7 @@
 # gh project edit
 
 Source: https://cli.github.com/manual/gh_project_edit
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help project edit`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project edit`.
 
 ## Summary
 

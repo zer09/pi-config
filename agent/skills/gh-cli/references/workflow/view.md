@@ -1,7 +1,7 @@
 # gh workflow view
 
 Source: https://cli.github.com/manual/gh_workflow_view
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help workflow view`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help workflow view`.
 
 ## Summary
 
@@ -31,7 +31,7 @@ INHERITED FLAGS
 EXAMPLES
   # Interactively select a workflow to view
   $ gh workflow view
-  
+
   # View a specific workflow
   $ gh workflow view 0451
 

@@ -1,23 +1,23 @@
 # gh secret
 
 Source: https://cli.github.com/manual/gh_secret
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help secret`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help secret`.
 
 ## Summary
 
-Secrets can be set at the repository, or organization level for use in GitHub Actions or Dependabot. User, organization, and repository secrets can be set for use in GitHub Codespaces. Environment secrets can be set for use in GitHub Actions. Run `gh help secret set` to learn how to get started.
+Secrets can be set at the repository, or organization level for use in
 
 ## Subcommands
 
-- `gh secret delete` - Delete secrets - [reference](secret/delete.md)
-- `gh secret list` - List secrets - [reference](secret/list.md)
-- `gh secret set` - Create or update secrets - [reference](secret/set.md)
+- [`delete`](secret/delete.md) - Delete secrets
+- [`list`](secret/list.md) - List secrets
+- [`set`](secret/set.md) - Create or update secrets
 
 ## Manual
 
 ```text
 Secrets can be set at the repository, or organization level for use in
-GitHub Actions or Dependabot. User, organization, and repository secrets can be set for
+GitHub Actions, Agents, or Dependabot. User, organization, and repository secrets can be set for
 use in GitHub Codespaces. Environment secrets can be set for use in
 GitHub Actions. Run `gh help secret set` to learn how to get started.
 

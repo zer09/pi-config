@@ -1,7 +1,7 @@
 # gh repo autolink create
 
 Source: https://cli.github.com/manual/gh_repo_autolink_create
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo autolink create`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo autolink create`.
 
 ## Summary
 
@@ -48,7 +48,7 @@ EXAMPLES
   # Create an alphanumeric autolink to example.com for the key prefix "TICKET-".
   # Generates https://example.com/TICKET?query=123abc from "TICKET-123abc".
   $ gh repo autolink create TICKET- "https://example.com/TICKET?query=<num>"
-  
+
   # Create a numeric autolink to example.com for the key prefix "STORY-".
   # Generates https://example.com/STORY?id=123 from "STORY-123".
   $ gh repo autolink create STORY- "https://example.com/STORY?id=<num>" --numeric

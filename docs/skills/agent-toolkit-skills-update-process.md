@@ -9,7 +9,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Source of truth
 
 - Upstream repository: https://github.com/softaworks/agent-toolkit
-- Current upstream commit checked locally: `3027f20f31816a7c66e5290c0bc62e9294c8d974`
+- Current upstream commit checked locally: `3027f20f3181758385a1bb8c022d4041dfb4de84`
 
 | Local skill | Upstream path |
 | --- | --- |

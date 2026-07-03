@@ -1,7 +1,7 @@
 # gh gist create
 
 Source: https://cli.github.com/manual/gh_gist_create
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help gist create`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help gist create`.
 
 ## Summary
 
@@ -40,19 +40,19 @@ INHERITED FLAGS
 EXAMPLES
   # Publish file 'hello.py' as a public gist
   $ gh gist create --public hello.py
-  
+
   # Create a gist with a description
   $ gh gist create hello.py -d "my Hello-World program in Python"
-  
+
   # Create a gist containing several files
   $ gh gist create hello.py world.py cool.txt
-  
+
   # Create a gist containing several files using patterns
   $ gh gist create *.md *.txt artifact.*
-  
+
   # Read from standard input to create a gist
   $ gh gist create -
-  
+
   # Create a gist from output piped from another command
   $ cat cool.txt | gh gist create
 

@@ -1,7 +1,7 @@
 # gh alias
 
 Source: https://cli.github.com/manual/gh_alias
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help alias`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help alias`.
 
 ## Summary
 
@@ -9,10 +9,10 @@ Aliases can be used to make shortcuts for gh commands or to compose multiple com
 
 ## Subcommands
 
-- `gh alias delete` - Delete set aliases - [reference](alias/delete.md)
-- `gh alias import` - Import aliases from a YAML file - [reference](alias/import.md)
-- `gh alias list` - List your aliases - [reference](alias/list.md)
-- `gh alias set` - Create a shortcut for a gh command - [reference](alias/set.md)
+- [`delete`](alias/delete.md) - Delete set aliases
+- [`import`](alias/import.md) - Import aliases from a YAML file
+- [`list`](alias/list.md) - List your aliases
+- [`set`](alias/set.md) - Create a shortcut for a gh command
 
 ## Manual
 

@@ -1,7 +1,7 @@
 # gh help reference
 
 Source: https://cli.github.com/manual/gh_help_reference
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help reference`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help reference`.
 
 ## Summary
 
@@ -10,6 +10,7 @@ A comprehensive reference of all gh commands
 ## Manual
 
 ```text
+
 # gh reference
 
 ## gh agent-task <command>
@@ -476,6 +477,77 @@ Run the GitHub Copilot CLI (preview)
 
   --remove   Remove the downloaded Copilot CLI
 
+## gh discussion <command>
+
+Work with GitHub Discussions (preview)
+
+### gh discussion comment {<number> | <discussion-url> | <comment-id> | <comment-url>} [flags]
+
+Add, edit, or delete a comment or a reply on a discussion (preview)
+
+  -b, --body string        Comment body text
+  -F, --body-file string   Read body text from file (use "-" to read from standard input)
+      --delete             Delete the specified comment
+      --edit               Edit the specified comment
+      --yes                Skip the delete confirmation prompt
+
+### gh discussion create [flags]
+
+Create a new discussion (preview)
+
+  -b, --body string        Body for the discussion
+  -F, --body-file string   Read body text from file (use "-" to read from stdin)
+  -c, --category string    Category name or slug for the discussion
+  -l, --label strings      Labels to apply to the discussion
+  -t, --title string       Title for the discussion
+
+### gh discussion edit {<number> | <discussion-url>} [flags]
+
+Edit a discussion (preview)
+
+      --add-label name      Add labels by name
+  -b, --body string         New body for the discussion
+  -F, --body-file string    Read body text from file (use "-" to read from standard input)
+  -c, --category string     New category name or slug for the discussion
+      --remove-label name   Remove labels by name
+  -t, --title string        New title for the discussion
+
+### gh discussion list [flags]
+
+List discussions in a repository (preview)
+
+      --after string      Cursor for the next page of results
+      --answered          Filter by answered state
+  -A, --author string     Filter by author
+  -c, --category string   Filter by category name or slug
+  -q, --jq expression     Filter JSON output using a jq expression
+      --json fields       Output JSON with the specified fields
+  -l, --label strings     Filter by label
+  -L, --limit int         Maximum number of discussions to fetch (default 30)
+      --order string      Order of results: {asc|desc} (default "desc")
+  -S, --search query      Search discussions with query
+      --sort string       Sort by field: {created|updated} (default "updated")
+  -s, --state string      Filter by state: {open|closed|all} (default "open")
+  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
+  -w, --web               List discussions in the web browser
+
+Aliases
+
+gh discussion ls
+
+### gh discussion view {<number> | <discussion-url> | <comment-id> | <comment-url>} [flags]
+
+View a discussion (preview)
+
+      --after string      Cursor for the next page
+  -c, --comments          View discussion comments
+  -q, --jq expression     Filter JSON output using a jq expression
+      --json fields       Output JSON with the specified fields
+  -L, --limit int         Maximum number of comments or replies to fetch (default 30)
+      --order string      Order of comments or replies: {oldest|newest} (default "newest")
+  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
+  -w, --web               Open a discussion in the browser
+
 ## gh extension
 
 Manage gh extensions
@@ -519,6 +591,10 @@ gh ext ls, gh extension ls, gh extensions ls
 ### gh extension remove <name>
 
 Remove an installed extension
+
+Aliases
+
+gh ext uninstall, gh extension uninstall, gh extensions uninstall
 
 ### gh extension search [<query>] [flags]
 
@@ -658,17 +734,21 @@ Add a comment to an issue
 
 Create a new issue
 
-  -a, --assignee login   Assign people by their login. Use "@me" to self-assign.
-  -b, --body string      Supply a body. Will prompt for one otherwise.
-  -F, --body-file file   Read body text from file (use "-" to read from standard input)
-  -e, --editor           Skip prompts and open the text editor to write the title and body in. The first line is the title and the remaining text is the body.
-  -l, --label name       Add labels by name
-  -m, --milestone name   Add the issue to a milestone by name
-  -p, --project title    Add the issue to projects by title
-      --recover string   Recover input from a failed run of create
-  -T, --template name    Template name to use as starting body text
-  -t, --title string     Supply a title. Will prompt for one otherwise.
-  -w, --web              Open the browser to create an issue
+  -a, --assignee login       Assign people by their login. Use "@me" to self-assign.
+      --blocked-by numbers   Mark the new issue as blocked by these issue numbers or URLs
+      --blocking numbers     Mark the new issue as blocking these issue numbers or URLs
+  -b, --body string          Supply a body. Will prompt for one otherwise.
+  -F, --body-file file       Read body text from file (use "-" to read from standard input)
+  -e, --editor               Skip prompts and open the text editor to write the title and body in. The first line is the title and the remaining text is the body.
+  -l, --label name           Add labels by name
+  -m, --milestone name       Add the issue to a milestone by name
+      --parent number        Add the new issue as a sub-issue of the specified parent number or URL
+  -p, --project title        Add the issue to projects by title
+      --recover string       Recover input from a failed run of create
+  -T, --template name        Template name to use as starting body text
+  -t, --title string         Supply a title. Will prompt for one otherwise.
+      --type name            Set the issue type by name
+  -w, --web                  Open the browser to create an issue
 
 Aliases
 
@@ -694,17 +774,27 @@ Manage linked branches for an issue
 
 Edit issues
 
-      --add-assignee login      Add assigned users by their login. Use "@me" to assign yourself, or "@copilot" to assign Copilot.
-      --add-label name          Add labels by name
-      --add-project title       Add the issue to projects by title
-  -b, --body string             Set the new body.
-  -F, --body-file file          Read body text from file (use "-" to read from standard input)
-  -m, --milestone name          Edit the milestone the issue belongs to by name
-      --remove-assignee login   Remove assigned users by their login. Use "@me" to unassign yourself, or "@copilot" to unassign Copilot.
-      --remove-label name       Remove labels by name
-      --remove-milestone        Remove the milestone association from the issue
-      --remove-project title    Remove the issue from projects by title
-  -t, --title string            Set the new title.
+      --add-assignee login         Add assigned users by their login. Use "@me" to assign yourself, or "@copilot" to assign Copilot.
+      --add-blocked-by number      Add 'blocked by' relationships by issue number or URL
+      --add-blocking number        Add 'blocking' relationships by issue number or URL
+      --add-label name             Add labels by name
+      --add-project title          Add the issue to projects by title
+      --add-sub-issue number       Add sub-issues by number or URL
+  -b, --body string                Set the new body.
+  -F, --body-file file             Read body text from file (use "-" to read from standard input)
+  -m, --milestone name             Edit the milestone the issue belongs to by name
+      --parent number              Set the parent issue by number or URL
+      --remove-assignee login      Remove assigned users by their login. Use "@me" to unassign yourself, or "@copilot" to unassign Copilot.
+      --remove-blocked-by number   Remove 'blocked by' relationships by issue number or URL
+      --remove-blocking number     Remove 'blocking' relationships by issue number or URL
+      --remove-label name          Remove labels by name
+      --remove-milestone           Remove the milestone association from the issue
+      --remove-parent              Remove the parent issue
+      --remove-project title       Remove the issue from projects by title
+      --remove-sub-issue number    Remove sub-issues by number or URL
+      --remove-type                Remove the issue type from the issue
+  -t, --title string               Set the new title.
+      --type name                  Set the issue type by name
 
 ### gh issue list [flags]
 
@@ -712,7 +802,7 @@ List issues in a repository
 
       --app string         Filter by GitHub App author
   -a, --assignee string    Filter by assignee
-  -A, --author string      Filter by author
+  -A, --author string      Filter by author (use --app to filter by a GitHub App)
   -q, --jq expression      Filter JSON output using a jq expression
       --json fields        Output JSON with the specified fields
   -l, --label strings      Filter by label
@@ -722,6 +812,7 @@ List issues in a repository
   -S, --search query       Search issues with query
   -s, --state string       Filter by state: {open|closed|all} (default "open")
   -t, --template string    Format JSON output using a Go template; see "gh help formatting"
+      --type name          Filter by issue type name
   -w, --web                List issues in the web browser
 
 Aliases
@@ -736,7 +827,7 @@ Lock issue conversation
 
 ### gh issue pin {<number> | <url>}
 
-Pin a issue
+Pin an issue
 
 ### gh issue reopen {<number> | <url>} [flags]
 
@@ -762,7 +853,7 @@ Unlock issue conversation
 
 ### gh issue unpin {<number> | <url>}
 
-Unpin a issue
+Unpin an issue
 
 ### gh issue view {<number> | <url>} [flags]
 
@@ -958,7 +1049,7 @@ List pull requests in a repository
 
       --app string        Filter by GitHub App author
   -a, --assignee string   Filter by assignee
-  -A, --author string     Filter by author
+  -A, --author string     Filter by author (use --app to filter by a GitHub App)
   -B, --base string       Filter by base branch
   -d, --draft             Filter by draft state
   -H, --head string       Filter by head branch ("<owner>:<branch>" syntax not supported)
@@ -1601,6 +1692,27 @@ Aliases
 
 gh repo ls
 
+### gh repo read-dir [<path>] [flags]
+
+List a directory in a repository (preview)
+
+  -q, --jq expression     Filter JSON output using a jq expression
+      --json fields       Output JSON with the specified fields
+      --ref string        The branch, tag, or commit to list from
+  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
+
+### gh repo read-file <path> [flags]
+
+Read a file from a repository (preview)
+
+      --allow-escape-sequences   Allow printing terminal escape sequences
+      --clobber                  Overwrite the output path if it already exists
+  -q, --jq expression            Filter JSON output using a jq expression
+      --json fields              Output JSON with the specified fields
+  -o, --output path              Write the file to a path instead of stdout
+      --ref string               The branch, tag, or commit to read from
+  -t, --template string          Format JSON output using a Go template; see "gh help formatting"
+
 ### gh repo rename [<new-name>] [flags]
 
 Rename a repository
@@ -1803,7 +1915,7 @@ Search for issues
       --app string             Filter by GitHub App author
       --archived               Filter based on the repository archived state {true|false}
       --assignee string        Filter by assignee
-      --author string          Filter by author
+      --author string          Filter by author (use --app to filter by a GitHub App)
       --closed date            Filter on closed at date
       --commenter user         Filter based on comments by user
       --comments number        Filter on number of comments
@@ -1844,7 +1956,7 @@ Search for pull requests
       --app string              Filter by GitHub App author
       --archived                Filter based on the repository archived state {true|false}
       --assignee string         Filter by assignee
-      --author string           Filter by author
+      --author string           Filter by author (use --app to filter by a GitHub App)
   -B, --base string             Filter on base branch name
       --checks string           Filter based on status of the checks: {pending|success|failure}
       --closed date             Filter on closed at date
@@ -1923,7 +2035,7 @@ Manage GitHub secrets
 
 Delete secrets
 
-  -a, --app string   Delete a secret for a specific application: {actions|codespaces|dependabot}
+  -a, --app string   Delete a secret for a specific application: {actions|agents|codespaces|dependabot}
   -e, --env string   Delete a secret for an environment
   -o, --org string   Delete a secret for an organization
   -u, --user         Delete a secret for your user
@@ -1936,7 +2048,7 @@ gh secret remove
 
 List secrets
 
-  -a, --app string        List secrets for a specific application: {actions|codespaces|dependabot}
+  -a, --app string        List secrets for a specific application: {actions|agents|codespaces|dependabot}
   -e, --env string        List secrets for an environment
   -q, --jq expression     Filter JSON output using a jq expression
       --json fields       Output JSON with the specified fields
@@ -1952,7 +2064,7 @@ gh secret ls
 
 Create or update secrets
 
-  -a, --app string           Set the application for a secret: {actions|codespaces|dependabot}
+  -a, --app string           Set the application for a secret: {actions|agents|codespaces|dependabot}
   -b, --body string          The value for the secret (reads from standard input if not specified)
   -e, --env environment      Set deployment environment secret
   -f, --env-file file        Load secret names and values from a dotenv-formatted file
@@ -1976,6 +2088,7 @@ gh skills
 Install agent skills from a GitHub repository (preview)
 
       --agent string        Target agent (see supported values above)
+      --all                 Install all skills without prompting for skill selection
       --allow-hidden-dirs   Include skills in hidden directories (e.g. .claude/skills/, .agents/skills/)
       --dir string          Install to a custom directory (overrides --agent and --scope)
   -f, --force               Overwrite existing skills without prompting
@@ -1987,6 +2100,21 @@ Install agent skills from a GitHub repository (preview)
 Aliases
 
 gh skill add, gh skills add
+
+### gh skill list [flags]
+
+List installed skills (preview)
+
+      --agent string      Filter by target agent: {github-copilot|claude-code|cursor|codex|gemini-cli|antigravity|adal|amp|augment|bob|cline|codebuddy|command-code|continue|cortex|crush|deepagents|droid|firebender|goose|iflow-cli|junie|kilo|kimi-cli|kiro-cli|kode|mcpjam|mistral-vibe|mux|neovate|openclaw|opencode|openhands|pi|pochi|qoder|qwen-code|replit|roo|trae|trae-cn|universal|warp|windsurf|zencoder}
+      --dir string        Scan a custom directory for installed skills
+  -q, --jq expression     Filter JSON output using a jq expression
+      --json fields       Output JSON with the specified fields
+      --scope string      Filter by installation scope: {project|user}
+  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
+
+Aliases
+
+gh skill ls, gh skills ls
 
 ### gh skill preview <repository> [<skill>] [flags]
 

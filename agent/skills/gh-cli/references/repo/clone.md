@@ -1,11 +1,11 @@
 # gh repo clone
 
 Source: https://cli.github.com/manual/gh_repo_clone
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo clone`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo clone`.
 
 ## Summary
 
-Clone a GitHub repository locally. Pass additional `git clone` flags by listing them after `--`.
+Clone a GitHub repository locally. Pass additional `git clone` flags by listing
 
 ## Subcommands
 
@@ -46,20 +46,20 @@ INHERITED FLAGS
 EXAMPLES
   # Clone a repository from a specific org
   $ gh repo clone cli/cli
-  
+
   # Clone a repository from your own account
   $ gh repo clone myrepo
-  
+
   # Clone a repo, overriding git protocol configuration
   $ gh repo clone https://github.com/cli/cli
   $ gh repo clone git@github.com:cli/cli.git
-  
+
   # Clone a repository to a custom directory
   $ gh repo clone cli/cli workspace/cli
-  
+
   # Clone a repository with additional git clone flags
   $ gh repo clone cli/cli -- --depth=1
-  
+
   # Clone a fork without adding an upstream remote
   $ gh repo clone myfork --no-upstream
 

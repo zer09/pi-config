@@ -1,7 +1,7 @@
 # gh project
 
 Source: https://cli.github.com/manual/gh_project
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help project`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project`.
 
 ## Summary
 
@@ -9,25 +9,25 @@ Work with GitHub Projects.
 
 ## Subcommands
 
-- `gh project close` - Close a project - [reference](project/close.md)
-- `gh project copy` - Copy a project - [reference](project/copy.md)
-- `gh project create` - Create a project - [reference](project/create.md)
-- `gh project delete` - Delete a project - [reference](project/delete.md)
-- `gh project edit` - Edit a project - [reference](project/edit.md)
-- `gh project field-create` - Create a field in a project - [reference](project/field-create.md)
-- `gh project field-delete` - Delete a field in a project - [reference](project/field-delete.md)
-- `gh project field-list` - List the fields in a project - [reference](project/field-list.md)
-- `gh project item-add` - Add a pull request or an issue to a project - [reference](project/item-add.md)
-- `gh project item-archive` - Archive an item in a project - [reference](project/item-archive.md)
-- `gh project item-create` - Create a draft issue item in a project - [reference](project/item-create.md)
-- `gh project item-delete` - Delete an item from a project by ID - [reference](project/item-delete.md)
-- `gh project item-edit` - Edit an item in a project - [reference](project/item-edit.md)
-- `gh project item-list` - List the items in a project - [reference](project/item-list.md)
-- `gh project link` - Link a project to a repository or a team - [reference](project/link.md)
-- `gh project list` - List the projects for an owner - [reference](project/list.md)
-- `gh project mark-template` - Mark a project as a template - [reference](project/mark-template.md)
-- `gh project unlink` - Unlink a project from a repository or a team - [reference](project/unlink.md)
-- `gh project view` - View a project - [reference](project/view.md)
+- [`close`](project/close.md) - Close a project
+- [`copy`](project/copy.md) - Copy a project
+- [`create`](project/create.md) - Create a project
+- [`delete`](project/delete.md) - Delete a project
+- [`edit`](project/edit.md) - Edit a project
+- [`field-create`](project/field-create.md) - Create a field in a project
+- [`field-delete`](project/field-delete.md) - Delete a field in a project
+- [`field-list`](project/field-list.md) - List the fields in a project
+- [`item-add`](project/item-add.md) - Add a pull request or an issue to a project
+- [`item-archive`](project/item-archive.md) - Archive an item in a project
+- [`item-create`](project/item-create.md) - Create a draft issue item in a project
+- [`item-delete`](project/item-delete.md) - Delete an item from a project by ID
+- [`item-edit`](project/item-edit.md) - Edit an item in a project
+- [`item-list`](project/item-list.md) - List the items in a project
+- [`link`](project/link.md) - Link a project to a repository or a team
+- [`list`](project/list.md) - List the projects for an owner
+- [`mark-template`](project/mark-template.md) - Mark a project as a template
+- [`unlink`](project/unlink.md) - Unlink a project from a repository or a team
+- [`view`](project/view.md) - View a project
 
 ## Manual
 

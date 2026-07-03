@@ -1,7 +1,7 @@
 # gh project item-edit
 
 Source: https://cli.github.com/manual/gh_project_item-edit
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help project item-edit`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project item-edit`.
 
 ## Summary
 
@@ -47,7 +47,7 @@ INHERITED FLAGS
 EXAMPLES
   # Edit an item's text field value
   $ gh project item-edit --id <item-id> --field-id <field-id> --project-id <project-id> --text "new text"
-  
+
   # Clear an item's field value
   $ gh project item-edit --id <item-id> --field-id <field-id> --project-id <project-id> --clear
 

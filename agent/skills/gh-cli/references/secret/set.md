@@ -1,11 +1,11 @@
 # gh secret set
 
 Source: https://cli.github.com/manual/gh_secret_set
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help secret set`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help secret set`.
 
 ## Summary
 
-Set a value for a secret on one of the following levels: - repository (default): available to GitHub Actions runs or Dependabot in a repository - environment: available to GitHub Actions runs for a deployment environment in a repository - organization: available to GitHub Actions runs, Dependabot, or Codespaces within an organization - user: available to Codespaces for your user
+Set a value for a secret on one of the following levels:
 
 ## Subcommands
 
@@ -15,9 +15,9 @@ Set a value for a secret on one of the following levels: - repository (default):
 
 ```text
 Set a value for a secret on one of the following levels:
-- repository (default): available to GitHub Actions runs or Dependabot in a repository
+- repository (default): available to GitHub Actions runs, Agents sessions, or Dependabot in a repository
 - environment: available to GitHub Actions runs for a deployment environment in a repository
-- organization: available to GitHub Actions runs, Dependabot, or Codespaces within an organization
+- organization: available to GitHub Actions runs, Agents sessions, Dependabot, or Codespaces within an organization
 - user: available to Codespaces for your user
 
 Organization and user secrets can optionally be restricted to only be available to
@@ -30,7 +30,7 @@ USAGE
   gh secret set <secret-name> [flags]
 
 FLAGS
-  -a, --app string           Set the application for a secret: {actions|codespaces|dependabot}
+  -a, --app string           Set the application for a secret: {actions|agents|codespaces|dependabot}
   -b, --body string          The value for the secret (reads from standard input if not specified)
   -e, --env environment      Set deployment environment secret
   -f, --env-file file        Load secret names and values from a dotenv-formatted file
@@ -48,37 +48,37 @@ INHERITED FLAGS
 EXAMPLES
   # Paste secret value for the current repository in an interactive prompt
   $ gh secret set MYSECRET
-  
+
   # Read secret value from an environment variable
   $ gh secret set MYSECRET --body "$ENV_VALUE"
-  
+
   # Set secret for a specific remote repository
   $ gh secret set MYSECRET --repo origin/repo --body "$ENV_VALUE"
-  
+
   # Read secret value from a file
   $ gh secret set MYSECRET < myfile.txt
-  
+
   # Set secret for a deployment environment in the current repository
   $ gh secret set MYSECRET --env myenvironment
-  
+
   # Set organization-level secret visible to both public and private repositories
   $ gh secret set MYSECRET --org myOrg --visibility all
-  
+
   # Set organization-level secret visible to specific repositories
   $ gh secret set MYSECRET --org myOrg --repos repo1,repo2,repo3
-  
+
   # Set organization-level secret visible to no repositories
   $ gh secret set MYSECRET --org myOrg --no-repos-selected
-  
+
   # Set user-level secret for Codespaces
   $ gh secret set MYSECRET --user
-  
+
   # Set repository-level secret for Dependabot
   $ gh secret set MYSECRET --app dependabot
-  
+
   # Set multiple secrets imported from the ".env" file
   $ gh secret set -f .env
-  
+
   # Set multiple secrets from stdin
   $ gh secret set -f - < myfile.txt
 

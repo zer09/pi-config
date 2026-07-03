@@ -1,7 +1,7 @@
 # gh ruleset list
 
 Source: https://cli.github.com/manual/gh_ruleset_list
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help ruleset list`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help ruleset list`.
 
 ## Summary
 
@@ -45,10 +45,10 @@ INHERITED FLAGS
 EXAMPLES
   # List rulesets in the current repository
   $ gh ruleset list
-  
+
   # List rulesets in a different repository, including those configured at higher levels
   $ gh ruleset list --repo owner/repo --parents
-  
+
   # List rulesets in an organization
   $ gh ruleset list --org org-name
 

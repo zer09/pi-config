@@ -1,7 +1,7 @@
 # gh config
 
 Source: https://cli.github.com/manual/gh_config
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help config`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help config`.
 
 ## Summary
 
@@ -9,10 +9,10 @@ Display or change configuration settings for gh.
 
 ## Subcommands
 
-- `gh config clear-cache` - Clear the cli cache - [reference](config/clear-cache.md)
-- `gh config get` - Print the value of a given configuration key - [reference](config/get.md)
-- `gh config list` - Print a list of configuration keys and values - [reference](config/list.md)
-- `gh config set` - Update configuration with a value for the given key - [reference](config/set.md)
+- [`clear-cache`](config/clear-cache.md) - Clear the cli cache
+- [`get`](config/get.md) - Print the value of a given configuration key
+- [`list`](config/list.md) - Print a list of configuration keys and values
+- [`set`](config/set.md) - Update configuration with a value for the given key
 
 ## Manual
 
@@ -30,7 +30,7 @@ Current respected settings:
 - `color_labels`: whether to display labels using their RGB hex color codes in terminals that support truecolor `{enabled | disabled}` (default `disabled`)
 - `accessible_colors`: whether customizable, 4-bit accessible colors should be used `{enabled | disabled}` (default `disabled`)
 - `accessible_prompter`: whether an accessible prompter should be used `{enabled | disabled}` (default `disabled`)
-- `spinner`: whether to use a animated spinner as a progress indicator `{enabled | disabled}` (default `enabled`)
+- `spinner`: whether to use an animated spinner as a progress indicator `{enabled | disabled}` (default `enabled`)
 - `telemetry`: whether telemetry is enabled, disabled, or logging `{enabled | disabled | log}` (default `enabled`)
 
 

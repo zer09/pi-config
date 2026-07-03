@@ -1,11 +1,11 @@
 # gh skill preview
 
 Source: https://cli.github.com/manual/gh_skill_preview
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help skill preview`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help skill preview`.
 
 ## Summary
 
-Render a skill's `SKILL.md` content in the terminal. This fetches the skill file from the repository and displays it using the configured pager, without installing anything.
+Render a skill's `SKILL.md` content in the terminal. This fetches the
 
 ## Subcommands
 
@@ -26,6 +26,12 @@ individually.
 When run with only a repository argument, lists available skills and
 prompts for selection.
 
+The skill argument can be a name, a namespaced name (`author/skill`),
+or an exact path within the repository (`skills/author/skill`,
+`packages/agent-skills/code-review`, or any `.../SKILL.md` path).
+Namespaced names with one slash are matched by name. Use a `SKILL.md`
+suffix to force a one-directory path outside the standard conventions.
+
 To preview a specific version of the skill, append `@VERSION` to the
 skill name. The version is resolved as a git tag, branch, or commit SHA.
 
@@ -45,13 +51,16 @@ INHERITED FLAGS
 EXAMPLES
   # Preview a specific skill
   $ gh skill preview github/awesome-copilot documentation-writer
-  
+
   # Preview a skill at a specific version
   $ gh skill preview github/awesome-copilot documentation-writer@v1.2.0
-  
+
   # Preview a skill at a specific commit SHA
   $ gh skill preview github/awesome-copilot documentation-writer@abc123def456
-  
+
+  # Preview from a non-standard nested path (efficient, skips full discovery)
+  $ gh skill preview monalisa/skills-repo packages/agent-skills/code-review
+
   # Browse and preview interactively
   $ gh skill preview github/awesome-copilot
 

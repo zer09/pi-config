@@ -1,7 +1,7 @@
 # gh codespace rebuild
 
 Source: https://cli.github.com/manual/gh_codespace_rebuild
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help codespace rebuild`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help codespace rebuild`.
 
 ## Summary
 

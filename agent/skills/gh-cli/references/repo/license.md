@@ -1,7 +1,7 @@
 # gh repo license
 
 Source: https://cli.github.com/manual/gh_repo_license
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo license`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo license`.
 
 ## Summary
 
@@ -9,8 +9,8 @@ Explore repository licenses
 
 ## Subcommands
 
-- `gh repo license list` - List common repository licenses - [reference](license/list.md)
-- `gh repo license view` - View a specific repository license - [reference](license/view.md)
+- [`list`](license/list.md) - List common repository licenses
+- [`view`](license/view.md) - View a specific repository license
 
 ## Manual
 

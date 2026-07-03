@@ -1,7 +1,7 @@
 # gh release verify-asset
 
 Source: https://cli.github.com/manual/gh_release_verify-asset
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help release verify-asset`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help release verify-asset`.
 
 ## Summary
 
@@ -38,10 +38,10 @@ INHERITED FLAGS
 EXAMPLES
   # Verify an asset from the latest release
   $ gh release verify-asset ./dist/my-asset.zip
-  
+
   # Verify an asset from a specific release tag
   $ gh release verify-asset v1.2.3 ./dist/my-asset.zip
-  
+
   # Verify an asset from a specific release tag and output the attestation in JSON format
   $ gh release verify-asset v1.2.3 ./dist/my-asset.zip --format json
 

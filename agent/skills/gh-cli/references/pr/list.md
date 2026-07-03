@@ -1,7 +1,7 @@
 # gh pr list
 
 Source: https://cli.github.com/manual/gh_pr_list
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help pr list`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help pr list`.
 
 ## Summary
 
@@ -34,7 +34,7 @@ ALIASES
 FLAGS
       --app string        Filter by GitHub App author
   -a, --assignee string   Filter by assignee
-  -A, --author string     Filter by author
+  -A, --author string     Filter by author (use --app to filter by a GitHub App)
   -B, --base string       Filter by base branch
   -d, --draft             Filter by draft state
   -H, --head string       Filter by head branch ("<owner>:<branch>" syntax not supported)
@@ -64,16 +64,19 @@ JSON FIELDS
 EXAMPLES
   # List PRs authored by you
   $ gh pr list --author "@me"
-  
+
+  # List PRs opened by a GitHub App such as Dependabot
+  $ gh pr list --app dependabot
+
   # List PRs with a specific head branch name
   $ gh pr list --head "typo"
-  
+
   # List only PRs with all of the given labels
   $ gh pr list --label bug --label "priority 1"
-  
+
   # Filter PRs using search syntax
   $ gh pr list --search "status:success review:required"
-  
+
   # Find a PR that introduced a given commit
   $ gh pr list --search "<SHA>" --state merged
 

@@ -1,7 +1,7 @@
 # gh pr checkout
 
 Source: https://cli.github.com/manual/gh_pr_checkout
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help pr checkout`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help pr checkout`.
 
 ## Summary
 
@@ -35,7 +35,7 @@ INHERITED FLAGS
 EXAMPLES
   # Interactively select a PR from the 10 most recent to check out
   $ gh pr checkout
-  
+
   # Checkout a specific PR
   $ gh pr checkout 32
   $ gh pr checkout https://github.com/OWNER/REPO/pull/32

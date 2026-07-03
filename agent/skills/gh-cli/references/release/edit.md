@@ -1,7 +1,7 @@
 # gh release edit
 
 Source: https://cli.github.com/manual/gh_release_edit
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help release edit`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help release edit`.
 
 ## Summary
 
@@ -38,7 +38,7 @@ INHERITED FLAGS
 EXAMPLES
   # Publish a release that was previously a draft
   $ gh release edit v1.0 --draft=false
-  
+
   # Update the release notes from the content of a file
   $ gh release edit v1.0 --notes-file /path/to/release_notes.md
 

@@ -1,7 +1,7 @@
 # gh copilot
 
 Source: https://cli.github.com/manual/gh_copilot
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help copilot`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help copilot`.
 
 ## Summary
 
@@ -44,13 +44,13 @@ INHERITED FLAGS
 EXAMPLES
   # Download and run the Copilot CLI
   $ gh copilot
-  
+
   # Run the Copilot CLI
   $ gh copilot -p "Summarize this week's commits" --allow-tool 'shell(git)'
-  
+
   # Remove the Copilot CLI (if installed through gh)
   $ gh copilot --remove
-  
+
   # Run the Copilot CLI help command
   $ gh copilot -- --help
 

@@ -1,11 +1,11 @@
 # gh skill install
 
 Source: https://cli.github.com/manual/gh_skill_install
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help skill install`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help skill install`.
 
 ## Summary
 
-Install agent skills from a GitHub repository or local directory into your local environment. Skills are placed in a host-specific directory at either project scope (inside the current git repository) or user scope (in your home directory, available everywhere).
+Install agent skills from a GitHub repository or local directory into
 
 ## Subcommands
 
@@ -93,8 +93,10 @@ For more information on the specification,
 see: https://agentskills.io/specification
 
 The skill argument can be a name, a namespaced name (`author/skill`),
-or an exact path within the repository (`skills/author/skill` or
-`skills/author/skill/SKILL.md`).
+or an exact path within the repository (`skills/author/skill`,
+`packages/agent-skills/code-review`, or any `.../SKILL.md` path).
+Namespaced names with one slash are matched by name. Use a `SKILL.md`
+suffix to force a one-directory path outside the standard conventions.
 
 Performance tip: when installing from a large repository with many
 skills, providing an exact path instead of a skill name avoids a
@@ -114,8 +116,13 @@ frontmatter. This metadata identifies the source repository and
 enables `gh skill update` to detect changes.
 
 When run interactively, the command prompts for any missing arguments.
-When run non-interactively, `repository` and a skill name are
-required.
+
+Use `--all` to install every discovered skill from the repository
+without prompting for skill selection. When run non-interactively,
+`repository` is required; without a skill name or `--all` the
+matching skills are listed (as tab-separated values when piped) so you can
+browse or filter them with tools like `grep` before re-running with
+a specific skill.
 
 
 USAGE
@@ -126,6 +133,7 @@ ALIASES
 
 FLAGS
       --agent string        Target agent (see supported values above)
+      --all                 Install all skills without prompting for skill selection
       --allow-hidden-dirs   Include skills in hidden directories (e.g. .claude/skills/, .agents/skills/)
       --dir string          Install to a custom directory (overrides --agent and --scope)
   -f, --force               Overwrite existing skills without prompting
@@ -140,31 +148,40 @@ INHERITED FLAGS
 EXAMPLES
   # Interactive: choose repo, skill, and agent
   $ gh skill install
-  
+
   # Choose a skill from the repo interactively
   $ gh skill install github/awesome-copilot
-  
+
+  # List available skills non-interactively (e.g. to pipe into grep)
+  $ gh skill install github/awesome-copilot | grep review
+
   # Install a specific skill
   $ gh skill install github/awesome-copilot git-commit
-  
+
+  # Install all skills from a repository
+  $ gh skill install github/awesome-copilot --all
+
   # Install a specific version
   $ gh skill install github/awesome-copilot git-commit@v1.2.0
-  
+
   # Install from a large namespaced repo by path (efficient, skips full discovery)
   $ gh skill install github/awesome-copilot skills/monalisa/code-review
-  
+
+  # Install from a non-standard nested path (efficient, skips full discovery)
+  $ gh skill install monalisa/skills-repo packages/agent-skills/code-review
+
   # Install from a local directory
   $ gh skill install ./my-skills-repo --from-local
-  
+
   # Install a specific local skill
   $ gh skill install ./my-skills-repo git-commit --from-local
-  
+
   # Install for Claude Code at user scope
   $ gh skill install github/awesome-copilot git-commit --agent claude-code --scope user
-  
+
   # Pin to a specific git ref
   $ gh skill install github/awesome-copilot git-commit --pin v2.0.0
-  
+
   # Install skills from hidden directories (e.g. .claude/skills/)
   $ gh skill install owner/repo --allow-hidden-dirs
 

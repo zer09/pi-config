@@ -1,7 +1,7 @@
 # gh issue edit
 
 Source: https://cli.github.com/manual/gh_issue_edit
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help issue edit`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue edit`.
 
 ## Summary
 
@@ -29,17 +29,27 @@ USAGE
   gh issue edit {<numbers> | <urls>} [flags]
 
 FLAGS
-      --add-assignee login      Add assigned users by their login. Use "@me" to assign yourself, or "@copilot" to assign Copilot.
-      --add-label name          Add labels by name
-      --add-project title       Add the issue to projects by title
-  -b, --body string             Set the new body.
-  -F, --body-file file          Read body text from file (use "-" to read from standard input)
-  -m, --milestone name          Edit the milestone the issue belongs to by name
-      --remove-assignee login   Remove assigned users by their login. Use "@me" to unassign yourself, or "@copilot" to unassign Copilot.
-      --remove-label name       Remove labels by name
-      --remove-milestone        Remove the milestone association from the issue
-      --remove-project title    Remove the issue from projects by title
-  -t, --title string            Set the new title.
+      --add-assignee login         Add assigned users by their login. Use "@me" to assign yourself, or "@copilot" to assign Copilot.
+      --add-blocked-by number      Add 'blocked by' relationships by issue number or URL
+      --add-blocking number        Add 'blocking' relationships by issue number or URL
+      --add-label name             Add labels by name
+      --add-project title          Add the issue to projects by title
+      --add-sub-issue number       Add sub-issues by number or URL
+  -b, --body string                Set the new body.
+  -F, --body-file file             Read body text from file (use "-" to read from standard input)
+  -m, --milestone name             Edit the milestone the issue belongs to by name
+      --parent number              Set the parent issue by number or URL
+      --remove-assignee login      Remove assigned users by their login. Use "@me" to unassign yourself, or "@copilot" to unassign Copilot.
+      --remove-blocked-by number   Remove 'blocked by' relationships by issue number or URL
+      --remove-blocking number     Remove 'blocking' relationships by issue number or URL
+      --remove-label name          Remove labels by name
+      --remove-milestone           Remove the milestone association from the issue
+      --remove-parent              Remove the parent issue
+      --remove-project title       Remove the issue from projects by title
+      --remove-sub-issue number    Remove sub-issues by number or URL
+      --remove-type                Remove the issue type from the issue
+  -t, --title string               Set the new title.
+      --type name                  Set the issue type by name
 
 INHERITED FLAGS
       --help                     Show help for command
@@ -55,6 +65,12 @@ EXAMPLES
   $ gh issue edit 23 --remove-milestone
   $ gh issue edit 23 --body-file body.txt
   $ gh issue edit 23 34 --add-label "help wanted"
+  $ gh issue edit 23 --type Bug
+  $ gh issue edit 23 --remove-type
+  $ gh issue edit 23 --parent 100
+  $ gh issue edit 23 --remove-parent
+  $ gh issue edit 100 --add-sub-issue 123,124
+  $ gh issue edit 123 --add-blocked-by 200 --add-blocking 300,301
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

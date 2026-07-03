@@ -1,7 +1,7 @@
 # gh repo license view
 
 Source: https://cli.github.com/manual/gh_repo_license_view
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo license view`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo license view`.
 
 ## Summary
 
@@ -31,16 +31,16 @@ INHERITED FLAGS
 EXAMPLES
   # View the MIT license from SPDX ID
   $ gh repo license view MIT
-  
+
   # View the MIT license from license key
   $ gh repo license view mit
-  
+
   # View the GNU AGPL-3.0 license from SPDX ID
   $ gh repo license view AGPL-3.0
-  
+
   # View the GNU AGPL-3.0 license from license key
   $ gh repo license view agpl-3.0
-  
+
   # Create a LICENSE.md with the MIT license
   $ gh repo license view MIT > LICENSE.md
 

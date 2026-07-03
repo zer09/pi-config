@@ -1,7 +1,7 @@
 # gh help formatting
 
 Source: https://cli.github.com/manual/gh_help_formatting
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help formatting`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help formatting`.
 
 ## Summary
 
@@ -59,12 +59,12 @@ EXAMPLES
   # Default output format
   $ gh pr list
   Showing 23 of 23 open pull requests in cli/cli
-  
+
   #123  A helpful contribution          contribution-branch              about 1 day ago
   #124  Improve the docs                docs-branch                      about 2 days ago
   #125  An exciting new feature         feature-branch                   about 2 days ago
-  
-  
+
+
   # Adding the --json flag with a list of field names
   $ gh pr list --json number,title,author
   [
@@ -90,15 +90,15 @@ EXAMPLES
       "title": "An exciting new feature"
     }
   ]
-  
-  
+
+
   # Adding the --jq flag and selecting fields from the array
   $ gh pr list --json author --jq '.[].author.login'
   monalisa
   codercat
   cli-maintainer
-  
-  
+
+
   # --jq can be used to implement more complex filtering and output changes
   $ gh issue list --json number,title,labels --jq \
     'map(select((.labels | length) > 0))    # must have labels
@@ -130,39 +130,39 @@ EXAMPLES
         "title": "An exciting new feature"
       }
     ]
-  
-  
+
+
   # Using the --template flag with the hyperlink helper
   $ gh issue list --json title,url --template '{{range .}}{{hyperlink .url .title}}{{"\n"}}{{end}}'
-  
-  
+
+
   # Adding the --template flag and modifying the display format
   $ gh pr list --json number,title,headRefName,updatedAt --template \
   	'{{range .}}{{tablerow (printf "#%v" .number | autocolor "green") .title .headRefName (timeago .updatedAt)}}{{end}}'
-  
+
   #123  A helpful contribution      contribution-branch       about 1 day ago
   #124  Improve the docs            docs-branch               about 2 days ago
   #125  An exciting new feature     feature-branch            about 2 days ago
-  
-  
+
+
   # A more complex example with the --template flag which formats a pull request using multiple tables with headers
   $ gh pr view 3519 --json number,title,body,reviews,assignees --template \
   '{{printf "#%v" .number}} {{.title}}
-  
+
   {{.body}}
-  
+
   {{tablerow "ASSIGNEE" "NAME"}}{{range .assignees}}{{tablerow .login .name}}{{end}}{{tablerender}}
   {{tablerow "REVIEWER" "STATE" "COMMENT"}}{{range .reviews}}{{tablerow .author.login .state .body}}{{end}}
   '
-  
+
   #3519 Add table and helper template functions
-  
+
   Resolves #3488
-  
+
   ASSIGNEE  NAME
   mislav    Mislav Marohnić
-  
-  
+
+
   REVIEWER  STATE              COMMENT
   mislav    COMMENTED          This is going along great! Thanks for working on this ❤️
 ```

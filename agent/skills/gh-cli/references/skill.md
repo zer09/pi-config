@@ -1,7 +1,7 @@
 # gh skill
 
 Source: https://cli.github.com/manual/gh_skill
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help skill`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help skill`.
 
 ## Summary
 
@@ -9,11 +9,12 @@ Install and manage agent skills from GitHub repositories.
 
 ## Subcommands
 
-- `gh skill install` - Install agent skills from a GitHub repository (preview) - [reference](skill/install.md)
-- `gh skill preview` - Preview a skill from a GitHub repository (preview) - [reference](skill/preview.md)
-- `gh skill publish` - Validate and publish skills to a GitHub repository (preview) - [reference](skill/publish.md)
-- `gh skill search` - Search for skills across GitHub (preview) - [reference](skill/search.md)
-- `gh skill update` - Update installed skills to their latest versions (preview) - [reference](skill/update.md)
+- [`install`](skill/install.md) - Install agent skills from a GitHub repository (preview)
+- [`list`](skill/list.md) - List installed skills (preview)
+- [`preview`](skill/preview.md) - Preview a skill from a GitHub repository (preview)
+- [`publish`](skill/publish.md) - Validate and publish skills to a GitHub repository (preview)
+- [`search`](skill/search.md) - Search for skills across GitHub (preview)
+- [`update`](skill/update.md) - Update installed skills to their latest versions (preview)
 
 ## Manual
 
@@ -32,6 +33,7 @@ ALIASES
 
 AVAILABLE COMMANDS
   install:       Install agent skills from a GitHub repository (preview)
+  list:          List installed skills (preview)
   preview:       Preview a skill from a GitHub repository (preview)
   publish:       Validate and publish skills to a GitHub repository (preview)
   search:        Search for skills across GitHub (preview)
@@ -43,16 +45,19 @@ INHERITED FLAGS
 EXAMPLES
   # Search for skills
   $ gh skill search terraform
-  
+
   # Install a skill
   $ gh skill install github/awesome-copilot documentation-writer
-  
+
+  # List installed skills
+  $ gh skill list
+
   # Preview a skill before installing
   $ gh skill preview github/awesome-copilot documentation-writer
-  
+
   # Update all installed skills
   $ gh skill update --all
-  
+
   # Validate skills for publishing
   $ gh skill publish --dry-run
 

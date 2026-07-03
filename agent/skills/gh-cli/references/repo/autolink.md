@@ -1,7 +1,7 @@
 # gh repo autolink
 
 Source: https://cli.github.com/manual/gh_repo_autolink
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo autolink`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo autolink`.
 
 ## Summary
 
@@ -9,10 +9,10 @@ Autolinks link issues, pull requests, commit messages, and release descriptions 
 
 ## Subcommands
 
-- `gh repo autolink create` - Create a new autolink reference - [reference](autolink/create.md)
-- `gh repo autolink delete` - Delete an autolink reference - [reference](autolink/delete.md)
-- `gh repo autolink list` - List autolink references for a GitHub repository - [reference](autolink/list.md)
-- `gh repo autolink view` - View an autolink reference - [reference](autolink/view.md)
+- [`create`](autolink/create.md) - Create a new autolink reference
+- [`delete`](autolink/delete.md) - Delete an autolink reference
+- [`list`](autolink/list.md) - List autolink references for a GitHub repository
+- [`view`](autolink/view.md) - View an autolink reference
 
 ## Manual
 

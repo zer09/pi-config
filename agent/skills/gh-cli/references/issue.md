@@ -1,7 +1,7 @@
 # gh issue
 
 Source: https://cli.github.com/manual/gh_issue
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help issue`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue`.
 
 ## Summary
 
@@ -9,21 +9,21 @@ Work with GitHub issues.
 
 ## Subcommands
 
-- `gh issue create` - Create a new issue - [reference](issue/create.md)
-- `gh issue list` - List issues in a repository - [reference](issue/list.md)
-- `gh issue status` - Show status of relevant issues - [reference](issue/status.md)
-- `gh issue close` - Close issue - [reference](issue/close.md)
-- `gh issue comment` - Add a comment to an issue - [reference](issue/comment.md)
-- `gh issue delete` - Delete issue - [reference](issue/delete.md)
-- `gh issue develop` - Manage linked branches for an issue - [reference](issue/develop.md)
-- `gh issue edit` - Edit issues - [reference](issue/edit.md)
-- `gh issue lock` - Lock issue conversation - [reference](issue/lock.md)
-- `gh issue pin` - Pin a issue - [reference](issue/pin.md)
-- `gh issue reopen` - Reopen issue - [reference](issue/reopen.md)
-- `gh issue transfer` - Transfer issue to another repository - [reference](issue/transfer.md)
-- `gh issue unlock` - Unlock issue conversation - [reference](issue/unlock.md)
-- `gh issue unpin` - Unpin a issue - [reference](issue/unpin.md)
-- `gh issue view` - View an issue - [reference](issue/view.md)
+- [`create`](issue/create.md) - Create a new issue
+- [`list`](issue/list.md) - List issues in a repository
+- [`status`](issue/status.md) - Show status of relevant issues
+- [`close`](issue/close.md) - Close issue
+- [`comment`](issue/comment.md) - Add a comment to an issue
+- [`delete`](issue/delete.md) - Delete issue
+- [`develop`](issue/develop.md) - Manage linked branches for an issue
+- [`edit`](issue/edit.md) - Edit issues
+- [`lock`](issue/lock.md) - Lock issue conversation
+- [`pin`](issue/pin.md) - Pin an issue
+- [`reopen`](issue/reopen.md) - Reopen issue
+- [`transfer`](issue/transfer.md) - Transfer issue to another repository
+- [`unlock`](issue/unlock.md) - Unlock issue conversation
+- [`unpin`](issue/unpin.md) - Unpin an issue
+- [`view`](issue/view.md) - View an issue
 
 ## Manual
 
@@ -45,11 +45,11 @@ TARGETED COMMANDS
   develop:       Manage linked branches for an issue
   edit:          Edit issues
   lock:          Lock issue conversation
-  pin:           Pin a issue
+  pin:           Pin an issue
   reopen:        Reopen issue
   transfer:      Transfer issue to another repository
   unlock:        Unlock issue conversation
-  unpin:         Unpin a issue
+  unpin:         Unpin an issue
   view:          View an issue
 
 FLAGS

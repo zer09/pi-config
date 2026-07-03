@@ -1,7 +1,7 @@
 # gh auth
 
 Source: https://cli.github.com/manual/gh_auth
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help auth`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help auth`.
 
 ## Summary
 
@@ -9,13 +9,13 @@ Authenticate gh and git with GitHub
 
 ## Subcommands
 
-- `gh auth login` - Log in to a GitHub account - [reference](auth/login.md)
-- `gh auth logout` - Log out of a GitHub account - [reference](auth/logout.md)
-- `gh auth refresh` - Refresh stored authentication credentials - [reference](auth/refresh.md)
-- `gh auth setup-git` - Setup git with GitHub CLI - [reference](auth/setup-git.md)
-- `gh auth status` - Display active account and authentication state on each known GitHub host - [reference](auth/status.md)
-- `gh auth switch` - Switch active GitHub account - [reference](auth/switch.md)
-- `gh auth token` - Print the authentication token gh uses for a hostname and account - [reference](auth/token.md)
+- [`login`](auth/login.md) - Log in to a GitHub account
+- [`logout`](auth/logout.md) - Log out of a GitHub account
+- [`refresh`](auth/refresh.md) - Refresh stored authentication credentials
+- [`setup-git`](auth/setup-git.md) - Setup git with GitHub CLI
+- [`status`](auth/status.md) - Display active account and authentication state on each known GitHub host
+- [`switch`](auth/switch.md) - Switch active GitHub account
+- [`token`](auth/token.md) - Print the authentication token gh uses for a hostname and account
 
 ## Manual
 

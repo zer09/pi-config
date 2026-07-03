@@ -1,7 +1,7 @@
 # gh extension create
 
 Source: https://cli.github.com/manual/gh_extension_create
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help extension create`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help extension create`.
 
 ## Summary
 
@@ -28,13 +28,13 @@ INHERITED FLAGS
 EXAMPLES
   # Use interactively
   $ gh extension create
-  
+
   # Create a script-based extension
   $ gh extension create foobar
-  
+
   # Create a Go extension
   $ gh extension create --precompiled=go foobar
-  
+
   # Create a non-Go precompiled extension
   $ gh extension create --precompiled=other foobar
 

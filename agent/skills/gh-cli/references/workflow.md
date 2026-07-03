@@ -1,7 +1,7 @@
 # gh workflow
 
 Source: https://cli.github.com/manual/gh_workflow
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help workflow`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help workflow`.
 
 ## Summary
 
@@ -9,11 +9,11 @@ List, view, and run workflows in GitHub Actions.
 
 ## Subcommands
 
-- `gh workflow disable` - Disable a workflow - [reference](workflow/disable.md)
-- `gh workflow enable` - Enable a workflow - [reference](workflow/enable.md)
-- `gh workflow list` - List workflows - [reference](workflow/list.md)
-- `gh workflow run` - Run a workflow by creating a workflow_dispatch event - [reference](workflow/run.md)
-- `gh workflow view` - View the summary of a workflow - [reference](workflow/view.md)
+- [`disable`](workflow/disable.md) - Disable a workflow
+- [`enable`](workflow/enable.md) - Enable a workflow
+- [`list`](workflow/list.md) - List workflows
+- [`run`](workflow/run.md) - Run a workflow by creating a workflow_dispatch event
+- [`view`](workflow/view.md) - View the summary of a workflow
 
 ## Manual
 

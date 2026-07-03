@@ -1,6 +1,6 @@
 ---
 name: nlm-skill
-description: "Expert guide for the NotebookLM CLI (`nlm`) and MCP server. Use when users want to automate Google NotebookLM: create or manage notebooks, add URL/YouTube/text/Drive sources, generate podcasts/audio overviews, reports, quizzes, flashcards, mind maps, slides, infographics, videos, data tables, conduct research, chat with sources, or run NotebookLM workflows. Triggers on `nlm`, `notebooklm`, `notebook lm`, podcast generation, audio overview, NotebookLM research, NotebookLM MCP, and NotebookLM CLI tasks."
+description: "Expert guide for the NotebookLM CLI (`nlm`) and MCP server. Use when users want to automate Google NotebookLM: create or manage notebooks, add URL/YouTube/text/Drive sources, generate podcasts/audio overviews, reports, quizzes, flashcards, mind maps, slides, infographics, videos, data tables, conduct research, refactor or critique documents, chat with sources, or run NotebookLM workflows. Triggers on `nlm`, `notebooklm`, `notebook lm`, podcast generation, audio overview, NotebookLM research, NotebookLM MCP, and NotebookLM CLI tasks."
 ---
 
 # NotebookLM CLI and MCP
@@ -18,11 +18,13 @@ Use this skill for Google NotebookLM automation through the `nlm` CLI or Noteboo
 ## Safety rules
 
 - Authenticate before operations: `nlm login`, then `nlm login --check` when needed.
-- Sessions expire in about 20 minutes; re-run `nlm login` after auth failures.
+- Sessions expire in about 20 minutes; re-run `nlm login` after confirmed auth failures.
+- Do not treat auth status `unverified` as expired by itself; check connectivity or try a safe API call first.
 - Treat NotebookLM and Google Drive/Docs/Sheets changes as external hosted service mutations. Create, add, import, generate, rename, share, invite, export, sync, configure, tag, and delete only when the user explicitly requests that exact action.
 - Before any delete, ask for explicit confirmation even if the CLI command has `--confirm`. Deletions are irreversible.
 - Never print cookies, OAuth tokens, browser profile secrets, or raw auth headers.
 - Do not use `nlm chat start`; it opens an interactive REPL. Use `nlm notebook query` for one-shot Q&A.
+- Never expose `notebooklm-mcp` directly to the public internet. If remote MCP access is needed, read `references/remote-mcp.md` first.
 - Keep CLI output bounded. Use compact output, `--quiet`, `--json` with filters, or temp files for outputs that may exceed 20 lines.
 - Prefer default compact output for status checks, `--quiet` for captured IDs, and `--json` only when parsing fields programmatically.
 
@@ -39,6 +41,7 @@ nlm notebook create "Title"
 nlm source add <notebook-id> --url "https://example.com"
 nlm notebook query <notebook-id> "question"
 nlm research start "query" --notebook-id <notebook-id>
+nlm research start "query" --title "New Research"
 nlm studio status <notebook-id>
 ```
 
@@ -93,6 +96,9 @@ nlm flashcards create <notebook-id> --focus "Vocabulary" --confirm
 - `references/command_reference.md`: complete command signatures and options from the upstream source.
 - `references/workflows.md`: end-to-end NotebookLM task sequences.
 - `references/troubleshooting.md`: auth, network, rate limit, syntax, and generation recovery.
+- `references/remote-mcp.md`: Streamable HTTP MCP deployment and security boundary.
+- `references/studio-prompting-guide.md`: Studio prompt mode selection and generation guidance.
+- `references/studio-prompt-examples.md`: fast-track and guided prompt examples for Studio artifacts.
 - `references/agents-section.md`: upstream AGENTS.md snippet adapted for local use.
 
 ## Maintenance

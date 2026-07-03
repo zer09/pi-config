@@ -1,11 +1,11 @@
 # gh label clone
 
 Source: https://cli.github.com/manual/gh_label_clone
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help label clone`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help label clone`.
 
 ## Summary
 
-Clones labels from a source repository to a destination repository on GitHub. By default, the destination repository is the current repository.
+Clones labels from a source repository to a destination repository on GitHub.
 
 ## Subcommands
 
@@ -39,8 +39,8 @@ INHERITED FLAGS
 EXAMPLES
   # Clone and overwrite labels from cli/cli repository into the current repository
   $ gh label clone cli/cli --force
-  
-  # Clone labels from cli/cli repository into a octocat/cli repository
+
+  # Clone labels from cli/cli repository into octocat/cli repository
   $ gh label clone cli/cli --repo octocat/cli
 
 LEARN MORE

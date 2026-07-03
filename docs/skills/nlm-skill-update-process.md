@@ -16,7 +16,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
   - `references/command_reference.md`
   - `references/workflows.md`
   - `references/troubleshooting.md`
-- Current upstream source version used locally: `0.6.10`
+- Current upstream source version used locally: `0.8.1`
 
 ## Local file model
 
@@ -24,6 +24,9 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 - `agent/skills/nlm-skill/references/command_reference.md`: full command signatures and options from upstream.
 - `agent/skills/nlm-skill/references/workflows.md`: full workflow sequences from upstream.
 - `agent/skills/nlm-skill/references/troubleshooting.md`: troubleshooting from upstream.
+- `agent/skills/nlm-skill/references/remote-mcp.md`: Streamable HTTP MCP deployment and security notes from upstream.
+- `agent/skills/nlm-skill/references/studio-prompting-guide.md`: Studio prompting guidance from upstream.
+- `agent/skills/nlm-skill/references/studio-prompt-examples.md`: Studio prompt examples from upstream.
 - `agent/skills/nlm-skill/references/agents-section.md`: upstream AGENTS.md snippet adapted for local formatting.
 - `agent/skills/nlm-skill/agents/openai.yaml`: UI metadata only. Regenerate if the skill trigger intent changes.
 
@@ -44,9 +47,12 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 
 - `agent/skills/nlm-skill/SKILL.md` has only `name` and `description` in frontmatter.
 - `agent/skills/nlm-skill/SKILL.md` references this update process.
-- `agent/skills/nlm-skill/references/command_reference.md` includes current command options, including `nlm research import --cited-only` for source version `0.6.10`.
+- `agent/skills/nlm-skill/references/command_reference.md` includes current command options, including `nlm research import --cited-only` for source version `0.8.1`.
 - `agent/skills/nlm-skill/references/workflows.md` exists.
 - `agent/skills/nlm-skill/references/troubleshooting.md` exists.
+- `agent/skills/nlm-skill/references/remote-mcp.md` exists.
+- `agent/skills/nlm-skill/references/studio-prompting-guide.md` exists.
+- `agent/skills/nlm-skill/references/studio-prompt-examples.md` exists.
 - `agent/skills/nlm-skill/references/agents-section.md` exists.
 - `agent/skills/nlm-skill/agents/openai.yaml` exists.
 - No file contains a literal local home path or secret value.

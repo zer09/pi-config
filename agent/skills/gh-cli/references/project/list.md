@@ -1,7 +1,7 @@
 # gh project list
 
 Source: https://cli.github.com/manual/gh_project_list
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help project list`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project list`.
 
 ## Summary
 
@@ -39,7 +39,7 @@ INHERITED FLAGS
 EXAMPLES
   # List the current user's projects
   $ gh project list
-  
+
   # List the projects for org github including closed projects
   $ gh project list --owner github --closed
 

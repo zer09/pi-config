@@ -1,7 +1,7 @@
 # gh repo create
 
 Source: https://cli.github.com/manual/gh_repo_create
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo create`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo create`.
 
 ## Summary
 
@@ -67,13 +67,13 @@ INHERITED FLAGS
 EXAMPLES
   # Create a repository interactively
   $ gh repo create
-  
+
   # Create a new remote repository and clone it locally
   $ gh repo create my-project --public --clone
-  
+
   # Create a new remote repository in a different organization
   $ gh repo create my-org/my-project --public
-  
+
   # Create a remote repository from the current directory
   $ gh repo create my-project --private --source=. --remote=upstream
 

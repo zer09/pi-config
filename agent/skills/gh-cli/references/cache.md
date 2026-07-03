@@ -1,7 +1,7 @@
 # gh cache
 
 Source: https://cli.github.com/manual/gh_cache
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help cache`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help cache`.
 
 ## Summary
 
@@ -9,8 +9,8 @@ Work with GitHub Actions caches.
 
 ## Subcommands
 
-- `gh cache delete` - Delete GitHub Actions caches - [reference](cache/delete.md)
-- `gh cache list` - List GitHub Actions caches - [reference](cache/list.md)
+- [`delete`](cache/delete.md) - Delete GitHub Actions caches
+- [`list`](cache/list.md) - List GitHub Actions caches
 
 ## Manual
 

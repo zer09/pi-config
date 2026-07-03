@@ -1,11 +1,11 @@
 # gh skill publish
 
 Source: https://cli.github.com/manual/gh_skill_publish
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help skill publish`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help skill publish`.
 
 ## Summary
 
-Validate a local repository's skills against the Agent Skills specification and publish them by creating a GitHub release.
+Validate a local repository's skills against the Agent Skills specification
 
 ## Subcommands
 
@@ -58,13 +58,13 @@ INHERITED FLAGS
 EXAMPLES
   # Validate and publish interactively
   $ gh skill publish
-  
+
   # Publish with a specific tag (non-interactive)
   $ gh skill publish --tag v1.0.0
-  
+
   # Validate only (no publish)
   $ gh skill publish --dry-run
-  
+
   # Strip install metadata without publishing
   $ gh skill publish --fix
 

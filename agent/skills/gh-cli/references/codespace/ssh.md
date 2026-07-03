@@ -1,11 +1,11 @@
 # gh codespace ssh
 
 Source: https://cli.github.com/manual/gh_codespace_ssh
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help codespace ssh`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help codespace ssh`.
 
 ## Summary
 
-The `ssh` command is used to SSH into a codespace. In its simplest form, you can run `gh cs ssh`, select a codespace interactively, and connect.
+The `ssh` command is used to SSH into a codespace. In its simplest form, you can
 
 ## Subcommands
 
@@ -65,7 +65,7 @@ INHERITED FLAGS
 
 EXAMPLES
   $ gh codespace ssh
-  
+
   $ gh codespace ssh --config > ~/.ssh/codespaces
   $ printf 'Match all\nInclude ~/.ssh/codespaces\n' >> ~/.ssh/config
 

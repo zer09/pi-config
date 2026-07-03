@@ -1,7 +1,7 @@
 # gh help environment
 
 Source: https://cli.github.com/manual/gh_help_environment
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help environment`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help environment`.
 
 ## Summary
 

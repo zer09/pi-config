@@ -1,7 +1,7 @@
 # gh issue unpin
 
 Source: https://cli.github.com/manual/gh_issue_unpin
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help issue unpin`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue unpin`.
 
 ## Summary
 
@@ -29,10 +29,10 @@ INHERITED FLAGS
 EXAMPLES
   # Unpin issue from the current repository
   $ gh issue unpin 23
-  
+
   # Unpin issue by URL
   $ gh issue unpin https://github.com/owner/repo/issues/23
-  
+
   # Unpin an issue from specific repository
   $ gh issue unpin 23 --repo owner/repo
 

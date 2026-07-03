@@ -1,7 +1,7 @@
 # gh label edit
 
 Source: https://cli.github.com/manual/gh_label_edit
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help label edit`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help label edit`.
 
 ## Summary
 
@@ -36,7 +36,7 @@ INHERITED FLAGS
 EXAMPLES
   # Update the color of the bug label
   $ gh label edit bug --color FF0000
-  
+
   # Rename and edit the description of the bug label
   $ gh label edit bug --name big-bug --description "Bigger than normal bug"
 

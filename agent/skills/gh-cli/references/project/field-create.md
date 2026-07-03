@@ -1,7 +1,7 @@
 # gh project field-create
 
 Source: https://cli.github.com/manual/gh_project_field-create
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help project field-create`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project field-create`.
 
 ## Summary
 
@@ -36,7 +36,7 @@ INHERITED FLAGS
 EXAMPLES
   # Create a field in the current user's project "1"
   $ gh project field-create 1 --owner "@me" --name "new field" --data-type "text"
-  
+
   # Create a field with three options to select from for owner monalisa
   $ gh project field-create 1 --owner monalisa --name "new field" --data-type "SINGLE_SELECT" --single-select-options "one,two,three"
 

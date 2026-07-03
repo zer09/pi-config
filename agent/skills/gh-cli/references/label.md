@@ -1,7 +1,7 @@
 # gh label
 
 Source: https://cli.github.com/manual/gh_label
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help label`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help label`.
 
 ## Summary
 
@@ -9,11 +9,11 @@ Work with GitHub labels.
 
 ## Subcommands
 
-- `gh label clone` - Clones labels from one repository to another - [reference](label/clone.md)
-- `gh label create` - Create a new label - [reference](label/create.md)
-- `gh label delete` - Delete a label from a repository - [reference](label/delete.md)
-- `gh label edit` - Edit a label - [reference](label/edit.md)
-- `gh label list` - List labels in a repository - [reference](label/list.md)
+- [`clone`](label/clone.md) - Clones labels from one repository to another
+- [`create`](label/create.md) - Create a new label
+- [`delete`](label/delete.md) - Delete a label from a repository
+- [`edit`](label/edit.md) - Edit a label
+- [`list`](label/list.md) - List labels in a repository
 
 ## Manual
 

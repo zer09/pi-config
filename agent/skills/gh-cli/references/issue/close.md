@@ -1,7 +1,7 @@
 # gh issue close
 
 Source: https://cli.github.com/manual/gh_issue_close
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help issue close`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue close`.
 
 ## Summary
 
@@ -31,13 +31,13 @@ INHERITED FLAGS
 EXAMPLES
   # Close issue
   $ gh issue close 123
-  
+
   # Close issue and add a closing comment
   $ gh issue close 123 --comment "Closing this issue"
-  
+
   # Close issue as a duplicate of issue #456
   $ gh issue close 123 --duplicate-of 456
-  
+
   # Close issue as not planned
   $ gh issue close 123 --reason "not planned"
 

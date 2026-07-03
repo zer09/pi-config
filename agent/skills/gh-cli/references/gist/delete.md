@@ -1,7 +1,7 @@
 # gh gist delete
 
 Source: https://cli.github.com/manual/gh_gist_delete
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help gist delete`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help gist delete`.
 
 ## Summary
 
@@ -33,7 +33,7 @@ INHERITED FLAGS
 EXAMPLES
   # Delete a gist interactively
   $ gh gist delete
-  
+
   # Delete a gist non-interactively
   $ gh gist delete 1234
 

@@ -1,7 +1,7 @@
 # gh search issues
 
 Source: https://cli.github.com/manual/gh_search_issues
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help search issues`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help search issues`.
 
 ## Summary
 
@@ -37,7 +37,7 @@ FLAGS
       --app string             Filter by GitHub App author
       --archived               Filter based on the repository archived state {true|false}
       --assignee string        Filter by assignee
-      --author string          Filter by author
+      --author string          Filter by author (use --app to filter by a GitHub App)
       --closed date            Filter on closed at date
       --commenter user         Filter based on comments by user
       --comments number        Filter on number of comments
@@ -82,22 +82,22 @@ JSON FIELDS
 EXAMPLES
   # Search issues matching set of keywords "readme" and "typo"
   $ gh search issues readme typo
-  
+
   # Search issues matching phrase "broken feature"
   $ gh search issues "broken feature"
-  
+
   # Search issues and pull requests in cli organization
   $ gh search issues --include-prs --owner=cli
-  
+
   # Search open issues assigned to yourself
   $ gh search issues --assignee=@me --state=open
-  
+
   # Search issues with numerous comments
   $ gh search issues --comments=">100"
-  
+
   # Search issues without label "bug"
   $ gh search issues -- -label:bug
-  
+
   # Search issues only from un-archived repositories (default is all repositories)
   $ gh search issues --owner github --archived=false
 

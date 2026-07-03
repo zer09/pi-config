@@ -1,7 +1,7 @@
 # gh repo rename
 
 Source: https://cli.github.com/manual/gh_repo_rename
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo rename`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo rename`.
 
 ## Summary
 
@@ -41,7 +41,7 @@ INHERITED FLAGS
 EXAMPLES
   # Rename the current repository (foo/bar -> foo/baz)
   $ gh repo rename baz
-  
+
   # Rename the specified repository (qux/quux -> qux/baz)
   $ gh repo rename -R qux/quux baz
 

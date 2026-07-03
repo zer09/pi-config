@@ -1,7 +1,7 @@
 # gh gpg-key
 
 Source: https://cli.github.com/manual/gh_gpg-key
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help gpg-key`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help gpg-key`.
 
 ## Summary
 
@@ -9,9 +9,9 @@ Manage GPG keys registered with your GitHub account.
 
 ## Subcommands
 
-- `gh gpg-key add` - Add a GPG key to your GitHub account - [reference](gpg-key/add.md)
-- `gh gpg-key delete` - Delete a GPG key from your GitHub account - [reference](gpg-key/delete.md)
-- `gh gpg-key list` - Lists GPG keys in your GitHub account - [reference](gpg-key/list.md)
+- [`add`](gpg-key/add.md) - Add a GPG key to your GitHub account
+- [`delete`](gpg-key/delete.md) - Delete a GPG key from your GitHub account
+- [`list`](gpg-key/list.md) - Lists GPG keys in your GitHub account
 
 ## Manual
 

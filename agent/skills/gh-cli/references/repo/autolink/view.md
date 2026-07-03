@@ -1,7 +1,7 @@
 # gh repo autolink view
 
 Source: https://cli.github.com/manual/gh_repo_autolink_view
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo autolink view`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo autolink view`.
 
 ## Summary
 

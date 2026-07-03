@@ -1,15 +1,15 @@
 # gh preview
 
 Source: https://cli.github.com/manual/gh_preview
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help preview`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help preview`.
 
 ## Summary
 
-Preview commands are for testing, demonstrative, and development purposes only. They should be considered unstable and can change at any time.
+Preview commands are for testing, demonstrative, and development purposes only.
 
 ## Subcommands
 
-- `gh preview prompter` - Execute a test program to preview the prompter - [reference](preview/prompter.md)
+- [`prompter`](preview/prompter.md) - Execute a test program to preview the prompter
 
 ## Manual
 

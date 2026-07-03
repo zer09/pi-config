@@ -1,7 +1,7 @@
 # gh repo
 
 Source: https://cli.github.com/manual/gh_repo
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo`.
 
 ## Summary
 
@@ -9,22 +9,24 @@ Work with GitHub repositories.
 
 ## Subcommands
 
-- `gh repo create` - Create a new repository - [reference](repo/create.md)
-- `gh repo list` - List repositories owned by user or organization - [reference](repo/list.md)
-- `gh repo archive` - Archive a repository - [reference](repo/archive.md)
-- `gh repo autolink` - Manage autolink references - [reference](repo/autolink.md)
-- `gh repo clone` - Clone a repository locally - [reference](repo/clone.md)
-- `gh repo delete` - Delete a repository - [reference](repo/delete.md)
-- `gh repo deploy-key` - Manage deploy keys in a repository - [reference](repo/deploy-key.md)
-- `gh repo edit` - Edit repository settings - [reference](repo/edit.md)
-- `gh repo fork` - Create a fork of a repository - [reference](repo/fork.md)
-- `gh repo gitignore` - List and view available repository gitignore templates - [reference](repo/gitignore.md)
-- `gh repo license` - Explore repository licenses - [reference](repo/license.md)
-- `gh repo rename` - Rename a repository - [reference](repo/rename.md)
-- `gh repo set-default` - Configure default repository for this directory - [reference](repo/set-default.md)
-- `gh repo sync` - Sync a repository - [reference](repo/sync.md)
-- `gh repo unarchive` - Unarchive a repository - [reference](repo/unarchive.md)
-- `gh repo view` - View a repository - [reference](repo/view.md)
+- [`create`](repo/create.md) - Create a new repository
+- [`list`](repo/list.md) - List repositories owned by user or organization
+- [`archive`](repo/archive.md) - Archive a repository
+- [`autolink`](repo/autolink.md) - Manage autolink references
+- [`clone`](repo/clone.md) - Clone a repository locally
+- [`delete`](repo/delete.md) - Delete a repository
+- [`deploy-key`](repo/deploy-key.md) - Manage deploy keys in a repository
+- [`edit`](repo/edit.md) - Edit repository settings
+- [`fork`](repo/fork.md) - Create a fork of a repository
+- [`gitignore`](repo/gitignore.md) - List and view available repository gitignore templates
+- [`license`](repo/license.md) - Explore repository licenses
+- [`read-dir`](repo/read-dir.md) - List a directory in a repository (preview)
+- [`read-file`](repo/read-file.md) - Read a file from a repository (preview)
+- [`rename`](repo/rename.md) - Rename a repository
+- [`set-default`](repo/set-default.md) - Configure default repository for this directory
+- [`sync`](repo/sync.md) - Sync a repository
+- [`unarchive`](repo/unarchive.md) - Unarchive a repository
+- [`view`](repo/view.md) - View a repository
 
 ## Manual
 
@@ -48,6 +50,8 @@ TARGETED COMMANDS
   fork:          Create a fork of a repository
   gitignore:     List and view available repository gitignore templates
   license:       Explore repository licenses
+  read-dir:      List a directory in a repository (preview)
+  read-file:     Read a file from a repository (preview)
   rename:        Rename a repository
   set-default:   Configure default repository for this directory
   sync:          Sync a repository

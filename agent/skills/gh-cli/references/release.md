@@ -1,7 +1,7 @@
 # gh release
 
 Source: https://cli.github.com/manual/gh_release
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help release`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help release`.
 
 ## Summary
 
@@ -9,16 +9,16 @@ Manage releases
 
 ## Subcommands
 
-- `gh release create` - Create a new release - [reference](release/create.md)
-- `gh release list` - List releases in a repository - [reference](release/list.md)
-- `gh release delete` - Delete a release - [reference](release/delete.md)
-- `gh release delete-asset` - Delete an asset from a release - [reference](release/delete-asset.md)
-- `gh release download` - Download release assets - [reference](release/download.md)
-- `gh release edit` - Edit a release - [reference](release/edit.md)
-- `gh release upload` - Upload assets to a release - [reference](release/upload.md)
-- `gh release verify` - Verify the attestation for a release - [reference](release/verify.md)
-- `gh release verify-asset` - Verify that a given asset originated from a release - [reference](release/verify-asset.md)
-- `gh release view` - View information about a release - [reference](release/view.md)
+- [`create`](release/create.md) - Create a new release
+- [`list`](release/list.md) - List releases in a repository
+- [`delete`](release/delete.md) - Delete a release
+- [`delete-asset`](release/delete-asset.md) - Delete an asset from a release
+- [`download`](release/download.md) - Download release assets
+- [`edit`](release/edit.md) - Edit a release
+- [`upload`](release/upload.md) - Upload assets to a release
+- [`verify`](release/verify.md) - Verify the attestation for a release
+- [`verify-asset`](release/verify-asset.md) - Verify that a given asset originated from a release
+- [`view`](release/view.md) - View information about a release
 
 ## Manual
 

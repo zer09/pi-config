@@ -1,7 +1,7 @@
 # gh label list
 
 Source: https://cli.github.com/manual/gh_label_list
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help label list`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help label list`.
 
 ## Summary
 
@@ -47,7 +47,7 @@ JSON FIELDS
 EXAMPLES
   # Sort labels by name
   $ gh label list --sort name
-  
+
   # Find labels with "bug" in the name or description
   $ gh label list --search bug
 

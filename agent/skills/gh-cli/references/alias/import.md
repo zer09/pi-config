@@ -1,7 +1,7 @@
 # gh alias import
 
 Source: https://cli.github.com/manual/gh_alias_import
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help alias import`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help alias import`.
 
 ## Summary
 
@@ -45,7 +45,7 @@ INHERITED FLAGS
 EXAMPLES
   # Import aliases from a file
   $ gh alias import aliases.yml
-  
+
   # Import aliases from standard input
   $ gh alias import -
 

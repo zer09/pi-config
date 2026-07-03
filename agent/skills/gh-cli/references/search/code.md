@@ -1,7 +1,7 @@
 # gh search code
 
 Source: https://cli.github.com/manual/gh_search_code
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help search code`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help search code`.
 
 ## Summary
 
@@ -53,19 +53,19 @@ JSON FIELDS
 EXAMPLES
   # Search code matching "react" and "lifecycle"
   $ gh search code react lifecycle
-  
+
   # Search code matching "error handling"
   $ gh search code "error handling"
-  
+
   # Search code matching "deque" in Python files
   $ gh search code deque --language=python
-  
+
   # Search code matching "cli" in repositories owned by microsoft organization
   $ gh search code cli --owner=microsoft
-  
+
   # Search code matching "panic" in the GitHub CLI repository
   $ gh search code panic --repo cli/cli
-  
+
   # Search code matching keyword "lint" in package.json files
   $ gh search code lint --filename package.json
 

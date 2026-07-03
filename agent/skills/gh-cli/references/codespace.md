@@ -1,7 +1,7 @@
 # gh codespace
 
 Source: https://cli.github.com/manual/gh_codespace
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help codespace`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help codespace`.
 
 ## Summary
 
@@ -9,19 +9,19 @@ Connect to and manage codespaces
 
 ## Subcommands
 
-- `gh codespace code` - Open a codespace in Visual Studio Code - [reference](codespace/code.md)
-- `gh codespace cp` - Copy files between local and remote file systems - [reference](codespace/cp.md)
-- `gh codespace create` - Create a codespace - [reference](codespace/create.md)
-- `gh codespace delete` - Delete codespaces - [reference](codespace/delete.md)
-- `gh codespace edit` - Edit a codespace - [reference](codespace/edit.md)
-- `gh codespace jupyter` - Open a codespace in JupyterLab - [reference](codespace/jupyter.md)
-- `gh codespace list` - List codespaces - [reference](codespace/list.md)
-- `gh codespace logs` - Access codespace logs - [reference](codespace/logs.md)
-- `gh codespace ports` - List ports in a codespace - [reference](codespace/ports.md)
-- `gh codespace rebuild` - Rebuild a codespace - [reference](codespace/rebuild.md)
-- `gh codespace ssh` - SSH into a codespace - [reference](codespace/ssh.md)
-- `gh codespace stop` - Stop a running codespace - [reference](codespace/stop.md)
-- `gh codespace view` - View details about a codespace - [reference](codespace/view.md)
+- [`code`](codespace/code.md) - Open a codespace in Visual Studio Code
+- [`cp`](codespace/cp.md) - Copy files between local and remote file systems
+- [`create`](codespace/create.md) - Create a codespace
+- [`delete`](codespace/delete.md) - Delete codespaces
+- [`edit`](codespace/edit.md) - Edit a codespace
+- [`jupyter`](codespace/jupyter.md) - Open a codespace in JupyterLab
+- [`list`](codespace/list.md) - List codespaces
+- [`logs`](codespace/logs.md) - Access codespace logs
+- [`ports`](codespace/ports.md) - List ports in a codespace
+- [`rebuild`](codespace/rebuild.md) - Rebuild a codespace
+- [`ssh`](codespace/ssh.md) - SSH into a codespace
+- [`stop`](codespace/stop.md) - Stop a running codespace
+- [`view`](codespace/view.md) - View details about a codespace
 
 ## Manual
 

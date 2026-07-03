@@ -1,7 +1,7 @@
 # gh codespace view
 
 Source: https://cli.github.com/manual/gh_codespace_view
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help codespace view`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help codespace view`.
 
 ## Summary
 
@@ -41,13 +41,13 @@ JSON FIELDS
 EXAMPLES
   # Select a codespace from a list of all codespaces you own
   $ gh cs view
-  
+
   # View the details of a specific codespace
   $ gh cs view -c codespace-name-12345
-  
+
   # View the list of all available fields for a codespace
   $ gh cs view --json
-  
+
   # View specific fields for a codespace
   $ gh cs view --json displayName,machineDisplayName,state
 

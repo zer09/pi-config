@@ -1,11 +1,11 @@
 # gh preview prompter
 
 Source: https://cli.github.com/manual/gh_preview_prompter
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help preview prompter`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help preview prompter`.
 
 ## Summary
 
-Execute a test program to preview the prompter. Without an argument, all prompts will be run.
+Execute a test program to preview the prompter.
 
 ## Subcommands
 

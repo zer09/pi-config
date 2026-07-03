@@ -46,7 +46,9 @@ Apply the **deletion test** to anything you suspect is shallow: would deleting i
 
 ### 2. Present candidates
 
-Present a numbered list of deepening opportunities. For each candidate:
+Present a numbered list of deepening opportunities. For larger reviews or when before/after structure would be clearer visually, write a self-contained HTML report to the OS temp directory using [HTML-REPORT.md](HTML-REPORT.md), then summarize the top recommendation in chat. Do not put generated reports in the repository unless the user asks.
+
+For each candidate include:
 
 - **Files** — which files/modules are involved
 - **Problem** — why the current architecture is causing friction

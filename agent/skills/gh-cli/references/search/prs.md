@@ -1,7 +1,7 @@
 # gh search prs
 
 Source: https://cli.github.com/manual/gh_search_prs
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help search prs`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help search prs`.
 
 ## Summary
 
@@ -37,7 +37,7 @@ FLAGS
       --app string              Filter by GitHub App author
       --archived                Filter based on the repository archived state {true|false}
       --assignee string         Filter by assignee
-      --author string           Filter by author
+      --author string           Filter by author (use --app to filter by a GitHub App)
   -B, --base string             Filter on base branch name
       --checks string           Filter based on status of the checks: {pending|success|failure}
       --closed date             Filter on closed at date
@@ -90,22 +90,22 @@ JSON FIELDS
 EXAMPLES
   # Search pull requests matching set of keywords "fix" and "bug"
   $ gh search prs fix bug
-  
+
   # Search draft pull requests in cli repository
   $ gh search prs --repo=cli/cli --draft
-  
+
   # Search open pull requests requesting your review
   $ gh search prs --review-requested=@me --state=open
-  
+
   # Search merged pull requests assigned to yourself
   $ gh search prs --assignee=@me --merged
-  
+
   # Search pull requests with numerous reactions
   $ gh search prs --reactions=">100"
-  
+
   # Search pull requests without label "bug"
   $ gh search prs -- -label:bug
-  
+
   # Search pull requests only from un-archived repositories (default is all repositories)
   $ gh search prs --owner github --archived=false
 

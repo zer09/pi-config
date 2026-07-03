@@ -1,7 +1,7 @@
 # gh issue pin
 
 Source: https://cli.github.com/manual/gh_issue_pin
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help issue pin`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue pin`.
 
 ## Summary
 
@@ -29,10 +29,10 @@ INHERITED FLAGS
 EXAMPLES
   # Pin an issue to the current repository
   $ gh issue pin 23
-  
+
   # Pin an issue by URL
   $ gh issue pin https://github.com/owner/repo/issues/23
-  
+
   # Pin an issue to specific repository
   $ gh issue pin 23 --repo owner/repo
 

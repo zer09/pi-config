@@ -1,7 +1,7 @@
 # gh org
 
 Source: https://cli.github.com/manual/gh_org
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help org`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help org`.
 
 ## Summary
 
@@ -9,7 +9,7 @@ Work with GitHub organizations.
 
 ## Subcommands
 
-- `gh org list` - List organizations for the authenticated user. - [reference](org/list.md)
+- [`list`](org/list.md) - List organizations for the authenticated user.
 
 ## Manual
 

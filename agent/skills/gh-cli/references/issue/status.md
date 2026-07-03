@@ -1,7 +1,7 @@
 # gh issue status
 
 Source: https://cli.github.com/manual/gh_issue_status
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help issue status`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue status`.
 
 ## Summary
 
@@ -31,9 +31,10 @@ INHERITED FLAGS
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 JSON FIELDS
-  assignees, author, body, closed, closedAt, closedByPullRequestsReferences,
-  comments, createdAt, id, isPinned, labels, milestone, number, projectCards,
-  projectItems, reactionGroups, state, stateReason, title, updatedAt, url
+  assignees, author, blockedBy, blocking, body, closed, closedAt,
+  closedByPullRequestsReferences, comments, createdAt, id, isPinned, issueType,
+  labels, milestone, number, parent, projectCards, projectItems, reactionGroups,
+  state, stateReason, subIssues, subIssuesSummary, title, updatedAt, url
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

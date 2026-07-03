@@ -1,7 +1,7 @@
 # gh codespace ports
 
 Source: https://cli.github.com/manual/gh_codespace_ports
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help codespace ports`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help codespace ports`.
 
 ## Summary
 
@@ -9,8 +9,8 @@ List ports in a codespace
 
 ## Subcommands
 
-- `gh codespace ports forward` - Forward ports - [reference](ports/forward.md)
-- `gh codespace ports visibility` - Change the visibility of the forwarded port - [reference](ports/visibility.md)
+- [`forward`](ports/forward.md) - Forward ports
+- [`visibility`](ports/visibility.md) - Change the visibility of the forwarded port
 
 ## Manual
 

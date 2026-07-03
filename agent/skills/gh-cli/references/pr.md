@@ -1,7 +1,7 @@
 # gh pr
 
 Source: https://cli.github.com/manual/gh_pr
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help pr`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help pr`.
 
 ## Summary
 
@@ -9,24 +9,24 @@ Work with GitHub pull requests.
 
 ## Subcommands
 
-- `gh pr create` - Create a pull request - [reference](pr/create.md)
-- `gh pr list` - List pull requests in a repository - [reference](pr/list.md)
-- `gh pr status` - Show status of relevant pull requests - [reference](pr/status.md)
-- `gh pr checkout` - Check out a pull request in git - [reference](pr/checkout.md)
-- `gh pr checks` - Show CI status for a single pull request - [reference](pr/checks.md)
-- `gh pr close` - Close a pull request - [reference](pr/close.md)
-- `gh pr comment` - Add a comment to a pull request - [reference](pr/comment.md)
-- `gh pr diff` - View changes in a pull request - [reference](pr/diff.md)
-- `gh pr edit` - Edit a pull request - [reference](pr/edit.md)
-- `gh pr lock` - Lock pull request conversation - [reference](pr/lock.md)
-- `gh pr merge` - Merge a pull request - [reference](pr/merge.md)
-- `gh pr ready` - Mark a pull request as ready for review - [reference](pr/ready.md)
-- `gh pr reopen` - Reopen a pull request - [reference](pr/reopen.md)
-- `gh pr revert` - Revert a pull request - [reference](pr/revert.md)
-- `gh pr review` - Add a review to a pull request - [reference](pr/review.md)
-- `gh pr unlock` - Unlock pull request conversation - [reference](pr/unlock.md)
-- `gh pr update-branch` - Update a pull request branch - [reference](pr/update-branch.md)
-- `gh pr view` - View a pull request - [reference](pr/view.md)
+- [`create`](pr/create.md) - Create a pull request
+- [`list`](pr/list.md) - List pull requests in a repository
+- [`status`](pr/status.md) - Show status of relevant pull requests
+- [`checkout`](pr/checkout.md) - Check out a pull request in git
+- [`checks`](pr/checks.md) - Show CI status for a single pull request
+- [`close`](pr/close.md) - Close a pull request
+- [`comment`](pr/comment.md) - Add a comment to a pull request
+- [`diff`](pr/diff.md) - View changes in a pull request
+- [`edit`](pr/edit.md) - Edit a pull request
+- [`lock`](pr/lock.md) - Lock pull request conversation
+- [`merge`](pr/merge.md) - Merge a pull request
+- [`ready`](pr/ready.md) - Mark a pull request as ready for review
+- [`reopen`](pr/reopen.md) - Reopen a pull request
+- [`revert`](pr/revert.md) - Revert a pull request
+- [`review`](pr/review.md) - Add a review to a pull request
+- [`unlock`](pr/unlock.md) - Unlock pull request conversation
+- [`update-branch`](pr/update-branch.md) - Update a pull request branch
+- [`view`](pr/view.md) - View a pull request
 
 ## Manual
 

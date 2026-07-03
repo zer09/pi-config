@@ -1,7 +1,7 @@
 # gh auth login
 
 Source: https://cli.github.com/manual/gh_auth_login
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help auth login`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help auth login`.
 
 ## Summary
 
@@ -68,13 +68,13 @@ INHERITED FLAGS
 EXAMPLES
   # Start interactive setup
   $ gh auth login
-  
+
   # Open a browser to authenticate and copy one-time OAuth code to clipboard
   $ gh auth login --web --clipboard
-  
+
   # Authenticate against github.com by reading the token from a file
   $ gh auth login --with-token < mytoken.txt
-  
+
   # Authenticate with specific host
   $ gh auth login --hostname enterprise.internal
 

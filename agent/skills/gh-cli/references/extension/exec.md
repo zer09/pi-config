@@ -1,11 +1,11 @@
 # gh extension exec
 
 Source: https://cli.github.com/manual/gh_extension_exec
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help extension exec`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help extension exec`.
 
 ## Summary
 
-Execute an extension using the short name. For example, if the extension repository is `owner/gh-extension`, you should pass `extension`. You can use this command when the short name conflicts with a core gh command.
+Execute an extension using the short name. For example, if the extension repository is
 
 ## Subcommands
 

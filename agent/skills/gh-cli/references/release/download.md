@@ -1,7 +1,7 @@
 # gh release download
 
 Source: https://cli.github.com/manual/gh_release_download
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help release download`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help release download`.
 
 ## Summary
 
@@ -39,13 +39,13 @@ INHERITED FLAGS
 EXAMPLES
   # Download all assets from a specific release
   $ gh release download v1.2.3
-  
+
   # Download only Debian packages for the latest release
   $ gh release download --pattern '*.deb'
-  
+
   # Specify multiple file patterns
   $ gh release download -p '*.deb' -p '*.rpm'
-  
+
   # Download the archive of the source code for a release
   $ gh release download v1.2.3 --archive=zip
 

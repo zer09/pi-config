@@ -1,11 +1,11 @@
 # gh extension browse
 
 Source: https://cli.github.com/manual/gh_extension_browse
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help extension browse`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help extension browse`.
 
 ## Summary
 
-This command will take over your terminal and run a fully interactive interface for browsing, adding, and removing gh extensions. A terminal width greater than 100 columns is recommended.
+This command will take over your terminal and run a fully interactive
 
 ## Subcommands
 

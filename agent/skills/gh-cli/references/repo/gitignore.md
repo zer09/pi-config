@@ -1,7 +1,7 @@
 # gh repo gitignore
 
 Source: https://cli.github.com/manual/gh_repo_gitignore
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo gitignore`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo gitignore`.
 
 ## Summary
 
@@ -9,8 +9,8 @@ List and view available repository gitignore templates
 
 ## Subcommands
 
-- `gh repo gitignore list` - List available repository gitignore templates - [reference](gitignore/list.md)
-- `gh repo gitignore view` - View an available repository gitignore template - [reference](gitignore/view.md)
+- [`list`](gitignore/list.md) - List available repository gitignore templates
+- [`view`](gitignore/view.md) - View an available repository gitignore template
 
 ## Manual
 

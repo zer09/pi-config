@@ -1,7 +1,7 @@
 # gh gist list
 
 Source: https://cli.github.com/manual/gh_gist_list
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help gist list`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help gist list`.
 
 ## Summary
 
@@ -51,7 +51,7 @@ INHERITED FLAGS
 EXAMPLES
   # List all secret gists from your user account
   $ gh gist list --secret
-  
+
   # Find all gists from your user account mentioning "octo" anywhere
   $ gh gist list --filter octo --include-content
 

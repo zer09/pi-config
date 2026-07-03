@@ -1,7 +1,7 @@
 # gh project view
 
 Source: https://cli.github.com/manual/gh_project_view
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help project view`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project view`.
 
 ## Summary
 
@@ -34,7 +34,7 @@ INHERITED FLAGS
 EXAMPLES
   # View the current user's project "1"
   $ gh project view 1
-  
+
   # Open user monalisa's project "1" in the browser
   $ gh project view 1 --owner monalisa --web
 

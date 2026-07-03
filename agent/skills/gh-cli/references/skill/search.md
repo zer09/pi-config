@@ -1,7 +1,7 @@
 # gh skill search
 
 Source: https://cli.github.com/manual/gh_skill_search
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help skill search`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help skill search`.
 
 ## Summary
 
@@ -48,13 +48,13 @@ JSON FIELDS
 EXAMPLES
   # Search for skills related to terraform
   $ gh skill search terraform
-  
+
   # Search for skills from a specific owner
   $ gh skill search terraform --owner hashicorp
-  
+
   # View the second page of results
   $ gh skill search terraform --page 2
-  
+
   # Limit results to 5
   $ gh skill search terraform --limit 5
 

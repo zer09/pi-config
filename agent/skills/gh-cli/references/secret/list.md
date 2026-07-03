@@ -1,11 +1,11 @@
 # gh secret list
 
 Source: https://cli.github.com/manual/gh_secret_list
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help secret list`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help secret list`.
 
 ## Summary
 
-List secrets on one of the following levels: - repository (default): available to GitHub Actions runs or Dependabot in a repository - environment: available to GitHub Actions runs for a deployment environment in a repository - organization: available to GitHub Actions runs, Dependabot, or Codespaces within an organization - user: available to Codespaces for your user
+List secrets on one of the following levels:
 
 ## Subcommands
 
@@ -15,9 +15,9 @@ List secrets on one of the following levels: - repository (default): available t
 
 ```text
 List secrets on one of the following levels:
-- repository (default): available to GitHub Actions runs or Dependabot in a repository
+- repository (default): available to GitHub Actions runs, Agents sessions, or Dependabot in a repository
 - environment: available to GitHub Actions runs for a deployment environment in a repository
-- organization: available to GitHub Actions runs, Dependabot, or Codespaces within an organization
+- organization: available to GitHub Actions runs, Agents sessions, Dependabot, or Codespaces within an organization
 - user: available to Codespaces for your user
 
 For more information about output formatting flags, see `gh help formatting`.
@@ -29,7 +29,7 @@ ALIASES
   gh secret ls
 
 FLAGS
-  -a, --app string        List secrets for a specific application: {actions|codespaces|dependabot}
+  -a, --app string        List secrets for a specific application: {actions|agents|codespaces|dependabot}
   -e, --env string        List secrets for an environment
   -q, --jq expression     Filter JSON output using a jq expression
       --json fields       Output JSON with the specified fields

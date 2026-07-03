@@ -1,7 +1,7 @@
 # gh extension
 
 Source: https://cli.github.com/manual/gh_extension
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help extension`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help extension`.
 
 ## Summary
 
@@ -9,14 +9,14 @@ GitHub CLI extensions are repositories that provide additional gh commands.
 
 ## Subcommands
 
-- `gh extension browse` - Enter a UI for browsing, adding, and removing extensions - [reference](extension/browse.md)
-- `gh extension create` - Create a new extension - [reference](extension/create.md)
-- `gh extension exec` - Execute an installed extension - [reference](extension/exec.md)
-- `gh extension install` - Install a gh extension from a repository - [reference](extension/install.md)
-- `gh extension list` - List installed extension commands - [reference](extension/list.md)
-- `gh extension remove` - Remove an installed extension - [reference](extension/remove.md)
-- `gh extension search` - Search extensions to the GitHub CLI - [reference](extension/search.md)
-- `gh extension upgrade` - Upgrade installed extensions - [reference](extension/upgrade.md)
+- [`browse`](extension/browse.md) - Enter a UI for browsing, adding, and removing extensions
+- [`create`](extension/create.md) - Create a new extension
+- [`exec`](extension/exec.md) - Execute an installed extension
+- [`install`](extension/install.md) - Install a gh extension from a repository
+- [`list`](extension/list.md) - List installed extension commands
+- [`remove`](extension/remove.md) - Remove an installed extension
+- [`search`](extension/search.md) - Search extensions to the GitHub CLI
+- [`upgrade`](extension/upgrade.md) - Upgrade installed extensions
 
 ## Manual
 

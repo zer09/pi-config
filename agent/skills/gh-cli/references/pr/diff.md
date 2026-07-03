@@ -1,7 +1,7 @@
 # gh pr diff
 
 Source: https://cli.github.com/manual/gh_pr_diff
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help pr diff`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help pr diff`.
 
 ## Summary
 
@@ -43,13 +43,13 @@ INHERITED FLAGS
 EXAMPLES
   # See diff for current branch
   $ gh pr diff
-  
+
   # See diff for a specific PR
   $ gh pr diff 123
-  
+
   # Exclude files from diff output
   $ gh pr diff --exclude '*.yml' --exclude 'generated/*'
-  
+
   # Exclude matching files by name
   $ gh pr diff --name-only --exclude '*.generated.*'
 

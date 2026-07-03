@@ -1,7 +1,7 @@
 # gh project close
 
 Source: https://cli.github.com/manual/gh_project_close
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help project close`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project close`.
 
 ## Summary
 
@@ -34,7 +34,7 @@ INHERITED FLAGS
 EXAMPLES
   # Close project "1" owned by monalisa
   $ gh project close 1 --owner monalisa
-  
+
   # Reopen closed project "1" owned by github
   $ gh project close 1 --owner github --undo
 

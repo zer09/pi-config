@@ -1,7 +1,7 @@
 # gh project item-list
 
 Source: https://cli.github.com/manual/gh_project_item-list
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help project item-list`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project item-list`.
 
 ## Summary
 
@@ -39,13 +39,13 @@ INHERITED FLAGS
 EXAMPLES
   # List the items in the current users's project "1"
   $ gh project item-list 1 --owner "@me"
-  
+
   # List items assigned to a specific user
   $ gh project item-list 1 --owner "@me" --query "assignee:monalisa"
-  
+
   # List open issues assigned to yourself
   $ gh project item-list 1 --owner "@me" --query "assignee:@me is:issue is:open"
-  
+
   # List items with the "bug" label that are not done
   $ gh project item-list 1 --owner "@me" --query "label:bug -status:Done"
 

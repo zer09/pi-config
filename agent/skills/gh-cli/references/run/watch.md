@@ -1,7 +1,7 @@
 # gh run watch
 
 Source: https://cli.github.com/manual/gh_run_watch
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help run watch`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help run watch`.
 
 ## Summary
 
@@ -38,10 +38,10 @@ INHERITED FLAGS
 EXAMPLES
   # Watch a run until it's done
   $ gh run watch
-  
+
   # Watch a run in compact mode
   $ gh run watch --compact
-  
+
   # Run some other command when the run is finished
   $ gh run watch && notify-send 'run is done!'
 

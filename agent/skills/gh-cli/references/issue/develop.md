@@ -1,7 +1,7 @@
 # gh issue develop
 
 Source: https://cli.github.com/manual/gh_issue_develop
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help issue develop`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue develop`.
 
 ## Summary
 
@@ -38,16 +38,16 @@ INHERITED FLAGS
 EXAMPLES
   # List branches for issue 123
   $ gh issue develop --list 123
-  
+
   # List branches for issue 123 in repo cli/cli
   $ gh issue develop --list --repo cli/cli 123
-  
+
   # Create a branch for issue 123 based on the my-feature branch
   $ gh issue develop 123 --base my-feature
-  
+
   # Create a branch for issue 123 and check it out
   $ gh issue develop 123 --checkout
-  
+
   # Create a branch in repo monalisa/cli for issue 123 in repo cli/cli
   $ gh issue develop 123 --repo cli/cli --branch-repo monalisa/cli
 

@@ -1,7 +1,7 @@
 # gh search repos
 
 Source: https://cli.github.com/manual/gh_search_repos
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help search repos`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help search repos`.
 
 ## Summary
 
@@ -67,22 +67,22 @@ JSON FIELDS
 EXAMPLES
   # Search repositories matching set of keywords "cli" and "shell"
   $ gh search repos cli shell
-  
+
   # Search repositories matching phrase "vim plugin"
   $ gh search repos "vim plugin"
-  
+
   # Search repositories public repos in the microsoft organization
   $ gh search repos --owner=microsoft --visibility=public
-  
+
   # Search repositories with a set of topics
   $ gh search repos --topic=unix,terminal
-  
+
   # Search repositories by coding language and number of good first issues
   $ gh search repos --language=go --good-first-issues=">=10"
-  
+
   # Search repositories without topic "linux"
   $ gh search repos -- -topic:linux
-  
+
   # Search repositories excluding archived repositories
   $ gh search repos --archived=false
 

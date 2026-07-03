@@ -1,7 +1,7 @@
 # gh issue create
 
 Source: https://cli.github.com/manual/gh_issue_create
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help issue create`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue create`.
 
 ## Summary
 
@@ -31,17 +31,21 @@ ALIASES
   gh issue new
 
 FLAGS
-  -a, --assignee login   Assign people by their login. Use "@me" to self-assign.
-  -b, --body string      Supply a body. Will prompt for one otherwise.
-  -F, --body-file file   Read body text from file (use "-" to read from standard input)
-  -e, --editor           Skip prompts and open the text editor to write the title and body in. The first line is the title and the remaining text is the body.
-  -l, --label name       Add labels by name
-  -m, --milestone name   Add the issue to a milestone by name
-  -p, --project title    Add the issue to projects by title
-      --recover string   Recover input from a failed run of create
-  -T, --template name    Template name to use as starting body text
-  -t, --title string     Supply a title. Will prompt for one otherwise.
-  -w, --web              Open the browser to create an issue
+  -a, --assignee login       Assign people by their login. Use "@me" to self-assign.
+      --blocked-by numbers   Mark the new issue as blocked by these issue numbers or URLs
+      --blocking numbers     Mark the new issue as blocking these issue numbers or URLs
+  -b, --body string          Supply a body. Will prompt for one otherwise.
+  -F, --body-file file       Read body text from file (use "-" to read from standard input)
+  -e, --editor               Skip prompts and open the text editor to write the title and body in. The first line is the title and the remaining text is the body.
+  -l, --label name           Add labels by name
+  -m, --milestone name       Add the issue to a milestone by name
+      --parent number        Add the new issue as a sub-issue of the specified parent number or URL
+  -p, --project title        Add the issue to projects by title
+      --recover string       Recover input from a failed run of create
+  -T, --template name        Template name to use as starting body text
+  -t, --title string         Supply a title. Will prompt for one otherwise.
+      --type name            Set the issue type by name
+  -w, --web                  Open the browser to create an issue
 
 INHERITED FLAGS
       --help                     Show help for command
@@ -56,6 +60,10 @@ EXAMPLES
   $ gh issue create --assignee "@copilot"
   $ gh issue create --project "Roadmap"
   $ gh issue create --template "Bug Report"
+  $ gh issue create --type Bug
+  $ gh issue create --parent 100
+  $ gh issue create --parent https://github.com/cli/go-gh/issues/42
+  $ gh issue create --blocked-by 200,201 --blocking 300
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

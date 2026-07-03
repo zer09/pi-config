@@ -1,11 +1,11 @@
 # gh repo sync
 
 Source: https://cli.github.com/manual/gh_repo_sync
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help repo sync`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo sync`.
 
 ## Summary
 
-Sync destination repository from source repository. Syncing uses the default branch of the source repository to update the matching branch on the destination repository so they are equal. A fast forward update will be used except when the `--force` flag is specified, then the two branches will be synced using a hard reset.
+Sync destination repository from source repository. Syncing uses the default branch
 
 ## Subcommands
 
@@ -40,13 +40,13 @@ INHERITED FLAGS
 EXAMPLES
   # Sync local repository from remote parent
   $ gh repo sync
-  
+
   # Sync local repository from remote parent on specific branch
   $ gh repo sync --branch v1
-  
+
   # Sync remote fork from its parent
   $ gh repo sync owner/cli-fork
-  
+
   # Sync remote repository from another remote repository
   $ gh repo sync owner/repo --source owner2/repo2
 

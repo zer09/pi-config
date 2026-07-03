@@ -1,7 +1,7 @@
 # gh extension install
 
 Source: https://cli.github.com/manual/gh_extension_install
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help extension install`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help extension install`.
 
 ## Summary
 
@@ -58,10 +58,10 @@ INHERITED FLAGS
 EXAMPLES
   # Install an extension from a remote repository hosted on GitHub
   $ gh extension install owner/gh-extension
-  
+
   # Install an extension from a remote repository via full URL
   $ gh extension install https://my.ghes.com/owner/gh-extension
-  
+
   # Install an extension from a local repository in the current working directory
   $ gh extension install .
 

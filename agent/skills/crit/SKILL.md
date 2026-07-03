@@ -117,3 +117,7 @@ Only use `--qr` in real terminal environments with monospace rendering. Skip it 
 ```bash
 crit share --qr <file>
 ```
+
+## Maintenance
+
+For future updates to this Crit skill, read `../../../docs/skills/crit-update-process.md`.

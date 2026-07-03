@@ -1,11 +1,11 @@
 # gh auth setup-git
 
 Source: https://cli.github.com/manual/gh_auth_setup-git
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help auth setup-git`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help auth setup-git`.
 
 ## Summary
 
-This command configures `git` to use GitHub CLI as a credential helper. For more information on git credential helpers please reference: <https://git-scm.com/docs/gitcredentials>.
+This command configures `git` to use GitHub CLI as a credential helper.
 
 ## Subcommands
 
@@ -38,7 +38,7 @@ INHERITED FLAGS
 EXAMPLES
   # Configure git to use GitHub CLI as the credential helper for all authenticated hosts
   $ gh auth setup-git
-  
+
   # Configure git to use GitHub CLI as the credential helper for enterprise.internal host
   $ gh auth setup-git --hostname enterprise.internal
 

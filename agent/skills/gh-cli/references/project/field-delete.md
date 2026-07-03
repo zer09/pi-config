@@ -1,7 +1,7 @@
 # gh project field-delete
 
 Source: https://cli.github.com/manual/gh_project_field-delete
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help project field-delete`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project field-delete`.
 
 ## Summary
 

@@ -1,7 +1,7 @@
 # gh search
 
 Source: https://cli.github.com/manual/gh_search
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help search`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help search`.
 
 ## Summary
 
@@ -9,11 +9,11 @@ Search across all of GitHub.
 
 ## Subcommands
 
-- `gh search code` - Search within code - [reference](search/code.md)
-- `gh search commits` - Search for commits - [reference](search/commits.md)
-- `gh search issues` - Search for issues - [reference](search/issues.md)
-- `gh search prs` - Search for pull requests - [reference](search/prs.md)
-- `gh search repos` - Search for repositories - [reference](search/repos.md)
+- [`code`](search/code.md) - Search within code
+- [`commits`](search/commits.md) - Search for commits
+- [`issues`](search/issues.md) - Search for issues
+- [`prs`](search/prs.md) - Search for pull requests
+- [`repos`](search/repos.md) - Search for repositories
 
 ## Manual
 

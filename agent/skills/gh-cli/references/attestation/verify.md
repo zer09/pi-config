@@ -1,11 +1,11 @@
 # gh attestation verify
 
 Source: https://cli.github.com/manual/gh_attestation_verify
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help attestation verify`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help attestation verify`.
 
 ## Summary
 
-Verify the integrity and provenance of an artifact using its associated cryptographically signed attestations.
+Verify the integrity and provenance of an artifact using its associated
 
 ## Subcommands
 
@@ -153,16 +153,16 @@ INHERITED FLAGS
 EXAMPLES
   # Verify an artifact linked with a repository
   $ gh attestation verify example.bin --repo github/example
-  
+
   # Verify an artifact linked with an organization
   $ gh attestation verify example.bin --owner github
-  
+
   # Verify an artifact and output the full verification result
   $ gh attestation verify example.bin --owner github --format json
-  
+
   # Verify an OCI image using attestations stored on disk
   $ gh attestation verify oci://<image-uri> --owner github --bundle sha256:foo.jsonl
-  
+
   # Verify an artifact signed with a reusable workflow
   $ gh attestation verify example.bin --owner github --signer-repo actions/example
 

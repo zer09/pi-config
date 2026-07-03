@@ -1,7 +1,7 @@
 # gh extension list
 
 Source: https://cli.github.com/manual/gh_extension_list
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help extension list`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help extension list`.
 
 ## Summary
 

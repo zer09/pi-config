@@ -20,10 +20,14 @@ COMMENT_PATTERNS = [
     ("pull_request_review", re.compile(r"(?:^|-)pullrequestreview-(\d+)$"), None),
 ]
 
+DISCUSSION_COMMENT_RE = re.compile(r"(?:^|-)discussioncomment-(\d+)$")
 CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 SSH_RE = re.compile(r"^git@github\.com:(?P<owner>[^/\s]+)/(?P<repo>[^/\s]+?)(?:\.git)?/?$")
 OWNER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,38}$")
 REPO_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+SHA_RE = re.compile(r"^[0-9A-Fa-f]{7,40}$")
+SEMVER_TAG_RE = re.compile(r"^v?\d+(?:\.\d+)+(?:[-._][A-Za-z0-9][A-Za-z0-9._-]*)?$")
+SAFE_SINGLE_SEGMENT_REFS = {"HEAD", "dev", "develop", "gh-pages", "main", "master", "trunk"}
 
 
 def compact_json(payload: dict, pretty: bool) -> str:
@@ -54,6 +58,22 @@ def parse_int(value: str | None) -> int | None:
 
 def validate_repo(owner: str, repo: str) -> bool:
     return bool(OWNER_RE.match(owner) and REPO_RE.match(repo))
+
+
+def safe_single_segment_ref(ref: str) -> bool:
+    return ref in SAFE_SINGLE_SEGMENT_REFS or bool(SHA_RE.match(ref) or SEMVER_TAG_RE.match(ref))
+
+
+def ambiguous_content_route(ref: str, path_segments: list[str], *, blob: bool) -> bool:
+    if not path_segments:
+        return False
+    if blob and len(path_segments) == 1:
+        return False
+    return not safe_single_segment_ref(ref)
+
+
+def unsupported_ambiguous_content_route() -> dict:
+    return unsupported("blob/tree URL may use a ref containing slashes; run gh repo read-file/read-dir manually with explicit --ref")
 
 
 def repo_view_route(slug: str) -> dict:
@@ -146,6 +166,14 @@ def parse_url(url: str) -> dict:
                 return comment
             return route(["references/issue/view.md"], ["gh", "issue", "view", str(number), "--repo", slug])
 
+    if head == "discussions" and len(rest) >= 2:
+        number = parse_int(rest[1])
+        if number is not None:
+            references = ["references/discussion/view.md"]
+            if fragment and DISCUSSION_COMMENT_RE.search(fragment):
+                references.append("references/discussion/comment.md")
+            return route(references, ["gh", "discussion", "view", str(number), "--repo", slug])
+
     if head == "commit" and len(rest) >= 2:
         comment = comment_route(slug, fragment, None, "commit") if fragment else None
         if comment:
@@ -163,15 +191,26 @@ def parse_url(url: str) -> dict:
 
     if head == "blob" and len(rest) >= 3:
         ref = rest[1]
-        file_path = "/".join(rest[2:])
+        path_segments = rest[2:]
+        if ambiguous_content_route(ref, path_segments, blob=True):
+            return unsupported_ambiguous_content_route()
+        file_path = "/".join(path_segments)
         return route(
-            ["references/api.md"],
-            ["gh", "api", "--method", "GET", f"repos/{slug}/contents/{file_path}", "-f", f"ref={ref}"],
+            ["references/repo/read-file.md"],
+            ["gh", "repo", "read-file", file_path, "--repo", slug, "--ref", ref],
         )
 
     if head == "tree" and len(rest) >= 2:
-        ref = "/".join(rest[1:])
-        return route(["references/api.md"], ["gh", "api", f"repos/{slug}/git/trees/{ref}", "--paginate"])
+        ref = rest[1]
+        path_segments = rest[2:]
+        if ambiguous_content_route(ref, path_segments, blob=False):
+            return unsupported_ambiguous_content_route()
+        dir_path = "/".join(path_segments)
+        argv = ["gh", "repo", "read-dir"]
+        if dir_path:
+            argv.append(dir_path)
+        argv.extend(["--repo", slug, "--ref", ref])
+        return route(["references/repo/read-dir.md"], argv)
 
     if head == "compare" and len(rest) >= 2:
         return route(["references/api.md"], ["gh", "api", f"repos/{slug}/compare/{rest[1]}"])

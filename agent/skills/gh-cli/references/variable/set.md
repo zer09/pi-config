@@ -1,11 +1,11 @@
 # gh variable set
 
 Source: https://cli.github.com/manual/gh_variable_set
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help variable set`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help variable set`.
 
 ## Summary
 
-Set a value for a variable on one of the following levels: - repository (default): available to GitHub Actions runs or Dependabot in a repository - environment: available to GitHub Actions runs for a deployment environment in a repository - organization: available to GitHub Actions runs or Dependabot within an organization
+Set a value for a variable on one of the following levels:
 
 ## Subcommands
 
@@ -41,22 +41,22 @@ INHERITED FLAGS
 EXAMPLES
   # Add variable value for the current repository in an interactive prompt
   $ gh variable set MYVARIABLE
-  
+
   # Read variable value from an environment variable
   $ gh variable set MYVARIABLE --body "$ENV_VALUE"
-  
+
   # Read variable value from a file
   $ gh variable set MYVARIABLE < myfile.txt
-  
+
   # Set variable for a deployment environment in the current repository
   $ gh variable set MYVARIABLE --env myenvironment
-  
+
   # Set organization-level variable visible to both public and private repositories
   $ gh variable set MYVARIABLE --org myOrg --visibility all
-  
+
   # Set organization-level variable visible to specific repositories
   $ gh variable set MYVARIABLE --org myOrg --repos repo1,repo2,repo3
-  
+
   # Set multiple variables imported from the ".env" file
   $ gh variable set -f .env
 

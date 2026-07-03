@@ -1,11 +1,11 @@
 # gh secret delete
 
 Source: https://cli.github.com/manual/gh_secret_delete
-Generated from: `gh version 2.92.0 (2026-04-28)` via `gh help secret delete`.
+Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help secret delete`.
 
 ## Summary
 
-Delete a secret on one of the following levels: - repository (default): available to GitHub Actions runs or Dependabot in a repository - environment: available to GitHub Actions runs for a deployment environment in a repository - organization: available to GitHub Actions runs, Dependabot, or Codespaces within an organization - user: available to Codespaces for your user
+Delete a secret on one of the following levels:
 
 ## Subcommands
 
@@ -15,9 +15,9 @@ Delete a secret on one of the following levels: - repository (default): availabl
 
 ```text
 Delete a secret on one of the following levels:
-- repository (default): available to GitHub Actions runs or Dependabot in a repository
+- repository (default): available to GitHub Actions runs, Agents sessions, or Dependabot in a repository
 - environment: available to GitHub Actions runs for a deployment environment in a repository
-- organization: available to GitHub Actions runs, Dependabot, or Codespaces within an organization
+- organization: available to GitHub Actions runs, Agents sessions, Dependabot, or Codespaces within an organization
 - user: available to Codespaces for your user
 
 
@@ -28,7 +28,7 @@ ALIASES
   gh secret remove
 
 FLAGS
-  -a, --app string   Delete a secret for a specific application: {actions|codespaces|dependabot}
+  -a, --app string   Delete a secret for a specific application: {actions|agents|codespaces|dependabot}
   -e, --env string   Delete a secret for an environment
   -o, --org string   Delete a secret for an organization
   -u, --user         Delete a secret for your user

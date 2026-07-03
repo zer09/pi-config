@@ -6,6 +6,7 @@ Use this process to update `agent/skills/intent-layer` from Crafter Station's up
 
 - Repository: `https://github.com/crafter-station/skills`
 - Runtime skill path: `context-engineering/intent-layer/`
+- Current upstream commit checked locally: `24d77ce6365072c1699a20928e57a971abaa10f2`
 - Primary files:
   - `SKILL.md`
   - `scripts/detect_state.sh`
