@@ -117,10 +117,12 @@ Prompt templates live under `agent/prompts/`.
 
 Current tracked prompts include:
 
-| Prompt               | Purpose                                                                                                                                              |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ts-split-module.md` | Split a single monolithic TypeScript file into a documented multi-file module while preserving behavior and public API.                              |
-| `ts-split-scope.md`  | Split and simplify a broader TypeScript scope, such as a package, directory tree, or project area, with staged analysis, planning, and verification. |
+| Prompt                  | Purpose                                                                                                                                              |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `codegraph-upgrade.md`  | Investigate the safest upgrade path for the custom CodeGraph extension dependency without making changes.                                            |
+| `codex-review.md`      | Review code changes with structured Markdown findings and a strict correctness verdict.                                                              |
+| `ts-split-module.md`    | Split a single monolithic TypeScript file into a documented multi-file module while preserving behavior and public API.                              |
+| `ts-split-scope.md`     | Split and simplify a broader TypeScript scope, such as a package, directory tree, or project area, with staged analysis, planning, and verification. |
 
 Prompt templates should be config-specific workflows that encode my preferred agent behavior. Avoid adding generic prompts that duplicate normal model capability.
 

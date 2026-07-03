@@ -134,6 +134,7 @@ export const LEAN_TOOL_METADATA = [
     promptGuidelines: [
       "Use ctx_batch_execute for diagnostic shell command sets, tests/builds/lints/typechecks, logs, or other output likely to exceed concise terminal output.",
       "For ctx_batch_execute, provide specific queries so indexed output returns focused snippets; use concurrency: 1 for tests/builds or state-sensitive commands.",
+      "For ctx_batch_execute, do not wrap commands in bash -lc, sh -c, eval, heredocs, or pipe-to-shell; pass the real command directly.",
     ],
     parameters: ctxBatchExecuteSchema,
   },

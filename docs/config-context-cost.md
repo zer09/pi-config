@@ -272,12 +272,14 @@ Startup includes only the XML skill catalog: name, description, and location. Fu
 
 ## Prompt templates
 
-Prompt templates are slash-command expansions. They are not in model context at startup; their full content is added to a user message only when invoked.
+Prompt templates are slash-command expansions. They are not in model context at startup; their full content is added to a user message only when invoked. Prompt rows were refreshed on 2026-07-04; the provider calibration above was not rerun.
 
 | Origin | Prompt | Expanded content tokens | Command metadata tokens |
 |---|---|---:|---:|
 | user/global prompt templates | `/ts-split-scope` | 3,421 | 57 |
 | user/global prompt templates | `/ts-split-module` | 1,805 | 55 |
+| user/global prompt templates | `/codex-review` | 1,308 | 47 |
+| user/global prompt templates | `/codegraph-upgrade` | 672 | 53 |
 
 ## Extension slash commands
 

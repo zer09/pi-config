@@ -2,6 +2,12 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-07-04 — Add structured review prompt
+
+- Added `agent/prompts/codex-review.md`, a slash-command prompt template for code-review output using structured Markdown findings and correctness verdicts.
+- Updated the prompt-template inventory in `README.md` and prompt-template token attribution in `docs/config-context-cost.md`.
+- Validation: loaded prompt templates through Pi's prompt-template loader and counted prompt-template tokens with local `tiktoken` `o200k_base`.
+
 ## 2026-07-02 — Pi 0.80.2 to 0.80.3
 
 Details: [`docs/changelogs/pi-0.80.2-to-0.80.3-upgrade.md`](./changelogs/pi-0.80.2-to-0.80.3-upgrade.md)
