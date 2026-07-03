@@ -37,6 +37,7 @@ These are my global preferences for Agent sessions. Project-local `AGENTS.md` or
 
 - Do not commit changes unless explicitly told to commit.
 - Do not push changes unless explicitly told to push.
+- Treat staging and unstaging instructions as one-shot: only affect changes that exist when the user asks. Later edits require a new explicit stage/unstage instruction.
 
 ## File Operations
 
