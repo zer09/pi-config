@@ -64,7 +64,7 @@ These are my global preferences for Agent sessions. Project-local `AGENTS.md` or
 - Do not use bare `python` or `python3` to run Python scripts, snippets, modules, tools, tests, or CLIs while `uv` is available and working.
 - First choice: use `uv run python ...`, `uv run <script.py>`, `uv run -m <module>`, or `uv run <tool>` so project dependencies and Python version are honored.
 - Use `uvx <tool>` for one-off Python CLIs. Run `ruff` and `ty` through `uv run` in projects or `uvx` for one-offs.
-- If `uv` is unavailable or failing, use `python3` directly rather than sourcing project-controlled activation scripts. Do not use bare `python`.
+- If `uv` is unavailable or failing, use `python3` directly rather than sourcing project-controlled activation scripts. If project dependencies are required, install them into the interpreter you invoke without sourcing activation scripts. Do not use bare `python`.
 - Use another Python project manager such as Poetry/PDM only when the repo clearly standardizes on it; do not migrate managers unless asked.
 
 ## Task Mode
