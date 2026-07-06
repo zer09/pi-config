@@ -49,6 +49,10 @@ function removeShellBackslashEscapes(command: string): string {
     }
     if (char === "\\" && !inSingleQuotes && next !== undefined) {
       if (!inDoubleQuotes || /[$`"\\\n]/.test(next)) {
+        if (next === "\n") {
+          i++;
+          continue;
+        }
         normalized += next;
         i++;
         continue;
@@ -455,8 +459,6 @@ const COMMAND_DENY_RULES: DenyRule[] = [
 ];
 
 export function getCommandDenyReason(command: string): string | null {
-  if (hasPipeToShellDeny(command)) return "pipe to shell execution is blocked";
-
   for (const candidate of rawCommandSafetyVariants(command)) {
     if (hasShellHeredocDeny(candidate)) return "shell heredoc execution is blocked";
     for (const rule of RAW_COMMAND_DENY_RULES) {
@@ -465,6 +467,7 @@ export function getCommandDenyReason(command: string): string | null {
   }
 
   for (const candidate of commandSafetyVariants(command)) {
+    if (hasPipeToShellDeny(candidate)) return "pipe to shell execution is blocked";
     if (hasRmDeny(candidate)) return "rm recursive/force is destructive";
     if (hasRecursiveChmodChownDeny(candidate)) return "recursive chmod/chown is destructive";
     if (hasBroadMvDeny(candidate)) return "broad mv operations are destructive";
