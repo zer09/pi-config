@@ -9,9 +9,12 @@ export class SafetyError extends Error {
   }
 }
 
+function stripHeredocContent(command: string): string {
+  return command.replace(/<<-?\s*["']?(\w+)["']?[\s\S]*?\n\s*\1/g, "");
+}
+
 export function stripQuotedContent(command: string): string {
-  return command
-    .replace(/<<-?\s*["']?(\w+)["']?[\s\S]*?\n\s*\1/g, "")
+  return stripHeredocContent(command)
     .replace(/'[^']*'/g, "''")
     .replace(/"[^\"]*"/g, '""');
 }
@@ -333,7 +336,7 @@ function hasShellHeredocDeny(command: string): boolean {
 }
 
 function hasPipeToShellDeny(command: string): boolean {
-  const tokens = shellTokens(commandForSafety(command));
+  const tokens = shellTokens(commandForRawSafety(stripHeredocContent(command)));
   for (let i = 0; i < tokens.length; i++) {
     if (tokens[i]?.kind !== "separator" || tokens[i]?.value !== "|") continue;
     let end = i + 1;
