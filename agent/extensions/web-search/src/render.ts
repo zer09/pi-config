@@ -1,4 +1,5 @@
 import { Text } from "@earendil-works/pi-tui";
+import { stripTerminalControlSequences } from "./terminal-sanitize.js";
 import { asFiniteNumber as asNumber, asNonEmptyString as asString, asRecordOrEmpty as asRecord } from "./value-guards.js";
 import type { ToolResult } from "./types.js";
 
@@ -43,7 +44,7 @@ function extractText(result: ToolResult): string {
 }
 
 function colorOutputBlock(value: string, theme: RenderTheme): string {
-  return value
+  return stripTerminalControlSequences(value)
     .split("\n")
     .map((line) => (line ? fg(theme, "toolOutput", line) : ""))
     .join("\n");
@@ -85,7 +86,7 @@ function resultDetailsSummary(toolName: WebSearchToolName, result: ToolResult): 
 export function createWebSearchCallRenderer(toolName: WebSearchToolName) {
   return (args: unknown, theme: RenderTheme, context?: RenderContext): Text => {
     const component = reuseText(context);
-    const summary = formatCallSummary(toolName, args);
+    const summary = stripTerminalControlSequences(formatCallSummary(toolName, args));
     component.setText(fg(theme, "toolTitle", bold(theme, TOOL_LABELS[toolName])) + (summary ? ` ${fg(theme, "accent", summary)}` : ""));
     return component;
   };
@@ -113,7 +114,8 @@ export function createWebSearchResultRenderer(toolName: WebSearchToolName) {
         output = output ? `${urlList}\n\n${output}` : urlList;
       }
     }
-    const detailsSummary = resultDetailsSummary(toolName, result);
+    output = stripTerminalControlSequences(output);
+    const detailsSummary = stripTerminalControlSequences(resultDetailsSummary(toolName, result));
 
     if (options.expanded) {
       const detailsLine = detailsSummary ? `\n\n${fg(theme, "dim", `Details: ${detailsSummary}`)}` : "";
