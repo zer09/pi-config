@@ -86,7 +86,7 @@ function resultDetailsSummary(toolName: WebSearchToolName, result: ToolResult): 
 export function createWebSearchCallRenderer(toolName: WebSearchToolName) {
   return (args: unknown, theme: RenderTheme, context?: RenderContext): Text => {
     const component = reuseText(context);
-    const summary = formatCallSummary(toolName, args);
+    const summary = stripTerminalControlSequences(formatCallSummary(toolName, args));
     component.setText(fg(theme, "toolTitle", bold(theme, TOOL_LABELS[toolName])) + (summary ? ` ${fg(theme, "accent", summary)}` : ""));
     return component;
   };
@@ -114,11 +114,12 @@ export function createWebSearchResultRenderer(toolName: WebSearchToolName) {
         output = output ? `${urlList}\n\n${output}` : urlList;
       }
     }
+    output = stripTerminalControlSequences(output);
     const detailsSummary = stripTerminalControlSequences(resultDetailsSummary(toolName, result));
 
     if (options.expanded) {
       const detailsLine = detailsSummary ? `\n\n${fg(theme, "dim", `Details: ${detailsSummary}`)}` : "";
-      component.setText(fg(theme, "toolOutput", stripTerminalControlSequences(output) || `${TOOL_LABELS[toolName]} completed`) + detailsLine);
+      component.setText(fg(theme, "toolOutput", output || `${TOOL_LABELS[toolName]} completed`) + detailsLine);
       return component;
     }
 
