@@ -28,6 +28,38 @@ function stripQuoteMarks(command: string): string {
   return command.replace(/["']/g, "");
 }
 
+function removeShellBackslashEscapes(command: string): string {
+  let normalized = "";
+  let inSingleQuotes = false;
+  let inDoubleQuotes = false;
+
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i]!;
+    const next = command[i + 1];
+
+    if (char === "'" && !inDoubleQuotes) {
+      inSingleQuotes = !inSingleQuotes;
+      normalized += char;
+      continue;
+    }
+    if (char === '"' && !inSingleQuotes) {
+      inDoubleQuotes = !inDoubleQuotes;
+      normalized += char;
+      continue;
+    }
+    if (char === "\\" && !inSingleQuotes && next !== undefined) {
+      if (!inDoubleQuotes || /[$`"\\\n]/.test(next)) {
+        normalized += next;
+        i++;
+        continue;
+      }
+    }
+    normalized += char;
+  }
+
+  return normalized;
+}
+
 export function commandForSafety(command: string): string {
   let normalized = stripQuotedContent(command).trim();
   normalized = unwrapLeadingEnvAssignments(normalized);
@@ -46,12 +78,26 @@ function commandForRawSafety(command: string): string {
 }
 
 function commandSafetyVariants(command: string): string[] {
-  const variants = [commandForSafety(command), commandForSafety(stripQuoteMarks(command))];
+  const withoutQuoteMarks = stripQuoteMarks(command);
+  const withoutBackslashEscapes = removeShellBackslashEscapes(command);
+  const variants = [
+    commandForSafety(command),
+    commandForSafety(withoutQuoteMarks),
+    commandForSafety(withoutBackslashEscapes),
+    commandForSafety(stripQuoteMarks(withoutBackslashEscapes)),
+  ];
   return [...new Set(variants)];
 }
 
 function rawCommandSafetyVariants(command: string): string[] {
-  const variants = [commandForRawSafety(command), commandForRawSafety(stripQuoteMarks(command))];
+  const withoutQuoteMarks = stripQuoteMarks(command);
+  const withoutBackslashEscapes = removeShellBackslashEscapes(command);
+  const variants = [
+    commandForRawSafety(command),
+    commandForRawSafety(withoutQuoteMarks),
+    commandForRawSafety(withoutBackslashEscapes),
+    commandForRawSafety(stripQuoteMarks(withoutBackslashEscapes)),
+  ];
   return [...new Set(variants)];
 }
 
