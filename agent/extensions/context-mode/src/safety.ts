@@ -124,15 +124,27 @@ function optionName(value: string): string {
 function shellTokens(command: string): ShellToken[] {
   const tokens: ShellToken[] = [];
   let word = "";
+  let inSingleQuotes = false;
+  let inDoubleQuotes = false;
   const flushWord = () => {
     if (word.length > 0) tokens.push({ kind: "word", value: word });
     word = "";
   };
 
-  for (const char of command) {
-    if (/\s/.test(char)) {
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i]!;
+    const next = command[i + 1];
+
+    if (char === "'" && !inDoubleQuotes) {
+      inSingleQuotes = !inSingleQuotes;
+    } else if (char === '"' && !inSingleQuotes) {
+      inDoubleQuotes = !inDoubleQuotes;
+    } else if (char === "\\" && !inSingleQuotes && next !== undefined && (!inDoubleQuotes || /[$`"\\\n]/.test(next))) {
+      if (next !== "\n") word += next;
+      i++;
+    } else if (!inSingleQuotes && !inDoubleQuotes && /\s/.test(char)) {
       flushWord();
-    } else if (/[;&|()`]/.test(char)) {
+    } else if (!inSingleQuotes && !inDoubleQuotes && /[;&|()`]/.test(char)) {
       flushWord();
       tokens.push({ kind: "separator", value: char });
     } else {
@@ -321,7 +333,16 @@ function hasShellHeredocDeny(command: string): boolean {
 }
 
 function hasPipeToShellDeny(command: string): boolean {
-  return /\|\s*(?:ba|z|c|da)?sh\b(?:\s|$)/i.test(commandForSafety(command));
+  const tokens = shellTokens(commandForSafety(command));
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i]?.kind !== "separator" || tokens[i]?.value !== "|") continue;
+    let end = i + 1;
+    while (end < tokens.length && tokens[end]?.kind !== "separator") end++;
+    const commandIndex = unwrapCommandIndex(tokens, i + 1, end);
+    const commandName = tokens[commandIndex]?.value;
+    if (commandName && SHELL_COMMANDS.has(commandName)) return true;
+  }
+  return false;
 }
 
 function stripCliGlobalOptions(args: string[], valueOptions: Set<string>): string[] {
@@ -459,6 +480,8 @@ const COMMAND_DENY_RULES: DenyRule[] = [
 ];
 
 export function getCommandDenyReason(command: string): string | null {
+  if (hasPipeToShellDeny(command)) return "pipe to shell execution is blocked";
+
   for (const candidate of rawCommandSafetyVariants(command)) {
     if (hasShellHeredocDeny(candidate)) return "shell heredoc execution is blocked";
     for (const rule of RAW_COMMAND_DENY_RULES) {
@@ -467,7 +490,6 @@ export function getCommandDenyReason(command: string): string | null {
   }
 
   for (const candidate of commandSafetyVariants(command)) {
-    if (hasPipeToShellDeny(candidate)) return "pipe to shell execution is blocked";
     if (hasRmDeny(candidate)) return "rm recursive/force is destructive";
     if (hasRecursiveChmodChownDeny(candidate)) return "recursive chmod/chown is destructive";
     if (hasBroadMvDeny(candidate)) return "broad mv operations are destructive";

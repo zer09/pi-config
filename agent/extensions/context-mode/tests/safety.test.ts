@@ -69,6 +69,7 @@ describe("batch command safety", () => {
     "env FOO=bar rm -rf /",
     "echo \"rm -rf /\" | sh",
     "echo git push | bash",
+    "echo evil | s\\h",
     "echo evil | b\\ash",
     "echo evil | ba\"\"sh",
     "find . -print0 | xargs -0 rm -rf",
