@@ -10,11 +10,13 @@ describe("terminal output sanitization", () => {
       "\x1bPmalicious\npayload\x1b\\dcs",
       "\x07bell",
       "\x7f\x80c1",
+      "safe\rspoof",
+      "crlf\r\nnext",
       "after",
     ].join("\n");
 
     const sanitized = stripTerminalControlSequences(unsafe);
 
-    expect(sanitized).toBe(["before", "cleared", "clipboard", "dcs", "bell", "c1", "after"].join("\n"));
+    expect(sanitized).toBe(["before", "cleared", "clipboard", "dcs", "bell", "c1", "safespoof", "crlf\nnext", "after"].join("\n"));
   });
 });
