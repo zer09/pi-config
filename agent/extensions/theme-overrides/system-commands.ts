@@ -38,9 +38,9 @@ export async function execOutput(
 }
 
 /**
- * Locate the Windows registry executable from WSL-friendly candidate paths.
+ * Locate the Windows registry executable from trusted absolute paths.
  *
- * @returns The first existing reg.exe candidate, or "reg.exe" for PATH lookup.
+ * @returns The first existing WSL reg.exe candidate, or the native Windows system reg.exe path.
  */
 export function getWindowsRegCommand(): string {
   const candidates = [
@@ -49,5 +49,9 @@ export function getWindowsRegCommand(): string {
     "/mnt/c/Windows/system32/reg.exe",
   ]
 
-  return candidates.find((candidate) => existsSync(candidate)) ?? "reg.exe"
+  const wslRegCommand = candidates.find((candidate) => existsSync(candidate))
+  if (wslRegCommand) return wslRegCommand
+
+  const systemRoot = process.env.SystemRoot || process.env.SYSTEMROOT || "C:\\Windows"
+  return `${systemRoot}\\System32\\reg.exe`
 }
