@@ -202,6 +202,16 @@ describe("batch command safety", () => {
       expect(getCommandDenyReason(command)).toBeTruthy();
     });
   }
+
+  for (const command of [
+    "echo KEY >\\\n .env",
+    "echo KEY >|\\\n .env",
+    "echo KEY 1>|\\\n .env",
+  ]) {
+    it(`blocks sensitive redirection target after line continuation ${command}`, () => {
+      expect(getCommandDenyReason(command)).toBeTruthy();
+    });
+  }
 });
 
 describe("ctx_execute_file path safety", () => {
