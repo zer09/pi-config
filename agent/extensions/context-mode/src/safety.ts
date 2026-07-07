@@ -9,9 +9,12 @@ export class SafetyError extends Error {
   }
 }
 
+function stripHeredocContent(command: string): string {
+  return command.replace(/(<<-?\s*["']?(\w+)["']?[^\n]*\n)[\s\S]*?\n\s*\2/g, "$1");
+}
+
 export function stripQuotedContent(command: string): string {
-  return command
-    .replace(/<<-?\s*["']?(\w+)["']?[\s\S]*?\n\s*\1/g, "")
+  return stripHeredocContent(command)
     .replace(/'[^']*'/g, "''")
     .replace(/"[^\"]*"/g, '""');
 }
@@ -74,15 +77,27 @@ function optionName(value: string): string {
 function shellTokens(command: string): ShellToken[] {
   const tokens: ShellToken[] = [];
   let word = "";
+  let inSingleQuotes = false;
+  let inDoubleQuotes = false;
   const flushWord = () => {
     if (word.length > 0) tokens.push({ kind: "word", value: word });
     word = "";
   };
 
-  for (const char of command) {
-    if (/\s/.test(char)) {
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i]!;
+    const next = command[i + 1];
+
+    if (char === "'" && !inDoubleQuotes) {
+      inSingleQuotes = !inSingleQuotes;
+    } else if (char === '"' && !inSingleQuotes) {
+      inDoubleQuotes = !inDoubleQuotes;
+    } else if (char === "\\" && !inSingleQuotes && next !== undefined && (!inDoubleQuotes || /[$`"\\\n]/.test(next))) {
+      if (next !== "\n") word += next;
+      i++;
+    } else if (!inSingleQuotes && !inDoubleQuotes && /\s/.test(char)) {
       flushWord();
-    } else if (/[;&|()`]/.test(char)) {
+    } else if (!inSingleQuotes && !inDoubleQuotes && /[;&|()`]/.test(char)) {
       flushWord();
       tokens.push({ kind: "separator", value: char });
     } else {
@@ -271,7 +286,91 @@ function hasShellHeredocDeny(command: string): boolean {
 }
 
 function hasPipeToShellDeny(command: string): boolean {
-  return /\|\s*(?:ba|z|c|da)?sh\b(?:\s|$)/i.test(commandForSafety(command));
+  const tokens = shellTokens(commandForRawSafety(stripHeredocContent(command)));
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i]?.kind !== "separator" || tokens[i]?.value !== "|") continue;
+    let end = i + 1;
+    while (end < tokens.length && tokens[end]?.kind !== "separator") end++;
+    const commandIndex = unwrapCommandIndex(tokens, i + 1, end);
+    const commandName = tokens[commandIndex]?.value;
+    if (commandName && SHELL_COMMANDS.has(commandName)) return true;
+  }
+  return false;
+}
+
+function isSensitiveRedirectionTarget(target: string): boolean {
+  return /(?:^|\/)(?:\.env(?:\.[^/\s]*)?|\.git\/config|[^/\s]+\.(?:pem|key))$/i.test(target);
+}
+
+function readShellWord(command: string, index: number): { value: string; end: number } | null {
+  let value = "";
+  let inSingleQuotes = false;
+  let inDoubleQuotes = false;
+  let i = index;
+
+  for (; i < command.length; i++) {
+    const char = command[i]!;
+    const next = command[i + 1];
+
+    if (char === "'" && !inDoubleQuotes) {
+      inSingleQuotes = !inSingleQuotes;
+    } else if (char === '"' && !inSingleQuotes) {
+      inDoubleQuotes = !inDoubleQuotes;
+    } else if (char === "\\" && !inSingleQuotes && next !== undefined && (!inDoubleQuotes || /[$`"\\\n]/.test(next))) {
+      if (next !== "\n") value += next;
+      i++;
+    } else if (!inSingleQuotes && !inDoubleQuotes && (/\s/.test(char) || /[;&|()`<>]/.test(char))) {
+      break;
+    } else {
+      value += char;
+    }
+  }
+
+  return value ? { value, end: i } : null;
+}
+
+function hasSensitiveRedirectionDeny(command: string): boolean {
+  const normalized = commandForRawSafety(stripHeredocContent(command));
+  let inSingleQuotes = false;
+  let inDoubleQuotes = false;
+
+  for (let i = 0; i < normalized.length; i++) {
+    const char = normalized[i]!;
+    const next = normalized[i + 1];
+
+    if (char === "'" && !inDoubleQuotes) {
+      inSingleQuotes = !inSingleQuotes;
+      continue;
+    }
+    if (char === '"' && !inSingleQuotes) {
+      inDoubleQuotes = !inDoubleQuotes;
+      continue;
+    }
+    if (char === "\\" && !inSingleQuotes && next !== undefined && (!inDoubleQuotes || /[$`"\\\n]/.test(next))) {
+      i++;
+      continue;
+    }
+    if (inSingleQuotes || inDoubleQuotes) continue;
+
+    let operatorIndex = -1;
+    if (char === ">") {
+      operatorIndex = i;
+    } else if (/\d/.test(char)) {
+      let j = i + 1;
+      while (/\d/.test(normalized[j] ?? "")) j++;
+      if (normalized[j] === ">") operatorIndex = j;
+    }
+    if (operatorIndex < 0) continue;
+
+    let targetIndex = operatorIndex + 1;
+    if (normalized[targetIndex] === ">" || normalized[targetIndex] === "|") targetIndex++;
+    while (/\s/.test(normalized[targetIndex] ?? "")) targetIndex++;
+
+    const target = readShellWord(normalized, targetIndex);
+    if (target && isSensitiveRedirectionTarget(target.value)) return true;
+    i = target?.end ?? operatorIndex;
+  }
+  return false;
 }
 
 function stripCliGlobalOptions(args: string[], valueOptions: Set<string>): string[] {
@@ -384,32 +483,32 @@ function getMutatingCliDenyReason(command: string): string | null {
 }
 
 const RAW_COMMAND_DENY_RULES: DenyRule[] = [
-  { pattern: /(?:^|[;&|()`])\s*(?:ba|z|c|da)?sh\b[^\n;&|()`]*<<-?/i, reason: "shell heredoc execution is blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*(?:ba|z|c|da)?sh\b[^\n;&|()`]*<<-?/i, reason: "shell heredoc execution is blocked" },
 ];
 
 const COMMAND_DENY_RULES: DenyRule[] = [
-  { pattern: /(?:^|[;&|()`])\s*(?:eval|(?:ba|z|c|da)?sh\s+-c)\b/i, reason: "embedded shell execution is blocked" },
-  { pattern: /(?:>|>>)\s*(?:[^\s]*\/)?(?:\.env(?:\.[^\s]*)?|\.git\/config|[^\s]+\.(?:pem|key))(?:\s|$)/i, reason: "redirection to sensitive files is blocked" },
-  { pattern: /(?:^|[;&|()`])\s*git\s+push\b/i, reason: "git push mutates a hosted repository" },
-  { pattern: /(?:^|[;&|()`])\s*git\s+reset\s+--hard\b/i, reason: "git reset --hard is destructive" },
-  { pattern: /(?:^|[;&|()`])\s*git\s+clean\s+-[^\s]*[fd][^\s]*\b/i, reason: "git clean -fd is destructive" },
-  { pattern: /(?:^|[;&|()`])\s*git\s+checkout\s+--\s+\.(?:\s|$)/i, reason: "git checkout -- . discards changes" },
-  { pattern: /(?:^|[;&|()`])\s*gh\s+api\b[^\n]*(?:\s-X\s*|\s--method[=\s]+)(?:POST|PATCH|PUT|DELETE)\b/i, reason: "mutating gh api methods are blocked" },
-  { pattern: /(?:^|[;&|()`])\s*gh\s+pr\s+merge\b/i, reason: "gh pr merge mutates a hosted repository" },
-  { pattern: /(?:^|[;&|()`])\s*gh\s+issue\s+edit\b/i, reason: "gh issue edit mutates a hosted issue" },
-  { pattern: /(?:^|[;&|()`])\s*gh\s+release\s+(?:create|delete|upload)\b/i, reason: "gh release mutation is blocked" },
-  { pattern: /(?:^|[;&|()`])\s*kubectl\s+(?:apply|delete|patch|scale)\b/i, reason: "mutating kubectl command is blocked" },
-  { pattern: /(?:^|[;&|()`])\s*terraform\s+(?:apply|destroy)\b/i, reason: "mutating terraform command is blocked" },
-  { pattern: /(?:^|[;&|()`])\s*(?:npm|pnpm|yarn)\s+publish\b/i, reason: "package publish commands are blocked" },
-  { pattern: /(?:^|[;&|()`])\s*changeset\s+publish\b/i, reason: "package publish commands are blocked" },
-  { pattern: /(?:^|[;&|()`])\s*semantic-release\b/i, reason: "release automation is blocked" },
-  { pattern: /(?:^|[;&|()`])\s*(?:vercel|netlify|firebase|flyctl)\s+(?:deploy|release)\b/i, reason: "deployment commands are blocked" },
-  { pattern: /(?:^|[;&|()`])\s*gcloud\b[^\n]*\bdeploy\b/i, reason: "deployment commands are blocked" },
-  { pattern: /(?:^|[;&|()`])\s*docker\s+push\b/i, reason: "docker push mutates a registry" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*(?:eval|(?:ba|z|c|da)?sh\s+-c)\b/i, reason: "embedded shell execution is blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*git\s+push\b/i, reason: "git push mutates a hosted repository" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*git\s+reset\s+--hard\b/i, reason: "git reset --hard is destructive" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*git\s+clean\s+-[^\s]*[fd][^\s]*\b/i, reason: "git clean -fd is destructive" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*git\s+checkout\s+--\s+\.(?:\s|$)/i, reason: "git checkout -- . discards changes" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*gh\s+api\b[^\n]*(?:\s-X\s*|\s--method[=\s]+)(?:POST|PATCH|PUT|DELETE)\b/i, reason: "mutating gh api methods are blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*gh\s+pr\s+merge\b/i, reason: "gh pr merge mutates a hosted repository" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*gh\s+issue\s+edit\b/i, reason: "gh issue edit mutates a hosted issue" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*gh\s+release\s+(?:create|delete|upload)\b/i, reason: "gh release mutation is blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*kubectl\s+(?:apply|delete|patch|scale)\b/i, reason: "mutating kubectl command is blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*terraform\s+(?:apply|destroy)\b/i, reason: "mutating terraform command is blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*(?:npm|pnpm|yarn)\s+publish\b/i, reason: "package publish commands are blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*changeset\s+publish\b/i, reason: "package publish commands are blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*semantic-release\b/i, reason: "release automation is blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*(?:vercel|netlify|firebase|flyctl)\s+(?:deploy|release)\b/i, reason: "deployment commands are blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*gcloud\b[^\n]*\bdeploy\b/i, reason: "deployment commands are blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*docker\s+push\b/i, reason: "docker push mutates a registry" },
 ];
 
 export function getCommandDenyReason(command: string): string | null {
   if (hasPipeToShellDeny(command)) return "pipe to shell execution is blocked";
+  if (hasSensitiveRedirectionDeny(command)) return "redirection to sensitive files is blocked";
 
   for (const candidate of rawCommandSafetyVariants(command)) {
     if (hasShellHeredocDeny(candidate)) return "shell heredoc execution is blocked";
