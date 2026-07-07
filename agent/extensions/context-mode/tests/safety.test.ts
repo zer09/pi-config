@@ -167,6 +167,7 @@ describe("batch command safety", () => {
     "sudo git status --short",
     "sudo rg \"git push\" src/",
     "env FOO=bar git status",
+    "git status 2 >/tmp/out push",
     "command -v git push",
     "xargs echo rm -rf",
     "npx echo git push",

@@ -166,7 +166,7 @@ function argsAfter(tokens: ShellToken[], index: number): string[] {
       i = skipRedirection(tokens, i, tokens.length) - 1;
       continue;
     }
-    if (token.kind === "word" && /^\d+$/.test(token.value) && isRedirectionOperator(tokens[i + 1])) {
+    if (token.kind === "word" && /^\d+$/.test(token.value) && areAdjacent(tokens, i, i + 1) && isRedirectionOperator(tokens[i + 1])) {
       i = skipRedirection(tokens, i, tokens.length) - 1;
       continue;
     }
