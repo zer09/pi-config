@@ -31,42 +31,6 @@ function stripQuoteMarks(command: string): string {
   return command.replace(/["']/g, "");
 }
 
-function removeShellBackslashEscapes(command: string): string {
-  let normalized = "";
-  let inSingleQuotes = false;
-  let inDoubleQuotes = false;
-
-  for (let i = 0; i < command.length; i++) {
-    const char = command[i]!;
-    const next = command[i + 1];
-
-    if (char === "'" && !inDoubleQuotes) {
-      inSingleQuotes = !inSingleQuotes;
-      normalized += char;
-      continue;
-    }
-    if (char === '"' && !inSingleQuotes) {
-      inDoubleQuotes = !inDoubleQuotes;
-      normalized += char;
-      continue;
-    }
-    if (char === "\\" && !inSingleQuotes && next !== undefined) {
-      if (!inDoubleQuotes || /[$`"\\\n]/.test(next)) {
-        if (next === "\n") {
-          i++;
-          continue;
-        }
-        normalized += next;
-        i++;
-        continue;
-      }
-    }
-    normalized += char;
-  }
-
-  return normalized;
-}
-
 export function commandForSafety(command: string): string {
   let normalized = stripQuotedContent(command).trim();
   normalized = unwrapLeadingEnvAssignments(normalized);
@@ -85,26 +49,12 @@ function commandForRawSafety(command: string): string {
 }
 
 function commandSafetyVariants(command: string): string[] {
-  const withoutQuoteMarks = stripQuoteMarks(command);
-  const withoutBackslashEscapes = removeShellBackslashEscapes(command);
-  const variants = [
-    commandForSafety(command),
-    commandForSafety(withoutQuoteMarks),
-    commandForSafety(withoutBackslashEscapes),
-    commandForSafety(stripQuoteMarks(withoutBackslashEscapes)),
-  ];
+  const variants = [commandForSafety(command), commandForSafety(stripQuoteMarks(command))];
   return [...new Set(variants)];
 }
 
 function rawCommandSafetyVariants(command: string): string[] {
-  const withoutQuoteMarks = stripQuoteMarks(command);
-  const withoutBackslashEscapes = removeShellBackslashEscapes(command);
-  const variants = [
-    commandForRawSafety(command),
-    commandForRawSafety(withoutQuoteMarks),
-    commandForRawSafety(withoutBackslashEscapes),
-    commandForRawSafety(stripQuoteMarks(withoutBackslashEscapes)),
-  ];
+  const variants = [commandForRawSafety(command), commandForRawSafety(stripQuoteMarks(command))];
   return [...new Set(variants)];
 }
 
@@ -458,28 +408,28 @@ function getMutatingCliDenyReason(command: string): string | null {
 }
 
 const RAW_COMMAND_DENY_RULES: DenyRule[] = [
-  { pattern: /(?:^|[;&|()`])\s*(?:ba|z|c|da)?sh\b[^\n;&|()`]*<<-?/i, reason: "shell heredoc execution is blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*(?:ba|z|c|da)?sh\b[^\n;&|()`]*<<-?/i, reason: "shell heredoc execution is blocked" },
 ];
 
 const COMMAND_DENY_RULES: DenyRule[] = [
-  { pattern: /(?:^|[;&|()`])\s*(?:eval|(?:ba|z|c|da)?sh\s+-c)\b/i, reason: "embedded shell execution is blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*(?:eval|(?:ba|z|c|da)?sh\s+-c)\b/i, reason: "embedded shell execution is blocked" },
   { pattern: /(?:>|>>)\s*(?:[^\s]*\/)?(?:\.env(?:\.[^\s]*)?|\.git\/config|[^\s]+\.(?:pem|key))(?:\s|$)/i, reason: "redirection to sensitive files is blocked" },
-  { pattern: /(?:^|[;&|()`])\s*git\s+push\b/i, reason: "git push mutates a hosted repository" },
-  { pattern: /(?:^|[;&|()`])\s*git\s+reset\s+--hard\b/i, reason: "git reset --hard is destructive" },
-  { pattern: /(?:^|[;&|()`])\s*git\s+clean\s+-[^\s]*[fd][^\s]*\b/i, reason: "git clean -fd is destructive" },
-  { pattern: /(?:^|[;&|()`])\s*git\s+checkout\s+--\s+\.(?:\s|$)/i, reason: "git checkout -- . discards changes" },
-  { pattern: /(?:^|[;&|()`])\s*gh\s+api\b[^\n]*(?:\s-X\s*|\s--method[=\s]+)(?:POST|PATCH|PUT|DELETE)\b/i, reason: "mutating gh api methods are blocked" },
-  { pattern: /(?:^|[;&|()`])\s*gh\s+pr\s+merge\b/i, reason: "gh pr merge mutates a hosted repository" },
-  { pattern: /(?:^|[;&|()`])\s*gh\s+issue\s+edit\b/i, reason: "gh issue edit mutates a hosted issue" },
-  { pattern: /(?:^|[;&|()`])\s*gh\s+release\s+(?:create|delete|upload)\b/i, reason: "gh release mutation is blocked" },
-  { pattern: /(?:^|[;&|()`])\s*kubectl\s+(?:apply|delete|patch|scale)\b/i, reason: "mutating kubectl command is blocked" },
-  { pattern: /(?:^|[;&|()`])\s*terraform\s+(?:apply|destroy)\b/i, reason: "mutating terraform command is blocked" },
-  { pattern: /(?:^|[;&|()`])\s*(?:npm|pnpm|yarn)\s+publish\b/i, reason: "package publish commands are blocked" },
-  { pattern: /(?:^|[;&|()`])\s*changeset\s+publish\b/i, reason: "package publish commands are blocked" },
-  { pattern: /(?:^|[;&|()`])\s*semantic-release\b/i, reason: "release automation is blocked" },
-  { pattern: /(?:^|[;&|()`])\s*(?:vercel|netlify|firebase|flyctl)\s+(?:deploy|release)\b/i, reason: "deployment commands are blocked" },
-  { pattern: /(?:^|[;&|()`])\s*gcloud\b[^\n]*\bdeploy\b/i, reason: "deployment commands are blocked" },
-  { pattern: /(?:^|[;&|()`])\s*docker\s+push\b/i, reason: "docker push mutates a registry" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*git\s+push\b/i, reason: "git push mutates a hosted repository" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*git\s+reset\s+--hard\b/i, reason: "git reset --hard is destructive" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*git\s+clean\s+-[^\s]*[fd][^\s]*\b/i, reason: "git clean -fd is destructive" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*git\s+checkout\s+--\s+\.(?:\s|$)/i, reason: "git checkout -- . discards changes" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*gh\s+api\b[^\n]*(?:\s-X\s*|\s--method[=\s]+)(?:POST|PATCH|PUT|DELETE)\b/i, reason: "mutating gh api methods are blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*gh\s+pr\s+merge\b/i, reason: "gh pr merge mutates a hosted repository" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*gh\s+issue\s+edit\b/i, reason: "gh issue edit mutates a hosted issue" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*gh\s+release\s+(?:create|delete|upload)\b/i, reason: "gh release mutation is blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*kubectl\s+(?:apply|delete|patch|scale)\b/i, reason: "mutating kubectl command is blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*terraform\s+(?:apply|destroy)\b/i, reason: "mutating terraform command is blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*(?:npm|pnpm|yarn)\s+publish\b/i, reason: "package publish commands are blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*changeset\s+publish\b/i, reason: "package publish commands are blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*semantic-release\b/i, reason: "release automation is blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*(?:vercel|netlify|firebase|flyctl)\s+(?:deploy|release)\b/i, reason: "deployment commands are blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*gcloud\b[^\n]*\bdeploy\b/i, reason: "deployment commands are blocked" },
+  { pattern: /(?:^|(?<!\\)[;&|()`])\s*docker\s+push\b/i, reason: "docker push mutates a registry" },
 ];
 
 export function getCommandDenyReason(command: string): string | null {
