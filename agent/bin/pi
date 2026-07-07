@@ -17,10 +17,9 @@ detect_windows_theme() {
   for candidate in \
     "/mnt/c/Windows/System32/reg.exe" \
     "/mnt/c/WINDOWS/system32/reg.exe" \
-    "/mnt/c/Windows/system32/reg.exe" \
-    "reg.exe"
+    "/mnt/c/Windows/system32/reg.exe"
   do
-    if [[ -f "$candidate" ]] || command -v "$candidate" >/dev/null 2>&1; then
+    if [[ -f "$candidate" ]]; then
       reg="$candidate"
       break
     fi

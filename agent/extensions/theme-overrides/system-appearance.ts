@@ -32,11 +32,10 @@ export function detectOS(): DetectedOS {
 export async function detectWindowsAppearance(
   pi: ExtensionAPI,
   queryTimeoutMs: number,
-  allowWindowsInteropPath = false,
 ): Promise<ThemeKind | undefined> {
   const result = await execOutput(
     pi,
-    getWindowsRegCommand(allowWindowsInteropPath),
+    getWindowsRegCommand(),
     ["Query", "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", "/v", "AppsUseLightTheme"],
     { timeout: queryTimeoutMs },
   )
@@ -99,7 +98,7 @@ export async function detectDarwinAppearance(
 export async function detectSystemAppearance(pi: ExtensionAPI): Promise<ThemeKind | undefined> {
   switch (detectOS()) {
     case "WSL":
-      return detectWindowsAppearance(pi, QUERY_TIMEOUT_MS, true)
+      return detectWindowsAppearance(pi, QUERY_TIMEOUT_MS)
 
     case "Windows_NT":
       return detectWindowsAppearance(pi, QUERY_TIMEOUT_MS)

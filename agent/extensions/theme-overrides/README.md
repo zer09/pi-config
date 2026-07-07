@@ -114,12 +114,12 @@ The extension executes small local commands through Pi's extension API:
 | ------------- | ------------------------------------------------------------------------------------------------------------ |
 | macOS         | `defaults read -g AppleInterfaceStyle`                                                                       |
 | Linux         | `dbus-send` against `org.freedesktop.portal.Desktop` / `org.freedesktop.appearance color-scheme`             |
-| Windows / WSL | `reg.exe Query HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize /v AppsUseLightTheme` |
+| Windows / WSL | trusted absolute `reg.exe` path querying `HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize /v AppsUseLightTheme` |
 | OrbStack      | `mac defaults read -g AppleInterfaceStyle`                                                                   |
 
 ## Troubleshooting
 
 - **Theme does not change:** make sure Pi's selected theme is `dark` or `light`; the extension backs off for other theme names.
 - **Linux does not switch:** ensure a DBus session and `xdg-desktop-portal` are available.
-- **WSL does not switch:** ensure Windows' `reg.exe` is available at `/mnt/c/Windows/System32/reg.exe` or on PATH.
+- **WSL does not switch:** ensure Windows' `reg.exe` is available at `/mnt/c/Windows/System32/reg.exe`.
 - **Theme flickers or keeps changing:** make sure you are not loading another auto-theme extension at the same time.
