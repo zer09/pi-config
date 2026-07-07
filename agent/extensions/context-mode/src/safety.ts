@@ -81,6 +81,8 @@ function shellTokens(command: string): ShellToken[] {
   let wordEnd = 0;
   let inSingleQuotes = false;
   let inDoubleQuotes = false;
+  let removedLineContinuationChars = 0;
+  const logicalOffset = (offset: number) => offset - removedLineContinuationChars;
   const flushWord = () => {
     if (word.length > 0) tokens.push({ kind: "word", value: word, start: wordStart, end: wordEnd });
     word = "";
@@ -100,15 +102,19 @@ function shellTokens(command: string): ShellToken[] {
     } else if (char === '"' && !inSingleQuotes) {
       inDoubleQuotes = !inDoubleQuotes;
     } else if (char === "\\" && !inSingleQuotes && next !== undefined && (!inDoubleQuotes || /[$`"\\\n]/.test(next))) {
-      if (next !== "\n") appendWord(next, i, i + 2);
+      if (next === "\n") {
+        removedLineContinuationChars += 2;
+      } else {
+        appendWord(next, logicalOffset(i), logicalOffset(i + 2));
+      }
       i++;
     } else if (!inSingleQuotes && !inDoubleQuotes && /\s/.test(char)) {
       flushWord();
     } else if (!inSingleQuotes && !inDoubleQuotes && /[;&|()`<>]/.test(char)) {
       flushWord();
-      tokens.push({ kind: "separator", value: char, start: i, end: i + 1 });
+      tokens.push({ kind: "separator", value: char, start: logicalOffset(i), end: logicalOffset(i + 1) });
     } else {
-      appendWord(char, i);
+      appendWord(char, logicalOffset(i));
     }
   }
   flushWord();
@@ -160,7 +166,7 @@ function argsAfter(tokens: ShellToken[], index: number): string[] {
       i = skipRedirection(tokens, i, tokens.length) - 1;
       continue;
     }
-    if (token.kind === "word" && /^\d+$/.test(token.value) && isRedirectionOperator(tokens[i + 1])) {
+    if (token.kind === "word" && /^\d+$/.test(token.value) && areAdjacent(tokens, i, i + 1) && isRedirectionOperator(tokens[i + 1])) {
       i = skipRedirection(tokens, i, tokens.length) - 1;
       continue;
     }
@@ -359,6 +365,31 @@ function isSensitiveRedirectionTarget(target: string): boolean {
   return /(?:^|\/)(?:\.env(?:\.[^/\s]*)?|\.git\/config|[^/\s]+\.(?:pem|key))$/i.test(target);
 }
 
+function normalizeShellLineContinuations(command: string): string {
+  let normalized = "";
+  let inSingleQuotes = false;
+  let inDoubleQuotes = false;
+
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i]!;
+    const next = command[i + 1];
+
+    if (char === "'" && !inDoubleQuotes) {
+      inSingleQuotes = !inSingleQuotes;
+      normalized += char;
+    } else if (char === '"' && !inSingleQuotes) {
+      inDoubleQuotes = !inDoubleQuotes;
+      normalized += char;
+    } else if (char === "\\" && next === "\n" && !inSingleQuotes) {
+      i++;
+    } else {
+      normalized += char;
+    }
+  }
+
+  return normalized;
+}
+
 function readShellWord(command: string, index: number): { value: string; end: number } | null {
   let value = "";
   let inSingleQuotes = false;
@@ -387,7 +418,7 @@ function readShellWord(command: string, index: number): { value: string; end: nu
 }
 
 function hasSensitiveRedirectionDeny(command: string): boolean {
-  const normalized = commandForRawSafety(stripHeredocContent(command));
+  const normalized = normalizeShellLineContinuations(commandForRawSafety(stripHeredocContent(command)));
   let inSingleQuotes = false;
   let inDoubleQuotes = false;
 

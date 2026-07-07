@@ -43,11 +43,14 @@ describe("batch command safety", () => {
     "bash -c \"rm -rf /tmp/x\"",
     "b\\ash -c \"rm -rf /tmp/x\"",
     "echo SECRET > .env",
+    "echo SECRET >\\\n .env",
     "echo SECRET > .e\\nv",
     "echo SECRET > .git/config",
     "echo SECRET > .g\\it/config",
     "echo SECRET >| .env",
+    "echo SECRET >|\\\n .env",
     "echo SECRET 1>| .env",
+    "echo SECRET 1\\\n>|\\\n .env",
     "cat <<EOF > .env\nSECRET=1\nEOF",
     "cat <<EOF > .e\\nv\nSECRET=1\nEOF",
     "cat <<EOF >| .env\nSECRET=1\nEOF",
@@ -70,14 +73,18 @@ describe("batch command safety", () => {
     "chmod >out -R 777 /tmp/x",
     "bash >out -c \"rm -rf /tmp/x\"",
     "git -C repo 2>/tmp/out push",
+    "git -C repo 2\\\n>/tmp/out push",
     ">out rm -rf /tmp/x",
+    "2\\\n>/tmp/out rm -rf /tmp/x",
     "git -C repo &>/tmp/out push",
     "rm &>/tmp/out -rf /tmp/x",
     "chmod &>/tmp/out -R 777 /tmp/x",
     "bash &>/tmp/out -c echo",
     "git -C repo &>>/tmp/out push",
     "git -C repo 2>&1 push",
+    "git -C repo 2\\\n>&1 push",
     "rm 2>&1 -rf /tmp/x",
+    "rm 2\\\n>&1 -rf /tmp/x",
     "bash 2>&1 -c echo",
     "git -C repo >&/tmp/out push",
     "npm --workspace pkg publish",
@@ -160,6 +167,7 @@ describe("batch command safety", () => {
     "sudo git status --short",
     "sudo rg \"git push\" src/",
     "env FOO=bar git status",
+    "git status 2 >/tmp/out push",
     "command -v git push",
     "xargs echo rm -rf",
     "npx echo git push",
@@ -177,6 +185,31 @@ describe("batch command safety", () => {
   for (const command of allowed) {
     it(`allows ${command}`, () => {
       expect(getCommandDenyReason(command)).toBeNull();
+    });
+  }
+
+  it("does not hang on a non-adjacent numeric arg before redirection", () => {
+    expect(getCommandDenyReason("git status 2 >/tmp/out push")).toBeNull();
+  });
+
+  for (const command of [
+    "git -C repo 2>/tmp/out push",
+    "git -C repo 2\\\n>/tmp/out push",
+    "git -C repo 2>&1 push",
+    "git -C repo 2\\\n>&1 push",
+  ]) {
+    it(`still blocks adjacent fd redirection ${command}`, () => {
+      expect(getCommandDenyReason(command)).toBeTruthy();
+    });
+  }
+
+  for (const command of [
+    "echo KEY >\\\n .env",
+    "echo KEY >|\\\n .env",
+    "echo KEY 1>|\\\n .env",
+  ]) {
+    it(`blocks sensitive redirection target after line continuation ${command}`, () => {
+      expect(getCommandDenyReason(command)).toBeTruthy();
     });
   }
 });
