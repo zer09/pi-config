@@ -97,7 +97,7 @@ function shellTokens(command: string): ShellToken[] {
       i++;
     } else if (!inSingleQuotes && !inDoubleQuotes && /\s/.test(char)) {
       flushWord();
-    } else if (!inSingleQuotes && !inDoubleQuotes && /[;&|()`]/.test(char)) {
+    } else if (!inSingleQuotes && !inDoubleQuotes && /[;&|()`<>]/.test(char)) {
       flushWord();
       tokens.push({ kind: "separator", value: char });
     } else {
@@ -298,6 +298,21 @@ function hasPipeToShellDeny(command: string): boolean {
   return false;
 }
 
+function isSensitiveRedirectionTarget(target: string): boolean {
+  return /(?:^|\/)(?:\.env(?:\.[^/\s]*)?|\.git\/config|[^/\s]+\.(?:pem|key))$/i.test(target);
+}
+
+function hasSensitiveRedirectionDeny(command: string): boolean {
+  const tokens = shellTokens(commandForRawSafety(stripHeredocContent(command)));
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i]?.kind !== "separator" || tokens[i]?.value !== ">") continue;
+    if (tokens[i + 1]?.kind === "separator" && tokens[i + 1]?.value === ">") i++;
+    const target = tokens[i + 1];
+    if (target?.kind === "word" && isSensitiveRedirectionTarget(target.value)) return true;
+  }
+  return false;
+}
+
 function stripCliGlobalOptions(args: string[], valueOptions: Set<string>): string[] {
   let i = 0;
   while (i < args.length) {
@@ -413,7 +428,6 @@ const RAW_COMMAND_DENY_RULES: DenyRule[] = [
 
 const COMMAND_DENY_RULES: DenyRule[] = [
   { pattern: /(?:^|(?<!\\)[;&|()`])\s*(?:eval|(?:ba|z|c|da)?sh\s+-c)\b/i, reason: "embedded shell execution is blocked" },
-  { pattern: /(?:>|>>)\s*(?:[^\s]*\/)?(?:\.env(?:\.[^\s]*)?|\.git\/config|[^\s]+\.(?:pem|key))(?:\s|$)/i, reason: "redirection to sensitive files is blocked" },
   { pattern: /(?:^|(?<!\\)[;&|()`])\s*git\s+push\b/i, reason: "git push mutates a hosted repository" },
   { pattern: /(?:^|(?<!\\)[;&|()`])\s*git\s+reset\s+--hard\b/i, reason: "git reset --hard is destructive" },
   { pattern: /(?:^|(?<!\\)[;&|()`])\s*git\s+clean\s+-[^\s]*[fd][^\s]*\b/i, reason: "git clean -fd is destructive" },
@@ -434,6 +448,7 @@ const COMMAND_DENY_RULES: DenyRule[] = [
 
 export function getCommandDenyReason(command: string): string | null {
   if (hasPipeToShellDeny(command)) return "pipe to shell execution is blocked";
+  if (hasSensitiveRedirectionDeny(command)) return "redirection to sensitive files is blocked";
 
   for (const candidate of rawCommandSafetyVariants(command)) {
     if (hasShellHeredocDeny(candidate)) return "shell heredoc execution is blocked";
