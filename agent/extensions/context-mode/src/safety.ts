@@ -116,6 +116,7 @@ function shellTokens(command: string): ShellToken[] {
 }
 
 function isAmpersandRedirectionStart(tokens: ShellToken[], index: number): boolean {
+  // Adjacency matters: `&>` is a shell redirection, while `& >` is a command boundary followed by a redirection.
   return tokens[index]?.kind === "separator" && tokens[index]?.value === "&" && areAdjacent(tokens, index, index + 1) && isRedirectionOperator(tokens[index + 1]);
 }
 
