@@ -108,8 +108,13 @@ function shellTokens(command: string): ShellToken[] {
   return tokens;
 }
 
-function isCommandBoundary(token: ShellToken | undefined): boolean {
-  return token?.kind === "separator" && token.value !== "<" && token.value !== ">";
+function isAmpersandRedirectionStart(tokens: ShellToken[], index: number): boolean {
+  return tokens[index]?.kind === "separator" && tokens[index]?.value === "&" && isRedirectionOperator(tokens[index + 1]);
+}
+
+function isCommandBoundary(tokens: ShellToken[], index: number): boolean {
+  const token = tokens[index];
+  return token?.kind === "separator" && token.value !== "<" && token.value !== ">" && !isAmpersandRedirectionStart(tokens, index);
 }
 
 function isRedirectionOperator(token: ShellToken | undefined): boolean {
@@ -119,6 +124,7 @@ function isRedirectionOperator(token: ShellToken | undefined): boolean {
 function skipRedirection(tokens: ShellToken[], index: number, end: number): number {
   let i = index;
   if (tokens[i]?.kind === "word" && /^\d+$/.test(tokens[i]!.value) && isRedirectionOperator(tokens[i + 1])) i++;
+  if (isAmpersandRedirectionStart(tokens, i)) i++;
   if (!isRedirectionOperator(tokens[i])) return index;
   while (i < end && isRedirectionOperator(tokens[i])) i++;
   if (tokens[i]?.kind === "separator" && (tokens[i]!.value === "&" || tokens[i]!.value === "|")) i++;
@@ -131,7 +137,11 @@ function argsAfter(tokens: ShellToken[], index: number): string[] {
   for (let i = index + 1; i < tokens.length; i++) {
     const token = tokens[i];
     if (!token) continue;
-    if (isCommandBoundary(token)) break;
+    if (isCommandBoundary(tokens, i)) break;
+    if (isAmpersandRedirectionStart(tokens, i)) {
+      i = skipRedirection(tokens, i, tokens.length) - 1;
+      continue;
+    }
     if (isRedirectionOperator(token)) {
       i = skipRedirection(tokens, i, tokens.length) - 1;
       continue;
@@ -216,9 +226,9 @@ function unwrapCommandIndex(tokens: ShellToken[], start: number, end: number): n
 function commandIndexes(tokens: ShellToken[]): number[] {
   const indexes: number[] = [];
   for (let i = 0; i < tokens.length;) {
-    while (isCommandBoundary(tokens[i])) i++;
+    while (isCommandBoundary(tokens, i)) i++;
     const start = i;
-    while (i < tokens.length && !isCommandBoundary(tokens[i])) i++;
+    while (i < tokens.length && !isCommandBoundary(tokens, i)) i++;
     const end = i;
     const commandIndex = unwrapCommandIndex(tokens, start, end);
     if (commandIndex < end && tokens[commandIndex]?.kind === "word") indexes.push(commandIndex);
@@ -311,7 +321,7 @@ function hasShellHeredocDeny(command: string): boolean {
   for (const i of commandIndexes(tokens)) {
     const commandName = tokens[i]?.value;
     if (!commandName || !SHELL_COMMANDS.has(commandName)) continue;
-    for (let j = i + 1; j < tokens.length && !isCommandBoundary(tokens[j]); j++) {
+    for (let j = i + 1; j < tokens.length && !isCommandBoundary(tokens, j); j++) {
       if (tokens[j]?.value === "<" && tokens[j + 1]?.value === "<") return true;
     }
   }
@@ -323,7 +333,7 @@ function hasPipeToShellDeny(command: string): boolean {
   for (let i = 0; i < tokens.length; i++) {
     if (tokens[i]?.kind !== "separator" || tokens[i]?.value !== "|") continue;
     let end = i + 1;
-    while (end < tokens.length && !isCommandBoundary(tokens[end])) end++;
+    while (end < tokens.length && !isCommandBoundary(tokens, end)) end++;
     const commandIndex = unwrapCommandIndex(tokens, i + 1, end);
     const commandName = tokens[commandIndex]?.value;
     if (commandName && SHELL_COMMANDS.has(commandName)) return true;
