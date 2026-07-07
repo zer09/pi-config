@@ -97,7 +97,7 @@ function shellTokens(command: string): ShellToken[] {
       i++;
     } else if (!inSingleQuotes && !inDoubleQuotes && /\s/.test(char)) {
       flushWord();
-    } else if (!inSingleQuotes && !inDoubleQuotes && /[;&|()`]/.test(char)) {
+    } else if (!inSingleQuotes && !inDoubleQuotes && /[;&|()`<>]/.test(char)) {
       flushWord();
       tokens.push({ kind: "separator", value: char });
     } else {
