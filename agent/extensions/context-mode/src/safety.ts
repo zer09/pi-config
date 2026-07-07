@@ -97,7 +97,7 @@ function shellTokens(command: string): ShellToken[] {
       i++;
     } else if (!inSingleQuotes && !inDoubleQuotes && /\s/.test(char)) {
       flushWord();
-    } else if (!inSingleQuotes && !inDoubleQuotes && /[;&|()`<>]/.test(char)) {
+    } else if (!inSingleQuotes && !inDoubleQuotes && /[;&|()`]/.test(char)) {
       flushWord();
       tokens.push({ kind: "separator", value: char });
     } else {
@@ -302,13 +302,73 @@ function isSensitiveRedirectionTarget(target: string): boolean {
   return /(?:^|\/)(?:\.env(?:\.[^/\s]*)?|\.git\/config|[^/\s]+\.(?:pem|key))$/i.test(target);
 }
 
+function readShellWord(command: string, index: number): { value: string; end: number } | null {
+  let value = "";
+  let inSingleQuotes = false;
+  let inDoubleQuotes = false;
+  let i = index;
+
+  for (; i < command.length; i++) {
+    const char = command[i]!;
+    const next = command[i + 1];
+
+    if (char === "'" && !inDoubleQuotes) {
+      inSingleQuotes = !inSingleQuotes;
+    } else if (char === '"' && !inSingleQuotes) {
+      inDoubleQuotes = !inDoubleQuotes;
+    } else if (char === "\\" && !inSingleQuotes && next !== undefined && (!inDoubleQuotes || /[$`"\\\n]/.test(next))) {
+      if (next !== "\n") value += next;
+      i++;
+    } else if (!inSingleQuotes && !inDoubleQuotes && (/\s/.test(char) || /[;&|()`<>]/.test(char))) {
+      break;
+    } else {
+      value += char;
+    }
+  }
+
+  return value ? { value, end: i } : null;
+}
+
 function hasSensitiveRedirectionDeny(command: string): boolean {
-  const tokens = shellTokens(commandForRawSafety(stripHeredocContent(command)));
-  for (let i = 0; i < tokens.length; i++) {
-    if (tokens[i]?.kind !== "separator" || tokens[i]?.value !== ">") continue;
-    if (tokens[i + 1]?.kind === "separator" && tokens[i + 1]?.value === ">") i++;
-    const target = tokens[i + 1];
-    if (target?.kind === "word" && isSensitiveRedirectionTarget(target.value)) return true;
+  const normalized = commandForRawSafety(stripHeredocContent(command));
+  let inSingleQuotes = false;
+  let inDoubleQuotes = false;
+
+  for (let i = 0; i < normalized.length; i++) {
+    const char = normalized[i]!;
+    const next = normalized[i + 1];
+
+    if (char === "'" && !inDoubleQuotes) {
+      inSingleQuotes = !inSingleQuotes;
+      continue;
+    }
+    if (char === '"' && !inSingleQuotes) {
+      inDoubleQuotes = !inDoubleQuotes;
+      continue;
+    }
+    if (char === "\\" && !inSingleQuotes && next !== undefined && (!inDoubleQuotes || /[$`"\\\n]/.test(next))) {
+      i++;
+      continue;
+    }
+    if (inSingleQuotes || inDoubleQuotes) continue;
+
+    let operatorIndex = -1;
+    if (char === ">") {
+      operatorIndex = i;
+    } else if (/\d/.test(char)) {
+      let j = i + 1;
+      while (/\d/.test(normalized[j] ?? "")) j++;
+      if (normalized[j] === ">") operatorIndex = j;
+    }
+    if (operatorIndex < 0) continue;
+
+    let targetIndex = operatorIndex + 1;
+    if (normalized[targetIndex] === ">" || normalized[targetIndex] === "|") targetIndex++;
+    while (/\s/.test(normalized[targetIndex] ?? "")) targetIndex++;
+
+    const target = readShellWord(normalized, targetIndex);
+    if (target && isSensitiveRedirectionTarget(target.value)) return true;
+    i = target?.end ?? operatorIndex;
   }
   return false;
 }
