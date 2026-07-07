@@ -1,5 +1,4 @@
 import { Text } from "@earendil-works/pi-tui";
-import { stripTerminalControlSequences } from "./terminal-sanitize.js";
 import { asFiniteNumber as asNumber, asNonEmptyString as asString, asRecordOrEmpty as asRecord } from "./value-guards.js";
 import type { ToolResult } from "./types.js";
 
@@ -17,6 +16,13 @@ const TOOL_LABELS: Record<WebSearchToolName, string> = {
   web_search: "Web Search",
   fetch_contents: "Fetch Contents",
 };
+const TERMINAL_CONTROL_SEQUENCE_PATTERN =
+  // eslint-disable-next-line no-control-regex
+  /(?:\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[\x50\x5e\x5f][\s\S]*?\x1b\\|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[ -/]*[@-~]|[\x00-\x08\x0b-\x1f\x7f-\x9f])/g;
+
+function stripTerminalControlSequences(value: string): string {
+  return value.replace(TERMINAL_CONTROL_SEQUENCE_PATTERN, "");
+}
 
 function reuseText(context?: RenderContext): Text {
   return context?.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
