@@ -10,7 +10,7 @@ export class SafetyError extends Error {
 }
 
 function stripHeredocContent(command: string): string {
-  return command.replace(/<<-?\s*["']?(\w+)["']?[\s\S]*?\n\s*\1/g, "");
+  return command.replace(/(<<-?\s*["']?(\w+)["']?[^\n]*\n)[\s\S]*?\n\s*\2/g, "$1");
 }
 
 export function stripQuotedContent(command: string): string {
