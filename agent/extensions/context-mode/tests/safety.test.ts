@@ -166,6 +166,8 @@ describe("batch command safety", () => {
     "mv file .",
     "mv ./x ./y",
     "mv -i f /tmp",
+    "git status & >/tmp/out push",
+    "rm & >/tmp/out -rf /tmp/x",
   ];
 
   for (const command of allowed) {

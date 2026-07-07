@@ -60,7 +60,7 @@ function rawCommandSafetyVariants(command: string): string[] {
 
 type DenyRule = { pattern: RegExp; reason: string };
 
-type ShellToken = { kind: "word" | "separator"; value: string };
+type ShellToken = { kind: "word" | "separator"; value: string; start: number; end: number };
 
 const SHELL_COMMANDS = new Set(["sh", "bash", "zsh", "csh", "dash"]);
 const COMMAND_WRAPPERS = new Set(["sudo", "doas", "nohup", "time", "nice", "env", "ionice", "xargs", "command"]);
@@ -77,11 +77,18 @@ function optionName(value: string): string {
 function shellTokens(command: string): ShellToken[] {
   const tokens: ShellToken[] = [];
   let word = "";
+  let wordStart = 0;
+  let wordEnd = 0;
   let inSingleQuotes = false;
   let inDoubleQuotes = false;
   const flushWord = () => {
-    if (word.length > 0) tokens.push({ kind: "word", value: word });
+    if (word.length > 0) tokens.push({ kind: "word", value: word, start: wordStart, end: wordEnd });
     word = "";
+  };
+  const appendWord = (value: string, start: number, end = start + 1) => {
+    if (word.length === 0) wordStart = start;
+    wordEnd = end;
+    word += value;
   };
 
   for (let i = 0; i < command.length; i++) {
@@ -93,15 +100,15 @@ function shellTokens(command: string): ShellToken[] {
     } else if (char === '"' && !inSingleQuotes) {
       inDoubleQuotes = !inDoubleQuotes;
     } else if (char === "\\" && !inSingleQuotes && next !== undefined && (!inDoubleQuotes || /[$`"\\\n]/.test(next))) {
-      if (next !== "\n") word += next;
+      if (next !== "\n") appendWord(next, i, i + 2);
       i++;
     } else if (!inSingleQuotes && !inDoubleQuotes && /\s/.test(char)) {
       flushWord();
     } else if (!inSingleQuotes && !inDoubleQuotes && /[;&|()`<>]/.test(char)) {
       flushWord();
-      tokens.push({ kind: "separator", value: char });
+      tokens.push({ kind: "separator", value: char, start: i, end: i + 1 });
     } else {
-      word += char;
+      appendWord(char, i);
     }
   }
   flushWord();
@@ -109,7 +116,7 @@ function shellTokens(command: string): ShellToken[] {
 }
 
 function isAmpersandRedirectionStart(tokens: ShellToken[], index: number): boolean {
-  return tokens[index]?.kind === "separator" && tokens[index]?.value === "&" && isRedirectionOperator(tokens[index + 1]);
+  return tokens[index]?.kind === "separator" && tokens[index]?.value === "&" && areAdjacent(tokens, index, index + 1) && isRedirectionOperator(tokens[index + 1]);
 }
 
 function isCommandBoundary(tokens: ShellToken[], index: number): boolean {
@@ -121,13 +128,19 @@ function isRedirectionOperator(token: ShellToken | undefined): boolean {
   return token?.kind === "separator" && (token.value === "<" || token.value === ">");
 }
 
+function areAdjacent(tokens: ShellToken[], left: number, right: number): boolean {
+  const leftToken = tokens[left];
+  const rightToken = tokens[right];
+  return leftToken !== undefined && rightToken !== undefined && leftToken.end === rightToken.start;
+}
+
 function skipRedirection(tokens: ShellToken[], index: number, end: number): number {
   let i = index;
-  if (tokens[i]?.kind === "word" && /^\d+$/.test(tokens[i]!.value) && isRedirectionOperator(tokens[i + 1])) i++;
+  if (tokens[i]?.kind === "word" && /^\d+$/.test(tokens[i]!.value) && areAdjacent(tokens, i, i + 1) && isRedirectionOperator(tokens[i + 1])) i++;
   if (isAmpersandRedirectionStart(tokens, i)) i++;
   if (!isRedirectionOperator(tokens[i])) return index;
-  while (i < end && isRedirectionOperator(tokens[i])) i++;
-  if (tokens[i]?.kind === "separator" && (tokens[i]!.value === "&" || tokens[i]!.value === "|")) i++;
+  while (i < end && isRedirectionOperator(tokens[i]) && (i === index || areAdjacent(tokens, i - 1, i))) i++;
+  if (tokens[i]?.kind === "separator" && (tokens[i]!.value === "&" || tokens[i]!.value === "|") && areAdjacent(tokens, i - 1, i)) i++;
   if (tokens[i]?.kind === "word") i++;
   return i;
 }
