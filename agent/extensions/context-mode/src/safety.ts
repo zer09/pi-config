@@ -365,6 +365,31 @@ function isSensitiveRedirectionTarget(target: string): boolean {
   return /(?:^|\/)(?:\.env(?:\.[^/\s]*)?|\.git\/config|[^/\s]+\.(?:pem|key))$/i.test(target);
 }
 
+function normalizeShellLineContinuations(command: string): string {
+  let normalized = "";
+  let inSingleQuotes = false;
+  let inDoubleQuotes = false;
+
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i]!;
+    const next = command[i + 1];
+
+    if (char === "'" && !inDoubleQuotes) {
+      inSingleQuotes = !inSingleQuotes;
+      normalized += char;
+    } else if (char === '"' && !inSingleQuotes) {
+      inDoubleQuotes = !inDoubleQuotes;
+      normalized += char;
+    } else if (char === "\\" && next === "\n" && !inSingleQuotes) {
+      i++;
+    } else {
+      normalized += char;
+    }
+  }
+
+  return normalized;
+}
+
 function readShellWord(command: string, index: number): { value: string; end: number } | null {
   let value = "";
   let inSingleQuotes = false;
@@ -393,7 +418,7 @@ function readShellWord(command: string, index: number): { value: string; end: nu
 }
 
 function hasSensitiveRedirectionDeny(command: string): boolean {
-  const normalized = commandForRawSafety(stripHeredocContent(command));
+  const normalized = normalizeShellLineContinuations(commandForRawSafety(stripHeredocContent(command)));
   let inSingleQuotes = false;
   let inDoubleQuotes = false;
 
