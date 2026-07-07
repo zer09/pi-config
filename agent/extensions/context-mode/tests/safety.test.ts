@@ -187,6 +187,21 @@ describe("batch command safety", () => {
       expect(getCommandDenyReason(command)).toBeNull();
     });
   }
+
+  it("does not hang on a non-adjacent numeric arg before redirection", () => {
+    expect(getCommandDenyReason("git status 2 >/tmp/out push")).toBeNull();
+  });
+
+  for (const command of [
+    "git -C repo 2>/tmp/out push",
+    "git -C repo 2\\\n>/tmp/out push",
+    "git -C repo 2>&1 push",
+    "git -C repo 2\\\n>&1 push",
+  ]) {
+    it(`still blocks adjacent fd redirection ${command}`, () => {
+      expect(getCommandDenyReason(command)).toBeTruthy();
+    });
+  }
 });
 
 describe("ctx_execute_file path safety", () => {
