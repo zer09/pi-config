@@ -33,6 +33,7 @@ The extension refuses to initialize unsafe roots such as `$HOME`, filesystem roo
 
 - Read one indexed source file: `file: "agent/extensions/codegraph/tools/node-tool.ts", offset: 1, limit: 80`
 - Inspect one symbol with source/trail: `symbol: "registerNodeTool", includeCode: true`
+- Inspect one symbol disambiguated by file: `symbol: "registerNodeTool", file: "agent/extensions/codegraph/tools/node-tool.ts", includeCode: true`
 - Show a file's indexed structure only: `file: "agent/extensions/codegraph/tools/files-tool.ts", symbolsOnly: true`
 
 ### `codegraph_search`

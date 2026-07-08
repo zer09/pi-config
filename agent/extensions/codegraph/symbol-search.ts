@@ -54,8 +54,8 @@ export function searchMatches(cg: CodeGraphInstance, symbol: string, options: Se
     : [];
   const ranked = cg.searchNodes(query, { limit: searchLimit, kinds: options.kinds ? [...options.kinds] : undefined });
   let results = uniqueNodes(sortSearchResults([...exact, ...ranked]));
-  if (options.file) {
-    const filter = normalizeFileFilter(options.file)!;
+  const filter = normalizeFileFilter(options.file);
+  if (filter) {
     results = results.filter((result) => fileMatches(result.node.filePath, filter));
   }
   return results.slice(0, options.limit ?? 10);

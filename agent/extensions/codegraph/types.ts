@@ -335,7 +335,7 @@ export interface ImpactToolParams extends SymbolToolParams {
 export interface NodeToolParams extends ProjectPathParam {
   /** Symbol name to inspect in symbol mode. */
   readonly symbol?: string;
-  /** Indexed file path/suffix to read in file mode. */
+  /** Indexed file path/suffix to filter symbol mode, or read in file mode when no symbol is provided. */
   readonly file?: string;
   /** Whether symbol mode should include source code. */
   readonly includeCode?: boolean;
