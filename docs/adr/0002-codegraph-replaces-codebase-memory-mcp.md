@@ -22,6 +22,7 @@ Implementation policy:
 - Remove the active `codebase-memory-mcp` MCP server entry and runtime skill.
 - Historically, CodeGraph runtime guidance moved under Context Watcher; ADR 0003 and the old pasted-skills re-setup later superseded that packaging.
 - Keep reader delegates and global/project agent rules aligned so structural code exploration, review, caller/callee lookup, flow/path exploration, and refactor impact analysis use CodeGraph first.
+- Keep native Pi CodeGraph tool behavior aligned with CodeGraph MCP semantics where equivalent tools exist; for `codegraph_node`, `file` alone reads an indexed file, while `symbol` plus `file` inspects the symbol filtered/disambiguated to that file.
 - Treat `codegraph init`, `codegraph index`, `codegraph sync`, and `codegraph uninit` as local index mutations. Run them only when setup/indexing/sync/freshness/deletion is explicitly authorized or directly requested. `codegraph init` builds the initial index by default in v0.9.9; do not use the deprecated `--index` flag in new guidance.
 - Keep `.codegraph/` ignored in git before initializing indexes.
 - Keep the legacy `.codebase-memory/` ignore temporarily so old local graph data is not accidentally committed while cleanup remains optional.

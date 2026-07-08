@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-07-08 — Align native `codegraph_node` symbol/file behavior
+
+- Updated the native Pi CodeGraph extension so `codegraph_node` treats `symbol` + `file` as symbol mode filtered by file, matching CodeGraph MCP semantics instead of reading the whole file and ignoring `symbol`.
+- Kept `file`-only calls as file-read mode and hardened invalid/blank argument handling to fail before graph readiness/sync work where practical.
+- Improved strict no-match diagnostics for wrong `symbol` + `file` calls by listing matching symbols outside the requested file without returning unrelated symbol bodies as successful results.
+- Validation: Bun extension build passed, cached diff whitespace check passed, Pi was reloaded, and independent smoke tests passed for file-only, symbol-only, symbol+correct-file, symbol+wrong-file, whitespace-file, empty-args, and blank-symbol cases.
+
 ## 2026-07-04 — Add structured review prompt
 
 - Added `agent/prompts/codex-review.md`, a slash-command prompt template for code-review output using structured Markdown findings and correctness verdicts.
