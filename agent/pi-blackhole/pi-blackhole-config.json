@@ -22,10 +22,10 @@
       "contextWindow": 1000000
     },
     {
-      "_comment": "Second non-Cursor fallback for observer on another provider.",
+      "_comment": "Second non-Cursor fallback for observer on another provider: DeepSeek V4 Pro with high thinking.",
       "provider": "opencode-go",
-      "id": "deepseek-v4-flash",
-      "thinking": "low",
+      "id": "deepseek-v4-pro",
+      "thinking": "high",
       "cooldownHours": 1,
       "contextWindow": 1000000
     }
@@ -40,10 +40,10 @@
   },
   "reflectorFallbackModels": [
     {
-      "_comment": "Non-Cursor fallback for reflector; strong long-context reasoning.",
+      "_comment": "Non-Cursor fallback for reflector; strong long-context max reasoning.",
       "provider": "opencode-go",
       "id": "deepseek-v4-pro",
-      "thinking": "low",
+      "thinking": "xhigh",
       "cooldownHours": 1,
       "contextWindow": 1000000
     },
@@ -66,10 +66,10 @@
   },
   "dropperFallbackModels": [
     {
-      "_comment": "Non-Cursor fallback for dropper.",
+      "_comment": "Non-Cursor fallback for dropper: DeepSeek V4 Pro with max thinking.",
       "provider": "opencode-go",
       "id": "deepseek-v4-pro",
-      "thinking": "low",
+      "thinking": "xhigh",
       "cooldownHours": 1,
       "contextWindow": 1000000
     },
