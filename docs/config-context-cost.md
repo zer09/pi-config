@@ -2,6 +2,8 @@
 
 Date: 2026-07-01
 
+Skill-catalog-only update: 2026-07-09 (added `directus-browser`; provider calibration was not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version: `0.80.2`
@@ -152,10 +154,10 @@ After `session_start` and `before_agent_start` for prompt `hi`:
 
 | Local surface | `tiktoken` tokens | Notes |
 |---|---:|---|
-| Final visible system prompt | 9,179 | Includes base Pi prompt, tool snippets/guidelines, `AGENTS.md`, skill catalog, cwd/date, and browser connection note |
+| Final visible system prompt | 9,322 | Includes base Pi prompt, tool snippets/guidelines, `AGENTS.md`, skill catalog, cwd/date, and browser connection note |
 | Active provider tool schemas | 6,983 | 50 active tools serialized for OpenAI Responses/Codex tool format |
-| Compact JSON request body | 16,711 | Local JSON-string estimate; overcounts provider input here |
-| Provider-reported input | 14,704 | Authoritative input token count for full config + `hi` |
+| Compact JSON request body | 16,854 | Local JSON-string estimate; overcounts provider input here |
+| Provider-reported input | 14,704 | Authoritative input token count for the original full config + `hi`; not rerun after the 2026-07-09 skill-catalog-only update |
 
 Do not sum local `tiktoken` prompt+schema counts as the provider total. They are attribution measurements, not billing counters.
 
@@ -169,10 +171,10 @@ Do not sum local `tiktoken` prompt+schema counts as the provider total. They are
 | Guidelines block | 2,989 |
 | Pi documentation instructions | 271 |
 | Project context block / `AGENTS.md` | 1,674 |
-| Available skills catalog block | 3,426 |
+| Available skills catalog block | 3,569 |
 | Current date + CWD | 21 |
 | Browser Control before-agent-start note | 25 |
-| **Final visible system prompt** | **9,179** |
+| **Final visible system prompt** | **9,322** |
 
 ## Direct local attribution by origin
 
@@ -181,7 +183,7 @@ This table attributes directly visible prompt/schema text to the extension/packa
 | Origin | Skill catalog | Tool schemas | Tool list | Tool guidelines | Per-turn prompt injection | Direct local subtotal |
 |---|---:|---:|---:|---:|---:|---:|
 | npm package: `pi-browser-harness@0.6.0` | 118 | 3,678 | 391 | 1,952 | 25 | 6,164 |
-| user/global skills | 3,235 | 0 | 0 | 0 | 0 | 3,235 |
+| user/global skills | 3,378 | 0 | 0 | 0 | 0 | 3,378 |
 | local extension: `codegraph` | 0 | 1,623 | 108 | 317 | 0 | 2,048 |
 | Pi builtin/core tools | 0 | 624 | 48 | 126 | 0 | 798 |
 | local extension: `context-mode` | 0 | 514 | 51 | 167 | 0 | 732 |
@@ -230,13 +232,14 @@ Active Pi tools in the full runtime: 50 total, including 32 `browser_*` tools.
 
 ## Skills
 
-Startup includes only the XML skill catalog: name, description, and location. Full `SKILL.md` content is an on-demand cost after the agent reads a matching skill.
+Startup includes only the XML skill catalog: name, description, and location. Full `SKILL.md` content is an on-demand cost after the agent reads a matching skill. Skill rows were refreshed on 2026-07-09 for the `directus-browser` install without rerunning provider calibration.
 
 | Origin | Skill | Catalog entry | Description | Path | Full `SKILL.md` if loaded |
 |---|---|---:|---:|---:|---:|
 | user/global skills | `session-handoff` | 204 | 136 | 16 | 1,520 |
 | user/global skills | `nlm-skill` | 165 | 116 | 17 | 1,155 |
 | user/global skills | `crit-cli` | 151 | 103 | 16 | 2,013 |
+| user/global skills | `directus-browser` | 143 | 96 | 16 | 1,073 |
 | user/global skills | `figma-create-design-system-rules` | 133 | 63 | 21 | 1,892 |
 | user/global skills | `figma-implement-design` | 128 | 76 | 19 | 2,785 |
 | npm package: `pi-browser-harness@0.6.0` | `pi-browser-harness` | 118 | 60 | 24 | 927 |
@@ -266,9 +269,9 @@ Startup includes only the XML skill catalog: name, description, and location. Fu
 | user/global skills | `ruff` | 72 | 28 | 15 | 473 |
 | user/global skills | `uv` | 71 | 27 | 15 | 497 |
 | user/global skills | `postgres` | 68 | 24 | 15 | 864 |
-| **Skill entry subtotal** | — | **3,353** | — | — | — |
+| **Skill entry subtotal** | — | **3,496** | — | — | — |
 | Catalog wrapper/header overhead | — | **73** | — | — | — |
-| **Available skills catalog block** | — | **3,426** | — | — | — |
+| **Available skills catalog block** | — | **3,569** | — | — | — |
 
 ## Prompt templates
 
@@ -303,7 +306,7 @@ Extension command metadata is available to command routing and UI, but is not in
 ## Optimization levers
 
 1. **Browser harness tools:** largest local direct startup surface (~6.2k local attributed tokens). Consider disabling browser tools by default if browser automation is not needed in most sessions.
-2. **Skill catalog:** 3,426 startup tokens. Slim descriptions or set `disable-model-invocation: true` for rarely used skills that should be explicit-only.
+2. **Skill catalog:** 3,569 startup tokens. Slim descriptions or set `disable-model-invocation: true` for rarely used skills that should be explicit-only.
 3. **CodeGraph:** ~2.0k local direct tokens. High value, but largest non-browser coding extension surface.
 4. **`AGENTS.md`:** 1,674 provider/local tokens. Keep global instructions compact and move long detail into linked docs when possible.
 5. **Prompt templates:** zero baseline, but `/ts-split-scope` adds ~3.4k tokens when invoked. Keep large templates intentional.

@@ -5,6 +5,7 @@ Use this Skill Maintenance Doc for Custom Local Skills whose source of truth is 
 ## Current scope
 
 - Any new custom Local Skill with no dedicated upstream source.
+- `directus-browser` is a custom Local Skill with its own update process in `directus-browser-update-process.md`.
 
 Retired custom skills:
 

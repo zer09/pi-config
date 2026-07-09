@@ -85,6 +85,7 @@ Installing a new skill means:
 - `context7-cli-update-process.md`: retired-skill notes and reinstall checklist for the former Context7 CLI skill.
 - `crit-update-process.md`: update workflow for the local Crit review-loop and Crit CLI skills.
 - `custom-local-skills-update-process.md`: update workflow for custom Local Skills and retired notes for the former context-watcher/codegraph runtime skills.
+- `directus-browser-update-process.md`: update workflow for the custom Directus Studio browser-operation skill.
 - `firebase-skills-update-process.md`: update workflow for Firebase and Genkit skills.
 - `gh-cli-update-process.md`: update workflow for the generated GitHub CLI skill and its command references.
 - `grill-with-docs-usage.md`: usage reference for initializing CONTEXT.md and applying ADR guidance in other repos.

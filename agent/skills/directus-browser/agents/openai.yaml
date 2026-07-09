@@ -1,0 +1,4 @@
+interface:
+  display_name: "Directus Browser"
+  short_description: "Operate Directus Studio through Chrome"
+  default_prompt: "Use $directus-browser to inspect or manage a Directus Studio instance through the browser."

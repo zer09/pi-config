@@ -134,7 +134,7 @@ This repo tracks skills as regular files. Runtime caches and project-local skill
 
 Important skill groups include:
 
-- GitHub, Linear, PostHog, Context7, and NotebookLM CLI workflows
+- GitHub, Linear, PostHog, Directus Studio browser operation, and NotebookLM CLI workflows
 - Firebase, Firestore, Firebase Auth, Firebase Hosting, Firebase App Hosting, Firebase Data Connect, and Genkit guidance
 - Python tooling skills for `uv`, `ruff`, and `ty`
 - database skills for Postgres and MySQL

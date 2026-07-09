@@ -26,6 +26,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | ✓ | developing-genkit-go | Low | 4 | keep it | Retained for specific Genkit Go API guidance; upstream path is absent from current `firebase/skills`. |
 | ✓ | developing-genkit-js | Medium | 6 | make it slim | Slimmed to version checks, hosted-service safety, reference routing, CLI reminders, and validation workflow. |
 | ✓ | developing-genkit-python | Low | 4 | keep it | Retained to avoid hallucinated Python Genkit APIs; upstream path is absent from current `firebase/skills`. |
+| ✓ | directus-browser | Medium | 5 | keep it | Installed as a custom local skill for Directus Studio browser operation, UI/API safety gates, and Directus-specific navigation when MCP is unavailable. |
 | x | edge-case-analysis | Very strong | 9 | remove it | Generic reasoning task; no special local tooling needed. |
 | ✓ | figma | Low-medium | 4 | keep it | Retained because Figma MCP workflow and safety boundaries are tool-specific. |
 | ✓ | figma-create-design-system-rules | Strong | 8 | keep it | Retained with the OpenAI-derived skill set; full body loads only when triggered. |
