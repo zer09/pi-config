@@ -239,7 +239,7 @@ Startup includes only the XML skill catalog: name, description, and location. Fu
 | user/global skills | `session-handoff` | 204 | 136 | 16 | 1,520 |
 | user/global skills | `nlm-skill` | 165 | 116 | 17 | 1,155 |
 | user/global skills | `crit-cli` | 151 | 103 | 16 | 2,013 |
-| user/global skills | `directus-browser` | 143 | 96 | 16 | 1,073 |
+| user/global skills | `directus-browser` | 143 | 96 | 16 | 1,165 |
 | user/global skills | `figma-create-design-system-rules` | 133 | 63 | 21 | 1,892 |
 | user/global skills | `figma-implement-design` | 128 | 76 | 19 | 2,785 |
 | npm package: `pi-browser-harness@0.6.0` | `pi-browser-harness` | 118 | 60 | 24 | 927 |

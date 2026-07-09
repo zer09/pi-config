@@ -6,7 +6,7 @@ This document summarizes local Pi configuration changes. Detailed upgrade notes 
 
 - Added `agent/skills/directus-browser`, a custom local skill for operating Directus Studio through `pi-browser-harness` when Directus MCP is unavailable.
 - Documented Directus Studio routing, browser-first workflows, read-only same-origin API probes, script/API mutation gates, and Directus schema/access-control safety rules.
-- Added split Directus reference files with official source inventory, the Directus browser skill maintenance doc, installed-skill inventory entry, and refreshed skill-catalog context-cost attribution.
+- Added split Directus reference files with official source inventory, authenticated schema API mutation workflow, the Directus browser skill maintenance doc, installed-skill inventory entry, and refreshed skill-catalog context-cost attribution.
 - Validation: Directus skill validator passed; all local skill validators passed.
 
 ## 2026-07-08 — Align native `codegraph_node` symbol/file behavior

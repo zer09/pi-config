@@ -3,7 +3,7 @@
 Last reviewed: 2026-07-09
 Sources: `official-sources.md` -> Core Studio and data model docs.
 
-Use this for Settings -> Data Model work: collections, fields, interfaces, displays, validation, conditions, and relationships.
+Use this for Settings -> Data Model work: collections, fields, interfaces, displays, validation, conditions, and relationships. For explicitly approved API-based schema writes, use `schema-api-mutations.md` after reading this conceptual reference.
 
 ## Concepts
 

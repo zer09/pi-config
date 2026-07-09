@@ -24,6 +24,7 @@ Use this Skill Maintenance Doc for the custom local `directus-browser` skill.
 6. Treat official docs as source input, not final runtime text. Keep `SKILL.md` compact and keep `references/directus-studio.md` as an index/router.
 7. Update the matching distilled reference files as needed:
    - `data-model.md` for collections, fields, and relationships.
+   - `schema-api-mutations.md` for explicitly approved API-based schema writes.
    - `content-and-files.md` for records, collection pages, files, and assets.
    - `access-control.md` for users, roles, policies, and permissions.
    - `flows.md` for automation.
@@ -36,6 +37,7 @@ Use this Skill Maintenance Doc for the custom local `directus-browser` skill.
    - Same-origin Directus API calls from `browser_execute_js` are read-only by default.
    - Token extraction from cookies, localStorage, or sessionStorage is forbidden unless explicitly authorized.
    - API writes and `browser_run_script` mutations require explicit user authorization for endpoint/action and payload shape.
+   - Schema updates require asking whether to use Studio UI or authenticated API unless the user already specified the method.
    - Deletes, schema changes, permission changes, and flow changes require explicit user intent and verification.
 10. Update `agents/openai.yaml` if the description or default prompt becomes stale.
 11. Update `docs/skills/installed-skills-trim-verdict.md` if classification or inventory changes.
@@ -66,5 +68,6 @@ Also verify:
 - `agents/openai.yaml` parses as YAML and `default_prompt` mentions `$directus-browser`.
 - Changed docs do not include real Directus URLs, tokens, cookies, or user-specific paths.
 - Runtime guidance still defaults to read-only for Directus API access.
+- Schema API mutation guidance requires explicit approval, live `/server/specs/oas` inspection, and idempotent/additive defaults.
 - `references/official-sources.md` reflects any official Directus source changes used in the update.
 - Changed reference files have current `Last reviewed` dates.

@@ -27,6 +27,7 @@ return await (async () => {
 ## Common read probes
 
 - `/server/info` — server/project info available to current user.
+- `/server/specs/oas` — OpenAPI spec for the current project/user permissions; required before schema API writes.
 - `/users/me` — current authenticated user.
 - `/permissions/me` — current user's effective permissions by collection/action.
 - `/collections` — collection metadata.
@@ -49,7 +50,7 @@ return await (async () => {
 
 ## Mutation gate
 
-Do not perform API writes (`POST`, `PATCH`, `DELETE`) unless the user explicitly authorizes API-based mutation for the endpoint/action and payload shape.
+Do not perform API writes (`POST`, `PATCH`, `DELETE`) unless the user explicitly authorizes API-based mutation for the endpoint/action and payload shape. For schema writes, also ask whether to use Studio UI or authenticated API first; if API is chosen, use `schema-api-mutations.md`.
 
 For authorized API writes:
 

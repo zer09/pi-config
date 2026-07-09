@@ -7,7 +7,7 @@ description: "Operate Directus Studio through pi-browser-harness instead of Dire
 
 Use `pi-browser-harness` as a browser-operated Directus Studio driver. This skill supplies the Directus Studio mental model; the browser snapshot supplies the exact current UI.
 
-For schema, permissions, flows, API/script use, or uncertain navigation, read `references/directus-studio.md` first, then the specific referenced file (`data-model.md`, `access-control.md`, `flows.md`, `api-browser-probes.md`, or `security.md`).
+For schema, permissions, flows, API/script use, or uncertain navigation, read `references/directus-studio.md` first, then the specific referenced file (`data-model.md`, `schema-api-mutations.md`, `access-control.md`, `flows.md`, `api-browser-probes.md`, or `security.md`).
 
 ## Operating loop
 
@@ -24,7 +24,7 @@ For schema, permissions, flows, API/script use, or uncertain navigation, read `r
 
 - Content/item work -> **Content** module -> collection -> item page.
 - File/assets work -> **Files** module; file metadata lives in `directus_files`; assets are served from `/assets/<file-id>`.
-- Collection/field/relationship work -> **Settings -> Data Model**.
+- Collection/field/relationship work -> ask whether to use **Studio UI** or **authenticated API** first; UI route is **Settings -> Data Model**, API route requires `references/schema-api-mutations.md`.
 - User/token work -> **User Directory** / `directus_users`.
 - Permission work -> **Settings -> Access Control / Roles / Policies**.
 - Automation work -> **Flows**; treat flows as high-risk because they can run arbitrary/elevated operations.
@@ -73,6 +73,8 @@ Do not by default:
 - Use `browser_run_script` for mutations or bulk changes.
 
 Use `browser_run_script` only for repetitive/bulk workflows, preferably read-only. For any API write or script mutation, require explicit user authorization for the endpoint/action and payload shape.
+
+For any schema update, ask whether to use Studio UI or authenticated API unless the user already specified the method. If API is chosen, read `references/schema-api-mutations.md`, inspect the live `/server/specs/oas`, and keep writes idempotent/additive by default.
 
 ## Safety rules
 

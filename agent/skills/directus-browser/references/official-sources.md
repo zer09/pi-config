@@ -12,6 +12,13 @@ Keep this inventory current when updating the skill. These official docs are sou
 - Relationships: https://directus.com/docs/guides/data-model/relationships
 - Interfaces: https://directus.com/docs/guides/data-model/interfaces
 
+## Schema API docs
+
+- Server info and OpenAPI spec: https://directus.com/docs/api/server
+- Collections API: https://directus.com/docs/api/collections
+- Fields API: https://directus.com/docs/api/fields
+- Relations API: https://directus.com/docs/api/relations
+
 ## Content and file docs
 
 - Collection page / content explore: https://directus.com/docs/guides/content/explore

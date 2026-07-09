@@ -7,6 +7,7 @@ Use this index first when operating Directus through `pi-browser-harness`. Then 
 ## Reference map
 
 - Schema/modeling tasks: `data-model.md`
+- Explicitly approved schema API mutations: `schema-api-mutations.md`
 - Content records, collection pages, files, and assets: `content-and-files.md`
 - Users, roles, policies, permissions, and public access: `access-control.md`
 - Flows and automation: `flows.md`
@@ -23,7 +24,8 @@ Directus Studio is module-based. Use `browser_snapshot` to identify current labe
 | Browse/create/update records | Content module -> collection page -> item page | `content-and-files.md` |
 | Filter/search/list items | Content module -> collection page header controls | `content-and-files.md` |
 | Upload/manage assets | Files module | `content-and-files.md` |
-| Configure collections/fields/relationships | Settings -> Data Model | `data-model.md` |
+| Configure collections/fields/relationships in UI | Settings -> Data Model | `data-model.md` |
+| Configure collections/fields/relationships by API | Ask UI vs API first; then use browser-context API if approved | `schema-api-mutations.md` |
 | Manage users and tokens | User Directory / users module | `access-control.md`, `security.md` |
 | Manage roles/policies/permissions | Settings -> Access Control / Roles / Policies | `access-control.md` |
 | Manage automations | Flows | `flows.md` |
