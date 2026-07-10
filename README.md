@@ -120,7 +120,7 @@ Current tracked prompts include:
 
 | Prompt                  | Purpose                                                                                                                                              |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `codegraph-upgrade.md`  | Investigate the safest upgrade path for the custom CodeGraph extension dependency without making changes.                                            |
+| `codegraph-upgrade.md`  | Fetch authoritative upstream release metadata, audit compatibility, and upgrade the CodeGraph CLI and native extension dependency.                 |
 | `codex-review.md`      | Review code changes with structured Markdown findings and a strict correctness verdict.                                                              |
 | `ts-split-module.md`    | Split a single monolithic TypeScript file into a documented multi-file module while preserving behavior and public API.                              |
 | `ts-split-scope.md`     | Split and simplify a broader TypeScript scope, such as a package, directory tree, or project area, with staged analysis, planning, and verification. |

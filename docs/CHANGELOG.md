@@ -2,6 +2,15 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-07-10 — Upgrade native CodeGraph integration to 1.4.0
+
+- Refreshed upstream Git tags, npm metadata, and the GitHub release before selecting CodeGraph 1.4.0; confirmed the WSL CLI was already current.
+- Upgraded the native extension dependency and Linux x64 platform bundle from 1.3.1 to 1.4.0 with an exact package pin and refreshed lockfile.
+- Added full-index completeness and pending-reference status reporting, query-time healing for unresolved references left by interrupted indexing, and incomplete-index warnings.
+- Reworked `/codegraph-upgrade` into an execution prompt that always fetches authoritative upstream metadata, reconciles npm/tag/GitHub/CLI versions, performs compatible upgrades, and validates in WSL.
+- Replaced the extension README's stale concrete upgrade version with a `<version>` placeholder and refreshed prompt-template inventory/token attribution.
+- Validation: npm clean install and dependency checks passed; required public SDK exports are present; the 401-module Bun build passed; Node 24 opened the existing index and reported completeness; Pi RPC startup passed without inference; CLI update check reports 1.4.0 current.
+
 ## 2026-07-10 — Extend Fastlane to official GPT-5.6 Fast models
 
 - Replaced the stale GPT-5.4/GPT-5.5-only Fastlane allowlist with the official Codex model catalog's complete `priority`/Fast tier set: `gpt-5.4`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, and `gpt-5.6-terra`.

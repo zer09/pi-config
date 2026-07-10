@@ -241,6 +241,9 @@ export type GraphStats = ReturnType<CodeGraphInstance["getStats"]>;
 /** CodeGraph index build metadata returned by CodeGraph. */
 export type IndexBuildInfo = ReturnType<CodeGraphInstance["getIndexBuildInfo"]>;
 
+/** Completeness state of the last full CodeGraph index run. */
+export type IndexState = ReturnType<CodeGraphInstance["getIndexState"]>;
+
 /** Status snapshot used by codegraph_status and internal sync decisions. */
 export interface StatusSnapshot {
   /** Whether a nearest `.codegraph` directory was found. */
@@ -267,8 +270,12 @@ export interface StatusSnapshot {
   readonly lastIndexedAt?: number | null;
   /** Build metadata for the current index. */
   readonly indexBuildInfo?: IndexBuildInfo;
-  /** Whether CodeGraph says a full reindex is needed. */
+  /** Whether CodeGraph says a full reindex is needed for extraction-version changes. */
   readonly indexStale?: boolean;
+  /** Completeness state of the last full index run. */
+  readonly indexState?: IndexState;
+  /** Unresolved references left by an interrupted resolution pass. */
+  readonly pendingReferenceCount?: number;
   /** Added/modified/removed files since the index was last synced. */
   readonly changedFiles?: ChangedFiles;
   /** Files pending in CodeGraph's watcher queue. */

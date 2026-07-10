@@ -15,6 +15,8 @@ Native Pi tools for CodeGraph using the public `@colbymchenry/codegraph` library
 ## Behavior
 
 - Query-time sync uses a fixed 10s TTL between extension-triggered syncs.
+- Sync also heals unresolved references left by an interrupted index, even when no source files changed.
+- Status reports the last full-index completeness state and pending reference resolution.
 - Safe uninitialized roots always require confirmation before initialization.
 - Confirmed full reindexes recreate the CodeGraph database before indexing, matching CodeGraph CLI behavior.
 - Cached graph handles are reopened when the on-disk database is replaced.
@@ -75,7 +77,7 @@ npm install
 To bump CodeGraph itself, pin the target version explicitly:
 
 ```bash
-npm install --save-exact @colbymchenry/codegraph@1.2.0
+npm install --save-exact @colbymchenry/codegraph@<version>
 ```
 
 Then reload Pi with `/reload` or restart Pi.

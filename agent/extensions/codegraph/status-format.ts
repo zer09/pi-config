@@ -94,9 +94,16 @@ export function formatStatus(snapshot: StatusSnapshot, initMessage?: string): st
   if (snapshot.indexBuildInfo) {
     lines.push(`- indexed with: ${snapshot.indexBuildInfo.version ?? "unknown"} / extraction ${snapshot.indexBuildInfo.extractionVersion ?? "unknown"}`);
   }
-  lines.push(`- full reindex needed: ${snapshot.indexStale ? "yes" : "no"}`);
-  if (snapshot.indexStale) {
+  lines.push(`- last full index state: ${snapshot.indexState ?? "unknown (index predates completeness tracking)"}`);
+  const incompleteIndex = snapshot.indexState === "indexing" || snapshot.indexState === "partial" || snapshot.indexState === "failed";
+  const fullReindexNeeded = snapshot.indexStale || incompleteIndex;
+  lines.push(`- full reindex needed: ${fullReindexNeeded ? "yes" : "no"}`);
+  if (fullReindexNeeded) {
     lines.push("  - Recommendation: ask the user before running a full `codegraph index` / future `codegraph_index` flow.");
+  }
+  lines.push(`- pending reference resolution: ${snapshot.pendingReferenceCount ?? "unknown"}`);
+  if ((snapshot.pendingReferenceCount ?? 0) > 0) {
+    lines.push("  - Some caller/impact edges may be missing; the next extension sync will attempt to heal them.");
   }
 
   lines.push(...formatChangedFiles(snapshot.changedFiles));

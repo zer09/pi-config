@@ -181,13 +181,15 @@ export class GraphManager {
     const entry = await this.getEntry(root);
     const changedFiles = entry.cg.getChangedFiles();
     const pending = changedCount(changedFiles);
+    const pendingReferenceCount = entry.cg.getPendingReferenceCount();
+    const hasSyncWork = pending > 0 || pendingReferenceCount > 0;
     const sinceSync = Date.now() - entry.lastSyncedAt;
     let nextQuerySync: StatusSnapshot["nextQuerySync"];
     let nextQuerySyncAfterMs: number | undefined;
 
     if (entry.syncInFlight) {
       nextQuerySync = "in-flight";
-    } else if (pending === 0) {
+    } else if (!hasSyncWork) {
       nextQuerySync = "not-needed";
     } else if (sinceSync > this.syncTtlMs) {
       nextQuerySync = "now";
@@ -207,6 +209,8 @@ export class GraphManager {
       lastIndexedAt: entry.cg.getLastIndexedAt(),
       indexBuildInfo: entry.cg.getIndexBuildInfo(),
       indexStale: entry.cg.isIndexStale(),
+      indexState: entry.cg.getIndexState(),
+      pendingReferenceCount,
       changedFiles,
       pendingFiles: entry.cg.getPendingFiles(),
       isIndexing: entry.cg.isIndexing(),
@@ -352,8 +356,16 @@ export class GraphManager {
       }
     }
 
+    const indexState = entry.cg.getIndexState();
+    const incompleteIndex = indexState === "indexing" || indexState === "partial" || indexState === "failed";
     if (!entry.cg.isIndexStale()) {
       entry.staleReindexDeclined = false;
+      if (incompleteIndex) {
+        const stateDescription = indexState === "indexing"
+          ? "the last full index run did not finish"
+          : `the last full index run is marked ${indexState}`;
+        return `CodeGraph reports that ${stateDescription}; results may be incomplete. Run \`codegraph index ${entry.root}\` to rebuild.`;
+      }
       return undefined;
     }
 
@@ -398,11 +410,16 @@ export class GraphManager {
 
     const changed = entry.cg.getChangedFiles();
     const pending = changedCount(changed);
-    if (pending === 0) return undefined;
+    const pendingReferences = entry.cg.getPendingReferenceCount();
+    if (pending === 0 && pendingReferences === 0) return undefined;
 
     const sinceSync = Date.now() - entry.lastSyncedAt;
     if (sinceSync <= this.syncTtlMs) {
-      return `CodeGraph has ${pending} pending change(s); sync skipped until TTL expires (~${this.syncTtlMs - sinceSync}ms).`;
+      const work = [
+        pending > 0 ? `${pending} pending change(s)` : undefined,
+        pendingReferences > 0 ? `${pendingReferences} unresolved reference(s) from an interrupted index` : undefined,
+      ].filter((item): item is string => !!item).join(" and ");
+      return `CodeGraph has ${work}; sync skipped until TTL expires (~${this.syncTtlMs - sinceSync}ms).`;
     }
 
     entry.syncInFlight = entry.cg.sync()

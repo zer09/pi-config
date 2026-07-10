@@ -51,7 +51,15 @@ export function registerStatusTool(pi: ExtensionAPI, manager: GraphManager): voi
         if (init.entry) {
           snapshot = await manager.buildStatusSnapshot(init.entry.root, ctx, { explicitProjectPath: true });
         }
-      } else if (snapshot.initialized && snapshot.indexStale) {
+      } else if (
+        snapshot.initialized && (
+          snapshot.indexStale ||
+          snapshot.indexState === "indexing" ||
+          snapshot.indexState === "partial" ||
+          snapshot.indexState === "failed" ||
+          (snapshot.pendingReferenceCount ?? 0) > 0
+        )
+      ) {
         const graph = await manager.ensureReady(params.projectPath, ctx, onUpdate, signal);
         if (graph.ok === false) return textResult(graph.message, { snapshot: graph.snapshot });
         snapshot = graph.snapshot;
