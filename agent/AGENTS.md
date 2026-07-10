@@ -90,6 +90,7 @@ Classify each request by the action requested, not by the topic.
 - Make the simplest working change. Do not declare dead variables or add parameters (even with defaults) if they are never actively used.
 - Use ternary expressions only for simple two-way conditionals when they improve clarity; avoid nested or chained ternaries, and prefer `if`/`else`, guard clauses, or named intermediate variables for multi-branch logic.
 - Keep changes surgical and style-matched.
+- For non-obvious logic, add concise inline comments in plain, ELI5 language. Explain why the code exists or what behavior it protects; do not merely restate the code, comment obvious operations, or let comments drift from implementation.
 - Do not add speculative features, premature abstractions, or impossible-case handling.
 - Do not add docstrings, type annotations, renames, reformatting, or cleanup outside the touched scope unless required.
 - Three similar lines are better than a premature abstraction or extracting a tiny, single-use function.
