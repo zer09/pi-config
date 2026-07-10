@@ -133,15 +133,21 @@ async function run() {
 		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.5" }), undefined, "default-off Fastlane should not inject service tier");
 	}
 
-	{
-		const fastlane = await createFastlane();
+	for (const modelId of ["gpt-5.4", "gpt-5.5", "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra"]) {
+		const fastlane = await createFastlane({
+			model: { provider: "openai-codex", id: modelId, api: "openai-codex-responses" },
+		});
 		const notification = await fastlane.runCommand();
-		assert.deepEqual(notification, { message: "Fastlane enabled.", level: "info" }, "eligible toggle should enable Fastlane");
-		assert.deepEqual(fastlane.lastEvent().data, { active: true }, "eligible toggle should publish active state");
+		assert.deepEqual(notification, { message: "Fastlane enabled.", level: "info" }, `${modelId} should enable Fastlane`);
+		assert.deepEqual(fastlane.lastEvent().data, { active: true }, `${modelId} should publish active state`);
 
-		const payload = await fastlane.beforeProvider({ model: "gpt-5.5", input: "hello" });
-		assert.deepEqual(payload, { model: "gpt-5.5", input: "hello", service_tier: "priority" }, "eligible payload should receive priority service tier");
-		assert.deepEqual(fastlane.lastEvent().data, { active: true }, "eligible enabled Fastlane should stay active");
+		const payload = await fastlane.beforeProvider({ model: modelId, input: "hello" });
+		assert.deepEqual(
+			payload,
+			{ model: modelId, input: "hello", service_tier: "priority" },
+			`${modelId} should receive priority service tier`,
+		);
+		assert.deepEqual(fastlane.lastEvent().data, { active: true }, `${modelId} should keep Fastlane active`);
 	}
 
 	{
@@ -170,6 +176,17 @@ async function run() {
 		assert.ok(notification.message.includes("current provider is anthropic"), "warning should explain why the model is ineligible");
 		assert.deepEqual(fastlane.lastEvent().data, { active: false }, "ineligible model should not enable Fastlane");
 		assert.equal(await fastlane.beforeProvider({ model: "claude-sonnet-4-5" }), undefined, "ineligible provider should not inject");
+	}
+
+	{
+		const fastlane = await createFastlane({
+			model: { provider: "openai-codex", id: "gpt-5.4-mini", api: "openai-codex-responses" },
+		});
+		const notification = await fastlane.runCommand();
+		assert.equal(notification.level, "warning", "a model without a Fast service tier should warn");
+		assert.ok(notification.message.includes("does not advertise the priority/Fast service tier"), "warning should explain the catalog requirement");
+		assert.deepEqual(fastlane.lastEvent().data, { active: false }, "unsupported model should not enable Fastlane");
+		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.4-mini" }), undefined, "unsupported model should not inject");
 	}
 
 	{

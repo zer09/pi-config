@@ -14,5 +14,11 @@ export const OPENAI_CODEX_API_ID = "openai-codex-responses";
 /** OpenAI service tier value that corresponds to Codex Fast mode. */
 export const FAST_SERVICE_TIER = "priority";
 
-/** Codex models supported by the upstream openai-fast package. */
-export const SUPPORTED_OPENAI_CODEX_MODELS: ReadonlySet<string> = new Set(["gpt-5.4", "gpt-5.5"]);
+/** Models whose official Codex catalog entry advertises the priority/Fast service tier. */
+export const SUPPORTED_OPENAI_CODEX_MODELS: ReadonlySet<string> = new Set([
+	"gpt-5.4",
+	"gpt-5.5",
+	"gpt-5.6-luna",
+	"gpt-5.6-sol",
+	"gpt-5.6-terra",
+]);

@@ -47,7 +47,7 @@ function getEligibility(ctx: ExtensionContext): Eligibility {
 		return {
 			eligible: false,
 			modelKey: key,
-			reason: "Fastlane initially supports only gpt-5.4 and gpt-5.5",
+			reason: "model does not advertise the priority/Fast service tier in the official Codex catalog",
 		};
 	}
 

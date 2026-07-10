@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-07-10 — Extend Fastlane to official GPT-5.6 Fast models
+
+- Replaced the stale GPT-5.4/GPT-5.5-only Fastlane allowlist with the official Codex model catalog's complete `priority`/Fast tier set: `gpt-5.4`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, and `gpt-5.6-terra`.
+- Kept `gpt-5.4-mini` and every model without an advertised Fast tier ineligible.
+- Documented the catalog semantics (`Fast`, 1.5x speed, increased usage) and exact source blob.
+- Validation: Fastlane tests cover all five eligible models and the unsupported-model guard; footer integration and Pi RPC startup passed without a paid inference request.
+
 ## 2026-07-10 — Pi 0.80.3 to 0.80.6 recovery upgrade
 
 Details: [`docs/changelogs/pi-0.80.3-to-0.80.6-recovery-upgrade.md`](./changelogs/pi-0.80.3-to-0.80.6-recovery-upgrade.md)

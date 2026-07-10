@@ -106,7 +106,7 @@ Model cost tiers are consumed by Pi core. No local extension calculates model re
 | Extension | Impact | Action/status |
 |---|---|---|
 | `footer` | Direct SDK/behavior impact from `agent_settled` and `max`. | Timer now stops on `agent_settled`; `max` uses `✦` and `thinkingMax`; regression tests added. |
-| `fastlane` | Indirect display impact because it repeats the footer thinking glyph. Operationally, its existing model allowlist still only covers `gpt-5.4` and `gpt-5.5`. | Max-glyph repetition is tested. GPT-5.6 was not added to the allowlist because public API Priority Processing is not sufficient proof that ChatGPT OAuth Codex Fast mode accepts the same model/tier contract. |
+| `fastlane` | Indirect display impact because it repeats the footer thinking glyph; GPT-5.6 required an eligibility refresh. | A post-upgrade check of the official Codex model catalog confirmed `priority`/Fast support for GPT-5.4, GPT-5.5, and GPT-5.6 Luna/Sol/Terra. The allowlist and tests now cover exactly those five models. |
 | `theme-overrides` | Theme schema gained optional `thinkingMax`; core also has native terminal auto-theme synchronization. | Kept local host-OS polling behavior; added `thinkingMax` to both local themes. No API break. |
 | `context-mode` | No Pi SDK break. Dependency advanced from 1.0.163 to 1.0.169. Validation exposed that process `PWD` could override the active Pi extension context. | Project resolution now prefers `ctx.cwd` over process `PWD`; 210 tests, typecheck, and fuzz pass. |
 | `codegraph` | No Pi SDK break. Dependency advanced from 1.2.0 to 1.3.1. | Package and lock updated; SDK calls remained compatible; build and Pi RPC loading passed. |
@@ -189,7 +189,7 @@ No paid model generation was used for the smoke tests; RPC `get_state` exercised
 2. Start a fresh terminal session and run `pi --version`; expect `0.80.6`.
 3. Start Pi normally and visually confirm the footer and dark/light theme behavior.
 4. Optionally select a model that exposes `max` and confirm the footer shows `✦`.
-5. If `/fastlane` is needed on GPT-5.6, verify the ChatGPT Codex backend contract before extending the allowlist; current behavior intentionally remains restricted to GPT-5.4/5.5.
+5. Completed in a post-upgrade follow-up: verified the official Codex catalog and enabled `/fastlane` for GPT-5.6 Luna/Sol/Terra.
 6. Review the unstaged repository diff, then commit and push only if desired.
 
 ## Rollback
