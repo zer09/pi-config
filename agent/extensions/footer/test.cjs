@@ -242,6 +242,7 @@ async function runTests() {
 			["medium", "◇"],
 			["high", "◆"],
 			["xhigh", "●"],
+			["max", "✦"],
 		]) {
 			footer.setThinkingLevel(level);
 			assert.match(footer.renderPlain(), new RegExp(`${glyph}$`), `${level} thinking should use ${glyph}`);
@@ -265,6 +266,16 @@ async function runTests() {
 		assert.match(footer.renderPlain(), /◆◆◆$/, "Fastlane should use the fixed active glyph count");
 		footer.emitFastlaneState({ active: false });
 		assert.match(footer.renderPlain(), /◆$/, "inactive Fastlane should restore the single thinking glyph");
+	}
+
+	{
+		const footer = await createFooter({ thinkingLevel: "max" });
+		footer.emitFastlaneState({ active: true });
+		assert.match(footer.renderPlain(), /✦✦✦$/, "active Fastlane should repeat the max thinking glyph three times");
+		assert.ok(
+			footer.getColorCalls().some((call) => call.color === "thinkingMax" && call.text === "✦✦✦"),
+			"max thinking should use the explicit thinkingMax theme color",
+		);
 	}
 
 	await withExperimental(undefined, async () => {
@@ -457,6 +468,8 @@ async function runTests() {
 
 			now += 3400;
 			await footer.emit("agent_end");
+			assert.ok(footer.renderPlain().includes("\uf017 4.6s"), "timer should keep running across low-level agent_end events");
+			await footer.emit("agent_settled");
 			const completedLine = footer.renderPlain();
 			assert.ok(completedLine.includes("\uf00c 4.6s"), "completed timer should show check glyph and total duration");
 			assert.ok(completedLine.indexOf("\uf00c") < completedLine.indexOf("↑"), "timer should render before token totals");
@@ -476,7 +489,7 @@ async function runTests() {
 			now += 900;
 			await footer.emit("before_agent_start");
 			assert.ok(footer.renderPlain().includes("\uf017 0.9s"), "slash prompt expansion time should be counted");
-			await footer.emit("agent_end");
+			await footer.emit("agent_settled");
 		} finally {
 			Date.now = originalNow;
 		}
@@ -493,7 +506,7 @@ async function runTests() {
 			now += 600000;
 			assert.ok(footer.renderPlain().includes("\uf017 10:00"), "long running timer should use m:ss format");
 
-			await footer.emit("agent_end");
+			await footer.emit("agent_settled");
 			assert.ok(footer.renderPlain().includes("\uf00c 10:00"), "long completed timer should use m:ss format");
 		} finally {
 			Date.now = originalNow;
@@ -514,13 +527,14 @@ async function runTests() {
 			assert.ok(footer.renderPlain().includes("\uf46c 1"), "queued follow-up count should be visible while waiting");
 			now += 1000;
 			await footer.emit("agent_end");
+			assert.ok(footer.renderPlain().includes("\uf017"), "queued follow-ups should keep the timer running after agent_end");
 			now += 500;
 			await footer.emit("before_agent_start");
 			await footer.emit("message_start", { message: { role: "user" } });
 			const queuedLine = footer.renderPlain();
 			assert.ok(queuedLine.includes("\uf017 1.5s"), "queued follow-up timer should start when the follow-up was submitted");
 			assert.ok(!queuedLine.includes("\uf46c"), "queued follow-up count should hide after the queued prompt starts");
-			await footer.emit("agent_end");
+			await footer.emit("agent_settled");
 		} finally {
 			Date.now = originalNow;
 		}
@@ -548,7 +562,7 @@ async function runTests() {
 			await footer.emit("before_agent_start");
 			now += 200;
 			assert.ok(footer.renderPlain().includes("\uf017 0.2s"), "handled inputs should not leave stale start times for later prompts");
-			await footer.emit("agent_end");
+			await footer.emit("agent_settled");
 		} finally {
 			Date.now = originalNow;
 		}
@@ -649,7 +663,7 @@ async function runTests() {
 		assert.ok(line.includes("gpt-5.5"), "minimal layout should keep model instead of the prompt timer");
 		assert.ok(line.includes("◇"), "minimal layout should keep thinking glyph instead of the prompt timer");
 		assert.ok(!line.includes("\uf017"), "minimal layout should hide running prompt timer");
-		await footer.emit("agent_end");
+		await footer.emit("agent_settled");
 	}
 
 	{

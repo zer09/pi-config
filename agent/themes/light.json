@@ -69,6 +69,7 @@
     "thinkingMedium": "#df8e1d",
     "thinkingHigh": "#8839ef",
     "thinkingXhigh": "#d20f39",
+    "thinkingMax": "#b00020",
     "bashMode": "green"
   },
   "export": {

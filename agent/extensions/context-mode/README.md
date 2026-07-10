@@ -30,6 +30,8 @@ By default the wrapper sets:
 
 `~/.pi/context-mode` is a shared storage root. Upstream context-mode uses project-scoped DB names under that root, so `ctx_search` searches the active project unless context-mode behavior changes upstream.
 
+Project resolution prefers explicit `PI_WORKSPACE_DIR`/`PI_PROJECT_DIR`, then the active Pi extension context (`ctx.cwd`), then process `PWD`/cwd. The extension context must win over npm's process directory so tests, prefixed npm scripts, and embedded execution stay scoped to the actual Pi workspace.
+
 ## Backend resolution
 
 The wrapper resolves the upstream backend in this order:

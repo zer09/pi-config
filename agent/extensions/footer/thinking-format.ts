@@ -33,6 +33,8 @@ function thinkingColor(level: string): ThemeColor {
 			return "thinkingHigh";
 		case "xhigh":
 			return "thinkingXhigh";
+		case "max":
+			return "thinkingMax";
 		default:
 			return "thinkingText";
 	}
@@ -52,6 +54,8 @@ function thinkingGlyph(level: string): string {
 			return "◆";
 		case "xhigh":
 			return "●";
+		case "max":
+			return "✦";
 		default:
 			return "●";
 	}

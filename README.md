@@ -32,14 +32,15 @@ Current defaults:
 | Setting                | Value              |
 | ---------------------- | ------------------ |
 | Default provider       | `openai-codex`     |
-| Default model          | `gpt-5.5`          |
-| Default thinking level | `xhigh`            |
-| Theme                  | `dark`             |
+| Default model          | `gpt-5.6-sol`      |
+| Default thinking level | `high`             |
+| Theme                  | `light`            |
 | Transport              | `websocket-cached` |
 
 Enabled models:
 
 - `openai-codex/gpt-5.5`
+- `openai-codex/gpt-5.6-sol`
 - `opencode-go/deepseek-v4-pro`
 - `cursor/default`
 - `claude-bridge/claude-opus-4-6`
@@ -49,8 +50,8 @@ Configured packages:
 - `npm:@schultzp2020/pi-cursor@0.5.0`
 - `npm:pi-blackhole@0.3.9`
 - `npm:pi-btw@0.4.1`
-- `npm:pi-browser-harness@0.6.0`
-- `npm:pi-claude-bridge@0.6.1`
+- `npm:pi-browser-harness@0.8.3`
+- `npm:pi-claude-bridge@0.6.2`
 
 Keep this section in sync whenever `agent/settings.json` changes.
 
@@ -202,7 +203,7 @@ Use these docs to understand why the config looks the way it does:
 | Path                | Purpose                                                                            |
 | ------------------- | ---------------------------------------------------------------------------------- |
 | `docs/CHANGELOG.md` | Human-readable timeline of local Pi config changes.                                |
-| `docs/changelogs/`  | Detailed upgrade notes for specific Pi/package transitions.                        |
+| `docs/changelogs/`  | Detailed upgrade notes for specific Pi/package transitions, including the 0.80.3 → 0.80.6 recovery. |
 | `docs/adr/`         | Architecture decision records for long-lived config choices.                       |
 | `docs/skills/`      | Skill inventory, maintenance workflows, update processes, and retired-skill notes. |
 

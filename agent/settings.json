@@ -1,21 +1,22 @@
 {
-  "lastChangelogVersion": "0.80.3",
+  "lastChangelogVersion": "0.80.6",
   "packages": [
     "npm:@schultzp2020/pi-cursor@0.5.0",
     "npm:pi-blackhole@0.3.9",
     "npm:pi-btw@0.4.1",
-    "npm:pi-browser-harness@0.6.0",
-    "npm:pi-claude-bridge@0.6.1"
+    "npm:pi-browser-harness@0.8.3",
+    "npm:pi-claude-bridge@0.6.2"
   ],
   "enabledModels": [
     "openai-codex/gpt-5.5",
     "opencode-go/deepseek-v4-pro",
     "cursor/default",
-    "claude-bridge/claude-opus-4-6"
+    "claude-bridge/claude-opus-4-6",
+    "openai-codex/gpt-5.6-sol"
   ],
   "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.5",
-  "defaultThinkingLevel": "xhigh",
+  "defaultModel": "gpt-5.6-sol",
+  "defaultThinkingLevel": "high",
   "theme": "light",
   "transport": "websocket-cached"
 }

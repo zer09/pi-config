@@ -1,12 +1,16 @@
 # Config context cost
 
-Date: 2026-07-01
+Quantitative calibration date: 2026-07-01
+
+Structural inventory refresh: 2026-07-10 (Pi 0.80.6; `pi-browser-harness` 0.8.3; 54 active tools including 36 browser tools). Provider calibration and local token attribution were not rerun.
 
 Skill-catalog-only update: 2026-07-09 (added `directus-browser`; provider calibration was not rerun)
 
 CWD measured: `/home/gc/.pi`
 
-Pi version: `0.80.2`
+Pi version for quantitative calibration: `0.80.2`
+
+Current Pi version for structural inventory: `0.80.6`
 
 Model/provider calibrated against: `openai-codex/gpt-5.5`, thinking `xhigh`
 
@@ -146,11 +150,12 @@ For this config, the missed `session_start` effect is large:
 | Runtime point | Active tools | `browser_*` tools |
 |---|---:|---:|
 | Before `session_start` | 18 | 0 |
-| After `session_start` | 50 | 32 |
+| After `session_start` in the 2026-07-01 calibration | 50 | 32 |
+| Current inventory after the 2026-07-10 refresh | 54 | 36 |
 
-## Local attribution after lifecycle hooks
+## Historical local attribution after lifecycle hooks
 
-After `session_start` and `before_agent_start` for prompt `hi`:
+The quantitative values below are the 2026-07-01 calibration and must not be treated as current 0.80.6 token totals. After `session_start` and `before_agent_start` for prompt `hi`:
 
 | Local surface | `tiktoken` tokens | Notes |
 |---|---:|---|
@@ -176,9 +181,9 @@ Do not sum local `tiktoken` prompt+schema counts as the provider total. They are
 | Browser Control before-agent-start note | 25 |
 | **Final visible system prompt** | **9,322** |
 
-## Direct local attribution by origin
+## Historical direct local attribution by origin
 
-This table attributes directly visible prompt/schema text to the extension/package/core surface that supplies it. It excludes generic Pi prompt shell text and provider hidden framing.
+This table attributes the 2026-07-01 directly visible prompt/schema text to the extension/package/core surface that supplies it. It excludes generic Pi prompt shell text and provider hidden framing.
 
 | Origin | Skill catalog | Tool schemas | Tool list | Tool guidelines | Per-turn prompt injection | Direct local subtotal |
 |---|---:|---:|---:|---:|---:|---:|
@@ -202,7 +207,7 @@ Loaded extensions/packages with no direct startup LLM-context tokens in this mea
 
 ## Active tool schemas
 
-Active Pi tools in the full runtime: 50 total, including 32 `browser_*` tools.
+Current structural inventory: 54 active tools, including 36 `browser_*` tools. The token table immediately below remains the 2026-07-01 measurement of 50 tools/32 browser tools and is retained only as a historical attribution baseline.
 
 | Origin | Tool-schema tokens |
 |---|---:|
@@ -220,7 +225,7 @@ Active Pi tools in the full runtime: 50 total, including 32 `browser_*` tools.
 
 ### Browser active tools
 
-`browser_setup`, `browser_click`, `browser_type`, `browser_press_key`, `browser_dispatch_key`, `browser_scroll`, `browser_page_info`, `browser_wait`, `browser_wait_for_load`, `browser_handle_dialog`, `browser_screenshot`, `browser_navigate`, `browser_open_urls`, `browser_go_back`, `browser_go_forward`, `browser_reload`, `browser_list_tabs`, `browser_current_tab`, `browser_switch_tab`, `browser_new_tab`, `browser_close_tab`, `browser_upload_file`, `browser_download`, `browser_print_to_pdf`, `browser_viewport_resize`, `browser_drag_and_drop`, `browser_http_get`, `browser_network_requests`, `browser_console`, `browser_snapshot`, `browser_execute_js`, `browser_run_script`.
+`browser_setup`, `browser_click`, `browser_type`, `browser_fill`, `browser_select_option`, `browser_focus`, `browser_press_key`, `browser_dispatch_key`, `browser_scroll`, `browser_page_info`, `browser_wait`, `browser_wait_for`, `browser_wait_for_load`, `browser_handle_dialog`, `browser_screenshot`, `browser_navigate`, `browser_open_urls`, `browser_go_back`, `browser_go_forward`, `browser_reload`, `browser_list_tabs`, `browser_current_tab`, `browser_switch_tab`, `browser_new_tab`, `browser_close_tab`, `browser_upload_file`, `browser_download`, `browser_print_to_pdf`, `browser_viewport_resize`, `browser_drag_and_drop`, `browser_http_get`, `browser_network_requests`, `browser_console`, `browser_snapshot`, `browser_execute_js`, `browser_run_script`.
 
 ## Context files / `AGENTS.md`
 

@@ -2,6 +2,19 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-07-10 — Pi 0.80.3 to 0.80.6 recovery upgrade
+
+Details: [`docs/changelogs/pi-0.80.3-to-0.80.6-recovery-upgrade.md`](./changelogs/pi-0.80.3-to-0.80.6-recovery-upgrade.md)
+
+- Reconstructed the failed 0.80.4 transition and confirmed that 0.80.4 existed only as a Git tag: all four `@earendil-works` 0.80.4 npm packages return `E404`. Version 0.80.5 was the publishable recovery build and contains no functional runtime change beyond the 0.80.4 code.
+- Upgraded the Bun-global Pi core package family from installed 0.80.5 to 0.80.6 and verified `pi-coding-agent`, `pi-agent-core`, `pi-ai`, and `pi-tui` all report 0.80.6.
+- Synchronized tracked settings with the live baseline: `pi-browser-harness` 0.8.3, `pi-claude-bridge` 0.6.2, `gpt-5.6-sol`, `high` thinking, and changelog state 0.80.6.
+- Migrated the footer timer from low-level `agent_end` to session-level `agent_settled`; added distinct `max` thinking glyph/color support in the footer and both themes.
+- Updated CodeGraph 1.2.0 → 1.3.1 and context-mode 1.0.163 → 1.0.169 with lockfiles; made context-mode prefer Pi's active `ctx.cwd` over process `PWD`.
+- Hardened the theme wrapper so package/config and non-interactive commands bypass settings writes.
+- Reapplied and verified both local pi-blackhole patches after package refresh, including recreation of `src/om/compaction-budget.ts`.
+- Validation: footer/fastlane/web-search suites passed; context-mode 210 tests, typecheck, and fuzz passed; CodeGraph build passed; all local and configured package extensions loaded under Pi 0.80.6 RPC mode; both themes loaded; post-patch pi-blackhole RPC smoke passed.
+
 ## 2026-07-09 — Add Directus browser-operation skill
 
 - Added `agent/skills/directus-browser`, a custom local skill for operating Directus Studio through `pi-browser-harness` when Directus MCP is unavailable.

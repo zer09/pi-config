@@ -37,7 +37,7 @@ node ~/.pi/agent/pi-blackhole/reapply-compact-after-percent-patch.mjs
 Quick verification after an upgrade:
 
 ```bash
-rg "compactAfterPercent|effectiveCompactAfterTokens" ~/.pi/agent/npm/node_modules/pi-blackhole/src ~/.pi/agent/pi-blackhole/pi-blackhole-config.json
+rg --no-ignore "compactAfterPercent|effectiveCompactAfterTokens" ~/.pi/agent/npm/node_modules/pi-blackhole/src ~/.pi/agent/pi-blackhole/pi-blackhole-config.json
 ```
 
 Expected result: matches in the config plus the patched source files above. If the source matches disappear after an upgrade, reapply this patch or port the same logic to the new version.
@@ -67,7 +67,7 @@ node ~/.pi/agent/pi-blackhole/reapply-om-auth-fallback-patch.mjs
 Quick verification after an upgrade:
 
 ```bash
-rg "resolveRequestAuth|getApiKeyForProvider" ~/.pi/agent/npm/node_modules/pi-blackhole/src/om/runtime.ts
+rg --no-ignore "resolveRequestAuth|getApiKeyForProvider" ~/.pi/agent/npm/node_modules/pi-blackhole/src/om/runtime.ts
 ```
 
 Expected result: `runtime.ts` contains `resolveRequestAuth()` and calls `modelRegistry.getApiKeyForProvider(...)`.

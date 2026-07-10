@@ -11,6 +11,30 @@ if [[ "${PI_THEME_WRAPPER_DISABLE:-}" == "1" ]]; then
   exec node --liftoff-only "$REAL_PI" "$@"
 fi
 
+# Package/config commands and non-interactive modes do not render the TUI.
+# Bypass theme persistence so management commands cannot race Pi's settings writer
+# or dirty the tracked settings file merely to print metadata.
+should_sync_theme=1
+previous=""
+for argument in "$@"; do
+  case "$argument" in
+    update|install|remove|uninstall|config|list|-v|--version|-h|--help|-p|--print|--list-models|--export)
+      should_sync_theme=0
+      ;;
+    --mode=json|--mode=rpc)
+      should_sync_theme=0
+      ;;
+    json|rpc)
+      if [[ "$previous" == "--mode" ]]; then should_sync_theme=0; fi
+      ;;
+  esac
+  previous="$argument"
+done
+
+if [[ "$should_sync_theme" == "0" ]]; then
+  exec node --liftoff-only "$REAL_PI" "$@"
+fi
+
 detect_windows_theme() {
   local reg=""
 

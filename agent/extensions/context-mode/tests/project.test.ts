@@ -11,9 +11,9 @@ describe("project directory resolution", () => {
     expect(project).toBe("/workspace");
   });
 
-  it("falls back through PWD and ctx cwd", () => {
-    expect(resolveProjectDir({ env: { PWD: "/pwd" }, ctx: { cwd: "/ctx" }, cwd: "/cwd", home: "/home/gc" })).toBe("/pwd");
-    expect(resolveProjectDir({ env: { PWD: "/home/gc/.pi" }, ctx: { cwd: "/ctx" }, cwd: "/cwd", home: "/home/gc" })).toBe("/ctx");
+  it("prefers the active extension context over the process PWD", () => {
+    expect(resolveProjectDir({ env: { PWD: "/pwd" }, ctx: { cwd: "/ctx" }, cwd: "/cwd", home: "/home/gc" })).toBe("/ctx");
+    expect(resolveProjectDir({ env: { PWD: "/pwd" }, cwd: "/cwd", home: "/home/gc" })).toBe("/pwd");
   });
 
   it("rejects paths under ~/.pi and falls back to home", () => {

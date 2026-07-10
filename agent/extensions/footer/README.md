@@ -10,7 +10,7 @@ Custom Pi footer extension for a compact local status line.
   - Timer glyphs use `\uf017` while running and `\uf00c` after completion, with `4.1s` under a minute and `m:ss` after.
   - Queued follow-ups use `\uf46c 1`.
   - Experimental Pi features use a red `\uf00d` marker when `PI_EXPERIMENTAL=1`.
-  - Thinking uses Unicode-only shapes for every level: `○` off, `·` minimal, `◦` low, `◇` medium, `◆` high, and `●` xhigh.
+  - Thinking uses Unicode-only shapes for every level: `○` off, `·` minimal, `◦` low, `◇` medium, `◆` high, `●` xhigh, and `✦` max.
   - When the local `fastlane` extension reports active state, the thinking glyph is repeated three times, for example `●●●`. No `fast` text indicator is shown.
 - No extra npm packages are required. The extension uses Pi-provided packages and Node built-ins.
 
@@ -42,6 +42,7 @@ When Fastlane is active, the footer keeps the normal thinking segment but repeat
 ```text
 ●   -> ●●●
 ◆   -> ◆◆◆
+✦   -> ✦✦✦
 ```
 
 The footer intentionally does not render the word `fast`; repeated thinking glyphs are the indicator.
@@ -63,6 +64,7 @@ After adding or editing formatter files, run `/reload` in Pi.
 
 - Git branches stay compact but add useful state when available: `(main*)`, `(main +2)`, `(main -1)`, or `(main +2/-1*)`.
 - Git status is cached and refreshed asynchronously with a short TTL, so footer rendering does not run `git status` directly or block on slow repositories.
+- The prompt timer stops on Pi's session-level `agent_settled` event, after retries, compactions, and queued continuations drain; low-level `agent_end` events do not stop it.
 - When Pi experimental features are enabled with `PI_EXPERIMENTAL=1`, footer shows a red Nerd Font `\uf00d` marker at the end of the footer.
 
 ## Testing

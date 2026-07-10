@@ -112,7 +112,7 @@ export default function footer(pi: ExtensionAPI): void {
 		requestFooterRender();
 	});
 
-	pi.on("agent_end", async () => {
+	pi.on("agent_settled", async () => {
 		if (!stopPromptTimer(promptTimer)) requestFooterRender();
 	});
 

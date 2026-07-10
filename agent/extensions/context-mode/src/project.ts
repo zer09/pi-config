@@ -28,8 +28,8 @@ export function resolveProjectDir(options: ResolveProjectDirOptions = {}): strin
   const candidates = [
     env.PI_WORKSPACE_DIR,
     env.PI_PROJECT_DIR,
-    options.pwd ?? env.PWD,
     options.ctx?.cwd,
+    options.pwd ?? env.PWD,
     options.cwd ?? process.cwd(),
   ];
 
