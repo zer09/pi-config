@@ -306,10 +306,8 @@ export interface ProjectPathParam {
 export interface ExploreToolParams extends ProjectPathParam {
   /** Natural-language question or symbol/file names to explore. */
   readonly query: string;
-  /** Maximum indexed nodes to include. */
-  readonly maxNodes?: number;
-  /** Whether source blocks should be included in the result. */
-  readonly includeCode?: boolean;
+  /** Maximum files whose source may be included; omitted for CodeGraph's adaptive default. */
+  readonly maxFiles?: number;
 }
 
 /** Parameters for codegraph_search. */

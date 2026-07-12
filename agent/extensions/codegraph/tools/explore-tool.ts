@@ -1,8 +1,8 @@
 /**
  * Registration for the `codegraph_explore` Pi tool.
  *
- * The tool delegates readiness/sync decisions to GraphManager and then asks
- * CodeGraph to build a Markdown context bundle for a natural-language query.
+ * The tool delegates readiness/sync decisions to GraphManager and then runs
+ * CodeGraph's full upstream Explore handler against the selected graph.
  */
 
 import { Type } from "typebox";
@@ -10,8 +10,9 @@ import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, MAX_CODEGRAPH_QUERY_CHARS } from 
 import type { GraphManager } from "../graph-manager.ts";
 import { registerCodeGraphTool } from "../render.ts";
 import { formatSize, textResult } from "../result.ts";
-import { coerceLimit, createLimitSchema, formatCodeGraphQueryError, ProjectPathSchema, validateQueryText } from "../tool-parameters.ts";
+import { formatCodeGraphQueryError, ProjectPathSchema, validateQueryText } from "../tool-parameters.ts";
 import type { ExploreToolParams, ExtensionAPI, ExtensionContext, ToolDefinition, ToolResult, ToolUpdateHandler } from "../types.ts";
+import { executeUpstreamExplore } from "../upstream-explore.ts";
 
 /**
  * Register the codegraph_explore tool with Pi.
@@ -29,16 +30,17 @@ export function registerExploreTool(pi: ExtensionAPI, manager: GraphManager): vo
   const tool: ToolDefinition<ExploreToolParams> = {
     name: "codegraph_explore",
     label: "CodeGraph Explore",
-    description: `Explore relevant indexed code context for a question, flow, bug, or area. Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)}.`,
-    promptSnippet: "Explore indexed source code context with CodeGraph",
+    description: `Explore indexed source for a question, flow, bug, or area. Returns line-numbered source, relationships, and blast radius where available using CodeGraph's adaptive output budget. Emergency output cap: ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)}.`,
+    promptSnippet: "Explore indexed source with upstream CodeGraph retrieval",
     promptGuidelines: [
-      "Use codegraph_explore first for indexed source-code architecture, flow, bug, what/where, or how-does-X-work questions; treat returned source as already read.",
-      "Use codegraph_explore instead of grep/read exploration for indexed source code; fall back to raw file tools only for docs/configs/unindexed or stale files.",
+      "Use codegraph_explore first for indexed source-code architecture, flows, bugs, what/where, or how-does-X-work questions; treat returned source as already read.",
+      "Give codegraph_explore a concise question and include exact symbol or file names when known; split unrelated flows into separate calls.",
+      "Codegraph_explore locates evidence using identifiers, text, and graph relationships; reason over the returned source yourself for causal or behavioral answers.",
+      "Use codegraph_explore instead of grep/read exploration for indexed source code; fall back to raw file tools only for docs/configs/unindexed or explicitly stale files.",
     ],
     parameters: Type.Object({
-      query: Type.String({ description: "Natural-language question or symbol/file names to explore.", minLength: 1, maxLength: MAX_CODEGRAPH_QUERY_CHARS }),
-      maxNodes: createLimitSchema(30, 200),
-      includeCode: Type.Optional(Type.Boolean({ description: "Include source blocks in the response.", default: true })),
+      query: Type.String({ description: "Concise question or symbol/file names to explore. Exact identifiers improve precision.", minLength: 1, maxLength: MAX_CODEGRAPH_QUERY_CHARS }),
+      maxFiles: Type.Optional(Type.Integer({ description: "Maximum files whose source may be included. Omit for CodeGraph's project-size-adaptive default.", minimum: 1, maximum: 20 })),
       projectPath: ProjectPathSchema,
     }),
     async execute(
@@ -53,19 +55,23 @@ export function registerExploreTool(pi: ExtensionAPI, manager: GraphManager): vo
 
       const graph = await manager.ensureReady(params.projectPath, ctx, onUpdate, signal);
       if (graph.ok === false) return textResult(graph.message, { snapshot: graph.snapshot });
-      let output: unknown;
+      let output: string;
       try {
-        output = await graph.cg.buildContext(query.value, {
-          maxNodes: coerceLimit(params.maxNodes, 30, 200),
-          includeCode: params.includeCode ?? true,
-          format: "markdown",
-        });
+        signal?.throwIfAborted();
+        const maxFiles = typeof params.maxFiles === "number" && Number.isFinite(params.maxFiles)
+          ? Math.max(1, Math.min(20, Math.floor(params.maxFiles)))
+          : undefined;
+        const exploreParams = maxFiles === undefined
+          ? { query: query.value }
+          : { query: query.value, maxFiles };
+        output = await executeUpstreamExplore(graph.cg, exploreParams);
+        signal?.throwIfAborted();
       } catch (error) {
         const message = formatCodeGraphQueryError(error);
         if (message) return textResult(message, { root: graph.root, snapshot: graph.snapshot });
         throw error;
       }
-      return textResult(manager.withWarningPrefix(graph, String(output)), { root: graph.root, snapshot: graph.snapshot });
+      return textResult(manager.withWarningPrefix(graph, output), { root: graph.root, snapshot: graph.snapshot });
     },
   };
 

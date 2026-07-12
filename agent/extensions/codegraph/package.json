@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "test": "node --test upstream-explore.test.ts"
+    "test": "node --test upstream-explore.test.ts upstream-explore.integration.test.ts"
   },
   "pi": {
     "extensions": [
