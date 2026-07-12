@@ -1,6 +1,6 @@
 # Pi CodeGraph Extension
 
-Native Pi tools for CodeGraph using the public `@colbymchenry/codegraph` library API. This avoids MCP and does not depend on CodeGraph private/deep imports.
+Native Pi tools for CodeGraph. The extension opens and synchronizes projects through the public `@colbymchenry/codegraph` SDK, then runs the package's full upstream Explore handler in-process. It does not start an MCP server or spawn the CodeGraph CLI.
 
 ## Tools
 
@@ -14,6 +14,9 @@ Native Pi tools for CodeGraph using the public `@colbymchenry/codegraph` library
 
 ## Behavior
 
+- `codegraph_explore` returns upstream line-numbered source with adaptive source windows and graph-derived context such as relationships or blast radius when useful.
+- Explore retrieval uses identifiers, text, and indexed graph relationships; the calling agent reasons over the returned source for causal or behavioral answers.
+- Explore accepts an optional `maxFiles` cap (1–20). When omitted, CodeGraph chooses a project-size-adaptive default.
 - Query-time sync uses a fixed 10s TTL between extension-triggered syncs.
 - Sync also heals unresolved references left by an interrupted index, even when no source files changed.
 - Status reports the last full-index completeness state and pending reference resolution.
@@ -27,9 +30,12 @@ The extension refuses to initialize unsafe roots such as `$HOME`, filesystem roo
 
 ### `codegraph_explore`
 
-- Understand an area: `query: "how does GraphManager ensureReady sync and initialize?", maxNodes: 30`
-- Trace a flow: `query: "ensureReady initializeGraph ensureFresh"`
+- Understand an area: `query: "How does GraphManager ensureReady initialize and sync a project?", maxFiles: 5`
+- Trace a flow with exact names: `query: "GraphManager.ensureReady initializeGraph ensureCurrentIndex ensureFresh"`
 - Survey related files/symbols: `query: "tools/register-tools.ts ToolDefinition registerFilesTool"`
+- Query another project from the current Pi session: `query: "SessionStoreManager SessionClient afterCommit", projectPath: "/home/gc/development/wi"`
+
+Use a concise question and include exact symbol/file names when known. Split unrelated flows into separate Explore calls. There is no `includeCode` mode: Explore always returns source; use `codegraph_search` when locations alone are sufficient.
 
 ### `codegraph_node`
 
@@ -79,5 +85,19 @@ To bump CodeGraph itself, pin the target version explicitly:
 ```bash
 npm install --save-exact @colbymchenry/codegraph@<version>
 ```
+
+### Explore compatibility check
+
+Full Explore currently lives in CodeGraph's platform-specific MCP module rather than its root public SDK. `upstream-explore.ts` isolates that private import and calls `ToolHandler.executeReadTool()` against the graph already selected by `GraphManager`.
+
+For every CodeGraph version change:
+
+1. Confirm the matching `@colbymchenry/codegraph-<platform>-<arch>` package still contains `lib/dist/mcp/tools.js`.
+2. Confirm it exports a constructible `ToolHandler` with `executeReadTool()`.
+3. Run `npm test` to exercise the real platform handler and compare its output with the pinned CLI handler.
+4. Run an isolated Pi loader smoke test with `pi --no-extensions -e ./index.ts --list-models`.
+5. Run a cross-project Explore where Pi's cwd differs from `projectPath`.
+
+Do not add a silent `buildContext()` fallback. A compatibility failure must remain explicit so agents never unknowingly receive reduced retrieval.
 
 Then reload Pi with `/reload` or restart Pi.

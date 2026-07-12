@@ -5,14 +5,14 @@
  * CodeGraph's full upstream Explore handler against the selected graph.
  */
 
-import { Type } from "typebox";
-import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, MAX_CODEGRAPH_QUERY_CHARS } from "../constants.ts";
+import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "../constants.ts";
 import type { GraphManager } from "../graph-manager.ts";
 import { registerCodeGraphTool } from "../render.ts";
 import { formatSize, textResult } from "../result.ts";
-import { formatCodeGraphQueryError, ProjectPathSchema, validateQueryText } from "../tool-parameters.ts";
+import { formatCodeGraphQueryError, validateQueryText } from "../tool-parameters.ts";
 import type { ExploreToolParams, ExtensionAPI, ExtensionContext, ToolDefinition, ToolResult, ToolUpdateHandler } from "../types.ts";
 import { executeUpstreamExplore } from "../upstream-explore.ts";
+import { ExploreToolParameters } from "./explore-parameters.ts";
 
 /**
  * Register the codegraph_explore tool with Pi.
@@ -38,11 +38,7 @@ export function registerExploreTool(pi: ExtensionAPI, manager: GraphManager): vo
       "Codegraph_explore locates evidence using identifiers, text, and graph relationships; reason over the returned source yourself for causal or behavioral answers.",
       "Use codegraph_explore instead of grep/read exploration for indexed source code; fall back to raw file tools only for docs/configs/unindexed or explicitly stale files.",
     ],
-    parameters: Type.Object({
-      query: Type.String({ description: "Concise question or symbol/file names to explore. Exact identifiers improve precision.", minLength: 1, maxLength: MAX_CODEGRAPH_QUERY_CHARS }),
-      maxFiles: Type.Optional(Type.Integer({ description: "Maximum files whose source may be included. Omit for CodeGraph's project-size-adaptive default.", minimum: 1, maximum: 20 })),
-      projectPath: ProjectPathSchema,
-    }),
+    parameters: ExploreToolParameters,
     async execute(
       _toolCallId: string,
       params: ExploreToolParams,
