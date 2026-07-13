@@ -7,6 +7,10 @@ import {
   loadUpstreamToolHandler,
 } from "./upstream-explore.ts";
 
+const EXACT_MARKER =
+  "... (output truncated to budget; the source above is complete and verbatim — treat it as already Read. " +
+  "For any area not covered, run another codegraph_explore with the specific names — do NOT Read these files.)";
+
 class MinimalFakeToolHandler {
   async executeReadTool(): Promise<{ content: Array<{ type: string; text: string }> }> {
     return { content: [{ type: "text", text: "ok" }] };
@@ -47,7 +51,7 @@ test("wraps platform-module load failures", () => {
     () => loadUpstreamToolHandler(() => {
       throw new Error("missing bundle");
     }, "linux", "x64"),
-    /upstream Explore handler from @colbymchenry\/codegraph-linux-x64\/lib\/dist\/mcp\/tools\.js: missing bundle/,
+    /CodeGraph .* compatibility error.*@colbymchenry\/codegraph-linux-x64\/lib\/dist\/mcp\/tools\.js.*missing bundle.*private adapter must be reviewed/is,
   );
 });
 
@@ -191,7 +195,7 @@ test("repairs LF and CRLF truncation inside the final source fence", async () =>
       "```typescript",
       "1\texport function incomplete() {",
       "",
-      "... (output truncated to budget; the source above is complete and verbatim)",
+      EXACT_MARKER,
     ].join(newline);
 
     class TruncatedResultHandler {

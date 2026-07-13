@@ -20,6 +20,18 @@ export interface UpstreamExploreParams {
 
 const nodeRequire = createRequire(import.meta.url);
 
+const UPSTREAM_TRUNCATION_MARKER =
+  "... (output truncated to budget; the source above is complete and verbatim — treat it as already Read. " +
+  "For any area not covered, run another codegraph_explore with the specific names — do NOT Read these files.)";
+const TRUNCATED_SOURCE_WARNING =
+  "> ⚠️ Upstream Explore output truncated to budget inside the final source block. " +
+  "The visible source lines are verbatim, but the final block is incomplete. " +
+  "Run another codegraph_explore with specific names for omitted areas.";
+
+class UpstreamExploreCompatibilityError extends Error {
+  override readonly name = "UpstreamExploreCompatibilityError";
+}
+
 export function codeGraphPlatformPackageName(
   platform = process.platform,
   arch = process.arch,
@@ -41,55 +53,154 @@ function platformToolsModuleId(): string {
 }
 
 function compatibilityError(reason: string, moduleId = platformToolsModuleId()): Error {
-  return new Error(
+  return new UpstreamExploreCompatibilityError(
     `CodeGraph ${installedCodeGraphVersion()} upstream Explore compatibility error in ${moduleId}: ${reason}. ` +
       "The private adapter must be reviewed when upgrading @colbymchenry/codegraph.",
   );
+}
+
+function isCompatibilityError(value: unknown): value is UpstreamExploreCompatibilityError {
+  try {
+    return value instanceof UpstreamExploreCompatibilityError;
+  } catch {
+    return false;
+  }
+}
+
+function thrownReason(value: unknown): string {
+  try {
+    if (value instanceof Error) return value.message || value.name;
+  } catch {
+    // A hostile proxy can throw from instanceof or its Error getters.
+  }
+  if ((typeof value === "object" && value !== null) || typeof value === "function") {
+    for (const property of ["message", "reason"] as const) {
+      try {
+        const detail = Reflect.get(value, property);
+        if (typeof detail === "string" && detail) return detail;
+      } catch {
+        // Try the other conventional detail without stringifying the object.
+      }
+    }
+    return `${typeof value} thrown without a string message or reason`;
+  }
+  return String(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function validateUpstreamResult(value: unknown): UpstreamToolResult {
-  if (!isRecord(value) || !Array.isArray(value.content)) {
+function isArrayIndex(key: PropertyKey, length: number): boolean {
+  if (typeof key !== "string" || key === "") return false;
+  const index = Number(key);
+  return Number.isInteger(index) && index >= 0 && index < length && String(index) === key;
+}
+
+function inspectUpstreamResult(value: unknown): UpstreamToolResult {
+  if (!isRecord(value)) {
+    throw compatibilityError("ToolHandler.executeReadTool() returned a non-object result");
+  }
+
+  const rawContent = value.content;
+  if (!Array.isArray(rawContent)) {
     throw compatibilityError("ToolHandler.executeReadTool() returned a result without a content array");
   }
-  if (value.isError !== undefined && typeof value.isError !== "boolean") {
+  const rawIsError = value.isError;
+  if (rawIsError !== undefined && typeof rawIsError !== "boolean") {
     throw compatibilityError("ToolHandler.executeReadTool() returned a non-boolean isError value");
   }
 
-  const content = value.content.map((block, index) => {
-    if (!isRecord(block) || typeof block.type !== "string") {
+  // Count actual indexes before iterating so a huge sparse length cannot cause
+  // a matching allocation or an unbounded walk over missing entries.
+  const contentLength = rawContent.length;
+  const ownIndexCount = Reflect.ownKeys(rawContent)
+    .filter((key) => isArrayIndex(key, contentLength))
+    .length;
+  if (ownIndexCount !== contentLength) {
+    throw compatibilityError("ToolHandler.executeReadTool() returned a sparse content array");
+  }
+
+  const content: Array<{ type: string; text?: string }> = [];
+  for (let index = 0; index < contentLength; index++) {
+    const block = rawContent[index];
+    if (!isRecord(block)) {
       throw compatibilityError(`ToolHandler.executeReadTool() returned an invalid content block at index ${index}`);
     }
-    if (block.type === "text" && typeof block.text !== "string") {
-      throw compatibilityError(`ToolHandler.executeReadTool() returned a text block without string text at index ${index}`);
+    const type = block.type;
+    if (typeof type !== "string") {
+      throw compatibilityError(`ToolHandler.executeReadTool() returned an invalid content block at index ${index}`);
     }
-    return {
-      type: block.type,
-      ...(typeof block.text === "string" ? { text: block.text } : {}),
-    };
-  });
+    if (type === "text") {
+      const text = block.text;
+      if (typeof text !== "string") {
+        throw compatibilityError(`ToolHandler.executeReadTool() returned a text block without string text at index ${index}`);
+      }
+      content.push({ type, text });
+    } else {
+      content.push({ type });
+    }
+  }
 
-  return { content, ...(typeof value.isError === "boolean" ? { isError: value.isError } : {}) };
+  return { content, ...(typeof rawIsError === "boolean" ? { isError: rawIsError } : {}) };
+}
+
+function validateUpstreamResult(value: unknown): UpstreamToolResult {
+  try {
+    return inspectUpstreamResult(value);
+  } catch (error) {
+    if (isCompatibilityError(error)) throw error;
+    throw compatibilityError(
+      `ToolHandler.executeReadTool() returned a result that could not be inspected: ${thrownReason(error)}`,
+    );
+  }
+}
+
+interface MarkdownLine {
+  readonly start: number;
+  readonly contentEnd: number;
+  readonly eol: string;
+  readonly text: string;
+}
+
+function markdownLines(value: string): MarkdownLine[] {
+  const lines: MarkdownLine[] = [];
+  let start = 0;
+  for (let index = 0; index <= value.length; index++) {
+    if (index !== value.length && value[index] !== "\n") continue;
+    const contentEnd = index > start && value[index - 1] === "\r" ? index - 1 : index;
+    const eol = index === value.length ? "" : contentEnd === index - 1 ? "\r\n" : "\n";
+    lines.push({ start, contentEnd, eol, text: value.slice(start, contentEnd) });
+    start = index + 1;
+  }
+  return lines;
 }
 
 function repairTruncatedSourceFence(output: string): string {
-  // Upstream can place its truncation notice before the final closing fence.
-  // Move that metadata outside the fence so agents do not read it as source.
-  const fences = output.match(/^```[^\r\n]*\r?$/gm) ?? [];
+  // Match the pinned marker exactly. Near misses must force adapter review
+  // instead of letting this private compatibility layer rewrite new formats.
+  const lines = markdownLines(output);
+  const fences = lines.filter((line) => /^```[^`\r\n]*$/.test(line.text));
   if (fences.length % 2 === 0) return output;
 
-  const marker = /^\.\.\. \(output truncated to budget;[^\r\n]*\r?$/m.exec(output);
-  if (!marker || marker.index === undefined) return output;
+  const finalFence = fences.at(-1)!;
+  const marker = lines.find(
+    (line) => line.start > finalFence.start && line.text === UPSTREAM_TRUNCATION_MARKER,
+  );
+  if (!marker) return output;
 
-  const newline = output.includes("\r\n") ? "\r\n" : "\n";
-  const warning =
-    "> ⚠️ Upstream Explore output truncated to budget inside the final source block. " +
-    "The visible source lines are verbatim, but the final block is incomplete. " +
-    "Run another codegraph_explore with specific names for omitted areas.";
-  return `${output.slice(0, marker.index)}\`\`\`${newline}${newline}${warning}${output.slice(marker.index + marker[0].length)}`;
+  let newline = marker.eol;
+  if (!newline) {
+    for (let index = lines.indexOf(marker) - 1; index >= 0; index--) {
+      if (lines[index]!.eol) {
+        newline = lines[index]!.eol;
+        break;
+      }
+    }
+  }
+  if (!newline) newline = "\n";
+
+  return `${output.slice(0, marker.start)}\`\`\`${newline}${newline}${TRUNCATED_SOURCE_WARNING}${output.slice(marker.contentEnd)}`;
 }
 
 // Full Explore currently lives behind CodeGraph's MCP module rather than its
@@ -107,13 +218,15 @@ export function loadUpstreamToolHandler(
   try {
     loaded = loadModule(moduleId);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `Unable to load CodeGraph ${installedCodeGraphVersion()} upstream Explore handler from ${moduleId}: ${reason}`,
-    );
+    throw compatibilityError(`the platform handler could not be loaded: ${thrownReason(error)}`, moduleId);
   }
 
-  const ToolHandler = (loaded as { readonly ToolHandler?: unknown } | null)?.ToolHandler;
+  let ToolHandler: unknown;
+  try {
+    ToolHandler = Reflect.get(loaded as object, "ToolHandler");
+  } catch (error) {
+    throw compatibilityError(`the ToolHandler export could not be inspected: ${thrownReason(error)}`, moduleId);
+  }
   if (typeof ToolHandler !== "function") {
     throw compatibilityError("the module does not export a ToolHandler constructor", moduleId);
   }
@@ -126,15 +239,28 @@ export async function executeUpstreamExplore(
   params: UpstreamExploreParams,
   loadToolHandler: () => UpstreamToolHandlerConstructor = loadUpstreamToolHandler,
 ): Promise<string> {
-  const ToolHandler = loadToolHandler();
+  let ToolHandler: UpstreamToolHandlerConstructor;
+  try {
+    ToolHandler = loadToolHandler();
+  } catch (error) {
+    if (isCompatibilityError(error)) throw error;
+    throw compatibilityError(`ToolHandler could not be loaded: ${thrownReason(error)}`);
+  }
+
   let handler: UpstreamToolHandler;
   try {
     handler = new ToolHandler(cg);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    throw compatibilityError(`ToolHandler could not be constructed: ${reason}`);
+    throw compatibilityError(`ToolHandler could not be constructed: ${thrownReason(error)}`);
   }
-  if (!handler || typeof handler.executeReadTool !== "function") {
+
+  let executeReadTool: UpstreamToolHandler["executeReadTool"];
+  try {
+    executeReadTool = handler?.executeReadTool;
+  } catch (error) {
+    throw compatibilityError(`ToolHandler.executeReadTool could not be inspected: ${thrownReason(error)}`);
+  }
+  if (typeof executeReadTool !== "function") {
     throw compatibilityError("ToolHandler does not expose executeReadTool()");
   }
 
@@ -144,7 +270,7 @@ export async function executeUpstreamExplore(
   // GraphManager already selected and freshened this graph. The read dispatch
   // preserves full Explore behavior without applying MCP-only allowlists,
   // project routing, or watcher notices a second time.
-  const result = validateUpstreamResult(await handler.executeReadTool("codegraph_explore", args));
+  const result = validateUpstreamResult(await executeReadTool.call(handler, "codegraph_explore", args));
   const text = result.content
     .filter((block) => block.type === "text" && typeof block.text === "string")
     .map((block) => block.text)

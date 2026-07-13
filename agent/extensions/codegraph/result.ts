@@ -85,6 +85,20 @@ export function truncateHead(content: string, options: { readonly maxBytes: numb
   return { content: truncated, truncated: true, totalLines, outputLines, totalBytes, outputBytes: finalBytes };
 }
 
+function closeTruncatedMarkdownFence(content: string): string {
+  const fenceCount = content
+    .split(/\r?\n/)
+    .filter((line) => /^```[^`\r\n]*$/.test(line))
+    .length;
+  if (fenceCount % 2 === 0) return content;
+
+  // Pi's emergency cap can cut away an upstream closing fence. Keep Pi's
+  // truncation notice outside source Markdown instead of presenting it as code.
+  if (content.endsWith("\n")) return `${content}\`\`\``;
+  if (content.endsWith("\r")) return `${content}\n\`\`\``;
+  return `${content}\n\`\`\``;
+}
+
 /**
  * Build a Pi text result with standard CodeGraph output truncation.
  *
@@ -104,6 +118,7 @@ export function textResult(content: string, details: Record<string, unknown> = {
   });
   let body = truncation.content;
   if (truncation.truncated) {
+    body = closeTruncatedMarkdownFence(body);
     body += `\n\n[Output truncated: showing ${truncation.outputLines} of ${truncation.totalLines} lines`;
     body += ` (${formatSize(truncation.outputBytes)} of ${formatSize(truncation.totalBytes)}).`;
     body += ` Reduce the query/limit or use a narrower codegraph_node/codegraph_search call.]`;

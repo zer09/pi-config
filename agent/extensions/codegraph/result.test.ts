@@ -20,3 +20,18 @@ test("marks output that exceeds Pi's emergency cap", () => {
   assert.equal(truncation.truncated, true);
   assert.match(result.content[0]?.text ?? "", /\[Output truncated:/);
 });
+
+test("keeps the emergency truncation marker outside an exact source fence", () => {
+  const output = `\`\`\`typescript\n${"x".repeat(DEFAULT_MAX_BYTES + 1)}`;
+  const text = textResult(output).content[0]?.text ?? "";
+
+  assert.equal((text.match(/^```[^`\r\n]*\r?$/gm) ?? []).length % 2, 0);
+  assert.match(text, /\n```\n\n\[Output truncated:/);
+});
+
+test("does not treat a four-backtick block as an exact source fence", () => {
+  const output = `\`\`\`\`typescript\n${"x".repeat(DEFAULT_MAX_BYTES + 1)}`;
+  const text = textResult(output).content[0]?.text ?? "";
+
+  assert.doesNotMatch(text, /\n```\n\n\[Output truncated:/);
+});
