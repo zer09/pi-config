@@ -108,8 +108,20 @@ export function createCallRenderer(toolName: string, toolLabel = toolName) {
   return (args: Record<string, unknown> | null | undefined, theme: PiRenderTheme, context?: PiRenderContext): Component => {
     const safeArgs = args && typeof args === "object" ? args : {};
     let suffix = "";
-    if (toolName === "ctx_execute_file" && typeof safeArgs.path === "string" && safeArgs.path.length > 0) {
-      suffix = ` ${summarizeArg(safeArgs.path, "")}`;
+    if (toolName === "ctx_execute_file") {
+      if (typeof safeArgs.path === "string" && safeArgs.path.length > 0) {
+        suffix = ` ${summarizeArg(safeArgs.path, "")}`;
+      }
+      if (typeof safeArgs.code === "string" && safeArgs.code.length > 0) {
+        const component = reuseTextComponent(context, "block");
+        const scriptText = summarizeArg(safeArgs.code, "")
+          .split(/\r?\n/)
+          .map((line) => theme.fg("dim", `  ${line}`))
+          .join("\n");
+        const title = theme.fg("toolTitle", theme.bold(toolLabel)) + theme.fg("muted", suffix);
+        component.setText(`${title}\n${scriptText}`);
+        return component;
+      }
     }
     if (toolName === "ctx_batch_execute" && Array.isArray(safeArgs.commands)) {
       suffix = ` ${safeArgs.commands.length} command(s)`;

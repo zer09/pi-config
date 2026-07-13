@@ -42,6 +42,26 @@ describe("tool rendering", () => {
     expect(renderer(null, theme).render(120)).toEqual(["CM Execute File"]);
   });
 
+  it("execute-file call renderer shows the script below the target path", () => {
+    const renderer = createCallRenderer("ctx_execute_file", "CM Execute File");
+    const initialComponent = renderer({}, theme);
+    const component = renderer(
+      {
+        path: "/tmp/example.txt",
+        language: "javascript",
+        code: "const lines = FILE_CONTENT.split(\"\\n\");\nreturn lines.length;",
+      },
+      theme,
+      { lastComponent: initialComponent },
+    );
+
+    expect(component.render(120)).toEqual([
+      "CM Execute File /tmp/example.txt",
+      '  const lines = FILE_CONTENT.split("\\n");',
+      "  return lines.length;",
+    ]);
+  });
+
   it("batch call renderer lists commands below the title", () => {
     const renderer = createCallRenderer("ctx_batch_execute", "CM Batch Execute");
     const initialComponent = renderer({}, theme);
