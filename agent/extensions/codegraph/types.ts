@@ -312,7 +312,7 @@ export interface ExploreToolParams extends ProjectPathParam {
 
 /** Parameters for codegraph_search. */
 export interface SearchToolParams extends ProjectPathParam {
-  /** Symbol name or text to search for. */
+  /** Text to search for in indexed symbol metadata. */
   readonly query: string;
   /** Optional indexed node kind filter. */
   readonly kind?: NodeKind;

@@ -1,8 +1,8 @@
 /**
  * Registration for the `codegraph_search` Pi tool.
  *
- * The tool exposes CodeGraph's ranked symbol/text search with an optional node
- * kind filter and shared output truncation.
+ * The tool exposes CodeGraph's ranked symbol-metadata search with an optional
+ * node kind filter and shared output truncation.
  */
 
 import type { SearchResult } from "@colbymchenry/codegraph";
@@ -26,13 +26,13 @@ export function registerSearchTool(pi: ExtensionAPI, manager: GraphManager): voi
   const tool: ToolDefinition<SearchToolParams> = {
     name: "codegraph_search",
     label: "CodeGraph Search",
-    description: `Find indexed symbols by name or text. Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)}.`,
+    description: `Search indexed symbol metadata, such as names, docstrings, and signatures—not arbitrary source text or string literals. Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)}.`,
     promptSnippet: "Find indexed symbols with CodeGraph",
     promptGuidelines: [
-      "Use codegraph_search only to locate indexed symbols by name; use codegraph_explore for understanding an area.",
+      "Use codegraph_search only to locate indexed symbols; it searches symbol metadata, not arbitrary file contents or string literals. Use codegraph_explore for understanding an area.",
     ],
     parameters: Type.Object({
-      query: Type.String({ description: "Symbol name or text to search for.", minLength: 1, maxLength: MAX_CODEGRAPH_QUERY_CHARS }),
+      query: Type.String({ description: "Text to search for in indexed symbol metadata; arbitrary source text and string literals are not searched.", minLength: 1, maxLength: MAX_CODEGRAPH_QUERY_CHARS }),
       kind: Type.Optional(createStringEnumSchema(NODE_KIND_VALUES, { description: "Optional node kind filter." })),
       limit: createLimitSchema(20),
       projectPath: ProjectPathSchema,
@@ -63,7 +63,9 @@ export function registerSearchTool(pi: ExtensionAPI, manager: GraphManager): voi
       }
       const lines = results.length
         ? results.map((result) => formatNodeLine(result.node, { score: result.score }))
-        : [`No CodeGraph symbols found for ${JSON.stringify(query.value)}.`];
+        : [
+            `No CodeGraph symbols found for ${JSON.stringify(query.value)}. codegraph_search searches indexed symbol metadata, not arbitrary source text or string literals.`,
+          ];
       return textResult(manager.withWarningPrefix(graph, lines.join("\n")), { root: graph.root, count: results.length, snapshot: graph.snapshot });
     },
   };
