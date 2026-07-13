@@ -41,3 +41,19 @@ test("closes four-backtick and tilde fences with their matching delimiter", () =
     assert.doesNotMatch(text, /\n```\n\n\[Output truncated:/);
   }
 });
+
+test("omits only an extreme active fence block and updates retained-prefix counters", () => {
+  const safePrefix = "summary\r\n";
+  const opening = "~".repeat(1025);
+  const result = textResult(`${safePrefix}${opening}\n${"x".repeat(DEFAULT_MAX_BYTES)}`);
+  const truncation = result.details.truncation as {
+    content: string;
+    outputBytes: number;
+    outputLines: number;
+  };
+
+  assert.equal(truncation.content, safePrefix);
+  assert.equal(truncation.outputBytes, Buffer.byteLength(safePrefix));
+  assert.equal(truncation.outputLines, 2);
+  assert.match(result.content[0]?.text ?? "", /^summary\r\n\n\n\[Output truncated:/);
+});

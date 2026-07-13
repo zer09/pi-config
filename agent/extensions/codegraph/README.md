@@ -18,7 +18,7 @@ Native Pi tools for CodeGraph. The extension opens and synchronizes projects thr
 - Explore retrieval uses identifiers, text, and indexed graph relationships; the calling agent reasons over the returned source for causal or behavioral answers.
 - Explore accepts an optional `maxFiles` cap (1–20). When omitted, CodeGraph chooses a project-size-adaptive default.
 - If the pinned upstream truncation marker cuts through CodeGraph's final unmatched triple-backtick source fence, the adapter closes that fence and replaces the inaccurate completeness notice with an explicit partial-source warning. The same bytes inside a larger Markdown fence and near-miss marker formats remain unchanged.
-- Pi's outer emergency cap tracks backtick and tilde Markdown fences across LF, CRLF, and lone-CR lines. If truncation removes a closing fence, Pi closes the active fence with its matching delimiter before its own truncation notice.
+- Pi's outer emergency cap counts LF, CRLF, and lone-CR lines and tracks backtick and tilde Markdown fences. If truncation removes a normal closing fence, Pi closes it with the matching delimiter before its notice. If an extreme delimiter would amplify output, Pi omits that active block from the retained prefix instead.
 - Private module, handler, accessor, sparse-array, and result-shape drift fail with versioned compatibility guidance; there is no reduced retrieval fallback.
 - Query-time sync uses a fixed 10s TTL between extension-triggered syncs.
 - Sync also heals unresolved references left by an interrupted index, even when no source files changed.

@@ -42,60 +42,93 @@ export function formatSize(bytes: number): string {
  * const truncated = truncateHead(markdown, { maxBytes: 1024, maxLines: 100 });
  * ```
  */
-function utf8Prefix(value: string, maxBytes: number): string {
-  if (maxBytes <= 0) return "";
+function logicalLineCount(value: string): number {
+  if (!value) return 0;
+
+  let lines = 1;
+  for (let index = 0; index < value.length; index++) {
+    const character = value[index];
+    if (character === "\n") lines++;
+    else if (character === "\r" && value[index + 1] !== "\n") lines++;
+  }
+  return lines;
+}
+
+function truncateLogicalPrefix(
+  content: string,
+  options: { readonly maxBytes: number; readonly maxLines: number },
+): string {
+  if (!content || options.maxBytes <= 0 || options.maxLines <= 0) return "";
 
   let bytes = 0;
+  let lines = 1;
   let end = 0;
-  for (const char of value) {
-    const charBytes = Buffer.byteLength(char, "utf8");
-    if (bytes + charBytes > maxBytes) break;
-    bytes += charBytes;
-    end += char.length;
+  for (const character of content) {
+    const isLineEnding =
+      character === "\n" ||
+      (character === "\r" && content[end + 1] !== "\n");
+    if (isLineEnding && lines >= options.maxLines) break;
+
+    const characterBytes = Buffer.byteLength(character, "utf8");
+    if (bytes + characterBytes > options.maxBytes) break;
+    bytes += characterBytes;
+    end += character.length;
+    if (isLineEnding) lines++;
   }
-  return value.slice(0, end);
+  return content.slice(0, end);
+}
+
+function retainedLineCount(retained: string, original: string): number {
+  let lines = logicalLineCount(retained);
+  // The existing head contract can retain CR while omitting the LF that follows
+  // it. Count that split CRLF as the final shown line, not as an empty new line.
+  if (retained.endsWith("\r") && original[retained.length] === "\n") lines--;
+  return lines;
 }
 
 export function truncateHead(content: string, options: { readonly maxBytes: number; readonly maxLines: number }): TruncationResult {
   const totalBytes = Buffer.byteLength(content, "utf8");
-  const totalLines = content.length === 0 ? 0 : content.split("\n").length;
+  const totalLines = logicalLineCount(content);
   if (totalBytes <= options.maxBytes && totalLines <= options.maxLines) {
     return { content, truncated: false, totalLines, outputLines: totalLines, totalBytes, outputBytes: totalBytes };
   }
 
-  const lines = content.split("\n");
-  const output: string[] = [];
-  let outputBytes = 0;
-  for (const line of lines) {
-    if (output.length >= options.maxLines) break;
-    const prefix = output.length === 0 ? "" : "\n";
-    const chunk = `${prefix}${line}`;
-    const chunkBytes = Buffer.byteLength(chunk, "utf8");
-    if (outputBytes + chunkBytes > options.maxBytes) {
-      const remaining = Math.max(0, options.maxBytes - outputBytes);
-      const partial = utf8Prefix(chunk, remaining);
-      if (partial) output.push(partial);
-      break;
-    }
-    output.push(chunk);
-    outputBytes += chunkBytes;
-  }
-  const truncated = output.join("");
-  const finalBytes = Buffer.byteLength(truncated, "utf8");
-  const outputLines = truncated.length === 0 ? 0 : truncated.split("\n").length;
-  return { content: truncated, truncated: true, totalLines, outputLines, totalBytes, outputBytes: finalBytes };
+  const truncated = truncateLogicalPrefix(content, options);
+  return {
+    content: truncated,
+    truncated: true,
+    totalLines,
+    outputLines: retainedLineCount(truncated, content),
+    totalBytes,
+    outputBytes: Buffer.byteLength(truncated, "utf8"),
+  };
 }
 
-function closeTruncatedMarkdownFence(content: string): string {
-  const activeFence = scanMarkdownFences(content).activeFence;
-  if (!activeFence) return content;
+const MAX_FENCE_CLOSURE_LENGTH = 1024;
 
-  // Close the actual active Markdown fence so Pi's annotation stays outside
-  // source text, including when the cap splits an opening CRLF line ending.
+interface ProtectedMarkdown {
+  readonly retained: string;
+  readonly body: string;
+}
+
+function protectTruncatedMarkdown(content: string): ProtectedMarkdown {
+  const activeFence = scanMarkdownFences(content).activeFence;
+  if (!activeFence) return { retained: content, body: content };
+
+  // A delimiter can occupy almost the entire byte budget. Rather than double
+  // model-visible output, omit that active block and keep Pi's notice outside it.
+  if (activeFence.length > MAX_FENCE_CLOSURE_LENGTH) {
+    const retained = content.slice(0, activeFence.openingStart);
+    return { retained, body: retained };
+  }
+
   const closingFence = activeFence.character.repeat(activeFence.length);
-  if (content.endsWith("\n")) return `${content}${closingFence}`;
-  if (content.endsWith("\r")) return `${content}\n${closingFence}`;
-  return `${content}${activeFence.openingEol || "\n"}${closingFence}`;
+  if (content.endsWith("\n")) return { retained: content, body: `${content}${closingFence}` };
+  if (content.endsWith("\r")) return { retained: content, body: `${content}\n${closingFence}` };
+  return {
+    retained: content,
+    body: `${content}${activeFence.openingEol || "\n"}${closingFence}`,
+  };
 }
 
 /**
@@ -111,13 +144,22 @@ function closeTruncatedMarkdownFence(content: string): string {
  * ```
  */
 export function textResult(content: string, details: Record<string, unknown> = {}): ToolResult {
-  const truncation = truncateHead(content, {
+  let truncation = truncateHead(content, {
     maxBytes: DEFAULT_MAX_BYTES,
     maxLines: DEFAULT_MAX_LINES,
   });
   let body = truncation.content;
   if (truncation.truncated) {
-    body = closeTruncatedMarkdownFence(body);
+    const protectedMarkdown = protectTruncatedMarkdown(body);
+    body = protectedMarkdown.body;
+    if (protectedMarkdown.retained !== truncation.content) {
+      truncation = {
+        ...truncation,
+        content: protectedMarkdown.retained,
+        outputLines: logicalLineCount(protectedMarkdown.retained),
+        outputBytes: Buffer.byteLength(protectedMarkdown.retained, "utf8"),
+      };
+    }
     body += `\n\n[Output truncated: showing ${truncation.outputLines} of ${truncation.totalLines} lines`;
     body += ` (${formatSize(truncation.outputBytes)} of ${formatSize(truncation.totalBytes)}).`;
     body += ` Reduce the query/limit or use a narrower codegraph_node/codegraph_search call.]`;
