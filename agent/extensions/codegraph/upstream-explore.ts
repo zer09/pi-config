@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { scanMarkdownFences } from "./markdown-fences.ts";
 import type { CodeGraphInstance } from "./types.ts";
 
 interface UpstreamToolResult {
@@ -156,44 +157,25 @@ function validateUpstreamResult(value: unknown): UpstreamToolResult {
   }
 }
 
-interface MarkdownLine {
-  readonly start: number;
-  readonly contentEnd: number;
-  readonly eol: string;
-  readonly text: string;
-}
-
-function markdownLines(value: string): MarkdownLine[] {
-  const lines: MarkdownLine[] = [];
-  let start = 0;
-  for (let index = 0; index <= value.length; index++) {
-    if (index !== value.length && value[index] !== "\n") continue;
-    const contentEnd = index > start && value[index - 1] === "\r" ? index - 1 : index;
-    const eol = index === value.length ? "" : contentEnd === index - 1 ? "\r\n" : "\n";
-    lines.push({ start, contentEnd, eol, text: value.slice(start, contentEnd) });
-    start = index + 1;
-  }
-  return lines;
-}
-
 function repairTruncatedSourceFence(output: string): string {
-  // Match the pinned marker exactly. Near misses must force adapter review
-  // instead of letting this private compatibility layer rewrite new formats.
-  const lines = markdownLines(output);
-  const fences = lines.filter((line) => /^```[^`\r\n]*$/.test(line.text));
-  if (fences.length % 2 === 0) return output;
+  // Match the pinned marker only inside CodeGraph's final unmatched triple
+  // source fence. The same bytes inside a larger Markdown fence are literal.
+  const scan = scanMarkdownFences(output);
+  const finalFence = scan.activeFence;
+  if (finalFence?.character !== "`" || finalFence.length !== 3) return output;
 
-  const finalFence = fences.at(-1)!;
-  const marker = lines.find(
-    (line) => line.start > finalFence.start && line.text === UPSTREAM_TRUNCATION_MARKER,
+  const marker = scan.lines.find(
+    (line) =>
+      line.text === UPSTREAM_TRUNCATION_MARKER &&
+      scan.fenceAtLineStart.get(line.start) === finalFence,
   );
   if (!marker) return output;
 
   let newline = marker.eol;
   if (!newline) {
-    for (let index = lines.indexOf(marker) - 1; index >= 0; index--) {
-      if (lines[index]!.eol) {
-        newline = lines[index]!.eol;
+    for (let index = scan.lines.indexOf(marker) - 1; index >= 0; index--) {
+      if (scan.lines[index]!.eol) {
+        newline = scan.lines[index]!.eol;
         break;
       }
     }
@@ -270,7 +252,9 @@ export async function executeUpstreamExplore(
   // GraphManager already selected and freshened this graph. The read dispatch
   // preserves full Explore behavior without applying MCP-only allowlists,
   // project routing, or watcher notices a second time.
-  const result = validateUpstreamResult(await executeReadTool.call(handler, "codegraph_explore", args));
+  const result = validateUpstreamResult(
+    await Reflect.apply(executeReadTool, handler, ["codegraph_explore", args]),
+  );
   const text = result.content
     .filter((block) => block.type === "text" && typeof block.text === "string")
     .map((block) => block.text)

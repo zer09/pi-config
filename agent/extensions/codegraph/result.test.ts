@@ -29,9 +29,15 @@ test("keeps the emergency truncation marker outside an exact source fence", () =
   assert.match(text, /\n```\n\n\[Output truncated:/);
 });
 
-test("does not treat a four-backtick block as an exact source fence", () => {
-  const output = `\`\`\`\`typescript\n${"x".repeat(DEFAULT_MAX_BYTES + 1)}`;
-  const text = textResult(output).content[0]?.text ?? "";
+test("closes four-backtick and tilde fences with their matching delimiter", () => {
+  const cases = [
+    { output: `\`\`\`\`typescript\n${"x".repeat(DEFAULT_MAX_BYTES + 1)}`, closing: "````" },
+    { output: `~~~typescript\n${"x".repeat(DEFAULT_MAX_BYTES + 1)}`, closing: "~~~" },
+  ];
 
-  assert.doesNotMatch(text, /\n```\n\n\[Output truncated:/);
+  for (const { output, closing } of cases) {
+    const text = textResult(output).content[0]?.text ?? "";
+    assert.match(text, new RegExp(`\\n${closing}\\n\\n\\[Output truncated:`));
+    assert.doesNotMatch(text, /\n```\n\n\[Output truncated:/);
+  }
 });

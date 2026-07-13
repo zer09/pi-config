@@ -6,6 +6,7 @@
  */
 
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "./constants.ts";
+import { scanMarkdownFences } from "./markdown-fences.ts";
 import type { ToolResult, TruncationResult } from "./types.ts";
 
 /**
@@ -86,17 +87,15 @@ export function truncateHead(content: string, options: { readonly maxBytes: numb
 }
 
 function closeTruncatedMarkdownFence(content: string): string {
-  const fenceCount = content
-    .split(/\r?\n/)
-    .filter((line) => /^```[^`\r\n]*$/.test(line))
-    .length;
-  if (fenceCount % 2 === 0) return content;
+  const activeFence = scanMarkdownFences(content).activeFence;
+  if (!activeFence) return content;
 
-  // Pi's emergency cap can cut away an upstream closing fence. Keep Pi's
-  // truncation notice outside source Markdown instead of presenting it as code.
-  if (content.endsWith("\n")) return `${content}\`\`\``;
-  if (content.endsWith("\r")) return `${content}\n\`\`\``;
-  return `${content}\n\`\`\``;
+  // Close the actual active Markdown fence so Pi's annotation stays outside
+  // source text, including when the cap splits an opening CRLF line ending.
+  const closingFence = activeFence.character.repeat(activeFence.length);
+  if (content.endsWith("\n")) return `${content}${closingFence}`;
+  if (content.endsWith("\r")) return `${content}\n${closingFence}`;
+  return `${content}${activeFence.openingEol || "\n"}${closingFence}`;
 }
 
 /**
