@@ -58,6 +58,21 @@ test("rejects an incompatible upstream module shape", () => {
   );
 });
 
+test("wraps ToolHandler construction failures with compatibility guidance", async () => {
+  const NonConstructible = () => ({
+    executeReadTool: async () => ({ content: [{ type: "text", text: "unexpected" }] }),
+  });
+
+  await assert.rejects(
+    executeUpstreamExplore(
+      {} as CodeGraphInstance,
+      { query: "GraphManager" },
+      () => NonConstructible as never,
+    ),
+    /CodeGraph .* upstream Explore compatibility error.*ToolHandler could not be constructed.*private adapter must be reviewed/is,
+  );
+});
+
 test("executes upstream Explore with only query and maxFiles", async () => {
   const calls: Array<{ toolName: string; args: Record<string, unknown> }> = [];
   const fakeGraph = {} as CodeGraphInstance;
@@ -135,6 +150,94 @@ test("rejects a ToolHandler with an incompatible instance shape", async () => {
     ),
     /does not expose executeReadTool/,
   );
+});
+
+test("rejects malformed upstream results with compatibility guidance", async () => {
+  const malformedResults: unknown[] = [
+    null,
+    17,
+    {},
+    { content: null },
+    { content: [null] },
+    { content: [{}] },
+    { content: [{ type: 17 }] },
+    { content: [{ type: "text" }] },
+    { content: [], isError: "yes" },
+  ];
+
+  for (const malformedResult of malformedResults) {
+    class MalformedResultHandler {
+      async executeReadTool(): Promise<unknown> {
+        return malformedResult;
+      }
+    }
+
+    await assert.rejects(
+      executeUpstreamExplore(
+        {} as CodeGraphInstance,
+        { query: "GraphManager" },
+        () => MalformedResultHandler as never,
+      ),
+      /CodeGraph .* upstream Explore compatibility error.*private adapter must be reviewed/is,
+    );
+  }
+});
+
+test("repairs LF and CRLF truncation inside the final source fence", async () => {
+  for (const newline of ["\n", "\r\n"]) {
+    const upstreamOutput = [
+      "**Source Code**",
+      "",
+      "```typescript",
+      "1\texport function incomplete() {",
+      "",
+      "... (output truncated to budget; the source above is complete and verbatim)",
+    ].join(newline);
+
+    class TruncatedResultHandler {
+      async executeReadTool(): Promise<unknown> {
+        return { content: [{ type: "text", text: upstreamOutput }] };
+      }
+    }
+
+    const output = await executeUpstreamExplore(
+      {} as CodeGraphInstance,
+      { query: "incomplete" },
+      () => TruncatedResultHandler as never,
+    );
+
+    assert.equal((output.match(/^```/gm) ?? []).length % 2, 0);
+    assert.ok(output.includes(
+      `\`\`\`${newline}${newline}> ⚠️ Upstream Explore output truncated to budget inside the final source block`,
+    ));
+    assert.match(output, /final block is incomplete/);
+    assert.doesNotMatch(output, /source above is complete and verbatim/);
+    assert.equal(output.includes("\r\n"), newline === "\r\n");
+  }
+});
+
+test("leaves balanced or unmarked upstream Markdown unchanged", async () => {
+  const outputs = [
+    "```typescript\n1\texport const complete = true;\n```\n\n... (output truncated to budget; complete section)",
+    "```typescript\n1\texport const oddButUnmarked = true;",
+  ];
+
+  for (const upstreamOutput of outputs) {
+    class UnchangedResultHandler {
+      async executeReadTool(): Promise<unknown> {
+        return { content: [{ type: "text", text: upstreamOutput }] };
+      }
+    }
+
+    assert.equal(
+      await executeUpstreamExplore(
+        {} as CodeGraphInstance,
+        { query: "unchanged" },
+        () => UnchangedResultHandler as never,
+      ),
+      upstreamOutput,
+    );
+  }
 });
 
 test("throws when upstream reports an error", async () => {

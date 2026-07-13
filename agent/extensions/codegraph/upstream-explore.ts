@@ -7,7 +7,7 @@ interface UpstreamToolResult {
 }
 
 interface UpstreamToolHandler {
-  executeReadTool(toolName: string, args: Record<string, unknown>): Promise<UpstreamToolResult>;
+  executeReadTool(toolName: string, args: Record<string, unknown>): Promise<unknown>;
 }
 
 type UpstreamToolHandlerConstructor = new (cg: CodeGraphInstance) => UpstreamToolHandler;
@@ -36,6 +36,62 @@ function installedCodeGraphVersion(): string {
   }
 }
 
+function platformToolsModuleId(): string {
+  return `${codeGraphPlatformPackageName()}/lib/dist/mcp/tools.js`;
+}
+
+function compatibilityError(reason: string, moduleId = platformToolsModuleId()): Error {
+  return new Error(
+    `CodeGraph ${installedCodeGraphVersion()} upstream Explore compatibility error in ${moduleId}: ${reason}. ` +
+      "The private adapter must be reviewed when upgrading @colbymchenry/codegraph.",
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function validateUpstreamResult(value: unknown): UpstreamToolResult {
+  if (!isRecord(value) || !Array.isArray(value.content)) {
+    throw compatibilityError("ToolHandler.executeReadTool() returned a result without a content array");
+  }
+  if (value.isError !== undefined && typeof value.isError !== "boolean") {
+    throw compatibilityError("ToolHandler.executeReadTool() returned a non-boolean isError value");
+  }
+
+  const content = value.content.map((block, index) => {
+    if (!isRecord(block) || typeof block.type !== "string") {
+      throw compatibilityError(`ToolHandler.executeReadTool() returned an invalid content block at index ${index}`);
+    }
+    if (block.type === "text" && typeof block.text !== "string") {
+      throw compatibilityError(`ToolHandler.executeReadTool() returned a text block without string text at index ${index}`);
+    }
+    return {
+      type: block.type,
+      ...(typeof block.text === "string" ? { text: block.text } : {}),
+    };
+  });
+
+  return { content, ...(typeof value.isError === "boolean" ? { isError: value.isError } : {}) };
+}
+
+function repairTruncatedSourceFence(output: string): string {
+  // Upstream can place its truncation notice before the final closing fence.
+  // Move that metadata outside the fence so agents do not read it as source.
+  const fences = output.match(/^```[^\r\n]*\r?$/gm) ?? [];
+  if (fences.length % 2 === 0) return output;
+
+  const marker = /^\.\.\. \(output truncated to budget;[^\r\n]*\r?$/m.exec(output);
+  if (!marker || marker.index === undefined) return output;
+
+  const newline = output.includes("\r\n") ? "\r\n" : "\n";
+  const warning =
+    "> ⚠️ Upstream Explore output truncated to budget inside the final source block. " +
+    "The visible source lines are verbatim, but the final block is incomplete. " +
+    "Run another codegraph_explore with specific names for omitted areas.";
+  return `${output.slice(0, marker.index)}\`\`\`${newline}${newline}${warning}${output.slice(marker.index + marker[0].length)}`;
+}
+
 // Full Explore currently lives behind CodeGraph's MCP module rather than its
 // public SDK. Keep this deep import isolated so package upgrades have one
 // compatibility boundary to review and test.
@@ -59,10 +115,7 @@ export function loadUpstreamToolHandler(
 
   const ToolHandler = (loaded as { readonly ToolHandler?: unknown } | null)?.ToolHandler;
   if (typeof ToolHandler !== "function") {
-    throw new Error(
-      `CodeGraph ${installedCodeGraphVersion()} upstream Explore module ${moduleId} does not export a ToolHandler constructor. ` +
-        "The private adapter must be reviewed when upgrading @colbymchenry/codegraph.",
-    );
+    throw compatibilityError("the module does not export a ToolHandler constructor", moduleId);
   }
 
   return ToolHandler as UpstreamToolHandlerConstructor;
@@ -74,12 +127,15 @@ export async function executeUpstreamExplore(
   loadToolHandler: () => UpstreamToolHandlerConstructor = loadUpstreamToolHandler,
 ): Promise<string> {
   const ToolHandler = loadToolHandler();
-  const handler = new ToolHandler(cg);
+  let handler: UpstreamToolHandler;
+  try {
+    handler = new ToolHandler(cg);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw compatibilityError(`ToolHandler could not be constructed: ${reason}`);
+  }
   if (!handler || typeof handler.executeReadTool !== "function") {
-    throw new Error(
-      `CodeGraph ${installedCodeGraphVersion()} upstream ToolHandler does not expose executeReadTool(). ` +
-        "The private adapter must be reviewed when upgrading @colbymchenry/codegraph.",
-    );
+    throw compatibilityError("ToolHandler does not expose executeReadTool()");
   }
 
   const args: Record<string, unknown> = { query: params.query };
@@ -88,7 +144,7 @@ export async function executeUpstreamExplore(
   // GraphManager already selected and freshened this graph. The read dispatch
   // preserves full Explore behavior without applying MCP-only allowlists,
   // project routing, or watcher notices a second time.
-  const result = await handler.executeReadTool("codegraph_explore", args);
+  const result = validateUpstreamResult(await handler.executeReadTool("codegraph_explore", args));
   const text = result.content
     .filter((block) => block.type === "text" && typeof block.text === "string")
     .map((block) => block.text)
@@ -101,5 +157,5 @@ export async function executeUpstreamExplore(
     throw new Error("CodeGraph upstream Explore returned no text output.");
   }
 
-  return text;
+  return repairTruncatedSourceFence(text);
 }
