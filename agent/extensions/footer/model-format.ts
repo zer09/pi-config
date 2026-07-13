@@ -31,8 +31,13 @@ function formatCompactModelName(
 	model: string,
 	profile: Exclude<FooterProfile, "full">,
 ): string {
-	if (provider === "openai-codex" && model.startsWith("gpt-")) {
-		return profile === "minimal" ? model : `codex/${model}`;
+	if (provider === "openai-codex") {
+		const gpt56Type = model.match(/^gpt-5\.6-(sol|terra|luna)$/)?.[1];
+		if (gpt56Type) {
+			const label = gpt56Type.charAt(0).toUpperCase() + gpt56Type.slice(1);
+			return profile === "minimal" ? label : `codex/${label}`;
+		}
+		if (model.startsWith("gpt-")) return profile === "minimal" ? model : `codex/${model}`;
 	}
 
 	if (provider === "anthropic") {

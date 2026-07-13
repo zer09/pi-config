@@ -303,6 +303,23 @@ async function runTests() {
 		assert.ok(line.includes("sonnet-4"), "model date suffix should be removed and model label should be compact");
 	}
 
+	for (const [modelId, modelType] of [
+		["gpt-5.6-sol", "Sol"],
+		["gpt-5.6-terra", "Terra"],
+		["gpt-5.6-luna", "Luna"],
+	]) {
+		const footer = await createFooter({
+			model: { provider: "openai-codex", id: modelId, contextWindow: 272000 },
+		});
+		const fullLine = footer.renderPlain();
+		assert.ok(fullLine.includes(`codex/${modelType}`), `${modelId} should display as codex/${modelType} in full layouts`);
+		assert.ok(!fullLine.includes(modelId), `${modelId} should hide the full model id`);
+
+		const minimalLine = footer.renderPlain(22);
+		assert.ok(minimalLine.includes(modelType), `${modelId} should display as ${modelType} in minimal layouts`);
+		assert.ok(!minimalLine.includes(`codex/${modelType}`), `${modelId} should hide the provider in minimal layouts`);
+	}
+
 	{
 		const footer = await createFooter({ branch: null });
 		assert.ok(!footer.renderPlain().includes("(main)"), "branch should be hidden outside git repos");
