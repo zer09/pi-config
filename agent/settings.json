@@ -12,11 +12,13 @@
     "opencode-go/deepseek-v4-pro",
     "cursor/default",
     "claude-bridge/claude-opus-4-6",
-    "openai-codex/gpt-5.6-sol"
+    "openai-codex/gpt-5.6-sol",
+    "openai-codex/gpt-5.6-terra"
   ],
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.6-sol",
   "defaultThinkingLevel": "high",
   "theme": "light",
-  "transport": "websocket-cached"
+  "transport": "websocket-cached",
+  "hideThinkingBlock": false
 }
