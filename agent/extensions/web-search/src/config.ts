@@ -11,7 +11,7 @@ const CONFIG_FILE_PATH = resolve(dirname(fileURLToPath(import.meta.url)), "../co
 export const DEFAULT_CONFIG: SearchConfig = {
   googleCloudApiKeyEnv: "GOOGLE_CLOUD_API_KEY",
   exaApiKeyEnv: "EXA_API_KEY",
-  model: "gemini-2.5-flash",
+  model: "gemini-3.5-flash",
   searchType: "auto",
   numResults: 5,
   maxHighlightCharacters: 2000,
