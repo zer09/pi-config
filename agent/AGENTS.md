@@ -88,6 +88,7 @@ Classify each request by the action requested, not by the topic.
 - When ambiguity would change the implementation, state it and ask or choose the safest narrow interpretation.
 - For multi-step coding work, define concrete success checks before editing when practical.
 - Make the simplest working change. Do not declare dead variables or add parameters (even with defaults) if they are never actively used.
+- Do not rename existing functions unless explicitly requested or technically necessary. If a rename is necessary, report the old name, new name, and reason. Ask first if it affects a public API or has broad impact.
 - Use ternary expressions only for simple two-way conditionals when they improve clarity; avoid nested or chained ternaries, and prefer `if`/`else`, guard clauses, or named intermediate variables for multi-branch logic.
 - Keep changes surgical and style-matched.
 - For non-obvious logic, add concise inline comments in plain, ELI5 language. Explain why the code exists or what behavior it protects; do not merely restate the code, comment obvious operations, or let comments drift from implementation.
