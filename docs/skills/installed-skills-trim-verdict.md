@@ -51,7 +51,8 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | x | mmx-cli | Weak | 3 | remove it | Removed because MiniMax is niche in this setup and not used often enough to justify a dedicated runtime skill. |
 | ✓ | mysql | Strong | 8 | make it slim | DB expertise is strong; keep only project/tool conventions. |
 | ✓ | nlm-skill | Weak | 3 | keep it | Retained because NotebookLM CLI/MCP workflows are niche and exact enough to keep available. |
-| x | notion-cli | Medium | 5 | remove it | Removed because the local `ntn` CLI output was not a good fit for routine agent workflows. |
+| ✓ | notion | Medium | 5 | make it slim | Installed as a compact combination of self-documenting official `ntn` CLI routing, hosted-service safety gates, and on-demand Notion workflow recipes. |
+| x | notion-cli | Medium | 5 | remove it | Standalone predecessor remains retired; superseded by the active combined `notion` skill. |
 | ✓ | postgres | Strong | 8 | make it slim | DB expertise is strong; keep only operational checklists. |
 | ✓ | pp-posthog | Medium | 5 | make it slim | Installed from Printing Press for exact PostHog CLI routing, local sync/search, and hosted-service safety gates. |
 | x | refine-linear-task | Very strong | 9 | remove it | Generic issue-writing task; no skill needed. |

@@ -94,7 +94,8 @@ Installing a new skill means:
 - `mattpocock-skills-update-process.md`: update workflow for the remaining Matt Pocock engineering skills.
 - `minimax-cli-update-process.md`: retired-skill notes and reinstall checklist for the former MiniMax CLI skill.
 - `nlm-skill-update-process.md`: update workflow for the NotebookLM CLI and MCP skill.
-- `notion-cli-update-process.md`: retired-skill notes and reinstall checklist for the former Notion CLI skill.
+- `notion-update-process.md`: update workflow for the active slim Notion skill sourced from the official `ntn` CLI skill and Notion Claude plugin workflows.
+- `notion-cli-update-process.md`: retired-skill notes for the former standalone Notion CLI skill, now superseded by the combined `notion` skill.
 - `openai-skills-update-process.md`: update workflow for OpenAI-derived skills, including skill-creator and Figma skills.
 - `planetscale-database-skills-update-process.md`: update workflow for PlanetScale MySQL and Postgres skills.
 - `pp-posthog-update-process.md`: update workflow for the Printing Press PostHog CLI skill.
@@ -113,7 +114,7 @@ These runtime skills were removed during the skill slimming pass because their w
 - `humanizer`
 - `refine-linear-task`
 - `mmx-cli`
-- `notion-cli`
+- `notion-cli` (standalone predecessor; superseded by active `notion`)
 - `tdd`
 - `understand`, `understand-chat`, `understand-dashboard`, `understand-diff`, `understand-domain`, `understand-explain`, `understand-knowledge`, `understand-onboard`
 

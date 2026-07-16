@@ -1,0 +1,4 @@
+interface:
+  display_name: "Notion"
+  short_description: "Search, read, write, and organize Notion"
+  default_prompt: "Use $notion to find relevant workspace context and complete my Notion task safely."

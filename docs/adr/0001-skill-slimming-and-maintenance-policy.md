@@ -30,7 +30,7 @@ The Astral Python tooling pass kept `uv`, `ruff`, and `ty`, but slimmed each ski
 
 The PlanetScale database pass kept `mysql` and `postgres`, but slimmed each skill around database safety gates, evidence-based workflow, fast guidance, local reference navigation, provider notes, and maintenance pointers. Detailed database internals and command catalogs stay in `references/`.
 
-The Notion CLI pass removed `notion-cli` because prior use showed the local `ntn` CLI output was not a good fit for routine agent workflows. Notion remains an external hosted service; exact explicit user instruction is still required for any future Notion write.
+The Notion CLI pass removed `notion-cli` because prior use showed the local `ntn` CLI output alone was not a good fit for routine agent workflows. A later explicit request installed a distinct combined `notion` skill, classified `make it slim`: it uses self-documenting `ntn` commands for execution and loads official Notion workflow recipes only when needed. The standalone predecessor remains retired. Notion remains an external hosted service; exact explicit user instruction is required for every Notion write.
 
 The MiniMax CLI pass removed `mmx-cli` because MiniMax is niche in this setup and not used often enough to justify a dedicated runtime skill. Future MiniMax API generation or remote-state changes still require exact explicit user instruction.
 

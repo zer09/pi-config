@@ -1,12 +1,12 @@
 # Retired notion-cli skill
 
-Status: retired during the skill slimming pass.
+Status: retired during the skill slimming pass; superseded by the active combined `notion` skill.
 
 ## Decision
 
-`notion-cli` was removed because the local `ntn` CLI output was not a good fit for routine agent workflows. Notion remains an external hosted service, so future Notion writes still require exact explicit user instruction even without this runtime skill.
+`notion-cli` was removed because the local `ntn` CLI output alone was not a good fit for routine agent workflows. A later explicit request installed `agent/skills/notion/`, which keeps the CLI as a self-documenting execution layer and adds slim workflow guidance from Notion's Claude plugin.
 
-Do not update or reinstall this skill unless the user explicitly asks for a dedicated Notion CLI runtime skill again.
+Do not reinstall the standalone `notion-cli` skill alongside `notion` unless the user explicitly requests the narrower duplicate. Maintain the active skill through `notion-update-process.md`.
 
 ## Former source of truth
 
@@ -17,7 +17,7 @@ Do not update or reinstall this skill unless the user explicitly asks for a dedi
 
 ## Reinstall checklist
 
-If reinstalling later:
+If the standalone skill is explicitly requested later:
 
 1. Read `docs/skills/README.md` and `docs/skills/local-skill-update-invariants.md`.
 2. Load `skill-creator`.
@@ -26,5 +26,6 @@ If reinstalling later:
 5. Do not print or document token values. Refer to `NOTION_API_TOKEN` by name only.
 6. Keep `SKILL.md` concise and limit frontmatter to `name` and `description`.
 7. Add `agents/openai.yaml` with `default_prompt` mentioning `$notion-cli`.
-8. Add this skill back to `docs/skills/README.md` active update documents if it is reinstalled.
-9. Validate with `uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/notion-cli`.
+8. Resolve the name/trigger overlap with the active `notion` skill before installation.
+9. Add this skill back to `docs/skills/README.md` active update documents if it is reinstalled.
+10. Validate with the repository's `agent/skills/skill-creator/scripts/quick_validate.py`.
