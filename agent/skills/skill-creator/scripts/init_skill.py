@@ -3,7 +3,7 @@
 Skill Initializer - Creates a new skill from template
 
 Usage:
-    uv run --with pyyaml python init_skill.py <skill-name> --path <path> [--resources scripts,references,assets] [--examples] [--interface key=value]
+    uv run --with pyyaml python init_skill.py <skill-name> --path <path> [--resources scripts,references,assets] [--examples] [--with-evals] [--interface key=value]
 
 Examples:
     uv run --with pyyaml python init_skill.py my-new-skill --path skills/public
@@ -18,14 +18,17 @@ import re
 import sys
 from pathlib import Path
 
-from generate_openai_yaml import write_openai_yaml
+# Importing the sibling helper should not leave runtime cache artifacts in the skill.
+sys.dont_write_bytecode = True
+
+from generate_openai_yaml import write_openai_yaml  # noqa: E402
 
 MAX_SKILL_NAME_LENGTH = 64
 ALLOWED_RESOURCES = {"scripts", "references", "assets"}
 
 SKILL_TEMPLATE = """---
 name: {skill_name}
-description: [TODO: Complete and informative explanation of what the skill does and when to use it. Include WHEN to use this skill - specific scenarios, file types, or tasks that trigger it.]
+description: "[TODO: Explain what the skill does and the concrete intents, contexts, tools, or file types that should trigger it.]"
 ---
 
 # {skill_title}
@@ -167,6 +170,21 @@ Reference docs are ideal for:
 - Best practices
 """
 
+EVALS_TEMPLATE = """{
+  "skill_name": "__SKILL_NAME__",
+  "evals": [
+    {
+      "id": 1,
+      "name": "representative-happy-path",
+      "prompt": "[TODO: Add a realistic user request]",
+      "expected_output": "[TODO: Describe the successful outcome]",
+      "files": [],
+      "assertions": []
+    }
+  ]
+}
+"""
+
 EXAMPLE_ASSET = """# Example Asset File
 
 This placeholder represents where asset files would be stored.
@@ -227,7 +245,9 @@ def parse_resources(raw_resources):
     return deduped
 
 
-def create_resource_dirs(skill_dir, skill_name, skill_title, resources, include_examples):
+def create_resource_dirs(
+    skill_dir, skill_name, skill_title, resources, include_examples
+):
     for resource in resources:
         resource_dir = skill_dir / resource
         resource_dir.mkdir(exist_ok=True)
@@ -242,7 +262,9 @@ def create_resource_dirs(skill_dir, skill_name, skill_title, resources, include_
         elif resource == "references":
             if include_examples:
                 example_reference = resource_dir / "api_reference.md"
-                example_reference.write_text(EXAMPLE_REFERENCE.format(skill_title=skill_title))
+                example_reference.write_text(
+                    EXAMPLE_REFERENCE.format(skill_title=skill_title)
+                )
                 print("[OK] Created references/api_reference.md")
             else:
                 print("[OK] Created references/")
@@ -255,7 +277,9 @@ def create_resource_dirs(skill_dir, skill_name, skill_title, resources, include_
                 print("[OK] Created assets/")
 
 
-def init_skill(skill_name, path, resources, include_examples, interface_overrides):
+def init_skill(
+    skill_name, path, resources, include_examples, with_evals, interface_overrides
+):
     """
     Initialize a new skill directory with template SKILL.md.
 
@@ -264,6 +288,7 @@ def init_skill(skill_name, path, resources, include_examples, interface_override
         path: Path where the skill directory should be created
         resources: Resource directories to create
         include_examples: Whether to create example files in resource directories
+        with_evals: Whether to create an evals/evals.json starter
 
     Returns:
         Path to created skill directory, or None if error
@@ -286,7 +311,9 @@ def init_skill(skill_name, path, resources, include_examples, interface_override
 
     # Create SKILL.md from template
     skill_title = title_case_skill_name(skill_name)
-    skill_content = SKILL_TEMPLATE.format(skill_name=skill_name, skill_title=skill_title)
+    skill_content = SKILL_TEMPLATE.format(
+        skill_name=skill_name, skill_title=skill_title
+    )
 
     skill_md_path = skill_dir / "SKILL.md"
     try:
@@ -308,9 +335,23 @@ def init_skill(skill_name, path, resources, include_examples, interface_override
     # Create resource directories if requested
     if resources:
         try:
-            create_resource_dirs(skill_dir, skill_name, skill_title, resources, include_examples)
+            create_resource_dirs(
+                skill_dir, skill_name, skill_title, resources, include_examples
+            )
         except Exception as e:
             print(f"[ERROR] Error creating resource directories: {e}")
+            return None
+
+    if with_evals:
+        try:
+            evals_dir = skill_dir / "evals"
+            evals_dir.mkdir()
+            (evals_dir / "evals.json").write_text(
+                EVALS_TEMPLATE.replace("__SKILL_NAME__", skill_name)
+            )
+            print("[OK] Created evals/evals.json")
+        except Exception as e:
+            print(f"[ERROR] Error creating evals/evals.json: {e}")
             return None
 
     # Print next steps
@@ -319,13 +360,22 @@ def init_skill(skill_name, path, resources, include_examples, interface_override
     print("1. Edit SKILL.md to complete the TODO items and update the description")
     if resources:
         if include_examples:
-            print("2. Customize or delete the example files in scripts/, references/, and assets/")
+            print(
+                "2. Customize or delete the example files in scripts/, references/, and assets/"
+            )
         else:
             print("2. Add resources to scripts/, references/, and assets/ as needed")
     else:
-        print("2. Create resource directories only if needed (scripts/, references/, assets/)")
-    print("3. Update agents/openai.yaml if the UI metadata should differ")
-    print("4. Run the validator when ready to check the skill structure")
+        print(
+            "2. Create resource directories only if needed (scripts/, references/, assets/)"
+        )
+    if with_evals:
+        print("3. Replace the eval placeholder with realistic prompts and assertions")
+        print("4. Update agents/openai.yaml if the UI metadata should differ")
+        print("5. Run the validator when ready to check the skill structure")
+    else:
+        print("3. Update agents/openai.yaml if the UI metadata should differ")
+        print("4. Run the validator when ready to check the skill structure")
 
     return skill_dir
 
@@ -345,6 +395,11 @@ def main():
         "--examples",
         action="store_true",
         help="Create example files inside the selected resource directories",
+    )
+    parser.add_argument(
+        "--with-evals",
+        action="store_true",
+        help="Create an evals/evals.json starter for behavior evaluations",
     )
     parser.add_argument(
         "--interface",
@@ -385,7 +440,14 @@ def main():
         print("   Resources: none (create as needed)")
     print()
 
-    result = init_skill(skill_name, path, resources, args.examples, args.interface)
+    result = init_skill(
+        skill_name,
+        path,
+        resources,
+        args.examples,
+        args.with_evals,
+        args.interface,
+    )
 
     if result:
         sys.exit(0)

@@ -13,6 +13,8 @@ from pathlib import Path
 
 import yaml
 
+from eval_utils import atomic_write_text, has_symlink_component
+
 ACRONYMS = {
     "GH",
     "MCP",
@@ -147,9 +149,17 @@ def parse_interface_overrides(raw_overrides):
             print(f"[ERROR] Unknown interface field '{key}'. Allowed: {allowed}")
             return None, None
         overrides[key] = value
-        if key not in ("display_name", "short_description") and key not in optional_order:
+        if (
+            key not in ("display_name", "short_description")
+            and key not in optional_order
+        ):
             optional_order.append(key)
     return overrides, optional_order
+
+
+def contains_exact_skill_token(prompt: str, skill_name: str) -> bool:
+    token = re.escape(f"${skill_name}")
+    return re.search(rf"(?<![A-Za-z0-9_-]){token}(?![A-Za-z0-9_-])", prompt) is not None
 
 
 def write_openai_yaml(skill_dir, skill_name, raw_overrides):
@@ -158,7 +168,16 @@ def write_openai_yaml(skill_dir, skill_name, raw_overrides):
         return None
 
     display_name = overrides.get("display_name") or format_display_name(skill_name)
-    short_description = overrides.get("short_description") or generate_short_description(display_name)
+    short_description = overrides.get(
+        "short_description"
+    ) or generate_short_description(display_name)
+    default_prompt = overrides.get("default_prompt") or (
+        f"Use ${skill_name} to help complete this task."
+    )
+
+    if not contains_exact_skill_token(default_prompt, skill_name):
+        print(f"[ERROR] default_prompt must mention exactly ${skill_name}.")
+        return None
 
     if not (25 <= len(short_description) <= 64):
         print(
@@ -171,18 +190,22 @@ def write_openai_yaml(skill_dir, skill_name, raw_overrides):
         "interface:",
         f"  display_name: {yaml_quote(display_name)}",
         f"  short_description: {yaml_quote(short_description)}",
+        f"  default_prompt: {yaml_quote(default_prompt)}",
     ]
 
     for key in optional_order:
+        if key == "default_prompt":
+            continue
         value = overrides.get(key)
         if value is not None:
             interface_lines.append(f"  {key}: {yaml_quote(value)}")
 
-    agents_dir = Path(skill_dir) / "agents"
-    agents_dir.mkdir(parents=True, exist_ok=True)
-    output_path = agents_dir / "openai.yaml"
-    output_path.write_text("\n".join(interface_lines) + "\n")
-    print(f"[OK] Created agents/openai.yaml")
+    output_path = atomic_write_text(
+        Path(skill_dir) / "agents" / "openai.yaml",
+        "\n".join(interface_lines) + "\n",
+        create_parents=True,
+    )
+    print("[OK] Created agents/openai.yaml")
     return output_path
 
 
@@ -203,7 +226,13 @@ def main():
     )
     args = parser.parse_args()
 
-    skill_dir = Path(args.skill_dir).resolve()
+    lexical_skill_dir = Path(args.skill_dir).expanduser().absolute()
+    if has_symlink_component(lexical_skill_dir):
+        print(
+            f"[ERROR] Skill directory cannot contain symlink components: {lexical_skill_dir}"
+        )
+        sys.exit(1)
+    skill_dir = lexical_skill_dir.resolve()
     if not skill_dir.exists():
         print(f"[ERROR] Skill directory not found: {skill_dir}")
         sys.exit(1)

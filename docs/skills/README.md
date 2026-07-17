@@ -77,6 +77,7 @@ Installing a new skill means:
 
 - `local-skill-update-invariants.md`: canonical local overlays and validation checks that apply to every skill update or install.
 - `skill-slimming-process.md`: repeatable keep/slim/remove process for skill updates and installs.
+- `skill-creator-update-process.md`: dual-upstream update workflow for the unified OpenAI-, Anthropic-, and Pi-native `skill-creator`.
 - `installed-skills-trim-verdict.md`: tracked inventory of installed skill slimming decisions.
 - `agent-toolkit-skills-update-process.md`: update workflow for the remaining softaworks agent-toolkit skills.
 - `agentmemory-pi-extension-update-process.md`: retired-skill notes and reinstall checklist for the former Pi-native AgentMemory extension's bundled skill metadata.

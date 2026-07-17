@@ -9,11 +9,11 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Source of truth
 
 - Upstream repository: https://github.com/openai/skills
-- Current upstream commit checked locally: `c25113bf4c64c8dba6bfe61acf06051d79aa43f6`
+- Current upstream commit checked locally: `49f948faa9258a0c61caceaf225e179651397431`
 
 | Local skill | Upstream path | Local notes |
 | --- | --- | --- |
-| `skill-creator` | `skills/.system/skill-creator` | Foundational skill. Validate this before changing other skills. |
+| `skill-creator` | `skills/.system/skill-creator` | Foundational unified skill. OpenAI is one of two upstreams; follow `skill-creator-update-process.md` and validate this before changing other skills. |
 | `figma` | `skills/.curated/figma` | Lightweight Figma MCP setup and design context helper. |
 | `figma-implement-design` | `skills/.curated/figma-implement-design` | Design-to-code implementation workflow. |
 | `figma-create-design-system-rules` | `skills/.curated/figma-create-design-system-rules` | Project rule generation for Figma-to-code workflows. |
@@ -56,4 +56,4 @@ done
 
 ## Foundational skill caution
 
-`skill-creator` defines the local expectations for skill structure, frontmatter, bundled resources, and `agents/openai.yaml`. Update it carefully, validate it first, then use the updated version to validate the rest of the skill set.
+`skill-creator` defines the local expectations for skill structure, frontmatter, bundled resources, evaluation, and `agents/openai.yaml`. It now combines OpenAI scaffolding, Anthropic evaluation principles, and a Pi-native runner. Follow `skill-creator-update-process.md`; do not replace its folder wholesale from OpenAI. Update it carefully, validate it first, then use the updated version to validate the rest of the skill set.

@@ -58,7 +58,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | x | refine-linear-task | Very strong | 9 | remove it | Generic issue-writing task; no skill needed. |
 | ✓ | ruff | Strong | 8 | make it slim | Commands are simple; keep only preferred invocation. |
 | ✓ | session-handoff | Medium | 6 | keep it | Retained because local handoff location and continuity conventions are important. |
-| ✓ | skill-creator | Medium | 6 | keep it | Retained as foundational OpenAI-derived skill maintenance guidance. |
+| ✓ | skill-creator | Medium | 6 | keep it | Retained as the foundational unified skill creator: OpenAI scaffolding, Anthropic evaluation methodology, and Pi-native isolated execution. |
 | x | tdd | Very strong | 9 | remove it | Generic methodology; no installed skill needed. |
 | x | troubleshooting | Medium | 6 | remove it | Retired with the old pasted Chrome DevTools MCP skill group; reinstall only when maintaining `chrome-devtools-mcp` itself. |
 | ✓ | ty | Medium | 6 | make it slim | Newer Python type checker; keep exact command guidance. |
