@@ -98,6 +98,7 @@ function reuseTextComponent(context: PiRenderContext | undefined, mode: "line" |
 }
 
 const MAX_CALL_SUMMARY_CHARS = 480;
+const COLLAPSED_SEARCH_RESULT_LINES = 20;
 
 function summarizeArg(value: unknown, fallback: string): string {
   if (typeof value !== "string" || value.length === 0) return fallback;
@@ -147,6 +148,15 @@ export function createCallRenderer(toolName: string, toolLabel = toolName) {
   };
 }
 
+function trimOuterBlankLines(text: string): string[] {
+  const lines = text.split(/\r?\n/);
+  let start = 0;
+  let end = lines.length;
+  while (start < end && lines[start]?.trim().length === 0) start += 1;
+  while (end > start && lines[end - 1]?.trim().length === 0) end -= 1;
+  return lines.slice(start, end);
+}
+
 export function createResultRenderer(toolName: string, partialText: string) {
   return (
     result: ToolResult,
@@ -161,12 +171,32 @@ export function createResultRenderer(toolName: string, partialText: string) {
     }
 
     const text = extractText(result);
-    if (expanded) {
-      return new LeanTextComponent(text || `${toolName} completed`, "block");
+    const fallback = `${toolName} completed`;
+    if (toolName === "ctx_search") {
+      const component = reuseTextComponent(context, "block");
+      if (expanded) {
+        component.setText(text.trim().length > 0 ? text : fallback);
+        return component;
+      }
+
+      const lines = trimOuterBlankLines(text);
+      if (lines.length === 0) lines.push(fallback);
+      const visibleLines = lines.slice(0, COLLAPSED_SEARCH_RESULT_LINES);
+      let preview = visibleLines.map((line) => (line ? theme.fg("toolOutput", line) : "")).join("\n");
+      if (lines.length > COLLAPSED_SEARCH_RESULT_LINES) {
+        preview += `\n${theme.fg(
+          "muted",
+          `... (${lines.length - COLLAPSED_SEARCH_RESULT_LINES} more lines, Ctrl+O to expand)`,
+        )}`;
+      }
+      component.setText(preview);
+      return component;
     }
 
+    if (expanded) return new LeanTextComponent(text || fallback, "block");
+
     const component = reuseTextComponent(context, "line");
-    component.setText(theme.fg("toolOutput", firstNonEmptyLine(text) ?? `${toolName} completed`));
+    component.setText(theme.fg("toolOutput", firstNonEmptyLine(text) ?? fallback));
     return component;
   };
 }

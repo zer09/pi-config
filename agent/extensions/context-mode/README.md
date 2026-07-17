@@ -62,4 +62,4 @@ Manual Pi trial:
 pi -e /home/gc/.pi/agent/extensions/context-mode
 ```
 
-Check that only the three lean `ctx_*` tools are loaded and that Ctrl+0 expands/collapses tool results.
+Check that only the three lean `ctx_*` tools are loaded and that Ctrl+O expands/collapses tool results.

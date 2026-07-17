@@ -18,16 +18,50 @@ const result = {
 };
 
 describe("tool rendering", () => {
-  it("collapsed renderer returns only the first non-empty line", () => {
+  it("collapsed search renderer shows a short multi-line preview", () => {
     const renderer = createResultRenderer("ctx_search", "searching...");
+    const component = renderer(result, { expanded: false, isPartial: false }, theme, {});
+    expect(component.render(120)).toEqual(["first useful line", "second line", "third line"]);
+  });
+
+  it("collapsed search renderer limits long previews and reports omitted lines", () => {
+    const renderer = createResultRenderer("ctx_search", "searching...");
+    const lines = Array.from({ length: 23 }, (_, index) => `line ${index + 1}`);
+    const longResult = { content: [{ type: "text" as const, text: lines.join("\n") }], details: {} };
+    const component = renderer(longResult, { expanded: false, isPartial: false }, theme, {});
+
+    expect(component.render(120)).toEqual([
+      ...lines.slice(0, 20),
+      "... (3 more lines, Ctrl+O to expand)",
+    ]);
+  });
+
+  it("expanded search renderer reuses the preview component and returns full text", () => {
+    const renderer = createResultRenderer("ctx_search", "searching...");
+    const preview = renderer(result, { expanded: false, isPartial: false }, theme, {});
+    const component = renderer(result, { expanded: true, isPartial: false }, theme, { lastComponent: preview });
+
+    expect(component).toBe(preview);
+    expect(component.render(120)).toEqual(["", "first useful line", "second line", "third line"]);
+  });
+
+  it("non-search collapsed renderer keeps a one-line summary", () => {
+    const renderer = createResultRenderer("ctx_batch_execute", "running/indexing/searching...");
     const component = renderer(result, { expanded: false, isPartial: false }, theme, {});
     expect(component.render(120)).toEqual(["first useful line"]);
   });
 
-  it("expanded renderer returns full text", () => {
+  it("empty search output uses the completion fallback", () => {
     const renderer = createResultRenderer("ctx_search", "searching...");
-    const component = renderer(result, { expanded: true, isPartial: false }, theme, {});
-    expect(component.render(120)).toEqual(["", "first useful line", "second line", "third line"]);
+    const component = renderer({ content: [], details: {} }, { expanded: false, isPartial: false }, theme, {});
+    expect(component.render(120)).toEqual(["ctx_search completed"]);
+  });
+
+  it("search preview lines stay within the terminal width", () => {
+    const renderer = createResultRenderer("ctx_search", "searching...");
+    const wideResult = { content: [{ type: "text" as const, text: "x".repeat(40) }], details: {} };
+    const component = renderer(wideResult, { expanded: false, isPartial: false }, theme, {});
+    expect(component.render(8).every((line) => line.length <= 8)).toBe(true);
   });
 
   it("partial renderer shows status", () => {
