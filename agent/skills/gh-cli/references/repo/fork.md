@@ -1,7 +1,7 @@
 # gh repo fork
 
 Source: https://cli.github.com/manual/gh_repo_fork
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo fork`.
+Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help repo fork`.
 
 ## Summary
 
@@ -41,6 +41,16 @@ FLAGS
 
 INHERITED FLAGS
   --help   Show help for command
+
+EXAMPLES
+  # Fork a repository
+  $ gh repo fork owner/repo
+
+  # Fork a repository and clone it locally
+  $ gh repo fork owner/repo --clone
+
+  # Fork a repository without cloning it, skip the prompt
+  $ gh repo fork owner/repo --clone=false
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

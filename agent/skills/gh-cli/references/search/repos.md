@@ -1,7 +1,7 @@
 # gh search repos
 
 Source: https://cli.github.com/manual/gh_search_repos
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help search repos`.
+Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help search repos`.
 
 ## Summary
 
@@ -70,6 +70,9 @@ EXAMPLES
 
   # Search repositories matching phrase "vim plugin"
   $ gh search repos "vim plugin"
+
+  # Search repositories using raw search qualifiers as separate arguments
+  $ gh search repos topic:github 'stars:>5000'
 
   # Search repositories public repos in the microsoft organization
   $ gh search repos --owner=microsoft --visibility=public

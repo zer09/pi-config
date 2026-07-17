@@ -1,7 +1,7 @@
 # gh help reference
 
 Source: https://cli.github.com/manual/gh_help_reference
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help reference`.
+Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help reference`.
 
 ## Summary
 
@@ -2105,7 +2105,7 @@ gh skill add, gh skills add
 
 List installed skills (preview)
 
-      --agent string      Filter by target agent: {github-copilot|claude-code|cursor|codex|gemini-cli|antigravity|adal|amp|augment|bob|cline|codebuddy|command-code|continue|cortex|crush|deepagents|droid|firebender|goose|iflow-cli|junie|kilo|kimi-cli|kiro-cli|kode|mcpjam|mistral-vibe|mux|neovate|openclaw|opencode|openhands|pi|pochi|qoder|qwen-code|replit|roo|trae|trae-cn|universal|warp|windsurf|zencoder}
+      --agent string      Filter by target agent: {github-copilot|claude-code|cursor|codex|gemini-cli|antigravity|antigravity-cli|antigravity2.0|adal|amp|augment|bob|cline|codebuddy|command-code|continue|cortex|crush|deepagents|droid|firebender|goose|iflow-cli|junie|kilo|kimi-cli|kiro-cli|kode|mcpjam|mistral-vibe|mux|neovate|openclaw|opencode|openhands|pi|pochi|qoder|qwen-code|replit|roo|trae|trae-cn|universal|warp|windsurf|zencoder}
       --dir string        Scan a custom directory for installed skills
   -q, --jq expression     Filter JSON output using a jq expression
       --json fields       Output JSON with the specified fields

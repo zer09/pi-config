@@ -1,7 +1,7 @@
 # gh search issues
 
 Source: https://cli.github.com/manual/gh_search_issues
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help search issues`.
+Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help search issues`.
 
 ## Summary
 
@@ -85,6 +85,9 @@ EXAMPLES
 
   # Search issues matching phrase "broken feature"
   $ gh search issues "broken feature"
+
+  # Search issues using raw search qualifiers as separate arguments
+  $ gh search issues label:bug author:monalisa state:open
 
   # Search issues and pull requests in cli organization
   $ gh search issues --include-prs --owner=cli

@@ -1,7 +1,7 @@
 # gh skill install
 
 Source: https://cli.github.com/manual/gh_skill_install
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help skill install`.
+Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help skill install`.
 
 ## Summary
 
@@ -31,6 +31,8 @@ Supported `--agent` values:
   - Codex (codex)
   - Gemini CLI (gemini-cli)
   - Antigravity (antigravity)
+  - Antigravity CLI (antigravity-cli)
+  - Antigravity 2.0 (antigravity2.0)
   - AdaL (adal)
   - Amp (amp)
   - Augment (augment)

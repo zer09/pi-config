@@ -1,7 +1,7 @@
 # gh search commits
 
 Source: https://cli.github.com/manual/gh_search_commits
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help search commits`.
+Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help search commits`.
 
 ## Summary
 
@@ -65,6 +65,9 @@ EXAMPLES
 
   # Search commits matching phrase "bug fix"
   $ gh search commits "bug fix"
+
+  # Search commits using raw search qualifiers as separate arguments
+  $ gh search commits fix author:monalisa merge:false
 
   # Search commits committed by user "monalisa"
   $ gh search commits --committer=monalisa

@@ -1,7 +1,7 @@
 # gh search prs
 
 Source: https://cli.github.com/manual/gh_search_prs
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help search prs`.
+Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help search prs`.
 
 ## Summary
 
@@ -93,6 +93,9 @@ EXAMPLES
 
   # Search draft pull requests in cli repository
   $ gh search prs --repo=cli/cli --draft
+
+  # Search pull requests using raw search qualifiers as separate arguments
+  $ gh search prs is:merged author:monalisa
 
   # Search open pull requests requesting your review
   $ gh search prs --review-requested=@me --state=open

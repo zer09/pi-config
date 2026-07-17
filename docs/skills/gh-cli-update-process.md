@@ -12,7 +12,7 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
 
 - Manual root: https://cli.github.com/manual/
 - Command index: https://cli.github.com/manual/gh
-- Local generator source: `gh help` output from the installed GitHub CLI. Current generation used `gh version 2.95.0 (2026-06-20)`.
+- Local generator source: `gh help` output from the installed GitHub CLI. The base generation used `gh version 2.95.0 (2026-06-20)`. Changed help pages were refreshed from `gh version 2.96.0 (2026-07-08)`; unchanged pages retain their 2.95.0 attribution after a complete command-tree comparison found byte-identical help text.
 
 ## File model
 
