@@ -21,7 +21,7 @@ export const ctxExecuteFileSchema = {
   properties: {
     path: {
       type: "string",
-      description: "File path, absolute or relative to project root.",
+      description: "File path inside the active project root, absolute or relative to that root.",
     },
     language: {
       type: "string",
@@ -118,10 +118,11 @@ export const LEAN_TOOL_METADATA = [
   {
     name: "ctx_execute_file",
     label: "CM Execute File",
-    description: "Run code over one local file without returning the full file. Print only the needed answer/snippet.",
-    promptSnippet: "Run code over one local file without returning the full file.",
+    description: "Run code over one file inside the active project root without returning the full file. Print only the needed answer/snippet.",
+    promptSnippet: "Run code over one file inside the active project root without returning the full file.",
     promptGuidelines: [
-      "Use ctx_execute_file for read-only analysis of one large local file when you need a focused computed answer/snippet instead of the full file.",
+      "Use ctx_execute_file for read-only analysis of one large file inside the active project root when you need a focused computed answer/snippet instead of the full file.",
+      "Do not use ctx_execute_file when the target is outside the active project root, including a linked Git worktree stored elsewhere; use the host's regular file tools instead.",
       "For ctx_execute_file, print only the needed result/snippet from the analysis code; do not dump the full file.",
     ],
     parameters: ctxExecuteFileSchema,

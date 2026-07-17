@@ -16,6 +16,16 @@ describe("lean schema payload", () => {
     expect(json).not.toContain("Reciprocal Rank Fusion");
   });
 
+  it("limits ctx_execute_file guidance to the active project root", () => {
+    const executeFile = getLeanToolDefinitionPayloads().find((tool) => tool.name === "ctx_execute_file");
+    const properties = executeFile?.parameters.properties as Record<string, { description?: string }>;
+
+    expect(executeFile?.description).toContain("inside the active project root");
+    expect(executeFile?.promptGuidelines.join(" ")).toContain("outside the active project root");
+    expect(executeFile?.promptGuidelines.join(" ")).toContain("linked Git worktree");
+    expect(properties.path?.description).toContain("inside the active project root");
+  });
+
   it("marks timeout fields as non-negative", () => {
     const payloads = getLeanToolDefinitionPayloads();
     const executeFileTimeout = (payloads.find((tool) => tool.name === "ctx_execute_file")?.parameters.properties as Record<string, unknown>).timeout;
