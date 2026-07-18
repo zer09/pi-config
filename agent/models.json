@@ -1,6 +1,7 @@
 {
   "providers": {
     "opencode-go": {
+      "apiKey": "!cat /home/gc/.pi/agent/secrets/opencode-go-active",
       "modelOverrides": {
         "glm-5.2": {
           "compat": {

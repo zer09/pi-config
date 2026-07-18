@@ -19,6 +19,7 @@ agent/pi-blackhole/**
 
 # Local auth and sensitive local-only files
 agent/auth.json
+agent/secrets/
 # agent/settings.json
 agent/settings.json.bak
 agent/mcp-onboarding.json
