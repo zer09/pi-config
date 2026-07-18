@@ -33,12 +33,13 @@ export async function detectWindowsAppearance(
   pi: ExtensionAPI,
   queryTimeoutMs: number,
   allowWindowsInteropPath = false,
+  signal?: AbortSignal,
 ): Promise<ThemeKind | undefined> {
   const result = await execOutput(
     pi,
     getWindowsRegCommand(allowWindowsInteropPath),
     ["Query", "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", "/v", "AppsUseLightTheme"],
-    { timeout: queryTimeoutMs },
+    { signal, timeout: queryTimeoutMs },
   )
   if (!result) return undefined
 
@@ -50,7 +51,11 @@ export async function detectWindowsAppearance(
 /**
  * Detect Linux desktop appearance through xdg-desktop-portal.
  */
-export async function detectLinuxAppearance(pi: ExtensionAPI, queryTimeoutMs: number): Promise<ThemeKind | undefined> {
+export async function detectLinuxAppearance(
+  pi: ExtensionAPI,
+  queryTimeoutMs: number,
+  signal?: AbortSignal,
+): Promise<ThemeKind | undefined> {
   const result = await execOutput(
     pi,
     "dbus-send",
@@ -64,7 +69,7 @@ export async function detectLinuxAppearance(pi: ExtensionAPI, queryTimeoutMs: nu
       "string:org.freedesktop.appearance",
       "string:color-scheme",
     ],
-    { timeout: queryTimeoutMs },
+    { signal, timeout: queryTimeoutMs },
   )
   if (!result || result.stderr.trim() !== "") return undefined
 
@@ -81,10 +86,11 @@ export async function detectDarwinAppearance(
   pi: ExtensionAPI,
   queryTimeoutMs: number,
   viaOrbStack = false,
+  signal?: AbortSignal,
 ): Promise<ThemeKind | undefined> {
   const command = viaOrbStack ? "mac" : "defaults"
   const args = viaOrbStack ? ["defaults", "read", "-g", "AppleInterfaceStyle"] : ["read", "-g", "AppleInterfaceStyle"]
-  const result = await execOutput(pi, command, args, { allowNonZero: true, timeout: queryTimeoutMs })
+  const result = await execOutput(pi, command, args, { allowNonZero: true, signal, timeout: queryTimeoutMs })
   if (!result) return undefined
 
   return result.stdout.trim() === "Dark" ? "dark" : "light"
@@ -96,22 +102,22 @@ export async function detectDarwinAppearance(
  * Undefined means no reliable signal was available; callers should leave Pi's
  * current/default theme alone.
  */
-export async function detectSystemAppearance(pi: ExtensionAPI): Promise<ThemeKind | undefined> {
+export async function detectSystemAppearance(pi: ExtensionAPI, signal?: AbortSignal): Promise<ThemeKind | undefined> {
   switch (detectOS()) {
     case "WSL":
-      return detectWindowsAppearance(pi, QUERY_TIMEOUT_MS, true)
+      return detectWindowsAppearance(pi, QUERY_TIMEOUT_MS, true, signal)
 
     case "Windows_NT":
-      return detectWindowsAppearance(pi, QUERY_TIMEOUT_MS)
+      return detectWindowsAppearance(pi, QUERY_TIMEOUT_MS, false, signal)
 
     case "Linux":
-      return detectLinuxAppearance(pi, QUERY_TIMEOUT_MS)
+      return detectLinuxAppearance(pi, QUERY_TIMEOUT_MS, signal)
 
     case "Darwin":
-      return detectDarwinAppearance(pi, QUERY_TIMEOUT_MS)
+      return detectDarwinAppearance(pi, QUERY_TIMEOUT_MS, false, signal)
 
     case "OrbStack":
-      return detectDarwinAppearance(pi, QUERY_TIMEOUT_MS, true)
+      return detectDarwinAppearance(pi, QUERY_TIMEOUT_MS, true, signal)
 
     case "unsupported":
       return undefined

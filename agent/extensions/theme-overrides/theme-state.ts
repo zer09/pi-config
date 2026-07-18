@@ -41,13 +41,9 @@ export function isManagedThemeSource(sourcePath: string | undefined): boolean {
  * Snapshot the active Pi UI theme state used by override decisions.
  */
 export function currentThemeInfo(ctx: ExtensionContext): CurrentThemeInfo {
-  try {
-    return {
-      name: ctx.ui.theme.name,
-      sourcePath: ctx.ui.theme.sourcePath,
-    }
-  } catch {
-    return {}
+  return {
+    name: ctx.ui.theme.name,
+    sourcePath: ctx.ui.theme.sourcePath,
   }
 }
 

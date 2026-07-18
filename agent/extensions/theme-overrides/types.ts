@@ -30,6 +30,8 @@ export interface CommandOutput {
 export interface CommandOutputOptions {
   /** When true, non-zero exit codes still return captured output. */
   readonly allowNonZero?: boolean
+  /** Cancels an in-flight appearance probe when its Pi session shuts down. */
+  readonly signal?: AbortSignal
   /** Optional timeout in milliseconds passed to Pi's exec helper. */
   readonly timeout?: number
 }
