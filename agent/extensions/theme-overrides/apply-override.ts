@@ -13,12 +13,19 @@ import { currentThemeInfo, isThemeOverrideAllowed } from "./theme-state.ts"
 /**
  * Apply the matching dark/light runtime theme if it is currently safe.
  */
-export async function applyOverride(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
+export async function applyOverride(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  signal: AbortSignal,
+  isActive: () => boolean,
+): Promise<void> {
+  if (signal.aborted || !isActive()) return
   if (ctx.mode !== "tui") return
   if (!isThemeOverrideAllowed(ctx)) return
 
-  const kind = await detectSystemAppearance(pi)
-  if (!kind) return
+  const kind = await detectSystemAppearance(pi, signal)
+  // Nothing below awaits, so this check keeps all later ctx access in the active session.
+  if (signal.aborted || !isActive() || !kind) return
   if (!isThemeOverrideAllowed(ctx)) return
 
   const theme = ctx.ui.getTheme(kind)

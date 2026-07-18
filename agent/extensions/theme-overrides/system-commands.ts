@@ -28,7 +28,7 @@ export async function execOutput(
   options: CommandOutputOptions = {},
 ): Promise<CommandOutput | undefined> {
   try {
-    const result = await pi.exec(command, args, { timeout: options.timeout })
+    const result = await pi.exec(command, args, { signal: options.signal, timeout: options.timeout })
     if (result.killed) return undefined
     if (!options.allowNonZero && result.code !== 0) return undefined
     return { stdout: result.stdout, stderr: result.stderr, code: result.code }
