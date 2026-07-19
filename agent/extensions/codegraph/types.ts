@@ -199,6 +199,8 @@ export interface CachedGraph {
   lastWatcherSyncedAt?: number;
   /** Monotonic count of successful query-triggered full reconciliations. */
   querySyncGeneration: number;
+  /** Number of readiness calls currently checking/draining this root's freshness. */
+  activeFreshnessChecks: number;
   /** Timestamp when this project was last targeted by a query tool. */
   lastAccessedAt: number;
   /** Whether database replacement temporarily forbids watcher startup. */

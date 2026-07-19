@@ -447,6 +447,47 @@ test("keeps healthy LRU coverage when an incoming watcher cannot start", async (
   }
 });
 
+test("does not evict a root while its freshness check is active", async () => {
+  const roots = await Promise.all([
+    indexedRoot("pi-codegraph-active-a-"),
+    indexedRoot("pi-codegraph-active-b-"),
+    indexedRoot("pi-codegraph-active-c-"),
+  ]);
+  const graphs = roots.map((root) => new FakeGraph(root));
+  const restoreOpen = replaceOpen(new Map(roots.map((root, index) => [root, graphs[index]!] as const)));
+  const manager = new GraphManager({
+    pi: piForGitRoot(roots[0]!),
+    maxWatchedRoots: 1,
+    watchFlushWaitMs: 500,
+  });
+
+  try {
+    const initial = await manager.ensureReady(roots[0], context(roots[0]!));
+    assert.equal(initial.ok, true);
+    if (!initial.ok) throw new Error("expected initialized graph");
+
+    graphs[0]!.pendingFiles = [{ path: "src/active.ts", firstSeenMs: 1, lastSeenMs: 1, indexing: false }];
+    const activeQuery = manager.ensureReady(roots[0], context(roots[0]!));
+    while (initial.entry.activeFreshnessChecks === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
+
+    await manager.ensureReady(roots[1], context(roots[1]!));
+    assert.equal(graphs[0]!.watching, true, "active freshness work must retain event coverage");
+    assert.equal(graphs[1]!.watching, true, "the cap may be temporarily soft during concurrent work");
+
+    graphs[0]!.completeWatcherSync();
+    await activeQuery;
+    await manager.ensureReady(roots[2], context(roots[2]!));
+    assert.equal(graphs[2]!.watching, true);
+    assert.equal(graphs.filter((graph) => graph.watching).length, 1, "a later startup must trim inactive excess watchers");
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true })));
+  }
+});
+
 test("limits concurrent watchers and catches up an evicted root when it becomes active again", async () => {
   const roots = await Promise.all([
     indexedRoot("pi-codegraph-lru-a-"),

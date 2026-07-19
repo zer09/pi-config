@@ -146,6 +146,9 @@ export class GraphManager {
     const watched = [...this.graphs.values()]
       .filter((candidate) => {
         if (candidate.root === exceptRoot) return false;
+        if (candidate.activeFreshnessChecks > 0 || candidate.syncInFlight || candidate.indexInFlight || candidate.watchSuppressed) {
+          return false;
+        }
         try {
           return candidate.cg.isWatching();
         } catch {
@@ -227,6 +230,7 @@ export class GraphManager {
           openedAt: now,
           lastSyncedAt: 0,
           querySyncGeneration: 0,
+          activeFreshnessChecks: 0,
           lastAccessedAt: now,
           watchStartAttempted: false,
         };
@@ -403,6 +407,7 @@ export class GraphManager {
       openedAt,
       lastSyncedAt: 0,
       querySyncGeneration: 0,
+      activeFreshnessChecks: 0,
       lastAccessedAt: openedAt,
       watchStartAttempted: false,
     };
@@ -612,6 +617,15 @@ export class GraphManager {
   }
 
   private async ensureFresh(entry: CachedGraph): Promise<string | undefined> {
+    entry.activeFreshnessChecks++;
+    try {
+      return await this.ensureFreshInternal(entry);
+    } finally {
+      entry.activeFreshnessChecks--;
+    }
+  }
+
+  private async ensureFreshInternal(entry: CachedGraph): Promise<string | undefined> {
     entry.lastAccessedAt = Date.now();
     const observedSyncGeneration = entry.querySyncGeneration;
     // Install event capture before the first/full TTL reconciliation so files
