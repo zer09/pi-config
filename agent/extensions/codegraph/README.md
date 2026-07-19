@@ -24,7 +24,7 @@ Native Pi tools for CodeGraph. The extension opens and synchronizes projects thr
 - Query tools run a full reconciliation at most every 10s as a watcher-independent safety net. When the watcher reports pending files, a query waits up to 10s for the watcher's debounce/sync pipeline (including mid-sync follow-up events) instead of racing it; interrupted reference work still triggers direct reconciliation.
 - Up to four recently used roots are watched concurrently; older roots remain cached and are caught up before their next query. This keeps root repositories, nested subrepos, and indexed worktrees independent without accumulating watchers for every historical worktree.
 - `getChangedFiles()` is status-only diagnostics; it no longer gates freshness because clean checkout/pull transitions can be invisible to Git status.
-- An explicit nested repository or worktree without its own `.codegraph` cannot silently borrow an ancestor index; the extension treats that nested Git root as uninitialized.
+- An explicit nested repository or worktree without its own `.codegraph` cannot silently borrow an ancestor index. Git-root discovery is used only to detect that boundary: an explicit subdirectory in the same working tree still uses its nearest index, or remains the requested initialization root when none exists.
 - Sync also heals unresolved references left by an interrupted index, even when no source files changed.
 - Status reports watcher health, the last full-index completeness state, pending changes, and pending reference resolution.
 - Safe uninitialized roots always require confirmation before initialization.

@@ -332,6 +332,46 @@ test("keeps an explicit non-Git subdirectory on its initialized ancestor graph",
   }
 });
 
+test("uses an initialized monorepo graph for an explicit subdirectory in the same Git root", async () => {
+  const parent = await indexedRoot("pi-codegraph-monorepo-parent-");
+  const child = path.join(parent, "packages", "api");
+  await mkdir(child, { recursive: true });
+  const parentGraph = new FakeGraph(parent);
+  const restoreOpen = replaceOpen(new Map([[parent, parentGraph]]));
+  const manager = new GraphManager({ pi: piForGitRoot(parent) });
+
+  try {
+    const result = await manager.ensureReady(child, context(parent));
+    assert.equal(result.ok, true);
+    if (result.ok) assert.equal(result.root, parent);
+    assert.equal(parentGraph.syncCalls, 1);
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("keeps an explicit Git subproject as the initialization candidate", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "pi-codegraph-monorepo-unindexed-"));
+  const child = path.join(parent, "packages", "api");
+  await mkdir(child, { recursive: true });
+  const manager = new GraphManager({ pi: piForGitRoot(parent) });
+
+  try {
+    const snapshot = await manager.buildStatusSnapshot(child, context(parent), {
+      explicitProjectPath: true,
+      includeGraphState: false,
+      includeChangedFiles: false,
+    });
+    assert.equal(snapshot.initialized, false);
+    assert.equal(snapshot.candidateRoot, child, "Git metadata must not replace the explicitly requested index root");
+  } finally {
+    await manager.closeAll();
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
 test("does not let an unindexed nested repository borrow its ancestor graph", async () => {
   const parent = await indexedRoot("pi-codegraph-parent-");
   const nested = path.join(parent, "nested-worktree");

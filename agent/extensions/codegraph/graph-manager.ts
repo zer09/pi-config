@@ -297,12 +297,13 @@ export class GraphManager {
     }
 
     let nearest = findNearestCodeGraphRoot(searchPath);
-    if (nearest && explicitCandidate?.root && explicitCandidate.gitRoot) {
+    if (nearest && explicitCandidate?.gitRoot) {
       const nearestRoot = await canonicalPath(nearest);
-      const candidateRoot = await canonicalPath(explicitCandidate.root);
-      if (nearestRoot !== candidateRoot && isPathInside(nearestRoot, candidateRoot)) {
+      const gitRoot = await canonicalPath(explicitCandidate.gitRoot);
+      if (nearestRoot !== gitRoot && isPathInside(nearestRoot, gitRoot)) {
         // A nested repository/worktree without its own index must not silently
-        // borrow an ancestor project's graph.
+        // borrow an ancestor project's graph. Keep the explicit requested path
+        // as the initialization candidate; Git root is isolation metadata only.
         nearest = null;
       }
     }
