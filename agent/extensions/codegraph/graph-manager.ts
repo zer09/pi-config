@@ -11,6 +11,7 @@ import {
   DEFAULT_MAX_WATCHED_ROOTS,
   DEFAULT_SYNC_TTL_MS,
   DEFAULT_WATCH_DEBOUNCE_MS,
+  DEFAULT_WATCH_FLUSH_WAIT_MS,
 } from "./constants.ts";
 import {
   canonicalPath,
@@ -541,6 +542,19 @@ export class GraphManager {
     return `CodeGraph file watching degraded${reason ? `: ${reason}` : ""}; query-time reconciliation remains active every ${this.syncTtlMs}ms.`;
   }
 
+  private async waitForWatcherFlush(entry: CachedGraph): Promise<boolean> {
+    const deadline = Date.now() + DEFAULT_WATCH_FLUSH_WAIT_MS;
+    while (
+      entry.cg.isWatching()
+      && !entry.cg.isWatcherDegraded()
+      && entry.cg.getPendingFiles().length > 0
+      && Date.now() < deadline
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return entry.cg.getPendingFiles().length === 0;
+  }
+
   private async ensureFresh(entry: CachedGraph): Promise<string | undefined> {
     entry.lastAccessedAt = Date.now();
 
@@ -555,11 +569,22 @@ export class GraphManager {
       }
     }
 
-    const pendingFiles = entry.cg.getPendingFiles();
-    const restartWatcherAfterSync = pendingFiles.length > 0 && entry.cg.isWatching();
+    let pendingFiles = entry.cg.getPendingFiles();
+    const hadWatcherPending = pendingFiles.length > 0;
+    if (hadWatcherPending && entry.cg.isWatching() && !entry.cg.isWatcherDegraded()) {
+      const flushed = await this.waitForWatcherFlush(entry);
+      pendingFiles = entry.cg.getPendingFiles();
+      if (!flushed && entry.cg.isWatching() && !entry.cg.isWatcherDegraded()) {
+        return `CodeGraph watcher still has ${pendingFiles.length} pending file(s) after ${DEFAULT_WATCH_FLUSH_WAIT_MS}ms; using the existing index until its sync pipeline finishes.`;
+      }
+    }
+
+    const watcherCouldNotFlush = hadWatcherPending
+      && (!entry.cg.isWatching() || entry.cg.isWatcherDegraded());
     const pendingReferences = entry.cg.getPendingReferenceCount();
     const sinceSync = Date.now() - entry.lastSyncedAt;
     const syncDue = entry.lastSyncedAt === 0
+      || watcherCouldNotFlush
       || pendingFiles.length > 0
       || pendingReferences > 0
       || sinceSync >= this.syncTtlMs;
@@ -582,10 +607,6 @@ export class GraphManager {
 
     try {
       await entry.syncInFlight;
-      if (restartWatcherAfterSync) {
-        entry.cg.unwatch();
-        entry.watchStartAttempted = false;
-      }
       this.startWatching(entry);
       return this.watcherWarning(entry);
     } catch (error) {

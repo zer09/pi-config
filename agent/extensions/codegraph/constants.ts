@@ -18,6 +18,9 @@ export const DEFAULT_SYNC_TTL_MS = 10_000;
 /** Quiet period after a filesystem event before the SDK watcher syncs. */
 export const DEFAULT_WATCH_DEBOUNCE_MS = 2_000;
 
+/** Maximum query wait for the watcher's own pending-file sync pipeline. */
+export const DEFAULT_WATCH_FLUSH_WAIT_MS = 10_000;
+
 /** Maximum project roots watched concurrently by one Pi session. */
 export const DEFAULT_MAX_WATCHED_ROOTS = 4;
 

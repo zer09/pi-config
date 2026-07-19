@@ -74,6 +74,12 @@ class FakeGraph {
     return { added: [], modified: [], removed: [] };
   }
 
+  completeWatcherSync(pendingAfter: FakeGraph["pendingFiles"] = []) {
+    this.syncCalls++;
+    this.pendingFiles = pendingAfter;
+    this.watchCallbacks?.onSyncComplete?.({ filesChanged: 1, durationMs: 1 });
+  }
+
   getStats() {
     this.graphStateReads++;
     return { fileCount: 1, nodeCount: 1, edgeCount: 0, dbSizeBytes: 1, lastUpdated: Date.now() };
@@ -179,17 +185,24 @@ test("uses catch-up, watcher events, and TTL without getChangedFiles freshness p
     assert.equal(graph.syncCalls, 1, "a query inside the TTL should not rescan a quiet watched root");
 
     graph.pendingFiles = [{ path: "src/changed.ts", firstSeenMs: 1, lastSeenMs: 1, indexing: false }];
-    await manager.ensureReady(root, context(root));
-    assert.equal(graph.syncCalls, 2, "a watcher-reported pending file should reconcile immediately");
-    assert.equal(graph.pendingFiles.length, 0, "successful query reconciliation must clear the watcher pending queue");
-    assert.equal(graph.watchCalls, 2, "the active watcher should restart after its pending queue is cleared");
+    const unwatchCallsBeforePending = graph.unwatchCalls;
+    setTimeout(() => {
+      graph.completeWatcherSync([{ path: "src/newer.ts", firstSeenMs: 2, lastSeenMs: 2, indexing: false }]);
+    }, 5);
+    setTimeout(() => { graph.completeWatcherSync(); }, 15);
 
     await manager.ensureReady(root, context(root));
-    assert.equal(graph.syncCalls, 2, "another query inside the debounce/TTL window must not repeat the full sync");
+    assert.equal(graph.syncCalls, 3, "ensureReady should wait for the watcher and its mid-sync follow-up");
+    assert.equal(graph.pendingFiles.length, 0);
+    assert.equal(graph.watchCalls, 1, "query freshness must not restart an active watcher");
+    assert.equal(graph.unwatchCalls, unwatchCallsBeforePending, "mid-sync watcher events must never be cleared by unwatch");
+
+    await manager.ensureReady(root, context(root));
+    assert.equal(graph.syncCalls, 3, "another query inside the debounce/TTL window must not repeat the full sync");
 
     if (first.ok) first.entry.lastSyncedAt = Date.now() - 20_000;
     await manager.ensureReady(root, context(root));
-    assert.equal(graph.syncCalls, 3, "the TTL safety net must reconcile even without watcher events");
+    assert.equal(graph.syncCalls, 4, "the TTL safety net must reconcile even without watcher events");
 
     await manager.buildStatusSnapshot(root, context(root), { explicitProjectPath: true });
     assert.equal(graph.changedFileChecks, 1, "getChangedFiles remains available only to codegraph_status diagnostics");
