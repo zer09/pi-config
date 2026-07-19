@@ -121,7 +121,8 @@ export function formatStatus(snapshot: StatusSnapshot, initMessage?: string): st
   if (pendingWatcher.length > 20) lines.push(`  - ... ${pendingWatcher.length - 20} more`);
 
   lines.push(`- query reconciliation TTL: ${snapshot.syncTtlMs}ms`);
-  lines.push(`- last watcher/query sync: ${formatTimestamp(snapshot.lastSyncedAt)}`);
+  lines.push(`- last query reconciliation: ${formatTimestamp(snapshot.lastSyncedAt)}`);
+  lines.push(`- last watcher sync: ${formatTimestamp(snapshot.lastWatcherSyncedAt)}`);
   lines.push(`- query reconciliation in flight: ${snapshot.syncInFlight ? "yes" : "no"}`);
   lines.push(`- next query reconciliation: ${snapshot.nextQuerySync ?? "unknown"}${snapshot.nextQuerySyncAfterMs ? ` in ~${snapshot.nextQuerySyncAfterMs}ms` : ""}`);
 

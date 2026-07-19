@@ -193,8 +193,10 @@ export interface CachedGraph {
   cg: CodeGraphInstance;
   /** Timestamp when the instance was opened. */
   readonly openedAt: number;
-  /** Timestamp of the last successful watcher or query-triggered sync. */
+  /** Timestamp of the last successful query-triggered full reconciliation. */
   lastSyncedAt: number;
+  /** Timestamp of the last successful SDK watcher sync. */
+  lastWatcherSyncedAt?: number;
   /** Timestamp when this project was last targeted by a query tool. */
   lastAccessedAt: number;
   /** Whether this graph has attempted to start its SDK watcher. */
@@ -300,8 +302,10 @@ export interface StatusSnapshot {
   readonly watchError?: string;
   /** Query-triggered reconciliation TTL in milliseconds. */
   readonly syncTtlMs: number;
-  /** Last successful watcher or query-triggered sync timestamp. */
+  /** Last successful query-triggered full reconciliation timestamp. */
   readonly lastSyncedAt?: number;
+  /** Last successful SDK watcher sync timestamp. */
+  readonly lastWatcherSyncedAt?: number;
   /** Whether query-triggered reconciliation is in flight. */
   readonly syncInFlight?: boolean;
   /** What the next query tool would do about syncing. */

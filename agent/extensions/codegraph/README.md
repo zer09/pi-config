@@ -27,7 +27,7 @@ Native Pi tools for CodeGraph. The extension opens and synchronizes projects thr
 - `getChangedFiles()` is status-only diagnostics; it no longer gates freshness because clean checkout/pull transitions can be invisible to Git status.
 - A nested repository or worktree without its own `.codegraph` cannot silently borrow an ancestor index, whether selected by explicit `projectPath` or the current cwd. Git-root discovery is used only to detect that boundary: an explicit subdirectory in the same working tree still uses its nearest index, or remains the requested initialization root when none exists.
 - Sync also heals unresolved references left by an interrupted index, even when no source files changed.
-- Status reports watcher health, the last full-index completeness state, pending changes, and pending reference resolution.
+- Status reports watcher health, separate watcher/query reconciliation timestamps, the last full-index completeness state, pending changes, and pending reference resolution. Watcher completions never postpone the 10s watcher-independent reconciliation clock.
 - Safe uninitialized roots always require confirmation before initialization.
 - Confirmed full reindexes stop the SDK watcher and wait for watcher/query index work to become idle before recreating the database, matching CodeGraph CLI rebuild behavior without racing the old SQLite handle.
 - Cached graph handles are reopened when the on-disk database is replaced.

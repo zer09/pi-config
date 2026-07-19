@@ -194,6 +194,7 @@ test("uses catch-up, watcher events, and TTL without getChangedFiles freshness p
     assert.equal(graph.watchCalls, 1);
     assert.equal(graph.graphStateReads, 1, "ensureReady should carry location state and capture freshness once after reconciliation");
     assert.equal(graph.changedFileChecks, 0, "query freshness must not use git-status diagnostics");
+    const queryReconciledAt = first.ok ? first.entry.lastSyncedAt : 0;
 
     await manager.ensureReady(root, context(root));
     assert.equal(graph.syncCalls, 1, "a query inside the TTL should not rescan a quiet watched root");
@@ -210,6 +211,10 @@ test("uses catch-up, watcher events, and TTL without getChangedFiles freshness p
     assert.equal(graph.pendingFiles.length, 0);
     assert.equal(graph.watchCalls, 1, "query freshness must not restart an active watcher");
     assert.equal(graph.unwatchCalls, unwatchCallsBeforePending, "mid-sync watcher events must never be cleared by unwatch");
+    if (first.ok) {
+      assert.equal(first.entry.lastSyncedAt, queryReconciledAt, "watcher syncs must not postpone the independent TTL clock");
+      assert.ok((first.entry.lastWatcherSyncedAt ?? 0) >= queryReconciledAt);
+    }
 
     await manager.ensureReady(root, context(root));
     assert.equal(graph.syncCalls, 3, "another query inside the debounce/TTL window must not repeat the full sync");

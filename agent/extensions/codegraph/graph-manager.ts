@@ -124,6 +124,7 @@ export class GraphManager {
         entry.watchStartAttempted = false;
         entry.watchRetryAfter = undefined;
         entry.watchError = undefined;
+        entry.lastWatcherSyncedAt = undefined;
         entry.staleReindexDeclined = false;
       }
     } catch {
@@ -172,7 +173,7 @@ export class GraphManager {
       const started = entry.cg.watch({
         debounceMs: DEFAULT_WATCH_DEBOUNCE_MS,
         onSyncComplete: () => {
-          entry.lastSyncedAt = Date.now();
+          entry.lastWatcherSyncedAt = Date.now();
           entry.watchError = undefined;
         },
         onSyncError: (error) => {
@@ -271,6 +272,7 @@ export class GraphManager {
       watchError: entry.watchError,
       syncTtlMs: this.syncTtlMs,
       lastSyncedAt: entry.lastSyncedAt,
+      lastWatcherSyncedAt: entry.lastWatcherSyncedAt,
       syncInFlight: !!entry.syncInFlight,
       nextQuerySync,
       nextQuerySyncAfterMs,
@@ -479,6 +481,7 @@ export class GraphManager {
     entry.watchStartAttempted = false;
     entry.watchRetryAfter = undefined;
     entry.watchError = undefined;
+    entry.lastWatcherSyncedAt = undefined;
     entry.staleReindexDeclined = false;
     if (!previousClosed) this.closeGraphQuietly(previousGraph);
 
