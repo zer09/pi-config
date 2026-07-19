@@ -209,6 +209,7 @@ Use these docs to understand why the config looks the way it does:
 | Path                | Purpose                                                                            |
 | ------------------- | ---------------------------------------------------------------------------------- |
 | `docs/CHANGELOG.md` | Human-readable timeline of local Pi config changes.                                |
+| `docs/TODO.md`      | Deferred maintenance checks, including when to reconsider upstreaming local package fixes. |
 | `docs/changelogs/`  | Detailed upgrade notes for specific Pi/package transitions, including the 0.80.3 → 0.80.6 recovery and 0.80.6 → 0.80.10 SDK migration. |
 | `docs/adr/`         | Architecture decision records for long-lived config choices.                       |
 | `docs/skills/`      | Skill inventory, maintenance workflows, update processes, and retired-skill notes. |
