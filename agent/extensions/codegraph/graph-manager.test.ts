@@ -29,6 +29,7 @@ class FakeGraph {
   degradedReason: string | null = null;
   watchCallbacks: WatchCallbacks | undefined;
   onExternalSync: ((call: number) => void) | undefined;
+  syncGate: Promise<void> | undefined;
 
   readonly root: string;
 
@@ -39,6 +40,7 @@ class FakeGraph {
   async sync() {
     this.syncCalls++;
     this.onExternalSync?.(this.syncCalls);
+    if (this.syncGate) await this.syncGate;
     const filesChanged = this.pendingFiles.length;
     // External cg.sync() updates the DB but does not clear the watcher-owned
     // pending queue; only unwatch()/the watcher's own flush does that.
@@ -57,7 +59,17 @@ class FakeGraph {
     this.watchCalls++;
     this.watchCallbacks = options;
     this.watching = true;
+    this.degraded = false;
+    this.degradedReason = null;
     return true;
+  }
+
+  degradeWatcher(reason: string) {
+    this.degraded = true;
+    this.degradedReason = reason;
+    this.watchCallbacks?.onDegraded?.(reason);
+    this.watching = false;
+    this.pendingFiles = [];
   }
 
   unwatch() {
@@ -242,6 +254,72 @@ test("starts watching before catch-up and drains events observed during that syn
   }
 });
 
+test("concurrent readiness waits for watcher events captured during the shared sync", async () => {
+  const root = await indexedRoot("pi-codegraph-concurrent-drain-");
+  const graph = new FakeGraph(root);
+  const restoreOpen = replaceOpen(new Map([[root, graph]]));
+  const manager = new GraphManager({ pi: piForGitRoot(root) });
+  let releaseSync: (() => void) | undefined;
+  graph.syncGate = new Promise<void>((resolve) => { releaseSync = resolve; });
+  graph.onExternalSync = (call) => {
+    if (call === 1) {
+      graph.pendingFiles = [{ path: "src/concurrent.ts", firstSeenMs: 1, lastSeenMs: 1, indexing: false }];
+    }
+  };
+
+  try {
+    const first = manager.ensureReady(root, context(root));
+    while (graph.syncCalls === 0) await new Promise((resolve) => setTimeout(resolve, 1));
+
+    let secondSettled = false;
+    const second = manager.ensureReady(root, context(root)).finally(() => { secondSettled = true; });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    releaseSync?.();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(secondSettled, false, "a waiter must not query before the shared sync's watcher follow-up");
+
+    graph.completeWatcherSync();
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    assert.equal(firstResult.ok, true);
+    assert.equal(secondResult.ok, true);
+    assert.equal(graph.pendingFiles.length, 0);
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("retries a degraded watcher after bounded backoff", async () => {
+  const root = await indexedRoot("pi-codegraph-watcher-retry-");
+  const graph = new FakeGraph(root);
+  const restoreOpen = replaceOpen(new Map([[root, graph]]));
+  const manager = new GraphManager({ pi: piForGitRoot(root), watchRetryMs: 100 });
+
+  try {
+    const first = await manager.ensureReady(root, context(root));
+    assert.equal(first.ok, true);
+    assert.equal(graph.watchCalls, 1);
+
+    graph.degradeWatcher("temporary lock contention");
+    const duringBackoff = await manager.ensureReady(root, context(root));
+    assert.equal(duringBackoff.ok, true);
+    assert.equal(graph.watchCalls, 1, "degradation must not cause per-query restart hammering");
+    if (duringBackoff.ok) assert.match(duringBackoff.syncWarning ?? "", /temporary lock contention/);
+
+    await new Promise((resolve) => setTimeout(resolve, 110));
+    const recovered = await manager.ensureReady(root, context(root));
+    assert.equal(recovered.ok, true);
+    assert.equal(graph.watchCalls, 2, "an inactive degraded watcher should retry after backoff");
+    assert.equal(graph.watching, true);
+    assert.equal(graph.degraded, false);
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("limits concurrent watchers and catches up an evicted root when it becomes active again", async () => {
   const roots = await Promise.all([
     indexedRoot("pi-codegraph-lru-a-"),
@@ -301,6 +379,7 @@ test("waits for watcher syncs to become idle before recreating the database", as
     assert.equal(recreateObservedBusyGraph, false, "database recreation must wait for invisible watcher sync work");
     assert.ok(oldGraph.unwatchCalls >= 1, "watcher must stop before recreation");
     assert.equal(freshGraph.indexAllCalls, 1);
+    assert.equal(freshGraph.syncCalls, 1, "full reindex must receive a watched catch-up pass before readiness");
     assert.equal(freshGraph.watching, true);
     assert.equal(freshGraph.changedFileChecks, 1, "status-oriented readiness must retain changed-file diagnostics");
   } finally {

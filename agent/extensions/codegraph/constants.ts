@@ -21,6 +21,9 @@ export const DEFAULT_WATCH_DEBOUNCE_MS = 2_000;
 /** Maximum query wait for the watcher's own pending-file sync pipeline. */
 export const DEFAULT_WATCH_FLUSH_WAIT_MS = 10_000;
 
+/** Backoff before retrying an unavailable or degraded SDK watcher. */
+export const DEFAULT_WATCH_RETRY_MS = 10_000;
+
 /** Maximum project roots watched concurrently by one Pi session. */
 export const DEFAULT_MAX_WATCHED_ROOTS = 4;
 

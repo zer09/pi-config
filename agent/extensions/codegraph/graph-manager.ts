@@ -12,6 +12,7 @@ import {
   DEFAULT_SYNC_TTL_MS,
   DEFAULT_WATCH_DEBOUNCE_MS,
   DEFAULT_WATCH_FLUSH_WAIT_MS,
+  DEFAULT_WATCH_RETRY_MS,
 } from "./constants.ts";
 import {
   canonicalPath,
@@ -41,6 +42,8 @@ export interface GraphManagerOptions {
   readonly syncTtlMs?: number;
   /** Concurrent watched-root cap override, primarily for focused tests. */
   readonly maxWatchedRoots?: number;
+  /** Watcher restart backoff override, primarily for focused tests. */
+  readonly watchRetryMs?: number;
 }
 
 /** Options for building a status snapshot. */
@@ -84,6 +87,7 @@ export class GraphManager {
   private readonly pi: ExtensionAPI;
   private readonly syncTtlMs: number;
   private readonly maxWatchedRoots: number;
+  private readonly watchRetryMs: number;
   private readonly graphs = new Map<string, CachedGraph>();
   private readonly opening = new Map<string, Promise<CachedGraph>>();
 
@@ -96,6 +100,7 @@ export class GraphManager {
     this.pi = options.pi;
     this.syncTtlMs = Math.max(0, options.syncTtlMs ?? DEFAULT_SYNC_TTL_MS);
     this.maxWatchedRoots = Math.max(1, options.maxWatchedRoots ?? DEFAULT_MAX_WATCHED_ROOTS);
+    this.watchRetryMs = Math.max(0, options.watchRetryMs ?? DEFAULT_WATCH_RETRY_MS);
   }
 
   private closeGraphQuietly(cg: CodeGraphInstance): void {
@@ -117,6 +122,7 @@ export class GraphManager {
       if (entry.cg.reopenIfReplaced()) {
         entry.lastSyncedAt = 0;
         entry.watchStartAttempted = false;
+        entry.watchRetryAfter = undefined;
         entry.watchError = undefined;
         entry.staleReindexDeclined = false;
       }
@@ -147,15 +153,19 @@ export class GraphManager {
       }
       oldest.lastSyncedAt = 0;
       oldest.watchStartAttempted = false;
+      oldest.watchRetryAfter = undefined;
     }
   }
 
   private startWatching(entry: CachedGraph): void {
-    entry.lastAccessedAt = Date.now();
-    if (entry.cg.isWatching() || entry.watchStartAttempted) return;
+    const now = Date.now();
+    entry.lastAccessedAt = now;
+    if (entry.cg.isWatching()) return;
+    if (entry.watchStartAttempted && now < (entry.watchRetryAfter ?? 0)) return;
 
     this.stopOldestWatcher(entry.root);
     entry.watchStartAttempted = true;
+    entry.watchRetryAfter = now + this.watchRetryMs;
     entry.watchError = undefined;
 
     try {
@@ -170,6 +180,7 @@ export class GraphManager {
         },
         onDegraded: (reason) => {
           entry.watchError = reason;
+          entry.watchRetryAfter = Date.now() + this.watchRetryMs;
         },
       });
       if (!started) {
@@ -399,6 +410,9 @@ export class GraphManager {
 
     try {
       await indexPromise;
+      // Watch first, then force one incremental pass so edits made during the
+      // full index cannot fall into an index-scan-to-watcher blind spot.
+      entry.lastSyncedAt = 0;
       this.startWatching(entry);
       return { entry, message: `Initialized and indexed CodeGraph at ${canonicalRoot}.` };
     } catch (error) {
@@ -417,6 +431,7 @@ export class GraphManager {
       entry.cg.unwatch();
     } finally {
       entry.watchStartAttempted = false;
+      entry.watchRetryAfter = undefined;
     }
 
     if (entry.syncInFlight) {
@@ -461,6 +476,7 @@ export class GraphManager {
     entry.cg = freshGraph;
     entry.lastSyncedAt = 0;
     entry.watchStartAttempted = false;
+    entry.watchRetryAfter = undefined;
     entry.watchError = undefined;
     entry.staleReindexDeclined = false;
     if (!previousClosed) this.closeGraphQuietly(previousGraph);
@@ -477,7 +493,9 @@ export class GraphManager {
       throw new Error(result.errors.map((e) => e.message).join("; ") || "CodeGraph indexing failed.");
     }
 
-    entry.lastSyncedAt = Date.now();
+    // The caller's following ensureFresh() installs/drains the watcher around a
+    // forced incremental pass, closing the full-index-to-watcher handoff gap.
+    entry.lastSyncedAt = 0;
     this.startWatching(entry);
   }
 
@@ -565,8 +583,6 @@ export class GraphManager {
     if (entry.syncInFlight) {
       try {
         await entry.syncInFlight;
-        this.startWatching(entry);
-        return this.watcherWarning(entry);
       } catch (error) {
         this.startWatching(entry);
         return `CodeGraph sync failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
@@ -664,12 +680,21 @@ export class GraphManager {
       }
       const init = await this.initializeGraph(snapshot.candidateRoot, ctx, onUpdate, signal);
       if (!init.entry) return { ok: false, message: init.message ?? `CodeGraph is not initialized at ${snapshot.candidateRoot}.`, snapshot };
+      const warnings = [init.message, await this.ensureFresh(init.entry)]
+        .filter((warning): warning is string => !!warning);
       const readySnapshot = this.refreshStatusSnapshot(
         { startPath: snapshot.startPath, searchPath: snapshot.searchPath },
         init.entry,
         options.includeChangedFiles ?? false,
       );
-      return { ok: true, root: init.entry.root, cg: init.entry.cg, entry: init.entry, snapshot: readySnapshot, syncWarning: init.message };
+      return {
+        ok: true,
+        root: init.entry.root,
+        cg: init.entry.cg,
+        entry: init.entry,
+        snapshot: readySnapshot,
+        syncWarning: warnings.join(" ") || undefined,
+      };
     }
 
     const entry = await this.getEntry(snapshot.root!);

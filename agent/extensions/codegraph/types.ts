@@ -199,6 +199,8 @@ export interface CachedGraph {
   lastAccessedAt: number;
   /** Whether this graph has attempted to start its SDK watcher. */
   watchStartAttempted: boolean;
+  /** Earliest timestamp for retrying an inactive watcher after failure/degradation. */
+  watchRetryAfter?: number;
   /** Latest watcher startup/runtime problem, when known. */
   watchError?: string;
   /** In-flight sync promise used to deduplicate concurrent query reconciliation. */
