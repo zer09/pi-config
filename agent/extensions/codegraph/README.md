@@ -20,11 +20,16 @@ Native Pi tools for CodeGraph. The extension opens and synchronizes projects thr
 - If the pinned upstream truncation marker cuts through CodeGraph's final unmatched triple-backtick source fence, the adapter closes that fence and replaces the inaccurate completeness notice with an explicit partial-source warning. The same bytes inside a larger Markdown fence and near-miss marker formats remain unchanged.
 - Pi's outer emergency cap counts LF, CRLF, and lone-CR lines and tracks backtick and tilde Markdown fences. If truncation removes a normal closing fence, Pi closes it with the matching delimiter before its notice. If an extreme delimiter would amplify output, Pi omits that active block from the retained prefix instead.
 - Private module, handler, accessor, sparse-array, and result-shape drift fail with versioned compatibility guidance; there is no reduced retrieval fallback.
-- Query-time sync uses a fixed 10s TTL between extension-triggered syncs.
+- Every queried project root installs an in-process SDK watcher with a 2s quiet-period debounce before its initial catch-up reconciliation, then drains any events observed during that catch-up before serving the query.
+- Query tools run a full reconciliation at most every 10s as a watcher-independent safety net. When the watcher reports pending files, a query waits up to 10s for its debounce/sync pipeline, but an aborted tool call detaches immediately. If the wait times out, one shared direct reconciliation proceeds without clearing the watcher-owned queue; concurrent queries await the same reconciliation and post-sync drain.
+- Four recently used roots are normally watched concurrently. Active freshness work is never evicted, so the cap may be temporarily soft during concurrent queries; a later successful watcher startup trims inactive least-recently-used excess roots. Older roots remain cached and catch up before reuse.
+- An unavailable or degraded watcher retries after a 10s backoff and prefixes query output with its recorded watcher warning. Degradation also invalidates query freshness immediately, forcing direct reconciliation on the next tool call without per-call watcher restart hammering.
+- `getChangedFiles()` is not the general freshness gate because clean checkout/pull transitions can be invisible to Git status. It is used for status diagnostics plus a removal-only macOS/Windows fallback where recursive watchers can coalesce a deleted subtree into an event with no pending file names.
+- A nested repository or worktree without its own `.codegraph` cannot silently borrow an ancestor index, whether selected by explicit `projectPath` or the current cwd. Git-root discovery is used only to detect that boundary: an explicit subdirectory in the same working tree still uses its nearest index, or remains the requested initialization root when none exists.
 - Sync also heals unresolved references left by an interrupted index, even when no source files changed.
-- Status reports the last full-index completeness state and pending reference resolution.
+- Status reports watcher health, separate watcher/query reconciliation timestamps, the last full-index completeness state, pending changes, and pending reference resolution. Watcher completions never postpone the 10s watcher-independent reconciliation clock.
 - Safe uninitialized roots always require confirmation before initialization.
-- Confirmed full reindexes recreate the CodeGraph database before indexing, matching CodeGraph CLI behavior.
+- Confirmed full reindexes suppress watcher startup for the entire replacement transaction, stop the old watcher before and after shared query work settles, and wait for SDK indexing to become idle before recreating SQLite.
 - Cached graph handles are reopened when the on-disk database is replaced.
 
 The extension refuses to initialize unsafe roots such as `$HOME`, filesystem roots, or parents of `$HOME`.

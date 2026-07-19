@@ -15,6 +15,8 @@ import type { ExtensionAPI } from "./types.ts";
 export interface CandidateRootResult {
   /** Canonical root suitable for initialization, when resolution succeeds. */
   readonly root?: string;
+  /** Canonical containing Git root, used only for nested-repository isolation. */
+  readonly gitRoot?: string;
   /** User-facing resolution error, when resolution fails. */
   readonly error?: string;
 }
@@ -151,7 +153,6 @@ export async function resolveCandidateRoot(
     try {
       const s = await stat(searchPath);
       if (!s.isDirectory()) return { error: `projectPath is not a directory: ${searchPath}` };
-      return { root: await canonicalPath(searchPath) };
     } catch {
       return { error: `projectPath does not exist or is not accessible: ${searchPath}` };
     }
@@ -163,11 +164,16 @@ export async function resolveCandidateRoot(
     signal,
   }).catch(() => undefined);
 
+  const requestedRoot = await canonicalPath(searchPath || cwd);
   if (git?.code === 0 && git.stdout.trim()) {
-    return { root: await canonicalPath(git.stdout.trim()) };
+    const gitRoot = await canonicalPath(git.stdout.trim());
+    return {
+      root: explicitProjectPath ? requestedRoot : gitRoot,
+      gitRoot,
+    };
   }
 
-  return { root: await canonicalPath(searchPath || cwd) };
+  return { root: requestedRoot };
 }
 
 /**

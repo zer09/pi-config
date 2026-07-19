@@ -60,7 +60,13 @@ export function registerStatusTool(pi: ExtensionAPI, manager: GraphManager): voi
           (snapshot.pendingReferenceCount ?? 0) > 0
         )
       ) {
-        const graph = await manager.ensureReady(params.projectPath, ctx, onUpdate, signal);
+        const graph = await manager.ensureReady(
+          params.projectPath,
+          ctx,
+          onUpdate,
+          signal,
+          { includeChangedFiles: true },
+        );
         if (graph.ok === false) return textResult(graph.message, { snapshot: graph.snapshot });
         snapshot = graph.snapshot;
         initMessage = graph.syncWarning;

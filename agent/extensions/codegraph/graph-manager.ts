@@ -7,16 +7,22 @@
  */
 
 import { CodeGraph, findNearestCodeGraphRoot } from "./codegraph-package.ts";
-import { DEFAULT_SYNC_TTL_MS } from "./constants.ts";
+import {
+  DEFAULT_MAX_WATCHED_ROOTS,
+  DEFAULT_SYNC_TTL_MS,
+  DEFAULT_WATCH_DEBOUNCE_MS,
+  DEFAULT_WATCH_FLUSH_WAIT_MS,
+  DEFAULT_WATCH_RETRY_MS,
+} from "./constants.ts";
 import {
   canonicalPath,
   existingSearchPath,
+  isPathInside,
   resolveCandidateRoot,
   resolvePath,
   unsafeRootReason,
 } from "./paths.ts";
 import { textResult } from "./result.ts";
-import { changedCount } from "./status-format.ts";
 import type {
   CachedGraph,
   CodeGraphInstance,
@@ -32,12 +38,32 @@ import type {
 export interface GraphManagerOptions {
   /** Pi API used for git root detection and UI confirmations. */
   readonly pi: ExtensionAPI;
+  /** Query reconciliation interval override, primarily for focused tests. */
+  readonly syncTtlMs?: number;
+  /** Concurrent watched-root cap override, primarily for focused tests. */
+  readonly maxWatchedRoots?: number;
+  /** Watcher restart backoff override, primarily for focused tests. */
+  readonly watchRetryMs?: number;
+  /** Pending watcher-drain wait override, primarily for focused tests. */
+  readonly watchFlushWaitMs?: number;
+  /** Enable the macOS/Windows coalesced-directory-removal probe. */
+  readonly watcherRemovalProbe?: boolean;
 }
 
 /** Options for building a status snapshot. */
 export interface BuildStatusSnapshotOptions {
   /** Whether the user explicitly supplied projectPath. */
   readonly explicitProjectPath?: boolean;
+  /** Include runtime graph state instead of returning only resolved location data. */
+  readonly includeGraphState?: boolean;
+  /** Include the git-status-based changed-file diagnostic. */
+  readonly includeChangedFiles?: boolean;
+}
+
+/** Optional diagnostics requested by the caller of ensureReady. */
+export interface EnsureReadyOptions {
+  /** Include changed-file diagnostics in the single post-reconciliation snapshot. */
+  readonly includeChangedFiles?: boolean;
 }
 
 /** Result returned by CodeGraph initialization. */
@@ -52,6 +78,33 @@ function isLockUnavailableSyncResult(result: { readonly filesChecked: number; re
   return result.filesChecked === 0 && result.durationMs === 0;
 }
 
+function abortReason(signal: AbortSignal): unknown {
+  return signal.reason ?? new Error("CodeGraph operation aborted.");
+}
+
+function waitWithAbort<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return operation;
+  if (signal.aborted) return Promise.reject(abortReason(signal));
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(abortReason(signal));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    operation.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 /**
  * Manage open CodeGraph instances, readiness checks, lazy sync, and cleanup.
  *
@@ -63,7 +116,11 @@ function isLockUnavailableSyncResult(result: { readonly filesChecked: number; re
  */
 export class GraphManager {
   private readonly pi: ExtensionAPI;
-  private readonly syncTtlMs = DEFAULT_SYNC_TTL_MS;
+  private readonly syncTtlMs: number;
+  private readonly maxWatchedRoots: number;
+  private readonly watchRetryMs: number;
+  private readonly watchFlushWaitMs: number;
+  private readonly watcherRemovalProbe: boolean;
   private readonly graphs = new Map<string, CachedGraph>();
   private readonly opening = new Map<string, Promise<CachedGraph>>();
 
@@ -74,6 +131,12 @@ export class GraphManager {
    */
   constructor(options: GraphManagerOptions) {
     this.pi = options.pi;
+    this.syncTtlMs = Math.max(0, options.syncTtlMs ?? DEFAULT_SYNC_TTL_MS);
+    this.maxWatchedRoots = Math.max(1, options.maxWatchedRoots ?? DEFAULT_MAX_WATCHED_ROOTS);
+    this.watchRetryMs = Math.max(0, options.watchRetryMs ?? DEFAULT_WATCH_RETRY_MS);
+    this.watchFlushWaitMs = Math.max(0, options.watchFlushWaitMs ?? DEFAULT_WATCH_FLUSH_WAIT_MS);
+    this.watcherRemovalProbe = options.watcherRemovalProbe
+      ?? (process.platform === "darwin" || process.platform === "win32");
   }
 
   private closeGraphQuietly(cg: CodeGraphInstance): void {
@@ -94,10 +157,82 @@ export class GraphManager {
     try {
       if (entry.cg.reopenIfReplaced()) {
         entry.lastSyncedAt = 0;
+        entry.querySyncGeneration = 0;
+        entry.watchStartAttempted = false;
+        entry.watchRetryAfter = undefined;
+        entry.watchError = undefined;
+        entry.lastWatcherSyncedAt = undefined;
         entry.staleReindexDeclined = false;
       }
     } catch {
       // Best-effort self-heal; keep serving from the existing handle and retry later.
+    }
+  }
+
+  private stopOldestWatcher(exceptRoot: string): void {
+    const watched = [...this.graphs.values()]
+      .filter((candidate) => {
+        if (candidate.root === exceptRoot) return false;
+        if (candidate.activeFreshnessChecks > 0 || candidate.syncInFlight || candidate.indexInFlight || candidate.watchSuppressed) {
+          return false;
+        }
+        try {
+          return candidate.cg.isWatching();
+        } catch {
+          return false;
+        }
+      })
+      .sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
+
+    while (watched.length >= this.maxWatchedRoots) {
+      const oldest = watched.shift();
+      if (!oldest) break;
+      try {
+        oldest.cg.unwatch();
+      } catch {
+        // A later query still performs catch-up reconciliation before reuse.
+      }
+      oldest.lastSyncedAt = 0;
+      oldest.watchStartAttempted = false;
+      oldest.watchRetryAfter = undefined;
+    }
+  }
+
+  private startWatching(entry: CachedGraph): void {
+    const now = Date.now();
+    entry.lastAccessedAt = now;
+    if (entry.watchSuppressed || entry.cg.isWatching()) return;
+    if (entry.watchStartAttempted && now < (entry.watchRetryAfter ?? 0)) return;
+
+    entry.watchStartAttempted = true;
+    entry.watchRetryAfter = now + this.watchRetryMs;
+    entry.watchError = undefined;
+
+    try {
+      const started = entry.cg.watch({
+        debounceMs: DEFAULT_WATCH_DEBOUNCE_MS,
+        onSyncComplete: () => {
+          entry.lastWatcherSyncedAt = Date.now();
+          entry.watchError = undefined;
+        },
+        onSyncError: (error) => {
+          entry.watchError = error.message;
+        },
+        onDegraded: (reason) => {
+          entry.watchError = reason;
+          entry.lastSyncedAt = 0;
+          entry.watchRetryAfter = Date.now() + this.watchRetryMs;
+        },
+      });
+      if (started) {
+        // Do not sacrifice healthy coverage until the incoming watcher proves
+        // it can occupy a slot. The cap is restored immediately after startup.
+        this.stopOldestWatcher(entry.root);
+      } else {
+        entry.watchError = "SDK file watching is unavailable for this project; query-time reconciliation remains active.";
+      }
+    } catch (error) {
+      entry.watchError = `SDK file watcher failed to start: ${error instanceof Error ? error.message : String(error)}`;
     }
   }
 
@@ -106,6 +241,7 @@ export class GraphManager {
     const existing = this.graphs.get(canonicalRoot);
     if (existing) {
       this.reopenIfReplaced(existing);
+      existing.lastAccessedAt = Date.now();
       return existing;
     }
 
@@ -114,11 +250,16 @@ export class GraphManager {
 
     const openPromise = CodeGraph.open(canonicalRoot, { sync: false })
       .then((cg) => {
+        const now = Date.now();
         const entry: CachedGraph = {
           root: canonicalRoot,
           cg,
-          openedAt: Date.now(),
+          openedAt: now,
           lastSyncedAt: 0,
+          querySyncGeneration: 0,
+          activeFreshnessChecks: 0,
+          lastAccessedAt: now,
+          watchStartAttempted: false,
         };
         this.graphs.set(canonicalRoot, entry);
         return entry;
@@ -129,6 +270,59 @@ export class GraphManager {
 
     this.opening.set(canonicalRoot, openPromise);
     return openPromise;
+  }
+
+  private refreshStatusSnapshot(
+    base: Pick<StatusSnapshot, "startPath" | "searchPath">,
+    entry: CachedGraph,
+    includeChangedFiles: boolean,
+  ): StatusSnapshot {
+    const pendingReferenceCount = entry.cg.getPendingReferenceCount();
+    const pendingFiles = entry.cg.getPendingFiles();
+    const sinceSync = Date.now() - entry.lastSyncedAt;
+    const syncDue = entry.lastSyncedAt === 0
+      || pendingFiles.length > 0
+      || pendingReferenceCount > 0
+      || sinceSync >= this.syncTtlMs;
+    let nextQuerySync: StatusSnapshot["nextQuerySync"];
+    let nextQuerySyncAfterMs: number | undefined;
+
+    if (entry.syncInFlight) {
+      nextQuerySync = "in-flight";
+    } else if (syncDue) {
+      nextQuerySync = "now";
+    } else {
+      nextQuerySync = "after-ttl";
+      nextQuerySyncAfterMs = this.syncTtlMs - sinceSync;
+    }
+
+    const watcherDegraded = entry.cg.isWatcherDegraded();
+    return {
+      initialized: true,
+      ...base,
+      root: entry.root,
+      stats: entry.cg.getStats(),
+      backend: entry.cg.getBackend(),
+      journalMode: entry.cg.getJournalMode(),
+      lastIndexedAt: entry.cg.getLastIndexedAt(),
+      indexBuildInfo: entry.cg.getIndexBuildInfo(),
+      indexStale: entry.cg.isIndexStale(),
+      indexState: entry.cg.getIndexState(),
+      pendingReferenceCount,
+      changedFiles: includeChangedFiles ? entry.cg.getChangedFiles() : undefined,
+      pendingFiles,
+      isIndexing: entry.cg.isIndexing(),
+      isWatching: entry.cg.isWatching(),
+      watcherDegraded,
+      watcherDegradedReason: watcherDegraded ? entry.cg.getWatcherDegradedReason() ?? undefined : undefined,
+      watchError: entry.watchError,
+      syncTtlMs: this.syncTtlMs,
+      lastSyncedAt: entry.lastSyncedAt,
+      lastWatcherSyncedAt: entry.lastWatcherSyncedAt,
+      syncInFlight: !!entry.syncInFlight,
+      nextQuerySync,
+      nextQuerySyncAfterMs,
+    };
   }
 
   /**
@@ -146,25 +340,36 @@ export class GraphManager {
   ): Promise<StatusSnapshot> {
     const startPath = resolvePath(startInput, ctx.cwd);
     const searchPath = await existingSearchPath(startPath);
-    let explicitCandidate: Awaited<ReturnType<typeof resolveCandidateRoot>> | undefined;
+    const candidate = await resolveCandidateRoot(
+      this.pi,
+      startPath,
+      ctx.cwd,
+      options.explicitProjectPath ?? false,
+      ctx.signal,
+    );
+    if (candidate.error) {
+      return {
+        initialized: false,
+        startPath,
+        searchPath,
+        candidateError: candidate.error,
+        syncTtlMs: this.syncTtlMs,
+      };
+    }
 
-    if (options.explicitProjectPath) {
-      explicitCandidate = await resolveCandidateRoot(this.pi, startPath, ctx.cwd, true, ctx.signal);
-      if (explicitCandidate.error) {
-        return {
-          initialized: false,
-          startPath,
-          searchPath,
-          candidateError: explicitCandidate.error,
-          syncTtlMs: this.syncTtlMs,
-        };
+    let nearest = findNearestCodeGraphRoot(searchPath);
+    if (nearest && candidate.gitRoot) {
+      const nearestRoot = await canonicalPath(nearest);
+      const gitRoot = await canonicalPath(candidate.gitRoot);
+      if (nearestRoot !== gitRoot && isPathInside(nearestRoot, gitRoot)) {
+        // A nested repository/worktree without its own index must not silently
+        // borrow an ancestor project's graph. Candidate resolution preserves
+        // explicit/default root semantics; Git root is isolation metadata only.
+        nearest = null;
       }
     }
 
-    const nearest = findNearestCodeGraphRoot(searchPath);
-
     if (!nearest) {
-      const candidate = explicitCandidate ?? await resolveCandidateRoot(this.pi, startPath, ctx.cwd, false, ctx.signal);
       const unsafeReason = candidate.root ? await unsafeRootReason(candidate.root) ?? undefined : undefined;
       return {
         initialized: false,
@@ -177,50 +382,21 @@ export class GraphManager {
       };
     }
 
-    const root = await canonicalPath(nearest);
-    const entry = await this.getEntry(root);
-    const changedFiles = entry.cg.getChangedFiles();
-    const pending = changedCount(changedFiles);
-    const pendingReferenceCount = entry.cg.getPendingReferenceCount();
-    const hasSyncWork = pending > 0 || pendingReferenceCount > 0;
-    const sinceSync = Date.now() - entry.lastSyncedAt;
-    let nextQuerySync: StatusSnapshot["nextQuerySync"];
-    let nextQuerySyncAfterMs: number | undefined;
-
-    if (entry.syncInFlight) {
-      nextQuerySync = "in-flight";
-    } else if (!hasSyncWork) {
-      nextQuerySync = "not-needed";
-    } else if (sinceSync > this.syncTtlMs) {
-      nextQuerySync = "now";
-    } else {
-      nextQuerySync = "after-ttl";
-      nextQuerySyncAfterMs = this.syncTtlMs - sinceSync;
+    const entry = await this.getEntry(nearest);
+    if (options.includeGraphState === false) {
+      return {
+        initialized: true,
+        startPath,
+        searchPath,
+        root: entry.root,
+        syncTtlMs: this.syncTtlMs,
+      };
     }
-
-    return {
-      initialized: true,
-      startPath,
-      searchPath,
-      root,
-      stats: entry.cg.getStats(),
-      backend: entry.cg.getBackend(),
-      journalMode: entry.cg.getJournalMode(),
-      lastIndexedAt: entry.cg.getLastIndexedAt(),
-      indexBuildInfo: entry.cg.getIndexBuildInfo(),
-      indexStale: entry.cg.isIndexStale(),
-      indexState: entry.cg.getIndexState(),
-      pendingReferenceCount,
-      changedFiles,
-      pendingFiles: entry.cg.getPendingFiles(),
-      isIndexing: entry.cg.isIndexing(),
-      isWatching: entry.cg.isWatching(),
-      syncTtlMs: this.syncTtlMs,
-      lastSyncedAt: entry.lastSyncedAt,
-      syncInFlight: !!entry.syncInFlight,
-      nextQuerySync,
-      nextQuerySyncAfterMs,
-    };
+    return this.refreshStatusSnapshot(
+      { startPath, searchPath },
+      entry,
+      options.includeChangedFiles ?? true,
+    );
   }
 
   /**
@@ -251,11 +427,16 @@ export class GraphManager {
 
     onUpdate?.(textResult(`Initializing CodeGraph at ${canonicalRoot}...`));
     const cg = await CodeGraph.init(canonicalRoot, { index: false });
+    const openedAt = Date.now();
     const entry: CachedGraph = {
       root: canonicalRoot,
       cg,
-      openedAt: Date.now(),
+      openedAt,
       lastSyncedAt: 0,
+      querySyncGeneration: 0,
+      activeFreshnessChecks: 0,
+      lastAccessedAt: openedAt,
+      watchStartAttempted: false,
     };
     this.graphs.set(canonicalRoot, entry);
 
@@ -280,6 +461,10 @@ export class GraphManager {
 
     try {
       await indexPromise;
+      // Watch first, then force one incremental pass so edits made during the
+      // full index cannot fall into an index-scan-to-watcher blind spot.
+      entry.lastSyncedAt = 0;
+      this.startWatching(entry);
       return { entry, message: `Initialized and indexed CodeGraph at ${canonicalRoot}.` };
     } catch (error) {
       return { entry, message: `CodeGraph initialized at ${canonicalRoot}, but initial indexing failed: ${error instanceof Error ? error.message : String(error)}` };
@@ -291,55 +476,91 @@ export class GraphManager {
     onUpdate?: ToolUpdateHandler,
     signal?: AbortSignal,
   ): Promise<void> {
-    if (entry.syncInFlight) {
-      try {
-        await entry.syncInFlight;
-      } catch {
-        // A full recreate supersedes a failed incremental sync.
-      }
-    }
-
-    const previousGraph = entry.cg;
-    let previousClosed = false;
-
-    if (process.platform === "win32") {
-      this.closeGraphQuietly(previousGraph);
-      previousClosed = true;
-    }
-
-    onUpdate?.(textResult(`Recreating CodeGraph database at ${entry.root}...`));
-    let freshGraph: CodeGraphInstance;
+    // Suppression spans the whole replacement transaction: an in-flight shared
+    // reconciliation may finish after the first unwatch and must not restart the
+    // old watcher before SQLite recreation.
+    entry.watchSuppressed = true;
     try {
-      freshGraph = await CodeGraph.recreate(entry.root);
-    } catch (error) {
-      if (previousClosed) {
+      try {
+        entry.cg.unwatch();
+      } finally {
+        entry.watchStartAttempted = false;
+        entry.watchRetryAfter = undefined;
+      }
+
+      if (entry.syncInFlight) {
         try {
-          entry.cg = await CodeGraph.open(entry.root, { sync: false });
+          await entry.syncInFlight;
         } catch {
-          this.graphs.delete(entry.root);
+          // A full recreate supersedes a failed incremental sync.
         }
       }
-      throw error;
+
+      // The shared operation calls startWatching() before resolving. Suppression
+      // blocks that path; this second stop is defensive against SDK-internal work.
+      entry.cg.unwatch();
+      entry.watchStartAttempted = false;
+      entry.watchRetryAfter = undefined;
+
+      const idleDeadline = Date.now() + 30_000;
+      while (entry.cg.isIndexing() && Date.now() < idleDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (entry.cg.isIndexing()) {
+        throw new Error("CodeGraph is still finishing watcher/index work after 30 seconds; the database was not recreated. Retry the reindex after that work settles.");
+      }
+
+      const previousGraph = entry.cg;
+      let previousClosed = false;
+
+      if (process.platform === "win32") {
+        this.closeGraphQuietly(previousGraph);
+        previousClosed = true;
+      }
+
+      onUpdate?.(textResult(`Recreating CodeGraph database at ${entry.root}...`));
+      let freshGraph: CodeGraphInstance;
+      try {
+        freshGraph = await CodeGraph.recreate(entry.root);
+      } catch (error) {
+        if (previousClosed) {
+          try {
+            entry.cg = await CodeGraph.open(entry.root, { sync: false });
+          } catch {
+            this.graphs.delete(entry.root);
+          }
+        }
+        throw error;
+      }
+
+      entry.cg = freshGraph;
+      entry.lastSyncedAt = 0;
+      entry.querySyncGeneration = 0;
+      entry.watchStartAttempted = false;
+      entry.watchRetryAfter = undefined;
+      entry.watchError = undefined;
+      entry.lastWatcherSyncedAt = undefined;
+      entry.staleReindexDeclined = false;
+      if (!previousClosed) this.closeGraphQuietly(previousGraph);
+
+      onUpdate?.(textResult(`Reindexing CodeGraph at ${entry.root}...`));
+      const result = await freshGraph.indexAll({
+        signal,
+        onProgress(progress) {
+          onUpdate?.(textResult(`Reindexing ${entry.root}: ${progress.phase} ${progress.current}/${progress.total}`));
+        },
+      });
+
+      if (!result.success) {
+        throw new Error(result.errors.map((e) => e.message).join("; ") || "CodeGraph indexing failed.");
+      }
+
+      // The caller's following ensureFresh() performs the forced watched catch-up.
+      entry.lastSyncedAt = 0;
+    } finally {
+      entry.watchSuppressed = false;
+      if (this.graphs.get(entry.root) === entry) this.startWatching(entry);
     }
-
-    entry.cg = freshGraph;
-    entry.lastSyncedAt = 0;
-    entry.staleReindexDeclined = false;
-    if (!previousClosed) this.closeGraphQuietly(previousGraph);
-
-    onUpdate?.(textResult(`Reindexing CodeGraph at ${entry.root}...`));
-    const result = await freshGraph.indexAll({
-      signal,
-      onProgress(progress) {
-        onUpdate?.(textResult(`Reindexing ${entry.root}: ${progress.phase} ${progress.current}/${progress.total}`));
-      },
-    });
-
-    if (!result.success) {
-      throw new Error(result.errors.map((e) => e.message).join("; ") || "CodeGraph indexing failed.");
-    }
-
-    entry.lastSyncedAt = Date.now();
   }
 
   private async ensureCurrentIndex(
@@ -398,45 +619,148 @@ export class GraphManager {
     }
   }
 
-  private async ensureFresh(entry: CachedGraph): Promise<string | undefined> {
+  private watcherWarning(entry: CachedGraph): string | undefined {
+    if (entry.cg.isWatcherDegraded()) {
+      const reason = entry.cg.getWatcherDegradedReason();
+      return `CodeGraph file watching degraded${reason ? `: ${reason}` : ""}; query-time reconciliation remains active every ${this.syncTtlMs}ms.`;
+    }
+    if (entry.watchError) {
+      return `CodeGraph file watcher warning: ${entry.watchError}`;
+    }
+    return undefined;
+  }
+
+  private async waitForWatcherFlush(entry: CachedGraph, signal?: AbortSignal): Promise<boolean> {
+    const deadline = Date.now() + this.watchFlushWaitMs;
+    signal?.throwIfAborted();
+    while (
+      entry.cg.isWatching()
+      && !entry.cg.isWatcherDegraded()
+      && entry.cg.getPendingFiles().length > 0
+      && Date.now() < deadline
+    ) {
+      await waitWithAbort(new Promise((resolve) => setTimeout(resolve, 50)), signal);
+    }
+    signal?.throwIfAborted();
+    return entry.cg.getPendingFiles().length === 0;
+  }
+
+  private async ensureFresh(entry: CachedGraph, signal?: AbortSignal): Promise<string | undefined> {
+    entry.activeFreshnessChecks++;
+    try {
+      return await this.ensureFreshInternal(entry, signal);
+    } finally {
+      entry.activeFreshnessChecks--;
+    }
+  }
+
+  private async ensureFreshInternal(entry: CachedGraph, signal?: AbortSignal): Promise<string | undefined> {
+    entry.lastAccessedAt = Date.now();
+    const observedSyncGeneration = entry.querySyncGeneration;
+    // Install event capture before the first/full TTL reconciliation so files
+    // created after its scan but before completion stay pending for follow-up.
+    this.startWatching(entry);
+
     if (entry.syncInFlight) {
       try {
-        await entry.syncInFlight;
-        return undefined;
+        return await waitWithAbort(entry.syncInFlight, signal);
       } catch (error) {
+        if (signal?.aborted) throw abortReason(signal);
+        this.startWatching(entry);
         return `CodeGraph sync failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
       }
     }
 
-    const changed = entry.cg.getChangedFiles();
-    const pending = changedCount(changed);
-    const pendingReferences = entry.cg.getPendingReferenceCount();
-    if (pending === 0 && pendingReferences === 0) return undefined;
-
-    const sinceSync = Date.now() - entry.lastSyncedAt;
-    if (sinceSync <= this.syncTtlMs) {
-      const work = [
-        pending > 0 ? `${pending} pending change(s)` : undefined,
-        pendingReferences > 0 ? `${pendingReferences} unresolved reference(s) from an interrupted index` : undefined,
-      ].filter((item): item is string => !!item).join(" and ");
-      return `CodeGraph has ${work}; sync skipped until TTL expires (~${this.syncTtlMs - sinceSync}ms).`;
+    let pendingFiles = entry.cg.getPendingFiles();
+    const hadWatcherPending = pendingFiles.length > 0;
+    let watcherFlushWarning: string | undefined;
+    if (hadWatcherPending && entry.cg.isWatching() && !entry.cg.isWatcherDegraded()) {
+      const flushed = await this.waitForWatcherFlush(entry, signal);
+      pendingFiles = entry.cg.getPendingFiles();
+      if (!flushed && entry.cg.isWatching() && !entry.cg.isWatcherDegraded()) {
+        watcherFlushWarning = `CodeGraph watcher still has ${pendingFiles.length} pending file(s) after ${this.watchFlushWaitMs}ms; running direct reconciliation while leaving its queue intact.`;
+      }
     }
 
-    entry.syncInFlight = entry.cg.sync()
-      .then((result) => {
-        if (isLockUnavailableSyncResult(result)) {
-          throw new Error("CodeGraph sync skipped because another process holds the CodeGraph write lock.");
+    const watcherCouldNotFlush = hadWatcherPending
+      && (!entry.cg.isWatching() || entry.cg.isWatcherDegraded());
+    let watcherRemovalDetected = false;
+    if (
+      this.watcherRemovalProbe
+      && pendingFiles.length === 0
+      && entry.cg.isWatching()
+      && !entry.cg.isWatcherDegraded()
+    ) {
+      try {
+        watcherRemovalDetected = entry.cg.getChangedFiles().removed.length > 0;
+      } catch (error) {
+        entry.watchError = `directory-removal freshness probe failed: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
+    const pendingReferences = entry.cg.getPendingReferenceCount();
+    const sinceSync = Date.now() - entry.lastSyncedAt;
+    const syncDue = entry.lastSyncedAt === 0
+      || watcherCouldNotFlush
+      || watcherRemovalDetected
+      || pendingFiles.length > 0
+      || pendingReferences > 0
+      || sinceSync >= this.syncTtlMs;
+
+    if (!syncDue) {
+      this.startWatching(entry);
+      return this.watcherWarning(entry);
+    }
+
+    // Another caller may have started or even completed reconciliation while
+    // this call awaited the watcher debounce. Recheck at the write boundary.
+    if (entry.syncInFlight) {
+      try {
+        return await waitWithAbort(entry.syncInFlight, signal);
+      } catch (error) {
+        if (signal?.aborted) throw abortReason(signal);
+        this.startWatching(entry);
+        return `CodeGraph sync failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
+    if (entry.querySyncGeneration !== observedSyncGeneration) {
+      return [watcherFlushWarning, this.watcherWarning(entry)].filter(Boolean).join(" ") || undefined;
+    }
+
+    const operation = (async (): Promise<string | undefined> => {
+      const result = await entry.cg.sync();
+      if (isLockUnavailableSyncResult(result)) {
+        throw new Error("CodeGraph sync skipped because another process holds the CodeGraph write lock.");
+      }
+      entry.lastSyncedAt = Date.now();
+      entry.querySyncGeneration++;
+
+      const pendingAfterSync = entry.cg.getPendingFiles();
+      if (
+        !watcherFlushWarning
+        && pendingAfterSync.length > 0
+        && entry.cg.isWatching()
+        && !entry.cg.isWatcherDegraded()
+      ) {
+        const flushed = await this.waitForWatcherFlush(entry);
+        const remaining = entry.cg.getPendingFiles();
+        if (!flushed && entry.cg.isWatching() && !entry.cg.isWatcherDegraded()) {
+          watcherFlushWarning = `CodeGraph watcher still has ${remaining.length} pending file(s) after ${this.watchFlushWaitMs}ms; direct reconciliation completed while its queue remains intact.`;
         }
-        entry.lastSyncedAt = Date.now();
-      })
-      .finally(() => {
-        entry.syncInFlight = undefined;
-      });
+      }
+      this.startWatching(entry);
+      return [watcherFlushWarning, this.watcherWarning(entry)].filter(Boolean).join(" ") || undefined;
+    })();
+    entry.syncInFlight = operation;
+    operation.then(
+      () => { if (entry.syncInFlight === operation) entry.syncInFlight = undefined; },
+      () => { if (entry.syncInFlight === operation) entry.syncInFlight = undefined; },
+    );
 
     try {
-      await entry.syncInFlight;
-      return undefined;
+      return await waitWithAbort(operation, signal);
     } catch (error) {
+      if (signal?.aborted) throw abortReason(signal);
+      this.startWatching(entry);
       return `CodeGraph sync failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
     }
   }
@@ -448,6 +772,7 @@ export class GraphManager {
    * @param ctx - Pi tool context.
    * @param onUpdate - Optional progress callback for initialization/indexing.
    * @param signal - Optional abort signal.
+   * @param options - Optional post-reconciliation status diagnostics.
    * @returns Ready graph or a user-facing not-ready result.
    */
   async ensureReady(
@@ -455,9 +780,14 @@ export class GraphManager {
     ctx: ExtensionContext,
     onUpdate?: ToolUpdateHandler,
     signal?: AbortSignal,
+    options: EnsureReadyOptions = {},
   ): Promise<ReadyGraph | NotReady> {
     const explicitProjectPath = typeof projectPath === "string" && projectPath.trim() !== "";
-    let snapshot = await this.buildStatusSnapshot(projectPath, ctx, { explicitProjectPath });
+    const snapshot = await this.buildStatusSnapshot(projectPath, ctx, {
+      explicitProjectPath,
+      includeGraphState: false,
+      includeChangedFiles: false,
+    });
 
     if (!snapshot.initialized) {
       if (!snapshot.candidateRoot) {
@@ -468,17 +798,34 @@ export class GraphManager {
       }
       const init = await this.initializeGraph(snapshot.candidateRoot, ctx, onUpdate, signal);
       if (!init.entry) return { ok: false, message: init.message ?? `CodeGraph is not initialized at ${snapshot.candidateRoot}.`, snapshot };
-      snapshot = await this.buildStatusSnapshot(init.entry.root, ctx, { explicitProjectPath: true });
-      return { ok: true, root: init.entry.root, cg: init.entry.cg, entry: init.entry, snapshot, syncWarning: init.message };
+      const warnings = [init.message, await this.ensureFresh(init.entry, signal ?? ctx.signal)]
+        .filter((warning): warning is string => !!warning);
+      const readySnapshot = this.refreshStatusSnapshot(
+        { startPath: snapshot.startPath, searchPath: snapshot.searchPath },
+        init.entry,
+        options.includeChangedFiles ?? false,
+      );
+      return {
+        ok: true,
+        root: init.entry.root,
+        cg: init.entry.cg,
+        entry: init.entry,
+        snapshot: readySnapshot,
+        syncWarning: warnings.join(" ") || undefined,
+      };
     }
 
     const entry = await this.getEntry(snapshot.root!);
     const warnings = [
       await this.ensureCurrentIndex(entry, ctx, onUpdate, signal),
-      await this.ensureFresh(entry),
+      await this.ensureFresh(entry, signal ?? ctx.signal),
     ].filter((warning): warning is string => !!warning);
-    const refreshedSnapshot = await this.buildStatusSnapshot(entry.root, ctx, { explicitProjectPath: true });
-    return { ok: true, root: entry.root, cg: entry.cg, entry, snapshot: refreshedSnapshot, syncWarning: warnings.join(" ") || undefined };
+    const readySnapshot = this.refreshStatusSnapshot(
+      { startPath: snapshot.startPath, searchPath: snapshot.searchPath },
+      entry,
+      options.includeChangedFiles ?? false,
+    );
+    return { ok: true, root: entry.root, cg: entry.cg, entry, snapshot: readySnapshot, syncWarning: warnings.join(" ") || undefined };
   }
 
   /**
@@ -500,7 +847,7 @@ export class GraphManager {
     }
 
     const operations = [entry.syncInFlight, entry.indexInFlight].filter(
-      (operation): operation is Promise<void> => !!operation,
+      (operation): operation is Promise<string | undefined> | Promise<void> => !!operation,
     );
     await Promise.allSettled(operations);
 

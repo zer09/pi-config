@@ -193,10 +193,26 @@ export interface CachedGraph {
   cg: CodeGraphInstance;
   /** Timestamp when the instance was opened. */
   readonly openedAt: number;
-  /** Timestamp of the last successful extension-triggered sync. */
+  /** Timestamp of the last successful query-triggered full reconciliation. */
   lastSyncedAt: number;
-  /** In-flight sync promise used to deduplicate concurrent sync requests. */
-  syncInFlight?: Promise<void>;
+  /** Timestamp of the last successful SDK watcher sync. */
+  lastWatcherSyncedAt?: number;
+  /** Monotonic count of successful query-triggered full reconciliations. */
+  querySyncGeneration: number;
+  /** Number of readiness calls currently checking/draining this root's freshness. */
+  activeFreshnessChecks: number;
+  /** Timestamp when this project was last targeted by a query tool. */
+  lastAccessedAt: number;
+  /** Whether database replacement temporarily forbids watcher startup. */
+  watchSuppressed?: boolean;
+  /** Whether this graph has attempted to start its SDK watcher. */
+  watchStartAttempted: boolean;
+  /** Earliest timestamp for retrying an inactive watcher after failure/degradation. */
+  watchRetryAfter?: number;
+  /** Latest watcher startup/runtime problem, when known. */
+  watchError?: string;
+  /** Shared full reconciliation plus post-sync watcher-drain operation. */
+  syncInFlight?: Promise<string | undefined>;
   /** In-flight full indexing promise used to avoid duplicate/closing active index work. */
   indexInFlight?: Promise<void>;
   /** Whether stale-index reindex confirmation was declined in this session. */
@@ -284,14 +300,22 @@ export interface StatusSnapshot {
   readonly isIndexing?: boolean;
   /** Whether CodeGraph's watcher is active. */
   readonly isWatching?: boolean;
-  /** Extension-level sync TTL in milliseconds. */
+  /** Whether the SDK watcher permanently degraded after startup. */
+  readonly watcherDegraded?: boolean;
+  /** Watcher degradation reason reported by CodeGraph. */
+  readonly watcherDegradedReason?: string;
+  /** Latest watcher startup/runtime problem recorded by the extension. */
+  readonly watchError?: string;
+  /** Query-triggered reconciliation TTL in milliseconds. */
   readonly syncTtlMs: number;
-  /** Last successful extension-triggered sync timestamp. */
+  /** Last successful query-triggered full reconciliation timestamp. */
   readonly lastSyncedAt?: number;
-  /** Whether an extension-triggered sync is in flight. */
+  /** Last successful SDK watcher sync timestamp. */
+  readonly lastWatcherSyncedAt?: number;
+  /** Whether query-triggered reconciliation is in flight. */
   readonly syncInFlight?: boolean;
   /** What the next query tool would do about syncing. */
-  readonly nextQuerySync?: "not-needed" | "in-flight" | "now" | "after-ttl";
+  readonly nextQuerySync?: "in-flight" | "now" | "after-ttl";
   /** Milliseconds until the next query would sync when TTL is active. */
   readonly nextQuerySyncAfterMs?: number;
 }

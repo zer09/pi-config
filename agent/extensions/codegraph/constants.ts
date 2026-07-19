@@ -12,8 +12,20 @@ export const DEFAULT_MAX_BYTES = 50 * 1024;
 /** Maximum lines returned in one tool response before head truncation. */
 export const DEFAULT_MAX_LINES = 2_000;
 
-/** TTL for extension-triggered CodeGraph syncs, in milliseconds. */
+/** TTL for query-triggered CodeGraph reconciliation, in milliseconds. */
 export const DEFAULT_SYNC_TTL_MS = 10_000;
+
+/** Quiet period after a filesystem event before the SDK watcher syncs. */
+export const DEFAULT_WATCH_DEBOUNCE_MS = 2_000;
+
+/** Maximum query wait for the watcher's own pending-file sync pipeline. */
+export const DEFAULT_WATCH_FLUSH_WAIT_MS = 10_000;
+
+/** Backoff before retrying an unavailable or degraded SDK watcher. */
+export const DEFAULT_WATCH_RETRY_MS = 10_000;
+
+/** Maximum project roots watched concurrently by one Pi session. */
+export const DEFAULT_MAX_WATCHED_ROOTS = 4;
 
 /** Timeout for `git rev-parse --show-toplevel` used in root detection. */
 export const DEFAULT_GIT_TIMEOUT_MS = 2_000;
