@@ -263,6 +263,37 @@ test("falls back to direct reconciliation when watcher pending files do not drai
   }
 });
 
+test("deduplicates concurrent direct fallback after watcher drain timeout", async () => {
+  const root = await indexedRoot("pi-codegraph-concurrent-stalled-watcher-");
+  const graph = new FakeGraph(root);
+  const restoreOpen = replaceOpen(new Map([[root, graph]]));
+  const manager = new GraphManager({ pi: piForGitRoot(root), watchFlushWaitMs: 5 });
+  let releaseSync: (() => void) | undefined;
+
+  try {
+    await manager.ensureReady(root, context(root));
+    graph.pendingFiles = [{ path: "src/stalled.ts", firstSeenMs: 1, lastSeenMs: 1, indexing: false }];
+    graph.syncGate = new Promise<void>((resolve) => { releaseSync = resolve; });
+
+    const first = manager.ensureReady(root, context(root));
+    const second = manager.ensureReady(root, context(root));
+    while (graph.syncCalls < 2) await new Promise((resolve) => setTimeout(resolve, 1));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.equal(graph.syncCalls, 2, "only one fallback sync may start after concurrent watcher waits");
+
+    releaseSync?.();
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    assert.equal(firstResult.ok, true);
+    assert.equal(secondResult.ok, true);
+    assert.equal(graph.syncCalls, 2);
+  } finally {
+    releaseSync?.();
+    await manager.closeAll();
+    restoreOpen();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("starts watching before catch-up and drains events observed during that sync", async () => {
   const root = await indexedRoot("pi-codegraph-catchup-gap-");
   const graph = new FakeGraph(root);

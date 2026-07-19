@@ -197,6 +197,8 @@ export interface CachedGraph {
   lastSyncedAt: number;
   /** Timestamp of the last successful SDK watcher sync. */
   lastWatcherSyncedAt?: number;
+  /** Monotonic count of successful query-triggered full reconciliations. */
+  querySyncGeneration: number;
   /** Timestamp when this project was last targeted by a query tool. */
   lastAccessedAt: number;
   /** Whether this graph has attempted to start its SDK watcher. */
@@ -205,8 +207,8 @@ export interface CachedGraph {
   watchRetryAfter?: number;
   /** Latest watcher startup/runtime problem, when known. */
   watchError?: string;
-  /** In-flight sync promise used to deduplicate concurrent query reconciliation. */
-  syncInFlight?: Promise<void>;
+  /** Shared full reconciliation plus post-sync watcher-drain operation. */
+  syncInFlight?: Promise<string | undefined>;
   /** In-flight full indexing promise used to avoid duplicate/closing active index work. */
   indexInFlight?: Promise<void>;
   /** Whether stale-index reindex confirmation was declined in this session. */

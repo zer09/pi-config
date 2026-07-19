@@ -125,6 +125,7 @@ export class GraphManager {
     try {
       if (entry.cg.reopenIfReplaced()) {
         entry.lastSyncedAt = 0;
+        entry.querySyncGeneration = 0;
         entry.watchStartAttempted = false;
         entry.watchRetryAfter = undefined;
         entry.watchError = undefined;
@@ -219,6 +220,7 @@ export class GraphManager {
           cg,
           openedAt: now,
           lastSyncedAt: 0,
+          querySyncGeneration: 0,
           lastAccessedAt: now,
           watchStartAttempted: false,
         };
@@ -394,6 +396,7 @@ export class GraphManager {
       cg,
       openedAt,
       lastSyncedAt: 0,
+      querySyncGeneration: 0,
       lastAccessedAt: openedAt,
       watchStartAttempted: false,
     };
@@ -485,6 +488,7 @@ export class GraphManager {
 
     entry.cg = freshGraph;
     entry.lastSyncedAt = 0;
+    entry.querySyncGeneration = 0;
     entry.watchStartAttempted = false;
     entry.watchRetryAfter = undefined;
     entry.watchError = undefined;
@@ -587,13 +591,14 @@ export class GraphManager {
 
   private async ensureFresh(entry: CachedGraph): Promise<string | undefined> {
     entry.lastAccessedAt = Date.now();
+    const observedSyncGeneration = entry.querySyncGeneration;
     // Install event capture before the first/full TTL reconciliation so files
     // created after its scan but before completion stay pending for follow-up.
     this.startWatching(entry);
 
     if (entry.syncInFlight) {
       try {
-        await entry.syncInFlight;
+        return await entry.syncInFlight;
       } catch (error) {
         this.startWatching(entry);
         return `CodeGraph sync failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
@@ -626,19 +631,28 @@ export class GraphManager {
       return this.watcherWarning(entry);
     }
 
-    entry.syncInFlight = entry.cg.sync()
-      .then((result) => {
-        if (isLockUnavailableSyncResult(result)) {
-          throw new Error("CodeGraph sync skipped because another process holds the CodeGraph write lock.");
-        }
-        entry.lastSyncedAt = Date.now();
-      })
-      .finally(() => {
-        entry.syncInFlight = undefined;
-      });
+    // Another caller may have started or even completed reconciliation while
+    // this call awaited the watcher debounce. Recheck at the write boundary.
+    if (entry.syncInFlight) {
+      try {
+        return await entry.syncInFlight;
+      } catch (error) {
+        this.startWatching(entry);
+        return `CodeGraph sync failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
+    if (entry.querySyncGeneration !== observedSyncGeneration) {
+      return [watcherFlushWarning, this.watcherWarning(entry)].filter(Boolean).join(" ") || undefined;
+    }
 
-    try {
-      await entry.syncInFlight;
+    const operation = (async (): Promise<string | undefined> => {
+      const result = await entry.cg.sync();
+      if (isLockUnavailableSyncResult(result)) {
+        throw new Error("CodeGraph sync skipped because another process holds the CodeGraph write lock.");
+      }
+      entry.lastSyncedAt = Date.now();
+      entry.querySyncGeneration++;
+
       const pendingAfterSync = entry.cg.getPendingFiles();
       if (
         !watcherFlushWarning
@@ -654,9 +668,16 @@ export class GraphManager {
       }
       this.startWatching(entry);
       return [watcherFlushWarning, this.watcherWarning(entry)].filter(Boolean).join(" ") || undefined;
+    })();
+    entry.syncInFlight = operation;
+
+    try {
+      return await operation;
     } catch (error) {
       this.startWatching(entry);
       return `CodeGraph sync failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+      if (entry.syncInFlight === operation) entry.syncInFlight = undefined;
     }
   }
 
@@ -742,7 +763,7 @@ export class GraphManager {
     }
 
     const operations = [entry.syncInFlight, entry.indexInFlight].filter(
-      (operation): operation is Promise<void> => !!operation,
+      (operation): operation is Promise<string | undefined> | Promise<void> => !!operation,
     );
     await Promise.allSettled(operations);
 
