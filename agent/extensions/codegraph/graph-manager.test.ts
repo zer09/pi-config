@@ -235,6 +235,34 @@ test("uses catch-up, watcher events, and TTL without getChangedFiles freshness p
   }
 });
 
+test("falls back to direct reconciliation when watcher pending files do not drain", async () => {
+  const root = await indexedRoot("pi-codegraph-stalled-watcher-");
+  const graph = new FakeGraph(root);
+  const restoreOpen = replaceOpen(new Map([[root, graph]]));
+  const manager = new GraphManager({
+    pi: piForGitRoot(root),
+    syncTtlMs: 10_000,
+    watchFlushWaitMs: 5,
+  });
+
+  try {
+    await manager.ensureReady(root, context(root));
+    graph.pendingFiles = [{ path: "src/stalled.ts", firstSeenMs: 1, lastSeenMs: 1, indexing: false }];
+    const unwatchCallsBefore = graph.unwatchCalls;
+
+    const result = await manager.ensureReady(root, context(root));
+    assert.equal(result.ok, true);
+    assert.equal(graph.syncCalls, 2, "watcher timeout must not suppress direct reconciliation");
+    assert.equal(graph.pendingFiles.length, 1, "direct fallback must leave watcher-owned events intact");
+    assert.equal(graph.unwatchCalls, unwatchCallsBefore);
+    if (result.ok) assert.match(result.syncWarning ?? "", /running direct reconciliation/);
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("starts watching before catch-up and drains events observed during that sync", async () => {
   const root = await indexedRoot("pi-codegraph-catchup-gap-");
   const graph = new FakeGraph(root);

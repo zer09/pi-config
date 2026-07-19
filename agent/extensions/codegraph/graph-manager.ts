@@ -44,6 +44,8 @@ export interface GraphManagerOptions {
   readonly maxWatchedRoots?: number;
   /** Watcher restart backoff override, primarily for focused tests. */
   readonly watchRetryMs?: number;
+  /** Pending watcher-drain wait override, primarily for focused tests. */
+  readonly watchFlushWaitMs?: number;
 }
 
 /** Options for building a status snapshot. */
@@ -88,6 +90,7 @@ export class GraphManager {
   private readonly syncTtlMs: number;
   private readonly maxWatchedRoots: number;
   private readonly watchRetryMs: number;
+  private readonly watchFlushWaitMs: number;
   private readonly graphs = new Map<string, CachedGraph>();
   private readonly opening = new Map<string, Promise<CachedGraph>>();
 
@@ -101,6 +104,7 @@ export class GraphManager {
     this.syncTtlMs = Math.max(0, options.syncTtlMs ?? DEFAULT_SYNC_TTL_MS);
     this.maxWatchedRoots = Math.max(1, options.maxWatchedRoots ?? DEFAULT_MAX_WATCHED_ROOTS);
     this.watchRetryMs = Math.max(0, options.watchRetryMs ?? DEFAULT_WATCH_RETRY_MS);
+    this.watchFlushWaitMs = Math.max(0, options.watchFlushWaitMs ?? DEFAULT_WATCH_FLUSH_WAIT_MS);
   }
 
   private closeGraphQuietly(cg: CodeGraphInstance): void {
@@ -569,7 +573,7 @@ export class GraphManager {
   }
 
   private async waitForWatcherFlush(entry: CachedGraph): Promise<boolean> {
-    const deadline = Date.now() + DEFAULT_WATCH_FLUSH_WAIT_MS;
+    const deadline = Date.now() + this.watchFlushWaitMs;
     while (
       entry.cg.isWatching()
       && !entry.cg.isWatcherDegraded()
@@ -598,11 +602,12 @@ export class GraphManager {
 
     let pendingFiles = entry.cg.getPendingFiles();
     const hadWatcherPending = pendingFiles.length > 0;
+    let watcherFlushWarning: string | undefined;
     if (hadWatcherPending && entry.cg.isWatching() && !entry.cg.isWatcherDegraded()) {
       const flushed = await this.waitForWatcherFlush(entry);
       pendingFiles = entry.cg.getPendingFiles();
       if (!flushed && entry.cg.isWatching() && !entry.cg.isWatcherDegraded()) {
-        return `CodeGraph watcher still has ${pendingFiles.length} pending file(s) after ${DEFAULT_WATCH_FLUSH_WAIT_MS}ms; using the existing index until its sync pipeline finishes.`;
+        watcherFlushWarning = `CodeGraph watcher still has ${pendingFiles.length} pending file(s) after ${this.watchFlushWaitMs}ms; running direct reconciliation while leaving its queue intact.`;
       }
     }
 
@@ -636,18 +641,19 @@ export class GraphManager {
       await entry.syncInFlight;
       const pendingAfterSync = entry.cg.getPendingFiles();
       if (
-        pendingAfterSync.length > 0
+        !watcherFlushWarning
+        && pendingAfterSync.length > 0
         && entry.cg.isWatching()
         && !entry.cg.isWatcherDegraded()
       ) {
         const flushed = await this.waitForWatcherFlush(entry);
         const remaining = entry.cg.getPendingFiles();
         if (!flushed && entry.cg.isWatching() && !entry.cg.isWatcherDegraded()) {
-          return `CodeGraph watcher still has ${remaining.length} pending file(s) after ${DEFAULT_WATCH_FLUSH_WAIT_MS}ms; using the existing index until its sync pipeline finishes.`;
+          watcherFlushWarning = `CodeGraph watcher still has ${remaining.length} pending file(s) after ${this.watchFlushWaitMs}ms; direct reconciliation completed while its queue remains intact.`;
         }
       }
       this.startWatching(entry);
-      return this.watcherWarning(entry);
+      return [watcherFlushWarning, this.watcherWarning(entry)].filter(Boolean).join(" ") || undefined;
     } catch (error) {
       this.startWatching(entry);
       return `CodeGraph sync failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
