@@ -78,6 +78,33 @@ function isLockUnavailableSyncResult(result: { readonly filesChecked: number; re
   return result.filesChecked === 0 && result.durationMs === 0;
 }
 
+function abortReason(signal: AbortSignal): unknown {
+  return signal.reason ?? new Error("CodeGraph operation aborted.");
+}
+
+function waitWithAbort<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return operation;
+  if (signal.aborted) return Promise.reject(abortReason(signal));
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(abortReason(signal));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    operation.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 /**
  * Manage open CodeGraph instances, readiness checks, lazy sync, and cleanup.
  *
@@ -603,29 +630,31 @@ export class GraphManager {
     return undefined;
   }
 
-  private async waitForWatcherFlush(entry: CachedGraph): Promise<boolean> {
+  private async waitForWatcherFlush(entry: CachedGraph, signal?: AbortSignal): Promise<boolean> {
     const deadline = Date.now() + this.watchFlushWaitMs;
+    signal?.throwIfAborted();
     while (
       entry.cg.isWatching()
       && !entry.cg.isWatcherDegraded()
       && entry.cg.getPendingFiles().length > 0
       && Date.now() < deadline
     ) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitWithAbort(new Promise((resolve) => setTimeout(resolve, 50)), signal);
     }
+    signal?.throwIfAborted();
     return entry.cg.getPendingFiles().length === 0;
   }
 
-  private async ensureFresh(entry: CachedGraph): Promise<string | undefined> {
+  private async ensureFresh(entry: CachedGraph, signal?: AbortSignal): Promise<string | undefined> {
     entry.activeFreshnessChecks++;
     try {
-      return await this.ensureFreshInternal(entry);
+      return await this.ensureFreshInternal(entry, signal);
     } finally {
       entry.activeFreshnessChecks--;
     }
   }
 
-  private async ensureFreshInternal(entry: CachedGraph): Promise<string | undefined> {
+  private async ensureFreshInternal(entry: CachedGraph, signal?: AbortSignal): Promise<string | undefined> {
     entry.lastAccessedAt = Date.now();
     const observedSyncGeneration = entry.querySyncGeneration;
     // Install event capture before the first/full TTL reconciliation so files
@@ -634,8 +663,9 @@ export class GraphManager {
 
     if (entry.syncInFlight) {
       try {
-        return await entry.syncInFlight;
+        return await waitWithAbort(entry.syncInFlight, signal);
       } catch (error) {
+        if (signal?.aborted) throw abortReason(signal);
         this.startWatching(entry);
         return `CodeGraph sync failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
       }
@@ -645,7 +675,7 @@ export class GraphManager {
     const hadWatcherPending = pendingFiles.length > 0;
     let watcherFlushWarning: string | undefined;
     if (hadWatcherPending && entry.cg.isWatching() && !entry.cg.isWatcherDegraded()) {
-      const flushed = await this.waitForWatcherFlush(entry);
+      const flushed = await this.waitForWatcherFlush(entry, signal);
       pendingFiles = entry.cg.getPendingFiles();
       if (!flushed && entry.cg.isWatching() && !entry.cg.isWatcherDegraded()) {
         watcherFlushWarning = `CodeGraph watcher still has ${pendingFiles.length} pending file(s) after ${this.watchFlushWaitMs}ms; running direct reconciliation while leaving its queue intact.`;
@@ -685,8 +715,9 @@ export class GraphManager {
     // this call awaited the watcher debounce. Recheck at the write boundary.
     if (entry.syncInFlight) {
       try {
-        return await entry.syncInFlight;
+        return await waitWithAbort(entry.syncInFlight, signal);
       } catch (error) {
+        if (signal?.aborted) throw abortReason(signal);
         this.startWatching(entry);
         return `CodeGraph sync failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
       }
@@ -720,14 +751,17 @@ export class GraphManager {
       return [watcherFlushWarning, this.watcherWarning(entry)].filter(Boolean).join(" ") || undefined;
     })();
     entry.syncInFlight = operation;
+    operation.then(
+      () => { if (entry.syncInFlight === operation) entry.syncInFlight = undefined; },
+      () => { if (entry.syncInFlight === operation) entry.syncInFlight = undefined; },
+    );
 
     try {
-      return await operation;
+      return await waitWithAbort(operation, signal);
     } catch (error) {
+      if (signal?.aborted) throw abortReason(signal);
       this.startWatching(entry);
       return `CodeGraph sync failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
-    } finally {
-      if (entry.syncInFlight === operation) entry.syncInFlight = undefined;
     }
   }
 
@@ -764,7 +798,7 @@ export class GraphManager {
       }
       const init = await this.initializeGraph(snapshot.candidateRoot, ctx, onUpdate, signal);
       if (!init.entry) return { ok: false, message: init.message ?? `CodeGraph is not initialized at ${snapshot.candidateRoot}.`, snapshot };
-      const warnings = [init.message, await this.ensureFresh(init.entry)]
+      const warnings = [init.message, await this.ensureFresh(init.entry, signal ?? ctx.signal)]
         .filter((warning): warning is string => !!warning);
       const readySnapshot = this.refreshStatusSnapshot(
         { startPath: snapshot.startPath, searchPath: snapshot.searchPath },
@@ -784,7 +818,7 @@ export class GraphManager {
     const entry = await this.getEntry(snapshot.root!);
     const warnings = [
       await this.ensureCurrentIndex(entry, ctx, onUpdate, signal),
-      await this.ensureFresh(entry),
+      await this.ensureFresh(entry, signal ?? ctx.signal),
     ].filter((warning): warning is string => !!warning);
     const readySnapshot = this.refreshStatusSnapshot(
       { startPath: snapshot.startPath, searchPath: snapshot.searchPath },

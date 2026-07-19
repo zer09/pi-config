@@ -295,6 +295,37 @@ test("falls back to direct reconciliation when watcher pending files do not drai
   }
 });
 
+test("stops waiting for watcher drain when the tool call is aborted", async () => {
+  const root = await indexedRoot("pi-codegraph-aborted-drain-");
+  const graph = new FakeGraph(root);
+  const restoreOpen = replaceOpen(new Map([[root, graph]]));
+  const manager = new GraphManager({ pi: piForGitRoot(root), watchFlushWaitMs: 10_000 });
+
+  try {
+    const initial = await manager.ensureReady(root, context(root));
+    assert.equal(initial.ok, true);
+    if (!initial.ok) throw new Error("expected initialized graph");
+
+    graph.pendingFiles = [{ path: "src/cancelled.ts", firstSeenMs: 1, lastSeenMs: 1, indexing: false }];
+    const controller = new AbortController();
+    const abortedContext = { ...context(root), signal: controller.signal } as ExtensionContext;
+    const startedAt = Date.now();
+    const readiness = manager.ensureReady(root, abortedContext);
+    while (initial.entry.activeFreshnessChecks === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
+
+    controller.abort(new Error("cancelled watcher drain"));
+    await assert.rejects(readiness, /cancelled watcher drain/);
+    assert.ok(Date.now() - startedAt < 500, "abort must not wait for the 10-second watcher deadline");
+    assert.equal(initial.entry.activeFreshnessChecks, 0);
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("deduplicates concurrent direct fallback after watcher drain timeout", async () => {
   const root = await indexedRoot("pi-codegraph-concurrent-stalled-watcher-");
   const graph = new FakeGraph(root);
