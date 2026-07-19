@@ -372,6 +372,7 @@ test("retries a degraded watcher after bounded backoff", async () => {
     const duringBackoff = await manager.ensureReady(root, context(root));
     assert.equal(duringBackoff.ok, true);
     assert.equal(graph.watchCalls, 1, "degradation must not cause per-query restart hammering");
+    assert.equal(graph.syncCalls, 2, "degradation must invalidate freshness even after its pending queue is cleared");
     if (duringBackoff.ok) assert.match(duringBackoff.syncWarning ?? "", /temporary lock contention/);
 
     await new Promise((resolve) => setTimeout(resolve, 110));

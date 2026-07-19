@@ -185,6 +185,7 @@ export class GraphManager {
         },
         onDegraded: (reason) => {
           entry.watchError = reason;
+          entry.lastSyncedAt = 0;
           entry.watchRetryAfter = Date.now() + this.watchRetryMs;
         },
       });
