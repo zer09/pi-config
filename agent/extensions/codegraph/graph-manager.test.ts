@@ -16,6 +16,8 @@ type WatchCallbacks = {
 class FakeGraph {
   syncCalls = 0;
   watchCalls = 0;
+  watchResult = true;
+  watchStartError: Error | undefined;
   unwatchCalls = 0;
   changedFileChecks = 0;
   graphStateReads = 0;
@@ -57,11 +59,12 @@ class FakeGraph {
 
   watch(options: WatchCallbacks) {
     this.watchCalls++;
+    if (this.watchStartError) throw this.watchStartError;
     this.watchCallbacks = options;
-    this.watching = true;
+    this.watching = this.watchResult;
     this.degraded = false;
     this.degradedReason = null;
-    return true;
+    return this.watchResult;
   }
 
   degradeWatcher(reason: string) {
@@ -322,6 +325,31 @@ test("retries a degraded watcher after bounded backoff", async () => {
     await manager.closeAll();
     restoreOpen();
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("keeps healthy LRU coverage when an incoming watcher cannot start", async () => {
+  const rootA = await indexedRoot("pi-codegraph-watchable-");
+  const rootB = await indexedRoot("pi-codegraph-unwatchable-");
+  const graphA = new FakeGraph(rootA);
+  const graphB = new FakeGraph(rootB);
+  graphB.watchResult = false;
+  const restoreOpen = replaceOpen(new Map([[rootA, graphA], [rootB, graphB]]));
+  const manager = new GraphManager({ pi: piForGitRoot(rootA), maxWatchedRoots: 1 });
+
+  try {
+    await manager.ensureReady(rootA, context(rootA));
+    assert.equal(graphA.watching, true);
+
+    await manager.ensureReady(rootB, context(rootB));
+    assert.equal(graphB.watching, false);
+    assert.equal(graphA.watching, true, "failed watcher startup must not evict healthy LRU coverage");
+    assert.equal(graphA.unwatchCalls, 0);
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await rm(rootA, { recursive: true, force: true });
+    await rm(rootB, { recursive: true, force: true });
   }
 });
 

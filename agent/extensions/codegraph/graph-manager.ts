@@ -164,7 +164,6 @@ export class GraphManager {
     if (entry.cg.isWatching()) return;
     if (entry.watchStartAttempted && now < (entry.watchRetryAfter ?? 0)) return;
 
-    this.stopOldestWatcher(entry.root);
     entry.watchStartAttempted = true;
     entry.watchRetryAfter = now + this.watchRetryMs;
     entry.watchError = undefined;
@@ -184,7 +183,11 @@ export class GraphManager {
           entry.watchRetryAfter = Date.now() + this.watchRetryMs;
         },
       });
-      if (!started) {
+      if (started) {
+        // Do not sacrifice healthy coverage until the incoming watcher proves
+        // it can occupy a slot. The cap is restored immediately after startup.
+        this.stopOldestWatcher(entry.root);
+      } else {
         entry.watchError = "SDK file watching is unavailable for this project; query-time reconciliation remains active.";
       }
     } catch (error) {
