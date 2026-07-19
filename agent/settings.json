@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.80.6",
+  "lastChangelogVersion": "0.80.10",
   "packages": [
     "npm:@schultzp2020/pi-cursor@0.5.0",
     "npm:pi-blackhole@0.3.9",

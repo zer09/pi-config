@@ -2,6 +2,17 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-07-19 — Pi 0.80.6 to 0.80.10 upgrade
+
+Details: [`docs/changelogs/pi-0.80.6-to-0.80.10-upgrade.md`](./changelogs/pi-0.80.6-to-0.80.10-upgrade.md)
+
+- Revised the requested 0.80.9 target to 0.80.10 with approval because 0.80.10 fixes Kimi deferred-tool regressions and the 0.80.9 xAI catalog-removal defect.
+- Upgraded the Bun-global Pi core package family to 0.80.10 and migrated active child SDK construction from removed `modelRegistry` options to `ModelRuntime` through a documented `pi-btw@0.4.1` local patch.
+- Ported Blackhole's custom-provider stream scan from removed private registry state to public ModelRegistry facade methods; retained percentage compaction and retired the now-duplicate environment-auth shim.
+- Upgraded CodeGraph CLI and native extension dependency from 1.4.0 to 1.4.1 without a full reindex; kept context-mode at current 1.0.169.
+- Measured Pi 0.80.10's 57 registered/54 active tools. Kept the eager tool set because browser-harness dominates context cost and current deferred candidates carry active-only prompt guidance that would undermine cache stability.
+- Validation included complete isolated Scenario B loading, package/local extension suites, strict type checks, disposable CodeGraph migration/full Explore, command-backed and ambient auth, wrapper checks, Blackhole threshold/bridge tests, and offline custom-provider BTW conversation/summarizer tests. No paid inference was used.
+
 ## 2026-07-10 — Upgrade native CodeGraph integration to 1.4.0
 
 - Refreshed upstream Git tags, npm metadata, and the GitHub release before selecting CodeGraph 1.4.0; confirmed the WSL CLI was already current.

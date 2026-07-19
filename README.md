@@ -20,6 +20,7 @@ The tracked config root is `agent/`, which maps to the local Pi agent config dir
 | `agent/prompts/`           | Slash-command prompt templates.                                                                                      |
 | `agent/themes/`            | Custom `dark` and `light` Pi themes.                                                                                 |
 | `agent/pi-blackhole/`      | pi-blackhole config, local patch notes, and patch reapply helpers.                                                   |
+| `agent/pi-btw/`            | Local pi-btw SDK migration notes and patch reapply helper.                                                           |
 | `docs/`                    | Config changelog, upgrade notes, ADRs, and skill maintenance docs.                                                   |
 | `.gitignore`               | Boundary between tracked config and local-only runtime state, caches, secrets, and generated data.                   |
 
@@ -34,13 +35,14 @@ Current defaults:
 | Default provider       | `openai-codex`     |
 | Default model          | `gpt-5.6-sol`      |
 | Default thinking level | `high`             |
-| Theme                  | `light`            |
+| Theme                  | `dark` tracked baseline; wrapper may persist the live OS theme |
 | Transport              | `websocket-cached` |
 
 Enabled models:
 
 - `openai-codex/gpt-5.5`
 - `openai-codex/gpt-5.6-sol`
+- `openai-codex/gpt-5.6-terra`
 - `opencode-go/deepseek-v4-pro`
 - `cursor/default`
 - `claude-bridge/claude-opus-4-6`
@@ -189,12 +191,16 @@ Local package patches are documented in:
 agent/pi-blackhole/LOCAL_PATCHES.md
 ```
 
-Patch notes currently cover:
+Active patch notes currently cover:
 
 - `compactAfterPercent` for auto-compaction thresholds
-- OM worker auth fallback for environment-backed providers
+- Pi 0.80.8+ public custom-provider stream discovery for Blackhole workers
 
-Package upgrades or reinstalls can overwrite patched files under the local Pi npm package cache. After upgrading pi-blackhole, review `LOCAL_PATCHES.md` and reapply or port patches as needed.
+The former OM worker auth fallback is documented as retired under Pi 0.80.10 because `ModelRegistry.getApiKeyAndHeaders()` now uses canonical `ModelRuntime` auth resolution.
+
+`pi-btw@0.4.1` also needs a local Pi 0.80.8+ SDK migration so child sessions receive a `ModelRuntime` with the selected extension provider registration. Its patch and helper live under `agent/pi-btw/`.
+
+Package upgrades or reinstalls can overwrite patched files under the local Pi npm package cache. After upgrading pi-blackhole or pi-btw, review the corresponding `LOCAL_PATCHES.md` and reapply or port patches as needed.
 
 ## Changelog and decisions
 
@@ -203,7 +209,7 @@ Use these docs to understand why the config looks the way it does:
 | Path                | Purpose                                                                            |
 | ------------------- | ---------------------------------------------------------------------------------- |
 | `docs/CHANGELOG.md` | Human-readable timeline of local Pi config changes.                                |
-| `docs/changelogs/`  | Detailed upgrade notes for specific Pi/package transitions, including the 0.80.3 → 0.80.6 recovery. |
+| `docs/changelogs/`  | Detailed upgrade notes for specific Pi/package transitions, including the 0.80.3 → 0.80.6 recovery and 0.80.6 → 0.80.10 SDK migration. |
 | `docs/adr/`         | Architecture decision records for long-lived config choices.                       |
 | `docs/skills/`      | Skill inventory, maintenance workflows, update processes, and retired-skill notes. |
 
@@ -217,6 +223,7 @@ Do not commit:
 
 - `agent/auth.json`
 - OAuth/cache files under `agent/mcp-oauth/`
+- generated `agent/models-store.json` catalog state and machine-local `agent/trust.json`
 - session and delegate-session logs
 - local npm/package caches
 - `.env` files

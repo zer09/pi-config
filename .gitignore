@@ -16,6 +16,12 @@ agent/pi-blackhole/**
 !agent/pi-blackhole/pi-blackhole-config.json
 !agent/pi-blackhole/LOCAL_PATCHES.md
 !agent/pi-blackhole/reapply-compact-after-percent-patch.mjs
+!agent/pi-blackhole/reapply-provider-stream-bridge-patch.mjs
+
+# Local pi-btw package patch documentation and reapply helper
+!agent/pi-btw/
+!agent/pi-btw/LOCAL_PATCHES.md
+!agent/pi-btw/reapply-model-runtime-patch.mjs
 
 # Local auth and sensitive local-only files
 agent/auth.json
@@ -23,6 +29,8 @@ agent/secrets/
 # agent/settings.json
 agent/settings.json.bak
 agent/mcp-onboarding.json
+agent/models-store.json
+agent/trust.json
 agent/agents-enforcer.log
 agent/claude-bridge.log
 agent/cc-cli-logs/
