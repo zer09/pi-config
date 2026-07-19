@@ -20,9 +20,13 @@ Native Pi tools for CodeGraph. The extension opens and synchronizes projects thr
 - If the pinned upstream truncation marker cuts through CodeGraph's final unmatched triple-backtick source fence, the adapter closes that fence and replaces the inaccurate completeness notice with an explicit partial-source warning. The same bytes inside a larger Markdown fence and near-miss marker formats remain unchanged.
 - Pi's outer emergency cap counts LF, CRLF, and lone-CR lines and tracks backtick and tilde Markdown fences. If truncation removes a normal closing fence, Pi closes it with the matching delimiter before its notice. If an extreme delimiter would amplify output, Pi omits that active block from the retained prefix instead.
 - Private module, handler, accessor, sparse-array, and result-shape drift fail with versioned compatibility guidance; there is no reduced retrieval fallback.
-- Query-time sync uses a fixed 10s TTL between extension-triggered syncs.
+- Every queried project root receives an initial catch-up reconciliation, then an in-process SDK watcher with a 2s quiet-period debounce.
+- Query tools run a full reconciliation at most every 10s as a watcher-independent safety net, and reconcile immediately when the watcher reports pending files or interrupted reference work.
+- Up to four recently used roots are watched concurrently; older roots remain cached and are caught up before their next query. This keeps root repositories, nested subrepos, and indexed worktrees independent without accumulating watchers for every historical worktree.
+- `getChangedFiles()` is status-only diagnostics; it no longer gates freshness because clean checkout/pull transitions can be invisible to Git status.
+- An explicit nested repository or worktree without its own `.codegraph` cannot silently borrow an ancestor index; the extension treats that nested Git root as uninitialized.
 - Sync also heals unresolved references left by an interrupted index, even when no source files changed.
-- Status reports the last full-index completeness state and pending reference resolution.
+- Status reports watcher health, the last full-index completeness state, pending changes, and pending reference resolution.
 - Safe uninitialized roots always require confirmation before initialization.
 - Confirmed full reindexes recreate the CodeGraph database before indexing, matching CodeGraph CLI behavior.
 - Cached graph handles are reopened when the on-disk database is replaced.

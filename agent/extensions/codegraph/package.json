@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "test": "node --test markdown-fences.test.ts upstream-explore.test.ts upstream-explore.hardening.test.ts upstream-explore.hardening-fuzz-reaudit-characterization.test.ts markdown-fences.post-b090e13-characterization.test.ts upstream-explore.integration.test.ts tools/explore-parameters.test.ts result.test.ts"
+    "test": "node --test graph-manager.test.ts markdown-fences.test.ts upstream-explore.test.ts upstream-explore.hardening.test.ts upstream-explore.hardening-fuzz-reaudit-characterization.test.ts markdown-fences.post-b090e13-characterization.test.ts upstream-explore.integration.test.ts tools/explore-parameters.test.ts result.test.ts"
   },
   "pi": {
     "extensions": [

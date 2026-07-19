@@ -151,7 +151,6 @@ export async function resolveCandidateRoot(
     try {
       const s = await stat(searchPath);
       if (!s.isDirectory()) return { error: `projectPath is not a directory: ${searchPath}` };
-      return { root: await canonicalPath(searchPath) };
     } catch {
       return { error: `projectPath does not exist or is not accessible: ${searchPath}` };
     }

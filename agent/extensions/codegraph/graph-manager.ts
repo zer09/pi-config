@@ -7,16 +7,20 @@
  */
 
 import { CodeGraph, findNearestCodeGraphRoot } from "./codegraph-package.ts";
-import { DEFAULT_SYNC_TTL_MS } from "./constants.ts";
+import {
+  DEFAULT_MAX_WATCHED_ROOTS,
+  DEFAULT_SYNC_TTL_MS,
+  DEFAULT_WATCH_DEBOUNCE_MS,
+} from "./constants.ts";
 import {
   canonicalPath,
   existingSearchPath,
+  isPathInside,
   resolveCandidateRoot,
   resolvePath,
   unsafeRootReason,
 } from "./paths.ts";
 import { textResult } from "./result.ts";
-import { changedCount } from "./status-format.ts";
 import type {
   CachedGraph,
   CodeGraphInstance,
@@ -32,12 +36,20 @@ import type {
 export interface GraphManagerOptions {
   /** Pi API used for git root detection and UI confirmations. */
   readonly pi: ExtensionAPI;
+  /** Query reconciliation interval override, primarily for focused tests. */
+  readonly syncTtlMs?: number;
+  /** Concurrent watched-root cap override, primarily for focused tests. */
+  readonly maxWatchedRoots?: number;
 }
 
 /** Options for building a status snapshot. */
 export interface BuildStatusSnapshotOptions {
   /** Whether the user explicitly supplied projectPath. */
   readonly explicitProjectPath?: boolean;
+  /** Include runtime graph state instead of returning only resolved location data. */
+  readonly includeGraphState?: boolean;
+  /** Include the git-status-based changed-file diagnostic. */
+  readonly includeChangedFiles?: boolean;
 }
 
 /** Result returned by CodeGraph initialization. */
@@ -63,7 +75,8 @@ function isLockUnavailableSyncResult(result: { readonly filesChecked: number; re
  */
 export class GraphManager {
   private readonly pi: ExtensionAPI;
-  private readonly syncTtlMs = DEFAULT_SYNC_TTL_MS;
+  private readonly syncTtlMs: number;
+  private readonly maxWatchedRoots: number;
   private readonly graphs = new Map<string, CachedGraph>();
   private readonly opening = new Map<string, Promise<CachedGraph>>();
 
@@ -74,6 +87,8 @@ export class GraphManager {
    */
   constructor(options: GraphManagerOptions) {
     this.pi = options.pi;
+    this.syncTtlMs = Math.max(0, options.syncTtlMs ?? DEFAULT_SYNC_TTL_MS);
+    this.maxWatchedRoots = Math.max(1, options.maxWatchedRoots ?? DEFAULT_MAX_WATCHED_ROOTS);
   }
 
   private closeGraphQuietly(cg: CodeGraphInstance): void {
@@ -94,10 +109,67 @@ export class GraphManager {
     try {
       if (entry.cg.reopenIfReplaced()) {
         entry.lastSyncedAt = 0;
+        entry.watchStartAttempted = false;
+        entry.watchError = undefined;
         entry.staleReindexDeclined = false;
       }
     } catch {
       // Best-effort self-heal; keep serving from the existing handle and retry later.
+    }
+  }
+
+  private stopOldestWatcher(exceptRoot: string): void {
+    const watched = [...this.graphs.values()]
+      .filter((candidate) => {
+        if (candidate.root === exceptRoot) return false;
+        try {
+          return candidate.cg.isWatching();
+        } catch {
+          return false;
+        }
+      })
+      .sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
+
+    while (watched.length >= this.maxWatchedRoots) {
+      const oldest = watched.shift();
+      if (!oldest) break;
+      try {
+        oldest.cg.unwatch();
+      } catch {
+        // A later query still performs catch-up reconciliation before reuse.
+      }
+      oldest.lastSyncedAt = 0;
+      oldest.watchStartAttempted = false;
+    }
+  }
+
+  private startWatching(entry: CachedGraph): void {
+    entry.lastAccessedAt = Date.now();
+    if (entry.cg.isWatching() || entry.watchStartAttempted) return;
+
+    this.stopOldestWatcher(entry.root);
+    entry.watchStartAttempted = true;
+    entry.watchError = undefined;
+
+    try {
+      const started = entry.cg.watch({
+        debounceMs: DEFAULT_WATCH_DEBOUNCE_MS,
+        onSyncComplete: () => {
+          entry.lastSyncedAt = Date.now();
+          entry.watchError = undefined;
+        },
+        onSyncError: (error) => {
+          entry.watchError = error.message;
+        },
+        onDegraded: (reason) => {
+          entry.watchError = reason;
+        },
+      });
+      if (!started) {
+        entry.watchError = "SDK file watching is unavailable for this project; query-time reconciliation remains active.";
+      }
+    } catch (error) {
+      entry.watchError = `SDK file watcher failed to start: ${error instanceof Error ? error.message : String(error)}`;
     }
   }
 
@@ -106,6 +178,7 @@ export class GraphManager {
     const existing = this.graphs.get(canonicalRoot);
     if (existing) {
       this.reopenIfReplaced(existing);
+      existing.lastAccessedAt = Date.now();
       return existing;
     }
 
@@ -114,11 +187,14 @@ export class GraphManager {
 
     const openPromise = CodeGraph.open(canonicalRoot, { sync: false })
       .then((cg) => {
+        const now = Date.now();
         const entry: CachedGraph = {
           root: canonicalRoot,
           cg,
-          openedAt: Date.now(),
+          openedAt: now,
           lastSyncedAt: 0,
+          lastAccessedAt: now,
+          watchStartAttempted: false,
         };
         this.graphs.set(canonicalRoot, entry);
         return entry;
@@ -129,6 +205,58 @@ export class GraphManager {
 
     this.opening.set(canonicalRoot, openPromise);
     return openPromise;
+  }
+
+  private refreshStatusSnapshot(
+    base: Pick<StatusSnapshot, "startPath" | "searchPath">,
+    entry: CachedGraph,
+    includeChangedFiles: boolean,
+  ): StatusSnapshot {
+    const pendingReferenceCount = entry.cg.getPendingReferenceCount();
+    const pendingFiles = entry.cg.getPendingFiles();
+    const sinceSync = Date.now() - entry.lastSyncedAt;
+    const syncDue = entry.lastSyncedAt === 0
+      || pendingFiles.length > 0
+      || pendingReferenceCount > 0
+      || sinceSync >= this.syncTtlMs;
+    let nextQuerySync: StatusSnapshot["nextQuerySync"];
+    let nextQuerySyncAfterMs: number | undefined;
+
+    if (entry.syncInFlight) {
+      nextQuerySync = "in-flight";
+    } else if (syncDue) {
+      nextQuerySync = "now";
+    } else {
+      nextQuerySync = "after-ttl";
+      nextQuerySyncAfterMs = this.syncTtlMs - sinceSync;
+    }
+
+    const watcherDegraded = entry.cg.isWatcherDegraded();
+    return {
+      initialized: true,
+      ...base,
+      root: entry.root,
+      stats: entry.cg.getStats(),
+      backend: entry.cg.getBackend(),
+      journalMode: entry.cg.getJournalMode(),
+      lastIndexedAt: entry.cg.getLastIndexedAt(),
+      indexBuildInfo: entry.cg.getIndexBuildInfo(),
+      indexStale: entry.cg.isIndexStale(),
+      indexState: entry.cg.getIndexState(),
+      pendingReferenceCount,
+      changedFiles: includeChangedFiles ? entry.cg.getChangedFiles() : undefined,
+      pendingFiles,
+      isIndexing: entry.cg.isIndexing(),
+      isWatching: entry.cg.isWatching(),
+      watcherDegraded,
+      watcherDegradedReason: watcherDegraded ? entry.cg.getWatcherDegradedReason() ?? undefined : undefined,
+      watchError: entry.watchError,
+      syncTtlMs: this.syncTtlMs,
+      lastSyncedAt: entry.lastSyncedAt,
+      syncInFlight: !!entry.syncInFlight,
+      nextQuerySync,
+      nextQuerySyncAfterMs,
+    };
   }
 
   /**
@@ -161,7 +289,16 @@ export class GraphManager {
       }
     }
 
-    const nearest = findNearestCodeGraphRoot(searchPath);
+    let nearest = findNearestCodeGraphRoot(searchPath);
+    if (nearest && explicitCandidate?.root) {
+      const nearestRoot = await canonicalPath(nearest);
+      const candidateRoot = await canonicalPath(explicitCandidate.root);
+      if (nearestRoot !== candidateRoot && isPathInside(nearestRoot, candidateRoot)) {
+        // A nested repository/worktree without its own index must not silently
+        // borrow an ancestor project's graph.
+        nearest = null;
+      }
+    }
 
     if (!nearest) {
       const candidate = explicitCandidate ?? await resolveCandidateRoot(this.pi, startPath, ctx.cwd, false, ctx.signal);
@@ -177,50 +314,21 @@ export class GraphManager {
       };
     }
 
-    const root = await canonicalPath(nearest);
-    const entry = await this.getEntry(root);
-    const changedFiles = entry.cg.getChangedFiles();
-    const pending = changedCount(changedFiles);
-    const pendingReferenceCount = entry.cg.getPendingReferenceCount();
-    const hasSyncWork = pending > 0 || pendingReferenceCount > 0;
-    const sinceSync = Date.now() - entry.lastSyncedAt;
-    let nextQuerySync: StatusSnapshot["nextQuerySync"];
-    let nextQuerySyncAfterMs: number | undefined;
-
-    if (entry.syncInFlight) {
-      nextQuerySync = "in-flight";
-    } else if (!hasSyncWork) {
-      nextQuerySync = "not-needed";
-    } else if (sinceSync > this.syncTtlMs) {
-      nextQuerySync = "now";
-    } else {
-      nextQuerySync = "after-ttl";
-      nextQuerySyncAfterMs = this.syncTtlMs - sinceSync;
+    const entry = await this.getEntry(nearest);
+    if (options.includeGraphState === false) {
+      return {
+        initialized: true,
+        startPath,
+        searchPath,
+        root: entry.root,
+        syncTtlMs: this.syncTtlMs,
+      };
     }
-
-    return {
-      initialized: true,
-      startPath,
-      searchPath,
-      root,
-      stats: entry.cg.getStats(),
-      backend: entry.cg.getBackend(),
-      journalMode: entry.cg.getJournalMode(),
-      lastIndexedAt: entry.cg.getLastIndexedAt(),
-      indexBuildInfo: entry.cg.getIndexBuildInfo(),
-      indexStale: entry.cg.isIndexStale(),
-      indexState: entry.cg.getIndexState(),
-      pendingReferenceCount,
-      changedFiles,
-      pendingFiles: entry.cg.getPendingFiles(),
-      isIndexing: entry.cg.isIndexing(),
-      isWatching: entry.cg.isWatching(),
-      syncTtlMs: this.syncTtlMs,
-      lastSyncedAt: entry.lastSyncedAt,
-      syncInFlight: !!entry.syncInFlight,
-      nextQuerySync,
-      nextQuerySyncAfterMs,
-    };
+    return this.refreshStatusSnapshot(
+      { startPath, searchPath },
+      entry,
+      options.includeChangedFiles ?? true,
+    );
   }
 
   /**
@@ -251,11 +359,14 @@ export class GraphManager {
 
     onUpdate?.(textResult(`Initializing CodeGraph at ${canonicalRoot}...`));
     const cg = await CodeGraph.init(canonicalRoot, { index: false });
+    const openedAt = Date.now();
     const entry: CachedGraph = {
       root: canonicalRoot,
       cg,
-      openedAt: Date.now(),
+      openedAt,
       lastSyncedAt: 0,
+      lastAccessedAt: openedAt,
+      watchStartAttempted: false,
     };
     this.graphs.set(canonicalRoot, entry);
 
@@ -280,6 +391,7 @@ export class GraphManager {
 
     try {
       await indexPromise;
+      this.startWatching(entry);
       return { entry, message: `Initialized and indexed CodeGraph at ${canonicalRoot}.` };
     } catch (error) {
       return { entry, message: `CodeGraph initialized at ${canonicalRoot}, but initial indexing failed: ${error instanceof Error ? error.message : String(error)}` };
@@ -324,6 +436,8 @@ export class GraphManager {
 
     entry.cg = freshGraph;
     entry.lastSyncedAt = 0;
+    entry.watchStartAttempted = false;
+    entry.watchError = undefined;
     entry.staleReindexDeclined = false;
     if (!previousClosed) this.closeGraphQuietly(previousGraph);
 
@@ -340,6 +454,7 @@ export class GraphManager {
     }
 
     entry.lastSyncedAt = Date.now();
+    this.startWatching(entry);
   }
 
   private async ensureCurrentIndex(
@@ -398,28 +513,37 @@ export class GraphManager {
     }
   }
 
+  private watcherWarning(entry: CachedGraph): string | undefined {
+    if (!entry.cg.isWatcherDegraded()) return undefined;
+    const reason = entry.cg.getWatcherDegradedReason();
+    return `CodeGraph file watching degraded${reason ? `: ${reason}` : ""}; query-time reconciliation remains active every ${this.syncTtlMs}ms.`;
+  }
+
   private async ensureFresh(entry: CachedGraph): Promise<string | undefined> {
+    entry.lastAccessedAt = Date.now();
+
     if (entry.syncInFlight) {
       try {
         await entry.syncInFlight;
-        return undefined;
+        this.startWatching(entry);
+        return this.watcherWarning(entry);
       } catch (error) {
+        this.startWatching(entry);
         return `CodeGraph sync failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
       }
     }
 
-    const changed = entry.cg.getChangedFiles();
-    const pending = changedCount(changed);
+    const pendingFiles = entry.cg.getPendingFiles();
     const pendingReferences = entry.cg.getPendingReferenceCount();
-    if (pending === 0 && pendingReferences === 0) return undefined;
-
     const sinceSync = Date.now() - entry.lastSyncedAt;
-    if (sinceSync <= this.syncTtlMs) {
-      const work = [
-        pending > 0 ? `${pending} pending change(s)` : undefined,
-        pendingReferences > 0 ? `${pendingReferences} unresolved reference(s) from an interrupted index` : undefined,
-      ].filter((item): item is string => !!item).join(" and ");
-      return `CodeGraph has ${work}; sync skipped until TTL expires (~${this.syncTtlMs - sinceSync}ms).`;
+    const syncDue = entry.lastSyncedAt === 0
+      || pendingFiles.length > 0
+      || pendingReferences > 0
+      || sinceSync >= this.syncTtlMs;
+
+    if (!syncDue) {
+      this.startWatching(entry);
+      return this.watcherWarning(entry);
     }
 
     entry.syncInFlight = entry.cg.sync()
@@ -435,8 +559,10 @@ export class GraphManager {
 
     try {
       await entry.syncInFlight;
-      return undefined;
+      this.startWatching(entry);
+      return this.watcherWarning(entry);
     } catch (error) {
+      this.startWatching(entry);
       return `CodeGraph sync failed; using existing index. ${error instanceof Error ? error.message : String(error)}`;
     }
   }
@@ -457,7 +583,11 @@ export class GraphManager {
     signal?: AbortSignal,
   ): Promise<ReadyGraph | NotReady> {
     const explicitProjectPath = typeof projectPath === "string" && projectPath.trim() !== "";
-    let snapshot = await this.buildStatusSnapshot(projectPath, ctx, { explicitProjectPath });
+    const snapshot = await this.buildStatusSnapshot(projectPath, ctx, {
+      explicitProjectPath,
+      includeGraphState: false,
+      includeChangedFiles: false,
+    });
 
     if (!snapshot.initialized) {
       if (!snapshot.candidateRoot) {
@@ -468,8 +598,12 @@ export class GraphManager {
       }
       const init = await this.initializeGraph(snapshot.candidateRoot, ctx, onUpdate, signal);
       if (!init.entry) return { ok: false, message: init.message ?? `CodeGraph is not initialized at ${snapshot.candidateRoot}.`, snapshot };
-      snapshot = await this.buildStatusSnapshot(init.entry.root, ctx, { explicitProjectPath: true });
-      return { ok: true, root: init.entry.root, cg: init.entry.cg, entry: init.entry, snapshot, syncWarning: init.message };
+      const readySnapshot = this.refreshStatusSnapshot(
+        { startPath: snapshot.startPath, searchPath: snapshot.searchPath },
+        init.entry,
+        false,
+      );
+      return { ok: true, root: init.entry.root, cg: init.entry.cg, entry: init.entry, snapshot: readySnapshot, syncWarning: init.message };
     }
 
     const entry = await this.getEntry(snapshot.root!);
@@ -477,8 +611,12 @@ export class GraphManager {
       await this.ensureCurrentIndex(entry, ctx, onUpdate, signal),
       await this.ensureFresh(entry),
     ].filter((warning): warning is string => !!warning);
-    const refreshedSnapshot = await this.buildStatusSnapshot(entry.root, ctx, { explicitProjectPath: true });
-    return { ok: true, root: entry.root, cg: entry.cg, entry, snapshot: refreshedSnapshot, syncWarning: warnings.join(" ") || undefined };
+    const readySnapshot = this.refreshStatusSnapshot(
+      { startPath: snapshot.startPath, searchPath: snapshot.searchPath },
+      entry,
+      false,
+    );
+    return { ok: true, root: entry.root, cg: entry.cg, entry, snapshot: readySnapshot, syncWarning: warnings.join(" ") || undefined };
   }
 
   /**

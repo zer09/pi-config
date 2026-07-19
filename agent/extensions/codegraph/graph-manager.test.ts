@@ -1,0 +1,210 @@
+import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { CodeGraph } from "./codegraph-package.ts";
+import { GraphManager } from "./graph-manager.ts";
+import type { CodeGraphInstance, ExtensionAPI, ExtensionContext } from "./types.ts";
+
+type WatchCallbacks = {
+  onSyncComplete?: (result: { filesChanged: number; durationMs: number }) => void;
+  onSyncError?: (error: Error) => void;
+  onDegraded?: (reason: string) => void;
+};
+
+class FakeGraph {
+  syncCalls = 0;
+  watchCalls = 0;
+  unwatchCalls = 0;
+  changedFileChecks = 0;
+  graphStateReads = 0;
+  pendingFiles: Array<{ path: string; firstSeenMs: number; lastSeenMs: number; indexing: boolean }> = [];
+  pendingReferences = 0;
+  watching = false;
+  degraded = false;
+  degradedReason: string | null = null;
+  watchCallbacks: WatchCallbacks | undefined;
+
+  readonly root: string;
+
+  constructor(root: string) {
+    this.root = root;
+  }
+
+  async sync() {
+    this.syncCalls++;
+    const filesChanged = this.pendingFiles.length;
+    this.pendingFiles = [];
+    this.pendingReferences = 0;
+    return {
+      filesChecked: 1,
+      filesAdded: filesChanged,
+      filesModified: 0,
+      filesRemoved: 0,
+      nodesUpdated: filesChanged,
+      durationMs: 1,
+    };
+  }
+
+  watch(options: WatchCallbacks) {
+    this.watchCalls++;
+    this.watchCallbacks = options;
+    this.watching = true;
+    return true;
+  }
+
+  unwatch() {
+    this.unwatchCalls++;
+    this.watching = false;
+  }
+
+  isWatching() { return this.watching; }
+  isWatcherDegraded() { return this.degraded; }
+  getWatcherDegradedReason() { return this.degradedReason; }
+  getPendingFiles() { return this.pendingFiles; }
+  getPendingReferenceCount() { return this.pendingReferences; }
+  getChangedFiles() {
+    this.changedFileChecks++;
+    return { added: [], modified: [], removed: [] };
+  }
+
+  getStats() {
+    this.graphStateReads++;
+    return { fileCount: 1, nodeCount: 1, edgeCount: 0, dbSizeBytes: 1, lastUpdated: Date.now() };
+  }
+  getBackend() { return "node-sqlite"; }
+  getJournalMode() { return "wal"; }
+  getLastIndexedAt() { return Date.now(); }
+  getIndexBuildInfo() { return { version: "1.4.1", extractionVersion: 24 }; }
+  isIndexStale() { return false; }
+  getIndexState() { return "complete" as const; }
+  isIndexing() { return false; }
+  reopenIfReplaced() { return false; }
+  close() {}
+}
+
+function context(cwd: string): ExtensionContext {
+  return {
+    cwd,
+    hasUI: false,
+    signal: new AbortController().signal,
+  } as ExtensionContext;
+}
+
+function piForGitRoot(gitRoot: string): ExtensionAPI {
+  return {
+    async exec() {
+      return { code: 0, stdout: `${gitRoot}\n`, stderr: "" };
+    },
+  } as unknown as ExtensionAPI;
+}
+
+async function indexedRoot(prefix: string): Promise<string> {
+  const root = await mkdtemp(path.join(os.tmpdir(), prefix));
+  await mkdir(path.join(root, ".codegraph"));
+  await writeFile(path.join(root, ".codegraph", "codegraph.db"), "");
+  return root;
+}
+
+function replaceOpen(graphs: Map<string, FakeGraph>): () => void {
+  const original = CodeGraph.open;
+  Object.defineProperty(CodeGraph, "open", {
+    configurable: true,
+    writable: true,
+    value: async (root: string) => {
+      const graph = graphs.get(root);
+      if (!graph) throw new Error(`Missing fake graph for ${root}`);
+      return graph as unknown as CodeGraphInstance;
+    },
+  });
+  return () => {
+    Object.defineProperty(CodeGraph, "open", {
+      configurable: true,
+      writable: true,
+      value: original,
+    });
+  };
+}
+
+test("uses catch-up, watcher events, and TTL without getChangedFiles freshness polling", async () => {
+  const root = await indexedRoot("pi-codegraph-freshness-");
+  const graph = new FakeGraph(root);
+  const restoreOpen = replaceOpen(new Map([[root, graph]]));
+  const manager = new GraphManager({ pi: piForGitRoot(root), syncTtlMs: 10_000 });
+
+  try {
+    const first = await manager.ensureReady(root, context(root));
+    assert.equal(first.ok, true);
+    assert.equal(graph.syncCalls, 1, "first query must run a full catch-up reconciliation");
+    assert.equal(graph.watchCalls, 1);
+    assert.equal(graph.graphStateReads, 1, "ensureReady should carry location state and capture freshness once after reconciliation");
+    assert.equal(graph.changedFileChecks, 0, "query freshness must not use git-status diagnostics");
+
+    await manager.ensureReady(root, context(root));
+    assert.equal(graph.syncCalls, 1, "a query inside the TTL should not rescan a quiet watched root");
+
+    graph.pendingFiles = [{ path: "src/changed.ts", firstSeenMs: 1, lastSeenMs: 1, indexing: false }];
+    await manager.ensureReady(root, context(root));
+    assert.equal(graph.syncCalls, 2, "a watcher-reported pending file should reconcile immediately");
+
+    if (first.ok) first.entry.lastSyncedAt = Date.now() - 20_000;
+    await manager.ensureReady(root, context(root));
+    assert.equal(graph.syncCalls, 3, "the TTL safety net must reconcile even without watcher events");
+
+    await manager.buildStatusSnapshot(root, context(root), { explicitProjectPath: true });
+    assert.equal(graph.changedFileChecks, 1, "getChangedFiles remains available only to codegraph_status diagnostics");
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("limits concurrent watchers and catches up an evicted root when it becomes active again", async () => {
+  const roots = await Promise.all([
+    indexedRoot("pi-codegraph-lru-a-"),
+    indexedRoot("pi-codegraph-lru-b-"),
+    indexedRoot("pi-codegraph-lru-c-"),
+  ]);
+  const graphs = new Map(roots.map((root) => [root, new FakeGraph(root)] as const));
+  const restoreOpen = replaceOpen(graphs);
+  const manager = new GraphManager({ pi: piForGitRoot(roots[0]!), maxWatchedRoots: 2 });
+
+  try {
+    for (const root of roots) await manager.ensureReady(root, context(root));
+
+    assert.equal(graphs.get(roots[0]!)!.watching, false);
+    assert.equal(graphs.get(roots[1]!)!.watching, true);
+    assert.equal(graphs.get(roots[2]!)!.watching, true);
+
+    await manager.ensureReady(roots[0], context(roots[0]!));
+    assert.equal(graphs.get(roots[0]!)!.syncCalls, 2, "an evicted root must catch up before it is queried again");
+    assert.equal([...graphs.values()].filter((graph) => graph.watching).length, 2);
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true })));
+  }
+});
+
+test("does not let an unindexed nested repository borrow its ancestor graph", async () => {
+  const parent = await indexedRoot("pi-codegraph-parent-");
+  const nested = path.join(parent, "nested-worktree");
+  await mkdir(nested);
+  const parentGraph = new FakeGraph(parent);
+  const restoreOpen = replaceOpen(new Map([[parent, parentGraph]]));
+  const manager = new GraphManager({ pi: piForGitRoot(nested) });
+
+  try {
+    const result = await manager.ensureReady(nested, context(parent));
+    assert.equal(result.ok, false);
+    assert.match(result.message, new RegExp(`CodeGraph is not initialized at ${nested.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    assert.equal(parentGraph.syncCalls, 0);
+    assert.equal(parentGraph.watchCalls, 0);
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await rm(parent, { recursive: true, force: true });
+  }
+});

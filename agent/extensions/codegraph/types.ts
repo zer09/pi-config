@@ -193,9 +193,15 @@ export interface CachedGraph {
   cg: CodeGraphInstance;
   /** Timestamp when the instance was opened. */
   readonly openedAt: number;
-  /** Timestamp of the last successful extension-triggered sync. */
+  /** Timestamp of the last successful watcher or query-triggered sync. */
   lastSyncedAt: number;
-  /** In-flight sync promise used to deduplicate concurrent sync requests. */
+  /** Timestamp when this project was last targeted by a query tool. */
+  lastAccessedAt: number;
+  /** Whether this graph has attempted to start its SDK watcher. */
+  watchStartAttempted: boolean;
+  /** Latest watcher startup/runtime problem, when known. */
+  watchError?: string;
+  /** In-flight sync promise used to deduplicate concurrent query reconciliation. */
   syncInFlight?: Promise<void>;
   /** In-flight full indexing promise used to avoid duplicate/closing active index work. */
   indexInFlight?: Promise<void>;
@@ -284,11 +290,17 @@ export interface StatusSnapshot {
   readonly isIndexing?: boolean;
   /** Whether CodeGraph's watcher is active. */
   readonly isWatching?: boolean;
-  /** Extension-level sync TTL in milliseconds. */
+  /** Whether the SDK watcher permanently degraded after startup. */
+  readonly watcherDegraded?: boolean;
+  /** Watcher degradation reason reported by CodeGraph. */
+  readonly watcherDegradedReason?: string;
+  /** Latest watcher startup/runtime problem recorded by the extension. */
+  readonly watchError?: string;
+  /** Query-triggered reconciliation TTL in milliseconds. */
   readonly syncTtlMs: number;
-  /** Last successful extension-triggered sync timestamp. */
+  /** Last successful watcher or query-triggered sync timestamp. */
   readonly lastSyncedAt?: number;
-  /** Whether an extension-triggered sync is in flight. */
+  /** Whether query-triggered reconciliation is in flight. */
   readonly syncInFlight?: boolean;
   /** What the next query tool would do about syncing. */
   readonly nextQuerySync?: "not-needed" | "in-flight" | "now" | "after-ttl";

@@ -6,6 +6,7 @@ This document summarizes local Pi configuration changes. Detailed upgrade notes 
 
 Details: [`docs/changelogs/pi-0.80.6-to-0.80.10-upgrade.md`](./changelogs/pi-0.80.6-to-0.80.10-upgrade.md)
 
+- Reworked native CodeGraph freshness around per-root SDK watchers, initial and 10-second query reconciliation, pending-file fast reconciliation, a four-root watcher LRU, and nested-repository/worktree isolation; `getChangedFiles()` is now status-only diagnostics rather than the sync gate.
 - Follow-up review hardening: copy only transient runtime API-key overrides into pi-btw child runtimes, add stock/previous-patch/offline integration regression tests, and make `agent/pi-btw/` denylist-by-default.
 - Added `docs/TODO.md` to recheck maintainer releases on or after 2026-08-19 before deciding whether to submit the proven local `pi-btw` and `pi-blackhole` fixes upstream.
 

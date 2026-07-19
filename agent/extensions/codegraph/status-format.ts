@@ -80,6 +80,11 @@ export function formatStatus(snapshot: StatusSnapshot, initMessage?: string): st
   lines.push(`- backend: ${snapshot.backend ?? "unknown"}`);
   lines.push(`- journal mode: ${snapshot.journalMode ?? "unknown"}`);
   lines.push(`- watching: ${snapshot.isWatching ? "yes" : "no"}`);
+  if (snapshot.watcherDegraded) {
+    lines.push(`- watcher degraded: yes${snapshot.watcherDegradedReason ? ` — ${snapshot.watcherDegradedReason}` : ""}`);
+  } else if (snapshot.watchError) {
+    lines.push(`- watcher note: ${snapshot.watchError}`);
+  }
   lines.push(`- indexing: ${snapshot.isIndexing ? "yes" : "no"}`);
 
   if (snapshot.stats) {
@@ -115,10 +120,10 @@ export function formatStatus(snapshot: StatusSnapshot, initMessage?: string): st
   }
   if (pendingWatcher.length > 20) lines.push(`  - ... ${pendingWatcher.length - 20} more`);
 
-  lines.push(`- extension sync TTL: ${snapshot.syncTtlMs}ms`);
-  lines.push(`- extension last sync: ${formatTimestamp(snapshot.lastSyncedAt)}`);
-  lines.push(`- extension sync in flight: ${snapshot.syncInFlight ? "yes" : "no"}`);
-  lines.push(`- next query sync: ${snapshot.nextQuerySync ?? "unknown"}${snapshot.nextQuerySyncAfterMs ? ` in ~${snapshot.nextQuerySyncAfterMs}ms` : ""}`);
+  lines.push(`- query reconciliation TTL: ${snapshot.syncTtlMs}ms`);
+  lines.push(`- last watcher/query sync: ${formatTimestamp(snapshot.lastSyncedAt)}`);
+  lines.push(`- query reconciliation in flight: ${snapshot.syncInFlight ? "yes" : "no"}`);
+  lines.push(`- next query reconciliation: ${snapshot.nextQuerySync ?? "unknown"}${snapshot.nextQuerySyncAfterMs ? ` in ~${snapshot.nextQuerySyncAfterMs}ms` : ""}`);
 
   return lines.join("\n");
 }
