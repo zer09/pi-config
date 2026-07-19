@@ -108,6 +108,14 @@ function piForGitRoot(gitRoot: string): ExtensionAPI {
   } as unknown as ExtensionAPI;
 }
 
+function piWithoutGitRoot(): ExtensionAPI {
+  return {
+    async exec() {
+      return { code: 1, stdout: "", stderr: "not a git repository" };
+    },
+  } as unknown as ExtensionAPI;
+}
+
 async function indexedRoot(prefix: string): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), prefix));
   await mkdir(path.join(root, ".codegraph"));
@@ -233,17 +241,45 @@ test("waits for watcher syncs to become idle before recreating the database", as
     oldGraph.indexing = true;
     setTimeout(() => { oldGraph.indexing = false; }, 20);
 
-    const reindexed = await manager.ensureReady(root, context(root, true));
+    const reindexed = await manager.ensureReady(
+      root,
+      context(root, true),
+      undefined,
+      undefined,
+      { includeChangedFiles: true },
+    );
     assert.equal(reindexed.ok, true);
     assert.equal(recreateObservedBusyGraph, false, "database recreation must wait for invisible watcher sync work");
     assert.ok(oldGraph.unwatchCalls >= 1, "watcher must stop before recreation");
     assert.equal(freshGraph.indexAllCalls, 1);
     assert.equal(freshGraph.watching, true);
+    assert.equal(freshGraph.changedFileChecks, 1, "status-oriented readiness must retain changed-file diagnostics");
   } finally {
     await manager.closeAll();
     restoreRecreate();
     restoreOpen();
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("keeps an explicit non-Git subdirectory on its initialized ancestor graph", async () => {
+  const parent = await indexedRoot("pi-codegraph-nongit-parent-");
+  const child = path.join(parent, "src");
+  await mkdir(child);
+  const parentGraph = new FakeGraph(parent);
+  const restoreOpen = replaceOpen(new Map([[parent, parentGraph]]));
+  const manager = new GraphManager({ pi: piWithoutGitRoot() });
+
+  try {
+    const result = await manager.ensureReady(child, context(parent));
+    assert.equal(result.ok, true);
+    if (result.ok) assert.equal(result.root, parent);
+    assert.equal(parentGraph.syncCalls, 1);
+    assert.equal(parentGraph.watchCalls, 1);
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await rm(parent, { recursive: true, force: true });
   }
 });
 

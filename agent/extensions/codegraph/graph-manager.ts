@@ -52,6 +52,12 @@ export interface BuildStatusSnapshotOptions {
   readonly includeChangedFiles?: boolean;
 }
 
+/** Optional diagnostics requested by the caller of ensureReady. */
+export interface EnsureReadyOptions {
+  /** Include changed-file diagnostics in the single post-reconciliation snapshot. */
+  readonly includeChangedFiles?: boolean;
+}
+
 /** Result returned by CodeGraph initialization. */
 export interface InitializeGraphResult {
   /** Cache entry when initialization opened a graph. */
@@ -290,7 +296,7 @@ export class GraphManager {
     }
 
     let nearest = findNearestCodeGraphRoot(searchPath);
-    if (nearest && explicitCandidate?.root) {
+    if (nearest && explicitCandidate?.root && explicitCandidate.gitRoot) {
       const nearestRoot = await canonicalPath(nearest);
       const candidateRoot = await canonicalPath(explicitCandidate.root);
       if (nearestRoot !== candidateRoot && isPathInside(nearestRoot, candidateRoot)) {
@@ -590,6 +596,7 @@ export class GraphManager {
    * @param ctx - Pi tool context.
    * @param onUpdate - Optional progress callback for initialization/indexing.
    * @param signal - Optional abort signal.
+   * @param options - Optional post-reconciliation status diagnostics.
    * @returns Ready graph or a user-facing not-ready result.
    */
   async ensureReady(
@@ -597,6 +604,7 @@ export class GraphManager {
     ctx: ExtensionContext,
     onUpdate?: ToolUpdateHandler,
     signal?: AbortSignal,
+    options: EnsureReadyOptions = {},
   ): Promise<ReadyGraph | NotReady> {
     const explicitProjectPath = typeof projectPath === "string" && projectPath.trim() !== "";
     const snapshot = await this.buildStatusSnapshot(projectPath, ctx, {
@@ -617,7 +625,7 @@ export class GraphManager {
       const readySnapshot = this.refreshStatusSnapshot(
         { startPath: snapshot.startPath, searchPath: snapshot.searchPath },
         init.entry,
-        false,
+        options.includeChangedFiles ?? false,
       );
       return { ok: true, root: init.entry.root, cg: init.entry.cg, entry: init.entry, snapshot: readySnapshot, syncWarning: init.message };
     }
@@ -630,7 +638,7 @@ export class GraphManager {
     const readySnapshot = this.refreshStatusSnapshot(
       { startPath: snapshot.startPath, searchPath: snapshot.searchPath },
       entry,
-      false,
+      options.includeChangedFiles ?? false,
     );
     return { ok: true, root: entry.root, cg: entry.cg, entry, snapshot: readySnapshot, syncWarning: warnings.join(" ") || undefined };
   }

@@ -15,6 +15,8 @@ import type { ExtensionAPI } from "./types.ts";
 export interface CandidateRootResult {
   /** Canonical root suitable for initialization, when resolution succeeds. */
   readonly root?: string;
+  /** Whether Git positively identified `root` as the current working tree root. */
+  readonly gitRoot?: boolean;
   /** User-facing resolution error, when resolution fails. */
   readonly error?: string;
 }
@@ -163,7 +165,7 @@ export async function resolveCandidateRoot(
   }).catch(() => undefined);
 
   if (git?.code === 0 && git.stdout.trim()) {
-    return { root: await canonicalPath(git.stdout.trim()) };
+    return { root: await canonicalPath(git.stdout.trim()), gitRoot: true };
   }
 
   return { root: await canonicalPath(searchPath || cwd) };
