@@ -292,35 +292,36 @@ export class GraphManager {
   ): Promise<StatusSnapshot> {
     const startPath = resolvePath(startInput, ctx.cwd);
     const searchPath = await existingSearchPath(startPath);
-    let explicitCandidate: Awaited<ReturnType<typeof resolveCandidateRoot>> | undefined;
-
-    if (options.explicitProjectPath) {
-      explicitCandidate = await resolveCandidateRoot(this.pi, startPath, ctx.cwd, true, ctx.signal);
-      if (explicitCandidate.error) {
-        return {
-          initialized: false,
-          startPath,
-          searchPath,
-          candidateError: explicitCandidate.error,
-          syncTtlMs: this.syncTtlMs,
-        };
-      }
+    const candidate = await resolveCandidateRoot(
+      this.pi,
+      startPath,
+      ctx.cwd,
+      options.explicitProjectPath ?? false,
+      ctx.signal,
+    );
+    if (candidate.error) {
+      return {
+        initialized: false,
+        startPath,
+        searchPath,
+        candidateError: candidate.error,
+        syncTtlMs: this.syncTtlMs,
+      };
     }
 
     let nearest = findNearestCodeGraphRoot(searchPath);
-    if (nearest && explicitCandidate?.gitRoot) {
+    if (nearest && candidate.gitRoot) {
       const nearestRoot = await canonicalPath(nearest);
-      const gitRoot = await canonicalPath(explicitCandidate.gitRoot);
+      const gitRoot = await canonicalPath(candidate.gitRoot);
       if (nearestRoot !== gitRoot && isPathInside(nearestRoot, gitRoot)) {
         // A nested repository/worktree without its own index must not silently
-        // borrow an ancestor project's graph. Keep the explicit requested path
-        // as the initialization candidate; Git root is isolation metadata only.
+        // borrow an ancestor project's graph. Candidate resolution preserves
+        // explicit/default root semantics; Git root is isolation metadata only.
         nearest = null;
       }
     }
 
     if (!nearest) {
-      const candidate = explicitCandidate ?? await resolveCandidateRoot(this.pi, startPath, ctx.cwd, false, ctx.signal);
       const unsafeReason = candidate.root ? await unsafeRootReason(candidate.root) ?? undefined : undefined;
       return {
         initialized: false,

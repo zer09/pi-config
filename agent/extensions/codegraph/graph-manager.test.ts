@@ -451,6 +451,45 @@ test("keeps an explicit Git subproject as the initialization candidate", async (
   }
 });
 
+test("uses the current Git repository index when no projectPath is supplied", async () => {
+  const parent = await indexedRoot("pi-codegraph-default-root-");
+  const child = path.join(parent, "src");
+  await mkdir(child);
+  const parentGraph = new FakeGraph(parent);
+  const restoreOpen = replaceOpen(new Map([[parent, parentGraph]]));
+  const manager = new GraphManager({ pi: piForGitRoot(parent) });
+
+  try {
+    const result = await manager.ensureReady(undefined, context(child));
+    assert.equal(result.ok, true);
+    if (result.ok) assert.equal(result.root, parent);
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("does not let default cwd in an unindexed nested repository borrow its ancestor graph", async () => {
+  const parent = await indexedRoot("pi-codegraph-default-nested-parent-");
+  const nested = path.join(parent, "nested-worktree");
+  await mkdir(nested);
+  const parentGraph = new FakeGraph(parent);
+  const restoreOpen = replaceOpen(new Map([[parent, parentGraph]]));
+  const manager = new GraphManager({ pi: piForGitRoot(nested) });
+
+  try {
+    const result = await manager.ensureReady(undefined, context(nested));
+    assert.equal(result.ok, false);
+    assert.match(result.message, new RegExp(`CodeGraph is not initialized at ${nested.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    assert.equal(parentGraph.syncCalls, 0);
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
 test("does not let an unindexed nested repository borrow its ancestor graph", async () => {
   const parent = await indexedRoot("pi-codegraph-parent-");
   const nested = path.join(parent, "nested-worktree");
