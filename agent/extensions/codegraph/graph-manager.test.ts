@@ -401,8 +401,10 @@ test("keeps healthy LRU coverage when an incoming watcher cannot start", async (
     await manager.ensureReady(rootA, context(rootA));
     assert.equal(graphA.watching, true);
 
-    await manager.ensureReady(rootB, context(rootB));
+    const unwatchable = await manager.ensureReady(rootB, context(rootB));
+    assert.equal(unwatchable.ok, true);
     assert.equal(graphB.watching, false);
+    if (unwatchable.ok) assert.match(unwatchable.syncWarning ?? "", /watching is unavailable/);
     assert.equal(graphA.watching, true, "failed watcher startup must not evict healthy LRU coverage");
     assert.equal(graphA.unwatchCalls, 0);
   } finally {

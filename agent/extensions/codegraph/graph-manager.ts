@@ -572,9 +572,14 @@ export class GraphManager {
   }
 
   private watcherWarning(entry: CachedGraph): string | undefined {
-    if (!entry.cg.isWatcherDegraded()) return undefined;
-    const reason = entry.cg.getWatcherDegradedReason();
-    return `CodeGraph file watching degraded${reason ? `: ${reason}` : ""}; query-time reconciliation remains active every ${this.syncTtlMs}ms.`;
+    if (entry.cg.isWatcherDegraded()) {
+      const reason = entry.cg.getWatcherDegradedReason();
+      return `CodeGraph file watching degraded${reason ? `: ${reason}` : ""}; query-time reconciliation remains active every ${this.syncTtlMs}ms.`;
+    }
+    if (entry.watchError) {
+      return `CodeGraph file watcher warning: ${entry.watchError}`;
+    }
+    return undefined;
   }
 
   private async waitForWatcherFlush(entry: CachedGraph): Promise<boolean> {
