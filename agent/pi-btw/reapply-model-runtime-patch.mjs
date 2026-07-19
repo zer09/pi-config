@@ -8,7 +8,34 @@ const packageRoot = process.argv[2]
   ? resolve(process.argv[2])
   : join(here, "..", "npm", "node_modules", "pi-btw");
 const extensionPath = join(packageRoot, "extensions", "btw.ts");
-const marker = "async function createBtwModelRuntime(";
+const currentMarker = 'parentAuthStatus.source === "runtime"';
+const previousHelper = `async function createBtwModelRuntime(ctx: ExtensionCommandContext, model: SessionModel): Promise<ModelRuntime> {
+  const modelRuntime = await ModelRuntime.create();
+  const providerConfig = ctx.modelRegistry.getRegisteredProviderConfig(model.provider);
+  if (providerConfig) {
+    modelRuntime.registerProvider(model.provider, providerConfig);
+  }
+  return modelRuntime;
+}`;
+const currentHelper = `async function createBtwModelRuntime(ctx: ExtensionCommandContext, model: SessionModel): Promise<ModelRuntime> {
+  const modelRuntime = await ModelRuntime.create();
+  const providerConfig = ctx.modelRegistry.getRegisteredProviderConfig(model.provider);
+  if (providerConfig) {
+    modelRuntime.registerProvider(model.provider, providerConfig);
+  }
+
+  // A fresh child runtime cannot see credentials supplied only to the parent with
+  // --api-key or ModelRuntime.setRuntimeApiKey(). Copy only that transient source;
+  // stored, environment, command-backed, and OAuth auth resolve normally.
+  const parentAuthStatus = ctx.modelRegistry.getProviderAuthStatus(model.provider);
+  if (parentAuthStatus.source === "runtime") {
+    const parentAuth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+    if (parentAuth.ok && parentAuth.apiKey) {
+      await modelRuntime.setRuntimeApiKey(model.provider, parentAuth.apiKey);
+    }
+  }
+  return modelRuntime;
+}`;
 
 function replaceOnce(content, oldText, newText, label) {
   if (!content.includes(oldText)) {
@@ -22,8 +49,16 @@ if (!existsSync(extensionPath)) {
 }
 
 let content = readFileSync(extensionPath, "utf8");
-if (content.includes(marker)) {
-  console.log("already patched: ModelRuntime child sessions");
+if (content.includes(currentMarker)) {
+  console.log("already patched: ModelRuntime child sessions with runtime auth");
+  process.exit(0);
+}
+
+if (content.includes(previousHelper)) {
+  content = content.replace(previousHelper, currentHelper);
+  writeFileSync(extensionPath, content);
+  console.log("upgraded: previous ModelRuntime patch with runtime auth propagation");
+  console.log("pi-btw ModelRuntime patch complete. Restart Pi or run /reload.");
   process.exit(0);
 }
 
@@ -37,7 +72,7 @@ content = replaceOnce(
 content = replaceOnce(
   content,
   `}\n\nfunction extractText(parts: AssistantMessage["content"], type: "text" | "thinking"): string {\n`,
-  `}\n\nasync function createBtwModelRuntime(ctx: ExtensionCommandContext, model: SessionModel): Promise<ModelRuntime> {\n  const modelRuntime = await ModelRuntime.create();\n  const providerConfig = ctx.modelRegistry.getRegisteredProviderConfig(model.provider);\n  if (providerConfig) {\n    modelRuntime.registerProvider(model.provider, providerConfig);\n  }\n  return modelRuntime;\n}\n\nfunction extractText(parts: AssistantMessage["content"], type: "text" | "thinking"): string {\n`,
+  `}\n\n${currentHelper}\n\nfunction extractText(parts: AssistantMessage["content"], type: "text" | "thinking"): string {\n`,
   "ModelRuntime helper",
 );
 
@@ -56,5 +91,5 @@ content = replaceOnce(
 );
 
 writeFileSync(extensionPath, content);
-console.log("patched: ModelRuntime child sessions");
+console.log("patched: ModelRuntime child sessions with runtime auth");
 console.log("pi-btw ModelRuntime patch complete. Restart Pi or run /reload.");

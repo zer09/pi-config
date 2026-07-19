@@ -181,13 +181,14 @@ node ~/.pi/agent/pi-blackhole/reapply-provider-stream-bridge-patch.mjs
 
 ### pi-btw ModelRuntime migration — added
 
-Both BTW child-session constructors now create a canonical `ModelRuntime` and copy the selected extension provider's public registration before calling `createAgentSession({ modelRuntime })`.
+Both BTW child-session constructors now create a canonical `ModelRuntime` and copy the selected extension provider's public registration before calling `createAgentSession({ modelRuntime })`. A post-merge review found that a credential supplied only through `--api-key` or `ModelRuntime.setRuntimeApiKey()` was still parent-runtime-only. The helper now detects only the `runtime` auth source and copies that transient key into the child; stored, environment, command-backed, and OAuth auth remain canonical.
 
-An offline custom-provider test proved:
+Offline regression tests proved:
 
-- the conversation child session invoked the copied provider
-- the summarizer child session invoked it
-- the resulting RPC commands succeeded
+- stock pi-btw is patched with provider and runtime-auth propagation
+- the previous local ModelRuntime patch upgrades in place rather than being mistaken for the final patch
+- a parent `--api-key` reaches an offline custom-provider BTW child session
+- the conversation and summarizer constructors use the shared migrated helper
 - TypeScript strict checking against Pi 0.80.10 declarations passed
 
 Reapply with:
