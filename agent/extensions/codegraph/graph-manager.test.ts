@@ -20,6 +20,7 @@ class FakeGraph {
   watchStartError: Error | undefined;
   unwatchCalls = 0;
   changedFileChecks = 0;
+  changedFiles = { added: [] as string[], modified: [] as string[], removed: [] as string[] };
   graphStateReads = 0;
   pendingFiles: Array<{ path: string; firstSeenMs: number; lastSeenMs: number; indexing: boolean }> = [];
   pendingReferences = 0;
@@ -47,6 +48,7 @@ class FakeGraph {
     // External cg.sync() updates the DB but does not clear the watcher-owned
     // pending queue; only unwatch()/the watcher's own flush does that.
     this.pendingReferences = 0;
+    this.changedFiles = { added: [], modified: [], removed: [] };
     return {
       filesChecked: 1,
       filesAdded: filesChanged,
@@ -88,7 +90,7 @@ class FakeGraph {
   getPendingReferenceCount() { return this.pendingReferences; }
   getChangedFiles() {
     this.changedFileChecks++;
-    return { added: [], modified: [], removed: [] };
+    return this.changedFiles;
   }
 
   completeWatcherSync(pendingAfter: FakeGraph["pendingFiles"] = []) {
@@ -188,7 +190,11 @@ test("uses catch-up, watcher events, and TTL without getChangedFiles freshness p
   const root = await indexedRoot("pi-codegraph-freshness-");
   const graph = new FakeGraph(root);
   const restoreOpen = replaceOpen(new Map([[root, graph]]));
-  const manager = new GraphManager({ pi: piForGitRoot(root), syncTtlMs: 10_000 });
+  const manager = new GraphManager({
+    pi: piForGitRoot(root),
+    syncTtlMs: 10_000,
+    watcherRemovalProbe: false,
+  });
 
   try {
     const first = await manager.ensureReady(root, context(root));
@@ -228,6 +234,32 @@ test("uses catch-up, watcher events, and TTL without getChangedFiles freshness p
 
     await manager.buildStatusSnapshot(root, context(root), { explicitProjectPath: true });
     assert.equal(graph.changedFileChecks, 1, "getChangedFiles remains available only to codegraph_status diagnostics");
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("reconciles coalesced directory removals that have no watcher pending files", async () => {
+  const root = await indexedRoot("pi-codegraph-directory-removal-");
+  const graph = new FakeGraph(root);
+  const restoreOpen = replaceOpen(new Map([[root, graph]]));
+  const manager = new GraphManager({
+    pi: piForGitRoot(root),
+    syncTtlMs: 10_000,
+    watcherRemovalProbe: true,
+  });
+
+  try {
+    await manager.ensureReady(root, context(root));
+    assert.equal(graph.syncCalls, 1);
+    graph.changedFiles = { added: [], modified: [], removed: ["src/removed/file.ts"] };
+
+    await manager.ensureReady(root, context(root));
+    assert.equal(graph.pendingFiles.length, 0);
+    assert.equal(graph.syncCalls, 2, "directory removal diagnostics must bypass the TTL blind window");
+    assert.ok(graph.changedFileChecks >= 2);
   } finally {
     await manager.closeAll();
     restoreOpen();
@@ -452,7 +484,7 @@ test("waits for watcher syncs to become idle before recreating the database", as
     recreateObservedBusyGraph = oldGraph.indexing;
     return freshGraph;
   });
-  const manager = new GraphManager({ pi: piForGitRoot(root) });
+  const manager = new GraphManager({ pi: piForGitRoot(root), watcherRemovalProbe: false });
 
   try {
     const initial = await manager.ensureReady(root, context(root));

@@ -46,6 +46,8 @@ export interface GraphManagerOptions {
   readonly watchRetryMs?: number;
   /** Pending watcher-drain wait override, primarily for focused tests. */
   readonly watchFlushWaitMs?: number;
+  /** Enable the macOS/Windows coalesced-directory-removal probe. */
+  readonly watcherRemovalProbe?: boolean;
 }
 
 /** Options for building a status snapshot. */
@@ -91,6 +93,7 @@ export class GraphManager {
   private readonly maxWatchedRoots: number;
   private readonly watchRetryMs: number;
   private readonly watchFlushWaitMs: number;
+  private readonly watcherRemovalProbe: boolean;
   private readonly graphs = new Map<string, CachedGraph>();
   private readonly opening = new Map<string, Promise<CachedGraph>>();
 
@@ -105,6 +108,8 @@ export class GraphManager {
     this.maxWatchedRoots = Math.max(1, options.maxWatchedRoots ?? DEFAULT_MAX_WATCHED_ROOTS);
     this.watchRetryMs = Math.max(0, options.watchRetryMs ?? DEFAULT_WATCH_RETRY_MS);
     this.watchFlushWaitMs = Math.max(0, options.watchFlushWaitMs ?? DEFAULT_WATCH_FLUSH_WAIT_MS);
+    this.watcherRemovalProbe = options.watcherRemovalProbe
+      ?? (process.platform === "darwin" || process.platform === "win32");
   }
 
   private closeGraphQuietly(cg: CodeGraphInstance): void {
@@ -624,10 +629,24 @@ export class GraphManager {
 
     const watcherCouldNotFlush = hadWatcherPending
       && (!entry.cg.isWatching() || entry.cg.isWatcherDegraded());
+    let watcherRemovalDetected = false;
+    if (
+      this.watcherRemovalProbe
+      && pendingFiles.length === 0
+      && entry.cg.isWatching()
+      && !entry.cg.isWatcherDegraded()
+    ) {
+      try {
+        watcherRemovalDetected = entry.cg.getChangedFiles().removed.length > 0;
+      } catch (error) {
+        entry.watchError = `directory-removal freshness probe failed: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
     const pendingReferences = entry.cg.getPendingReferenceCount();
     const sinceSync = Date.now() - entry.lastSyncedAt;
     const syncDue = entry.lastSyncedAt === 0
       || watcherCouldNotFlush
+      || watcherRemovalDetected
       || pendingFiles.length > 0
       || pendingReferences > 0
       || sinceSync >= this.syncTtlMs;
