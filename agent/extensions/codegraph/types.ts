@@ -201,6 +201,8 @@ export interface CachedGraph {
   querySyncGeneration: number;
   /** Timestamp when this project was last targeted by a query tool. */
   lastAccessedAt: number;
+  /** Whether database replacement temporarily forbids watcher startup. */
+  watchSuppressed?: boolean;
   /** Whether this graph has attempted to start its SDK watcher. */
   watchStartAttempted: boolean;
   /** Earliest timestamp for retrying an inactive watcher after failure/degradation. */

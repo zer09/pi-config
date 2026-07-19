@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { CodeGraph } from "./codegraph-package.ts";
 import { GraphManager } from "./graph-manager.ts";
-import type { CodeGraphInstance, ExtensionAPI, ExtensionContext } from "./types.ts";
+import type { CachedGraph, CodeGraphInstance, ExtensionAPI, ExtensionContext } from "./types.ts";
 
 type WatchCallbacks = {
   onSyncComplete?: (result: { filesChanged: number; durationMs: number }) => void;
@@ -480,8 +480,10 @@ test("waits for watcher syncs to become idle before recreating the database", as
   const freshGraph = new FakeGraph(root);
   const restoreOpen = replaceOpen(new Map([[root, oldGraph]]));
   let recreateObservedBusyGraph = false;
+  let recreateObservedWatchingGraph = false;
   const restoreRecreate = replaceRecreate(async () => {
     recreateObservedBusyGraph = oldGraph.indexing;
+    recreateObservedWatchingGraph = oldGraph.watching;
     return freshGraph;
   });
   const manager = new GraphManager({ pi: piForGitRoot(root), watcherRemovalProbe: false });
@@ -489,8 +491,19 @@ test("waits for watcher syncs to become idle before recreating the database", as
   try {
     const initial = await manager.ensureReady(root, context(root));
     assert.equal(initial.ok, true);
+    if (!initial.ok) throw new Error("expected initialized graph");
     assert.equal(oldGraph.watching, true);
 
+    const managerInternals = manager as unknown as {
+      startWatching(entry: CachedGraph): void;
+    };
+    initial.entry.syncInFlight = new Promise<string | undefined>((resolve) => {
+      setTimeout(() => {
+        managerInternals.startWatching(initial.entry);
+        initial.entry.syncInFlight = undefined;
+        resolve(undefined);
+      }, 5);
+    });
     oldGraph.stale = true;
     oldGraph.indexing = true;
     setTimeout(() => { oldGraph.indexing = false; }, 20);
@@ -504,7 +517,8 @@ test("waits for watcher syncs to become idle before recreating the database", as
     );
     assert.equal(reindexed.ok, true);
     assert.equal(recreateObservedBusyGraph, false, "database recreation must wait for invisible watcher sync work");
-    assert.ok(oldGraph.unwatchCalls >= 1, "watcher must stop before recreation");
+    assert.equal(recreateObservedWatchingGraph, false, "shared sync completion must not restart the old watcher");
+    assert.ok(oldGraph.unwatchCalls >= 2, "watcher must stop before and after shared sync completion");
     assert.equal(freshGraph.indexAllCalls, 1);
     assert.equal(freshGraph.syncCalls, 1, "full reindex must receive a watched catch-up pass before readiness");
     assert.equal(freshGraph.watching, true);

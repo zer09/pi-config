@@ -171,7 +171,7 @@ export class GraphManager {
   private startWatching(entry: CachedGraph): void {
     const now = Date.now();
     entry.lastAccessedAt = now;
-    if (entry.cg.isWatching()) return;
+    if (entry.watchSuppressed || entry.cg.isWatching()) return;
     if (entry.watchStartAttempted && now < (entry.watchRetryAfter ?? 0)) return;
 
     entry.watchStartAttempted = true;
@@ -444,80 +444,91 @@ export class GraphManager {
     onUpdate?: ToolUpdateHandler,
     signal?: AbortSignal,
   ): Promise<void> {
-    // Stop new watcher work before replacing the database, then wait for both
-    // extension-tracked and SDK-internal watcher syncs to leave the index mutex.
+    // Suppression spans the whole replacement transaction: an in-flight shared
+    // reconciliation may finish after the first unwatch and must not restart the
+    // old watcher before SQLite recreation.
+    entry.watchSuppressed = true;
     try {
-      entry.cg.unwatch();
-    } finally {
-      entry.watchStartAttempted = false;
-      entry.watchRetryAfter = undefined;
-    }
-
-    if (entry.syncInFlight) {
       try {
-        await entry.syncInFlight;
-      } catch {
-        // A full recreate supersedes a failed incremental sync.
+        entry.cg.unwatch();
+      } finally {
+        entry.watchStartAttempted = false;
+        entry.watchRetryAfter = undefined;
       }
-    }
 
-    const idleDeadline = Date.now() + 30_000;
-    while (entry.cg.isIndexing() && Date.now() < idleDeadline) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    if (entry.cg.isIndexing()) {
-      throw new Error("CodeGraph is still finishing watcher/index work after 30 seconds; the database was not recreated. Retry the reindex after that work settles.");
-    }
-
-    const previousGraph = entry.cg;
-    let previousClosed = false;
-
-    if (process.platform === "win32") {
-      this.closeGraphQuietly(previousGraph);
-      previousClosed = true;
-    }
-
-    onUpdate?.(textResult(`Recreating CodeGraph database at ${entry.root}...`));
-    let freshGraph: CodeGraphInstance;
-    try {
-      freshGraph = await CodeGraph.recreate(entry.root);
-    } catch (error) {
-      if (previousClosed) {
+      if (entry.syncInFlight) {
         try {
-          entry.cg = await CodeGraph.open(entry.root, { sync: false });
+          await entry.syncInFlight;
         } catch {
-          this.graphs.delete(entry.root);
+          // A full recreate supersedes a failed incremental sync.
         }
       }
-      throw error;
+
+      // The shared operation calls startWatching() before resolving. Suppression
+      // blocks that path; this second stop is defensive against SDK-internal work.
+      entry.cg.unwatch();
+      entry.watchStartAttempted = false;
+      entry.watchRetryAfter = undefined;
+
+      const idleDeadline = Date.now() + 30_000;
+      while (entry.cg.isIndexing() && Date.now() < idleDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (entry.cg.isIndexing()) {
+        throw new Error("CodeGraph is still finishing watcher/index work after 30 seconds; the database was not recreated. Retry the reindex after that work settles.");
+      }
+
+      const previousGraph = entry.cg;
+      let previousClosed = false;
+
+      if (process.platform === "win32") {
+        this.closeGraphQuietly(previousGraph);
+        previousClosed = true;
+      }
+
+      onUpdate?.(textResult(`Recreating CodeGraph database at ${entry.root}...`));
+      let freshGraph: CodeGraphInstance;
+      try {
+        freshGraph = await CodeGraph.recreate(entry.root);
+      } catch (error) {
+        if (previousClosed) {
+          try {
+            entry.cg = await CodeGraph.open(entry.root, { sync: false });
+          } catch {
+            this.graphs.delete(entry.root);
+          }
+        }
+        throw error;
+      }
+
+      entry.cg = freshGraph;
+      entry.lastSyncedAt = 0;
+      entry.querySyncGeneration = 0;
+      entry.watchStartAttempted = false;
+      entry.watchRetryAfter = undefined;
+      entry.watchError = undefined;
+      entry.lastWatcherSyncedAt = undefined;
+      entry.staleReindexDeclined = false;
+      if (!previousClosed) this.closeGraphQuietly(previousGraph);
+
+      onUpdate?.(textResult(`Reindexing CodeGraph at ${entry.root}...`));
+      const result = await freshGraph.indexAll({
+        signal,
+        onProgress(progress) {
+          onUpdate?.(textResult(`Reindexing ${entry.root}: ${progress.phase} ${progress.current}/${progress.total}`));
+        },
+      });
+
+      if (!result.success) {
+        throw new Error(result.errors.map((e) => e.message).join("; ") || "CodeGraph indexing failed.");
+      }
+
+      // The caller's following ensureFresh() performs the forced watched catch-up.
+      entry.lastSyncedAt = 0;
+    } finally {
+      entry.watchSuppressed = false;
+      if (this.graphs.get(entry.root) === entry) this.startWatching(entry);
     }
-
-    entry.cg = freshGraph;
-    entry.lastSyncedAt = 0;
-    entry.querySyncGeneration = 0;
-    entry.watchStartAttempted = false;
-    entry.watchRetryAfter = undefined;
-    entry.watchError = undefined;
-    entry.lastWatcherSyncedAt = undefined;
-    entry.staleReindexDeclined = false;
-    if (!previousClosed) this.closeGraphQuietly(previousGraph);
-
-    onUpdate?.(textResult(`Reindexing CodeGraph at ${entry.root}...`));
-    const result = await freshGraph.indexAll({
-      signal,
-      onProgress(progress) {
-        onUpdate?.(textResult(`Reindexing ${entry.root}: ${progress.phase} ${progress.current}/${progress.total}`));
-      },
-    });
-
-    if (!result.success) {
-      throw new Error(result.errors.map((e) => e.message).join("; ") || "CodeGraph indexing failed.");
-    }
-
-    // The caller's following ensureFresh() installs/drains the watcher around a
-    // forced incremental pass, closing the full-index-to-watcher handoff gap.
-    entry.lastSyncedAt = 0;
-    this.startWatching(entry);
   }
 
   private async ensureCurrentIndex(

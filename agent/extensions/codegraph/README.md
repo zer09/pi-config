@@ -29,7 +29,7 @@ Native Pi tools for CodeGraph. The extension opens and synchronizes projects thr
 - Sync also heals unresolved references left by an interrupted index, even when no source files changed.
 - Status reports watcher health, separate watcher/query reconciliation timestamps, the last full-index completeness state, pending changes, and pending reference resolution. Watcher completions never postpone the 10s watcher-independent reconciliation clock.
 - Safe uninitialized roots always require confirmation before initialization.
-- Confirmed full reindexes stop the SDK watcher and wait for watcher/query index work to become idle before recreating the database, matching CodeGraph CLI rebuild behavior without racing the old SQLite handle.
+- Confirmed full reindexes suppress watcher startup for the entire replacement transaction, stop the old watcher before and after shared query work settles, and wait for SDK indexing to become idle before recreating SQLite.
 - Cached graph handles are reopened when the on-disk database is replaced.
 
 The extension refuses to initialize unsafe roots such as `$HOME`, filesystem roots, or parents of `$HOME`.
