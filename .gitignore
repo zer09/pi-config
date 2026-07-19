@@ -18,10 +18,12 @@ agent/pi-blackhole/**
 !agent/pi-blackhole/reapply-compact-after-percent-patch.mjs
 !agent/pi-blackhole/reapply-provider-stream-bridge-patch.mjs
 
-# Local pi-btw package patch documentation and reapply helper
+# Local pi-btw package patch documentation, helper, and regression test
+agent/pi-btw/**
 !agent/pi-btw/
 !agent/pi-btw/LOCAL_PATCHES.md
 !agent/pi-btw/reapply-model-runtime-patch.mjs
+!agent/pi-btw/reapply-model-runtime-patch.test.mjs
 
 # Local auth and sensitive local-only files
 agent/auth.json

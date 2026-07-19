@@ -10,7 +10,8 @@ Behavior:
 
 - Each BTW conversation or summarizer child session creates a current `ModelRuntime` using the normal Pi agent auth and model configuration.
 - If the selected model belongs to an extension provider, its public provider configuration is copied from the parent `ModelRegistry` into the child runtime.
-- Built-in and `models.json` providers continue to use canonical `ModelRuntime` discovery and auth.
+- If the parent provider auth source is the transient `runtime` source used by `--api-key` or `ModelRuntime.setRuntimeApiKey()`, that resolved key is copied into the child runtime.
+- Stored, environment, command-backed, OAuth, built-in, and `models.json` auth continue to resolve canonically instead of being converted into runtime keys.
 - BTW tool names, commands, model selection, thinking behavior, and persistence are unchanged.
 
 Patched file:
@@ -26,9 +27,10 @@ node ~/.pi/agent/pi-btw/reapply-model-runtime-patch.mjs
 Quick verification:
 
 ```bash
-rg --no-ignore "createBtwModelRuntime|modelRuntime," ~/.pi/agent/npm/node_modules/pi-btw/extensions/btw.ts
+rg --no-ignore "createBtwModelRuntime|parentAuthStatus|setRuntimeApiKey|modelRuntime," ~/.pi/agent/npm/node_modules/pi-btw/extensions/btw.ts
+node --test ~/.pi/agent/pi-btw/reapply-model-runtime-patch.test.mjs
 ```
 
-Expected result: one `createBtwModelRuntime()` helper and both child-session constructors pass `modelRuntime` rather than `modelRegistry`.
+Expected result: one `createBtwModelRuntime()` helper, runtime-only auth propagation, both child-session constructors passing `modelRuntime` rather than `modelRegistry`, and three passing regression tests.
 
 After reapplying, restart Pi or run `/reload`.

@@ -6,6 +6,7 @@ This document summarizes local Pi configuration changes. Detailed upgrade notes 
 
 Details: [`docs/changelogs/pi-0.80.6-to-0.80.10-upgrade.md`](./changelogs/pi-0.80.6-to-0.80.10-upgrade.md)
 
+- Follow-up review hardening: copy only transient runtime API-key overrides into pi-btw child runtimes, add stock/previous-patch/offline integration regression tests, and make `agent/pi-btw/` denylist-by-default.
 - Revised the requested 0.80.9 target to 0.80.10 with approval because 0.80.10 fixes Kimi deferred-tool regressions and the 0.80.9 xAI catalog-removal defect.
 - Upgraded the Bun-global Pi core package family to 0.80.10 and migrated active child SDK construction from removed `modelRegistry` options to `ModelRuntime` through a documented `pi-btw@0.4.1` local patch.
 - Ported Blackhole's custom-provider stream scan from removed private registry state to public ModelRegistry facade methods; retained percentage compaction and retired the now-duplicate environment-auth shim.
