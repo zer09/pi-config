@@ -303,7 +303,7 @@ export interface StatusSnapshot {
   /** Whether query-triggered reconciliation is in flight. */
   readonly syncInFlight?: boolean;
   /** What the next query tool would do about syncing. */
-  readonly nextQuerySync?: "not-needed" | "in-flight" | "now" | "after-ttl";
+  readonly nextQuerySync?: "in-flight" | "now" | "after-ttl";
   /** Milliseconds until the next query would sync when TTL is active. */
   readonly nextQuerySyncAfterMs?: number;
 }
