@@ -44,30 +44,37 @@ Expected result: matches in the config plus the patched source files above. If t
 
 After reapplying, restart Pi or run `/reload`. Then `/blackhole-memory` should show compaction like `triggers at 650,000 = 65% of 1,000,000` when the active model has a 1M `contextWindow`.
 
-## 2026-06-30 — OM worker auth fallback for env-only providers
+## 2026-06-30 — OM worker auth fallback for env-only providers (retired 2026-07-19)
 
-Why: Pi can run built-in Google models with `GEMINI_API_KEY` from the environment, but `ModelRegistry.getApiKeyAndHeaders()` intentionally does not include provider-level env fallbacks. `pi-blackhole` used only `getApiKeyAndHeaders()` when resolving observer/reflector/dropper models, so an env-authenticated Google fallback produced `Observational memory: observer no auth for google` even though manual `pi --model google/...` worked.
+Pi 0.80.10's `ModelRegistry.getApiKeyAndHeaders()` compatibility facade now delegates to `ModelRuntime.getAuth()` and returns canonical provider auth, including ambient environment-backed credentials. The local fallback duplicated that resolution and was removed during the 0.80.10 upgrade.
+
+Retirement verification used a command-backed `models.json` credential, request-time credential switching and error redaction, an ambient `GEMINI_API_KEY`, and the compatibility facade. All checks passed. Do not reapply `reapply-om-auth-fallback-patch.mjs`; that helper has been removed.
+
+## 2026-07-19 — public custom-provider stream bridge for Pi 0.80.8+
+
+Why: `pi-blackhole@0.3.9` scans the removed private `modelRegistry.registeredProviders` map during `agent_start`. Pi 0.80.8 replaced registry internals with `ModelRuntime`, so custom worker providers such as Claude Bridge could no longer be copied into Blackhole's cross-module stream bridge.
 
 Behavior:
 
-- OM model resolution still tries `getApiKeyAndHeaders()` first.
-- If that returns `ok` but no `apiKey`, it falls back to `modelRegistry.getApiKeyForProvider(model.provider)`.
-- This lets env-backed providers like `google`/`GEMINI_API_KEY` work as blackhole worker models without adding duplicate entries to `auth.json`.
+- The one-time fallback scan enumerates extension providers with public `ModelRegistry.getRegisteredProviderIds()`.
+- It reads each public registration with `getRegisteredProviderConfig()` and captures custom `streamSimple` functions.
+- The old private-map path remains only as backward compatibility for pre-0.80.8 Pi releases.
+- Worker model IDs, fallback order, tools, commands, and thresholds are unchanged.
 
-Patched files:
+Patched file:
 
-- `~/.pi/agent/npm/node_modules/pi-blackhole/src/om/runtime.ts`
+- `~/.pi/agent/npm/node_modules/pi-blackhole/index.ts`
 
 Reapply helper:
 
 ```bash
-node ~/.pi/agent/pi-blackhole/reapply-om-auth-fallback-patch.mjs
+node ~/.pi/agent/pi-blackhole/reapply-provider-stream-bridge-patch.mjs
 ```
 
 Quick verification after an upgrade:
 
 ```bash
-rg --no-ignore "resolveRequestAuth|getApiKeyForProvider" ~/.pi/agent/npm/node_modules/pi-blackhole/src/om/runtime.ts
+rg --no-ignore "getRegisteredProviderIds|getRegisteredProviderConfig" ~/.pi/agent/npm/node_modules/pi-blackhole/index.ts
 ```
 
-Expected result: `runtime.ts` contains `resolveRequestAuth()` and calls `modelRegistry.getApiKeyForProvider(...)`.
+Expected result: the `agent_start` fallback scans the public ModelRegistry facade before its legacy private-map fallback.

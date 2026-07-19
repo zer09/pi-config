@@ -77,6 +77,10 @@ Use `codegraph_files` for indexed-file discovery only; use `codegraph_node` to r
 
 ## Install/update
 
+Current pinned SDK and CLI target: `1.4.1`.
+
+Version 1.4.1 advances the internal schema from 7 to 8 without changing extraction version 24. The active index therefore does not require a full reindex; `codegraph status` should report `builtWithVersion: 1.4.0`, current extraction 24, complete state, and `reindexRecommended: false` until the next normal index write records the newer package version.
+
 Run from this directory:
 
 ```bash

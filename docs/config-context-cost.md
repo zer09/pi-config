@@ -2,7 +2,7 @@
 
 Quantitative calibration date: 2026-07-01
 
-Structural inventory refresh: 2026-07-10 (Pi 0.80.6; `pi-browser-harness` 0.8.3; 54 active tools including 36 browser tools). Provider calibration and local token attribution were not rerun.
+Structural inventory refresh: 2026-07-19 (Pi 0.80.10; `pi-browser-harness` 0.8.3; 57 registered tools, 54 active tools including 36 browser tools). Provider calibration was not rerun; current tool schema and guideline attribution was measured offline.
 
 Skill-catalog-only update: 2026-07-09 (added `directus-browser`; provider calibration was not rerun)
 
@@ -10,7 +10,7 @@ CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
 
-Current Pi version for structural inventory: `0.80.6`
+Current Pi version for structural inventory: `0.80.10`
 
 Model/provider calibrated against: `openai-codex/gpt-5.5`, thinking `xhigh`
 
@@ -151,7 +151,7 @@ For this config, the missed `session_start` effect is large:
 |---|---:|---:|
 | Before `session_start` | 18 | 0 |
 | After `session_start` in the 2026-07-01 calibration | 50 | 32 |
-| Current inventory after the 2026-07-10 refresh | 54 | 36 |
+| Current inventory after the 2026-07-19 refresh | 54 | 36 |
 
 ## Historical local attribution after lifecycle hooks
 
@@ -207,7 +207,21 @@ Loaded extensions/packages with no direct startup LLM-context tokens in this mea
 
 ## Active tool schemas
 
-Current structural inventory: 54 active tools, including 36 `browser_*` tools. The token table immediately below remains the 2026-07-01 measurement of 50 tools/32 browser tools and is retained only as a historical attribution baseline.
+Current structural inventory: 57 registered tools and 54 active tools, including 36 `browser_*` tools. Pi 0.80.10 registers seven built-ins but keeps only `read`, `bash`, `edit`, and `write` active; all 50 extension/package tools are active.
+
+Current offline `tiktoken` attribution:
+
+| Origin | Active tools | Schema tokens | Guideline tokens | Combined |
+|---|---:|---:|---:|---:|
+| `pi-browser-harness@0.8.3` | 36 | 4,457 | 2,551 | 7,008 |
+| local `codegraph` | 8 | 1,647 | 414 | 2,061 |
+| Pi built-ins | 4 | 600 | 129 | 729 |
+| local `context-mode` | 3 | 511 | 239 | 750 |
+| local `web-search` | 2 | 315 | 264 | 579 |
+| `pi-blackhole@0.3.9` | 1 | 265 | 138 | 403 |
+| **Total** | **54** | **7,795** | **3,735** | **11,530** |
+
+The historical token table immediately below remains the 2026-07-01 measurement of 50 tools/32 browser tools and is retained only as a provider-calibrated attribution baseline.
 
 | Origin | Tool-schema tokens |
 |---|---:|
