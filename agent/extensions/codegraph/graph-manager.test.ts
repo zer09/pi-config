@@ -28,6 +28,7 @@ class FakeGraph {
   indexAllCalls = 0;
   degradedReason: string | null = null;
   watchCallbacks: WatchCallbacks | undefined;
+  onExternalSync: ((call: number) => void) | undefined;
 
   readonly root: string;
 
@@ -37,6 +38,7 @@ class FakeGraph {
 
   async sync() {
     this.syncCalls++;
+    this.onExternalSync?.(this.syncCalls);
     const filesChanged = this.pendingFiles.length;
     // External cg.sync() updates the DB but does not clear the watcher-owned
     // pending queue; only unwatch()/the watcher's own flush does that.
@@ -206,6 +208,33 @@ test("uses catch-up, watcher events, and TTL without getChangedFiles freshness p
 
     await manager.buildStatusSnapshot(root, context(root), { explicitProjectPath: true });
     assert.equal(graph.changedFileChecks, 1, "getChangedFiles remains available only to codegraph_status diagnostics");
+  } finally {
+    await manager.closeAll();
+    restoreOpen();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("starts watching before catch-up and drains events observed during that sync", async () => {
+  const root = await indexedRoot("pi-codegraph-catchup-gap-");
+  const graph = new FakeGraph(root);
+  const restoreOpen = replaceOpen(new Map([[root, graph]]));
+  const manager = new GraphManager({ pi: piForGitRoot(root) });
+  let watcherActiveDuringCatchup = false;
+
+  graph.onExternalSync = (call) => {
+    if (call !== 1) return;
+    watcherActiveDuringCatchup = graph.watching;
+    graph.pendingFiles = [{ path: "src/during-catchup.ts", firstSeenMs: 1, lastSeenMs: 1, indexing: false }];
+    setTimeout(() => { graph.completeWatcherSync(); }, 5);
+  };
+
+  try {
+    const ready = await manager.ensureReady(root, context(root));
+    assert.equal(ready.ok, true);
+    assert.equal(watcherActiveDuringCatchup, true, "watcher must capture files created during initial reconciliation");
+    assert.equal(graph.syncCalls, 2, "ensureReady must wait for the watcher follow-up before returning");
+    assert.equal(graph.pendingFiles.length, 0);
   } finally {
     await manager.closeAll();
     restoreOpen();

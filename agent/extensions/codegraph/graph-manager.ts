@@ -557,6 +557,9 @@ export class GraphManager {
 
   private async ensureFresh(entry: CachedGraph): Promise<string | undefined> {
     entry.lastAccessedAt = Date.now();
+    // Install event capture before the first/full TTL reconciliation so files
+    // created after its scan but before completion stay pending for follow-up.
+    this.startWatching(entry);
 
     if (entry.syncInFlight) {
       try {
@@ -607,6 +610,18 @@ export class GraphManager {
 
     try {
       await entry.syncInFlight;
+      const pendingAfterSync = entry.cg.getPendingFiles();
+      if (
+        pendingAfterSync.length > 0
+        && entry.cg.isWatching()
+        && !entry.cg.isWatcherDegraded()
+      ) {
+        const flushed = await this.waitForWatcherFlush(entry);
+        const remaining = entry.cg.getPendingFiles();
+        if (!flushed && entry.cg.isWatching() && !entry.cg.isWatcherDegraded()) {
+          return `CodeGraph watcher still has ${remaining.length} pending file(s) after ${DEFAULT_WATCH_FLUSH_WAIT_MS}ms; using the existing index until its sync pipeline finishes.`;
+        }
+      }
       this.startWatching(entry);
       return this.watcherWarning(entry);
     } catch (error) {
