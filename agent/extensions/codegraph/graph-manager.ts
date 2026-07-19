@@ -403,12 +403,28 @@ export class GraphManager {
     onUpdate?: ToolUpdateHandler,
     signal?: AbortSignal,
   ): Promise<void> {
+    // Stop new watcher work before replacing the database, then wait for both
+    // extension-tracked and SDK-internal watcher syncs to leave the index mutex.
+    try {
+      entry.cg.unwatch();
+    } finally {
+      entry.watchStartAttempted = false;
+    }
+
     if (entry.syncInFlight) {
       try {
         await entry.syncInFlight;
       } catch {
         // A full recreate supersedes a failed incremental sync.
       }
+    }
+
+    const idleDeadline = Date.now() + 30_000;
+    while (entry.cg.isIndexing() && Date.now() < idleDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    if (entry.cg.isIndexing()) {
+      throw new Error("CodeGraph is still finishing watcher/index work after 30 seconds; the database was not recreated. Retry the reindex after that work settles.");
     }
 
     const previousGraph = entry.cg;

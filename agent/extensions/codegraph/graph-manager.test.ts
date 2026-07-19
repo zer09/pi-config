@@ -23,6 +23,9 @@ class FakeGraph {
   pendingReferences = 0;
   watching = false;
   degraded = false;
+  stale = false;
+  indexing = false;
+  indexAllCalls = 0;
   degradedReason: string | null = null;
   watchCallbacks: WatchCallbacks | undefined;
 
@@ -77,18 +80,23 @@ class FakeGraph {
   getJournalMode() { return "wal"; }
   getLastIndexedAt() { return Date.now(); }
   getIndexBuildInfo() { return { version: "1.4.1", extractionVersion: 24 }; }
-  isIndexStale() { return false; }
+  isIndexStale() { return this.stale; }
   getIndexState() { return "complete" as const; }
-  isIndexing() { return false; }
+  isIndexing() { return this.indexing; }
   reopenIfReplaced() { return false; }
+  async indexAll() {
+    this.indexAllCalls++;
+    return { success: true, errors: [] };
+  }
   close() {}
 }
 
-function context(cwd: string): ExtensionContext {
+function context(cwd: string, hasUI = false): ExtensionContext {
   return {
     cwd,
-    hasUI: false,
+    hasUI,
     signal: new AbortController().signal,
+    ui: hasUI ? { confirm: async () => true } : undefined,
   } as ExtensionContext;
 }
 
@@ -120,6 +128,22 @@ function replaceOpen(graphs: Map<string, FakeGraph>): () => void {
   });
   return () => {
     Object.defineProperty(CodeGraph, "open", {
+      configurable: true,
+      writable: true,
+      value: original,
+    });
+  };
+}
+
+function replaceRecreate(recreate: (root: string) => Promise<FakeGraph>): () => void {
+  const original = CodeGraph.recreate;
+  Object.defineProperty(CodeGraph, "recreate", {
+    configurable: true,
+    writable: true,
+    value: async (root: string) => recreate(root) as unknown as CodeGraphInstance,
+  });
+  return () => {
+    Object.defineProperty(CodeGraph, "recreate", {
       configurable: true,
       writable: true,
       value: original,
@@ -185,6 +209,41 @@ test("limits concurrent watchers and catches up an evicted root when it becomes 
     await manager.closeAll();
     restoreOpen();
     await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true })));
+  }
+});
+
+test("waits for watcher syncs to become idle before recreating the database", async () => {
+  const root = await indexedRoot("pi-codegraph-recreate-");
+  const oldGraph = new FakeGraph(root);
+  const freshGraph = new FakeGraph(root);
+  const restoreOpen = replaceOpen(new Map([[root, oldGraph]]));
+  let recreateObservedBusyGraph = false;
+  const restoreRecreate = replaceRecreate(async () => {
+    recreateObservedBusyGraph = oldGraph.indexing;
+    return freshGraph;
+  });
+  const manager = new GraphManager({ pi: piForGitRoot(root) });
+
+  try {
+    const initial = await manager.ensureReady(root, context(root));
+    assert.equal(initial.ok, true);
+    assert.equal(oldGraph.watching, true);
+
+    oldGraph.stale = true;
+    oldGraph.indexing = true;
+    setTimeout(() => { oldGraph.indexing = false; }, 20);
+
+    const reindexed = await manager.ensureReady(root, context(root, true));
+    assert.equal(reindexed.ok, true);
+    assert.equal(recreateObservedBusyGraph, false, "database recreation must wait for invisible watcher sync work");
+    assert.ok(oldGraph.unwatchCalls >= 1, "watcher must stop before recreation");
+    assert.equal(freshGraph.indexAllCalls, 1);
+    assert.equal(freshGraph.watching, true);
+  } finally {
+    await manager.closeAll();
+    restoreRecreate();
+    restoreOpen();
+    await rm(root, { recursive: true, force: true });
   }
 });
 
