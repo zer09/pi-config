@@ -556,6 +556,7 @@ export class GraphManager {
     }
 
     const pendingFiles = entry.cg.getPendingFiles();
+    const restartWatcherAfterSync = pendingFiles.length > 0 && entry.cg.isWatching();
     const pendingReferences = entry.cg.getPendingReferenceCount();
     const sinceSync = Date.now() - entry.lastSyncedAt;
     const syncDue = entry.lastSyncedAt === 0
@@ -581,6 +582,10 @@ export class GraphManager {
 
     try {
       await entry.syncInFlight;
+      if (restartWatcherAfterSync) {
+        entry.cg.unwatch();
+        entry.watchStartAttempted = false;
+      }
       this.startWatching(entry);
       return this.watcherWarning(entry);
     } catch (error) {

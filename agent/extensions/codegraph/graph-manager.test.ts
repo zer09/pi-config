@@ -38,7 +38,8 @@ class FakeGraph {
   async sync() {
     this.syncCalls++;
     const filesChanged = this.pendingFiles.length;
-    this.pendingFiles = [];
+    // External cg.sync() updates the DB but does not clear the watcher-owned
+    // pending queue; only unwatch()/the watcher's own flush does that.
     this.pendingReferences = 0;
     return {
       filesChecked: 1,
@@ -60,6 +61,7 @@ class FakeGraph {
   unwatch() {
     this.unwatchCalls++;
     this.watching = false;
+    this.pendingFiles = [];
   }
 
   isWatching() { return this.watching; }
@@ -179,6 +181,11 @@ test("uses catch-up, watcher events, and TTL without getChangedFiles freshness p
     graph.pendingFiles = [{ path: "src/changed.ts", firstSeenMs: 1, lastSeenMs: 1, indexing: false }];
     await manager.ensureReady(root, context(root));
     assert.equal(graph.syncCalls, 2, "a watcher-reported pending file should reconcile immediately");
+    assert.equal(graph.pendingFiles.length, 0, "successful query reconciliation must clear the watcher pending queue");
+    assert.equal(graph.watchCalls, 2, "the active watcher should restart after its pending queue is cleared");
+
+    await manager.ensureReady(root, context(root));
+    assert.equal(graph.syncCalls, 2, "another query inside the debounce/TTL window must not repeat the full sync");
 
     if (first.ok) first.entry.lastSyncedAt = Date.now() - 20_000;
     await manager.ensureReady(root, context(root));
