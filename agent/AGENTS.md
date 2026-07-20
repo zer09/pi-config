@@ -96,6 +96,16 @@ Classify each request by the action requested, not by the topic.
 - Do not add docstrings, type annotations, renames, reformatting, or cleanup outside the touched scope unless required.
 - Three similar lines are better than a premature abstraction or extracting a tiny, single-use function.
 
+## Implementation Delegation
+
+- In a root/primary Pi session, the primary may clarify, investigate, plan, coordinate, review, and summarize, but must not implement repository changes directly. Use `worker` for normal implementation and `browser-worker` when implementation or verification requires browser tools; never run writers concurrently against the same checkout.
+- Use the smallest useful workflow: direct `worker` for clear changes; `scout` only when local code flow is unknown; `researcher` only for external/current facts; `planner` for genuinely multi-step work; `context-builder` for large reusable handoffs; `oracle` only for high-impact decisions or contradictory constraints; and `delegate` only when no specialist fits.
+- Use `reviewer` as a fresh-context, read-only reviewer only for risky, broad, or explicitly requested reviews. Default to one review round, and send required fixes back to the appropriate writer.
+- Prefer fresh context. Use forked context only when inherited discussion or decisions materially affect the task. Pass concise prompts and artifacts instead of making children rediscover or inherit unnecessary context.
+- Give each writer a narrow, complete task and require changed files, validation commands/results, and remaining risks. Non-writer agents must not mutate repository files even when a broadly capable tool such as `bash` is available.
+- Pass hosted-service skills such as `gh-cli`, `linear-cli`, or `pp-posthog` only when the task specifically requires them. Hosted-service writes still require the user's explicit request for the exact mutation.
+- These delegation rules apply only to the root/primary session. Spawned writers must implement directly and must not delegate their assignment. Explicitly requested changes to Pi's own user configuration remain outside this repository-implementation delegation rule.
+
 ## Response Style
 
 ### Change tasks

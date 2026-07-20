@@ -5,7 +5,8 @@
     "npm:pi-blackhole@0.3.9",
     "npm:pi-btw@0.4.1",
     "npm:pi-browser-harness@0.8.3",
-    "npm:pi-claude-bridge@0.6.2"
+    "npm:pi-claude-bridge@0.6.2",
+    "npm:pi-subagents"
   ],
   "enabledModels": [
     "openai-codex/gpt-5.5",
@@ -18,7 +19,63 @@
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.6-sol",
   "defaultThinkingLevel": "high",
-  "theme": "dark",
+  "subagents": {
+    "agentOverrides": {
+      "context-builder": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "thinking": "medium",
+        "tools": ["read", "grep", "find", "ls", "bash", "write", "codegraph_explore", "codegraph_search", "codegraph_files", "codegraph_callers", "codegraph_callees", "codegraph_impact", "codegraph_node", "codegraph_status", "ctx_execute_file", "ctx_batch_execute", "ctx_search", "web_search", "fetch_contents", "contact_supervisor"],
+        "inheritSkills": false
+      },
+      "delegate": {
+        "model": "openai-codex/gpt-5.6-luna",
+        "thinking": "medium",
+        "tools": ["read", "grep", "find", "ls", "bash", "codegraph_explore", "codegraph_search", "codegraph_files", "codegraph_callers", "codegraph_callees", "codegraph_impact", "codegraph_node", "codegraph_status", "ctx_execute_file", "ctx_batch_execute", "ctx_search", "web_search", "fetch_contents", "contact_supervisor"],
+        "inheritSkills": false
+      },
+      "oracle": {
+        "model": "claude-bridge/claude-opus-4-6",
+        "thinking": "high",
+        "tools": ["read", "grep", "find", "ls", "bash", "recall", "codegraph_explore", "codegraph_search", "codegraph_files", "codegraph_callers", "codegraph_callees", "codegraph_impact", "codegraph_node", "codegraph_status", "ctx_execute_file", "ctx_batch_execute", "ctx_search", "web_search", "fetch_contents", "contact_supervisor"],
+        "inheritSkills": false
+      },
+      "planner": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "thinking": "high",
+        "tools": ["read", "grep", "find", "ls", "bash", "write", "codegraph_explore", "codegraph_search", "codegraph_files", "codegraph_callers", "codegraph_callees", "codegraph_impact", "codegraph_node", "codegraph_status", "ctx_execute_file", "ctx_batch_execute", "ctx_search", "contact_supervisor"],
+        "inheritSkills": false,
+        "defaultContext": "fresh"
+      },
+      "researcher": {
+        "model": "openai-codex/gpt-5.6-luna",
+        "thinking": "medium",
+        "tools": ["read", "write", "web_search", "fetch_contents", "ctx_execute_file", "ctx_batch_execute", "ctx_search", "contact_supervisor"],
+        "inheritSkills": false
+      },
+      "reviewer": {
+        "model": "openai-codex/gpt-5.6-sol",
+        "thinking": "high",
+        "tools": ["read", "grep", "find", "ls", "bash", "codegraph_explore", "codegraph_search", "codegraph_files", "codegraph_callers", "codegraph_callees", "codegraph_impact", "codegraph_node", "codegraph_status", "ctx_execute_file", "ctx_batch_execute", "ctx_search", "contact_supervisor"],
+        "inheritSkills": false,
+        "skills": ["uv", "ruff", "ty"]
+      },
+      "scout": {
+        "model": "openai-codex/gpt-5.6-luna",
+        "thinking": "low",
+        "tools": ["read", "grep", "find", "ls", "bash", "write", "codegraph_explore", "codegraph_search", "codegraph_files", "codegraph_callers", "codegraph_callees", "codegraph_impact", "codegraph_node", "codegraph_status", "ctx_execute_file", "ctx_batch_execute", "ctx_search", "contact_supervisor"],
+        "inheritSkills": false
+      },
+      "worker": {
+        "model": "openai-codex/gpt-5.6-terra",
+        "thinking": "high",
+        "tools": ["read", "grep", "find", "ls", "bash", "edit", "write", "recall", "codegraph_explore", "codegraph_search", "codegraph_files", "codegraph_callers", "codegraph_callees", "codegraph_impact", "codegraph_node", "codegraph_status", "ctx_execute_file", "ctx_batch_execute", "ctx_search", "contact_supervisor"],
+        "inheritSkills": false,
+        "skills": ["uv", "ruff", "ty"],
+        "defaultContext": "fresh"
+      }
+    }
+  },
+  "theme": "light",
   "transport": "websocket-cached",
   "hideThinkingBlock": false
 }
