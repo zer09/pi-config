@@ -1,5 +1,5 @@
 {
-  "_comment": "Recommended pi-blackhole config for openai-codex/gpt-5.5 daily driver; auto compaction; Cursor primary workers; non-Cursor fallbacks.",
+  "_comment": "Recommended pi-blackhole config for openai-codex/gpt-5.6-sol daily driver; auto compaction; Cursor primary workers; non-Cursor fallbacks.",
   "compaction": "auto",
   "compactionEngine": "blackhole",
   "tailBehavior": "pi-default",
@@ -7,7 +7,7 @@
   "observerModel": {
     "_comment": "Cursor primary: Grok 4.5 at its lowest available thinking level for frequent observation extraction.",
     "provider": "cursor",
-    "id": "cursor-grok-4.5-medium",
+    "id": "grok-4.5",
     "thinking": "medium",
     "cooldownHours": 1,
     "contextWindow": 200000
@@ -31,10 +31,10 @@
     }
   ],
   "reflectorModel": {
-    "_comment": "Claude Bridge primary: Haiku for synthesis/reflection.",
-    "provider": "claude-bridge",
+    "_comment": "Cursor primary: Haiku 4.5 Thinking at low for reliable synthesis/reflection.",
+    "provider": "cursor",
     "id": "claude-haiku-4-5",
-    "thinking": "off",
+    "thinking": "low",
     "cooldownHours": 1,
     "contextWindow": 200000
   },
@@ -57,10 +57,10 @@
     }
   ],
   "dropperModel": {
-    "_comment": "Cursor primary: cheap mini model with medium thinking for memory pruning/judgment.",
+    "_comment": "Cursor primary: GPT-5.6 Luna High for stronger memory pruning/judgment while monitoring cost.",
     "provider": "cursor",
-    "id": "gpt-5.4-mini-medium",
-    "thinking": "medium",
+    "id": "gpt-5.6-luna",
+    "thinking": "high",
     "cooldownHours": 1,
     "contextWindow": 200000
   },
@@ -97,13 +97,13 @@
   "debug": false,
   "debugLog": false,
   "_notes": [
-    "Daily driver/session model: openai-codex/gpt-5.5, context window from pi --list-models: 272K.",
+    "Daily driver/session model: openai-codex/gpt-5.6-sol, context window from pi --list-models: 272K.",
     "compactAfterTokens: 180000 = fallback if the session model contextWindow is unavailable.",
     "LOCAL PATCH 2026-06-26: compactAfterPercent: 0.65 makes auto-compaction threshold derive from the active session model contextWindow; reapply after pi-blackhole upgrades if lost. See ~/.pi/agent/pi-blackhole/LOCAL_PATCHES.md.",
     "tailBehavior is pi-default only: blackhole still owns compaction, but Pi's gentler recent-tail cut is used.",
-    "Cursor observer/dropper primaries and Claude Bridge reflector primary all have 200K context. Observer primary is cursor/cursor-grok-4.5-medium (Grok 4.5's lowest available thinking level); dropper primary is cursor/gpt-5.4-mini-medium; reflector primary is claude-bridge/claude-haiku-4-5. The largest worker input cap is 160K = 80.0% of the worker context.",
+    "Cursor worker primaries all have 200K context. Observer primary is cursor/grok-4.5 at medium (Grok 4.5's lowest available thinking level); dropper primary is cursor/gpt-5.6-luna at high; reflector primary is cursor/claude-haiku-4-5 at low. The largest worker input cap is 160K = 80.0% of the worker context.",
     "Fallbacks are deliberately non-Cursor so primary and fallback providers differ.",
-    "Final emergency fallback remains the session model because sessionFallback is true: openai-codex/gpt-5.5.",
+    "Final emergency fallback remains the session model because sessionFallback is true: openai-codex/gpt-5.6-sol.",
     "2026-06-12: Disabled debug/debugLog after transient Cursor proxy debugging; worker/fallback cooldownHours remain 1 hour."
   ]
 }

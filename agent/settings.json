@@ -10,7 +10,7 @@
   "enabledModels": [
     "openai-codex/gpt-5.5",
     "opencode-go/deepseek-v4-pro",
-    "cursor/default",
+    "cursor/auto-smart",
     "claude-bridge/claude-opus-4-6",
     "openai-codex/gpt-5.6-sol",
     "openai-codex/gpt-5.6-terra"
@@ -18,7 +18,7 @@
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.6-sol",
   "defaultThinkingLevel": "high",
-  "theme": "dark",
+  "theme": "light",
   "transport": "websocket-cached",
   "hideThinkingBlock": false
 }
