@@ -12,6 +12,8 @@ The local skill keeps the public name `skill-creator`. It is not a verbatim mirr
 | Anthropic | https://github.com/anthropics/skills | `skills/skill-creator` | `fa0fa64bdc967915dc8399e803be67759e1e62b8` | `b9e19e6` |
 | Pi | Pi documentation installed with `@earendil-works/pi-coding-agent` | `docs/skills.md`, `README.md`, and `docs/json.md` | Local installed package | N/A |
 
+Frontmatter authority: the portable Agent Skills specification at https://agentskills.io/specification.md defines required `name` and `description`, with optional `license`, `compatibility`, `metadata`, and experimental `allowed-tools`. Pi additionally supports `disable-model-invocation`; treat it as a Pi-only extension rather than portable standard frontmatter.
+
 Common local checkouts:
 
 - OpenAI: `~/development/skills/skills/.system/skill-creator/`
@@ -35,7 +37,7 @@ Use this map to avoid replacing local files blindly.
 | `scripts/run_trigger_evals.py` | Pi-native adaptation of Anthropic's trigger-eval idea | Test actual Pi skill reads, isolate registries, and keep infrastructure errors separate from non-triggers |
 | `scripts/aggregate_benchmark.py` | Local rewrite of Anthropic concept | Keep expected-job manifests, matched-pair deltas, null/missing semantics, and prominent critical failures |
 | `scripts/generate_review.py` | Local rewrite of Anthropic concept | Keep symlink-safe output reads, atomic feedback, free ports, safe JSON, offline operation, size limits, and structurally blind client data |
-| `scripts/quick_validate.py` | OpenAI plus local invariants | Keep strict local frontmatter, metadata, placeholder, and link checks; retain portable profile |
+| `scripts/quick_validate.py` | OpenAI plus Agent Skills and Pi docs | Keep strict Local Skill frontmatter with the intentional Pi explicit-invocation extension; keep the portable profile aligned with standard Agent Skills frontmatter |
 | Runtime `SKILL.md` | Unified | Keep under 500 lines and route details into references |
 
 ## Known upstream behavior not to reintroduce
@@ -65,7 +67,7 @@ Do not weaken the Pi-native safety and validity layer by reintroducing:
 
 Do not reintroduce these OpenAI/local scaffold regressions:
 
-- Frontmatter fields beyond `name` and `description` in local skills
+- Local frontmatter fields beyond `name`, `description`, and intentional Pi-only `disable-model-invocation: true` for explicit-only workflows
 - Bare `python` execution examples
 - Generated `agents/openai.yaml` without a `$skill-name` default prompt
 - Validators that accept empty names, empty descriptions, or unresolved starter placeholders

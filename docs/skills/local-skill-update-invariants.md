@@ -43,8 +43,9 @@ When installing a new Local Skill:
 
 ## Local structure invariants
 
-- Keep every `SKILL.md` frontmatter limited to `name` and `description`.
-- Do not add `disable-model-invocation: false`; false is the default.
+- Keep Local Skill frontmatter limited to `name` and `description` by default.
+- Allow the Pi-only extension `disable-model-invocation: true` when a workflow must be explicit `/skill:name` only and should stay out of automatic model routing. It is not part of the portable Agent Skills standard.
+- Omit `disable-model-invocation` instead of setting it to `false`.
 - Every Local Skill must have `agents/openai.yaml`.
 - `agents/openai.yaml` is UI metadata only unless a dependency or UI asset is intentionally needed.
 - `interface.default_prompt` must mention the skill as `$skill-name`.
@@ -108,7 +109,7 @@ Then verify:
 
 - All Local Skills have `agents/openai.yaml`.
 - All `agents/openai.yaml` files parse as YAML.
-- No `SKILL.md` frontmatter keys exist besides `name` and `description`.
+- No Local Skill frontmatter keys exist besides `name`, `description`, and intentional `disable-model-invocation: true` for explicit-only Pi workflows.
 - No `default_prompt` is missing `$skill-name`.
 - No `short_description` is outside 25-64 characters.
 - No local markdown links are broken outside intentional examples in fenced code blocks.

@@ -17,7 +17,7 @@ Classify every skill before or during an update:
 For retained or slimmed skills:
 
 1. Keep `SKILL.md` compact and under 500 lines where practical.
-2. Keep frontmatter limited to `name` and `description`.
+2. Keep frontmatter limited to `name` and `description` by default; preserve intentional `disable-model-invocation: true` only for explicit-only Pi workflows.
 3. Keep core workflow, mutation gates, tool routing, and reference navigation in `SKILL.md`.
 4. Move command catalogs, long examples, troubleshooting matrices, API details, and generated/manual content to `references/` or `docs/skills/`.
 5. Keep maintenance process docs in `docs/skills/`, not inside skill folders.

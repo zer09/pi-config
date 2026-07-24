@@ -13,7 +13,7 @@ Purpose: keep the local `crit` and `crit-cli` skills aligned with the installed 
 
 Before and after updates, apply `local-skill-update-invariants.md` and `skill-slimming-process.md`.
 
-- Keep `SKILL.md` frontmatter limited to `name` and `description`.
+- Preserve `disable-model-invocation: true` on the interactive `crit` skill so it remains an explicit `/skill:crit` workflow; this is a supported Pi extension, not portable Agent Skills frontmatter.
 - Keep `agents/openai.yaml` UI metadata valid with a `$crit` or `$crit-cli` default prompt.
 - Preserve the interactive `crit` rule: run the foreground `crit` command and wait until the reviewer clicks Finish Review.
 - Preserve the resolution rule: do not resolve comments unless the user explicitly asks.

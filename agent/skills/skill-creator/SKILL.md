@@ -135,7 +135,7 @@ Avoid speculative features, duplicated explanations, and broad tutorials.
 
 ### 7. Write routing metadata
 
-Frontmatter must contain only:
+For Local Skills, use `name` and `description` by default:
 
 ```yaml
 ---
@@ -143,6 +143,10 @@ name: skill-name
 description: What it does. Use when these concrete intents, contexts, tools, or file types are involved.
 ---
 ```
+
+Add `disable-model-invocation: true` only when a Pi workflow must be explicitly invoked with `/skill:name` and should stay out of automatic model routing. This is a Pi extension, not standard Agent Skills frontmatter; omit it for portable skills and omit it instead of setting it to `false`.
+
+Portable Agent Skills may also use the standard optional fields `license`, `compatibility`, `metadata`, and experimental `allowed-tools`.
 
 The description is the primary trigger. Include both capability and usage contexts there; do not rely on a body section called “When to use,” because the body is unavailable before triggering.
 

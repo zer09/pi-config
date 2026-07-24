@@ -62,7 +62,7 @@ Installing a new skill means:
 4. Load `skill-creator`.
 5. Classify the skill as `keep it`, `make it slim`, or `remove it`.
 6. Add the skill under `agent/skills/<skill-name>/`.
-7. Normalize `SKILL.md` frontmatter to only `name` and `description`.
+7. Normalize Local Skill frontmatter to `name` and `description` by default; add Pi-only `disable-model-invocation: true` only for an intentional explicit-only workflow.
 8. Add `agents/openai.yaml`.
 9. Add hosted-service safety gates if relevant.
 10. Keep `SKILL.md` under 500 lines where practical.

@@ -63,7 +63,7 @@ done
 
 Also verify:
 
-- All `SKILL.md` frontmatter contains only `name` and `description`.
+- Local Skill frontmatter contains `name` and `description`, plus `disable-model-invocation: true` only for intentional explicit-only Pi workflows.
 - All Local Skills have `agents/openai.yaml`.
 - All `agents/openai.yaml` files parse as YAML.
 - No new hosted-service write paths omit the External Hosted Service Mutation Gate.

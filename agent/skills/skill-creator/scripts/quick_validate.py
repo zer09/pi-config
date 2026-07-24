@@ -13,15 +13,14 @@ from urllib.parse import unquote
 
 import yaml
 
-LOCAL_FRONTMATTER_KEYS = {"name", "description"}
-PORTABLE_FRONTMATTER_KEYS = {
+LOCAL_FRONTMATTER_KEYS = {"name", "description", "disable-model-invocation"}
+STANDARD_FRONTMATTER_KEYS = {
     "name",
     "description",
     "license",
     "compatibility",
     "metadata",
     "allowed-tools",
-    "disable-model-invocation",
 }
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 LINK_PATTERN = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
@@ -216,6 +215,15 @@ def validate_openai_yaml(skill_path: Path, skill_name: str) -> list[str]:
     return errors
 
 
+def validate_local_fields(frontmatter: dict[str, Any]) -> list[str]:
+    disable = frontmatter.get("disable-model-invocation")
+    if disable is not None and disable is not True:
+        return [
+            "Local Pi extension 'disable-model-invocation' must be true when present; omit it otherwise"
+        ]
+    return []
+
+
 def validate_portable_fields(
     frontmatter: dict[str, Any], folder_name: str
 ) -> list[str]:
@@ -232,6 +240,8 @@ def validate_portable_fields(
     if compatibility is not None:
         if not isinstance(compatibility, str):
             errors.append("Portable field 'compatibility' must be a string")
+        elif not compatibility:
+            errors.append("Portable field 'compatibility' must not be empty")
         elif len(compatibility) > 500:
             errors.append("Portable field 'compatibility' exceeds 500 characters")
     metadata = frontmatter.get("metadata")
@@ -246,9 +256,6 @@ def validate_portable_fields(
     allowed_tools = frontmatter.get("allowed-tools")
     if allowed_tools is not None and not isinstance(allowed_tools, str):
         errors.append("Portable field 'allowed-tools' must be a string")
-    disable = frontmatter.get("disable-model-invocation")
-    if disable is not None and not isinstance(disable, bool):
-        errors.append("Portable field 'disable-model-invocation' must be boolean")
     return errors
 
 
@@ -271,7 +278,7 @@ def validate_skill(skill_path: str | Path, profile: str = "local") -> tuple[bool
     except ValueError as exc:
         return False, str(exc)
     allowed = (
-        LOCAL_FRONTMATTER_KEYS if profile == "local" else PORTABLE_FRONTMATTER_KEYS
+        LOCAL_FRONTMATTER_KEYS if profile == "local" else STANDARD_FRONTMATTER_KEYS
     )
     unexpected = sorted(set(frontmatter) - allowed)
     if unexpected:
@@ -308,7 +315,9 @@ def validate_skill(skill_path: str | Path, profile: str = "local") -> tuple[bool
         if re.search(r"\[TODO(?:\s|:|\])", clean_description, re.IGNORECASE):
             errors.append("Description contains an unresolved TODO placeholder")
 
-    if profile == "portable":
+    if profile == "local":
+        errors.extend(validate_local_fields(frontmatter))
+    else:
         errors.extend(validate_portable_fields(frontmatter, path.name))
     if not body.strip():
         errors.append("SKILL.md body is empty")

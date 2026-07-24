@@ -597,6 +597,26 @@ class SkillCreatorTests(unittest.TestCase):
                 "  default_prompt: Use $sample-skill correctly.\n"
             )
             self.assertTrue(validate_skill(root)[0])
+            base_skill = (root / "SKILL.md").read_text()
+            (root / "SKILL.md").write_text(
+                base_skill.replace(
+                    "description: A useful sample skill.\n",
+                    "description: A useful sample skill.\n"
+                    "disable-model-invocation: true\n",
+                )
+            )
+            self.assertTrue(validate_skill(root)[0])
+            (root / "SKILL.md").write_text(
+                base_skill.replace(
+                    "description: A useful sample skill.\n",
+                    "description: A useful sample skill.\n"
+                    "disable-model-invocation: false\n",
+                )
+            )
+            valid, message = validate_skill(root)
+            self.assertFalse(valid)
+            self.assertIn("omit it otherwise", message)
+            (root / "SKILL.md").write_text(base_skill)
             if hasattr(os, "mkfifo"):
                 fifo = root / "blocked.md"
                 os.mkfifo(fifo)
@@ -651,10 +671,17 @@ class SkillCreatorTests(unittest.TestCase):
             portable.mkdir()
             (portable / "SKILL.md").write_text(
                 "---\nname: portable-skill\ndescription: Handles <tag> syntax.\n"
-                "compatibility: Works locally.\nmetadata:\n  owner: team\n"
-                "allowed-tools: read\ndisable-model-invocation: false\n---\nBody\n"
+                "license: Apache-2.0\ncompatibility: Works locally.\n"
+                "metadata:\n  owner: team\nallowed-tools: read\n---\nBody\n"
             )
             self.assertTrue(validate_skill(portable, "portable")[0])
+            (portable / "SKILL.md").write_text(
+                "---\nname: portable-skill\ndescription: Portable extension test.\n"
+                "disable-model-invocation: true\n---\nBody\n"
+            )
+            valid, message = validate_skill(portable, "portable")
+            self.assertFalse(valid)
+            self.assertIn("Unexpected frontmatter", message)
 
     def test_blind_html_contains_no_arm_identity(self) -> None:
         data = scrub_blind_strings(
