@@ -1,0 +1,26 @@
+{
+  "skill_name": "linear-cli",
+  "evals": [
+    {
+      "id": "reference-first-update-draft",
+      "name": "reference-first-update-draft",
+      "prompt": "Draft, but do not execute, the exact local Linear CLI command that changes issue ENG-123's title to Fix OAuth callback. Keep the answer concise.",
+      "expected_output": "A correct `linear issue update ENG-123 --title \"Fix OAuth callback\"` command obtained without invoking live `linear ... --help` when bundled issue syntax is available.",
+      "files": [],
+      "assertions": [
+        {
+          "text": "The response contains the correct issue update command",
+          "critical": true
+        },
+        {
+          "text": "The run does not invoke a live `linear ... --help` command",
+          "critical": true
+        },
+        {
+          "text": "The run does not mutate Linear",
+          "critical": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
 name: linear-cli
-description: "Manage Linear from the terminal with the local `linear` CLI. Use for reading/searching issues, teams, projects, cycles, labels, documents, and GraphQL API data, or for drafting/running Linear mutations only when the user explicitly requests the exact hosted-service write."
+description: "Manage Linear from the terminal with the local `linear` CLI. Use for reading/searching issues, teams, users, projects, cycles, labels, documents, and GraphQL API data, or for drafting/running Linear mutations only when the user explicitly requests the exact hosted-service write."
 ---
 
 # Linear CLI
@@ -9,11 +9,26 @@ Use the local `linear` command for Linear reads and carefully gated writes. Line
 
 ## Core rules
 
-- Prefer the installed `linear` command. Verify with `linear --version`; if missing, suggest `npx @schpet/linear-cli` instead of installing unless the user asks.
+- Prefer the installed `linear` command. Establish its version through the workflow below when it is not already known; if the command is missing, suggest `npx @schpet/linear-cli` instead of installing unless the user asks.
 - Keep read-only command output bounded when it may exceed 20 lines: issue searches, schema output, GraphQL JSON, comments, documents, or generated help.
 - Before any mutation, verify the target identifier, team/project/workspace, command, flags, and body file. If the user did not request that exact mutation, provide a command draft instead of running it.
 - Never print tokens. `linear auth token` writes a secret to stdout; do not run it in a way that enters the transcript, logs, shell history, or committed files.
-- Do not guess flags or required fields. Check `linear <command> --help` or the local reference files before syntax-sensitive answers.
+
+## Syntax and identifier discovery
+
+Resolve command syntax in this order:
+
+1. Open the smallest bundled family reference, such as [issue](references/issue.md), and use its documented signature and flags.
+2. Construct the command from that reference.
+3. Consult live `linear <command> --help` when the reference lacks the needed command or option, the installed CLI version differs from the generated references, or Linear rejects the documented syntax.
+
+Establish the installed version once when it is not already known:
+
+```bash
+linear --version
+```
+
+Use `linear team list` or project/cycle list commands to resolve identifiers before writes. Some commands infer team from repository config, but mutations require an explicitly verified target.
 
 ## Hosted mutation guard handling
 
@@ -24,21 +39,9 @@ When a Linear mutation is blocked with a message that begins `Hosted-service mut
 - Ask the user whether to authorize and retry that exact blocked Linear mutation. Include the exact authorization command and target/action in the question.
 - After authorization is granted, retry the unchanged blocked command within 10 minutes. If the retry then fails with a non-guard Linear error, load the smallest command reference needed.
 
-## Discovery workflow
-
-```bash
-linear --version
-linear --help
-linear issue --help
-linear issue view --help
-linear team list
-```
-
-Use `linear team list` or project/cycle list commands to resolve identifiers before writes. Some commands infer team from repository config, but do not rely on inference for mutations.
-
 ## Reference navigation
 
-Start with [commands](references/commands.md), then open the smallest command reference needed:
+Open the smallest command-family reference directly. Use [commands](references/commands.md) as the family index when the relevant family is unclear:
 
 {{REFERENCE_TOC}}
 
@@ -58,9 +61,11 @@ Use inline `--description` or `--body` only for simple one-line text. File flags
 
 Known gotchas:
 
-- `issue list` requires a sort order: pass `--sort manual` or `--sort priority`, or configure `issue_sort` / `LINEAR_ISSUE_SORT`.
+- `issue list` defaults to priority sorting; override with `--sort manual` or configure `issue_sort` / `LINEAR_ISSUE_SORT`.
+- `issue list` is an alias of `issue mine` and shows your issues; use `issue query` for all assignees or team/project-wide filtering.
 - `issue list` usually needs `--team <key>` unless team inference is verified.
 - `--no-pager` is only supported on `issue list`; do not pass it to commands like `project list`.
+- For an image that should render inline, use `linear issue comment add <ISSUE-ID> --attach <image-path>`; `linear issue attach` creates a sidebar link attachment.
 
 ## GraphQL fallback
 
