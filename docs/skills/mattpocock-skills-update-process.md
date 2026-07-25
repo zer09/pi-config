@@ -27,10 +27,10 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Update workflow
 
 1. Load `skill-creator` and `gh-cli`, then read this file.
-2. Fetch upstream files with authenticated `gh` CLI through Context Mode/RTK, for example:
+2. Fetch upstream files with authenticated `gh` CLI through Context Mode, for example:
 
 ```bash
-rtk gh api repos/mattpocock/skills/contents/skills/engineering/grill-with-docs/SKILL.md?ref=main
+gh api repos/mattpocock/skills/contents/skills/engineering/grill-with-docs/SKILL.md?ref=main
 ```
 
 3. Compare upstream runtime files with local skill folders.

@@ -29,10 +29,10 @@ Preserve relative links to local `references/` files so the runtime skill remain
 ## Update workflow
 
 1. Load `skill-creator`, `gh-cli`, and the relevant database skill, then read this file.
-2. Fetch upstream files with authenticated `gh` CLI through Context Mode/RTK, for example:
+2. Fetch upstream files with authenticated `gh` CLI through Context Mode, for example:
 
 ```bash
-rtk gh api repos/planetscale/database-skills/contents/skills/mysql/SKILL.md?ref=main
+gh api repos/planetscale/database-skills/contents/skills/mysql/SKILL.md?ref=main
 ```
 
 3. Compare upstream runtime files with local skill folders, including references.

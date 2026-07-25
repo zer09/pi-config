@@ -31,10 +31,10 @@ These skills are intentionally slim. Keep `SKILL.md` focused on triggers, prefer
 ## Update workflow
 
 1. Load `skill-creator` and `gh-cli`, then read this file.
-2. Fetch upstream files with authenticated `gh` CLI through Context Mode/RTK, for example:
+2. Fetch upstream files with authenticated `gh` CLI through Context Mode, for example:
 
 ```bash
-rtk gh api repos/astral-sh/claude-code-plugins/contents/plugins/astral/skills/uv/SKILL.md?ref=main
+gh api repos/astral-sh/claude-code-plugins/contents/plugins/astral/skills/uv/SKILL.md?ref=main
 ```
 
 3. Compare upstream runtime files with local skill folders.

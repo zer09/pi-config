@@ -200,7 +200,6 @@ Loaded extensions/packages with no direct startup LLM-context tokens in this mea
 - local extension: `footer`
 - local extension: `fastlane` (slash command only)
 - local extension: `theme-overrides`
-- local extension: `rtk`
 - npm package: `@schultzp2020/pi-cursor@0.5.0` (provider/command)
 - npm package: `pi-btw@0.4.1` (commands/UI; filters its own visible BTW messages out of model context)
 - npm package: `pi-claude-bridge@0.5.0` (provider)

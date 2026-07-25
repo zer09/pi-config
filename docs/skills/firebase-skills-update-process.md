@@ -41,10 +41,10 @@ For skills marked `keep it` in the trimming inventory, retention can mean no run
 ## Update workflow
 
 1. Load `skill-creator`, `gh-cli`, and the relevant Firebase skill before editing.
-2. Fetch upstream files with authenticated `gh` CLI through Context Mode/RTK when an upstream path exists, for example:
+2. Fetch upstream files with authenticated `gh` CLI through Context Mode when an upstream path exists, for example:
 
 ```bash
-rtk gh api repos/firebase/skills/contents/skills/firebase-firestore/SKILL.md?ref=main
+gh api repos/firebase/skills/contents/skills/firebase-firestore/SKILL.md?ref=main
 ```
 
 3. Compare upstream runtime files with local skill folders, including references, examples, templates, and scripts. For retained Genkit snapshots, first identify a current upstream source before syncing.

@@ -33,10 +33,10 @@ Keep `SKILL.md` and `SKILL.template.md` concise. Runtime instructions should con
 ## Update workflow
 
 1. Load `skill-creator` and `gh-cli`, then read this file.
-2. Fetch upstream with authenticated `gh` CLI through Context Mode/RTK:
+2. Fetch upstream with authenticated `gh` CLI through Context Mode:
 
 ```bash
-rtk gh api repos/schpet/linear-cli/contents/skills/linear-cli/SKILL.md?ref=main
+gh api repos/schpet/linear-cli/contents/skills/linear-cli/SKILL.md?ref=main
 ```
 
 3. Compare the installed `linear --version`, upstream release, and upstream runtime files with the local skill files.

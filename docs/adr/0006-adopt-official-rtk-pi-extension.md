@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted
+Superseded
+
+## Supersession
+
+The RTK CLI and `agent/extensions/rtk.ts` were later removed from this Pi configuration. Commands now run directly through normal Pi and Context Mode routing. The original decision, consequences, and validation steps below are retained as a historical record.
 
 ## Context
 

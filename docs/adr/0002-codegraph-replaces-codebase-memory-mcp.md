@@ -30,7 +30,7 @@ Implementation policy:
 
 ## Consequences
 
-- Structural code work now routes first through `codegraph_explore` for architecture, bug, source survey, and flow/path questions; use `codegraph_search`, `codegraph_node`, `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_files`, and `codegraph_status` for focused lookups when exposed by the live server. If MCP metadata is stale or an allowlist hides tools, use CLI equivalents through Context Mode/RTK where available.
+- Structural code work now routes first through `codegraph_explore` for architecture, bug, source survey, and flow/path questions; use `codegraph_search`, `codegraph_node`, `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_files`, and `codegraph_status` for focused lookups when exposed by the live server. If MCP metadata is stale or an allowlist hides tools, use CLI equivalents through Context Mode where available.
 - Each repository or worktree needs its own `.codegraph/` index when graph accuracy matters.
 - Pi must be restarted or MCP metadata must be refreshed after config changes before the `codegraph` server appears in MCP tool lists.
 - Existing `.codebase-memory/` data may remain local and ignored until explicitly removed.

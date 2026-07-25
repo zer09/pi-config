@@ -31,11 +31,11 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Update workflow
 
 1. Load `skill-creator`, then read this file. Load `gh-cli` only when fetching upstream GitHub content or checking command syntax.
-2. Fetch upstream files with authenticated `gh` CLI through Context Mode/RTK, for example:
+2. Fetch upstream files with authenticated `gh` CLI through Context Mode, for example:
 
 ```bash
-rtk gh api repos/openai/skills/contents/skills/.system/skill-creator/SKILL.md?ref=main
-rtk gh api repos/openai/skills/contents/skills/.curated/figma/SKILL.md?ref=main
+gh api repos/openai/skills/contents/skills/.system/skill-creator/SKILL.md?ref=main
+gh api repos/openai/skills/contents/skills/.curated/figma/SKILL.md?ref=main
 ```
 
 3. Compare upstream runtime files with local skill folders, including `references/`, `scripts/`, and `agents/openai.yaml` where present.

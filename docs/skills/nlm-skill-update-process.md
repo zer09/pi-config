@@ -33,7 +33,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Update workflow for a future agent
 
 1. Load `skill-creator` and `gh-cli`, then read this file.
-2. Fetch upstream source files with authenticated `gh` CLI through Context Mode/RTK, for example `rtk gh api repos/jacob-bd/notebooklm-mcp-cli/contents/src/notebooklm_tools/data/SKILL.md?ref=main`.
+2. Fetch upstream source files with authenticated `gh` CLI through Context Mode, for example `gh api repos/jacob-bd/notebooklm-mcp-cli/contents/src/notebooklm_tools/data/SKILL.md?ref=main`.
 3. Compare upstream files with local files. Prefer updating reference files from upstream instead of expanding `SKILL.md`.
 4. Keep `SKILL.md` frontmatter limited to `name` and `description`. Do not add upstream metadata such as `version`; track source versions in this file instead.
 5. Keep local safety rules in `SKILL.md`: NotebookLM and Google hosted changes are external hosted service mutations, deletes require explicit confirmation, secrets/cookies must not be printed, and `nlm chat start` must not be used by agents.

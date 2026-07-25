@@ -58,7 +58,7 @@ When installing a new Local Skill:
 
 - Preserve hosted-service mutation gates. External hosted services are read-only by default.
 - Require explicit user instruction for exact remote mutations such as GitHub writes, Linear changes, Figma writes, NotebookLM changes, Firebase/GCP deploys, database destructive operations, and similar hosted-service actions.
-- Preserve GitHub routing through the `gh-cli` skill and authenticated `gh` CLI through Context Mode/RTK.
+- Preserve GitHub routing through the `gh-cli` skill and authenticated `gh` CLI through Context Mode.
 - Preserve Pi's global/project routing rules for shell commands, large output, code review, browser automation, and graph-first CodeGraph exploration without relying on a retired orchestration runtime skill.
 - Preserve database safety gates in MySQL/Postgres skills.
 - Use `<api-key>` or environment variable names as placeholders. Do not use realistic secret-looking values.

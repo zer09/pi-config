@@ -22,7 +22,7 @@ If reinstalling later:
 
 1. Read `docs/skills/README.md` and `docs/skills/local-skill-update-invariants.md`.
 2. Load `skill-creator`, `gh-cli`, and `linear-cli`.
-3. Fetch upstream through authenticated `gh` CLI in Context Mode/RTK.
+3. Fetch upstream through authenticated `gh` CLI in Context Mode.
 4. Keep local Linear mutation gates: hosted Linear writes require explicit user authorization.
 5. Keep `SKILL.md` concise and limit frontmatter to `name` and `description`.
 6. Add `agents/openai.yaml` with only UI metadata unless assets are intentionally required.
