@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const packageRoot = join(here, "..", "npm", "node_modules", "pi-blackhole");
+const packageRoot = process.argv[2]
+  ? resolve(process.argv[2])
+  : join(here, "..", "npm", "node_modules", "pi-blackhole");
 
 function readRel(rel) {
   return readFileSync(join(packageRoot, rel), "utf8");
@@ -58,6 +60,30 @@ replaceOnce(
   `import { debugLog } from "./debug-log.js";\nimport { effectiveCompactAfterTokens } from "./compaction-budget.js";\nimport { RETRYABLE_ERROR_RE } from "./retryable-error.js";\n`,
   "./compaction-budget.js",
 );
+
+const compactionTriggerSource = readRel("src/om/compaction-trigger.ts");
+if (compactionTriggerSource.includes("function handleTurnEnd")) {
+  replaceOnce(
+    "src/om/compaction-trigger.ts",
+    `\tconst dbg = (ev: string, d?: Record<string, unknown>) => debugLog(ev, d, runtime.config.debugLog === true);\n\n\tconst mode = runtime.config.midRunCompaction ?? "off";\n`,
+    `\tconst dbg = (ev: string, d?: Record<string, unknown>) => debugLog(ev, d, runtime.config.debugLog === true);\n\tconst compactThreshold = effectiveCompactAfterTokens(runtime.config, ctx.model);\n\n\tconst mode = runtime.config.midRunCompaction ?? "off";\n`,
+    "function handleTurnEnd(ctx: any, runtime: Runtime, pi: ExtensionAPI): void {\n\truntime.ensureConfig(ctx.cwd, (msg) => ctx.ui?.notify?.(msg, \"warning\"));\n\tconst dbg = (ev: string, d?: Record<string, unknown>) => debugLog(ev, d, runtime.config.debugLog === true);\n\tconst compactThreshold = effectiveCompactAfterTokens(runtime.config, ctx.model);",
+  );
+
+  replaceOnce(
+    "src/om/compaction-trigger.ts",
+    `\tconst entries = ctx.sessionManager.getBranch() as Entry[];\n\tconst tokens = rawTokensSinceLastCompaction(entries);\n\tif (tokens < runtime.config.compactAfterTokens) {\n`,
+    `\tconst entries = ctx.sessionManager.getBranch() as Entry[];\n\tconst tokens = rawTokensSinceLastCompaction(entries);\n\tif (tokens < compactThreshold.tokens) {\n`,
+    `\tconst entries = ctx.sessionManager.getBranch() as Entry[];\n\tconst tokens = rawTokensSinceLastCompaction(entries);\n\tif (tokens < compactThreshold.tokens) {`,
+  );
+
+  replaceOnce(
+    "src/om/compaction-trigger.ts",
+    `\tdbg("compaction_trigger.turn_end.threshold_reached", { tokens, threshold: runtime.config.compactAfterTokens, mode });\n`,
+    `\tdbg("compaction_trigger.turn_end.threshold_reached", { tokens, threshold: compactThreshold.tokens, compactThresholdSource: compactThreshold.source, mode });\n`,
+    "compaction_trigger.turn_end.threshold_reached\", { tokens, threshold: compactThreshold.tokens",
+  );
+}
 
 replaceOnce(
   "src/om/compaction-trigger.ts",

@@ -50,10 +50,10 @@ Enabled models:
 Configured packages:
 
 - `npm:@schultzp2020/pi-cursor@0.5.0`
-- `npm:pi-blackhole@0.3.9`
+- `npm:pi-blackhole@0.4.2`
 - `npm:pi-btw@0.4.1`
-- `npm:pi-browser-harness@0.8.3`
-- `npm:pi-claude-bridge@0.6.2`
+- `npm:pi-browser-harness@0.10.2`
+- `npm:pi-claude-bridge@0.6.3`
 
 Keep this section in sync whenever `agent/settings.json` changes.
 
@@ -210,7 +210,7 @@ Use these docs to understand why the config looks the way it does:
 | ------------------- | ---------------------------------------------------------------------------------- |
 | `docs/CHANGELOG.md` | Human-readable timeline of local Pi config changes.                                |
 | `docs/TODO.md`      | Deferred maintenance checks, including when to reconsider upstreaming local package fixes. |
-| `docs/changelogs/`  | Detailed upgrade notes for specific Pi/package transitions, including the 0.80.3 → 0.80.6 recovery and 0.80.6 → 0.80.10 SDK migration. |
+| `docs/changelogs/`  | Detailed upgrade notes for specific Pi/package transitions, including the 0.80.3 → 0.80.6 recovery, 0.80.6 → 0.80.10 SDK migration, and 0.80.10 → 0.82.1 upgrade. |
 | `docs/adr/`         | Architecture decision records for long-lived config choices.                       |
 | `docs/skills/`      | Skill inventory, maintenance workflows, update processes, and retired-skill notes. |
 

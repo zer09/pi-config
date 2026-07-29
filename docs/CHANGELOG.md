@@ -2,6 +2,17 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-07-29 — Pi 0.80.10 to 0.82.1 upgrade
+
+Details: [`docs/changelogs/pi-0.80.10-to-0.82.1-upgrade.md`](./changelogs/pi-0.80.10-to-0.82.1-upgrade.md)
+
+- Upgraded the Bun-global Pi core family to 0.82.1 and audited the 0.81 agent-core/session-storage and 0.82 AgentHarness tool-context breaks; no local shim was needed.
+- Upgraded Blackhole 0.3.9 → 0.4.2, browser-harness 0.8.3 → 0.10.2, Claude Bridge 0.6.2 → 0.6.3, and CodeGraph SDK/CLI 1.4.1 → 1.5.0 with exact pins.
+- Retained and ported Blackhole's percentage/provider-stream patches, retained pi-btw's ModelRuntime/runtime-auth patch, and explicitly disabled unsafe mid-run compaction.
+- Expanded the custom footer's lifetime totals to include usage-bearing tool results, compactions, and branch summaries; changed DeepSeek worker fallbacks from unsupported `xhigh` to `max`.
+- Evaluated constrained sampling and custom `PI_*` propagation but deferred unsafe schema rewrites and process-global environment emulation.
+- Validation included isolated and live RPC/SDK startup, all configured models, 59 registered tools, package/local extension suites, patch idempotence, wrapper checks, and CodeGraph index compatibility without a full reindex. No paid inference was used.
+
 ## 2026-07-19 — Pi 0.80.6 to 0.80.10 upgrade
 
 Details: [`docs/changelogs/pi-0.80.6-to-0.80.10-upgrade.md`](./changelogs/pi-0.80.6-to-0.80.10-upgrade.md)

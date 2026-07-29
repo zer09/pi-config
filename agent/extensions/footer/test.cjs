@@ -601,6 +601,24 @@ async function runTests() {
 
 	{
 		const footer = await createFooter({
+			entries: [
+				assistantEntry({ input: 100, output: 10, cacheRead: 20, cacheWrite: 2 }),
+				{ type: "message", message: { role: "toolResult", usage: { input: 200, output: 20, cacheRead: 30, cacheWrite: 3 } } },
+				{ type: "compaction", usage: { input: 300, output: 30, cacheRead: 40, cacheWrite: 4 } },
+				{ type: "branch_summary", usage: { input: 400, output: 40, cacheRead: 50, cacheWrite: 5 } },
+				{ type: "message", message: { role: "toolResult" } },
+				{ type: "compaction" },
+				{ type: "branch_summary" },
+			],
+		});
+		assert.ok(
+			footer.renderPlain().includes("(16%) (↑1k/R140 · ↓100/W14)"),
+			"session totals should include tool, compaction, and branch-summary usage while cache hit rate remains assistant-based",
+		);
+	}
+
+	{
+		const footer = await createFooter({
 			entries: [assistantEntry({ input: 742000, output: 80000, cacheRead: 12000000, cacheWrite: 0 })],
 			contextUsage: { tokens: 76000, contextWindow: 272000, percent: null },
 		});

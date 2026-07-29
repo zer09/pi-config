@@ -1,17 +1,19 @@
 /**
  * Token and context-usage formatting for footer.
  *
- * This module aggregates assistant usage from the session and formats both token
- * totals and context-window percentages for full and compact footer layouts.
+ * This module aggregates persisted Pi usage from the session and formats both
+ * token totals and context-window percentages for full and compact footer layouts.
  */
 
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import type { ContextUsageSnapshot } from "./types";
 
 const TOKEN_FORMATTER = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1, notation: "compact" });
 
 /**
- * Format session token totals from assistant messages.
+ * Format session token totals from assistant messages, usage-bearing tool results,
+ * compactions, and branch summaries.
  *
  * @param ctx - Current Pi extension context.
  * @param theme - Active Pi theme.
@@ -28,15 +30,27 @@ export function formatSessionTokenTotals(
 	let latestCacheHitRate: number | undefined;
 
 	for (const entry of ctx.sessionManager.getEntries()) {
-		if (entry.type !== "message" || entry.message.role !== "assistant") continue;
-		const usage = entry.message.usage;
+		let usage: AssistantMessage["usage"] | undefined;
+		let updatesCacheHitRate = false;
+		if (entry.type === "message" && entry.message.role === "assistant") {
+			usage = entry.message.usage;
+			updatesCacheHitRate = true;
+		} else if (entry.type === "message" && entry.message.role === "toolResult") {
+			usage = entry.message.usage;
+		} else if (entry.type === "compaction" || entry.type === "branch_summary") {
+			usage = entry.usage;
+		}
+		if (!usage) continue;
+
 		input += usage.input;
 		output += usage.output;
 		cacheRead += usage.cacheRead;
 		cacheWrite += usage.cacheWrite;
 
-		const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite;
-		latestCacheHitRate = promptTokens > 0 ? (usage.cacheRead / promptTokens) * 100 : undefined;
+		if (updatesCacheHitRate) {
+			const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite;
+			latestCacheHitRate = promptTokens > 0 ? (usage.cacheRead / promptTokens) * 100 : undefined;
+		}
 	}
 
 	if (input === 0 && output === 0 && cacheRead === 0 && cacheWrite === 0) return undefined;

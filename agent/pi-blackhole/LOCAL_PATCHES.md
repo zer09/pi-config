@@ -19,7 +19,9 @@ Behavior:
 
 - If the active session model exposes `contextWindow`, auto-compaction threshold is `floor(contextWindow * compactAfterPercent)`.
 - If no valid `contextWindow` is available, it falls back to `compactAfterTokens`.
+- On `pi-blackhole@0.4.2+`, the same effective threshold is used by both the safe `agent_end` path and the opt-in `turn_end` path.
 - Worker settings (`observeAfterTokens`, `observerChunkMaxTokens`, `reflectorInputMaxTokens`, `dropperInputMaxTokens`, etc.) remain hardcoded and are not percentage-scaled.
+- This configuration explicitly keeps `midRunCompaction: "off"`; `ctx.compact()` aborts the shared run signal, so `turn_end` compaction is unsafe with nested/background extension work.
 
 Patched files:
 
@@ -32,15 +34,17 @@ Reapply helper:
 
 ```bash
 node ~/.pi/agent/pi-blackhole/reapply-compact-after-percent-patch.mjs
+# Optional isolated-package target for upgrade testing:
+node ~/.pi/agent/pi-blackhole/reapply-compact-after-percent-patch.mjs /tmp/pi-blackhole-package
 ```
 
 Quick verification after an upgrade:
 
 ```bash
-rg --no-ignore "compactAfterPercent|effectiveCompactAfterTokens" ~/.pi/agent/npm/node_modules/pi-blackhole/src ~/.pi/agent/pi-blackhole/pi-blackhole-config.json
+rg --no-ignore "compactAfterPercent|effectiveCompactAfterTokens|compactThreshold\\.tokens" ~/.pi/agent/npm/node_modules/pi-blackhole/src ~/.pi/agent/pi-blackhole/pi-blackhole-config.json
 ```
 
-Expected result: matches in the config plus the patched source files above. If the source matches disappear after an upgrade, reapply this patch or port the same logic to the new version.
+Expected result: matches in the config plus the patched source files above. On `pi-blackhole@0.4.2+`, `handleTurnEnd()` and `handleAgentEnd()` should both use `compactThreshold.tokens`. If the source matches disappear after an upgrade, reapply this patch or port the same logic to the new version.
 
 After reapplying, restart Pi or run `/reload`. Then `/blackhole-memory` should show compaction like `triggers at 650,000 = 65% of 1,000,000` when the active model has a 1M `contextWindow`.
 

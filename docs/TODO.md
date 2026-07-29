@@ -1,6 +1,6 @@
 # Maintenance TODOs
 
-## Recheck upstream Pi 0.80.10 package compatibility fixes
+## Recheck upstream package compatibility fixes
 
 Status: waiting for maintainers  
 Review on or after: **2026-08-19**, or earlier when either package publishes a new release
@@ -23,7 +23,7 @@ Local reference:
 
 ### `pi-blackhole`
 
-Current local version: `0.3.9`
+Current local version: `0.4.2`
 
 Upstream is considered fixed when custom worker-provider discovery uses supported public APIs such as:
 
@@ -36,6 +36,11 @@ Local reference:
 
 - `agent/pi-blackhole/LOCAL_PATCHES.md`
 - `agent/pi-blackhole/reapply-provider-stream-bridge-patch.mjs`
+
+### Latest review
+
+- 2026-07-29: `pi-blackhole@0.4.2` still relies on the removed private provider map, so the public provider-stream bridge patch remains necessary.
+- 2026-07-29: `pi-btw@0.4.1` remains the latest release and still needs the local `ModelRuntime` child-session patch.
 
 ### Review outcome
 
