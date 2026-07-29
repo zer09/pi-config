@@ -12,11 +12,11 @@ These are my global preferences for Agent sessions. Project-local `AGENTS.md` or
 - State assumptions and risks when they matter.
 - Ask before making ambiguous, destructive, or broad changes.
 - Sensitive/private info may be displayed unredacted when it is only shown in your local TUI terminal. Redaction is required before saving, committing, pushing, uploading, sharing, or sending it to external services.
-- When showing a code block from a file, include the block's starting line number when known.
+- When showing a code block from a file, include the block's starting line number.
+- When referencing code in a file, include the relevant line number or range whenever known, using `path/to/file.ts:20` or `path/to/file.ts:20-28`. For multiple relevant locations in the same file, use `path/to/file.ts:12, 20-28`.
 
 ### User adaptation profile
 
-- Prefer direct, high-signal answers over softening, filler, or generic explanations.
 - Assume strong technical reasoning ability, but do not assume hidden context that was not provided.
 - Make implicit tradeoffs explicit, especially when a decision affects scope, safety, persistence, cost, or maintainability.
 - Support ADHD execution flow: reduce unnecessary branching, keep steps concrete, preserve momentum, and make next actions obvious.
