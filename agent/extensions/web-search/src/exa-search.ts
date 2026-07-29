@@ -5,7 +5,7 @@
  * unavailable or does not return a clean STOP answer.
  */
 import { postJson } from "./http.js";
-import { asString } from "./value-guards.js";
+import { asFiniteNumber, asString } from "./value-guards.js";
 import type { FallbackAttempt, SearchConfig } from "./types.js";
 
 function getExaSearchResults(data: unknown): unknown[] {
@@ -135,5 +135,6 @@ export async function callCodeSearchFallback(params: {
     rawRequest: raw.rawRequest,
     rawResponse: raw.rawResponse,
     answer,
+    resultCount: asFiniteNumber(data?.resultsCount),
   };
 }

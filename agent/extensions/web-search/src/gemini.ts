@@ -6,7 +6,8 @@
  */
 import { postJson } from "./http.js";
 import { normalizeGeminiExaResponse } from "./normalize.js";
-import type { PrimaryAttempt, SearchConfig } from "./types.js";
+import { classifyPrimaryFailure } from "./primary-failure.js";
+import type { PrimaryAttempt, PrimaryAttempts, SearchConfig } from "./types.js";
 
 const GEMINI_PROVIDER = "gemini-exa-grounding" as const;
 
@@ -72,4 +73,24 @@ export async function callGeminiExaGrounding(params: {
     normalized,
     error: raw.error,
   };
+}
+
+/**
+ * Calls Gemini native Exa grounding, retrying once for the empty-query failure only.
+ *
+ * The managed Gemini-to-Exa path intermittently forwards an empty search query,
+ * and repeating the identical request can recover this intermittent provider
+ * failure. Every other failure class is returned as-is so the caller falls
+ * straight through to the direct Exa fallback.
+ *
+ * @param params - The same parameters accepted by `callGeminiExaGrounding`.
+ * @returns One attempt, or two when the first was the retryable empty-query failure.
+ */
+export async function callGeminiExaGroundingAttempts(
+  params: Parameters<typeof callGeminiExaGrounding>[0],
+): Promise<PrimaryAttempts> {
+  const first = await callGeminiExaGrounding(params);
+  if (params.signal?.aborted) return [first];
+  if (classifyPrimaryFailure(first) !== "EXA_EMPTY_QUERY") return [first];
+  return [first, await callGeminiExaGrounding(params)];
 }

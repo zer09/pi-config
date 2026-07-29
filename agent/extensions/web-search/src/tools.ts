@@ -1,5 +1,6 @@
 import { callCodeSearchFallback, callExaSearchFallback } from "./exa-search.js";
-import { callGeminiExaGrounding } from "./gemini.js";
+import { callGeminiExaGroundingAttempts } from "./gemini.js";
+import { classifyPrimaryFailure } from "./primary-failure.js";
 import { fetchContentsEntries } from "./contents.js";
 import {
   formatCleanGeminiSuccess,
@@ -28,6 +29,7 @@ import type {
   ExtensionContextLike,
   FallbackAttempt,
   PrimaryAttempt,
+  PrimaryAttempts,
   StoredSearchResponse,
   ToolRegistration,
   ToolResult,
@@ -66,46 +68,68 @@ function makeSkippedPrimary(model: string, reason: string): PrimaryAttempt {
   };
 }
 
-function buildStoredRecord(params: {
+/** @internal Exported only so the stored-record field contract can be tested deterministically. */
+export function buildStoredRecord(params: {
   responseId: string;
   now: number;
   ttlMs: number;
   query: string;
-  primary: PrimaryAttempt;
+  primaryAttempts: PrimaryAttempts;
   fallback: FallbackAttempt | null;
 }): StoredSearchResponse {
-  const normalized = params.primary.normalized ?? null;
+  // Legacy top-level fields keep describing the final attempt so existing
+  // raw-response consumers stay correct while history is preserved alongside.
+  const primary = params.primaryAttempts[params.primaryAttempts.length - 1]!;
+  const normalized = primary.normalized ?? null;
   return {
     responseId: params.responseId,
     createdAt: params.now,
     expiresAt: params.now + params.ttlMs,
     provider: "gemini-exa-grounding",
-    model: params.primary.model,
+    model: primary.model,
     query: params.query,
-    request: params.primary.rawRequest,
-    response: params.primary.rawResponse,
-    primary: params.primary,
+    request: primary.rawRequest,
+    response: primary.rawResponse,
+    primary,
+    // `primary` already is the only attempt in the common case, so history is
+    // stored only when a retry actually produced a second attempt.
+    primaryAttempts: params.primaryAttempts.length > 1 ? params.primaryAttempts : undefined,
     normalized,
     fallback: params.fallback,
     googleResponseId: normalized?.googleResponseId,
   };
 }
 
-function detailsForSearch(
+function primaryAttemptsForRecord(record: StoredSearchResponse): PrimaryAttempt[] {
+  return record.primaryAttempts?.length ? record.primaryAttempts : [record.primary];
+}
+
+export function detailsForSearch(
   record: StoredSearchResponse,
 ): Record<string, unknown> {
   const normalized = record.normalized ?? undefined;
+  const attempts = primaryAttemptsForRecord(record);
+  const finalAttempt = attempts[attempts.length - 1]!;
+  // Gemini grounding counts only describe a Gemini answer; reporting them for a
+  // fallback answer would claim the successful search found nothing.
+  const geminiAnswered = record.fallback === null;
   return {
     responseId: record.responseId,
     googleResponseId: record.googleResponseId ?? null,
+    answerProvider: record.fallback?.provider ?? "gemini-exa-grounding",
     primaryProvider: "gemini-exa-grounding",
     primaryFinishReason: normalized?.finishReason ?? null,
+    primaryAttemptCount: attempts.length,
+    primaryFirstFailureCode: classifyPrimaryFailure(attempts[0]!) ?? null,
+    primaryFinalFailureCode: classifyPrimaryFailure(finalAttempt) ?? null,
+    primaryFinalStatus: finalAttempt.rawResponse?.status ?? null,
     fallbackUsed: record.fallback !== null,
     fallbackProvider: record.fallback?.provider ?? null,
     fallbackReason: record.fallback?.reason ?? null,
-    sourceCount: normalized?.sources.length ?? 0,
-    supportCount: normalized?.supports.length ?? 0,
-    queryCount: normalized?.webSearchQueries.length ?? 0,
+    fallbackResultCount: record.fallback?.resultCount ?? null,
+    sourceCount: geminiAnswered ? normalized?.sources.length ?? null : null,
+    supportCount: geminiAnswered ? normalized?.supports.length ?? null : null,
+    queryCount: geminiAnswered ? normalized?.webSearchQueries.length ?? null : null,
   };
 }
 
@@ -129,9 +153,9 @@ export async function executeWebSearchExa(
     exa: exaApiKey,
   });
 
-  let primary: PrimaryAttempt;
+  let primaryAttempts: PrimaryAttempts;
   if (googleCloudApiKey) {
-    primary = await callGeminiExaGrounding({
+    primaryAttempts = await callGeminiExaGroundingAttempts({
       query,
       googleCloudApiKey,
       exaApiKey,
@@ -139,11 +163,14 @@ export async function executeWebSearchExa(
       signal,
     });
   } else {
-    primary = makeSkippedPrimary(
-      config.model,
-      `Missing required environment variable ${config.googleCloudApiKeyEnv}`,
-    );
+    primaryAttempts = [
+      makeSkippedPrimary(
+        config.model,
+        `Missing required environment variable ${config.googleCloudApiKeyEnv}`,
+      ),
+    ];
   }
+  const primary = primaryAttempts[primaryAttempts.length - 1]!;
 
   const responseId = generateResponseId();
   const now = Date.now();
@@ -159,7 +186,7 @@ export async function executeWebSearchExa(
       now,
       ttlMs: config.rawResponseTtlMs,
       query,
-      primary,
+      primaryAttempts,
       fallback: null,
     });
     await writeStoredResponse(config.cacheDir, record, secrets);
@@ -198,7 +225,7 @@ export async function executeWebSearchExa(
     now,
     ttlMs: config.rawResponseTtlMs,
     query,
-    primary,
+    primaryAttempts,
     fallback,
   });
   await writeStoredResponse(config.cacheDir, record, secrets);

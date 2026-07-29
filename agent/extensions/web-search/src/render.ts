@@ -69,10 +69,37 @@ function resultDetailsSummary(toolName: WebSearchToolName, result: ToolResult): 
   const details = asRecord(result.details);
   if (toolName === "web_search") {
     const responseId = asString(details.responseId) ?? "unknown";
-    const sourceCount = asNumber(details.sourceCount) ?? 0;
-    const supportCount = asNumber(details.supportCount) ?? 0;
-    const fallback = details.fallbackUsed ? asString(details.fallbackProvider) ?? "unknown" : undefined;
-    return [`sources=${sourceCount}`, `supports=${supportCount}`, `responseId=${responseId}`, fallback ? `fallback=${fallback}` : ""]
+    const fallbackProvider = details.fallbackUsed ? asString(details.fallbackProvider) ?? "unknown" : undefined;
+    const provider = asString(details.answerProvider) ?? fallbackProvider ?? "gemini-exa-grounding";
+    const attempts = asNumber(details.primaryAttemptCount) ?? 1;
+    const finalStatus = asNumber(details.primaryFinalStatus);
+    // A 2xx primary can still need fallback (non-STOP finish, empty answer), so
+    // an HTTP label is only meaningful for a failing status.
+    const httpError = finalStatus !== undefined && (finalStatus < 200 || finalStatus >= 300) ? `HTTP_${finalStatus}` : undefined;
+    const primaryError = asString(details.primaryFinalFailureCode) ?? httpError;
+    const finishReason = asString(details.primaryFinishReason);
+    const nonStopFinishReason = finishReason !== undefined && finishReason !== "STOP" ? finishReason : undefined;
+    const firstError = asString(details.primaryFirstFailureCode);
+    const sourceCount = asNumber(details.sourceCount);
+    const supportCount = asNumber(details.supportCount);
+    const resultCount = asNumber(details.fallbackResultCount);
+    // Show the first failure only when a later attempt exists and it says
+    // something the final primary error label does not already say.
+    const showFirstError = firstError !== undefined && attempts > 1 && firstError !== primaryError;
+    const providerFields = fallbackProvider
+      ? [
+          resultCount !== undefined ? `results=${resultCount}` : "",
+          primaryError ? `primaryError=${primaryError}` : "",
+          nonStopFinishReason ? `finishReason=${nonStopFinishReason}` : "",
+        ]
+      : [sourceCount !== undefined ? `sources=${sourceCount}` : "", supportCount !== undefined ? `supports=${supportCount}` : ""];
+    return [
+      `provider=${provider}`,
+      `attempts=${attempts}`,
+      showFirstError ? `firstError=${firstError}` : "",
+      ...providerFields,
+      `responseId=${responseId}`,
+    ]
       .filter(Boolean)
       .join(" ");
   }

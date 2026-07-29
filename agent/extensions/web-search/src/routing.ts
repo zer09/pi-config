@@ -1,3 +1,4 @@
+import { classifyPrimaryFailure } from "./primary-failure.js";
 import type { FallbackRoute, PrimaryAttempt, WebSearchMode } from "./types.js";
 
 export function classifyFallbackRoute(query: string): FallbackRoute {
@@ -23,6 +24,10 @@ export function selectFallbackRoute(query: string, mode: WebSearchMode = "auto")
 
 export function fallbackReasonFromPrimary(primary: PrimaryAttempt): string {
   if (primary.error) return `Gemini+Exa request failed before an HTTP response was received: ${primary.error}`;
+
+  if (classifyPrimaryFailure(primary) === "EXA_EMPTY_QUERY") {
+    return "Gemini native Exa grounding sent Exa an empty search query.";
+  }
 
   const status = primary.rawResponse?.status;
   if (status && (status < 200 || status >= 300)) {

@@ -122,6 +122,12 @@ export type PrimaryAttempt = {
   error?: string;
 };
 
+/** Provider failure classes recognized exactly enough to act on. */
+export type PrimaryFailureCode = "EXA_EMPTY_QUERY";
+
+/** Chronological primary attempts; there is always at least one. */
+export type PrimaryAttempts = [PrimaryAttempt, ...PrimaryAttempt[]];
+
 export type FallbackAttempt = {
   used: true;
   provider: FallbackRoute;
@@ -146,6 +152,8 @@ export type StoredSearchResponse = {
   request?: RawHttpRequest;
   response?: RawHttpResponse;
   primary: PrimaryAttempt;
+  /** Present only after a retry; when absent, treat history as `[primary]`. */
+  primaryAttempts?: PrimaryAttempt[];
   normalized?: NormalizedGeminiExaResponse | null;
   fallback: FallbackAttempt | null;
   googleResponseId?: string;
