@@ -8,8 +8,9 @@ Use this Skill Maintenance Doc for the local `pp-posthog` skill, which wraps the
 - Runtime skill input: `cli-skills/pp-posthog/SKILL.md`
 - CLI/docs input: `library/developer-tools/posthog/SKILL.md` and `library/developer-tools/posthog/README.md`
 - Local installed skill: `agent/skills/pp-posthog/`
-- Current upstream commit checked locally: `d61fb73c364e654965a842d8738bae7de8d469f7`
-- Current installed CLI checked locally: `posthog-pp-cli 2026.6.1`
+- Current upstream commit checked: `003916b32767fe56ef256d38101f160eb806886d`
+- Current PostHog CLI release source: `11d7b4ea752c9c8fb8909037133058eb57560cc0`
+- Current installed CLI checked locally: `posthog-pp-cli 2026.7.1`
 
 Treat upstream as input, not final truth. Local Pi safety gates, compactness, and installed-binary behavior win.
 

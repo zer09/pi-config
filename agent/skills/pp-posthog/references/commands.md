@@ -25,11 +25,10 @@ project_id=$(jq -r '.results.team.project_id // .team.project_id' "$tmp")
 posthog-pp-cli --help
 posthog-pp-cli api
 posthog-pp-cli api projects
-posthog-pp-cli which "list feature flags" --agent
 posthog-pp-cli projects feature-flags list --help
 ```
 
-Known drift observed on `posthog-pp-cli 2026.6.1`: top-level `organizations` and `query` commands from some README examples were absent. Use `projects ...`, `users ...`, `api`, and `--help` from the installed binary.
+Known drift confirmed on `posthog-pp-cli 2026.7.1`: top-level `organizations` and `query` commands from some README examples remain absent. Use `projects ...`, `users ...`, `api`, and `--help` from the installed binary. The `which` command uses fuzzy matching and may omit the direct CRUD namespace; treat its results as hints and verify them with `--help`.
 
 ## Project-scoped reads
 

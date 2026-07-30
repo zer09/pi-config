@@ -61,7 +61,7 @@ posthog-pp-cli analytics --type users --agent
 
 Read [commands](references/commands.md) for tested command shapes, feature-flag safety recipes, local cache/search usage, and known command-surface drift.
 
-Important local note: installed CLI versions may differ from the generated README. If a README command fails, trust `posthog-pp-cli --help`, `posthog-pp-cli api`, and `posthog-pp-cli which` from the installed binary.
+Important local note: installed CLI versions may differ from the generated README. If a README command fails, trust `posthog-pp-cli --help` and `posthog-pp-cli api` from the installed binary. Treat `posthog-pp-cli which` as a fuzzy discovery hint and verify its suggestions with `--help` before use.
 
 ## Maintenance
 
