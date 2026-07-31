@@ -33,10 +33,10 @@
     }
   ],
   "reflectorModel": {
-    "_comment": "Cursor primary: Haiku 4.5 Thinking at low for reliable synthesis/reflection.",
+    "_comment": "Cursor primary: Haiku 4.5 Thinking at minimal to force the claude-4.5-haiku-thinking legacy slug; pi-cursor 0.5.0 does not map low to that slug.",
     "provider": "cursor",
     "id": "claude-haiku-4-5",
-    "thinking": "low",
+    "thinking": "minimal",
     "cooldownHours": 1,
     "contextWindow": 200000
   },
