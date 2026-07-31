@@ -1,5 +1,5 @@
 {
-  "_comment": "Recommended pi-blackhole config for openai-codex/gpt-5.6-sol daily driver; auto compaction; Cursor primary workers; non-Cursor fallbacks.",
+  "_comment": "Recommended pi-blackhole config for openai-codex/gpt-5.6-sol daily driver; auto compaction; Luna xhigh observer; mixed-provider worker fallbacks.",
   "compaction": "auto",
   "compactionEngine": "blackhole",
   "tailBehavior": "pi-default",
@@ -7,12 +7,12 @@
   "memory": true,
   "fullFoldAlways": true,
   "observerModel": {
-    "_comment": "Cursor primary: Grok 4.5 at its lowest available thinking level for frequent observation extraction.",
-    "provider": "cursor",
-    "id": "grok-4.5",
-    "thinking": "medium",
+    "_comment": "OpenAI Codex GPT-5.6 Luna at xhigh; selected after a three-sample observer comparison showed better task retention and signal-to-noise than Cursor Grok 4.5 low or Luna max.",
+    "provider": "openai-codex",
+    "id": "gpt-5.6-luna",
+    "thinking": "xhigh",
     "cooldownHours": 1,
-    "contextWindow": 200000
+    "contextWindow": 272000
   },
   "observerFallbackModels": [
     {
@@ -105,8 +105,8 @@
     "tailBehavior is pi-default only: blackhole still owns compaction, but Pi's gentler recent-tail cut is used.",
     "midRunCompaction is explicitly off: turn_end compaction aborts the shared run signal and is unsafe with nested/background extensions. Compaction stays at agent_end.",
     "fullFoldAlways keeps observations/reflections eligible on the first compaction before a prior full-fold boundary exists.",
-    "Cursor worker primaries all have 200K context. Observer primary is cursor/grok-4.5 at medium (Grok 4.5's lowest available thinking level); dropper primary is cursor/gpt-5.6-luna at high; reflector primary is cursor/claude-haiku-4-5 at low. The largest worker input cap is 160K = 80.0% of the worker context.",
-    "Fallbacks are deliberately non-Cursor so primary and fallback providers differ.",
+    "Observer primary is openai-codex/gpt-5.6-luna at xhigh with 272K context; a three-sample comparison found it preserved the user's request in 3/3 chunks while cursor/grok-4.5 low missed it in 3/3, and Luna max was about 1.95x slower with 22% more memory output. Dropper and reflector primaries remain Cursor-backed. The largest worker input cap is 160K.",
+    "Fallbacks use providers different from the observer primary and retain non-Cursor alternatives for the Cursor-backed reflector and dropper.",
     "Final emergency fallback remains the session model because sessionFallback is true: openai-codex/gpt-5.6-sol.",
     "2026-06-12: Disabled debug/debugLog after transient Cursor proxy debugging; worker/fallback cooldownHours remain 1 hour."
   ]
