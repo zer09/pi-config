@@ -59,6 +59,17 @@ These are my global preferences for Agent sessions. Project-local `AGENTS.md` or
 - Use direct `bash` only for short low-output local checks or explicitly requested state-changing commands; do not use it for broad source/log/git/test output when `ctx_*` tools can index and filter.
 - Use native `read` for small targeted ranges and exact edit regions, and native `edit`/`write` for all file changes.
 
+## Delegated Pi orchestration
+
+- When the user or a project workflow requires delegated implementation, independent review, finding verification, or iterative remediation, load and follow the `delegated-pi-loop` skill.
+- The current Pi session is the sole orchestrator. Spawned delegates perform their assigned role directly and must not recursively spawn other Pi instances unless explicitly authorized.
+- Spawn delegates with direct `bash`, never Context Mode, and omit the tool timeout.
+- Use fresh `--no-session` delegates. Run only one mutating delegate at a time on a shared working tree, and do not edit concurrently with it.
+- Read-only reviewers and verifiers must not edit files or Git state. Compare working-tree state before and after them and treat unexpected mutation as a failed delegation.
+- Project-specific execution guides and role templates take precedence. When separate finding-verification and focused-remediation templates exist, instantiate them; parent-session analysis is not a substitute.
+- Keep independent reviewers neutral: do not give them prior remediation reasoning, expected findings, or approval-oriented steering.
+- Do not stage, commit, push, or mutate hosted services during a delegated loop unless separately authorized.
+
 ## Python tooling
 
 - Do not use bare `python` or `python3` to run Python scripts, snippets, modules, tools, tests, or CLIs while `uv` is available and working.

@@ -6,6 +6,8 @@ Structural inventory refresh: 2026-07-19 (Pi 0.80.10; `pi-browser-harness` 0.8.3
 
 Skill-catalog-only update: 2026-07-09 (added `directus-browser`; provider calibration was not rerun)
 
+Global-instruction and skill-catalog incremental update: 2026-08-03 (added `delegated-pi-loop`; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -112,6 +114,20 @@ pi "${COMMON[@]}" hi > /tmp/pi-full-hi.jsonl
 - Local `tiktoken` totals are not guaranteed to equal provider totals. Provider tokenization, Responses API framing, tool framing, and hidden/backend protocol all differ from plain local string counting.
 - Token counts are not always additive because BPE token boundaries change when sections are joined.
 - Prompt templates, extension command metadata, full `SKILL.md` files, tool results, and prior session history are not startup model context unless invoked/read/sent in a later turn.
+
+## 2026-08-03 delegated-loop incremental attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration was run. The earlier provider-calibrated totals and structural tool inventory below remain historical baselines rather than current totals.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 1,843 | 2,076 | +233 | Always loaded through the context-file block |
+| Local Skill directories | 33 | 34 | +1 | Only catalog metadata is loaded at startup |
+| `delegated-pi-loop` description | — | 60 | +60 before catalog framing | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | — | 1,490 | On demand | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | — | 1,441 | On demand | Loaded only when the skill routes to a delegated spawn |
+
+The compact global rule intentionally carries only the trigger and safety invariants. Role commands, prompt formats, fingerprints, and troubleshooting remain progressively disclosed through the skill and its reference.
 
 ## Provider-calibrated baseline probes
 

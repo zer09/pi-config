@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-03 — Add delegated Pi implementation/review loop
+
+- Added the compact `delegated-pi-loop` Local Skill for fresh Luna/max implementation or remediation delegates and fresh Sol/high review or verification delegates.
+- Added global orchestration rules for direct non-Context-Mode spawning without a timeout, no recursive delegation, one shared-tree mutator, neutral independent review, pre/post read-only tree checks, and separate Git/hosted-service authorization.
+- Documented ADR 0007, exact generic spawn commands, role prompt contracts, finding classification/remediation flow, maintenance invariants, installed-skill classification, and incremental context cost.
+- Validation: target and all-local-skill structural validation, YAML parsing, changed-link checks, placeholder/path/secret scans, and runtime-artifact checks passed without paid inference.
+
 ## 2026-07-29 — Pi 0.80.10 to 0.82.1 upgrade
 
 Details: [`docs/changelogs/pi-0.80.10-to-0.82.1-upgrade.md`](./changelogs/pi-0.80.10-to-0.82.1-upgrade.md)

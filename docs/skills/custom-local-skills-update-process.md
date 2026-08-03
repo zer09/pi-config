@@ -6,6 +6,7 @@ Use this Skill Maintenance Doc for Custom Local Skills whose source of truth is 
 
 - Any new custom Local Skill with no dedicated upstream source.
 - `directus-browser` is a custom Local Skill with its own update process in `directus-browser-update-process.md`.
+- `delegated-pi-loop` is a custom Local Skill with its own update process in `delegated-pi-loop-update-process.md`.
 
 Retired custom skills:
 

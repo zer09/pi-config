@@ -1,0 +1,4 @@
+interface:
+  display_name: "Delegated Pi Loop"
+  short_description: "Run isolated implementation and review loops"
+  default_prompt: "Use $delegated-pi-loop to orchestrate fresh Pi implementation, verification, remediation, and independent review delegates."
