@@ -121,13 +121,13 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 
 | Surface | Before | After | Delta | Startup behavior |
 |---|---:|---:|---:|---|
-| Raw `agent/AGENTS.md` | 1,843 | 2,076 | +233 | Always loaded through the context-file block |
+| Raw `agent/AGENTS.md` | 1,843 | 2,142 | +299 | Always loaded through the context-file block |
 | Local Skill directories | 33 | 34 | +1 | Only catalog metadata is loaded at startup |
-| `delegated-pi-loop` description | — | 60 | +60 before catalog framing | Loaded in the skill catalog |
-| `delegated-pi-loop/SKILL.md` | — | 1,490 | On demand | Loaded only when the skill is read |
-| `references/prompt-contracts.md` | — | 1,441 | On demand | Loaded only when the skill routes to a delegated spawn |
+| `delegated-pi-loop` description | — | 74 | +74 before catalog framing | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | — | 1,671 | On demand | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | — | 1,857 | On demand | Loaded only when the skill routes to a delegated spawn |
 
-The compact global rule intentionally carries only the trigger and safety invariants. Role commands, prompt formats, fingerprints, and troubleshooting remain progressively disclosed through the skill and its reference.
+The compact global rule intentionally carries only the trigger, backend-selection rule, and safety invariants. Pi/Claude role commands, prompt formats, fingerprints, and troubleshooting remain progressively disclosed through the skill and its reference.
 
 ## Provider-calibrated baseline probes
 

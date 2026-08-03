@@ -82,7 +82,7 @@ It defines:
 - preferred file-reading and file-editing behavior
 - Python tooling defaults around `uv`, `ruff`, and `ty`
 - tool routing for CodeGraph, Context Mode, GitHub CLI, direct shell, and native file tools
-- delegated Pi orchestration with fresh role isolation, neutral review, and one shared-tree mutator at a time
+- delegated Pi or Claude Code orchestration with fresh role isolation, neutral review, and one shared-tree mutator at a time
 
 Project-local `AGENTS.md` or `CLAUDE.md` files may add more specific instructions. The most specific applicable instruction wins.
 
@@ -143,7 +143,7 @@ Important skill groups include:
 - Python tooling skills for `uv`, `ruff`, and `ty`
 - database skills for Postgres and MySQL
 - Figma and OpenAI-derived skills
-- session handoff, delegated Pi implementation/review loops, and local continuity workflows
+- session handoff, delegated Pi/Claude Code implementation-review loops, and local continuity workflows
 - skill creation and maintenance workflows
 
 The canonical skill inventory and keep/slim/remove decisions live in:

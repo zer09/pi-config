@@ -4,10 +4,10 @@ This document summarizes local Pi configuration changes. Detailed upgrade notes 
 
 ## 2026-08-03 — Add delegated Pi implementation/review loop
 
-- Added the compact `delegated-pi-loop` Local Skill for fresh Luna/max implementation or remediation delegates and fresh Sol/high review or verification delegates.
-- Added global orchestration rules for direct non-Context-Mode spawning without a timeout, no recursive delegation, one shared-tree mutator, neutral independent review, pre/post read-only tree checks, and separate Git/hosted-service authorization.
-- Documented ADR 0007, exact generic spawn commands, role prompt contracts, finding classification/remediation flow, maintenance invariants, installed-skill classification, and incremental context cost.
-- Validation: target and all-local-skill structural validation, YAML parsing, changed-link checks, placeholder/path/secret scans, and runtime-artifact checks passed without paid inference.
+- Added the compact `delegated-pi-loop` Local Skill for fresh Luna/max implementation or remediation delegates, fresh Sol/high review or verification delegates, and explicitly selected Claude Code Opus 5/medium alternatives for either role.
+- Added global orchestration rules for direct non-Context-Mode Pi/Claude spawning without a timeout, no recursive delegation, one shared-tree mutator, neutral independent review, pre/post read-only tree checks, and separate Git/hosted-service authorization.
+- Documented ADR 0007, exact generic Pi and Claude Code spawn commands, role prompt contracts, finding classification/remediation flow, maintenance invariants, installed-skill classification, and incremental context cost.
+- Validation: target and all-local-skill structural validation, YAML parsing, changed-link checks, placeholder/path/secret scans, runtime-artifact checks, Claude Code 2.1.220 flag inspection, and official Opus 5 alias/model verification passed without paid inference.
 
 ## 2026-07-29 — Pi 0.80.10 to 0.82.1 upgrade
 

@@ -1,6 +1,6 @@
-# Delegated Pi prompt and spawn contracts
+# Delegated Pi and Claude Code prompt and spawn contracts
 
-Load this reference before spawning delegates. Adapt project paths, documents, role templates, finding taxonomies, and gates without weakening the isolation and mutation rules.
+Load this reference before spawning delegates. Adapt project paths, documents, role templates, finding taxonomies, and gates without weakening the isolation and mutation rules. Use Pi by default; use Claude Code only when the user or project explicitly selects it.
 
 ## Read-only tree fingerprint
 
@@ -19,7 +19,7 @@ The status plus hashes distinguish pre-existing tracked/staged content from dele
 
 ## Spawn commands
 
-Set the project and temporary prompt paths in the parent session. Run these with direct `bash`. Omit the bash tool's timeout field entirely.
+Set the project and temporary prompt paths in the parent session. Run these with direct `bash`. Omit the bash tool's timeout field entirely. Never run Pi or Claude Code delegates through Context Mode.
 
 ### Implementation or focused remediation
 
@@ -55,6 +55,46 @@ PI_SKIP_VERSION_CHECK=1 pi \
 
 `PI_SKIP_VERSION_CHECK=1` suppresses Pi's version-check request; it does not disable the selected provider request. Do not use `PI_OFFLINE=1` for a provider-backed delegate.
 
+### Claude Code implementation or focused remediation
+
+```bash
+project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
+prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
+cd "$project_root"
+claude \
+  --print \
+  --model claude-opus-5 \
+  --effort medium \
+  --no-session-persistence \
+  --permission-mode acceptEdits \
+  --allowedTools "Read,Edit,Write,Glob,Grep,Bash" \
+  --disallowedTools "Agent" \
+  --no-chrome \
+  "Execute the complete delegated task supplied on stdin." \
+  < "$prompt_file"
+```
+
+### Claude Code independent review or finding verification
+
+```bash
+project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
+prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
+cd "$project_root"
+claude \
+  --print \
+  --model claude-opus-5 \
+  --effort medium \
+  --no-session-persistence \
+  --permission-mode dontAsk \
+  --allowedTools "Read,Glob,Grep,Bash" \
+  --disallowedTools "Edit,Write,Agent" \
+  --no-chrome \
+  "Execute the complete read-only delegated task supplied on stdin." \
+  < "$prompt_file"
+```
+
+Claude Code v2.1.219 or later resolves Opus 5, but these commands pin `claude-opus-5` so the selected family does not move over time. `--no-session-persistence` prevents resume state. Do not add `--continue` or `--resume`. Do not use `--bare`: it skips normal Claude configuration and subscription login. Broad Bash access is still not an operating-system sandbox, so preserve prompt prohibitions and pre/post tree fingerprints.
+
 ## Common delegate header
 
 Every role prompt should establish:
@@ -62,9 +102,9 @@ Every role prompt should establish:
 ```markdown
 # Task: <project and exact role>
 
-You are a fresh delegated Pi instance working directly in `<project-root>`.
+You are a fresh delegated CLI agent working directly in `<project-root>`.
 
-Execute this assigned role yourself. Do not spawn or orchestrate another Pi instance.
+Execute this assigned role yourself. Do not spawn or orchestrate another Pi instance, Claude Code session, or subagent.
 Read all required context and project instructions before acting. More-specific project instructions win.
 The working tree may contain user-owned changes. Do not reset, clean, stash, overwrite, or revert them.
 Do not stage, commit, push, or mutate hosted services unless this prompt explicitly authorizes that exact action.
