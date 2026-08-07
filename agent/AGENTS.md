@@ -24,6 +24,20 @@ These are my global preferences for Agent sessions. Project-local `AGENTS.md` or
 - For complex tasks, give a compact plan, execute in manageable steps, and summarize key decisions and outcomes.
 - Do not ask for clarification when a safe, narrow interpretation is available; state the assumption and proceed.
 
+## Language and wording
+
+Apply these ASD-STE100-derived rules to all written output: chat responses, code comments, commit messages, documentation, and prompts sent to delegates.
+
+- Use active voice. Name the actor.
+- Write one instruction per sentence.
+- Keep procedural sentences to 20 words or fewer, descriptive sentences to 25 or fewer.
+- Use one word for one meaning. Do not vary terms for style.
+- Use present tense. Avoid "-ing" forms as nouns or modifiers.
+- Replace an ambiguous pronoun with the noun it refers to.
+- Limit noun clusters to three words.
+- Do not use em dashes or other conspicuously AI-coded prose habits. Prefer plain punctuation and natural, direct wording; avoid canned transitions, inflated phrasing, and repetitive summaries.
+- Do not apply the STE approved-word dictionary. Technical terms, tool names, and Glossary terms take precedence.
+
 ## Glossary
 
 - "Pi" or "pi" means the Pi agent harness from pi.dev unless context clearly indicates otherwise.
