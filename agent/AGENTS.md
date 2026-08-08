@@ -80,6 +80,7 @@ This project does not use the full ASD-STE100 dictionary. Apply the common subst
 - When the user or a project workflow requires delegated implementation, independent review, finding verification, or iterative remediation, load and follow the `delegated-pi-loop` skill.
 - The current Pi session is the sole orchestrator. Spawned Pi or Claude Code delegates perform their assigned role directly and must not recursively spawn other agent sessions unless explicitly authorized.
 - Spawn delegates with direct `bash`, never Context Mode, and omit the tool timeout.
+- Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before each delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates.
 - Use fresh ephemeral delegates: `--no-session` for Pi or `--no-session-persistence` for Claude Code. Run only one mutating delegate at a time on a shared working tree, and do not edit concurrently with it.
 - Use Claude Code only when the user or project explicitly selects it; pin Opus 5 with `--model claude-opus-5 --effort medium` rather than relying on the moving `opus` alias.
 - Read-only reviewers and verifiers must not edit files or Git state. Compare working-tree state before and after them and treat unexpected mutation as a failed delegation.

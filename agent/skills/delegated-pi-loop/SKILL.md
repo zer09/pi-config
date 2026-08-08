@@ -25,6 +25,7 @@ Use Pi defaults unless the user or a more specific project workflow explicitly s
 - Run spawned Pi or Claude Code processes with direct `bash`, never Context Mode.
 - Do not set a timeout on the tool call that runs a delegate.
 - For Pi, use `--print --no-session --approve`. For Claude Code, use `--print --no-session-persistence` with role-appropriate non-interactive permissions.
+- Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before every delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates.
 - Keep the current session as the only orchestrator. Tell every delegate to execute its assigned role directly and never spawn another Pi, Claude Code, or subagent session.
 - Run delegates sequentially by default. Never run more than one mutating delegate at a time on a shared working tree.
 - Do not edit the tree while a mutating delegate is running.

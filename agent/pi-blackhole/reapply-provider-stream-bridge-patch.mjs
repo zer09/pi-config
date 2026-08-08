@@ -8,10 +8,23 @@ const packageRoot = process.argv[2]
   ? resolve(process.argv[2])
   : join(here, "..", "npm", "node_modules", "pi-blackhole");
 const indexPath = join(packageRoot, "index.ts");
+const upstreamBridgePath = join(packageRoot, "src", "om", "provider-stream.ts");
 const marker = "registry.getRegisteredProviderIds";
 
 if (!existsSync(indexPath)) {
   throw new Error(`pi-blackhole index.ts not found at ${indexPath}`);
+}
+
+if (existsSync(upstreamBridgePath)) {
+  const upstreamBridge = readFileSync(upstreamBridgePath, "utf8");
+  if (
+    upstreamBridge.includes("getRegisteredProviderIds") &&
+    upstreamBridge.includes("getRegisteredProviderConfig") &&
+    upstreamBridge.includes("registeredProviders")
+  ) {
+    console.log("upstream support present: public provider stream bridge with legacy fallback");
+    process.exit(0);
+  }
 }
 
 const oldText = `\t\tconst registry = (ctx as any)?.modelRegistry;\n\t\tconst registered: Map<string, any> | undefined = registry?.["registeredProviders"];\n\t\tif (registered && typeof registered.forEach === "function") {\n\t\t\tregistered.forEach((config: any, _name: string) => {\n\t\t\t\tif (config && config.streamSimple && config.api && !providerStreams.has(config.api)) {\n\t\t\t\t\tproviderStreams.set(config.api, config.streamSimple);\n\t\t\t\t}\n\t\t\t});\n\t\t}\n`;

@@ -28,16 +28,17 @@ Preserve all of these unless the user explicitly changes the workflow:
 
 1. The parent session is the sole orchestrator; delegates do not recursively spawn Pi, Claude Code, or subagents.
 2. Delegates run through direct `bash`, not Context Mode, and the spawning tool call has no timeout.
-3. Every delegate uses a fresh ephemeral process: Pi `--no-session` or Claude Code `--no-session-persistence`, never resume/continue.
-4. At most one mutating delegate runs on a shared working tree, with no concurrent parent edits.
-5. Implementation and remediation default to `openai-codex/gpt-5.6-luna` at `max` thinking.
-6. Independent review and finding verification default to `openai-codex/gpt-5.6-sol` at `high` thinking.
-7. When the user or project explicitly selects Claude Code, any role uses pinned `claude-opus-5` at `medium` effort with role-appropriate permissions; the moving `opus` alias is not used.
-8. Reviewers and verifiers are read-only, neutral, and checked against pre/post tree fingerprints.
-9. A project-provided verification template must be instantiated before focused remediation; parent analysis is not a substitute.
-10. A fresh independent review follows every remediation round.
-11. Git transitions and hosted-service writes retain their separate explicit-authorization gates.
-12. Temporary prompts and reports remain outside tracked project paths and contain no secrets.
+3. Every delegate clears inherited parent `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL`. Claude delegates also clear `AI_AGENT` and `PI_CODING_AGENT`.
+4. Every delegate uses a fresh ephemeral process: Pi `--no-session` or Claude Code `--no-session-persistence`, never resume/continue.
+5. At most one mutating delegate runs on a shared working tree, with no concurrent parent edits.
+6. Implementation and remediation default to `openai-codex/gpt-5.6-luna` at `max` thinking.
+7. Independent review and finding verification default to `openai-codex/gpt-5.6-sol` at `high` thinking.
+8. When the user or project explicitly selects Claude Code, any role uses pinned `claude-opus-5` at `medium` effort with role-appropriate permissions; the moving `opus` alias is not used.
+9. Reviewers and verifiers are read-only, neutral, and checked against pre/post tree fingerprints.
+10. A project-provided verification template must be instantiated before focused remediation; parent analysis is not a substitute.
+11. A fresh independent review follows every remediation round.
+12. Git transitions and hosted-service writes retain their separate explicit-authorization gates.
+13. Temporary prompts and reports remain outside tracked project paths and contain no secrets.
 
 ## Update workflow
 
@@ -69,7 +70,7 @@ Also verify:
 - The runtime skill and reference contain no unresolved scaffold/TODO placeholders or user-specific home paths; generic prompt fields are clearly marked for replacement.
 - All changed local Markdown links resolve.
 - No caches, logs, delegate transcripts, temporary prompts, or evaluation artifacts were added.
-- The global rule and skill agree on direct bash routing, no timeout, fresh Pi/Claude sessions, role models, Claude permission modes, reviewer neutrality, and mutation gates.
+- The global rule and skill agree on direct bash routing, no timeout, environment scrubbing, fresh Pi/Claude sessions, role models, Claude permission modes, reviewer neutrality, and mutation gates.
 - Existing unrelated dirty config files remain untouched.
 
 ## Evaluation guidance

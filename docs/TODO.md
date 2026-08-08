@@ -23,24 +23,23 @@ Local reference:
 
 ### `pi-blackhole`
 
-Current local version: `0.4.2`
+Current local version: `0.4.5`
 
-Upstream is considered fixed when custom worker-provider discovery uses supported public APIs such as:
+Upstream 0.4.5 fixed public custom-provider discovery. Remaining local work is resolved when Blackhole:
 
-- `ModelRegistry.getRegisteredProviderIds()`
-- `ModelRegistry.getRegisteredProviderConfig()`
-
-It must not depend only on the removed private `modelRegistry.registeredProviders` map.
+- supports a percentage-based session compaction threshold with a fixed-token fallback
+- preserves Pi `ProviderHeaders` values, including `null` deletion markers, through worker request types
 
 Local reference:
 
 - `agent/pi-blackhole/LOCAL_PATCHES.md`
-- `agent/pi-blackhole/reapply-provider-stream-bridge-patch.mjs`
+- `agent/pi-blackhole/reapply-compact-after-percent-patch.mjs`
+- `agent/pi-blackhole/reapply-nullable-provider-headers-patch.mjs`
 
 ### Latest review
 
-- 2026-07-29: `pi-blackhole@0.4.2` still relies on the removed private provider map, so the public provider-stream bridge patch remains necessary.
-- 2026-07-29: `pi-btw@0.4.1` remains the latest release and still needs the local `ModelRuntime` child-session patch.
+- 2026-08-09: `pi-blackhole@0.4.5` upstreamed public provider discovery, so that local patch is retired. Percentage compaction and nullable source types still need local patches.
+- 2026-08-09: `pi-btw@0.4.1` remains the latest release and still needs the local cancellation-aware `ModelRuntime` child-session patch.
 
 ### Review outcome
 

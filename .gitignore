@@ -17,6 +17,8 @@ agent/pi-blackhole/**
 !agent/pi-blackhole/LOCAL_PATCHES.md
 !agent/pi-blackhole/reapply-compact-after-percent-patch.mjs
 !agent/pi-blackhole/reapply-provider-stream-bridge-patch.mjs
+!agent/pi-blackhole/reapply-nullable-provider-headers-patch.mjs
+!agent/pi-blackhole/reapply-local-patches.test.mjs
 
 # Local pi-btw package patch documentation, helper, and regression test
 agent/pi-btw/**

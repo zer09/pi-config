@@ -2,6 +2,16 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-09 — Upgrade Pi 0.82.1 to 0.84.1
+
+Details: [`docs/changelogs/pi-0.82.1-to-0.84.1-upgrade.md`](./changelogs/pi-0.82.1-to-0.84.1-upgrade.md)
+
+- Prepared the Pi 0.84.1 core upgrade in an isolated worktree, then applied it to the active installation after approval. Audited the 0.83 TypeBox break plus 0.84 RPC, provider, auth, model-refresh, session, Agent Harness, and environment contracts.
+- Selected `pi-blackhole@0.4.5`, ported percentage compaction, added nullable provider-header preservation, and retired the upstreamed public provider-discovery patch.
+- Kept `pi-browser-harness@0.10.2` because 0.11.0 still has the production daemon launcher defect and removes deep-research resources; an unpublished upstream fix passed a production-layout test.
+- Made pi-btw runtime-key sync cancellation-aware and scrubbed inherited parent session/model markers before delegated Pi or Claude processes.
+- Preserved the active dark theme and OpenAI Codex reflector override, then corrected stale README model, package, extension, and patch inventory text. Live validation returned 59 commands, 102 models, and no extension errors; local suites passed. Browser Harness retains eight npm audit findings in its transitive tree because npm proposes an incompatible package downgrade. No paid inference was intentional; the upgrade note records one possible Browser command fallthrough.
+
 ## 2026-08-03 — Add delegated Pi implementation/review loop
 
 - Added the compact `delegated-pi-loop` Local Skill for fresh Luna/max implementation or remediation delegates, fresh Sol/high review or verification delegates, and explicitly selected Claude Code Opus 5/medium alternatives for either role.

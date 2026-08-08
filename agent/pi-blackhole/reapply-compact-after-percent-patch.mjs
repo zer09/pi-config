@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,10 +18,10 @@ function writeRel(rel, content) {
   writeFileSync(path, content);
 }
 
-function replaceOnce(rel, oldText, newText, marker) {
+function replaceOnce(rel, oldText, newText) {
   const path = join(packageRoot, rel);
   let content = readFileSync(path, "utf8");
-  if (marker && content.includes(marker)) {
+  if (content.includes(newText)) {
     console.log(`already patched: ${rel}`);
     return;
   }
@@ -39,99 +39,97 @@ if (!existsSync(packageRoot)) {
 
 replaceOnce(
   "src/core/unified-config.ts",
-  `\t/** Token threshold for proactive auto-compaction. */\n\tcompactAfterTokens: number;\n\t/** Observation pool token pressure for full fold. */`,
-  `\t/** Token threshold for proactive auto-compaction. */\n\tcompactAfterTokens: number;\n\t/** Optional fraction of the session model context window for proactive auto-compaction.\n\t *  When set, auto-compaction uses contextWindow * compactAfterPercent and\n\t *  falls back to compactAfterTokens if the context window is unavailable. */\n\tcompactAfterPercent?: number;\n\t/** Observation pool token pressure for full fold. */`,
-  "compactAfterPercent?: number;",
+  `  /** Token threshold for proactive auto-compaction. */\n  compactAfterTokens: number;\n  /** Observation pool token pressure for full fold. */`,
+  `  /** Token threshold for proactive auto-compaction. */\n  compactAfterTokens: number;\n  /** Optional fraction of the session model context window for proactive auto-compaction.\n   *  When set, auto-compaction uses contextWindow * compactAfterPercent and\n   *  falls back to compactAfterTokens if the context window is unavailable. */\n  compactAfterPercent?: number;\n  /** Observation pool token pressure for full fold. */`,
 );
 
 replaceOnce(
   "src/core/unified-config.ts",
-  `\t// Numeric fields — use nonNegativeInt for observerPreambleMaxTokens (0 = auto)\n\tconst numKeys = ["observeAfterTokens", "reflectAfterTokens", "compactAfterTokens", "observationsPoolMaxTokens", "observationsPoolTargetTokens", "reflectorInputMaxTokens", "dropperInputMaxTokens", "observerChunkMaxTokens", "observerPreambleMaxTokens", "agentMaxTurns"] as const;\n\n\t// dropperPressureThreshold: fractional, must be in (0, 1]\n`,
-  `\t// Numeric fields — use nonNegativeInt for observerPreambleMaxTokens (0 = auto)\n\tconst numKeys = ["observeAfterTokens", "reflectAfterTokens", "compactAfterTokens", "observationsPoolMaxTokens", "observationsPoolTargetTokens", "reflectorInputMaxTokens", "dropperInputMaxTokens", "observerChunkMaxTokens", "observerPreambleMaxTokens", "agentMaxTurns"] as const;\n\n\t// compactAfterPercent: optional fractional auto-compaction threshold, must be in (0, 1]\n\tif (typeof raw.compactAfterPercent === "number" && Number.isFinite(raw.compactAfterPercent) && raw.compactAfterPercent > 0 && raw.compactAfterPercent <= 1) {\n\t\tc.compactAfterPercent = raw.compactAfterPercent;\n\t}\n\n\t// dropperPressureThreshold: fractional, must be in (0, 1]\n`,
-  "raw.compactAfterPercent",
+  `  // dropperPressureThreshold: fractional, must be in (0, 1]\n`,
+  `  // compactAfterPercent: optional fractional auto-compaction threshold, must be in (0, 1]\n  if (\n    typeof raw.compactAfterPercent === "number" &&\n    Number.isFinite(raw.compactAfterPercent) &&\n    raw.compactAfterPercent > 0 &&\n    raw.compactAfterPercent <= 1\n  ) {\n    c.compactAfterPercent = raw.compactAfterPercent;\n  }\n\n  // dropperPressureThreshold: fractional, must be in (0, 1]\n`,
 );
 
-writeRel("src/om/compaction-budget.ts", `import type { UnifiedConfig } from "../core/unified-config.js";\n\ntype CompactBudgetConfig = Pick<UnifiedConfig, "compactAfterTokens" | "compactAfterPercent">;\n\nexport interface EffectiveCompactThreshold {\n\ttokens: number;\n\tsource: "percent" | "tokens";\n\tpercent?: number;\n\tcontextWindow?: number;\n}\n\nexport function sessionContextWindow(model: unknown): number | undefined {\n\tif (!model || typeof model !== "object") return undefined;\n\tconst contextWindow = (model as { contextWindow?: unknown }).contextWindow;\n\treturn typeof contextWindow === "number" && Number.isFinite(contextWindow) && contextWindow > 0\n\t\t? Math.floor(contextWindow)\n\t\t: undefined;\n}\n\nfunction validCompactAfterPercent(value: unknown): number | undefined {\n\treturn typeof value === "number" && Number.isFinite(value) && value > 0 && value <= 1\n\t\t? value\n\t\t: undefined;\n}\n\nexport function effectiveCompactAfterTokens(\n\tconfig: CompactBudgetConfig,\n\tmodel: unknown,\n): EffectiveCompactThreshold {\n\tconst percent = validCompactAfterPercent(config.compactAfterPercent);\n\tconst contextWindow = sessionContextWindow(model);\n\tif (percent !== undefined && contextWindow !== undefined) {\n\t\treturn {\n\t\t\ttokens: Math.max(1, Math.floor(contextWindow * percent)),\n\t\t\tsource: "percent",\n\t\t\tpercent,\n\t\t\tcontextWindow,\n\t\t};\n\t}\n\n\treturn {\n\t\ttokens: Math.max(1, Math.floor(config.compactAfterTokens)),\n\t\tsource: "tokens",\n\t\tpercent,\n\t\tcontextWindow,\n\t};\n}\n`);
+writeRel("src/om/compaction-budget.ts", `import type { UnifiedConfig } from "../core/unified-config.js";\n\ntype CompactBudgetConfig = Pick<\n  UnifiedConfig,\n  "compactAfterTokens" | "compactAfterPercent"\n>;\n\nexport interface EffectiveCompactThreshold {\n  tokens: number;\n  source: "percent" | "tokens";\n  percent?: number;\n  contextWindow?: number;\n}\n\nexport function sessionContextWindow(model: unknown): number | undefined {\n  if (!model || typeof model !== "object") return undefined;\n  const contextWindow = (model as { contextWindow?: unknown }).contextWindow;\n  return typeof contextWindow === "number" &&\n    Number.isFinite(contextWindow) &&\n    contextWindow > 0\n    ? Math.floor(contextWindow)\n    : undefined;\n}\n\nfunction validCompactAfterPercent(value: unknown): number | undefined {\n  return typeof value === "number" &&\n    Number.isFinite(value) &&\n    value > 0 &&\n    value <= 1\n    ? value\n    : undefined;\n}\n\nexport function effectiveCompactAfterTokens(\n  config: CompactBudgetConfig,\n  model: unknown,\n): EffectiveCompactThreshold {\n  const percent = validCompactAfterPercent(config.compactAfterPercent);\n  const contextWindow = sessionContextWindow(model);\n  if (percent !== undefined && contextWindow !== undefined) {\n    return {\n      tokens: Math.max(1, Math.floor(contextWindow * percent)),\n      source: "percent",\n      percent,\n      contextWindow,\n    };\n  }\n\n  return {\n    tokens: Math.max(1, Math.floor(config.compactAfterTokens)),\n    source: "tokens",\n    percent,\n    contextWindow,\n  };\n}\n`);
 console.log("wrote: src/om/compaction-budget.ts");
 
 replaceOnce(
   "src/om/compaction-trigger.ts",
   `import { debugLog } from "./debug-log.js";\nimport { RETRYABLE_ERROR_RE } from "./retryable-error.js";\n`,
   `import { debugLog } from "./debug-log.js";\nimport { effectiveCompactAfterTokens } from "./compaction-budget.js";\nimport { RETRYABLE_ERROR_RE } from "./retryable-error.js";\n`,
-  "./compaction-budget.js",
-);
-
-const compactionTriggerSource = readRel("src/om/compaction-trigger.ts");
-if (compactionTriggerSource.includes("function handleTurnEnd")) {
-  replaceOnce(
-    "src/om/compaction-trigger.ts",
-    `\tconst dbg = (ev: string, d?: Record<string, unknown>) => debugLog(ev, d, runtime.config.debugLog === true);\n\n\tconst mode = runtime.config.midRunCompaction ?? "off";\n`,
-    `\tconst dbg = (ev: string, d?: Record<string, unknown>) => debugLog(ev, d, runtime.config.debugLog === true);\n\tconst compactThreshold = effectiveCompactAfterTokens(runtime.config, ctx.model);\n\n\tconst mode = runtime.config.midRunCompaction ?? "off";\n`,
-    "function handleTurnEnd(ctx: any, runtime: Runtime, pi: ExtensionAPI): void {\n\truntime.ensureConfig(ctx.cwd, (msg) => ctx.ui?.notify?.(msg, \"warning\"));\n\tconst dbg = (ev: string, d?: Record<string, unknown>) => debugLog(ev, d, runtime.config.debugLog === true);\n\tconst compactThreshold = effectiveCompactAfterTokens(runtime.config, ctx.model);",
-  );
-
-  replaceOnce(
-    "src/om/compaction-trigger.ts",
-    `\tconst entries = ctx.sessionManager.getBranch() as Entry[];\n\tconst tokens = rawTokensSinceLastCompaction(entries);\n\tif (tokens < runtime.config.compactAfterTokens) {\n`,
-    `\tconst entries = ctx.sessionManager.getBranch() as Entry[];\n\tconst tokens = rawTokensSinceLastCompaction(entries);\n\tif (tokens < compactThreshold.tokens) {\n`,
-    `\tconst entries = ctx.sessionManager.getBranch() as Entry[];\n\tconst tokens = rawTokensSinceLastCompaction(entries);\n\tif (tokens < compactThreshold.tokens) {`,
-  );
-
-  replaceOnce(
-    "src/om/compaction-trigger.ts",
-    `\tdbg("compaction_trigger.turn_end.threshold_reached", { tokens, threshold: runtime.config.compactAfterTokens, mode });\n`,
-    `\tdbg("compaction_trigger.turn_end.threshold_reached", { tokens, threshold: compactThreshold.tokens, compactThresholdSource: compactThreshold.source, mode });\n`,
-    "compaction_trigger.turn_end.threshold_reached\", { tokens, threshold: compactThreshold.tokens",
-  );
-}
-
-replaceOnce(
-  "src/om/compaction-trigger.ts",
-  `\t\tconst dbg = (ev: string, d?: Record<string, unknown>) => debugLog(ev, d, runtime.config.debugLog === true);\n\n\t\tdbg("compaction_trigger.agent_end", {\n\t\t\tpassive: runtime.config.passive,\n\t\t\tmemory: runtime.config.memory,\n\t\t\tnoAutoCompact: runtime.config.noAutoCompact,\n\t\t\toverrideDefaultCompaction: runtime.config.overrideDefaultCompaction,\n\t\t\tcompactInFlight: runtime.compactInFlight,\n\t\t\tcompactAfterTokens: runtime.config.compactAfterTokens,\n\t\t});\n`,
-  `\t\tconst dbg = (ev: string, d?: Record<string, unknown>) => debugLog(ev, d, runtime.config.debugLog === true);\n\t\tconst compactThreshold = effectiveCompactAfterTokens(runtime.config, ctx.model);\n\n\t\tdbg("compaction_trigger.agent_end", {\n\t\t\tpassive: runtime.config.passive,\n\t\t\tmemory: runtime.config.memory,\n\t\t\tnoAutoCompact: runtime.config.noAutoCompact,\n\t\t\toverrideDefaultCompaction: runtime.config.overrideDefaultCompaction,\n\t\t\tcompactInFlight: runtime.compactInFlight,\n\t\t\tcompactAfterTokens: runtime.config.compactAfterTokens,\n\t\t\tcompactAfterPercent: runtime.config.compactAfterPercent,\n\t\t\teffectiveCompactAfterTokens: compactThreshold.tokens,\n\t\t\tcompactThresholdSource: compactThreshold.source,\n\t\t\tcontextWindow: compactThreshold.contextWindow,\n\t\t});\n`,
-  "effectiveCompactAfterTokens: compactThreshold.tokens",
 );
 
 replaceOnce(
   "src/om/compaction-trigger.ts",
-  `\t\tdbg("compaction_trigger.tokens", { tokens, compactAfterTokens: runtime.config.compactAfterTokens, branchLength: entries.length });\n\t\tif (tokens < runtime.config.compactAfterTokens) {\n\t\t\tdbg("compaction_trigger.skip", { reason: "below_threshold", tokens, threshold: runtime.config.compactAfterTokens });\n\t\t\treturn;\n\t\t}\n`,
-  `\t\tdbg("compaction_trigger.tokens", { tokens, compactAfterTokens: compactThreshold.tokens, compactThresholdSource: compactThreshold.source, branchLength: entries.length });\n\t\tif (tokens < compactThreshold.tokens) {\n\t\t\tdbg("compaction_trigger.skip", { reason: "below_threshold", tokens, threshold: compactThreshold.tokens, compactThresholdSource: compactThreshold.source });\n\t\t\treturn;\n\t\t}\n`,
-  "compactThresholdSource: compactThreshold.source, branchLength",
+  `  const dbg = (ev: string, d?: Record<string, unknown>) =>\n    debugLog(ev, d, runtime.config.debugLog === true);\n\n  const mode = runtime.config.midRunCompaction ?? "off";\n`,
+  `  const dbg = (ev: string, d?: Record<string, unknown>) =>\n    debugLog(ev, d, runtime.config.debugLog === true);\n  const compactThreshold = effectiveCompactAfterTokens(runtime.config, ctx.model);\n\n  const mode = runtime.config.midRunCompaction ?? "off";\n`,
 );
 
 replaceOnce(
   "src/om/compaction-trigger.ts",
-  `\t\t\tconst currentTokens = rawTokensSinceLastCompaction(currentEntries);\n\t\t\tdbg("compaction_trigger.microtask.recheck_tokens", { currentTokens, threshold: runtime.config.compactAfterTokens, ok: currentTokens >= runtime.config.compactAfterTokens });\n\t\t\tif (currentTokens < runtime.config.compactAfterTokens) {\n\t\t\t\truntime.compactInFlight = false;\n\t\t\t\truntime.autoCompactionController = null;\n\t\t\t\tdbg("compaction_trigger.microtask.bail", { reason: "pressure_relieved", currentTokens, threshold: runtime.config.compactAfterTokens });\n`,
-  `\t\t\tconst currentTokens = rawTokensSinceLastCompaction(currentEntries);\n\t\t\tdbg("compaction_trigger.microtask.recheck_tokens", { currentTokens, threshold: compactThreshold.tokens, compactThresholdSource: compactThreshold.source, ok: currentTokens >= compactThreshold.tokens });\n\t\t\tif (currentTokens < compactThreshold.tokens) {\n\t\t\t\truntime.compactInFlight = false;\n\t\t\t\truntime.autoCompactionController = null;\n\t\t\t\tdbg("compaction_trigger.microtask.bail", { reason: "pressure_relieved", currentTokens, threshold: compactThreshold.tokens, compactThresholdSource: compactThreshold.source });\n`,
-  "compaction_trigger.microtask.recheck_tokens\", { currentTokens, threshold: compactThreshold.tokens",
+  `  if (tokens < runtime.config.compactAfterTokens) {\n    // Pressure relieved (a compaction ran) — lift any failure suspension.\n`,
+  `  if (tokens < compactThreshold.tokens) {\n    // Pressure relieved (a compaction ran) — lift any failure suspension.\n`,
+);
+
+replaceOnce(
+  "src/om/compaction-trigger.ts",
+  `  dbg("compaction_trigger.turn_end.threshold_reached", {\n    tokens,\n    threshold: runtime.config.compactAfterTokens,\n    mode,\n  });\n`,
+  `  dbg("compaction_trigger.turn_end.threshold_reached", {\n    tokens,\n    threshold: compactThreshold.tokens,\n    compactThresholdSource: compactThreshold.source,\n    mode,\n  });\n`,
+);
+
+replaceOnce(
+  "src/om/compaction-trigger.ts",
+  `  const dbg = (ev: string, d?: Record<string, unknown>) =>\n    debugLog(ev, d, runtime.config.debugLog === true);\n\n  dbg("compaction_trigger.agent_end", {\n`,
+  `  const dbg = (ev: string, d?: Record<string, unknown>) =>\n    debugLog(ev, d, runtime.config.debugLog === true);\n  const compactThreshold = effectiveCompactAfterTokens(runtime.config, ctx.model);\n\n  dbg("compaction_trigger.agent_end", {\n`,
+);
+
+replaceOnce(
+  "src/om/compaction-trigger.ts",
+  `    compactAfterTokens: runtime.config.compactAfterTokens,\n  });\n\n  // Unified + legacy compaction guards`,
+  `    compactAfterTokens: runtime.config.compactAfterTokens,\n    compactAfterPercent: runtime.config.compactAfterPercent,\n    effectiveCompactAfterTokens: compactThreshold.tokens,\n    compactThresholdSource: compactThreshold.source,\n    contextWindow: compactThreshold.contextWindow,\n  });\n\n  // Unified + legacy compaction guards`,
+);
+
+replaceOnce(
+  "src/om/compaction-trigger.ts",
+  `  dbg("compaction_trigger.tokens", {\n    tokens,\n    compactAfterTokens: runtime.config.compactAfterTokens,\n    branchLength: entries.length,\n  });\n  if (tokens < runtime.config.compactAfterTokens) {\n    dbg("compaction_trigger.skip", {\n      reason: "below_threshold",\n      tokens,\n      threshold: runtime.config.compactAfterTokens,\n    });\n`,
+  `  dbg("compaction_trigger.tokens", {\n    tokens,\n    compactAfterTokens: compactThreshold.tokens,\n    compactThresholdSource: compactThreshold.source,\n    branchLength: entries.length,\n  });\n  if (tokens < compactThreshold.tokens) {\n    dbg("compaction_trigger.skip", {\n      reason: "below_threshold",\n      tokens,\n      threshold: compactThreshold.tokens,\n      compactThresholdSource: compactThreshold.source,\n    });\n`,
+);
+
+replaceOnce(
+  "src/om/compaction-trigger.ts",
+  `      dbg("compaction_trigger.microtask.recheck_tokens", {\n        currentTokens,\n        threshold: runtime.config.compactAfterTokens,\n        ok: currentTokens >= runtime.config.compactAfterTokens,\n      });\n      if (currentTokens < runtime.config.compactAfterTokens) {\n        runtime.compactInFlight = false;\n        runtime.autoCompactionController = null;\n        dbg("compaction_trigger.microtask.bail", {\n          reason: "pressure_relieved",\n          currentTokens,\n          threshold: runtime.config.compactAfterTokens,\n        });\n`,
+  `      dbg("compaction_trigger.microtask.recheck_tokens", {\n        currentTokens,\n        threshold: compactThreshold.tokens,\n        compactThresholdSource: compactThreshold.source,\n        ok: currentTokens >= compactThreshold.tokens,\n      });\n      if (currentTokens < compactThreshold.tokens) {\n        runtime.compactInFlight = false;\n        runtime.autoCompactionController = null;\n        dbg("compaction_trigger.microtask.bail", {\n          reason: "pressure_relieved",\n          currentTokens,\n          threshold: compactThreshold.tokens,\n          compactThresholdSource: compactThreshold.source,\n        });\n`,
 );
 
 replaceOnce(
   "src/commands/memory.ts",
   `import { readPendingState } from "../om/pending.js";\n`,
-  `import { effectiveCompactAfterTokens, type EffectiveCompactThreshold } from "../om/compaction-budget.js";\nimport { readPendingState } from "../om/pending.js";\n`,
-  "EffectiveCompactThreshold",
+  `import {\n  effectiveCompactAfterTokens,\n  type EffectiveCompactThreshold,\n} from "../om/compaction-budget.js";\nimport { readPendingState } from "../om/pending.js";\n`,
 );
 
 replaceOnce(
   "src/commands/memory.ts",
-  `function pct(current: number, total: number): number {\n\treturn total > 0 ? Math.round((current / total) * 100) : 0;\n}\n`,
-  `function pct(current: number, total: number): number {\n\treturn total > 0 ? Math.round((current / total) * 100) : 0;\n}\n\nfunction formatPercent(value: number): string {\n\tconst percent = value * 100;\n\treturn Number.isInteger(percent) ? \`\${percent}%\` : \`\${percent.toFixed(1)}%\`;\n}\n\nfunction formatCompactThreshold(threshold: EffectiveCompactThreshold): string {\n\tif (threshold.source === "percent" && threshold.percent !== undefined && threshold.contextWindow !== undefined) {\n\t\treturn \`\${threshold.tokens.toLocaleString()} = \${formatPercent(threshold.percent)} of \${threshold.contextWindow.toLocaleString()}\`;\n\t}\n\treturn threshold.tokens.toLocaleString();\n}\n`,
-  "formatCompactThreshold",
+  `function pct(current: number, total: number): number {\n  return total > 0 ? Math.round((current / total) * 100) : 0;\n}\n`,
+  `function pct(current: number, total: number): number {\n  return total > 0 ? Math.round((current / total) * 100) : 0;\n}\n\nfunction formatPercent(value: number): string {\n  const percent = value * 100;\n  return Number.isInteger(percent) ? \`\${percent}%\` : \`\${percent.toFixed(1)}%\`;\n}\n\nfunction formatCompactThreshold(threshold: EffectiveCompactThreshold): string {\n  if (\n    threshold.source === "percent" &&\n    threshold.percent !== undefined &&\n    threshold.contextWindow !== undefined\n  ) {\n    return \`\${threshold.tokens.toLocaleString()} = \${formatPercent(threshold.percent)} of \${threshold.contextWindow.toLocaleString()}\`;\n  }\n  return threshold.tokens.toLocaleString();\n}\n`,
 );
 
 replaceOnce(
   "src/commands/memory.ts",
-  `\t\t\tlet dropProgress = rawTokensSinceDropCoverage(entries);\n\t\t\tconst compactionProgress = rawTokensSinceLastCompaction(entries);\n\n\t\t\t// In noAutoCompact mode, pending coversUpToId entries act as virtual coverage markers\n`,
-  `\t\t\tlet dropProgress = rawTokensSinceDropCoverage(entries);\n\t\t\tconst compactionProgress = rawTokensSinceLastCompaction(entries);\n\t\t\tconst compactThreshold = effectiveCompactAfterTokens(runtime.config, ctx.model);\n\n\t\t\t// In noAutoCompact mode, pending coversUpToId entries act as virtual coverage markers\n`,
-  "const compactThreshold = effectiveCompactAfterTokens(runtime.config, ctx.model);",
+  `      let dropProgress = rawTokensSinceDropCoverage(entries);\n      const compactionProgress = rawTokensSinceLastCompaction(entries);\n\n      // In manual mode`,
+  `      let dropProgress = rawTokensSinceDropCoverage(entries);\n      const compactionProgress = rawTokensSinceLastCompaction(entries);\n      const compactThreshold = effectiveCompactAfterTokens(runtime.config, ctx.model);\n\n      // In manual mode`,
 );
 
 replaceOnce(
   "src/commands/memory.ts",
-  `\t\t\t\t\`Dropper:        ~\${dropProgress.toLocaleString()} tokens (triggers at \${runtime.config.reflectAfterTokens.toLocaleString()})\`,\n\t\t\t\t\`Compaction:     ~\${compactionProgress.toLocaleString()} tokens\` + (runtime.config.noAutoCompact ? " [auto-disabled]" : \` (triggers at \${runtime.config.compactAfterTokens.toLocaleString()})\`),\n`,
-  `\t\t\t\t\`Dropper:        ~\${dropProgress.toLocaleString()} tokens (triggers at \${runtime.config.reflectAfterTokens.toLocaleString()})\`,\n\t\t\t\t\`Compaction:     ~\${compactionProgress.toLocaleString()} tokens\` + (runtime.config.noAutoCompact ? " [auto-disabled]" : \` (triggers at \${formatCompactThreshold(compactThreshold)})\`),\n`,
-  "formatCompactThreshold(compactThreshold)",
+  `            : \` (triggers at \${runtime.config.compactAfterTokens.toLocaleString()})\`),\n`,
+  `            : \` (triggers at \${formatCompactThreshold(compactThreshold)})\`),\n`,
+);
+
+// pi-blackhole 0.4.5 publishes both source and a prebuilt bundle. Pi must load
+// the patched source because local package changes do not rebuild dist/index.js.
+replaceOnce(
+  "package.json",
+  `      "./dist/index.js"`,
+  `      "./index.ts"`,
 );
 
 console.log("compactAfterPercent patch complete. Restart Pi or run /reload.");

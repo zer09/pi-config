@@ -32,10 +32,12 @@ Adopt a layered delegated-Pi workflow:
 
 The parent Pi session is the sole orchestrator. Spawned Pi or Claude Code delegates execute their assigned role directly and do not recursively delegate.
 
-Run delegates through direct `bash`, never Context Mode, and omit the spawning tool call's timeout. Run delegates sequentially by default and use fresh ephemeral processes:
+Run delegates through direct `bash`, never Context Mode, and omit the spawning tool call's timeout. Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before each delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates. Run delegates sequentially by default and use fresh ephemeral processes:
 
 - Pi: `--print --no-session --approve`;
 - Claude Code: `--print --no-session-persistence` with role-appropriate non-interactive permissions.
+
+Pi 0.84.1 sets `AI_AGENT=pi` and `PI_CODING_AGENT=true` in each Pi child. Pi's built-in bash tool replaces the cleared metadata with the child session's values. The scrub prevents parent metadata from misleading child extensions or generic subprocesses.
 
 Default role assignments are:
 
@@ -55,7 +57,7 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 - The always-loaded global context grows only by the short trigger/safety section; detailed behavior remains on demand.
 - Independent-review credibility depends on role and context isolation rather than model self-approval.
 - Shared-tree safety remains prompt- and fingerprint-enforced; this is not an operating-system sandbox because reviewers may still have `bash`.
-- Model identifiers and thinking/effort levels are maintenance points and must be checked against the current Pi catalog and installed Claude Code CLI when changed.
+- Model identifiers, thinking or effort levels, and process environment markers are maintenance points. Check each contract when Pi or Claude Code changes them.
 - Real delegate evaluations can spend provider tokens and may mutate a fixture, so structural validation is the default and live smoke tests require an appropriate disposable workspace and authorization.
 
 ## Alternatives rejected
@@ -71,7 +73,7 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 1. Validate the target skill and every Local Skill.
 2. Parse every `agents/openai.yaml` and verify the delegated skill's default prompt names `$delegated-pi-loop`.
 3. Check the installed Claude Code version supports Opus 5, `--effort medium`, `--no-session-persistence`, and the documented permission flags.
-4. Check global and skill instructions agree on direct bash, no timeout, fresh sessions, one mutator, neutral reviewers, and authorization gates.
+4. Check global and skill instructions agree on direct bash, no timeout, environment scrubbing, fresh sessions, one mutator, neutral reviewers, and authorization gates.
 5. Check changed Markdown links, placeholders, user-specific paths, secrets, and runtime artifacts.
 6. Measure the incremental global-context and skill-catalog cost without requiring paid inference.
 7. When CLI/model semantics change materially, run a disposable-fixture delegate smoke only with appropriate authorization.

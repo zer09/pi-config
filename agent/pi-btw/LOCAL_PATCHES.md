@@ -11,6 +11,7 @@ Behavior:
 - Each BTW conversation or summarizer child session creates a current `ModelRuntime` using the normal Pi agent auth and model configuration.
 - If the selected model belongs to an extension provider, its public provider configuration is copied from the parent `ModelRegistry` into the child runtime.
 - If the parent provider auth source is the transient `runtime` source used by `--api-key` or `ModelRuntime.setRuntimeApiKey()`, that resolved key is copied into the child runtime.
+- The Pi command context `AbortSignal` cancels the child runtime credential sync on Pi 0.84.1+.
 - Stored, environment, command-backed, OAuth, built-in, and `models.json` auth continue to resolve canonically instead of being converted into runtime keys.
 - BTW tool names, commands, model selection, thinking behavior, and persistence are unchanged.
 
@@ -31,6 +32,6 @@ rg --no-ignore "createBtwModelRuntime|parentAuthStatus|setRuntimeApiKey|modelRun
 node --test ~/.pi/agent/pi-btw/reapply-model-runtime-patch.test.mjs
 ```
 
-Expected result: one `createBtwModelRuntime()` helper, runtime-only auth propagation, both child-session constructors passing `modelRuntime` rather than `modelRegistry`, and three passing regression tests.
+Expected result: one `createBtwModelRuntime()` helper, cancellation-aware runtime-only auth propagation, both child-session constructors passing `modelRuntime` rather than `modelRegistry`, and four passing regression tests.
 
 After reapplying, restart Pi or run `/reload`.

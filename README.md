@@ -44,13 +44,13 @@ Enabled models:
 - `openai-codex/gpt-5.6-sol`
 - `openai-codex/gpt-5.6-terra`
 - `opencode-go/deepseek-v4-pro`
-- `cursor/default`
+- `cursor/auto-smart`
 - `claude-bridge/claude-opus-4-6`
 
 Configured packages:
 
 - `npm:@schultzp2020/pi-cursor@0.5.0`
-- `npm:pi-blackhole@0.4.2`
+- `npm:pi-blackhole@0.4.5`
 - `npm:pi-btw@0.4.1`
 - `npm:pi-browser-harness@0.10.2`
 - `npm:pi-claude-bridge@0.6.3`
@@ -98,7 +98,6 @@ Local extensions live under `agent/extensions/`.
 | `footer/`          | Custom compact Pi TUI footer with git state, cwd, extension status, prompt timer, token/context usage, model, thinking glyph, and Fastlane indicator. |
 | `fastlane/`        | Session toggle for eligible Codex Fast mode via `/fastlane`; publishes active state consumed by `footer`.                                             |
 | `theme-overrides/` | Auto-switches between local `dark` and `light` themes based on host system appearance.                                                                |
-| `rtk.ts`           | Rewrites eligible bash commands through `rtk rewrite` for token savings; fails open when `rtk` is missing or unsupported.                             |
 
 Extension-specific docs live inside the extension directories where available. After editing a local extension, run its local checks and reload/restart Pi.
 
@@ -195,9 +194,9 @@ agent/pi-blackhole/LOCAL_PATCHES.md
 Active patch notes currently cover:
 
 - `compactAfterPercent` for auto-compaction thresholds
-- Pi 0.80.8+ public custom-provider stream discovery for Blackhole workers
+- Pi 0.84.1 nullable provider-header preservation for Blackhole workers
 
-The former OM worker auth fallback is documented as retired under Pi 0.80.10 because `ModelRegistry.getApiKeyAndHeaders()` now uses canonical `ModelRuntime` auth resolution.
+The public custom-provider stream patch is retired under `pi-blackhole@0.4.5` because upstream now uses Pi's public provider registry. The former OM worker auth fallback remains retired under Pi 0.80.10.
 
 `pi-btw@0.4.1` also needs a local Pi 0.80.8+ SDK migration so child sessions receive a `ModelRuntime` with the selected extension provider registration. Its patch and helper live under `agent/pi-btw/`.
 
@@ -211,7 +210,7 @@ Use these docs to understand why the config looks the way it does:
 | ------------------- | ---------------------------------------------------------------------------------- |
 | `docs/CHANGELOG.md` | Human-readable timeline of local Pi config changes.                                |
 | `docs/TODO.md`      | Deferred maintenance checks, including when to reconsider upstreaming local package fixes. |
-| `docs/changelogs/`  | Detailed upgrade notes for specific Pi/package transitions, including the 0.80.3 → 0.80.6 recovery, 0.80.6 → 0.80.10 SDK migration, and 0.80.10 → 0.82.1 upgrade. |
+| `docs/changelogs/`  | Detailed upgrade notes for specific Pi/package transitions, including the 0.80.3 → 0.80.6 recovery, 0.80.6 → 0.80.10 SDK migration, 0.80.10 → 0.82.1, and 0.82.1 → 0.84.1 upgrades. |
 | `docs/adr/`         | Architecture decision records for long-lived config choices.                       |
 | `docs/skills/`      | Skill inventory, maintenance workflows, update processes, and retired-skill notes. |
 

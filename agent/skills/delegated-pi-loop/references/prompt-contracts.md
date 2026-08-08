@@ -27,7 +27,13 @@ Set the project and temporary prompt paths in the parent session. Run these with
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
 prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
 cd "$project_root"
-PI_SKIP_VERSION_CHECK=1 pi \
+env \
+  -u PI_SESSION_ID \
+  -u PI_SESSION_FILE \
+  -u PI_PROVIDER \
+  -u PI_MODEL \
+  -u PI_REASONING_LEVEL \
+  PI_SKIP_VERSION_CHECK=1 pi \
   --print \
   --no-session \
   --approve \
@@ -43,7 +49,13 @@ PI_SKIP_VERSION_CHECK=1 pi \
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
 prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
 cd "$project_root"
-PI_SKIP_VERSION_CHECK=1 pi \
+env \
+  -u PI_SESSION_ID \
+  -u PI_SESSION_FILE \
+  -u PI_PROVIDER \
+  -u PI_MODEL \
+  -u PI_REASONING_LEVEL \
+  PI_SKIP_VERSION_CHECK=1 pi \
   --print \
   --no-session \
   --approve \
@@ -55,13 +67,23 @@ PI_SKIP_VERSION_CHECK=1 pi \
 
 `PI_SKIP_VERSION_CHECK=1` suppresses Pi's version-check request; it does not disable the selected provider request. Do not use `PI_OFFLINE=1` for a provider-backed delegate.
 
+The `env -u` prefix prevents parent-session metadata from leaking into child extensions and subprocesses. Pi sets `AI_AGENT=pi` and `PI_CODING_AGENT=true` for itself. Pi's built-in bash tool publishes the child session's own `PI_*` metadata. Claude does not run as Pi, so its commands also clear Pi's two agent markers.
+
 ### Claude Code implementation or focused remediation
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
 prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
 cd "$project_root"
-claude \
+env \
+  -u AI_AGENT \
+  -u PI_CODING_AGENT \
+  -u PI_SESSION_ID \
+  -u PI_SESSION_FILE \
+  -u PI_PROVIDER \
+  -u PI_MODEL \
+  -u PI_REASONING_LEVEL \
+  claude \
   --print \
   --model claude-opus-5 \
   --effort medium \
@@ -80,7 +102,15 @@ claude \
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
 prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
 cd "$project_root"
-claude \
+env \
+  -u AI_AGENT \
+  -u PI_CODING_AGENT \
+  -u PI_SESSION_ID \
+  -u PI_SESSION_FILE \
+  -u PI_PROVIDER \
+  -u PI_MODEL \
+  -u PI_REASONING_LEVEL \
+  claude \
   --print \
   --model claude-opus-5 \
   --effort medium \

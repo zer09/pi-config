@@ -8,7 +8,7 @@ import test from "node:test";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const helperPath = join(here, "reapply-model-runtime-patch.mjs");
-const runtimeAuthMarker = 'parentAuthStatus.source === "runtime"';
+const runtimeAuthMarker = "setRuntimeApiKey(model.provider, parentAuth.apiKey, { signal: ctx.signal })";
 const previousHelper = `async function createBtwModelRuntime(ctx: ExtensionCommandContext, model: SessionModel): Promise<ModelRuntime> {
   const modelRuntime = await ModelRuntime.create();
   const providerConfig = ctx.modelRegistry.getRegisteredProviderConfig(model.provider);
@@ -71,7 +71,7 @@ function assertCurrentPatch(source) {
   assert.match(source, /getProviderAuthStatus\(model\.provider\)/);
   assert.match(source, /parentAuthStatus\.source === "runtime"/);
   assert.match(source, /getApiKeyAndHeaders\(model\)/);
-  assert.match(source, /setRuntimeApiKey\(model\.provider, parentAuth\.apiKey\)/);
+  assert.match(source, /setRuntimeApiKey\(model\.provider, parentAuth\.apiKey, \{ signal: ctx\.signal \}\)/);
   assert.equal((source.match(/\n      modelRuntime,\n/g) ?? []).length, 2);
   assert.doesNotMatch(source, /modelRegistry: ctx\.modelRegistry/);
 }
@@ -87,6 +87,26 @@ test("patches stock pi-btw and is idempotent", () => {
     const second = readFileSync(join(root, "extensions", "btw.ts"), "utf8");
     assert.match(output, /already patched/);
     assert.equal(second, first);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("upgrades the uncancellable runtime-auth patch", () => {
+  const root = makePackage();
+  try {
+    runHelper(root);
+    const current = readFileSync(join(root, "extensions", "btw.ts"), "utf8");
+    const uncancellable = current.replace(
+      "setRuntimeApiKey(model.provider, parentAuth.apiKey, { signal: ctx.signal })",
+      "setRuntimeApiKey(model.provider, parentAuth.apiKey)",
+    );
+    writeFileSync(join(root, "extensions", "btw.ts"), uncancellable);
+
+    const output = runHelper(root);
+    const upgraded = readFileSync(join(root, "extensions", "btw.ts"), "utf8");
+    assert.match(output, /now propagates auth cancellation/);
+    assertCurrentPatch(upgraded);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

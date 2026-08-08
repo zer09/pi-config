@@ -8,11 +8,15 @@ Skill-catalog-only update: 2026-07-09 (added `directus-browser`; provider calibr
 
 Global-instruction and skill-catalog incremental update: 2026-08-03 (added `delegated-pi-loop`; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated environment-contract update: 2026-08-09 (added scoped parent-session marker scrubbing; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
 
-Current Pi version for structural inventory: `0.80.10`
+Pi version for the historical structural inventory: `0.80.10`
+
+Current tracked upgrade target: `0.84.1` (full structural inventory not rerun)
 
 Model/provider calibrated against: `openai-codex/gpt-5.5`, thinking `xhigh`
 
@@ -128,6 +132,18 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `references/prompt-contracts.md` | — | 1,857 | On demand | Loaded only when the skill routes to a delegated spawn |
 
 The compact global rule intentionally carries only the trigger, backend-selection rule, and safety invariants. Pi/Claude role commands, prompt formats, fingerprints, and troubleshooting remain progressively disclosed through the skill and its reference.
+
+## 2026-08-09 delegated environment-contract attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration was run. The skill catalog description and active tool inventory did not change.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,479 | 2,529 | +50 | Always loaded through the context-file block |
+| `delegated-pi-loop/SKILL.md` | 1,671 | 1,721 | +50 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 1,857 | 2,111 | +254 | Loaded only before a delegate spawn |
+
+The startup delta is limited to the 50-token global safety rule. Exact `env -u` commands remain on demand.
 
 ## Provider-calibrated baseline probes
 
