@@ -1,11 +1,11 @@
 # gh skill preview
 
 Source: https://cli.github.com/manual/gh_skill_preview
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help skill preview`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help skill preview`.
 
 ## Summary
 
-Render a skill's `SKILL.md` content in the terminal. This fetches the
+Render a skill's `SKILL.md` content in the terminal. This fetches the skill file from the repository and displays it using the configured pager, without installing anything.
 
 ## Subcommands
 

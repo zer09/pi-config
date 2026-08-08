@@ -1,11 +1,15 @@
 # gh help formatting
 
 Source: https://cli.github.com/manual/gh_help_formatting
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help formatting`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help formatting`.
 
 ## Summary
 
-Formatting options for JSON data exported from gh
+By default, the result of `gh` commands are output in line-based plain text format. Some commands support passing the `--json` flag, which converts the output to JSON format. Once in JSON, the output can be further formatted according to a required formatting string by adding either the `--jq` or `--template` flag. This is useful for selecting a subset of data, creating new data structures, displaying the data in a different format, or as input to another command line script.
+
+## Subcommands
+
+- None
 
 ## Manual
 

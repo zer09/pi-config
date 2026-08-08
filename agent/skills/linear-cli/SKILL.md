@@ -75,6 +75,7 @@ Use inline `--description` or `--body` only for simple one-line text. File flags
 
 Known gotchas:
 
+- Use `--add-label` or `--remove-label` to change selected labels without replacing the full set. Repeated `--label` flags replace the full label set.
 - `issue list` defaults to priority sorting; override with `--sort manual` or configure `issue_sort` / `LINEAR_ISSUE_SORT`.
 - `issue list` is an alias of `issue mine` and shows your issues; use `issue query` for all assignees or team/project-wide filtering.
 - `issue list` usually needs `--team <key>` unless team inference is verified.

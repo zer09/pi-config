@@ -32,9 +32,11 @@ This skill is _informed_ by the project's domain model. The domain language give
 
 ### 1. Explore
 
-Read the project's domain glossary and any ADRs in the area you're touching first.
+Scope before scanning. If the user names a module, subsystem, or pain point, start there. Otherwise, inspect a useful span of recent Git history through Context Mode and prioritize recurring hot spots. Widen the scan only when history has no clear concentration.
 
-Then use the Agent tool with `subagent_type=Explore` to walk the codebase. Don't follow rigid heuristics — explore organically and note where you experience friction:
+Read the project's domain glossary and any ADRs in the selected area first.
+
+Use CodeGraph first to explore the selected source flow and relationships. Do not spawn a subagent unless the user or project workflow explicitly requests delegation. Note where understanding creates friction:
 
 - Where does understanding one concept require bouncing between many small modules?
 - Where are modules **shallow** — interface nearly as complex as the implementation?

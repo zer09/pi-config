@@ -1,11 +1,11 @@
 # gh project item-edit
 
 Source: https://cli.github.com/manual/gh_project_item-edit
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project item-edit`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help project item-edit`.
 
 ## Summary
 
-Edit either a draft issue or a project item. Both usages require the ID of the item to edit.
+Edit a draft issue or a project item.
 
 ## Subcommands
 
@@ -14,41 +14,60 @@ Edit either a draft issue or a project item. Both usages require the ID of the i
 ## Manual
 
 ```text
-Edit either a draft issue or a project item. Both usages require the ID of the item to edit.
+Edit a draft issue or a project item.
 
-For non-draft issues, the ID of the project is also required, and only a single field value can be updated per invocation.
+The usual way to select the item and field is by name: pass the project
+`number` plus `--owner`, point at the item with its issue or pull
+request `--url`, and name the field with `--field`. For single-select
+fields, `--value` is the option name.
 
-Remove project item field value using `--clear` flag.
+For scripts and machine use, you can also pass GraphQL node IDs directly with
+`--id`, `--field-id` and `--project-id` (and, for single-select
+fields, `--single-select-option-id`).
+
+Note that `--url` is the issue or pull request URL, not a project URL, so its
+owner may differ from the project's; `--owner` selects the project.
+
+For non-draft issues, only a single field value can be updated per invocation.
+
+Remove a project item field value with `--clear`.
 
 For more information about output formatting flags, see `gh help formatting`.
 
 USAGE
-  gh project item-edit [flags]
+  gh project item-edit [<number>] [flags]
 
 FLAGS
       --body string                      Body of the draft issue item
       --clear                            Remove field value
       --date string                      Date value for the field (YYYY-MM-DD)
+      --field string                     Name of the field to update
       --field-id string                  ID of the field to update
       --format string                    Output format: {json}
       --id string                        ID of the item to edit
       --iteration-id string              ID of the iteration value to set on the field
   -q, --jq expression                    Filter JSON output using a jq expression
       --number float                     Number value for the field
+      --owner string                     Login of the owner. Use "@me" for the current user.
       --project-id string                ID of the project to which the field belongs to
       --single-select-option-id string   ID of the single select option value to set on the field
   -t, --template string                  Format JSON output using a Go template; see "gh help formatting"
       --text string                      Text value for the field
       --title string                     Title of the draft issue item
+      --url string                       URL of the issue or pull request whose project item to edit
+      --value --field                    Value to set on the field named by --field
 
 INHERITED FLAGS
   --help   Show help for command
 
 EXAMPLES
-  # Edit an item's text field value
+  # Set the "Status" field to "In Progress" for an issue on monalisa's project 1
+  $ gh project item-edit 1 --owner monalisa --url https://github.com/monalisa/myproject/issues/23 --field "Status" --value "In Progress"
+
+  # Edit an item's text field value by node ID (machine / scripted use)
   $ gh project item-edit --id <item-id> --field-id <field-id> --project-id <project-id> --text "new text"
 
-  # Clear an item's field value
+  # Clear an item's field value by node ID
   $ gh project item-edit --id <item-id> --field-id <field-id> --project-id <project-id> --clear
 
 LEARN MORE

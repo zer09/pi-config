@@ -1,6 +1,6 @@
 # Directus access-control reference
 
-Last reviewed: 2026-07-09
+Last reviewed: 2026-08-09
 Sources: `official-sources.md` -> Access-control docs.
 
 Use this for users, roles, policies, permissions, app/admin access, public access, and access-control API reads.
@@ -26,6 +26,7 @@ Use this for users, roles, policies, permissions, app/admin access, public acces
 
 - Administrator role/policy access is unrestricted by design and cannot be partially limited.
 - Policy App Access controls whether users can access the Studio.
+- Directus 12.2 limits `directus_settings` fields on newly created App Access policies. Older policies are not migrated automatically and can still expose AI provider keys or other admin settings. Audit and narrow those read fields explicitly.
 - Policy Admin Access grants project-wide admin ability.
 - Policy IP access allowlists are subtractive: if the request IP does not match, that policy is excluded.
 - For Studio-only billing/licensing contexts, users with App Access or Admin Access can count as Studio users.

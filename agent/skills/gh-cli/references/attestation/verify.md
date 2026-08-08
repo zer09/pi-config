@@ -1,11 +1,11 @@
 # gh attestation verify
 
 Source: https://cli.github.com/manual/gh_attestation_verify
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help attestation verify`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help attestation verify`.
 
 ## Summary
 
-Verify the integrity and provenance of an artifact using its associated
+Verify the integrity and provenance of an artifact using its associated cryptographically signed attestations.
 
 ## Subcommands
 

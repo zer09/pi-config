@@ -1,11 +1,11 @@
 # gh repo set-default
 
 Source: https://cli.github.com/manual/gh_repo_set-default
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo set-default`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help repo set-default`.
 
 ## Summary
 
-This command sets the default remote repository to use when querying the
+This command sets the default remote repository to use when querying the GitHub API for the locally cloned repository.
 
 ## Subcommands
 

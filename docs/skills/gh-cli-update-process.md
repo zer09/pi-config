@@ -12,7 +12,7 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
 
 - Manual root: https://cli.github.com/manual/
 - Command index: https://cli.github.com/manual/gh
-- Local generator source: `gh help` output from the installed GitHub CLI. The base generation used `gh version 2.95.0 (2026-06-20)`. Changed help pages were refreshed from `gh version 2.96.0 (2026-07-08)`; unchanged pages retain their 2.95.0 attribution after a complete command-tree comparison found byte-identical help text.
+- Local generator source: `gh help` output from the installed GitHub CLI. The base generation used `gh version 2.95.0 (2026-06-20)`. Changed help pages were refreshed from `gh version 2.97.0 (2026-07-31)`; unchanged pages retain their earlier attribution after a complete command-tree comparison found byte-identical help text.
 
 ## File model
 
@@ -33,7 +33,7 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
    - `gh auth` -> `agent/skills/gh-cli/references/auth.md`
    - `gh auth login` -> `agent/skills/gh-cli/references/auth/login.md`
    - `gh codespace ports forward` -> `agent/skills/gh-cli/references/codespace/ports/forward.md`
-5. Keep generated reference files self-contained: source URL, generator version, summary, subcommand links, and full `gh help ...` manual text.
+5. Keep generated reference files self-contained: source URL, generator version, summary, subcommand links, and full `gh help ...` manual text. Normalize any machine-expanded home path in help output to `~/...` before saving.
 6. Update `SKILL.md` only with compact routing guidance, and update `references/index.md` with command-family entries. Do not paste full manual text into `SKILL.md`.
 7. Preserve the GitHub mutation gate, secret-protection rules, and HTTPS-repository-URL normalization rule in `SKILL.md`.
 8. Preserve `scripts/normalize_github_url.py`; when adding URL kinds, return one primary argv array rather than shell strings, avoid alternate argv fields such as `clone_argv`, and include the exact top-level `references/...` files an agent should read before running `gh`.

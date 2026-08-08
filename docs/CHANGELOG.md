@@ -2,6 +2,17 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-09 — Synchronize Local Skills and owned CLIs
+
+- Updated user-level CLIs to GitHub CLI 2.97.0, Crit 0.18.4, Linear CLI 2.4.0, Notion `ntn` 0.21.9, NotebookLM/Gemini Notebook CLI 0.9.6, Ruff 0.16.2, ty 0.0.69, and Claude Code 2.1.226. Firebase CLI 15.26.0, uv 0.12.3, and PostHog CLI 2026.7.1 were already current.
+- Installed the official Crit review binary in the user path, which now takes precedence over the unrelated system CRIU Image Tool named `crit`.
+- Regenerated changed GitHub CLI help references from 2.97.0 and Linear command references from 2.4.0 while preserving compact runtime routers and hosted-service mutation gates.
+- Updated the NotebookLM skill and references to the published Gemini Notebook 0.9.6 contract, including durable auth, Studio confirmation, chats, local source upload, and research-destination guidance.
+- Ported relevant Firebase AI Logic/App Check and routing changes, Directus 12/MCP/security guidance, Crit session/comment behavior, and architecture hot-spot/CodeGraph routing.
+- Reviewed every active skill source. OpenAI, Anthropic skill-creator runtime, Agent Toolkit, Astral skill source, Notion sources, PlanetScale skill paths, and PostHog skill paths had no runtime drift; the removed upstream Intent Layer path remains a retained local snapshot.
+- Updated skill provenance, CLI version notes, and context-cost attribution. No skill classification or installed inventory changed, and no retired skill was restored.
+- Validation: all 34 Local Skills, 13 skill-creator regressions, 29 changed GitHub help pages, GitHub URL normalization, Linear/NotebookLM/Crit CLI contracts, Markdown links, whitespace checks, and a no-inference Pi RPC loader smoke passed.
+
 ## 2026-08-09 — Upgrade Pi 0.82.1 to 0.84.1
 
 Details: [`docs/changelogs/pi-0.82.1-to-0.84.1-upgrade.md`](./changelogs/pi-0.82.1-to-0.84.1-upgrade.md)

@@ -1,11 +1,11 @@
 # gh repo clone
 
 Source: https://cli.github.com/manual/gh_repo_clone
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo clone`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help repo clone`.
 
 ## Summary
 
-Clone a GitHub repository locally. Pass additional `git clone` flags by listing
+Clone a GitHub repository locally. Pass additional `git clone` flags by listing them after `--`.
 
 ## Subcommands
 

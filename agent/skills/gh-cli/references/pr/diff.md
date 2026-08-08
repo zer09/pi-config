@@ -1,7 +1,7 @@
 # gh pr diff
 
 Source: https://cli.github.com/manual/gh_pr_diff
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help pr diff`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help pr diff`.
 
 ## Summary
 
@@ -25,16 +25,21 @@ Use `--exclude` to filter out files matching a glob pattern. The pattern
 uses forward slashes as path separators on all platforms. You can repeat
 the flag to exclude multiple patterns.
 
+By default, terminal escape sequences in the diff are neutralized, since
+they could manipulate your terminal. Pass `--allow-escape-sequences` to
+print the diff verbatim, for example when piping a patch to another program.
+
 
 USAGE
   gh pr diff [<number> | <url> | <branch>] [flags]
 
 FLAGS
-      --color string       Use color in diff output: {always|never|auto} (default "auto")
-  -e, --exclude patterns   Exclude files matching glob patterns from the diff
-      --name-only          Display only names of changed files
-      --patch              Display diff in patch format
-  -w, --web                Open the pull request diff in the browser
+      --allow-escape-sequences   Allow printing terminal escape sequences
+      --color string             Use color in diff output: {always|never|auto} (default "auto")
+  -e, --exclude patterns         Exclude files matching glob patterns from the diff
+      --name-only                Display only names of changed files
+      --patch                    Display diff in patch format
+  -w, --web                      Open the pull request diff in the browser
 
 INHERITED FLAGS
       --help                     Show help for command

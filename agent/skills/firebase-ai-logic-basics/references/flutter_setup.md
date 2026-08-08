@@ -51,7 +51,7 @@ Use `FirebaseAI.googleAI` for the **Gemini Developer API**.
 > **Model Selection:** Always use **`gemini-flash-latest`**. DO NOT USE `gemini-1.5-flash`.
 
 > [!IMPORTANT]
-> **Choose the Right API Provider:** Always use `FirebaseAI.googleAI` (Gemini Developer API) as the default for prototyping and standard use. Avoid using the Vertex AI Gemini API unless your application specifically requires enterprise-grade scalability and is configured for the Blaze plan.
+> **Choose the Right API Provider:** Use `FirebaseAI.googleAI` (Gemini Developer API) as the default for prototyping and standard use. Use the Agent Platform Gemini API, formerly Vertex AI Gemini API, only for enterprise scalability or data-residency requirements. The Gemini Developer API usually does not require Blaze billing, but Agent Platform does.
 
 ### Text Generation
 
@@ -61,7 +61,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 Future<String> generateText(String prompt) async {
   final googleAI = FirebaseAI.googleAI(auth: FirebaseAuth.instance);
-  
+
   // Use the latest Gemini Flash model
   final model = googleAI.generativeModel(model: 'gemini-flash-latest');
 

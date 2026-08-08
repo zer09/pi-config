@@ -9,7 +9,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Source of truth
 
 - Upstream repository: https://github.com/mattpocock/skills
-- Current upstream commit checked locally: `1445797da5ee4e4054233878c0029e9276f9986a`
+- Current upstream commit checked locally: `84fdeffd12f2ee307994d1eb6feb48173b6e0502`
 
 | Local skill | Upstream path | Local notes |
 | --- | --- | --- |

@@ -10,6 +10,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 
 - Upstream repository: https://github.com/astral-sh/claude-code-plugins
 - Current upstream commit checked locally: `f3ce88a7ba830f53afd6d944c1d0278ed318e142`
+- Installed CLIs reviewed: `uv 0.12.3`, `ruff 0.16.2`, and `ty 0.0.69`
 
 | Local skill | Upstream path |
 | --- | --- |

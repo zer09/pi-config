@@ -1,11 +1,11 @@
 # gh auth setup-git
 
 Source: https://cli.github.com/manual/gh_auth_setup-git
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help auth setup-git`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help auth setup-git`.
 
 ## Summary
 
-This command configures `git` to use GitHub CLI as a credential helper.
+This command configures `git` to use GitHub CLI as a credential helper. For more information on git credential helpers please reference: <https://git-scm.com/docs/gitcredentials>.
 
 ## Subcommands
 

@@ -6,8 +6,8 @@ Purpose: maintain `agent/skills/delegated-pi-loop` as the local source of truth 
 
 - Classification: **keep it**, implemented slimly through progressive disclosure.
 - Source of truth: this Pi config, ADR 0007, and observed successful delegated implementation/review workflows.
-- Pi harness authority: the Pi CLI reference installed with `@earendil-works/pi-coding-agent` for `--print`, `--no-session`, `--approve`, provider/model/thinking flags, context-file loading, and process environment behavior.
-- Claude harness authority: the installed `claude --help` plus official Claude Code [CLI reference](https://code.claude.com/docs/en/cli-reference), [model configuration](https://code.claude.com/docs/en/model-config), and [headless usage](https://code.claude.com/docs/en/headless) for `--print`, `--model claude-opus-5`, `--effort medium`, `--no-session-persistence`, permissions, and stdin prompts.
+- Pi harness authority: the Pi CLI reference installed with `@earendil-works/pi-coding-agent` for `--print`, `--no-session`, `--approve`, provider/model/thinking flags, context-file loading, and process environment behavior. Latest reviewed CLI: Pi 0.84.1.
+- Claude harness authority: the installed `claude --help` plus official Claude Code [CLI reference](https://code.claude.com/docs/en/cli-reference), [model configuration](https://code.claude.com/docs/en/model-config), and [headless usage](https://code.claude.com/docs/en/headless) for `--print`, `--model claude-opus-5`, `--effort medium`, `--no-session-persistence`, permissions, and stdin prompts. Latest reviewed CLI: Claude Code 2.1.226.
 - Project execution guides and accepted architecture decisions remain authoritative for project-specific role prompts, finding taxonomies, gates, and release transitions.
 
 This skill is retained because role isolation, neutral-review handling, direct-spawn constraints, shared-tree mutation safety, and the verification/remediation loop are easy to weaken when reconstructed ad hoc.

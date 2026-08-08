@@ -1,7 +1,7 @@
 # gh search prs
 
 Source: https://cli.github.com/manual/gh_search_prs
-Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help search prs`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help search prs`.
 
 ## Summary
 
@@ -67,7 +67,7 @@ FLAGS
       --owner strings           Filter on repository owner
       --project owner/number    Filter on project board owner/number
       --reactions number        Filter on number of reactions
-  -R, --repo strings            Filter on repository
+  -R, --repo OWNER/REPO         Filter on repository, in OWNER/REPO format
       --review string           Filter based on review status: {none|required|approved|changes_requested}
       --review-requested user   Filter on user or team requested to review
       --reviewed-by user        Filter on user who reviewed

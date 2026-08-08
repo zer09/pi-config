@@ -1,11 +1,11 @@
 # gh skill publish
 
 Source: https://cli.github.com/manual/gh_skill_publish
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help skill publish`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help skill publish`.
 
 ## Summary
 
-Validate a local repository's skills against the Agent Skills specification
+Validate a local repository's skills against the Agent Skills specification and publish them by creating a GitHub release.
 
 ## Subcommands
 

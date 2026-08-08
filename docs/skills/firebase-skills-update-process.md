@@ -9,7 +9,8 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Source of truth
 
 - Upstream repository: https://github.com/firebase/skills
-- Current upstream commit checked locally: `538130c39402a40d9c2586ede87def5914641a33`
+- Current upstream commit checked locally: `073edf7bb747c27b9c911a9126adaa5bc4648fdc`
+- Installed Firebase CLI reviewed: `15.26.0`
 
 The current upstream `firebase/skills` main branch no longer contains the `developing-genkit-*` skill paths that were recorded when these local skills were installed. Treat the local Genkit skills as retained local snapshots until a new upstream source is verified; do not delete or replace them solely because those paths are absent from `firebase/skills`.
 

@@ -1,11 +1,11 @@
 # gh secret set
 
 Source: https://cli.github.com/manual/gh_secret_set
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help secret set`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help secret set`.
 
 ## Summary
 
-Set a value for a secret on one of the following levels:
+Set a value for a secret on one of the following levels: - repository (default): available to GitHub Actions runs, Agents sessions, or Dependabot in a repository - environment: available to GitHub Actions runs for a deployment environment in a repository - organization: available to GitHub Actions runs, Agents sessions, Dependabot, or Codespaces within an organization - user: available to Codespaces for your user
 
 ## Subcommands
 

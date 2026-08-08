@@ -4,7 +4,9 @@ Purpose: keep the local `crit` and `crit-cli` skills aligned with the installed 
 
 ## Source of truth
 
-- Installed CLI: `crit`
+- Upstream repository: https://github.com/tomasz-tomczyk/crit
+- Reviewed release: `v0.18.4` (`0b9c5461de2d0e6fd1a4a342947874d20b4c7c74`)
+- Installed CLI: `crit v0.18.4`
 - Local skills:
   - `agent/skills/crit/` for the interactive human review loop.
   - `agent/skills/crit-cli/` for programmatic comments, share/unpublish, GitHub PR sync, and review JSON interpretation.
@@ -24,8 +26,8 @@ Before and after updates, apply `local-skill-update-invariants.md` and `skill-sl
 ## Update workflow
 
 1. Read `docs/skills/README.md`, `local-skill-update-invariants.md`, and `skill-slimming-process.md`.
-2. Check installed CLI behavior with `crit --help`. Do not run `crit comment --help`; current `crit` treats `--help` as a comment body and creates a review comment.
-3. Compare help output against `agent/skills/crit/SKILL.md` and `agent/skills/crit-cli/SKILL.md`.
+2. Check `command -v crit`, `crit --version`, and `crit --help`. Confirm the selected binary identifies itself as inline code review; some Linux systems install an unrelated CRIU Image Tool at `/usr/bin/crit`.
+3. Compare installed behavior and upstream `integrations/pi/skills/crit*` against `agent/skills/crit/SKILL.md` and `agent/skills/crit-cli/SKILL.md`. Avoid `crit comment --help` unless current root help confirms that form is side-effect free.
 4. Apply only runtime-relevant changes; preserve local Pi review-loop and mutation gates.
 5. Validate both skills:
 

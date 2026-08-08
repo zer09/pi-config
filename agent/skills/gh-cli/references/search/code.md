@@ -1,7 +1,7 @@
 # gh search code
 
 Source: https://cli.github.com/manual/gh_search_code
-Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help search code`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help search code`.
 
 ## Summary
 
@@ -39,7 +39,7 @@ FLAGS
   -L, --limit int          Maximum number of code results to fetch (default 30)
       --match strings      Restrict search to file contents or file path: {file|path}
       --owner strings      Filter on owner
-  -R, --repo strings       Filter on repository
+  -R, --repo OWNER/REPO    Filter on repository, in OWNER/REPO format
       --size string        Filter on size range, in kilobytes
   -t, --template string    Format JSON output using a Go template; see "gh help formatting"
   -w, --web                Open the search query in the web browser

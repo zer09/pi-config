@@ -1,7 +1,7 @@
 interface:
-  display_name: "NotebookLM CLI"
-  short_description: "Automate NotebookLM with nlm and MCP"
-  default_prompt: "Use $nlm-skill to create a NotebookLM workflow, add sources, and generate the requested artifact."
+  display_name: "Gemini Notebook / NotebookLM CLI"
+  short_description: "Automate Gemini Notebook with nlm and MCP"
+  default_prompt: "Use $nlm-skill to create a Gemini Notebook workflow, add sources, and generate the requested artifact."
 
 dependencies:
   tools:

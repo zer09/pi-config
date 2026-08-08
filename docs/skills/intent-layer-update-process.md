@@ -6,8 +6,10 @@ Use this process to update `agent/skills/intent-layer` from Crafter Station's up
 
 - Repository: `https://github.com/crafter-station/skills`
 - Runtime skill path: `context-engineering/intent-layer/`
-- Current upstream commit checked locally: `24d77ce6365072c1699a20928e57a971abaa10f2`
-- Primary files:
+- Current upstream checkout reviewed: `304057192b795d3b0d3b718092983046facd2664`
+- Last commit containing the runtime path: `24d77ce6365072c1699a20928e57a971abaa10f2`
+- Current upstream main deleted `context-engineering/intent-layer/`; retain the local snapshot until a replacement source or an explicit retirement decision exists.
+- Snapshot files:
   - `SKILL.md`
   - `scripts/detect_state.sh`
   - `scripts/analyze_structure.sh`
@@ -28,8 +30,8 @@ Do not install upstream `README.md` into the runtime skill folder; keep long-liv
 1. Read `docs/skills/README.md`.
 2. Read `docs/skills/local-skill-update-invariants.md`.
 3. Read `docs/skills/skill-slimming-process.md`.
-4. Fetch upstream `context-engineering/intent-layer/` files.
-5. Treat upstream content as input, not final truth.
+4. Fetch upstream and check whether `context-engineering/intent-layer/` still exists. If it is absent, do not delete the retained local snapshot solely because upstream removed the path.
+5. Treat upstream content as input, not final truth. Compare from the last commit that contains the path when necessary.
 6. Preserve local overlays:
    - Prefer `AGENTS.md` for this Pi setup unless an existing project convention or user instruction requires `CLAUDE.md`.
    - Keep `SKILL.md` frontmatter limited to `name` and `description`.

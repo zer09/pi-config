@@ -1,7 +1,7 @@
 # gh gist view
 
 Source: https://cli.github.com/manual/gh_gist_view
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help gist view`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help gist view`.
 
 ## Summary
 
@@ -20,10 +20,11 @@ USAGE
   gh gist view [<id> | <url>] [flags]
 
 FLAGS
-  -f, --filename string   Display a single file from the gist
-      --files             List file names from the gist
-  -r, --raw               Print raw instead of rendered gist contents
-  -w, --web               Open gist in the browser
+      --allow-escape-sequences   Allow printing terminal escape sequences
+  -f, --filename string          Display a single file from the gist
+      --files                    List file names from the gist
+  -r, --raw                      Print raw instead of rendered gist contents
+  -w, --web                      Open gist in the browser
 
 INHERITED FLAGS
   --help   Show help for command

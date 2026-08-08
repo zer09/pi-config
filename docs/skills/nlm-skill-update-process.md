@@ -8,7 +8,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 
 ## Source of truth
 
-- Upstream repository: https://github.com/jacob-bd/notebooklm-mcp-cli
+- Upstream repository: https://github.com/jacob-bd/gemini-notebook-mcp-cli
 - Source directory: `src/notebooklm_tools/data`
 - Upstream files to check:
   - `SKILL.md`
@@ -16,7 +16,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
   - `references/command_reference.md`
   - `references/workflows.md`
   - `references/troubleshooting.md`
-- Current upstream source version used locally: `0.8.1`
+- Current upstream source version used locally: `0.9.6` (`fd8bec48b51dc500e4e11a8a93c99d01d58675ee`)
 
 ## Local file model
 
@@ -33,7 +33,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Update workflow for a future agent
 
 1. Load `skill-creator` and `gh-cli`, then read this file.
-2. Fetch upstream source files with authenticated `gh` CLI through Context Mode, for example `gh api repos/jacob-bd/notebooklm-mcp-cli/contents/src/notebooklm_tools/data/SKILL.md?ref=main`.
+2. Fetch the latest published source files with authenticated `gh` CLI through Context Mode, for example `gh api repos/jacob-bd/gemini-notebook-mcp-cli/contents/src/notebooklm_tools/data/SKILL.md?ref=v0.9.6`. Prefer the latest published CLI tag over unreleased `main` content.
 3. Compare upstream files with local files. Prefer updating reference files from upstream instead of expanding `SKILL.md`.
 4. Keep `SKILL.md` frontmatter limited to `name` and `description`. Do not add upstream metadata such as `version`; track source versions in this file instead.
 5. Keep local safety rules in `SKILL.md`: NotebookLM and Google hosted changes are external hosted service mutations, deletes require explicit confirmation, secrets/cookies must not be printed, and `nlm chat start` must not be used by agents.
@@ -47,7 +47,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 
 - `agent/skills/nlm-skill/SKILL.md` has only `name` and `description` in frontmatter.
 - `agent/skills/nlm-skill/SKILL.md` references this update process.
-- `agent/skills/nlm-skill/references/command_reference.md` includes current command options, including `nlm research import --cited-only` for source version `0.8.1`.
+- `agent/skills/nlm-skill/references/command_reference.md` matches the installed `nlm 0.9.6`, including current Studio confirmation, chats, source file upload, and research options.
 - `agent/skills/nlm-skill/references/workflows.md` exists.
 - `agent/skills/nlm-skill/references/troubleshooting.md` exists.
 - `agent/skills/nlm-skill/references/remote-mcp.md` exists.

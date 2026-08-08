@@ -1,11 +1,15 @@
 # gh help accessibility
 
 Source: https://cli.github.com/manual/gh_help_accessibility
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help accessibility`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help accessibility`.
 
 ## Summary
 
 Learn about GitHub CLI's accessibility experiences
+
+## Subcommands
+
+- None
 
 ## Manual
 

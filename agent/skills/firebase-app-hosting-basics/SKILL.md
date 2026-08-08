@@ -1,6 +1,6 @@
 ---
 name: firebase-app-hosting-basics
-description: Deploy and manage web apps with Firebase App Hosting. Use this skill when deploying Next.js/Angular apps with backends.
+description: Deploy and manage full-stack Next.js or Angular applications with SSR through Firebase App Hosting. Use for apphosting.yaml, App Hosting backends, secrets, rollout configuration, or Blaze-plan requirements. Do not use for Hosting Classic, Auth, Firestore, or Data Connect.
 ---
 
 # Firebase App Hosting Basics

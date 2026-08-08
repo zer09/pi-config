@@ -1,11 +1,11 @@
 ---
 name: nlm-skill
-description: "Expert guide for the NotebookLM CLI (`nlm`) and MCP server. Use when users want to automate Google NotebookLM: create or manage notebooks, add URL/YouTube/text/Drive sources, generate podcasts/audio overviews, reports, quizzes, flashcards, mind maps, slides, infographics, videos, data tables, conduct research, refactor or critique documents, chat with sources, or run NotebookLM workflows. Triggers on `nlm`, `notebooklm`, `notebook lm`, podcast generation, audio overview, NotebookLM research, NotebookLM MCP, and NotebookLM CLI tasks."
+description: "Expert guide for the Gemini Notebook (formerly Google NotebookLM) CLI (`nlm`) and MCP server. Use when users want to automate NotebookLM or Gemini Notebook: manage notebooks and sources, generate podcasts or study artifacts, conduct research, chat with sources, or run CLI/MCP workflows. Triggers on `nlm`, `notebooklm`, `Gemini Notebook`, podcast generation, audio overview, document critique, and NotebookLM automation."
 ---
 
-# NotebookLM CLI and MCP
+# Gemini Notebook CLI and MCP
 
-Use this skill for Google NotebookLM automation through the `nlm` CLI or NotebookLM MCP tools. Prefer the exact source reference for details rather than relying on memory.
+Use this skill for Gemini Notebook, formerly Google NotebookLM, automation through the `nlm` CLI or MCP tools. Prefer the exact source reference for details rather than relying on memory.
 
 ## Tool selection
 
@@ -17,16 +17,18 @@ Use this skill for Google NotebookLM automation through the `nlm` CLI or Noteboo
 
 ## Safety rules
 
-- Authenticate before operations: `nlm login`, then `nlm login --check` when needed.
-- Sessions expire in about 20 minutes; re-run `nlm login` after confirmed auth failures.
-- Do not treat auth status `unverified` as expired by itself; check connectivity or try a safe API call first.
+- Authenticate only when needed: use `nlm login` for first-time setup or confirmed stale credentials, then `nlm login --check` when useful.
+- Saved cookies can remain usable for weeks. Do not force repeated login because of elapsed time alone.
+- Do not treat auth status `unverified` as expired by itself; check connectivity or try a safe API call first. The CLI retries transient server failures and performs automatic auth recovery.
 - Treat NotebookLM and Google Drive/Docs/Sheets changes as external hosted service mutations. Create, add, import, generate, rename, share, invite, export, sync, configure, tag, and delete only when the user explicitly requests that exact action.
 - Before any delete, ask for explicit confirmation even if the CLI command has `--confirm`. Deletions are irreversible.
+- Preserve confirmation for Studio generation. Direct Studio commands require `--confirm`; do not bypass confirmation through a batch or MCP path.
 - Never print cookies, OAuth tokens, browser profile secrets, or raw auth headers.
 - Do not use `nlm chat start`; it opens an interactive REPL. Use `nlm notebook query` for one-shot Q&A.
 - Never expose `notebooklm-mcp` directly to the public internet. If remote MCP access is needed, read `references/remote-mcp.md` first.
 - Keep CLI output bounded. Use compact output, `--quiet`, `--json` with filters, or temp files for outputs that may exceed 20 lines.
 - Prefer default compact output for status checks, `--quiet` for captured IDs, and `--json` only when parsing fields programmatically.
+- Research requires a destination: pass `--notebook-id <id>` or `--title <title>`. Check existing aliases before creating another alias.
 
 ## Quick commands
 
@@ -82,12 +84,12 @@ nlm flashcards create <notebook-id> --focus "Vocabulary" --confirm
 
 - Auth and profiles: `nlm login`, `nlm login profile ...`, `nlm login switch`.
 - Notebooks: `nlm notebook list/create/get/describe/query/rename/delete`.
-- Sources: `nlm source add/list/get/describe/content/stale/sync/rename/delete`.
+- Sources: `nlm source add/list/get/describe/content/stale/sync/rename/delete`; current CLI releases also support local file and image upload through `source add --file`.
 - Research: `nlm research start/status/import`.
 - Studio generation: `nlm audio/report/quiz/flashcards/mindmap/slides/infographic/video/data-table create`.
 - Artifact management: `nlm studio status/rename/delete`, `nlm download ...`, `nlm export ...`.
 - Collaboration: `nlm share status/public/invite`.
-- Notes and chat config: `nlm note ...`, `nlm chat configure ...`.
+- Notes and chat: `nlm note ...`, `nlm chat configure ...`, and `nlm chats list/get/export` for saved conversations.
 - Organization: `nlm alias ...`, `nlm tag ...`, `nlm batch ...`, `nlm cross query ...`, `nlm pipeline ...`.
 - Skill management: `nlm skill list/install/update/uninstall`.
 

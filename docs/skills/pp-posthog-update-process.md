@@ -8,7 +8,7 @@ Use this Skill Maintenance Doc for the local `pp-posthog` skill, which wraps the
 - Runtime skill input: `cli-skills/pp-posthog/SKILL.md`
 - CLI/docs input: `library/developer-tools/posthog/SKILL.md` and `library/developer-tools/posthog/README.md`
 - Local installed skill: `agent/skills/pp-posthog/`
-- Current upstream commit checked: `003916b32767fe56ef256d38101f160eb806886d`
+- Current upstream commit checked: `991c08896efc983e4629b77f732a3230a3e78c7b`
 - Current PostHog CLI release source: `11d7b4ea752c9c8fb8909037133058eb57560cc0`
 - Current installed CLI checked locally: `posthog-pp-cli 2026.7.1`
 

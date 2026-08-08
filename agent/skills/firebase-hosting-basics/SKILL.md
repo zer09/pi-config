@@ -1,6 +1,6 @@
 ---
 name: firebase-hosting-basics
-description: Skill for working with Firebase Hosting (Classic). Use this when you want to deploy static web apps, Single Page Apps (SPAs), or simple microservices. Do NOT use for Firebase App Hosting.
+description: Deploy and configure Firebase Hosting Classic for static sites, SPAs, preview channels, redirects, rewrites, headers, and multi-site targets. Do not use for Firebase App Hosting, Auth, Firestore, or Data Connect.
 ---
 
 # Firebase Hosting Basics

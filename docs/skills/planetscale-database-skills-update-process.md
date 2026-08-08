@@ -9,7 +9,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Source of truth
 
 - Upstream repository: https://github.com/planetscale/database-skills
-- Current upstream commit checked locally: `b156f4ca73c03d0350438bfd042331aaef6eec77`
+- Current upstream commit checked locally: `af0ce0cfb65cca4cc21d18ca0d9cf270ca99d488`
 
 | Local skill | Upstream path |
 | --- | --- |

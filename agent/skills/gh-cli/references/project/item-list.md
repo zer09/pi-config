@@ -1,7 +1,7 @@
 # gh project item-list
 
 Source: https://cli.github.com/manual/gh_project_item-list
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project item-list`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help project item-list`.
 
 ## Summary
 
@@ -26,12 +26,14 @@ USAGE
   gh project item-list [<number>] [flags]
 
 FLAGS
-      --format string     Output format: {json}
-  -q, --jq expression     Filter JSON output using a jq expression
-  -L, --limit int         Maximum number of items to fetch (default 30)
-      --owner string      Login of the owner. Use "@me" for the current user
-      --query string      Filter items using the Projects filter syntax, e.g. "assignee:octocat -status:Done"
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
+      --field stringArray      Name of a field to show as an extra column
+      --field-id stringArray   ID of a field to show as an extra column
+      --format string          Output format: {json}
+  -q, --jq expression          Filter JSON output using a jq expression
+  -L, --limit int              Maximum number of items to fetch (default 30)
+      --owner string           Login of the owner. Use "@me" for the current user
+      --query string           Filter items using the Projects filter syntax, e.g. "assignee:octocat -status:Done"
+  -t, --template string        Format JSON output using a Go template; see "gh help formatting"
 
 INHERITED FLAGS
   --help   Show help for command
@@ -48,6 +50,9 @@ EXAMPLES
 
   # List items with the "bug" label that are not done
   $ gh project item-list 1 --owner "@me" --query "label:bug -status:Done"
+
+  # Show the "Status" and "Priority" field values as extra columns
+  $ gh project item-list 1 --owner "@me" --field "Status" --field "Priority"
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

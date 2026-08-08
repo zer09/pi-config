@@ -1,6 +1,6 @@
 # Directus schema API mutations
 
-Last reviewed: 2026-07-09
+Last reviewed: 2026-08-09
 Sources: `official-sources.md` -> Schema/API docs; local finding `findings/directus-schema-api-update-guide-2026-07-09.md` distilled with project-specific hosts/paths removed.
 
 Use this only when the user explicitly authorizes Directus schema writes. Default Directus operation remains read-only/UI-first.
@@ -43,7 +43,9 @@ await fetch('/permissions?limit=-1&fields=*', { credentials: 'include' });
 
 Verify Directus version, endpoint availability, current schema, exact collection names, comparable collection patterns, and permission patterns. Use `/server/specs/oas` as the target-instance source of truth for payload/route shape.
 
-Relation retrieve/update routes vary across docs, SDK helpers, and observed Directus 11 instances. Prefer the live OAS and/or a harmless read probe before hardcoding relation paths.
+Relation retrieve/update routes vary across docs, SDK helpers, and Directus versions. Prefer the live OAS and/or a harmless read probe before hardcoding relation paths.
+
+Directus 12.2 schema snapshot diffs support a scoped collection set and an additive `mode`. Prefer additive mode when a snapshot workflow must preserve unrelated collections. Inspect live OAS semantics before using `/schema/diff` or `/schema/apply`; import and schema snapshot uploads now default to a 50 MB cap.
 
 ## Browser execution guidance
 

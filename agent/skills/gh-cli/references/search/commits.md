@@ -1,7 +1,7 @@
 # gh search commits
 
 Source: https://cli.github.com/manual/gh_search_commits
-Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help search commits`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help search commits`.
 
 ## Summary
 
@@ -46,7 +46,7 @@ FLAGS
       --order string             Order of commits returned, ignored unless '--sort' flag is specified: {asc|desc} (default "desc")
       --owner strings            Filter on repository owner
       --parent string            Filter by parent hash
-  -R, --repo strings             Filter on repository
+  -R, --repo OWNER/REPO          Filter on repository, in OWNER/REPO format
       --sort string              Sort fetched commits: {author-date|committer-date} (default "best-match")
   -t, --template string          Format JSON output using a Go template; see "gh help formatting"
       --tree string              Filter by tree hash

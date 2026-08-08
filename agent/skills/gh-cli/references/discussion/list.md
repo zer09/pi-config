@@ -1,11 +1,11 @@
 # gh discussion list
 
 Source: https://cli.github.com/manual/gh_discussion_list
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help discussion list`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help discussion list`.
 
 ## Summary
 
-List discussions in a GitHub repository. By default, only open discussions
+List discussions in a GitHub repository. By default, only open discussions are shown.
 
 ## Subcommands
 

@@ -15,6 +15,12 @@ Comments have three scopes:
 
 The review file path is shown by `crit status`.
 
+## Reading comments
+
+Use `crit comments` for unresolved comments and `crit comments --json` for structured agent input. Add `--all` to include resolved comments or `--plan <slug>` for a plan review. Review-level comments appear first.
+
+When multiple sessions match the current directory and branch, headless commands refuse to guess. Use `crit status --json`, select the intended session, then pass `--session <id>` to `comment`, `comments`, `share`, `pull`, or `push`.
+
 ## Review file format
 
 ```json

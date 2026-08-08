@@ -1,11 +1,11 @@
 # gh agent-task
 
 Source: https://cli.github.com/manual/gh_agent-task
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help agent-task`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help agent-task`.
 
 ## Summary
 
-Working with agent tasks in the GitHub CLI is in preview and
+Working with agent tasks in the GitHub CLI is in preview and subject to change without notice.
 
 ## Subcommands
 

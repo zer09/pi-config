@@ -21,7 +21,7 @@ The narrower historical `notion-cli` skill remains retired; see `notion-cli-upda
 - Workflow repository: https://github.com/makenotion/claude-code-notion-plugin
 - Workflow paths: `skills/notion/*/SKILL.md` and `commands/**/*.md`
 - Last workflow commit integrated: `9847f2aa1a15f25df35ed1fb7b4557dbb60cd651`
-- Runtime command source: installed `ntn --help` and subcommand help (`ntn 0.19.0` when installed).
+- Runtime command source: installed `ntn --help` and subcommand help (`ntn 0.21.9` at the latest review).
 
 ## Update workflow
 

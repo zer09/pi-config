@@ -1,7 +1,7 @@
 # gh search issues
 
 Source: https://cli.github.com/manual/gh_search_issues
-Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help search issues`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help search issues`.
 
 ## Summary
 
@@ -62,7 +62,7 @@ FLAGS
       --owner strings          Filter on repository owner
       --project owner/number   Filter on project board owner/number
       --reactions number       Filter on number of reactions
-  -R, --repo strings           Filter on repository
+  -R, --repo OWNER/REPO        Filter on repository, in OWNER/REPO format
       --sort string            Sort fetched results: {comments|created|interactions|reactions|reactions-+1|reactions--1|reactions-heart|reactions-smile|reactions-tada|reactions-thinking_face|updated} (default "best-match")
       --state string           Filter based on state: {open|closed}
       --team-mentions string   Filter based on team mentions

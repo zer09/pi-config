@@ -29,6 +29,8 @@ Use Firebase AI Logic when adding Gemini-powered features through Firebase SDKs.
 
 ## Implementation reminders
 
+- Prefer the Gemini Developer API for prototyping and standard use. Use the Agent Platform Gemini API, formerly Vertex AI Gemini API, only for enterprise scale, data-residency, or other explicit requirements; Agent Platform requires Blaze billing.
+- App Check attestation rejects emulators, simulators, and many CI environments. Use registered App Check debug tokens for local or CI validation, pass them through environment variables, and never commit token values.
 - Keep client-side AI features least-privileged. Do not put administrative credentials in mobile or web clients.
 - Prefer explicit model names and typed response parsing over loose JSON assumptions.
 - Add user-visible fallback states for blocked, empty, partial, or rate-limited responses.

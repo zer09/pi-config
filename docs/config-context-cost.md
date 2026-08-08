@@ -10,6 +10,8 @@ Global-instruction and skill-catalog incremental update: 2026-08-03 (added `dele
 
 Delegated environment-contract update: 2026-08-09 (added scoped parent-session marker scrubbing; provider calibration and the full extension/tool inventory were not rerun)
 
+Skill and CLI synchronization update: 2026-08-09 (refreshed current CLI references and selected upstream runtime guidance; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -144,6 +146,12 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `references/prompt-contracts.md` | 1,857 | 2,111 | +254 | Loaded only before a delegate spawn |
 
 The startup delta is limited to the 50-token global safety rule. Exact `env -u` commands remain on demand.
+
+## 2026-08-09 skill and CLI synchronization attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration was run. Four catalog descriptions changed. Across all reviewed target descriptions, the subtotal moved from 690 to 704 tokens, a net startup increase of 14 tokens.
+
+Runtime body and reference changes remain on demand. The largest body deltas were `crit-cli` +105, `firebase-ai-logic-basics` +88, `crit` +87, `nlm-skill` +78, and `improve-codebase-architecture` +51 tokens. Generated GitHub/Linear help, NotebookLM references, and Directus release guidance add no startup context unless a matching skill loads those references.
 
 ## Provider-calibrated baseline probes
 

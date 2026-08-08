@@ -10,8 +10,8 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 
 - Upstream repository: https://github.com/schpet/linear-cli
 - Upstream skill path: `skills/linear-cli/SKILL.md`
-- Current upstream commit checked locally: `e855b51f9cf85ae26780453381b2b7b7bc343bcb` (v2.3.0)
-- The locally installed CLI and generated command references were updated to v2.3.0 at this review.
+- Current upstream commit checked locally: `cf349ba477e35eacd5223f2b111218d48d752e70` (v2.4.0)
+- The locally installed CLI and generated command references were updated to v2.4.0 at this review.
 
 ## Local files
 

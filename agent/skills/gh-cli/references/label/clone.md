@@ -1,11 +1,11 @@
 # gh label clone
 
 Source: https://cli.github.com/manual/gh_label_clone
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help label clone`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help label clone`.
 
 ## Summary
 
-Clones labels from a source repository to a destination repository on GitHub.
+Clones labels from a source repository to a destination repository on GitHub. By default, the destination repository is the current repository.
 
 ## Subcommands
 

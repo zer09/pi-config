@@ -1,11 +1,11 @@
 # gh skill update
 
 Source: https://cli.github.com/manual/gh_skill_update
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help skill update`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help skill update`.
 
 ## Summary
 
-Checks installed skills for available updates by comparing the local
+Checks installed skills for available updates by comparing the local tree SHA (from `SKILL.md` frontmatter) against the remote repository.
 
 ## Subcommands
 
@@ -17,8 +17,8 @@ Checks installed skills for available updates by comparing the local
 Checks installed skills for available updates by comparing the local
 tree SHA (from `SKILL.md` frontmatter) against the remote repository.
 
-Scans all known agent host directories (Copilot, Claude, Cursor, Codex,
-Gemini, Antigravity) in both project and user scope automatically.
+Scans all known agent host directories (including Copilot, Claude, Cursor,
+Gemini, Antigravity, Grok, and others) in both project and user scope automatically.
 
 Without arguments, checks all installed skills. With skill names,
 checks only those specific skills.

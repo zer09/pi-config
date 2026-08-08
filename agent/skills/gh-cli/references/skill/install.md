@@ -1,11 +1,11 @@
 # gh skill install
 
 Source: https://cli.github.com/manual/gh_skill_install
-Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help skill install`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help skill install`.
 
 ## Summary
 
-Install agent skills from a GitHub repository or local directory into
+Install agent skills from a GitHub repository or local directory into your local environment. Skills are placed in a host-specific directory at either project scope (inside the current git repository) or user scope (in your home directory, available everywhere).
 
 ## Subcommands
 
@@ -21,7 +21,7 @@ scope (in your home directory, available everywhere).
 
 A wide range of AI coding agents are supported, including GitHub
 Copilot, Claude Code, Cursor, Codex, Gemini CLI, Antigravity, Amp,
-Goose, Junie, OpenCode, Windsurf, and many more.
+Devin, Goose, Grok, Junie, OpenCode, and many more.
 
 Supported `--agent` values:
 
@@ -44,9 +44,11 @@ Supported `--agent` values:
   - Cortex Code (cortex)
   - Crush (crush)
   - Deep Agents (deepagents)
+  - Devin (devin)
   - Droid (droid)
   - Firebender (firebender)
   - Goose (goose)
+  - Grok (grok)
   - iFlow CLI (iflow-cli)
   - Junie (junie)
   - Kilo Code (kilo)
@@ -70,7 +72,6 @@ Supported `--agent` values:
   - Trae CN (trae-cn)
   - Universal (universal)
   - Warp (warp)
-  - Windsurf (windsurf)
   - Zencoder (zencoder)
 
 Use `--agent` and `--scope` to control placement, or `--dir` for a

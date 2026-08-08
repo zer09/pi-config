@@ -1,6 +1,6 @@
 # Directus content and files reference
 
-Last reviewed: 2026-07-09
+Last reviewed: 2026-08-09
 Sources: `official-sources.md` -> Content and file docs.
 
 Use this for Content module, collection pages, item pages, Files module, assets, folders, and file metadata.
@@ -17,6 +17,7 @@ Use this for Content module, collection pages, item pages, Files module, assets,
 - Filtering supports field criteria and AND/OR groups.
 - Dynamic variables include `$CURRENT_USER`, `$CURRENT_ROLE`, `$CURRENT_ROLES`, `$CURRENT_POLICIES`, `$NOW`, and `$NOW(...)`.
 - If content versioning is enabled, a Published/Draft selector may appear.
+- Directus 12 opens new versioned items in a virtual draft and switches published items into draft context before edits. New API guidance uses `?version=published`; legacy `?version=main` remains compatible.
 - Draft mode can show item-less drafts and disables some actions such as batch editing, archiving, exporting, manual sorting, and running flows from the sidebar.
 - Batch editing appears after selecting multiple items; avoid batch writes unless explicitly requested.
 - Bookmarks are saved presets for collection layout, visible fields, sorting, filtering, and related view state.
@@ -43,7 +44,7 @@ Use this for Content module, collection pages, item pages, Files module, assets,
 - Stored cookies can authenticate asset access when present.
 - `access_token` query auth exists, but do not use or ask for static tokens unless explicitly authorized.
 - Prefer Directus asset/API URLs over direct storage paths so permissions and image transformations apply.
-- Transformed image assets can be requested with a `key` query parameter for configured presets.
+- Transformed image assets can be requested with a `key` query parameter for configured presets. Directus 12.2 defaults transformed output to at most 3000 pixels unless the server configuration changes that limit.
 
 ## Upload safety
 

@@ -9,7 +9,7 @@ The local skill keeps the public name `skill-creator`. It is not a verbatim mirr
 | Source | Repository | Upstream path | Reviewed checkout commit | Last path-specific commit observed |
 | --- | --- | --- | --- | --- |
 | OpenAI | https://github.com/openai/skills | `skills/.system/skill-creator` | `49f948faa9258a0c61caceaf225e179651397431` | `4ab6e0f` |
-| Anthropic | https://github.com/anthropics/skills | `skills/skill-creator` | `fa0fa64bdc967915dc8399e803be67759e1e62b8` | `b9e19e6` |
+| Anthropic | https://github.com/anthropics/skills | `skills/skill-creator` | `f17010c9bb483898c1d9c9f42dde2b3a98889434` | `b9e19e6` |
 | Pi | Pi documentation installed with `@earendil-works/pi-coding-agent` | `docs/skills.md`, `README.md`, and `docs/json.md` | Local installed package | N/A |
 
 Frontmatter authority: the portable Agent Skills specification at https://agentskills.io/specification.md defines required `name` and `description`, with optional `license`, `compatibility`, `metadata`, and experimental `allowed-tools`. Pi additionally supports `disable-model-invocation`; treat it as a Pi-only extension rather than portable standard frontmatter.

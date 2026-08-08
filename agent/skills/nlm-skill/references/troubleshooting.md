@@ -1,4 +1,4 @@
-# NotebookLM CLI - Troubleshooting Guide
+# Gemini Notebook (formerly Google NotebookLM) CLI - Troubleshooting Guide
 
 This document provides detailed solutions for common issues when using the `nlm` CLI.
 
@@ -27,7 +27,7 @@ Error: Cookies have expired. Please run 'nlm login' to re-authenticate.
 Error: authentication may have expired
 ```
 
-**Cause:** NotebookLM rejected the stored credentials. Cookies often remain
+**Cause:** Gemini Notebook rejected the stored credentials. Cookies often remain
 usable for weeks, so do not re-authenticate solely because time has passed.
 
 **Solution:**
@@ -116,7 +116,7 @@ preserved.
 
 ### RPC Method-ID Drift
 
-NotebookLM can rotate internal RPC method IDs without notice. When
+Gemini Notebook can rotate internal RPC method IDs without notice. When
 `RPCDriftError` identifies a replacement:
 
 1. Run the failing command with `--debug` and inspect the returned RPC IDs.
@@ -154,7 +154,7 @@ codex exec --sandbox danger-full-access "nlm notebook list"
 ```
 
 **Solution for Docker/Containers:**
-Ensure the container has network access and can reach `notebooklm.google.com`.
+Ensure the container has network access and can reach `notebook.google.com`.
 
 ### Rate Limiting
 
@@ -163,19 +163,24 @@ Ensure the container has network access and can reach `notebooklm.google.com`.
 Error: Rate limit exceeded
 ```
 
-**Cause:** Too many API calls in a short period. Free tier: ~50 queries/day.
+**Cause:** Too many API calls in a short period. Query and Studio generation
+limits are separate and undocumented; video limits may require a longer pause.
 
 **Solutions:**
 
 1. **Wait and retry:**
    ```bash
-   sleep 30
+   sleep 120  # Studio/video generation; shorter waits may be enough for queries
    # Retry command
    ```
 
+   Built-in retries use a short 1/2/4-second backoff for transient failures.
+   They do not wait through a minute-scale Studio quota window.
+
 2. **Implement throttling in scripts:**
    ```bash
-   # Wait 2 seconds between operations
+   # Run Studio/video creation sequentially; avoid parallel generation batches.
+   # Wait 2 seconds between lightweight source operations.
    nlm source add $ID --url "..." && sleep 2
    nlm source add $ID --url "..." && sleep 2
    ```

@@ -23,6 +23,8 @@ If no arguments, check conversation context:
 1. A plan file was written earlier in this conversation → `crit <plan-file>`
 2. Otherwise → bare `crit` (branch diff)
 
+For another-device access, keep Crit on loopback and proxy through a trusted tunnel. `--public-url` changes the advertised URL but does not expose the server. Non-loopback access requires `--allow-unauthenticated-network`; Crit has no network authentication, so confirm that exposure before use.
+
 ## Step 2: Launch crit and block until review completes
 
 **CRITICAL — you MUST run this step. Do NOT skip it. Do NOT proceed without it.**
@@ -44,7 +46,7 @@ If a crit server is already running from earlier in this conversation, `crit` au
 
 ## Step 3: Read the review output
 
-When `crit` completes, its stdout includes the path to the review file (e.g. "Review comments are in /path/to/review.json"). Read it.
+When `crit` completes, follow its stdout instructions and check stderr for `approved: true` or `approved: false`. Read the review file path from stdout. For mid-round re-entry or headless recovery, use `crit comments --json`; add `--plan <slug>` for plan reviews.
 
 The file contains structured JSON. Three comment types:
 - `review_comments` (top-level, `r_`-prefixed IDs) — general feedback

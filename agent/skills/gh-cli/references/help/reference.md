@@ -1,11 +1,15 @@
 # gh help reference
 
 Source: https://cli.github.com/manual/gh_help_reference
-Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help reference`.
+Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help reference`.
 
 ## Summary
 
-A comprehensive reference of all gh commands
+# gh reference
+
+## Subcommands
+
+- None
 
 ## Manual
 
@@ -86,21 +90,22 @@ Create a shortcut for a gh command
 
 Make an authenticated GitHub API request
 
-      --cache duration        Cache the response, e.g. "3600s", "60m", "1h"
-  -F, --field key=value       Add a typed parameter in key=value format (use "@<path>" or "@-" to read value from file or stdin)
-  -H, --header key:value      Add a HTTP request header in key:value format
-      --hostname string       The GitHub hostname for the request (default "github.com")
-  -i, --include               Include HTTP response status line and headers in the output
-      --input file            The file to use as body for the HTTP request (use "-" to read from standard input)
-  -q, --jq string             Query to select values from the response using jq syntax
-  -X, --method string         The HTTP method for the request (default "GET")
-      --paginate              Make additional HTTP requests to fetch all pages of results
-  -p, --preview strings       Opt into GitHub API previews (names should omit '-preview')
-  -f, --raw-field key=value   Add a string parameter in key=value format
-      --silent                Do not print the response body
-      --slurp                 Use with "--paginate" to return an array of all pages of either JSON arrays or objects
-  -t, --template string       Format JSON output using a Go template; see "gh help formatting"
-      --verbose               Include full HTTP request and response in the output
+      --allow-escape-sequences   Allow printing terminal escape sequences
+      --cache duration           Cache the response, e.g. "3600s", "60m", "1h"
+  -F, --field key=value          Add a typed parameter in key=value format (use "@<path>" or "@-" to read value from file or stdin)
+  -H, --header key:value         Add a HTTP request header in key:value format
+      --hostname string          The GitHub hostname for the request (default "github.com")
+  -i, --include                  Include HTTP response status line and headers in the output
+      --input file               The file to use as body for the HTTP request (use "-" to read from standard input)
+  -q, --jq string                Query to select values from the response using jq syntax
+  -X, --method string            The HTTP method for the request (default "GET")
+      --paginate                 Make additional HTTP requests to fetch all pages of results
+  -p, --preview strings          Opt into GitHub API previews (names should omit '-preview')
+  -f, --raw-field key=value      Add a string parameter in key=value format
+      --silent                   Do not print the response body
+      --slurp                    Use with "--paginate" to return an array of all pages of either JSON arrays or objects
+  -t, --template string          Format JSON output using a Go template; see "gh help formatting"
+      --verbose                  Include full HTTP request and response in the output
 
 ## gh attestation [subcommand]
 
@@ -676,10 +681,11 @@ Rename a file in a gist
 
 View a gist
 
-  -f, --filename string   Display a single file from the gist
-      --files             List file names from the gist
-  -r, --raw               Print raw instead of rendered gist contents
-  -w, --web               Open gist in the browser
+      --allow-escape-sequences   Allow printing terminal escape sequences
+  -f, --filename string          Display a single file from the gist
+      --files                    List file names from the gist
+  -r, --raw                      Print raw instead of rendered gist contents
+  -w, --web                      Open gist in the browser
 
 ## gh gpg-key <command>
 
@@ -1018,11 +1024,12 @@ gh pr new
 
 View changes in a pull request
 
-      --color string       Use color in diff output: {always|never|auto} (default "auto")
-  -e, --exclude patterns   Exclude files matching glob patterns from the diff
-      --name-only          Display only names of changed files
-      --patch              Display diff in patch format
-  -w, --web                Open the pull request diff in the browser
+      --allow-escape-sequences   Allow printing terminal escape sequences
+      --color string             Use color in diff output: {always|never|auto} (default "auto")
+  -e, --exclude patterns         Exclude files matching glob patterns from the diff
+      --name-only                Display only names of changed files
+      --patch                    Display diff in patch format
+  -w, --web                      Open the pull request diff in the browser
 
 ### gh pr edit [<number> | <url> | <branch>] [flags]
 
@@ -1288,35 +1295,41 @@ Delete an item from a project by ID
       --owner string      Login of the owner. Use "@me" for the current user.
   -t, --template string   Format JSON output using a Go template; see "gh help formatting"
 
-### gh project item-edit [flags]
+### gh project item-edit [<number>] [flags]
 
 Edit an item in a project
 
       --body string                      Body of the draft issue item
       --clear                            Remove field value
       --date string                      Date value for the field (YYYY-MM-DD)
+      --field string                     Name of the field to update
       --field-id string                  ID of the field to update
       --format string                    Output format: {json}
       --id string                        ID of the item to edit
       --iteration-id string              ID of the iteration value to set on the field
   -q, --jq expression                    Filter JSON output using a jq expression
       --number float                     Number value for the field
+      --owner string                     Login of the owner. Use "@me" for the current user.
       --project-id string                ID of the project to which the field belongs to
       --single-select-option-id string   ID of the single select option value to set on the field
   -t, --template string                  Format JSON output using a Go template; see "gh help formatting"
       --text string                      Text value for the field
       --title string                     Title of the draft issue item
+      --url string                       URL of the issue or pull request whose project item to edit
+      --value --field                    Value to set on the field named by --field
 
 ### gh project item-list [<number>] [flags]
 
 List the items in a project
 
-      --format string     Output format: {json}
-  -q, --jq expression     Filter JSON output using a jq expression
-  -L, --limit int         Maximum number of items to fetch (default 30)
-      --owner string      Login of the owner. Use "@me" for the current user
-      --query string      Filter items using the Projects filter syntax, e.g. "assignee:octocat -status:Done"
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
+      --field stringArray      Name of a field to show as an extra column
+      --field-id stringArray   ID of a field to show as an extra column
+      --format string          Output format: {json}
+  -q, --jq expression          Filter JSON output using a jq expression
+  -L, --limit int              Maximum number of items to fetch (default 30)
+      --owner string           Login of the owner. Use "@me" for the current user
+      --query string           Filter items using the Projects filter syntax, e.g. "assignee:octocat -status:Done"
+  -t, --template string        Format JSON output using a Go template; see "gh help formatting"
 
 ### gh project link [<number>] [flags]
 
@@ -1413,12 +1426,13 @@ Delete an asset from a release
 
 Download release assets
 
-  -A, --archive format        Download the source code archive in the specified format (zip or tar.gz)
-      --clobber               Overwrite existing files of the same name
-  -D, --dir directory         The directory to download files into (default ".")
-  -O, --output file           The file to write a single asset to (use "-" to write to standard output)
-  -p, --pattern stringArray   Download only assets that match a glob pattern
-      --skip-existing         Skip downloading when files of the same name exist
+      --allow-escape-sequences   Allow printing terminal escape sequences when writing an asset to standard output
+  -A, --archive format           Download the source code archive in the specified format (zip or tar.gz)
+      --clobber                  Overwrite existing files of the same name
+  -D, --dir directory            The directory to download files into (default ".")
+  -O, --output file              The file to write a single asset to (use "-" to write to standard output)
+  -p, --pattern stringArray      Download only assets that match a glob pattern
+      --skip-existing            Skip downloading when files of the same name exist
 
 ### gh release edit <tag>
 
@@ -1876,7 +1890,7 @@ Search within code
   -L, --limit int          Maximum number of code results to fetch (default 30)
       --match strings      Restrict search to file contents or file path: {file|path}
       --owner strings      Filter on owner
-  -R, --repo strings       Filter on repository
+  -R, --repo OWNER/REPO    Filter on repository, in OWNER/REPO format
       --size string        Filter on size range, in kilobytes
   -t, --template string    Format JSON output using a Go template; see "gh help formatting"
   -w, --web                Open the search query in the web browser
@@ -1901,7 +1915,7 @@ Search for commits
       --order string             Order of commits returned, ignored unless '--sort' flag is specified: {asc|desc} (default "desc")
       --owner strings            Filter on repository owner
       --parent string            Filter by parent hash
-  -R, --repo strings             Filter on repository
+  -R, --repo OWNER/REPO          Filter on repository, in OWNER/REPO format
       --sort string              Sort fetched commits: {author-date|committer-date} (default "best-match")
   -t, --template string          Format JSON output using a Go template; see "gh help formatting"
       --tree string              Filter by tree hash
@@ -1940,7 +1954,7 @@ Search for issues
       --owner strings          Filter on repository owner
       --project owner/number   Filter on project board owner/number
       --reactions number       Filter on number of reactions
-  -R, --repo strings           Filter on repository
+  -R, --repo OWNER/REPO        Filter on repository, in OWNER/REPO format
       --sort string            Sort fetched results: {comments|created|interactions|reactions|reactions-+1|reactions--1|reactions-heart|reactions-smile|reactions-tada|reactions-thinking_face|updated} (default "best-match")
       --state string           Filter based on state: {open|closed}
       --team-mentions string   Filter based on team mentions
@@ -1986,7 +2000,7 @@ Search for pull requests
       --owner strings           Filter on repository owner
       --project owner/number    Filter on project board owner/number
       --reactions number        Filter on number of reactions
-  -R, --repo strings            Filter on repository
+  -R, --repo OWNER/REPO         Filter on repository, in OWNER/REPO format
       --review string           Filter based on review status: {none|required|approved|changes_requested}
       --review-requested user   Filter on user or team requested to review
       --reviewed-by user        Filter on user who reviewed
@@ -2105,7 +2119,7 @@ gh skill add, gh skills add
 
 List installed skills (preview)
 
-      --agent string      Filter by target agent: {github-copilot|claude-code|cursor|codex|gemini-cli|antigravity|antigravity-cli|antigravity2.0|adal|amp|augment|bob|cline|codebuddy|command-code|continue|cortex|crush|deepagents|droid|firebender|goose|iflow-cli|junie|kilo|kimi-cli|kiro-cli|kode|mcpjam|mistral-vibe|mux|neovate|openclaw|opencode|openhands|pi|pochi|qoder|qwen-code|replit|roo|trae|trae-cn|universal|warp|windsurf|zencoder}
+      --agent string      Filter by target agent: {github-copilot|claude-code|cursor|codex|gemini-cli|antigravity|antigravity-cli|antigravity2.0|adal|amp|augment|bob|cline|codebuddy|command-code|continue|cortex|crush|deepagents|devin|droid|firebender|goose|grok|iflow-cli|junie|kilo|kimi-cli|kiro-cli|kode|mcpjam|mistral-vibe|mux|neovate|openclaw|opencode|openhands|pi|pochi|qoder|qwen-code|replit|roo|trae|trae-cn|universal|warp|zencoder}
       --dir string        Scan a custom directory for installed skills
   -q, --jq expression     Filter JSON output using a jq expression
       --json fields       Output JSON with the specified fields
