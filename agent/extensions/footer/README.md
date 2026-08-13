@@ -33,6 +33,13 @@ Enabled segments are fixed in code:
 
 Narrow terminals use compact layouts before falling back to truncation: cwd basename, percent-only context, and shortened model names. Compact layout hides token totals and queued follow-up count first. Minimal layout keeps model, context usage, and thinking level while hiding prompt timer, queued follow-up count, and token totals.
 
+Canonical Codex labels remain `codex/Sol` in full or compact layouts and `Sol` in minimal layouts.
+Valid Codex aliases retain account identity in every layout.
+For example, Personal uses `codex-personal/Sol` and `personal/Sol`.
+Business uses `codex-business/Sol` and `business/Sol`.
+The same rule formats generic GPT model IDs, such as `codex-personal/gpt-5.5`.
+Malformed alias IDs use generic provider formatting.
+
 ## Fastlane glyph integration
 
 `footer` listens for `fastlane:state` events from the local `agent/extensions/fastlane` extension.

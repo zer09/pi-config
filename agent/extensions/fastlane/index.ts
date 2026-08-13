@@ -7,11 +7,11 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { isOpenAICodexProviderId } from "../openai-codex-aliases/provider-id";
 import {
 	FASTLANE_STATE_EVENT,
 	FAST_SERVICE_TIER,
 	OPENAI_CODEX_API_ID,
-	OPENAI_CODEX_PROVIDER_ID,
 	SUPPORTED_OPENAI_CODEX_MODELS,
 } from "./constants";
 import type { Eligibility, PayloadRecord, SessionState } from "./types";
@@ -27,11 +27,11 @@ function getEligibility(ctx: ExtensionContext): Eligibility {
 	}
 
 	const key = `${model.provider}/${model.id}`;
-	if (model.provider !== OPENAI_CODEX_PROVIDER_ID) {
+	if (!isOpenAICodexProviderId(model.provider)) {
 		return {
 			eligible: false,
 			modelKey: key,
-			reason: `current provider is ${model.provider}, not ${OPENAI_CODEX_PROVIDER_ID}`,
+			reason: `current provider is ${model.provider}, not a valid OpenAI Codex provider`,
 		};
 	}
 

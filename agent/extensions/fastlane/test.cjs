@@ -150,6 +150,19 @@ async function run() {
 		assert.deepEqual(fastlane.lastEvent().data, { active: true }, `${modelId} should keep Fastlane active`);
 	}
 
+	for (const provider of ["openai-codex-personal", "openai-codex-business"]) {
+		const fastlane = await createFastlane({
+			model: { provider, id: "gpt-5.6-sol", api: "openai-codex-responses" },
+		});
+		const notification = await fastlane.runCommand();
+		assert.deepEqual(notification, { message: "Fastlane enabled.", level: "info" }, `${provider} should enable Fastlane`);
+		assert.deepEqual(
+			await fastlane.beforeProvider({ model: "gpt-5.6-sol", input: "hello" }),
+			{ model: "gpt-5.6-sol", input: "hello", service_tier: "priority" },
+			`${provider} should receive priority service tier`,
+		);
+	}
+
 	{
 		const fastlane = await createFastlane();
 		await fastlane.runCommand();
@@ -196,6 +209,27 @@ async function run() {
 		assert.ok(notification.message.includes("ChatGPT OAuth auth is required"), "warning should explain OAuth requirement");
 		assert.deepEqual(fastlane.lastEvent().data, { active: false }, "API-key auth should not enable Fastlane");
 		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.5" }), undefined, "API-key auth should not inject");
+	}
+
+	{
+		const fastlane = await createFastlane({
+			usingOAuth: false,
+			model: { provider: "openai-codex-personal", id: "gpt-5.6-sol", api: "openai-codex-responses" },
+		});
+		const notification = await fastlane.runCommand();
+		assert.equal(notification.level, "warning", "alias API-key auth should warn");
+		assert.ok(notification.message.includes("ChatGPT OAuth auth is required"), "alias warning should explain OAuth requirement");
+		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.6-sol" }), undefined, "alias API-key auth should not inject");
+	}
+
+	{
+		const fastlane = await createFastlane({
+			model: { provider: "openai-codex-", id: "gpt-5.6-sol", api: "openai-codex-responses" },
+		});
+		const notification = await fastlane.runCommand();
+		assert.equal(notification.level, "warning", "a malformed Codex alias should warn");
+		assert.ok(notification.message.includes("not a valid OpenAI Codex provider"));
+		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.6-sol" }), undefined, "a malformed alias should not inject");
 	}
 
 	{

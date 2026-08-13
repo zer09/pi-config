@@ -8,7 +8,8 @@ const packageRoot = process.argv[2]
   ? resolve(process.argv[2])
   : join(here, "..", "npm", "node_modules", "pi-btw");
 const extensionPath = join(packageRoot, "extensions", "btw.ts");
-const currentMarker = "setRuntimeApiKey(model.provider, parentAuth.apiKey, { signal: ctx.signal })";
+const nativeProviderMarker = "getRegisteredNativeProvider(model.provider)";
+const cancellableAuthMarker = "setRuntimeApiKey(model.provider, parentAuth.apiKey, { signal: ctx.signal })";
 const previousHelper = `async function createBtwModelRuntime(ctx: ExtensionCommandContext, model: SessionModel): Promise<ModelRuntime> {
   const modelRuntime = await ModelRuntime.create();
   const providerConfig = ctx.modelRegistry.getRegisteredProviderConfig(model.provider);
@@ -17,7 +18,7 @@ const previousHelper = `async function createBtwModelRuntime(ctx: ExtensionComma
   }
   return modelRuntime;
 }`;
-const currentHelper = `async function createBtwModelRuntime(ctx: ExtensionCommandContext, model: SessionModel): Promise<ModelRuntime> {
+const legacyRuntimeAuthHelper = `async function createBtwModelRuntime(ctx: ExtensionCommandContext, model: SessionModel): Promise<ModelRuntime> {
   const modelRuntime = await ModelRuntime.create();
   const providerConfig = ctx.modelRegistry.getRegisteredProviderConfig(model.provider);
   if (providerConfig) {
@@ -36,8 +37,33 @@ const currentHelper = `async function createBtwModelRuntime(ctx: ExtensionComman
   }
   return modelRuntime;
 }`;
-const uncancellableHelper = currentHelper.replace(
-  "setRuntimeApiKey(model.provider, parentAuth.apiKey, { signal: ctx.signal })",
+const currentHelper = `async function createBtwModelRuntime(ctx: ExtensionCommandContext, model: SessionModel): Promise<ModelRuntime> {
+  const modelRuntime = await ModelRuntime.create();
+  const nativeProvider = ctx.modelRegistry.getRegisteredNativeProvider(model.provider);
+  if (nativeProvider) {
+    modelRuntime.registerNativeProvider(nativeProvider);
+  } else {
+    const providerConfig = ctx.modelRegistry.getRegisteredProviderConfig(model.provider);
+    if (providerConfig) {
+      modelRuntime.registerProvider(model.provider, providerConfig);
+    }
+  }
+
+  // A fresh child runtime cannot see credentials supplied only to the parent with
+  // --api-key or ModelRuntime.setRuntimeApiKey(). Copy only that transient source;
+  // stored, environment, command-backed, and OAuth auth resolve normally.
+  const parentAuthStatus = ctx.modelRegistry.getProviderAuthStatus(model.provider);
+  if (parentAuthStatus.source === "runtime") {
+    const parentAuth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+    if (parentAuth.ok && parentAuth.apiKey) {
+      await modelRuntime.setRuntimeApiKey(model.provider, parentAuth.apiKey, { signal: ctx.signal });
+    }
+  }
+  return modelRuntime;
+}`;
+const uncancellableHelper = currentHelper.replace(cancellableAuthMarker, "setRuntimeApiKey(model.provider, parentAuth.apiKey)");
+const legacyUncancellableHelper = legacyRuntimeAuthHelper.replace(
+  cancellableAuthMarker,
   "setRuntimeApiKey(model.provider, parentAuth.apiKey)",
 );
 
@@ -53,23 +79,22 @@ if (!existsSync(extensionPath)) {
 }
 
 let content = readFileSync(extensionPath, "utf8");
-if (content.includes(currentMarker)) {
-  console.log("already patched: ModelRuntime child sessions with runtime auth");
+if (content.includes(nativeProviderMarker) && content.includes(cancellableAuthMarker)) {
+  console.log("already patched: ModelRuntime child sessions with native providers and runtime auth");
   process.exit(0);
 }
 
-if (content.includes(uncancellableHelper)) {
-  content = content.replace(uncancellableHelper, currentHelper);
+const upgradeCandidates = [
+  [uncancellableHelper, "upgraded: ModelRuntime patch now propagates auth cancellation"],
+  [legacyRuntimeAuthHelper, "upgraded: ModelRuntime patch now propagates native providers"],
+  [legacyUncancellableHelper, "upgraded: ModelRuntime patch now propagates native providers and auth cancellation"],
+  [previousHelper, "upgraded: previous ModelRuntime patch with native provider and runtime auth propagation"],
+];
+for (const [oldHelper, message] of upgradeCandidates) {
+  if (!content.includes(oldHelper)) continue;
+  content = content.replace(oldHelper, currentHelper);
   writeFileSync(extensionPath, content);
-  console.log("upgraded: ModelRuntime patch now propagates auth cancellation");
-  console.log("pi-btw ModelRuntime patch complete. Restart Pi or run /reload.");
-  process.exit(0);
-}
-
-if (content.includes(previousHelper)) {
-  content = content.replace(previousHelper, currentHelper);
-  writeFileSync(extensionPath, content);
-  console.log("upgraded: previous ModelRuntime patch with runtime auth propagation");
+  console.log(message);
   console.log("pi-btw ModelRuntime patch complete. Restart Pi or run /reload.");
   process.exit(0);
 }
@@ -103,5 +128,5 @@ content = replaceOnce(
 );
 
 writeFileSync(extensionPath, content);
-console.log("patched: ModelRuntime child sessions with runtime auth");
+console.log("patched: ModelRuntime child sessions with native providers and runtime auth");
 console.log("pi-btw ModelRuntime patch complete. Restart Pi or run /reload.");

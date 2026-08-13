@@ -320,6 +320,58 @@ async function runTests() {
 		assert.ok(!minimalLine.includes(`codex/${modelType}`), `${modelId} should hide the provider in minimal layouts`);
 	}
 
+	for (const [provider, slug] of [
+		["openai-codex-personal", "personal"],
+		["openai-codex-business", "business"],
+	]) {
+		for (const [modelId, modelType] of [
+			["gpt-5.6-sol", "Sol"],
+			["gpt-5.6-terra", "Terra"],
+			["gpt-5.6-luna", "Luna"],
+		]) {
+			const footer = await createFooter({
+				model: { provider, id: modelId, contextWindow: 272000 },
+			});
+			assert.ok(
+				footer.renderPlain().includes(`codex-${slug}/${modelType}`),
+				`${provider}/${modelId} should retain account identity in full layouts`,
+			);
+			assert.ok(
+				footer.renderPlain(35).includes(`${slug}/${modelType}`),
+				`${provider}/${modelId} should retain account identity in minimal layouts`,
+			);
+		}
+	}
+
+	{
+		const personal = await createFooter({
+			model: { provider: "openai-codex-personal", id: "gpt-5.6-sol", contextWindow: 272000 },
+		});
+		const business = await createFooter({
+			model: { provider: "openai-codex-business", id: "gpt-5.6-sol", contextWindow: 272000 },
+		});
+		assert.notEqual(personal.renderPlain(), business.renderPlain(), "Personal and Business should remain distinguishable");
+	}
+
+	{
+		const footer = await createFooter({
+			model: { provider: "openai-codex-personal", id: "gpt-5.5", contextWindow: 272000 },
+		});
+		assert.ok(footer.renderPlain().includes("codex-personal/gpt-5.5"), "generic alias GPT models should show the account");
+		assert.ok(footer.renderPlain(35).includes("personal/gpt-5.5"), "minimal generic alias GPT labels should show the account");
+	}
+
+	{
+		const footer = await createFooter({
+			model: { provider: "openai-codex-", id: "gpt-5.6-sol", contextWindow: 272000 },
+		});
+		assert.ok(
+			footer.renderPlain().includes("openai-codex-/gpt-5.6-sol"),
+			"malformed alias IDs should use generic provider formatting",
+		);
+		assert.ok(!footer.renderPlain().includes("codex-/Sol"), "malformed alias IDs should not use Codex formatting");
+	}
+
 	{
 		const footer = await createFooter({ branch: null });
 		assert.ok(!footer.renderPlain().includes("(main)"), "branch should be hidden outside git repos");
@@ -746,6 +798,19 @@ async function runTests() {
 		for (let width = 0; width <= 140; width += 1) {
 			assert.doesNotThrow(() => footer.render(width), `render should not throw at width ${width}`);
 			assert.ok(visibleWidth(footer.render(width)) <= width, `render should fit width ${width}`);
+		}
+	}
+
+	{
+		const footer = await createFooter({
+			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
+			model: { provider: "openai-codex-business", id: "gpt-5.6-terra", contextWindow: 272000 },
+			statuses: new Map([["other", "long-alias-status"]]),
+			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
+		});
+		for (let width = 0; width <= 140; width += 1) {
+			assert.doesNotThrow(() => footer.render(width), `alias render should not throw at width ${width}`);
+			assert.ok(visibleWidth(footer.render(width)) <= width, `alias render should fit width ${width}`);
 		}
 	}
 

@@ -9,6 +9,7 @@ import test from "node:test";
 const here = dirname(fileURLToPath(import.meta.url));
 const helperPath = join(here, "reapply-model-runtime-patch.mjs");
 const runtimeAuthMarker = "setRuntimeApiKey(model.provider, parentAuth.apiKey, { signal: ctx.signal })";
+const nativeProviderMarker = "getRegisteredNativeProvider(model.provider)";
 const previousHelper = `async function createBtwModelRuntime(ctx: ExtensionCommandContext, model: SessionModel): Promise<ModelRuntime> {
   const modelRuntime = await ModelRuntime.create();
   const providerConfig = ctx.modelRegistry.getRegisteredProviderConfig(model.provider);
@@ -68,6 +69,9 @@ function runHelper(packageRoot) {
 
 function assertCurrentPatch(source) {
   assert.match(source, /ModelRuntime,/);
+  assert.match(source, /getRegisteredNativeProvider\(model\.provider\)/);
+  assert.match(source, /registerNativeProvider\(nativeProvider\)/);
+  assert.match(source, /getRegisteredProviderConfig\(model\.provider\)/);
   assert.match(source, /getProviderAuthStatus\(model\.provider\)/);
   assert.match(source, /parentAuthStatus\.source === "runtime"/);
   assert.match(source, /getApiKeyAndHeaders\(model\)/);
@@ -112,6 +116,27 @@ test("upgrades the uncancellable runtime-auth patch", () => {
   }
 });
 
+test("upgrades the runtime-auth patch without native provider propagation", () => {
+  const root = makePackage();
+  try {
+    runHelper(root);
+    const current = readFileSync(join(root, "extensions", "btw.ts"), "utf8");
+    const legacy = current.replace(
+      /  const nativeProvider = ctx\.modelRegistry\.getRegisteredNativeProvider\(model\.provider\);[\s\S]*?  }\n\n  \/\/ A fresh child runtime/,
+      `  const providerConfig = ctx.modelRegistry.getRegisteredProviderConfig(model.provider);\n  if (providerConfig) {\n    modelRuntime.registerProvider(model.provider, providerConfig);\n  }\n\n  // A fresh child runtime`,
+    );
+    assert.doesNotMatch(legacy, new RegExp(nativeProviderMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    writeFileSync(join(root, "extensions", "btw.ts"), legacy);
+
+    const output = runHelper(root);
+    const upgraded = readFileSync(join(root, "extensions", "btw.ts"), "utf8");
+    assert.match(output, /now propagates native providers/);
+    assertCurrentPatch(upgraded);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("upgrades the previous local ModelRuntime patch", () => {
   const root = makePackage();
   try {
@@ -133,7 +158,7 @@ test("upgrades the previous local ModelRuntime patch", () => {
   }
 });
 
-test("passes a parent --api-key runtime override to an offline BTW child", { timeout: 30_000 }, async () => {
+test("passes a native provider and parent --api-key override to an offline BTW child", { timeout: 30_000 }, async () => {
   const installedPackage = process.env.PI_BTW_PACKAGE_ROOT ?? join(homedir(), ".pi", "agent", "npm", "node_modules", "pi-btw");
   const piBin = process.env.PI_BIN ?? join(homedir(), ".bun", "bin", "pi");
   assert.ok(existsSync(installedPackage), `pi-btw package missing at ${installedPackage}`);
@@ -156,51 +181,60 @@ test("passes a parent --api-key runtime override to an offline BTW child", { tim
       packages: ["npm:pi-btw@0.4.1"],
       defaultThinkingLevel: "off",
     }, null, 2)}\n`);
-    writeFileSync(join(agentDir, "extensions", "offline-runtime.ts"), `import { appendFileSync } from "node:fs";
+    writeFileSync(join(agentDir, "extensions", "offline-native.ts"), `import { appendFileSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+const model = {
+  id: "offline-model",
+  name: "Offline Model",
+  api: "offline-native-api",
+  provider: "offline-native",
+  baseUrl: "http://127.0.0.1:1",
+  reasoning: false,
+  input: ["text"],
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+  contextWindow: 100000,
+  maxTokens: 1000,
+} as const;
+function stream(selectedModel: typeof model) {
+  appendFileSync(${JSON.stringify(proofPath)}, selectedModel.provider + "/" + selectedModel.id + "\\n");
+  const message = {
+    role: "assistant",
+    content: [{ type: "text", text: "offline native response" }],
+    api: selectedModel.api,
+    provider: selectedModel.provider,
+    model: selectedModel.id,
+    usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+    stopReason: "stop",
+    timestamp: Date.now(),
+  };
+  return {
+    async *[Symbol.asyncIterator]() { yield { type: "done", reason: "stop", message }; },
+    result: async () => message,
+  } as any;
+}
 export default function (pi: ExtensionAPI) {
-  pi.registerProvider("offline-runtime", {
-    name: "Offline Runtime Auth",
-    baseUrl: "http://127.0.0.1:1",
-    api: "offline-runtime-api",
-    authHeader: true,
-    models: [{
-      id: "offline-model",
-      name: "Offline Model",
-      api: "offline-runtime-api",
-      provider: "offline-runtime",
-      baseUrl: "http://127.0.0.1:1",
-      reasoning: false,
-      input: ["text"],
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 100000,
-      maxTokens: 1000,
-    }],
-    streamSimple(model) {
-      appendFileSync(${JSON.stringify(proofPath)}, model.provider + "/" + model.id + "\\n");
-      const message = {
-        role: "assistant",
-        content: [{ type: "text", text: "offline runtime auth response" }],
-        api: model.api,
-        provider: model.provider,
-        model: model.id,
-        usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
-        stopReason: "stop",
-        timestamp: Date.now(),
-      };
-      return {
-        async *[Symbol.asyncIterator]() { yield { type: "done", reason: "stop", message }; },
-        result: async () => message,
-      } as any;
+  pi.registerProvider({
+    id: "offline-native",
+    name: "Offline Native Auth",
+    auth: {
+      apiKey: {
+        name: "Offline native API key",
+        async resolve({ credential }: any) {
+          return credential?.key ? { auth: { apiKey: credential.key } } : undefined;
+        },
+      },
     },
-  });
+    getModels: () => [model],
+    stream,
+    streamSimple: stream,
+  } as any);
 }
 `);
 
     const child = spawn(piBin, [
-      "--provider", "offline-runtime",
+      "--provider", "offline-native",
       "--model", "offline-model",
-      "--api-key", "offline-runtime-test-key",
+      "--api-key", "offline-native-test-key",
       "--mode", "rpc",
       "--no-session",
     ], {
@@ -234,7 +268,7 @@ export default function (pi: ExtensionAPI) {
     assert.equal(result.code, 0, diagnostic);
     assert.match(stdout, /"id":"btw".*"success":true/);
     assert.ok(existsSync(proofPath), diagnostic);
-    assert.equal(readFileSync(proofPath, "utf8"), "offline-runtime/offline-model\n");
+    assert.equal(readFileSync(proofPath, "utf8"), "offline-native/offline-model\n");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

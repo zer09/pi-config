@@ -5,6 +5,7 @@
  * labels. Full footer layouts still use compact model labels.
  */
 
+import { getOpenAICodexAliasSlug, isOpenAICodexProviderId } from "../openai-codex-aliases/provider-id";
 import type { FooterProfile } from "./types";
 
 /**
@@ -31,13 +32,20 @@ function formatCompactModelName(
 	model: string,
 	profile: Exclude<FooterProfile, "full">,
 ): string {
-	if (provider === "openai-codex") {
+	if (provider && isOpenAICodexProviderId(provider)) {
+		const aliasSlug = getOpenAICodexAliasSlug(provider);
+		let providerLabel: string | undefined;
+		if (aliasSlug) {
+			providerLabel = profile === "minimal" ? aliasSlug : `codex-${aliasSlug}`;
+		} else if (profile !== "minimal") {
+			providerLabel = "codex";
+		}
 		const gpt56Type = model.match(/^gpt-5\.6-(sol|terra|luna)$/)?.[1];
 		if (gpt56Type) {
 			const label = gpt56Type.charAt(0).toUpperCase() + gpt56Type.slice(1);
-			return profile === "minimal" ? label : `codex/${label}`;
+			return providerLabel ? `${providerLabel}/${label}` : label;
 		}
-		if (model.startsWith("gpt-")) return profile === "minimal" ? model : `codex/${model}`;
+		if (model.startsWith("gpt-")) return providerLabel ? `${providerLabel}/${model}` : model;
 	}
 
 	if (provider === "anthropic") {

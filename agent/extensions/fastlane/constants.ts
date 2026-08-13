@@ -5,9 +5,6 @@
 /** Event emitted when Fastlane active/display state changes. */
 export const FASTLANE_STATE_EVENT = "fastlane:state";
 
-/** Provider currently supported by the initial Fastlane backend. */
-export const OPENAI_CODEX_PROVIDER_ID = "openai-codex";
-
 /** API type used by Pi's ChatGPT-auth Codex provider. */
 export const OPENAI_CODEX_API_ID = "openai-codex-responses";
 
