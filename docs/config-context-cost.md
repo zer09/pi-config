@@ -12,6 +12,8 @@ Delegated environment-contract update: 2026-08-09 (added scoped parent-session m
 
 Skill and CLI synchronization update: 2026-08-09 (refreshed current CLI references and selected upstream runtime guidance; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated Z.AI model-alternative update: 2026-08-15 (added explicit GLM 5.3/max role selection; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -152,6 +154,19 @@ The startup delta is limited to the 50-token global safety rule. Exact `env -u` 
 This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration was run. Four catalog descriptions changed. Across all reviewed target descriptions, the subtotal moved from 690 to 704 tokens, a net startup increase of 14 tokens.
 
 Runtime body and reference changes remain on demand. The largest body deltas were `crit-cli` +105, `firebase-ai-logic-basics` +88, `crit` +87, `nlm-skill` +78, and `improve-codebase-architecture` +51 tokens. Generated GitHub/Linear help, NotebookLM references, and Directus release guidance add no startup context unless a matching skill loads those references.
+
+## 2026-08-15 delegated Z.AI alternative attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration was run. The full extension/tool inventory was not rerun.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,529 | 2,571 | +42 | Always loaded through the context-file block |
+| `delegated-pi-loop` description | 74 | 83 | +9 before catalog framing | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | 1,721 | 1,894 | +173 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 2,111 | 2,433 | +322 | Loaded only before a delegate spawn |
+
+The startup increase is limited to the compact Z.AI selection rule and the broader skill trigger. Exact GLM 5.3 spawn commands remain on demand.
 
 ## Provider-calibrated baseline probes
 

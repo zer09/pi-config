@@ -1,6 +1,6 @@
-# Delegated Pi and Claude Code prompt and spawn contracts
+# Delegated Pi, Z.AI, and Claude Code prompt and spawn contracts
 
-Load this reference before spawning delegates. Adapt project paths, documents, role templates, finding taxonomies, and gates without weakening the isolation and mutation rules. Use Pi by default; use Claude Code only when the user or project explicitly selects it.
+Load this reference before spawning delegates. Adapt project paths, documents, role templates, finding taxonomies, and gates without weakening the isolation and mutation rules. Use the default Pi role models unless the user or project explicitly selects Z.AI GLM 5.3 or Claude Code.
 
 ## Read-only tree fingerprint
 
@@ -64,6 +64,52 @@ env \
   --thinking high \
   @"$prompt_file"
 ```
+
+### Explicit Z.AI GLM 5.3 implementation or remediation alternative
+
+```bash
+project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
+prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
+cd "$project_root"
+env \
+  -u PI_SESSION_ID \
+  -u PI_SESSION_FILE \
+  -u PI_PROVIDER \
+  -u PI_MODEL \
+  -u PI_REASONING_LEVEL \
+  PI_SKIP_VERSION_CHECK=1 pi \
+  --print \
+  --no-session \
+  --approve \
+  --provider zai \
+  --model glm-5.3 \
+  --thinking max \
+  @"$prompt_file"
+```
+
+### Explicit Z.AI GLM 5.3 review or verification alternative
+
+```bash
+project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
+prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
+cd "$project_root"
+env \
+  -u PI_SESSION_ID \
+  -u PI_SESSION_FILE \
+  -u PI_PROVIDER \
+  -u PI_MODEL \
+  -u PI_REASONING_LEVEL \
+  PI_SKIP_VERSION_CHECK=1 pi \
+  --print \
+  --no-session \
+  --approve \
+  --provider zai \
+  --model glm-5.3 \
+  --thinking max \
+  @"$prompt_file"
+```
+
+The Z.AI commands use the same Pi isolation contract as the default role models. The role prompt controls mutation permissions, neutrality, and output requirements.
 
 `PI_SKIP_VERSION_CHECK=1` suppresses Pi's version-check request; it does not disable the selected provider request. Do not use `PI_OFFLINE=1` for a provider-backed delegate.
 

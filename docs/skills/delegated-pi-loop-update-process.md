@@ -1,12 +1,13 @@
 # Delegated Pi loop update process
 
-Purpose: maintain `agent/skills/delegated-pi-loop` as the local source of truth for orchestrating fresh Pi or Claude Code implementation, independent review, finding verification, and focused remediation delegates on one shared working tree.
+Purpose: maintain `agent/skills/delegated-pi-loop` as the local source of truth for orchestrating fresh Pi or Claude Code implementation, independent review, finding verification, and focused remediation delegates on one shared working tree. Pi delegates can use the default OpenAI Codex role models or explicitly selected Z.AI GLM 5.3.
 
 ## Classification and provenance
 
 - Classification: **keep it**, implemented slimly through progressive disclosure.
 - Source of truth: this Pi config, ADR 0007, and observed successful delegated implementation/review workflows.
 - Pi harness authority: the Pi CLI reference installed with `@earendil-works/pi-coding-agent` for `--print`, `--no-session`, `--approve`, provider/model/thinking flags, context-file loading, and process environment behavior. Latest reviewed CLI: Pi 0.84.1.
+- Z.AI model authority: the installed Pi model catalog for provider `zai`, model `glm-5.3`, and `max` thinking support.
 - Claude harness authority: the installed `claude --help` plus official Claude Code [CLI reference](https://code.claude.com/docs/en/cli-reference), [model configuration](https://code.claude.com/docs/en/model-config), and [headless usage](https://code.claude.com/docs/en/headless) for `--print`, `--model claude-opus-5`, `--effort medium`, `--no-session-persistence`, permissions, and stdin prompts. Latest reviewed CLI: Claude Code 2.1.226.
 - Project execution guides and accepted architecture decisions remain authoritative for project-specific role prompts, finding taxonomies, gates, and release transitions.
 
@@ -33,12 +34,13 @@ Preserve all of these unless the user explicitly changes the workflow:
 5. At most one mutating delegate runs on a shared working tree, with no concurrent parent edits.
 6. Implementation and remediation default to `openai-codex/gpt-5.6-luna` at `max` thinking.
 7. Independent review and finding verification default to `openai-codex/gpt-5.6-sol` at `high` thinking.
-8. When the user or project explicitly selects Claude Code, any role uses pinned `claude-opus-5` at `medium` effort with role-appropriate permissions; the moving `opus` alias is not used.
-9. Reviewers and verifiers are read-only, neutral, and checked against pre/post tree fingerprints.
-10. A project-provided verification template must be instantiated before focused remediation; parent analysis is not a substitute.
-11. A fresh independent review follows every remediation round.
-12. Git transitions and hosted-service writes retain their separate explicit-authorization gates.
-13. Temporary prompts and reports remain outside tracked project paths and contain no secrets.
+8. When the user or project explicitly selects Z.AI, any role uses pinned `zai/glm-5.3` at `max` thinking through Pi.
+9. When the user or project explicitly selects Claude Code, any role uses pinned `claude-opus-5` at `medium` effort with role-appropriate permissions; the moving `opus` alias is not used.
+10. Reviewers and verifiers are read-only, neutral, and checked against pre/post tree fingerprints.
+11. A project-provided verification template must be instantiated before focused remediation; parent analysis is not a substitute.
+12. A fresh independent review follows every remediation round.
+13. Git transitions and hosted-service writes retain their separate explicit-authorization gates.
+14. Temporary prompts and reports remain outside tracked project paths and contain no secrets.
 
 ## Update workflow
 
@@ -47,7 +49,7 @@ Preserve all of these unless the user explicitly changes the workflow:
 3. Read the installed Pi `README.md`, `docs/skills.md`, `docs/sessions.md`, and `docs/environment-variables.md` before changing Pi CLI/session behavior.
 4. Read current official Claude Code CLI, model-configuration, and headless documentation plus local `claude --help` before changing Claude commands, model aliases, effort, permissions, or persistence behavior.
 5. Compare proposed behavior against at least one current project execution guide when project-template precedence or role separation changes.
-6. Confirm configured Pi model IDs/thinking levels and installed Claude Code Opus 5/effort support before changing defaults.
+6. Confirm configured Pi model IDs/thinking levels, Z.AI GLM 5.3/max support, and installed Claude Code Opus 5/effort support before changing defaults.
 7. Keep the global `AGENTS.md` section compact; move detailed commands and prompt formats into the runtime reference.
 8. Keep `SKILL.md` under 500 lines and preserve its maintenance pointer.
 9. Update `agents/openai.yaml` when the description or user-facing invocation changes.
@@ -70,15 +72,15 @@ Also verify:
 - The runtime skill and reference contain no unresolved scaffold/TODO placeholders or user-specific home paths; generic prompt fields are clearly marked for replacement.
 - All changed local Markdown links resolve.
 - No caches, logs, delegate transcripts, temporary prompts, or evaluation artifacts were added.
-- The global rule and skill agree on direct bash routing, no timeout, environment scrubbing, fresh Pi/Claude sessions, role models, Claude permission modes, reviewer neutrality, and mutation gates.
+- The global rule and skill agree on direct bash routing, no timeout, environment scrubbing, fresh Pi/Claude sessions, default role models, explicit Z.AI GLM 5.3/max selection, Claude permission modes, reviewer neutrality, and mutation gates.
 - Existing unrelated dirty config files remain untouched.
 
 ## Evaluation guidance
 
 The workflow has objective structural checks but real behavior evaluation can spend provider tokens and mutate a test tree. Prefer a disposable local Git fixture when evaluation is warranted. Test these cases:
 
-1. Explicit delegated implementation triggers the skill and produces one Luna/max spawn contract by default or one Opus 5/medium Claude Code contract when selected.
-2. Independent review produces a fresh Sol/high read-only contract by default or an Opus 5/medium read-only Claude Code contract when selected, with no remediation steering.
+1. Explicit delegated implementation triggers the skill and produces one Luna/max spawn contract by default, one GLM 5.3/max Pi contract when Z.AI is selected, or one Opus 5/medium Claude Code contract when Claude is selected.
+2. Independent review produces a fresh Sol/high read-only contract by default, a GLM 5.3/max read-only contract when Z.AI is selected, or an Opus 5/medium read-only Claude Code contract when Claude is selected, with no remediation steering.
 3. A reproduced finding routes through verification, focused remediation, and a fresh review.
 4. A non-reproduced finding does not trigger speculative mutation.
 5. Architecture ambiguity stops for user input.

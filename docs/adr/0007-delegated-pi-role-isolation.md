@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-A successful implementation workflow used the current Pi session as an orchestrator and fresh one-shot Pi processes as implementation, independent-review, finding-verification, and focused-remediation delegates. The same role isolation is also needed when the user explicitly selects Claude Code with Claude Opus 5 as the delegate backend. The useful behavior came from more than merely asking a second model for help:
+A successful implementation workflow used the current Pi session as an orchestrator and fresh one-shot Pi processes as implementation, independent-review, finding-verification, and focused-remediation delegates. The same role isolation applies when the user explicitly selects Z.AI GLM 5.3 through Pi or Claude Code with Claude Opus 5. The useful behavior came from more than merely asking a second model for help:
 
 - implementation and review used different role-appropriate models and reasoning levels;
 - each role started without conversation history;
@@ -43,9 +43,10 @@ Default role assignments are:
 
 - implementation and focused remediation: `openai-codex/gpt-5.6-luna`, thinking `max`;
 - independent review and finding verification: `openai-codex/gpt-5.6-sol`, thinking `high`;
+- explicit Z.AI alternative for any role: `zai/glm-5.3`, thinking `max`;
 - explicit Claude Code alternative for any role: `claude-opus-5`, effort `medium`.
 
-Pi remains the default. Use Claude Code only when the user or project explicitly selects it. Pin `claude-opus-5` rather than the moving `opus` alias. User instructions and more-specific project workflows may otherwise override model selection. Project role templates, finding taxonomies, and release gates take precedence over generic skill skeletons.
+The OpenAI Codex role models remain the defaults. Use Z.AI or Claude Code only when the user or project explicitly selects that alternative. Pin `zai/glm-5.3` at `max` thinking or `claude-opus-5` at `medium` effort rather than using a moving alias. User instructions and more-specific project workflows may otherwise override model selection. Project role templates, finding taxonomies, and release gates take precedence over generic skill skeletons.
 
 Only one mutating delegate may run on a shared working tree, and the parent must not edit concurrently. Reviewers and verifiers are read-only and neutral; compare tree state before and after their runs. If a project provides separate finding-verification and focused-remediation templates, instantiate both in separate fresh processes. Parent-session analysis cannot replace required independent verification.
 
@@ -53,7 +54,7 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 
 ## Consequences
 
-- Other Pi sessions can reproduce the workflow with either fresh Pi delegates or explicitly selected Claude Code delegates from a compact automatic trigger.
+- Other Pi sessions can reproduce the workflow with default Pi role models, explicitly selected Z.AI GLM 5.3 delegates, or explicitly selected Claude Code delegates from a compact automatic trigger.
 - The always-loaded global context grows only by the short trigger/safety section; detailed behavior remains on demand.
 - Independent-review credibility depends on role and context isolation rather than model self-approval.
 - Shared-tree safety remains prompt- and fingerprint-enforced; this is not an operating-system sandbox because reviewers may still have `bash`.
@@ -72,8 +73,9 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 
 1. Validate the target skill and every Local Skill.
 2. Parse every `agents/openai.yaml` and verify the delegated skill's default prompt names `$delegated-pi-loop`.
-3. Check the installed Claude Code version supports Opus 5, `--effort medium`, `--no-session-persistence`, and the documented permission flags.
-4. Check global and skill instructions agree on direct bash, no timeout, environment scrubbing, fresh sessions, one mutator, neutral reviewers, and authorization gates.
-5. Check changed Markdown links, placeholders, user-specific paths, secrets, and runtime artifacts.
-6. Measure the incremental global-context and skill-catalog cost without requiring paid inference.
-7. When CLI/model semantics change materially, run a disposable-fixture delegate smoke only with appropriate authorization.
+3. Check the installed Pi model catalog resolves `zai/glm-5.3` and accepts `max` thinking without provider inference.
+4. Check the installed Claude Code version supports Opus 5, `--effort medium`, `--no-session-persistence`, and the documented permission flags.
+5. Check global and skill instructions agree on direct bash, no timeout, environment scrubbing, fresh sessions, one mutator, neutral reviewers, and authorization gates.
+6. Check changed Markdown links, placeholders, user-specific paths, secrets, and runtime artifacts.
+7. Measure the incremental global-context and skill-catalog cost without requiring paid inference.
+8. When CLI/model semantics change materially, run a disposable-fixture delegate smoke only with appropriate authorization.

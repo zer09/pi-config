@@ -82,6 +82,7 @@ This project does not use the full ASD-STE100 dictionary. Apply the common subst
 - Spawn delegates with direct `bash`, never Context Mode, and omit the tool timeout.
 - Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before each delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates.
 - Use fresh ephemeral delegates: `--no-session` for Pi or `--no-session-persistence` for Claude Code. Run only one mutating delegate at a time on a shared working tree, and do not edit concurrently with it.
+- Use Z.AI GLM 5.3 only when the user or project explicitly selects it; pin `--provider zai --model glm-5.3 --thinking max` for any assigned role.
 - Use Claude Code only when the user or project explicitly selects it; pin Opus 5 with `--model claude-opus-5 --effort medium` rather than relying on the moving `opus` alias.
 - Read-only reviewers and verifiers must not edit files or Git state. Compare working-tree state before and after them and treat unexpected mutation as a failed delegation.
 - Project-specific execution guides and role templates take precedence. When separate finding-verification and focused-remediation templates exist, instantiate them; parent-session analysis is not a substitute.

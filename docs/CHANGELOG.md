@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-15 — Add Z.AI GLM 5.3 delegate alternative
+
+- Added explicitly selected `zai/glm-5.3` at `max` thinking as an implementation, remediation, review, or finding-verification alternative in `delegated-pi-loop`.
+- Preserved Luna/max and Sol/high as the default role models, Claude Opus 5/medium as the explicit Claude alternative, and all existing fresh-session, role-isolation, environment-scrubbing, single-mutator, and authorization rules.
+- Added exact GLM implementation and read-only role commands. Updated global routing, skill metadata, ADR 0007, maintenance guidance, inventory rationale, and context-cost attribution.
+- Validation: the installed Pi catalog resolves Z.AI GLM 5.3, a no-inference RPC selection accepted `max`, target and all 34 Local Skills validated, YAML and contract checks passed, and no runtime artifacts were added.
+
 ## 2026-08-09 — Synchronize Local Skills and owned CLIs
 
 - Updated user-level CLIs to GitHub CLI 2.97.0, Crit 0.18.4, Linear CLI 2.4.0, Notion `ntn` 0.21.9, NotebookLM/Gemini Notebook CLI 0.9.6, Ruff 0.16.2, ty 0.0.69, and Claude Code 2.1.226. Firebase CLI 15.26.0, uv 0.12.3, and PostHog CLI 2026.7.1 were already current.

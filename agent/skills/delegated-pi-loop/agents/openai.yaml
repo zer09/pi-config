@@ -1,4 +1,4 @@
 interface:
-  display_name: "Delegated Pi and Claude Loop"
-  short_description: "Run isolated Pi or Claude review loops"
-  default_prompt: "Use $delegated-pi-loop to orchestrate fresh Pi or Claude Code implementation, verification, remediation, and independent review delegates."
+  display_name: "Delegated Multi-Model Loop"
+  short_description: "Run isolated Pi, Z.AI, or Claude review loops"
+  default_prompt: "Use $delegated-pi-loop to orchestrate fresh Pi, Z.AI GLM 5.3, or Claude Code implementation, verification, remediation, and independent review delegates."
