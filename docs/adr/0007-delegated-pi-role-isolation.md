@@ -21,7 +21,7 @@ Reconstructing these constraints ad hoc is error-prone. Putting the full procedu
 
 The previously retired `context-watcher` was a broad orchestration runtime skill. Restoring that broad scope is unnecessary; this decision concerns one narrow, explicitly requested implementation/review loop.
 
-Repeated delegate calls exposed a missing lifecycle bound. One delegate remained silent for about 85 minutes and ended only after SIGTERM with no report. A later retry left no tool result when the parent session ended. Fresh sessions and role isolation do not protect against provider stalls, deadlocks, empty stdout, or abandoned descendants.
+Repeated delegate calls exposed a missing lifecycle bound. One delegate remained silent for about 85 minutes and ended only after SIGTERM with no report. A later retry left no tool result when the parent session ended. Another browser verifier stayed active for two hours although its remaining proof was already blocked. Fresh sessions and role isolation do not protect against provider stalls, silent tools, active but unproductive loops, empty reports, or abandoned descendants.
 
 A 2026-08-16 external chart review supplied only directional evidence that lower reasoning effort can reduce latency. Its subscription estimates and Pareto curve were not reliable enough to establish model policy. After a brief lower-effort trial decision, the user selected GLM 5.3/max as the implementation default and retained Luna/xhigh only for positively classified small tasks. Final independent review retains higher effort because missed blockers have greater cost than slower execution.
 
@@ -36,9 +36,9 @@ Adopt a layered delegated-Pi workflow:
 
 The parent Pi session is the sole orchestrator. Spawned Pi or Claude Code delegates execute their assigned role directly and do not recursively delegate.
 
-Run delegates through direct `bash`, never Context Mode, and omit the spawning tool call's timeout. Route every child through the `delegated-pi-loop` supervisor with a positive wall-clock deadline. The default deadline is 45 minutes, with a 50 MiB combined output limit. The supervisor emits heartbeats, captures stdout and stderr in a private temporary directory, terminates the complete child process group, rejects empty reports, and writes a terminal status record. Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before each delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates. Run delegates sequentially by default and use fresh ephemeral processes:
+Run delegates through direct `bash`, never Context Mode, and omit the spawning tool call's timeout. Route every child through the `delegated-pi-loop` supervisor. The defaults are a 45-minute wall deadline, 50 MiB child-output limit, 5-minute Pi event-idle warning, and 10-minute Pi event-idle termination. Larger wall or idle values require explicit supervisor override flags in addition to the applicable authorization or known-tool justification. Pi delegates use JSON event mode. The Python supervisor parses thinking, text, tool, message, turn, and agent events privately; updates activity metadata; extracts only the final report; and deletes raw events. Plain-protocol delegates retain process heartbeats until they gain a stream adapter. The supervisor terminates the complete child process group, rejects empty or malformed results, and writes a terminal status record. Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before each delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates. Run delegates sequentially by default and use fresh ephemeral processes:
 
-- Pi: `--print --no-session --approve`;
+- Pi: `--mode json --no-session --approve` through supervisor protocol `pi-json`;
 - Claude Code: `--print --no-session-persistence` with role-appropriate non-interactive permissions.
 
 Pi 0.84.1 sets `AI_AGENT=pi` and `PI_CODING_AGENT=true` in each Pi child. Pi's built-in bash tool replaces the cleared metadata with the child session's values. The scrub prevents parent metadata from misleading child extensions or generic subprocesses.
@@ -54,7 +54,7 @@ Default role assignments are:
 
 GLM 5.3/max is the implementation and remediation default. The orchestrator may select Luna/xhigh only after recording that the task is narrow, follows an established pattern, has no material ambiguity or architecture, security, concurrency, schema, migration, broad-refactor, or cross-system concern, and should finish in a few turns. Uncertainty routes to GLM 5.3/max. Sol remains the default for read-only roles. Use Z.AI for review or verification, or Claude Code for any role, only when the user or project explicitly selects that alternative. Pin model and effort identifiers rather than using moving aliases. User instructions and more-specific project workflows may otherwise override model selection. Project role templates, finding taxonomies, and release gates take precedence over generic skill skeletons.
 
-Only one mutating delegate may run on a shared working tree, and the parent must not edit concurrently. Reviewers and verifiers are read-only and neutral; compare tree state before and after their runs. If a project provides separate finding-verification and focused-remediation templates, instantiate both in separate fresh processes. Parent-session analysis cannot replace required independent verification.
+Only one mutating delegate may run on a shared working tree, and the parent must not edit concurrently. Reviewers and verifiers are read-only and neutral; compare tree state before and after their runs. Every role prompt defines attempt/time budgets and ends with one structured `DELEGATE_RESULT` marker. A delegate that cannot establish a required result within its budget reports `BLOCKED` and stops unrelated work. If a project provides separate finding-verification and focused-remediation templates, instantiate both in separate fresh processes. Parent-session analysis cannot replace required independent verification.
 
 Do not stage, commit, push, open or merge pull requests, deploy, or mutate hosted services unless that exact transition has been separately authorized.
 
@@ -64,8 +64,9 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 - The always-loaded global context grows only by the short trigger/safety section; detailed behavior remains on demand.
 - Independent-review credibility depends on role and context isolation rather than model self-approval.
 - Shared-tree safety remains prompt- and fingerprint-enforced; this is not an operating-system sandbox because reviewers may still have `bash`.
-- A stalled delegate now terminates within its configured bound. Empty stdout becomes a failed `missing_report` state instead of silent success.
-- Supervisor artifacts preserve the report, stderr, and terminal status without persisting the delegate command line.
+- A Pi delegate with no valid activity event for ten minutes reaches `stalled`; an active loop still reaches the 45-minute wall deadline.
+- `COMPLETED`, `BLOCKED`, and `FAILED` outcomes are machine-readable. Empty reports, malformed streams, and missing markers fail explicitly.
+- Supervisor artifacts preserve the final report, bounded stderr, activity metadata, and terminal status without persisting the command line or raw Pi events.
 - Complex or uncertain implementation routes to GLM 5.3/max. Luna/xhigh remains available only for clearly small, low-risk, few-turn work; final review retains Sol/high as the quality gate.
 - Model identifiers, thinking or effort levels, and process environment markers are maintenance points. Check each contract when Pi or Claude Code changes them.
 - Real delegate evaluations can spend provider tokens and may mutate a fixture, so structural validation is the default and live smoke tests require an appropriate disposable workspace and authorization.
@@ -87,7 +88,7 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 3. Check Pi accepts Luna/xhigh, Sol/high, Sol/medium, and Z.AI GLM 5.3/max selections without provider inference.
 4. Check the installed Claude Code version supports Opus 5, `--effort medium`, `--no-session-persistence`, and the documented permission flags.
 5. Check global and skill instructions agree on direct bash, bounded child supervision, environment scrubbing, fresh sessions, one mutator, neutral reviewers, and authorization gates.
-6. Run supervisor regressions for successful reports, empty reports, deadlines, and descendant cleanup.
+6. Run supervisor regressions for private Pi JSON parsing, active-event liveness, idle stalls, wall deadlines, structured outcomes, context isolation, successful/empty reports, and descendant cleanup.
 7. Check changed Markdown links, placeholders, user-specific paths, secrets, and runtime artifacts.
 8. Measure the incremental global-context and skill-catalog cost without requiring paid inference.
 9. When CLI/model semantics change materially, run a disposable-fixture delegate smoke only with appropriate authorization.

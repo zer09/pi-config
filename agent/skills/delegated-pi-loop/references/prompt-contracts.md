@@ -21,7 +21,9 @@ The status plus hashes distinguish pre-existing tracked/staged content from dele
 
 Set the project, temporary prompt, and supervisor paths in the parent session. Run these with direct `bash`. Omit the bash tool's timeout field, but always route the child through `run_delegate.py`. Never run Pi or Claude Code delegates through Context Mode.
 
-The supervisor announces its private artifact directory before spawn, applies a 45-minute wall-clock deadline, emits a heartbeat every 60 seconds, enforces a 50 MiB combined output limit, terminates the complete child process group, and preserves `report.md`, `stderr.log`, and `status.json`. Use `--timeout-seconds <seconds>` before `--` only when the task has an explicitly justified larger bound. Never run an unbounded child.
+The supervisor announces its private artifact directory before spawn, applies a 45-minute wall-clock deadline, enforces a 50 MiB combined output limit, terminates the complete child process group, and preserves `report.md`, `stderr.log`, and `status.json`. Pi delegates stream JSON internally. Valid thinking, text, tool, message, turn, and agent events reset the activity clock. Five event-idle minutes produce one warning; ten event-idle minutes terminate the delegate as `stalled`. Raw JSON, thinking, and tool payloads are parsed privately, never replayed, and deleted after final extraction. Plain-protocol delegates retain 60-second process heartbeats until a separate stream adapter exists.
+
+Use `--timeout-seconds <seconds> --allow-extended-timeout` before `--` only when the user explicitly authorizes a larger wall deadline. Use `--idle-timeout-seconds <seconds> --allow-extended-idle` only for a known, intentionally silent tool. The supervisor rejects larger values without these explicit flags. Never run an unbounded child.
 
 Implementation and remediation default to GLM 5.3/max. The orchestrator may choose Luna/xhigh only when all of these conditions hold:
 
@@ -40,6 +42,10 @@ prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
 supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
 uv run --no-project python "$supervisor" \
+  --protocol pi-json \
+  --require-result \
+  --idle-warning-seconds 300 \
+  --idle-timeout-seconds 600 \
   --label implementation-glm-5.3-max \
   -- \
   env \
@@ -49,7 +55,7 @@ uv run --no-project python "$supervisor" \
     -u PI_MODEL \
     -u PI_REASONING_LEVEL \
     PI_SKIP_VERSION_CHECK=1 pi \
-    --print \
+    --mode json \
     --no-session \
     --approve \
     --provider zai \
@@ -66,6 +72,10 @@ prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
 supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
 uv run --no-project python "$supervisor" \
+  --protocol pi-json \
+  --require-result \
+  --idle-warning-seconds 300 \
+  --idle-timeout-seconds 600 \
   --label review-sol-high \
   -- \
   env \
@@ -75,7 +85,7 @@ uv run --no-project python "$supervisor" \
     -u PI_MODEL \
     -u PI_REASONING_LEVEL \
     PI_SKIP_VERSION_CHECK=1 pi \
-    --print \
+    --mode json \
     --no-session \
     --approve \
     --provider openai-codex \
@@ -92,6 +102,10 @@ prompt_file="${TMPDIR:-/tmp}/project-verification-prompt.md"
 supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
 uv run --no-project python "$supervisor" \
+  --protocol pi-json \
+  --require-result \
+  --idle-warning-seconds 300 \
+  --idle-timeout-seconds 600 \
   --label verification-sol-medium \
   -- \
   env \
@@ -101,7 +115,7 @@ uv run --no-project python "$supervisor" \
     -u PI_MODEL \
     -u PI_REASONING_LEVEL \
     PI_SKIP_VERSION_CHECK=1 pi \
-    --print \
+    --mode json \
     --no-session \
     --approve \
     --provider openai-codex \
@@ -118,6 +132,10 @@ prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
 supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
 uv run --no-project python "$supervisor" \
+  --protocol pi-json \
+  --require-result \
+  --idle-warning-seconds 300 \
+  --idle-timeout-seconds 600 \
   --label implementation-luna-xhigh-small \
   -- \
   env \
@@ -127,7 +145,7 @@ uv run --no-project python "$supervisor" \
     -u PI_MODEL \
     -u PI_REASONING_LEVEL \
     PI_SKIP_VERSION_CHECK=1 pi \
-    --print \
+    --mode json \
     --no-session \
     --approve \
     --provider openai-codex \
@@ -144,6 +162,10 @@ prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
 supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
 uv run --no-project python "$supervisor" \
+  --protocol pi-json \
+  --require-result \
+  --idle-warning-seconds 300 \
+  --idle-timeout-seconds 600 \
   --label review-glm-5.3 \
   -- \
   env \
@@ -153,7 +175,7 @@ uv run --no-project python "$supervisor" \
     -u PI_MODEL \
     -u PI_REASONING_LEVEL \
     PI_SKIP_VERSION_CHECK=1 pi \
-    --print \
+    --mode json \
     --no-session \
     --approve \
     --provider zai \
@@ -176,6 +198,7 @@ prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
 supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
 uv run --no-project python "$supervisor" \
+  --require-result \
   --label implementation-claude-opus-5 \
   -- \
   env \
@@ -207,6 +230,7 @@ prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
 supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
 uv run --no-project python "$supervisor" \
+  --require-result \
   --label review-claude-opus-5 \
   -- \
   env \
@@ -232,7 +256,7 @@ uv run --no-project python "$supervisor" \
 
 Claude Code v2.1.219 or later resolves Opus 5, but these commands pin `claude-opus-5` so the selected family does not move over time. `--no-session-persistence` prevents resume state. Do not add `--continue` or `--resume`. Do not use `--bare`: it skips normal Claude configuration and subscription login. Broad Bash access is still not an operating-system sandbox, so preserve prompt prohibitions and pre/post tree fingerprints.
 
-Treat supervisor states other than `completed` as failed delegation. Preserve the artifact directory path and diagnose `stderr.log` and `status.json` before any fresh retry. A zero child exit with empty stdout becomes `missing_report` and fails instead of silently approving an absent report.
+Treat supervisor states other than `completed` as failed delegation. Preserve the artifact directory path and diagnose `stderr.log` and `status.json` before any fresh retry. `stalled` means no valid Pi activity event reached the supervisor before the event-idle deadline. `blocked`, `delegate_failed`, `invalid_result`, and `invalid_stream` are distinct terminal failures. A zero child exit with no final report becomes `missing_report`.
 
 ## Common delegate header
 
@@ -250,6 +274,20 @@ Do not stage, commit, push, or mutate hosted services unless this prompt explici
 ```
 
 Use actual safe paths in the generated temporary prompt. Do not retain generic angle-bracket placeholders.
+
+## Attempt and terminal-result contract
+
+Every generated role prompt must define a bounded attempt budget for each required proof, gate, or objective. Unless a more-specific project workflow defines stricter limits, allow at most two materially equivalent attempts and at most ten minutes without new evidence on one requirement. Do not repeat an action without new evidence. When a required result remains unavailable after its budget, stop unrelated work and report `BLOCKED`.
+
+End the final response with exactly one of these lines:
+
+```text
+DELEGATE_RESULT: COMPLETED
+DELEGATE_RESULT: BLOCKED
+DELEGATE_RESULT: FAILED
+```
+
+The marker must be the final non-whitespace line and must not appear earlier. `COMPLETED` means the delegate completed its assigned role; an independent review can therefore report required fixes and still use `COMPLETED`. Use `BLOCKED` when missing evidence, access, prerequisites, or reproducibility prevents role completion. Use `FAILED` when execution failed without a narrower blocker report. After `BLOCKED` or `FAILED`, do not start another attempt or unrelated task.
 
 ## Implementation prompt contract
 

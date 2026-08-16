@@ -2,6 +2,15 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-16 — Detect stalled and blocked delegates
+
+- Added private Pi JSON event monitoring for provider-exposed thinking, text, tool, message, turn, and agent activity without forwarding raw events into orchestrator context.
+- Added a 5-minute event-idle warning, 10-minute `stalled` termination, and retained the 45-minute absolute deadline for active loops.
+- Added final-report extraction plus machine-readable `COMPLETED`, `BLOCKED`, and `FAILED` outcomes. Missing markers and malformed streams now fail explicitly.
+- Added bounded-attempt prompt rules so a delegate reports `BLOCKED` instead of repeating work after a required proof exhausts its budget.
+- Raw Pi events exist only during supervision and are deleted after final extraction. Status artifacts retain only bounded activity metadata.
+- Validation covered context isolation, active thinking, silent stalls, active wall timeouts, blocked early exit, result enforcement, process cleanup, command contracts, and all Local Skills without paid inference.
+
 ## 2026-08-16 — Default implementation to GLM 5.3
 
 - Made Z.AI GLM 5.3/max the default model for delegated implementation and focused remediation.

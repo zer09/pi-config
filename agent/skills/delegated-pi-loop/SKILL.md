@@ -25,9 +25,10 @@ Default implementation and remediation to Z.AI GLM 5.3/max. Use Luna/xhigh only 
 ## Non-negotiable execution rules
 
 - Run spawned Pi or Claude Code processes with direct `bash`, never Context Mode.
-- Omit the bash tool timeout, but run every child through `scripts/run_delegate.py` with a positive wall-clock deadline and output limit. Defaults are 45 minutes and 50 MiB.
+- Omit the bash tool timeout, but run every child through `scripts/run_delegate.py`. Defaults are a 45-minute wall deadline, 50 MiB output limit, 5-minute Pi event-idle warning, and 10-minute Pi event-idle termination.
 - Treat supervisor states other than `completed` as failures. Preserve its private temporary `report.md`, `stderr.log`, and `status.json` paths for diagnosis.
-- For Pi, including Z.AI GLM, use `--print --no-session --approve`. For Claude Code, use `--print --no-session-persistence` with role-appropriate non-interactive permissions.
+- For Pi, including Z.AI GLM, use `--mode json --no-session --approve` with the supervisor's `pi-json` protocol. The supervisor parses activity privately, discards raw events after final extraction, and never replays thinking or tool payloads.
+- For Claude Code, use `--print --no-session-persistence` with role-appropriate non-interactive permissions and require the structured terminal-result marker.
 - Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before every delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates.
 - Pin the default implementation/remediation route as `--provider zai --model glm-5.3 --thinking max`. Use Z.AI for review or verification only when the user or project explicitly selects it.
 - Keep the current session as the only orchestrator. Tell every delegate to execute its assigned role directly and never spawn another Pi, Claude Code, or subagent session.
@@ -55,7 +56,7 @@ When implementation is requested:
 1. Create a temporary prompt outside the tracked project tree.
 2. Give the selected implementation delegate one narrow mutation scope with explicit invariants, exact findings or objective, success criteria, required tests, required documentation updates, and prohibitions.
 3. State that existing user changes belong to the user and must not be reverted.
-4. Require the delegate to report changed paths and exact checks run.
+4. Define attempt/time budgets and require the final `DELEGATE_RESULT` marker from the reference. Require changed paths and exact checks run.
 5. Spawn Z.AI GLM 5.3/max by default. Use Pi Luna/xhigh only when the recorded small-task classification satisfies every role-default criterion. Use Claude Opus 5/medium when explicitly selected. Wait for completion.
 6. Inspect the resulting diff and validation evidence before proceeding.
 
@@ -64,7 +65,7 @@ Do not ask an implementation delegate to perform its own independent approval.
 ### 3. Obtain an independent review
 
 1. Create a fresh review prompt from the project's review template.
-2. Include the exact tree/base to review, governing documents, scope exclusions, required gates, finding format, and verdict format.
+2. Include the exact tree/base to review, governing documents, scope exclusions, required gates, attempt/time budgets, finding format, verdict format, and final `DELEGATE_RESULT` marker.
 3. Do not include prior remediation reasoning, expected findings, leading hints, or the parent session's conclusions.
 4. Explicitly prohibit edits, Git mutations, hosted-service writes, and recursive delegation.
 5. Spawn the selected fresh reviewer: Pi Sol/high by default, Z.AI GLM 5.3/max when explicitly selected, or Claude Opus 5/medium when explicitly selected. Wait for completion.
@@ -78,7 +79,7 @@ A passing test suite is evidence, not independent approval. Approval comes only 
 For each blocking finding:
 
 1. Preserve its complete text, including severity, location, evidence, reproduction or interleaving, impact, and required contract.
-2. Spawn a separate fresh verification-only delegate using the project's template: Pi Sol/medium by default, Z.AI GLM 5.3/max when explicitly selected, or Claude Opus 5/medium when explicitly selected.
+2. Give the verifier bounded attempts per required proof and require immediate `BLOCKED` reporting when its budget cannot establish the result. Spawn a separate fresh verification-only delegate using the project's template: Pi Sol/medium by default, Z.AI GLM 5.3/max when explicitly selected, or Claude Opus 5/medium when explicitly selected.
 3. Require one classification: `REPRODUCED`, `PARTIALLY REPRODUCED`, `NOT REPRODUCED`, `ALREADY FIXED`, `DUPLICATE`, or `ARCHITECTURE AMBIGUITY`, unless the project defines another taxonomy.
 4. Do not let the verifier edit files, fix the defect, perform a broad review, or recursively delegate.
 5. If the result is `ARCHITECTURE AMBIGUITY`, stop and ask the user rather than silently choosing policy.
@@ -109,11 +110,11 @@ After a no-findings verdict:
 
 ## Failure handling
 
-- If a delegate fails, times out, or returns no report, preserve the supervisor artifacts and diagnose before retrying with a fresh process. Never retry automatically.
+- If a delegate stalls, blocks, fails, times out, returns an invalid stream/result, or returns no report, preserve the supervisor artifacts and diagnose before retrying with a fresh process. Never retry automatically.
 - If a read-only delegate mutates state, stop; do not silently revert user work.
 - If instructions conflict, follow the most specific applicable instruction and surface material ambiguity.
 - If the same finding recurs, investigate the causal gap and strengthen the next verification/remediation handoff rather than steering the reviewer toward a pass.
 
 ## Maintenance
 
-Update this custom local skill through `docs/skills/delegated-pi-loop-update-process.md`. Preserve fresh-session isolation for Pi and Claude Code, bounded child supervision, process-group cleanup, report diagnostics, role separation, the single-mutator rule, direct non-Context-Mode spawning, default GLM 5.3/max implementation, guarded small-task Luna/xhigh routing, explicit Claude Opus 5/medium selection, and explicit Git/hosted-service authorization gates.
+Update this custom local skill through `docs/skills/delegated-pi-loop-update-process.md`. Preserve fresh-session isolation, private Pi JSON activity monitoring, event-idle and wall deadlines, structured terminal results, process-group cleanup, role separation, the single-mutator rule, default GLM 5.3/max implementation, guarded small-task Luna/xhigh routing, explicit Claude Opus 5/medium selection, and Git/hosted-service authorization gates.
