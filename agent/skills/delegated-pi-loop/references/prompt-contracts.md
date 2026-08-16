@@ -129,7 +129,7 @@ uv run --no-project python "$chain" \
     @"$prompt_file"
 ```
 
-The paired review gate completes only when both commands return `completed`. Preserve both reports independently. Process every blocking finding from either report. If one command fails or is unavailable, the surviving report remains useful evidence but does not constitute the complete paired review gate.
+The paired review gate completes only when both commands return `completed`. Preserve both reports independently. Process every blocking finding from either report. If one command fails or is unavailable, the surviving report remains useful evidence but does not constitute the complete paired review gate. An explicit Z.AI or Claude Code selection may replace an assigned reviewer slot, but it does not silently reduce a required two-reviewer gate.
 
 ### Finding verification
 
@@ -194,11 +194,14 @@ uv run --no-project python "$chain" \
     @"$prompt_file"
 ```
 
-### Explicit Z.AI GLM 5.3 review or verification alternative
+### Explicit Z.AI GLM 5.3 route for any assigned role
+
+The default implementation command above already covers implementation and focused remediation. For an explicit role assignment, provide that role's prompt and a safe diagnostic label:
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
-prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
+prompt_file="${DELEGATE_PROMPT_FILE:?set DELEGATE_PROMPT_FILE to the assigned role prompt}"
+role_label="${DELEGATE_ROLE_LABEL:?set DELEGATE_ROLE_LABEL to a safe role label}"
 supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
 uv run --no-project python "$supervisor" \
@@ -206,7 +209,7 @@ uv run --no-project python "$supervisor" \
   --require-result \
   --idle-warning-seconds 300 \
   --idle-timeout-seconds 600 \
-  --label review-glm-5.3 \
+  --label "$role_label-glm-5.3-max" \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -224,7 +227,7 @@ uv run --no-project python "$supervisor" \
     @"$prompt_file"
 ```
 
-The Z.AI commands use the same Pi isolation contract as the default role models. The role prompt controls mutation permissions, neutrality, and output requirements.
+Z.AI GLM 5.3/max can serve any assigned role. It remains the implementation/remediation default; review or verification requires explicit user or project selection. The assigned role prompt and orchestrator contract control mutation permissions, neutrality, tools, and output requirements. A backend selection never grants a reviewer or verifier mutation permission.
 
 `PI_SKIP_VERSION_CHECK=1` suppresses Pi's version-check request; it does not disable the selected provider request. Do not use `PI_OFFLINE=1` for a provider-backed delegate.
 

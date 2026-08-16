@@ -1,6 +1,6 @@
 # Delegated Pi loop update process
 
-Purpose: maintain `agent/skills/delegated-pi-loop` as the local source of truth for fresh, bounded Pi or Claude Code implementation, independent review, finding verification, and focused remediation delegates on one shared working tree. Implementation defaults to Z.AI GLM 5.3/max. Classified small tasks use a bounded ordered Pi provider chain. Default independent review uses two concurrent read-only reviewers, one with a bounded fallback.
+Purpose: maintain `agent/skills/delegated-pi-loop` as the local source of truth for fresh, bounded Pi or Claude Code implementation, independent review, finding verification, and focused remediation delegates on one shared working tree. Z.AI GLM 5.3/max can serve any assigned role and defaults to implementation/remediation. Classified small tasks use a bounded ordered Pi provider chain. Default independent review uses two concurrent read-only reviewers, one with a bounded fallback.
 
 ## Classification and provenance
 
@@ -45,7 +45,7 @@ Preserve all of these unless the user explicitly changes the workflow:
 12. Small-task implementation/remediation uses `gorouter/claude-opus-4-8-thinking`, `agentrouter/claude-opus-4-8`, `seekai/deepseek-v4-flash`, then `openai-codex/gpt-5.6-luna`, all at `xhigh`. The orchestrator must first record the existing narrow, low-risk, few-turn classification; uncertainty routes to GLM 5.3/max.
 13. Default independent review launches two fresh read-only reviewers concurrently: `gorouter/claude-opus-5-thinking` at `high`, plus `agentrouter/claude-opus-5` at `high` with `agentrouter/gpt-5.6-sol` at `high` as its only pre-tool fallback. Both must complete, and findings from either report require processing.
 14. Finding verification remains `openai-codex/gpt-5.6-sol` at `medium`.
-15. Z.AI review or verification requires explicit user or project selection and uses pinned `zai/glm-5.3` at `max` thinking through Pi.
+15. Z.AI can serve any assigned role through pinned `zai/glm-5.3` at `max` thinking. It defaults to implementation/remediation; review or verification requires explicit user or project selection. The assigned role controls mutation permissions.
 16. When the user or project explicitly selects Claude Code, any role uses pinned `claude-opus-5` at `medium` effort with role-appropriate permissions; the moving `opus` alias is not used.
 17. Reviewers and verifiers are read-only, neutral, and checked against pre/post tree fingerprints.
 18. A project-provided verification template must be instantiated before focused remediation; parent analysis is not a substitute.
@@ -92,7 +92,7 @@ Also verify:
 - The runtime skill and reference contain no unresolved scaffold/TODO placeholders or user-specific home paths; generic prompt fields are clearly marked for replacement.
 - All changed local Markdown links resolve.
 - No caches, logs, delegate transcripts, temporary prompts, or evaluation artifacts were added.
-- The global rule and skill agree on direct bash routing, private Pi JSON monitoring, event-idle and shared wall deadlines, bounded pre-tool route failover, the concurrent reviewer pair, structured outcomes, environment scrubbing, fresh sessions, exact model routing, Claude permission modes, reviewer neutrality, and mutation gates.
+- The global rule and skill agree on direct bash routing, private Pi JSON monitoring, event-idle and shared wall deadlines, bounded pre-tool route failover, the concurrent reviewer pair, structured outcomes, environment scrubbing, fresh sessions, exact model routing, Z.AI any-role availability, assigned-role mutation limits, Claude permission modes, reviewer neutrality, and mutation gates.
 - Raw thinking, tool payloads, and JSON events do not appear in `report.md`, `stderr.log`, `status.json`, or replayed supervisor output after a normal terminal path.
 - Existing unrelated dirty config files remain untouched.
 
@@ -102,8 +102,8 @@ The workflow has objective structural checks but real behavior evaluation can sp
 
 1. Delegated implementation produces one GLM 5.3/max spawn contract by default or one Opus 5/medium Claude Code contract when Claude is selected.
 2. The GoRouter Opus 4.8 Thinking → AgentRouter Opus 4.8 → SeekAI DeepSeek → Luna xhigh chain appears only after a recorded small-task classification satisfies every routing criterion; a missing, uncertain, complex, or high-risk classification routes to GLM 5.3/max.
-3. Default independent review launches GoRouter Opus 5 Thinking/high and AgentRouter Opus 5/high concurrently with isolated outputs. Only the AgentRouter reviewer may fall back, and only to AgentRouter GPT-5.6 Sol/high before tool execution. Both reviewers receive the same neutral scope without remediation steering.
-4. Finding verification produces a separate fresh OpenAI Codex Sol/medium read-only contract by default before any focused remediation.
+3. Default independent review launches GoRouter Opus 5 Thinking/high and AgentRouter Opus 5/high concurrently with isolated outputs. Only the AgentRouter reviewer may fall back, and only to AgentRouter GPT-5.6 Sol/high before tool execution. Both reviewers receive the same neutral scope without remediation steering. An explicitly selected Z.AI reviewer remains read-only and does not silently reduce the required gate.
+4. Finding verification produces a separate fresh OpenAI Codex Sol/medium read-only contract by default before any focused remediation. Explicit Z.AI selection uses GLM 5.3/max with the same verification-only mutation prohibition.
 5. A reproduced finding routes through verification, focused remediation, and a fresh review.
 6. A non-reproduced finding does not trigger speculative mutation.
 7. Architecture ambiguity stops for user input.

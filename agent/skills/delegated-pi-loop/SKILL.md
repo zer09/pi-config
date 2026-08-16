@@ -11,17 +11,17 @@ Read `references/prompt-contracts.md` before the first spawn. Use project-specif
 
 ## Role defaults
 
-| Role | Provider/model | Thinking | Mutation |
-|---|---|---:|---|
-| Implementation or focused remediation | `zai/glm-5.3` | `max` | Narrowly allowed |
-| Small-task implementation or remediation | GoRouter Opus 4.8 Thinking → AgentRouter Opus 4.8 → SeekAI DeepSeek V4 Flash → Luna | `xhigh` | Narrowly allowed |
-| Independent implementation review A | GoRouter Opus 5 Thinking | `high` | Prohibited |
-| Independent implementation review B | AgentRouter Opus 5 → AgentRouter GPT-5.6 Sol | `high` | Prohibited |
-| Finding verification | `openai-codex/gpt-5.6-sol` | `medium` | Prohibited |
-| Explicit Z.AI review or verification alternative | `zai/glm-5.3` | `max` | Prohibited |
-| Explicit Claude alternative for any role | Claude Code `claude-opus-5` | `medium` effort | Follows the assigned role |
+| Role                                     | Provider/model                                                                      |        Thinking | Mutation                  |
+| ---------------------------------------- | ----------------------------------------------------------------------------------- | --------------: | ------------------------- |
+| Implementation or focused remediation    | `zai/glm-5.3`                                                                       |           `max` | Narrowly allowed          |
+| Small-task implementation or remediation | GoRouter Opus 4.8 Thinking → AgentRouter Opus 4.8 → SeekAI DeepSeek V4 Flash → Luna |         `xhigh` | Narrowly allowed          |
+| Independent implementation review A      | GoRouter Opus 5 Thinking                                                            |          `high` | Prohibited                |
+| Independent implementation review B      | AgentRouter Opus 5 → AgentRouter GPT-5.6 Sol                                        |          `high` | Prohibited                |
+| Finding verification                     | `openai-codex/gpt-5.6-sol`                                                          |        `medium` | Prohibited                |
+| Explicit Z.AI alternative for any role   | `zai/glm-5.3`                                                                       |           `max` | Follows the assigned role |
+| Explicit Claude alternative for any role | Claude Code `claude-opus-5`                                                         | `medium` effort | Follows the assigned role |
 
-Default implementation and remediation to Z.AI GLM 5.3/max. Use the GoRouter-first small-task chain only after the orchestrator records that the task is narrow, follows an established pattern, has no material ambiguity or architecture, security, concurrency, schema, migration, or cross-system concern, and should finish in a few turns. If any criterion is uncertain, use GLM 5.3/max. Run both default high-thinking independent reviewers concurrently. Reviewer B may fall back from AgentRouter Opus 5 to AgentRouter GPT-5.6 Sol before tool execution. Keep OpenAI Codex Sol/medium for finding verification unless the user or project selects another backend. For Claude Code, pin `claude-opus-5` instead of the moving `opus` alias. Any explicitly requested model or reasoning level overrides these defaults.
+Default implementation and remediation to Z.AI GLM 5.3/max. Z.AI can serve any assigned role, but review or verification requires explicit user or project selection. The assigned role, not the backend, controls mutation permissions. Use the GoRouter-first small-task chain only after the orchestrator records that the task is narrow, follows an established pattern, has no material ambiguity or architecture, security, concurrency, schema, migration, or cross-system concern, and should finish in a few turns. If any criterion is uncertain, use GLM 5.3/max. Run both default high-thinking independent reviewers concurrently. Reviewer B may fall back from AgentRouter Opus 5 to AgentRouter GPT-5.6 Sol before tool execution. Keep OpenAI Codex Sol/medium for finding verification unless the user or project selects another backend. For Claude Code, pin `claude-opus-5` instead of the moving `opus` alias. Any explicitly requested model or reasoning level overrides these defaults.
 
 ## Non-negotiable execution rules
 
@@ -32,7 +32,7 @@ Default implementation and remediation to Z.AI GLM 5.3/max. Use the GoRouter-fir
 - For Pi, including Z.AI GLM, use `--mode json --no-session --approve` with the supervisor's `pi-json` protocol. The supervisor parses activity privately, discards raw events after final extraction, and never replays thinking or tool payloads.
 - For Claude Code, use `--print --no-session-persistence` with role-appropriate non-interactive permissions and require the structured terminal-result marker.
 - Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before every delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates.
-- Pin the default implementation/remediation route as `--provider zai --model glm-5.3 --thinking max`. Use Z.AI for review or verification only when the user or project explicitly selects it.
+- Pin the default implementation/remediation route as `--provider zai --model glm-5.3 --thinking max`. Z.AI can serve any assigned role, but review or verification requires explicit selection. The assigned role controls mutation permissions.
 - Keep the current session as the only orchestrator. Tell every delegate to execute its assigned role directly and never spawn another Pi, Claude Code, or subagent session.
 - Run mutating delegates and finding verifiers sequentially. Launch the two default read-only independent reviewers concurrently. Never run more than one mutating delegate at a time on a shared working tree.
 - Do not edit the tree while a mutating delegate is running.
@@ -70,7 +70,7 @@ Do not ask an implementation delegate to perform its own independent approval.
 2. Include the exact tree/base to review, governing documents, scope exclusions, required gates, attempt/time budgets, finding format, verdict format, and final `DELEGATE_RESULT` marker.
 3. Do not include prior remediation reasoning, expected findings, leading hints, or the parent session's conclusions.
 4. Explicitly prohibit edits, Git mutations, hosted-service writes, and recursive delegation.
-5. By default, launch two direct bash calls in one parallel tool batch: GoRouter Opus 5 Thinking/high and the AgentRouter Opus 5/high → AgentRouter GPT-5.6 Sol/high chain. When the user selects Z.AI or Claude Code instead, follow the explicit project/user selection. Wait for both default reviewers.
+5. By default, launch two direct bash calls in one parallel tool batch: GoRouter Opus 5 Thinking/high and the AgentRouter Opus 5/high → AgentRouter GPT-5.6 Sol/high chain. When the user or project assigns Z.AI or Claude Code to a review role, preserve the same neutral read-only contract. An explicit backend selection does not silently reduce a required two-reviewer gate. Wait for every reviewer required by the selected gate.
 6. Preserve both complete review outputs in separate temporary handoffs. Do not show either reviewer the other review.
 7. Recompute the tree fingerprint after both finish. If either reviewer changed tracked, staged, or relevant untracked state, stop, inspect the mutation, and treat that review as invalid until resolved.
 8. The review gate completes only when both reviewers complete. Process every blocking finding from either report; one no-findings verdict does not override the other report.
@@ -122,4 +122,4 @@ After a no-findings verdict:
 
 ## Maintenance
 
-Update this custom local skill through `docs/skills/delegated-pi-loop-update-process.md`. Preserve fresh-session isolation, private Pi JSON activity monitoring, bounded pre-tool route failover, event-idle and wall deadlines, structured terminal results, process-group cleanup, role separation, the single-mutator rule, the concurrent read-only reviewer pair, default GLM 5.3/max implementation, guarded GoRouter-first small-task routing, explicit Claude Opus 5/medium selection, and Git/hosted-service authorization gates.
+Update this custom local skill through `docs/skills/delegated-pi-loop-update-process.md`. Preserve fresh-session isolation, private Pi JSON activity monitoring, bounded pre-tool route failover, event-idle and wall deadlines, structured terminal results, process-group cleanup, role separation, the single-mutator rule, the concurrent read-only reviewer pair, Z.AI any-role availability with assigned-role mutation limits, default GLM 5.3/max implementation, guarded GoRouter-first small-task routing, explicit Claude Opus 5/medium selection, and Git/hosted-service authorization gates.

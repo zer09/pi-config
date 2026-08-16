@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-A successful implementation workflow used the current Pi session as an orchestrator and fresh one-shot Pi processes as implementation, independent-review, finding-verification, and focused-remediation delegates. The same role isolation applies to default Z.AI GLM 5.3 implementation or when the user explicitly selects Z.AI for a read-only role or Claude Code with Claude Opus 5. The useful behavior came from more than merely asking a second model for help:
+A successful implementation workflow used the current Pi session as an orchestrator and fresh one-shot Pi processes as implementation, independent-review, finding-verification, and focused-remediation delegates. The same role isolation applies whenever Z.AI GLM 5.3 or Claude Code with Claude Opus 5 serves an assigned role. The useful behavior came from more than merely asking a second model for help:
 
 - implementation and review used different role-appropriate models and reasoning levels;
 - each role started without conversation history;
@@ -54,10 +54,10 @@ Default role assignments are:
 - independent review A: `gorouter/claude-opus-5-thinking`, thinking `high`;
 - independent review B: `agentrouter/claude-opus-5` → `agentrouter/gpt-5.6-sol`, thinking `high`;
 - finding verification: `openai-codex/gpt-5.6-sol`, thinking `medium`;
-- explicit Z.AI review or verification alternative: `zai/glm-5.3`, thinking `max`;
+- explicit Z.AI alternative for any assigned role: `zai/glm-5.3`, thinking `max`, with mutation permissions inherited from the role;
 - explicit Claude Code alternative for any role: `claude-opus-5`, effort `medium`.
 
-GLM 5.3/max is the implementation and remediation default. The orchestrator may select the GoRouter-first small-task chain only after recording that the task is narrow, follows an established pattern, has no material ambiguity or architecture, security, concurrency, schema, migration, broad-refactor, or cross-system concern, and should finish in a few turns. Uncertainty routes to GLM 5.3/max. Default independent review launches both read-only reviewers concurrently. Only reviewer B has fallback, from AgentRouter Opus 5/high to AgentRouter GPT-5.6 Sol/high before tool execution. Both reviews must complete, and findings from either report require processing. OpenAI Codex Sol/medium remains the finding-verification default. Use Z.AI for review or verification, or Claude Code for any role, only when the user or project explicitly selects that alternative. Pin model and effort identifiers rather than using moving aliases. User instructions and more-specific project workflows may otherwise override model selection. Project role templates, finding taxonomies, and release gates take precedence over generic skill skeletons.
+GLM 5.3/max is available for any assigned role and remains the implementation and remediation default. Z.AI review or verification requires explicit user or project selection and remains read-only. The assigned role, not the backend, controls mutation permissions. The orchestrator may select the GoRouter-first small-task chain only after recording that the task is narrow, follows an established pattern, has no material ambiguity or architecture, security, concurrency, schema, migration, broad-refactor, or cross-system concern, and should finish in a few turns. Uncertainty routes to GLM 5.3/max. Default independent review launches both read-only reviewers concurrently. Only reviewer B has fallback, from AgentRouter Opus 5/high to AgentRouter GPT-5.6 Sol/high before tool execution. Both reviews must complete, and findings from either report require processing. An explicit Z.AI or Claude Code reviewer selection does not silently reduce a required two-reviewer gate. OpenAI Codex Sol/medium remains the finding-verification default. Use Claude Code for any role only when the user or project explicitly selects it. Pin model and effort identifiers rather than using moving aliases. User instructions and more-specific project workflows may otherwise override model selection. Project role templates, finding taxonomies, and release gates take precedence over generic skill skeletons.
 
 Only one mutating delegate may run on a shared working tree, and the parent must not edit concurrently. Reviewers and verifiers are read-only and neutral; compare tree state before and after their runs. Every role prompt defines attempt/time budgets and ends with one structured `DELEGATE_RESULT` marker. A delegate that cannot establish a required result within its budget reports `BLOCKED` and stops unrelated work. If a project provides separate finding-verification and focused-remediation templates, instantiate both in separate fresh processes. Parent-session analysis cannot replace required independent verification.
 
@@ -65,7 +65,7 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 
 ## Consequences
 
-- Other Pi sessions can reproduce default GLM 5.3/max implementation, guarded GoRouter-first small-task fallback, the concurrent independent-review pair, OpenAI Codex verification, or explicitly selected Z.AI read-only and Claude Code alternatives from a compact trigger.
+- Other Pi sessions can reproduce default GLM 5.3/max implementation, guarded GoRouter-first small-task fallback, the concurrent independent-review pair, OpenAI Codex verification, or explicitly selected Z.AI and Claude Code assignments for any role from a compact trigger.
 - The always-loaded global context grows only by the short trigger/safety section; detailed behavior remains on demand.
 - Independent-review credibility depends on role and context isolation rather than model self-approval.
 - Shared-tree safety remains prompt- and fingerprint-enforced; this is not an operating-system sandbox because reviewers may still have `bash`.

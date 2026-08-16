@@ -24,6 +24,8 @@ Delegated activity-monitoring update: 2026-08-16 (added private Pi JSON liveness
 
 Delegated provider-fallback update: 2026-08-16 (added guarded small-task fallback and a concurrent independent-review pair; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated Z.AI role-alignment update: 2026-08-16 (clarified GLM 5.3/max availability for any assigned role while preserving assigned-role mutation limits; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -241,6 +243,19 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `references/prompt-contracts.md` | 3,746 | 4,357 | +611 | Loaded only before a delegate spawn |
 
 The startup change adds the compact fallback boundary and concurrent-review default while shortening the skill description. Exact route commands, paired gate rules, catalog checks, and failure handling remain progressively disclosed.
+
+## 2026-08-16 delegated Z.AI role-alignment attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,781 | 2,802 | +21 | Always loaded through the context-file block |
+| `delegated-pi-loop` description | 77 | 77 | 0 | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | 2,500 | 2,608 | +108 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 4,357 | 4,485 | +128 | Loaded only before a delegate spawn |
+
+The startup increase adds one compact rule that backend selection never changes role mutation limits. Detailed any-role Z.AI guidance and its generic supervised spawn contract remain progressively disclosed.
 
 ## Provider-calibrated baseline probes
 

@@ -2,6 +2,12 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-16 — Align Z.AI delegated role availability
+
+- Clarified that Z.AI GLM 5.3/max can serve any assigned delegated role while remaining the implementation/remediation default.
+- Kept review and verification read-only and explicitly selected. The assigned role, not the backend, controls mutation permissions.
+- Preserved the two-reviewer gate when Z.AI or Claude Code replaces an assigned reviewer slot.
+
 ## 2026-08-16 — Add bounded delegate provider fallback
 
 - Added live-catalog-aware Pi route guards and chains for classified small-task implementation and independent review.
