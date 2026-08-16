@@ -19,28 +19,34 @@ The status plus hashes distinguish pre-existing tracked/staged content from dele
 
 ## Spawn commands
 
-Set the project and temporary prompt paths in the parent session. Run these with direct `bash`. Omit the bash tool's timeout field entirely. Never run Pi or Claude Code delegates through Context Mode.
+Set the project, temporary prompt, and supervisor paths in the parent session. Run these with direct `bash`. Omit the bash tool's timeout field, but always route the child through `run_delegate.py`. Never run Pi or Claude Code delegates through Context Mode.
+
+The supervisor announces its private artifact directory before spawn, applies a 45-minute wall-clock deadline, emits a heartbeat every 60 seconds, enforces a 50 MiB combined output limit, terminates the complete child process group, and preserves `report.md`, `stderr.log`, and `status.json`. Use `--timeout-seconds <seconds>` before `--` only when the task has an explicitly justified larger bound. Never run an unbounded child.
 
 ### Implementation or focused remediation
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
 prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
+supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
-env \
-  -u PI_SESSION_ID \
-  -u PI_SESSION_FILE \
-  -u PI_PROVIDER \
-  -u PI_MODEL \
-  -u PI_REASONING_LEVEL \
-  PI_SKIP_VERSION_CHECK=1 pi \
-  --print \
-  --no-session \
-  --approve \
-  --provider openai-codex \
-  --model gpt-5.6-luna \
-  --thinking max \
-  @"$prompt_file"
+uv run --no-project python "$supervisor" \
+  --label implementation-luna \
+  -- \
+  env \
+    -u PI_SESSION_ID \
+    -u PI_SESSION_FILE \
+    -u PI_PROVIDER \
+    -u PI_MODEL \
+    -u PI_REASONING_LEVEL \
+    PI_SKIP_VERSION_CHECK=1 pi \
+    --print \
+    --no-session \
+    --approve \
+    --provider openai-codex \
+    --model gpt-5.6-luna \
+    --thinking max \
+    @"$prompt_file"
 ```
 
 ### Independent review or finding verification
@@ -48,21 +54,25 @@ env \
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
 prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
+supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
-env \
-  -u PI_SESSION_ID \
-  -u PI_SESSION_FILE \
-  -u PI_PROVIDER \
-  -u PI_MODEL \
-  -u PI_REASONING_LEVEL \
-  PI_SKIP_VERSION_CHECK=1 pi \
-  --print \
-  --no-session \
-  --approve \
-  --provider openai-codex \
-  --model gpt-5.6-sol \
-  --thinking high \
-  @"$prompt_file"
+uv run --no-project python "$supervisor" \
+  --label review-sol \
+  -- \
+  env \
+    -u PI_SESSION_ID \
+    -u PI_SESSION_FILE \
+    -u PI_PROVIDER \
+    -u PI_MODEL \
+    -u PI_REASONING_LEVEL \
+    PI_SKIP_VERSION_CHECK=1 pi \
+    --print \
+    --no-session \
+    --approve \
+    --provider openai-codex \
+    --model gpt-5.6-sol \
+    --thinking high \
+    @"$prompt_file"
 ```
 
 ### Explicit Z.AI GLM 5.3 implementation or remediation alternative
@@ -70,21 +80,25 @@ env \
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
 prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
+supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
-env \
-  -u PI_SESSION_ID \
-  -u PI_SESSION_FILE \
-  -u PI_PROVIDER \
-  -u PI_MODEL \
-  -u PI_REASONING_LEVEL \
-  PI_SKIP_VERSION_CHECK=1 pi \
-  --print \
-  --no-session \
-  --approve \
-  --provider zai \
-  --model glm-5.3 \
-  --thinking max \
-  @"$prompt_file"
+uv run --no-project python "$supervisor" \
+  --label implementation-glm-5.3 \
+  -- \
+  env \
+    -u PI_SESSION_ID \
+    -u PI_SESSION_FILE \
+    -u PI_PROVIDER \
+    -u PI_MODEL \
+    -u PI_REASONING_LEVEL \
+    PI_SKIP_VERSION_CHECK=1 pi \
+    --print \
+    --no-session \
+    --approve \
+    --provider zai \
+    --model glm-5.3 \
+    --thinking max \
+    @"$prompt_file"
 ```
 
 ### Explicit Z.AI GLM 5.3 review or verification alternative
@@ -92,21 +106,25 @@ env \
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
 prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
+supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
-env \
-  -u PI_SESSION_ID \
-  -u PI_SESSION_FILE \
-  -u PI_PROVIDER \
-  -u PI_MODEL \
-  -u PI_REASONING_LEVEL \
-  PI_SKIP_VERSION_CHECK=1 pi \
-  --print \
-  --no-session \
-  --approve \
-  --provider zai \
-  --model glm-5.3 \
-  --thinking max \
-  @"$prompt_file"
+uv run --no-project python "$supervisor" \
+  --label review-glm-5.3 \
+  -- \
+  env \
+    -u PI_SESSION_ID \
+    -u PI_SESSION_FILE \
+    -u PI_PROVIDER \
+    -u PI_MODEL \
+    -u PI_REASONING_LEVEL \
+    PI_SKIP_VERSION_CHECK=1 pi \
+    --print \
+    --no-session \
+    --approve \
+    --provider zai \
+    --model glm-5.3 \
+    --thinking max \
+    @"$prompt_file"
 ```
 
 The Z.AI commands use the same Pi isolation contract as the default role models. The role prompt controls mutation permissions, neutrality, and output requirements.
@@ -120,25 +138,29 @@ The `env -u` prefix prevents parent-session metadata from leaking into child ext
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
 prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
+supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
-env \
-  -u AI_AGENT \
-  -u PI_CODING_AGENT \
-  -u PI_SESSION_ID \
-  -u PI_SESSION_FILE \
-  -u PI_PROVIDER \
-  -u PI_MODEL \
-  -u PI_REASONING_LEVEL \
-  claude \
-  --print \
-  --model claude-opus-5 \
-  --effort medium \
-  --no-session-persistence \
-  --permission-mode acceptEdits \
-  --allowedTools "Read,Edit,Write,Glob,Grep,Bash" \
-  --disallowedTools "Agent" \
-  --no-chrome \
-  "Execute the complete delegated task supplied on stdin." \
+uv run --no-project python "$supervisor" \
+  --label implementation-claude-opus-5 \
+  -- \
+  env \
+    -u AI_AGENT \
+    -u PI_CODING_AGENT \
+    -u PI_SESSION_ID \
+    -u PI_SESSION_FILE \
+    -u PI_PROVIDER \
+    -u PI_MODEL \
+    -u PI_REASONING_LEVEL \
+    claude \
+    --print \
+    --model claude-opus-5 \
+    --effort medium \
+    --no-session-persistence \
+    --permission-mode acceptEdits \
+    --allowedTools "Read,Edit,Write,Glob,Grep,Bash" \
+    --disallowedTools "Agent" \
+    --no-chrome \
+    "Execute the complete delegated task supplied on stdin." \
   < "$prompt_file"
 ```
 
@@ -147,29 +169,35 @@ env \
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
 prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
+supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
-env \
-  -u AI_AGENT \
-  -u PI_CODING_AGENT \
-  -u PI_SESSION_ID \
-  -u PI_SESSION_FILE \
-  -u PI_PROVIDER \
-  -u PI_MODEL \
-  -u PI_REASONING_LEVEL \
-  claude \
-  --print \
-  --model claude-opus-5 \
-  --effort medium \
-  --no-session-persistence \
-  --permission-mode dontAsk \
-  --allowedTools "Read,Glob,Grep,Bash" \
-  --disallowedTools "Edit,Write,Agent" \
-  --no-chrome \
-  "Execute the complete read-only delegated task supplied on stdin." \
+uv run --no-project python "$supervisor" \
+  --label review-claude-opus-5 \
+  -- \
+  env \
+    -u AI_AGENT \
+    -u PI_CODING_AGENT \
+    -u PI_SESSION_ID \
+    -u PI_SESSION_FILE \
+    -u PI_PROVIDER \
+    -u PI_MODEL \
+    -u PI_REASONING_LEVEL \
+    claude \
+    --print \
+    --model claude-opus-5 \
+    --effort medium \
+    --no-session-persistence \
+    --permission-mode dontAsk \
+    --allowedTools "Read,Glob,Grep,Bash" \
+    --disallowedTools "Edit,Write,Agent" \
+    --no-chrome \
+    "Execute the complete read-only delegated task supplied on stdin." \
   < "$prompt_file"
 ```
 
 Claude Code v2.1.219 or later resolves Opus 5, but these commands pin `claude-opus-5` so the selected family does not move over time. `--no-session-persistence` prevents resume state. Do not add `--continue` or `--resume`. Do not use `--bare`: it skips normal Claude configuration and subscription login. Broad Bash access is still not an operating-system sandbox, so preserve prompt prohibitions and pre/post tree fingerprints.
+
+Treat supervisor states other than `completed` as failed delegation. Preserve the artifact directory path and diagnose `stderr.log` and `status.json` before any fresh retry. A zero child exit with empty stdout becomes `missing_report` and fails instead of silently approving an absent report.
 
 ## Common delegate header
 

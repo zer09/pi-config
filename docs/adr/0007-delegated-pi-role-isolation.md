@@ -21,6 +21,8 @@ Reconstructing these constraints ad hoc is error-prone. Putting the full procedu
 
 The previously retired `context-watcher` was a broad orchestration runtime skill. Restoring that broad scope is unnecessary; this decision concerns one narrow, explicitly requested implementation/review loop.
 
+Repeated delegate calls exposed a missing lifecycle bound. One delegate remained silent for about 85 minutes and ended only after SIGTERM with no report. A later retry left no tool result when the parent session ended. Fresh sessions and role isolation do not protect against provider stalls, deadlocks, empty stdout, or abandoned descendants.
+
 ## Decision
 
 Adopt a layered delegated-Pi workflow:
@@ -32,7 +34,7 @@ Adopt a layered delegated-Pi workflow:
 
 The parent Pi session is the sole orchestrator. Spawned Pi or Claude Code delegates execute their assigned role directly and do not recursively delegate.
 
-Run delegates through direct `bash`, never Context Mode, and omit the spawning tool call's timeout. Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before each delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates. Run delegates sequentially by default and use fresh ephemeral processes:
+Run delegates through direct `bash`, never Context Mode, and omit the spawning tool call's timeout. Route every child through the `delegated-pi-loop` supervisor with a positive wall-clock deadline. The default deadline is 45 minutes, with a 50 MiB combined output limit. The supervisor emits heartbeats, captures stdout and stderr in a private temporary directory, terminates the complete child process group, rejects empty reports, and writes a terminal status record. Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before each delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates. Run delegates sequentially by default and use fresh ephemeral processes:
 
 - Pi: `--print --no-session --approve`;
 - Claude Code: `--print --no-session-persistence` with role-appropriate non-interactive permissions.
@@ -58,6 +60,8 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 - The always-loaded global context grows only by the short trigger/safety section; detailed behavior remains on demand.
 - Independent-review credibility depends on role and context isolation rather than model self-approval.
 - Shared-tree safety remains prompt- and fingerprint-enforced; this is not an operating-system sandbox because reviewers may still have `bash`.
+- A stalled delegate now terminates within its configured bound. Empty stdout becomes a failed `missing_report` state instead of silent success.
+- Supervisor artifacts preserve the report, stderr, and terminal status without persisting the delegate command line.
 - Model identifiers, thinking or effort levels, and process environment markers are maintenance points. Check each contract when Pi or Claude Code changes them.
 - Real delegate evaluations can spend provider tokens and may mutate a fixture, so structural validation is the default and live smoke tests require an appropriate disposable workspace and authorization.
 
@@ -68,6 +72,8 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 - **Immediate Pi extension:** deferred because executable orchestration, cancellation, output capture, and sandboxing are unnecessary complexity for the proven sequential workflow.
 - **Restore broad `context-watcher`:** rejected because the requested capability is narrower and should not revive unrelated orchestration behavior.
 - **Let implementers self-review:** rejected because it does not provide fresh context or independent judgment.
+- **Keep delegates unbounded:** rejected because provider or process stalls can hold the parent tool call indefinitely and lose the final report.
+- **Use only the bash tool timeout:** rejected because a dedicated supervisor provides heartbeats, durable diagnostics, explicit empty-report failure, and descendant cleanup while the outer orchestration call remains observable.
 
 ## Validation
 
@@ -75,7 +81,8 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 2. Parse every `agents/openai.yaml` and verify the delegated skill's default prompt names `$delegated-pi-loop`.
 3. Check the installed Pi model catalog resolves `zai/glm-5.3` and accepts `max` thinking without provider inference.
 4. Check the installed Claude Code version supports Opus 5, `--effort medium`, `--no-session-persistence`, and the documented permission flags.
-5. Check global and skill instructions agree on direct bash, no timeout, environment scrubbing, fresh sessions, one mutator, neutral reviewers, and authorization gates.
-6. Check changed Markdown links, placeholders, user-specific paths, secrets, and runtime artifacts.
-7. Measure the incremental global-context and skill-catalog cost without requiring paid inference.
-8. When CLI/model semantics change materially, run a disposable-fixture delegate smoke only with appropriate authorization.
+5. Check global and skill instructions agree on direct bash, bounded child supervision, environment scrubbing, fresh sessions, one mutator, neutral reviewers, and authorization gates.
+6. Run supervisor regressions for successful reports, empty reports, deadlines, and descendant cleanup.
+7. Check changed Markdown links, placeholders, user-specific paths, secrets, and runtime artifacts.
+8. Measure the incremental global-context and skill-catalog cost without requiring paid inference.
+9. When CLI/model semantics change materially, run a disposable-fixture delegate smoke only with appropriate authorization.

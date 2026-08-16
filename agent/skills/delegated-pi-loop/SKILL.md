@@ -24,7 +24,8 @@ Use Pi defaults unless the user or a more specific project workflow explicitly s
 ## Non-negotiable execution rules
 
 - Run spawned Pi or Claude Code processes with direct `bash`, never Context Mode.
-- Do not set a timeout on the tool call that runs a delegate.
+- Omit the bash tool timeout, but run every child through `scripts/run_delegate.py` with a positive wall-clock deadline and output limit. Defaults are 45 minutes and 50 MiB.
+- Treat supervisor states other than `completed` as failures. Preserve its private temporary `report.md`, `stderr.log`, and `status.json` paths for diagnosis.
 - For Pi, including Z.AI GLM, use `--print --no-session --approve`. For Claude Code, use `--print --no-session-persistence` with role-appropriate non-interactive permissions.
 - Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before every delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates.
 - Use Z.AI GLM 5.3 only when the user or project explicitly selects it. Pin `--provider zai --model glm-5.3 --thinking max`.
@@ -107,11 +108,11 @@ After a no-findings verdict:
 
 ## Failure handling
 
-- If a delegate fails or returns incomplete output, preserve its output and diagnose before retrying with a fresh process.
+- If a delegate fails, times out, or returns no report, preserve the supervisor artifacts and diagnose before retrying with a fresh process. Never retry automatically.
 - If a read-only delegate mutates state, stop; do not silently revert user work.
 - If instructions conflict, follow the most specific applicable instruction and surface material ambiguity.
 - If the same finding recurs, investigate the causal gap and strengthen the next verification/remediation handoff rather than steering the reviewer toward a pass.
 
 ## Maintenance
 
-Update this custom local skill through `docs/skills/delegated-pi-loop-update-process.md`. Preserve fresh-session isolation for Pi and Claude Code, role separation, the single-mutator rule, direct non-Context-Mode spawning without a timeout, explicit Z.AI GLM 5.3/max and Claude Opus 5/medium selection, and explicit Git/hosted-service authorization gates.
+Update this custom local skill through `docs/skills/delegated-pi-loop-update-process.md`. Preserve fresh-session isolation for Pi and Claude Code, bounded child supervision, process-group cleanup, report diagnostics, role separation, the single-mutator rule, direct non-Context-Mode spawning, explicit Z.AI GLM 5.3/max and Claude Opus 5/medium selection, and explicit Git/hosted-service authorization gates.

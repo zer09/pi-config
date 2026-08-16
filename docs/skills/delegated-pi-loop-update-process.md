@@ -1,6 +1,6 @@
 # Delegated Pi loop update process
 
-Purpose: maintain `agent/skills/delegated-pi-loop` as the local source of truth for orchestrating fresh Pi or Claude Code implementation, independent review, finding verification, and focused remediation delegates on one shared working tree. Pi delegates can use the default OpenAI Codex role models or explicitly selected Z.AI GLM 5.3.
+Purpose: maintain `agent/skills/delegated-pi-loop` as the local source of truth for orchestrating fresh, bounded Pi or Claude Code implementation, independent review, finding verification, and focused remediation delegates on one shared working tree. Pi delegates can use the default OpenAI Codex role models or explicitly selected Z.AI GLM 5.3.
 
 ## Classification and provenance
 
@@ -11,7 +11,7 @@ Purpose: maintain `agent/skills/delegated-pi-loop` as the local source of truth 
 - Claude harness authority: the installed `claude --help` plus official Claude Code [CLI reference](https://code.claude.com/docs/en/cli-reference), [model configuration](https://code.claude.com/docs/en/model-config), and [headless usage](https://code.claude.com/docs/en/headless) for `--print`, `--model claude-opus-5`, `--effort medium`, `--no-session-persistence`, permissions, and stdin prompts. Latest reviewed CLI: Claude Code 2.1.226.
 - Project execution guides and accepted architecture decisions remain authoritative for project-specific role prompts, finding taxonomies, gates, and release transitions.
 
-This skill is retained because role isolation, neutral-review handling, direct-spawn constraints, shared-tree mutation safety, and the verification/remediation loop are easy to weaken when reconstructed ad hoc.
+This skill is retained because role isolation, neutral-review handling, bounded process supervision, direct-spawn constraints, shared-tree mutation safety, and the verification/remediation loop are easy to weaken when reconstructed ad hoc.
 
 ## Owned surfaces
 
@@ -19,7 +19,9 @@ This skill is retained because role isolation, neutral-review handling, direct-s
 |---|---|
 | `agent/AGENTS.md` | Compact trigger and global safety invariants |
 | `agent/skills/delegated-pi-loop/SKILL.md` | Runtime orchestration workflow and role boundaries |
-| `agent/skills/delegated-pi-loop/references/prompt-contracts.md` | Exact spawn commands, fingerprints, and role prompt contracts |
+| `agent/skills/delegated-pi-loop/references/prompt-contracts.md` | Exact supervised spawn commands, fingerprints, and role prompt contracts |
+| `agent/skills/delegated-pi-loop/scripts/run_delegate.py` | Deadline, heartbeat, process-group cleanup, artifact capture, and terminal status enforcement |
+| `agent/skills/delegated-pi-loop/scripts/test_run_delegate.py` | Supervisor lifecycle regressions |
 | `agent/skills/delegated-pi-loop/agents/openai.yaml` | Human-facing skill metadata |
 | `docs/skills/delegated-pi-loop-update-process.md` | Long-lived provenance, update process, and validation contract |
 
@@ -28,19 +30,20 @@ This skill is retained because role isolation, neutral-review handling, direct-s
 Preserve all of these unless the user explicitly changes the workflow:
 
 1. The parent session is the sole orchestrator; delegates do not recursively spawn Pi, Claude Code, or subagents.
-2. Delegates run through direct `bash`, not Context Mode, and the spawning tool call has no timeout.
-3. Every delegate clears inherited parent `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL`. Claude delegates also clear `AI_AGENT` and `PI_CODING_AGENT`.
-4. Every delegate uses a fresh ephemeral process: Pi `--no-session` or Claude Code `--no-session-persistence`, never resume/continue.
-5. At most one mutating delegate runs on a shared working tree, with no concurrent parent edits.
-6. Implementation and remediation default to `openai-codex/gpt-5.6-luna` at `max` thinking.
-7. Independent review and finding verification default to `openai-codex/gpt-5.6-sol` at `high` thinking.
-8. When the user or project explicitly selects Z.AI, any role uses pinned `zai/glm-5.3` at `max` thinking through Pi.
-9. When the user or project explicitly selects Claude Code, any role uses pinned `claude-opus-5` at `medium` effort with role-appropriate permissions; the moving `opus` alias is not used.
-10. Reviewers and verifiers are read-only, neutral, and checked against pre/post tree fingerprints.
-11. A project-provided verification template must be instantiated before focused remediation; parent analysis is not a substitute.
-12. A fresh independent review follows every remediation round.
-13. Git transitions and hosted-service writes retain their separate explicit-authorization gates.
-14. Temporary prompts and reports remain outside tracked project paths and contain no secrets.
+2. Delegates run through direct `bash`, not Context Mode. The outer bash tool call has no timeout, but every child runs through `run_delegate.py` with a positive wall-clock deadline.
+3. The supervisor defaults to 45 minutes and 50 MiB combined output, emits 60-second heartbeats, terminates the complete child process group, preserves private temporary artifacts, rejects empty reports, and never persists the delegate command line.
+4. Every delegate clears inherited parent `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL`. Claude delegates also clear `AI_AGENT` and `PI_CODING_AGENT`.
+5. Every delegate uses a fresh ephemeral process: Pi `--no-session` or Claude Code `--no-session-persistence`, never resume/continue.
+6. At most one mutating delegate runs on a shared working tree, with no concurrent parent edits.
+7. Implementation and remediation default to `openai-codex/gpt-5.6-luna` at `max` thinking.
+8. Independent review and finding verification default to `openai-codex/gpt-5.6-sol` at `high` thinking.
+9. When the user or project explicitly selects Z.AI, any role uses pinned `zai/glm-5.3` at `max` thinking through Pi.
+10. When the user or project explicitly selects Claude Code, any role uses pinned `claude-opus-5` at `medium` effort with role-appropriate permissions; the moving `opus` alias is not used.
+11. Reviewers and verifiers are read-only, neutral, and checked against pre/post tree fingerprints.
+12. A project-provided verification template must be instantiated before focused remediation; parent analysis is not a substitute.
+13. A fresh independent review follows every remediation round.
+14. Git transitions and hosted-service writes retain their separate explicit-authorization gates.
+15. Temporary prompts and reports remain outside tracked project paths and contain no secrets.
 
 ## Update workflow
 
@@ -64,6 +67,15 @@ Validate the target skill:
 uv run --with pyyaml python agent/skills/skill-creator/scripts/quick_validate.py agent/skills/delegated-pi-loop
 ```
 
+Run supervisor regressions and Python checks:
+
+```bash
+env PYTHONDONTWRITEBYTECODE=1 uv run --no-project python -m unittest \
+  agent/skills/delegated-pi-loop/scripts/test_run_delegate.py -v
+uvx ruff check agent/skills/delegated-pi-loop/scripts/*.py
+uvx ruff format --check agent/skills/delegated-pi-loop/scripts/*.py
+```
+
 Then validate all Local Skills using the command in `local-skill-update-invariants.md`.
 
 Also verify:
@@ -72,7 +84,7 @@ Also verify:
 - The runtime skill and reference contain no unresolved scaffold/TODO placeholders or user-specific home paths; generic prompt fields are clearly marked for replacement.
 - All changed local Markdown links resolve.
 - No caches, logs, delegate transcripts, temporary prompts, or evaluation artifacts were added.
-- The global rule and skill agree on direct bash routing, no timeout, environment scrubbing, fresh Pi/Claude sessions, default role models, explicit Z.AI GLM 5.3/max selection, Claude permission modes, reviewer neutrality, and mutation gates.
+- The global rule and skill agree on direct bash routing, bounded child supervision, environment scrubbing, fresh Pi/Claude sessions, default role models, explicit Z.AI GLM 5.3/max selection, Claude permission modes, reviewer neutrality, and mutation gates.
 - Existing unrelated dirty config files remain untouched.
 
 ## Evaluation guidance
@@ -86,5 +98,9 @@ The workflow has objective structural checks but real behavior evaluation can sp
 5. Architecture ambiguity stops for user input.
 6. A read-only delegate tree change invalidates the delegation instead of being silently reverted.
 7. Requests for ordinary coding without delegation do not force an unnecessary spawned loop.
+8. A stalled child reaches `timed_out`, receives SIGTERM then SIGKILL as needed, and leaves no active descendant.
+9. Excess output reaches `output_limit` before it can grow without bound.
+10. A zero exit with empty stdout reaches `missing_report` and cannot count as approval.
+11. A successful delegate preserves and replays its complete report while writing no command line to `status.json`.
 
 Do not run hosted-service mutations, use a real user project as an evaluation fixture, or persist provider credentials or delegate command lines in evaluation artifacts.

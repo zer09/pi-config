@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-15 — Bound delegated process lifetime
+
+- Confirmed repeated unbounded delegate failures, including one silent call that lasted about 85 minutes before SIGTERM and produced no report.
+- Added a delegated process supervisor with a 45-minute default deadline, 60-second heartbeats, a 50 MiB output limit, SIGTERM/SIGKILL process-group cleanup, parent-death cleanup, private temporary report/stderr/status artifacts, and explicit empty-report failure.
+- Routed all Pi, Z.AI GLM, and Claude Code role commands through the supervisor while preserving direct bash, fresh sessions, environment scrubbing, role isolation, and authorization gates.
+- Validation: six supervisor lifecycle regressions, Ruff lint/format checks, target and all-local skill validation, YAML/contract checks, whitespace checks, and artifact scans passed without paid inference.
+
 ## 2026-08-15 — Add Z.AI GLM 5.3 delegate alternative
 
 - Added explicitly selected `zai/glm-5.3` at `max` thinking as an implementation, remediation, review, or finding-verification alternative in `delegated-pi-loop`.

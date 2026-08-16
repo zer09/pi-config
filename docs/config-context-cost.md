@@ -14,6 +14,8 @@ Skill and CLI synchronization update: 2026-08-09 (refreshed current CLI referenc
 
 Delegated Z.AI model-alternative update: 2026-08-15 (added explicit GLM 5.3/max role selection; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated process-supervisor update: 2026-08-15 (added bounded child execution and durable failure diagnostics; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -167,6 +169,18 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `references/prompt-contracts.md` | 2,111 | 2,433 | +322 | Loaded only before a delegate spawn |
 
 The startup increase is limited to the compact Z.AI selection rule and the broader skill trigger. Exact GLM 5.3 spawn commands remain on demand.
+
+## 2026-08-15 delegated supervisor attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration was run. The skill description and full extension/tool inventory did not change.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,571 | 2,587 | +16 | Always loaded through the context-file block |
+| `delegated-pi-loop/SKILL.md` | 1,894 | 1,969 | +75 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 2,433 | 2,916 | +483 | Loaded only before a delegate spawn |
+
+The only startup increase is the compact supervisor requirement in `agent/AGENTS.md`. The supervisor, tests, detailed commands, artifact contract, and failure guidance remain on demand.
 
 ## Provider-calibrated baseline probes
 
