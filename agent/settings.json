@@ -23,5 +23,6 @@
   "defaultThinkingLevel": "medium",
   "theme": "light",
   "transport": "websocket-cached",
-  "hideThinkingBlock": false
+  "hideThinkingBlock": false,
+  "showHardwareCursor": true
 }
