@@ -14,6 +14,7 @@ import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).with_name("run_delegate.py")
+CHAIN_SCRIPT = Path(__file__).with_name("run_delegate_chain.py")
 
 
 class DelegateSupervisorTests(unittest.TestCase):
@@ -604,6 +605,267 @@ while True:
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(self.read_status(artifact_dir)["state"], "completed")
             self.wait_for_process_exit(int(process_id_path.read_text(encoding="utf-8")))
+
+
+class DelegateFallbackChainTests(unittest.TestCase):
+    def create_fake_pi(self, root: Path) -> Path:
+        fake_pi = root / "pi"
+        fake_pi.write_text(
+            f"""#!{sys.executable}
+import json
+import os
+import sys
+import time
+
+args = sys.argv[1:]
+if "--list-models" in args:
+    pattern = args[args.index("--list-models") + 1]
+    if pattern in os.environ.get("FAKE_CATALOG", "").split(","):
+        provider, model = pattern.split("/", 1)
+        print("provider model context max-out thinking images")
+        print(f"{{provider}} {{model}} 1M 128K yes no")
+    raise SystemExit(0)
+
+provider = args[args.index("--provider") + 1]
+model = args[args.index("--model") + 1]
+route = f"{{provider}}/{{model}}"
+with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as handle:
+    handle.write(route + "\\n")
+behavior = json.loads(os.environ["FAKE_BEHAVIORS"])[route]
+
+def emit(event):
+    print(json.dumps(event), flush=True)
+
+emit({{"type": "session", "version": 3, "id": route}})
+emit({{"type": "agent_start"}})
+if behavior == "stall":
+    time.sleep(30)
+if behavior == "tool-error":
+    emit({{
+        "type": "tool_execution_start",
+        "toolCallId": "call-1",
+        "toolName": "read",
+        "args": {{"path": "fixture"}},
+    }})
+if behavior in {{"unavailable", "tool-error"}}:
+    emit({{
+        "type": "message_end",
+        "message": {{
+            "role": "assistant",
+            "content": [],
+            "stopReason": "error",
+            "errorMessage": "503 Service unavailable",
+        }},
+    }})
+    emit({{"type": "agent_end", "messages": [], "willRetry": False}})
+    raise SystemExit(1)
+emit({{
+    "type": "message_end",
+    "message": {{
+        "role": "assistant",
+        "content": [{{
+            "type": "text",
+            "text": f"Completed with {{route}}.\\n\\nDELEGATE_RESULT: COMPLETED",
+        }}],
+        "stopReason": "stop",
+    }},
+}})
+emit({{"type": "agent_end", "messages": [], "willRetry": False}})
+""",
+            encoding="utf-8",
+        )
+        fake_pi.chmod(0o700)
+        return fake_pi
+
+    def run_chain(
+        self,
+        root: Path,
+        *,
+        catalog: list[str],
+        behaviors: dict[str, str],
+        fallbacks: list[str],
+    ) -> tuple[subprocess.CompletedProcess[str], dict[str, object], list[str]]:
+        fake_pi = self.create_fake_pi(root)
+        artifact_dir = root / "chain-artifacts"
+        log_path = root / "invocations.log"
+        command = [
+            sys.executable,
+            str(CHAIN_SCRIPT),
+            "--label",
+            "fallback-test",
+            "--artifact-dir",
+            str(artifact_dir),
+            "--timeout-seconds",
+            "4",
+            "--grace-seconds",
+            "0.1",
+            "--idle-warning-seconds",
+            "0.1",
+            "--idle-timeout-seconds",
+            "0.25",
+        ]
+        for route in fallbacks:
+            command.extend(["--fallback-route", route])
+        command.extend(
+            [
+                "--",
+                str(fake_pi),
+                "--mode",
+                "json",
+                "--no-session",
+                "--approve",
+                "--provider",
+                "primary",
+                "--model",
+                "model-a",
+                "--thinking",
+                "xhigh",
+                "@prompt.md",
+            ]
+        )
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "FAKE_CATALOG": ",".join(catalog),
+                "FAKE_BEHAVIORS": json.dumps(behaviors),
+                "FAKE_LOG": str(log_path),
+            }
+        )
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=12,
+            check=False,
+            env=environment,
+        )
+        status = json.loads((artifact_dir / "status.json").read_text(encoding="utf-8"))
+        invocations = (
+            log_path.read_text(encoding="utf-8").splitlines()
+            if log_path.exists()
+            else []
+        )
+        return result, status, invocations
+
+    def test_catalog_absence_skips_to_next_route(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, status, invocations = self.run_chain(
+                Path(temporary),
+                catalog=["backup/model-b"],
+                behaviors={"backup/model-b": "complete"},
+                fallbacks=["backup/model-b:high"],
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(status["selected_route"], "backup/model-b:high")
+            self.assertEqual(invocations, ["backup/model-b"])
+            self.assertEqual(status["attempts"][0]["state"], "catalog_unavailable")
+
+    def test_provider_error_falls_back_before_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, status, invocations = self.run_chain(
+                Path(temporary),
+                catalog=["primary/model-a", "backup/model-b"],
+                behaviors={
+                    "primary/model-a": "unavailable",
+                    "backup/model-b": "complete",
+                },
+                fallbacks=["backup/model-b:high"],
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(invocations, ["primary/model-a", "backup/model-b"])
+            self.assertEqual(status["selected_route"], "backup/model-b:high")
+            self.assertEqual(
+                status["attempts"][0]["fallback_reason"],
+                "provider_unavailable_before_tools",
+            )
+            status_text = json.dumps(status)
+            self.assertNotIn("command", status_text)
+            self.assertNotIn("@prompt.md", status_text)
+            self.assertNotIn("503 Service unavailable", result.stdout + result.stderr)
+
+    def test_event_idle_falls_back_before_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, status, invocations = self.run_chain(
+                Path(temporary),
+                catalog=["primary/model-a", "backup/model-b"],
+                behaviors={
+                    "primary/model-a": "stall",
+                    "backup/model-b": "complete",
+                },
+                fallbacks=["backup/model-b:high"],
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(invocations, ["primary/model-a", "backup/model-b"])
+            self.assertEqual(
+                status["attempts"][0]["fallback_reason"],
+                "event_idle_before_tools",
+            )
+
+    def test_tool_execution_disables_automatic_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, status, invocations = self.run_chain(
+                Path(temporary),
+                catalog=["primary/model-a", "backup/model-b"],
+                behaviors={
+                    "primary/model-a": "tool-error",
+                    "backup/model-b": "complete",
+                },
+                fallbacks=["backup/model-b:high"],
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(invocations, ["primary/model-a"])
+            self.assertEqual(status["selected_route"], "primary/model-a:xhigh")
+            self.assertNotIn("fallback_reason", status["attempts"][0])
+
+    def test_all_uncatalogued_routes_fail_without_delegate_start(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, status, invocations = self.run_chain(
+                Path(temporary),
+                catalog=[],
+                behaviors={},
+                fallbacks=["backup/model-b:high"],
+            )
+
+            self.assertEqual(result.returncode, 80, result.stderr)
+            self.assertEqual(status["state"], "routes_unavailable")
+            self.assertIsNone(status["selected_route"])
+            self.assertEqual(invocations, [])
+
+    def test_single_guarded_route_can_fail_catalog_preflight(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, status, invocations = self.run_chain(
+                Path(temporary),
+                catalog=[],
+                behaviors={},
+                fallbacks=[],
+            )
+
+            self.assertEqual(result.returncode, 80, result.stderr)
+            self.assertEqual(status["state"], "routes_unavailable")
+            self.assertEqual(len(status["attempts"]), 1)
+            self.assertEqual(invocations, [])
+
+    def test_runtime_unavailability_can_exhaust_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, status, invocations = self.run_chain(
+                Path(temporary),
+                catalog=["primary/model-a", "backup/model-b"],
+                behaviors={
+                    "primary/model-a": "unavailable",
+                    "backup/model-b": "unavailable",
+                },
+                fallbacks=["backup/model-b:high"],
+            )
+
+            self.assertEqual(result.returncode, 80, result.stderr)
+            self.assertEqual(status["state"], "routes_unavailable")
+            self.assertIsNone(status["selected_route"])
+            self.assertEqual(invocations, ["primary/model-a", "backup/model-b"])
+            self.assertNotIn("503 Service unavailable", result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

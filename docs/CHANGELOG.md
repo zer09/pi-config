@@ -2,6 +2,14 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-16 — Add bounded delegate provider fallback
+
+- Added live-catalog-aware Pi route guards and chains for classified small-task implementation and independent review.
+- Small-task routing now tries GoRouter Opus 4.8 Thinking, AgentRouter Opus 4.8, SeekAI DeepSeek V4 Flash, then OpenAI Codex Luna at xhigh.
+- Independent review now launches GoRouter Opus 5 Thinking/high and AgentRouter Opus 5/high concurrently. Only the AgentRouter reviewer falls back, to AgentRouter GPT-5.6 Sol/high. OpenAI Codex Sol/medium remains the finding-verification default.
+- Automatic failover uses a fresh process and advances only after catalog absence, recognized provider unavailability, or an event-idle stall before any tool starts. Every chain shares one 45-minute deadline and each route receives one attempt.
+- Added chain status metadata and regressions for guarded single routes, catalog skips, runtime provider errors, event-idle fallback, route exhaustion, and the tool-start cutoff without exposing failed-route payloads.
+
 ## 2026-08-16 — Detect stalled and blocked delegates
 
 - Added private Pi JSON event monitoring for provider-exposed thinking, text, tool, message, turn, and agent activity without forwarding raw events into orchestrator context.

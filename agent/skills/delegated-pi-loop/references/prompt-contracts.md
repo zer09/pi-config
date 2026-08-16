@@ -23,16 +23,18 @@ Set the project, temporary prompt, and supervisor paths in the parent session. R
 
 The supervisor announces its private artifact directory before spawn, applies a 45-minute wall-clock deadline, enforces a 50 MiB combined output limit, terminates the complete child process group, and preserves `report.md`, `stderr.log`, and `status.json`. Pi delegates stream JSON internally. Valid thinking, text, tool, message, turn, and agent events reset the activity clock. Five event-idle minutes produce one warning; ten event-idle minutes terminate the delegate as `stalled`. Raw JSON, thinking, and tool payloads are parsed privately, never replayed, and deleted after final extraction. Plain-protocol delegates retain 60-second process heartbeats until a separate stream adapter exists.
 
+`run_delegate_chain.py` guards one or more ordered Pi routes around fresh supervisor attempts. It checks each exact provider/model against Pi's available catalog. It may move to the next route after catalog absence, a recognized provider-availability error, or an event-idle stall only when no tool execution started and no terminal delegate result exists. All routes share one wall deadline and receive one attempt each. The chain never returns to an earlier route, never persists delegate commands, and does not expose failed-route JSON or provider errors to the orchestrator.
+
 Use `--timeout-seconds <seconds> --allow-extended-timeout` before `--` only when the user explicitly authorizes a larger wall deadline. Use `--idle-timeout-seconds <seconds> --allow-extended-idle` only for a known, intentionally silent tool. The supervisor rejects larger values without these explicit flags. Never run an unbounded child.
 
-Implementation and remediation default to GLM 5.3/max. The orchestrator may choose Luna/xhigh only when all of these conditions hold:
+Implementation and remediation default to GLM 5.3/max. The orchestrator may choose the GoRouter-first xhigh chain only when all of these conditions hold:
 
 1. The requested change is narrow and clearly bounded.
 2. The solution follows an established local pattern and has no material ambiguity.
 3. The task has no architecture, security, concurrency, schema, migration, broad-refactor, or cross-system concern.
 4. The delegate should finish in a few agent turns with targeted checks.
 
-Record the small-task classification before spawn. If any condition is uncertain, use GLM 5.3/max.
+Record the small-task classification before spawn. If any condition is uncertain, use GLM 5.3/max. The fallback models do not relax this role gate.
 
 ### Default implementation or focused remediation
 
@@ -64,19 +66,23 @@ uv run --no-project python "$supervisor" \
     @"$prompt_file"
 ```
 
-### Independent review
+### Concurrent independent-review pair
+
+Launch both commands as separate direct bash tool calls in one parallel tool batch. Do not put them in one shell with background jobs. Give both reviewers the same neutral review scope, but preserve separate artifact directories and outputs. Wait for both.
+
+#### Reviewer A: GoRouter Claude Opus 5 Thinking/high
+
+This guarded single route exits as `routes_unavailable` if GoRouter is absent from Pi's live catalog.
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
 prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
-supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
+chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate_chain.py"
 cd "$project_root"
-uv run --no-project python "$supervisor" \
-  --protocol pi-json \
-  --require-result \
+uv run --no-project python "$chain" \
   --idle-warning-seconds 300 \
   --idle-timeout-seconds 600 \
-  --label review-sol-high \
+  --label review-gorouter-opus-5-thinking-high \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -88,11 +94,42 @@ uv run --no-project python "$supervisor" \
     --mode json \
     --no-session \
     --approve \
-    --provider openai-codex \
-    --model gpt-5.6-sol \
+    --provider gorouter \
+    --model claude-opus-5-thinking \
     --thinking high \
     @"$prompt_file"
 ```
+
+#### Reviewer B: AgentRouter Claude Opus 5/high with GPT-5.6 Sol/high fallback
+
+```bash
+project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
+prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
+chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate_chain.py"
+cd "$project_root"
+uv run --no-project python "$chain" \
+  --fallback-route agentrouter/gpt-5.6-sol:high \
+  --idle-warning-seconds 300 \
+  --idle-timeout-seconds 600 \
+  --label review-agentrouter-opus-5-high \
+  -- \
+  env \
+    -u PI_SESSION_ID \
+    -u PI_SESSION_FILE \
+    -u PI_PROVIDER \
+    -u PI_MODEL \
+    -u PI_REASONING_LEVEL \
+    PI_SKIP_VERSION_CHECK=1 pi \
+    --mode json \
+    --no-session \
+    --approve \
+    --provider agentrouter \
+    --model claude-opus-5 \
+    --thinking high \
+    @"$prompt_file"
+```
+
+The paired review gate completes only when both commands return `completed`. Preserve both reports independently. Process every blocking finding from either report. If one command fails or is unavailable, the surviving report remains useful evidence but does not constitute the complete paired review gate.
 
 ### Finding verification
 
@@ -124,19 +161,22 @@ uv run --no-project python "$supervisor" \
     @"$prompt_file"
 ```
 
-### Small-task Luna implementation or remediation
+### Small-task implementation or remediation chain
+
+Ordered routes: GoRouter Claude Opus 4.8 Thinking/xhigh, AgentRouter Claude Opus 4.8/xhigh, SeekAI DeepSeek V4 Flash/xhigh, then OpenAI Codex GPT-5.6 Luna/xhigh.
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
 prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
-supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
+chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate_chain.py"
 cd "$project_root"
-uv run --no-project python "$supervisor" \
-  --protocol pi-json \
-  --require-result \
+uv run --no-project python "$chain" \
+  --fallback-route agentrouter/claude-opus-4-8:xhigh \
+  --fallback-route seekai/deepseek-v4-flash:xhigh \
+  --fallback-route openai-codex/gpt-5.6-luna:xhigh \
   --idle-warning-seconds 300 \
   --idle-timeout-seconds 600 \
-  --label implementation-luna-xhigh-small \
+  --label implementation-small-task-chain \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -148,8 +188,8 @@ uv run --no-project python "$supervisor" \
     --mode json \
     --no-session \
     --approve \
-    --provider openai-codex \
-    --model gpt-5.6-luna \
+    --provider gorouter \
+    --model claude-opus-4-8-thinking \
     --thinking xhigh \
     @"$prompt_file"
 ```
@@ -256,7 +296,7 @@ uv run --no-project python "$supervisor" \
 
 Claude Code v2.1.219 or later resolves Opus 5, but these commands pin `claude-opus-5` so the selected family does not move over time. `--no-session-persistence` prevents resume state. Do not add `--continue` or `--resume`. Do not use `--bare`: it skips normal Claude configuration and subscription login. Broad Bash access is still not an operating-system sandbox, so preserve prompt prohibitions and pre/post tree fingerprints.
 
-Treat supervisor states other than `completed` as failed delegation. Preserve the artifact directory path and diagnose `stderr.log` and `status.json` before any fresh retry. `stalled` means no valid Pi activity event reached the supervisor before the event-idle deadline. `blocked`, `delegate_failed`, `invalid_result`, and `invalid_stream` are distinct terminal failures. A zero child exit with no final report becomes `missing_report`.
+Treat supervisor and chain states other than `completed` as failed delegation. Preserve all artifact paths and diagnose attempt status before any fresh retry. `stalled` means no valid Pi activity event reached the supervisor before the event-idle deadline. `routes_unavailable` means no catalogued route could start or every eligible pre-tool route failed. `blocked`, `delegate_failed`, `invalid_result`, and `invalid_stream` are distinct terminal failures. A zero child exit with no final report becomes `missing_report`. Automatic chain failover is the only retry exception; all other retry decisions remain with the orchestrator.
 
 ## Common delegate header
 

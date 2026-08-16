@@ -82,9 +82,11 @@ This project does not use the full ASD-STE100 dictionary. Apply the common subst
 - Spawn delegates with direct `bash`, never Context Mode, and omit the bash tool timeout. Route every child through the bounded supervisor in `delegated-pi-loop`.
 - Run Pi delegates through the supervisor's private JSON activity protocol. Enforce event-idle and wall deadlines plus the structured terminal-result contract; do not forward raw thinking or tool events.
 - Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before each delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates.
-- Use fresh ephemeral delegates: `--no-session` for Pi or `--no-session-persistence` for Claude Code. Run only one mutating delegate at a time on a shared working tree, and do not edit concurrently with it.
+- Use fresh ephemeral delegates: `--no-session` for Pi or `--no-session-persistence` for Claude Code. Run only one mutating delegate at a time, and do not edit concurrently with it. The two default read-only independent reviewers may run in parallel.
 - Default implementation and remediation to Z.AI GLM 5.3 with `--provider zai --model glm-5.3 --thinking max`.
-- Use Luna/xhigh for implementation or remediation only after recording that the task satisfies every small-task criterion in `delegated-pi-loop`. If uncertain, use GLM 5.3/max.
+- Use the GoRouter-first xhigh fallback chain for implementation or remediation only after recording that the task satisfies every small-task criterion in `delegated-pi-loop`. If uncertain, use GLM 5.3/max.
+- Run two default independent reviewers concurrently: GoRouter Opus 5 Thinking/high, plus AgentRouter Opus 5/high with AgentRouter GPT-5.6 Sol/high as its pre-tool fallback. Keep OpenAI Codex Sol/medium as the finding-verification default.
+- Automatic route failover may skip an uncatalogued route or replace a provider-unavailable or event-idle attempt only before any tool execution. Never cycle routes or fail over after a terminal delegate result.
 - Use Z.AI for review or verification only when the user or project explicitly selects it.
 - Use Claude Code only when the user or project explicitly selects it; pin Opus 5 with `--model claude-opus-5 --effort medium` rather than relying on the moving `opus` alias.
 - Read-only reviewers and verifiers must not edit files or Git state. Compare working-tree state before and after them and treat unexpected mutation as a failed delegation.

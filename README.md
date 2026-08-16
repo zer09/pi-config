@@ -82,7 +82,7 @@ It defines:
 - preferred file-reading and file-editing behavior
 - Python tooling defaults around `uv`, `ruff`, and `ty`
 - tool routing for CodeGraph, Context Mode, GitHub CLI, direct shell, and native file tools
-- delegated Pi, Z.AI GLM, or Claude Code orchestration with bounded process supervision, fresh role isolation, neutral review, and one shared-tree mutator at a time
+- delegated multi-provider Pi or Claude Code orchestration with bounded pre-tool fallback, fresh role isolation, neutral review, and one shared-tree mutator at a time
 
 Project-local `AGENTS.md` or `CLAUDE.md` files may add more specific instructions. The most specific applicable instruction wins.
 

@@ -38,6 +38,15 @@ RESULT_LINE_PATTERN = re.compile(
 RESULT_PATTERN = re.compile(
     r"(?:^|\n)DELEGATE_RESULT:\s*(COMPLETED|BLOCKED|FAILED)\s*\Z"
 )
+ROUTE_UNAVAILABLE_PATTERN = re.compile(
+    r"(?:\b(?:401|403|408|429|500|502|503|504|524|529)\b|"
+    r"no models? match|model[^\n]{0,80}(?:not found|unavailable)|"
+    r"rate[ -]?limit|overload|(?:service|provider) unavailable|"
+    r"temporarily unavailable|internal server error|gateway timeout|"
+    r"connection (?:reset|refused)|network error|fetch failed|"
+    r"request (?:timed out|timeout)|unauthorized|invalid api key)",
+    re.IGNORECASE,
+)
 
 PI_CORE_ACTIVITY_EVENTS = {
     "turn_start",
@@ -375,6 +384,10 @@ def parse_delegate_outcome(report: str) -> str | None:
     return match.group(1).lower() if match else None
 
 
+def route_unavailable_error(value: object) -> bool:
+    return isinstance(value, str) and bool(ROUTE_UNAVAILABLE_PATTERN.search(value))
+
+
 def assistant_text(message: object) -> str | None:
     if not isinstance(message, dict) or message.get("role") != "assistant":
         return None
@@ -412,6 +425,8 @@ class PiJsonMonitor:
         self.agent_start_count = 0
         self.agent_end_count = 0
         self.agent_end_seen = False
+        self.tool_execution_count = 0
+        self.route_unavailable_seen = False
         self.errors: list[str] = []
 
     def drain(self, path: Path) -> None:
@@ -497,6 +512,10 @@ class PiJsonMonitor:
             update_type = update.get("type")
             if update_type not in PI_MESSAGE_ACTIVITY_EVENTS:
                 return
+            if update_type == "error":
+                self.route_unavailable_seen |= route_unavailable_error(
+                    update.get("errorMessage") or update.get("error")
+                )
             if update_type.endswith("_delta") and not update.get("delta"):
                 return
             phase = "thinking" if update_type.startswith("thinking_") else "responding"
@@ -508,6 +527,16 @@ class PiJsonMonitor:
             return
         if event_type == "bash_execution_update" and not event.get("delta"):
             return
+        if event_type == "tool_execution_start":
+            self.tool_execution_count += 1
+        if event_type == "auto_retry_start":
+            self.route_unavailable_seen |= route_unavailable_error(
+                event.get("errorMessage")
+            )
+        elif event_type == "auto_retry_end":
+            self.route_unavailable_seen |= route_unavailable_error(
+                event.get("finalError")
+            )
 
         phase = self.phase
         if event_type in {"agent_start", "turn_start", "message_start"}:
@@ -528,7 +557,12 @@ class PiJsonMonitor:
         self._record_activity(str(event_type), phase)
 
         if event_type == "message_end":
-            report = assistant_text(event.get("message"))
+            message = event.get("message")
+            if isinstance(message, dict):
+                self.route_unavailable_seen |= route_unavailable_error(
+                    message.get("errorMessage")
+                )
+            report = assistant_text(message)
             if report is not None:
                 self.final_report = report
                 self.outcome = parse_delegate_outcome(report)
@@ -783,6 +817,8 @@ def run() -> int:
                 "agent_start_count": monitor.agent_start_count,
                 "agent_end_count": monitor.agent_end_count,
                 "agent_end_seen": monitor.agent_end_seen,
+                "tool_execution_count": monitor.tool_execution_count,
+                "route_unavailable_seen": monitor.route_unavailable_seen,
                 "stream_errors": monitor.errors,
             }
         )
