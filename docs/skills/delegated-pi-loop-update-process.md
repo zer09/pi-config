@@ -35,15 +35,16 @@ Preserve all of these unless the user explicitly changes the workflow:
 4. Every delegate clears inherited parent `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL`. Claude delegates also clear `AI_AGENT` and `PI_CODING_AGENT`.
 5. Every delegate uses a fresh ephemeral process: Pi `--no-session` or Claude Code `--no-session-persistence`, never resume/continue.
 6. At most one mutating delegate runs on a shared working tree, with no concurrent parent edits.
-7. Implementation and remediation default to `openai-codex/gpt-5.6-luna` at `max` thinking.
-8. Independent review and finding verification default to `openai-codex/gpt-5.6-sol` at `high` thinking.
-9. When the user or project explicitly selects Z.AI, any role uses pinned `zai/glm-5.3` at `max` thinking through Pi.
-10. When the user or project explicitly selects Claude Code, any role uses pinned `claude-opus-5` at `medium` effort with role-appropriate permissions; the moving `opus` alias is not used.
-11. Reviewers and verifiers are read-only, neutral, and checked against pre/post tree fingerprints.
-12. A project-provided verification template must be instantiated before focused remediation; parent analysis is not a substitute.
-13. A fresh independent review follows every remediation round.
-14. Git transitions and hosted-service writes retain their separate explicit-authorization gates.
-15. Temporary prompts and reports remain outside tracked project paths and contain no secrets.
+7. Implementation and remediation default to `openai-codex/gpt-5.6-luna` at `xhigh` thinking.
+8. Independent review defaults to `openai-codex/gpt-5.6-sol` at `high` thinking.
+9. Finding verification defaults to `openai-codex/gpt-5.6-sol` at `medium` thinking.
+10. When the user or project explicitly selects Z.AI, any role uses pinned `zai/glm-5.3` at `max` thinking through Pi.
+11. When the user or project explicitly selects Claude Code, any role uses pinned `claude-opus-5` at `medium` effort with role-appropriate permissions; the moving `opus` alias is not used.
+12. Reviewers and verifiers are read-only, neutral, and checked against pre/post tree fingerprints.
+13. A project-provided verification template must be instantiated before focused remediation; parent analysis is not a substitute.
+14. A fresh independent review follows every remediation round.
+15. Git transitions and hosted-service writes retain their separate explicit-authorization gates.
+16. Temporary prompts and reports remain outside tracked project paths and contain no secrets.
 
 ## Update workflow
 
@@ -52,7 +53,7 @@ Preserve all of these unless the user explicitly changes the workflow:
 3. Read the installed Pi `README.md`, `docs/skills.md`, `docs/sessions.md`, and `docs/environment-variables.md` before changing Pi CLI/session behavior.
 4. Read current official Claude Code CLI, model-configuration, and headless documentation plus local `claude --help` before changing Claude commands, model aliases, effort, permissions, or persistence behavior.
 5. Compare proposed behavior against at least one current project execution guide when project-template precedence or role separation changes.
-6. Confirm configured Pi model IDs/thinking levels, Z.AI GLM 5.3/max support, and installed Claude Code Opus 5/effort support before changing defaults.
+6. Confirm configured Pi model IDs and role-specific thinking levels, Z.AI GLM 5.3/max support, and installed Claude Code Opus 5/effort support before changing defaults.
 7. Keep the global `AGENTS.md` section compact; move detailed commands and prompt formats into the runtime reference.
 8. Keep `SKILL.md` under 500 lines and preserve its maintenance pointer.
 9. Update `agents/openai.yaml` when the description or user-facing invocation changes.
@@ -91,16 +92,18 @@ Also verify:
 
 The workflow has objective structural checks but real behavior evaluation can spend provider tokens and mutate a test tree. Prefer a disposable local Git fixture when evaluation is warranted. Test these cases:
 
-1. Explicit delegated implementation triggers the skill and produces one Luna/max spawn contract by default, one GLM 5.3/max Pi contract when Z.AI is selected, or one Opus 5/medium Claude Code contract when Claude is selected.
+1. Explicit delegated implementation triggers the skill and produces one Luna/xhigh spawn contract by default, one GLM 5.3/max Pi contract when Z.AI is selected, or one Opus 5/medium Claude Code contract when Claude is selected.
 2. Independent review produces a fresh Sol/high read-only contract by default, a GLM 5.3/max read-only contract when Z.AI is selected, or an Opus 5/medium read-only Claude Code contract when Claude is selected, with no remediation steering.
-3. A reproduced finding routes through verification, focused remediation, and a fresh review.
-4. A non-reproduced finding does not trigger speculative mutation.
-5. Architecture ambiguity stops for user input.
-6. A read-only delegate tree change invalidates the delegation instead of being silently reverted.
-7. Requests for ordinary coding without delegation do not force an unnecessary spawned loop.
-8. A stalled child reaches `timed_out`, receives SIGTERM then SIGKILL as needed, and leaves no active descendant.
-9. Excess output reaches `output_limit` before it can grow without bound.
-10. A zero exit with empty stdout reaches `missing_report` and cannot count as approval.
-11. A successful delegate preserves and replays its complete report while writing no command line to `status.json`.
+3. Finding verification produces a separate fresh Sol/medium read-only contract by default before any focused remediation.
+4. A reproduced finding routes through verification, focused remediation, and a fresh review.
+5. A non-reproduced finding does not trigger speculative mutation.
+6. Architecture ambiguity stops for user input.
+7. A read-only delegate tree change invalidates the delegation instead of being silently reverted.
+8. Requests for ordinary coding without delegation do not force an unnecessary spawned loop.
+9. A stalled child reaches `timed_out`, receives SIGTERM then SIGKILL as needed, and leaves no active descendant.
+10. Excess output reaches `output_limit` before it can grow without bound.
+11. A zero exit with empty stdout reaches `missing_report` and cannot count as approval.
+12. A successful delegate preserves and replays its complete report while writing no command line to `status.json`.
+13. The parent reports each selected model/effort plus supervisor state and elapsed time so the operational trial remains observable.
 
 Do not run hosted-service mutations, use a real user project as an evaluation fixture, or persist provider credentials or delegate command lines in evaluation artifacts.

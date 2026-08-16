@@ -23,6 +23,8 @@ The previously retired `context-watcher` was a broad orchestration runtime skill
 
 Repeated delegate calls exposed a missing lifecycle bound. One delegate remained silent for about 85 minutes and ended only after SIGTERM with no report. A later retry left no tool result when the parent session ended. Fresh sessions and role isolation do not protect against provider stalls, deadlocks, empty stdout, or abandoned descendants.
 
+A 2026-08-16 external chart review supplied only directional evidence that lower reasoning effort can reduce latency. Its subscription estimates and Pareto curve were not reliable enough to establish model policy. The user chose to adopt lower effort now as an operational trial. Final independent review retains higher effort because missed blockers have greater cost than slower execution.
+
 ## Decision
 
 Adopt a layered delegated-Pi workflow:
@@ -43,8 +45,9 @@ Pi 0.84.1 sets `AI_AGENT=pi` and `PI_CODING_AGENT=true` in each Pi child. Pi's b
 
 Default role assignments are:
 
-- implementation and focused remediation: `openai-codex/gpt-5.6-luna`, thinking `max`;
-- independent review and finding verification: `openai-codex/gpt-5.6-sol`, thinking `high`;
+- implementation and focused remediation: `openai-codex/gpt-5.6-luna`, thinking `xhigh`;
+- independent review: `openai-codex/gpt-5.6-sol`, thinking `high`;
+- finding verification: `openai-codex/gpt-5.6-sol`, thinking `medium`;
 - explicit Z.AI alternative for any role: `zai/glm-5.3`, thinking `max`;
 - explicit Claude Code alternative for any role: `claude-opus-5`, effort `medium`.
 
@@ -62,6 +65,7 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 - Shared-tree safety remains prompt- and fingerprint-enforced; this is not an operating-system sandbox because reviewers may still have `bash`.
 - A stalled delegate now terminates within its configured bound. Empty stdout becomes a failed `missing_report` state instead of silent success.
 - Supervisor artifacts preserve the report, stderr, and terminal status without persisting the delegate command line.
+- Routine implementation and verification should complete faster if the directional evidence transfers to local workloads; final review retains Sol/high as the quality gate.
 - Model identifiers, thinking or effort levels, and process environment markers are maintenance points. Check each contract when Pi or Claude Code changes them.
 - Real delegate evaluations can spend provider tokens and may mutate a fixture, so structural validation is the default and live smoke tests require an appropriate disposable workspace and authorization.
 
@@ -79,7 +83,7 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 
 1. Validate the target skill and every Local Skill.
 2. Parse every `agents/openai.yaml` and verify the delegated skill's default prompt names `$delegated-pi-loop`.
-3. Check the installed Pi model catalog resolves `zai/glm-5.3` and accepts `max` thinking without provider inference.
+3. Check Pi accepts Luna/xhigh, Sol/high, Sol/medium, and Z.AI GLM 5.3/max selections without provider inference.
 4. Check the installed Claude Code version supports Opus 5, `--effort medium`, `--no-session-persistence`, and the documented permission flags.
 5. Check global and skill instructions agree on direct bash, bounded child supervision, environment scrubbing, fresh sessions, one mutator, neutral reviewers, and authorization gates.
 6. Run supervisor regressions for successful reports, empty reports, deadlines, and descendant cleanup.

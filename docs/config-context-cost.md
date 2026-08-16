@@ -16,6 +16,8 @@ Delegated Z.AI model-alternative update: 2026-08-15 (added explicit GLM 5.3/max 
 
 Delegated process-supervisor update: 2026-08-15 (added bounded child execution and durable failure diagnostics; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated role-effort update: 2026-08-16 (adopted Luna/xhigh implementation, Sol/medium verification, and retained Sol/high review; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -181,6 +183,19 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `references/prompt-contracts.md` | 2,433 | 2,916 | +483 | Loaded only before a delegate spawn |
 
 The only startup increase is the compact supervisor requirement in `agent/AGENTS.md`. The supervisor, tests, detailed commands, artifact contract, and failure guidance remain on demand.
+
+## 2026-08-16 delegated role-effort attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration was run. The skill description, global instructions, and full extension/tool inventory did not change.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,587 | 2,587 | 0 | Always loaded through the context-file block |
+| `delegated-pi-loop` description | 83 | 83 | 0 | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | 1,969 | 1,985 | +16 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 2,916 | 3,102 | +186 | Loaded only before a delegate spawn |
+
+There is no startup-context increase. The on-demand reference grows because finding verification now has a distinct Sol/medium spawn contract while final independent review retains Sol/high.
 
 ## Provider-calibrated baseline probes
 

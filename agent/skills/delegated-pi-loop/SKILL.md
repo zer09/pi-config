@@ -13,9 +13,9 @@ Read `references/prompt-contracts.md` before the first spawn. Use project-specif
 
 | Role | Provider/model | Thinking | Mutation |
 |---|---|---:|---|
-| Implementation or focused remediation | `openai-codex/gpt-5.6-luna` | `max` | Narrowly allowed |
+| Implementation or focused remediation | `openai-codex/gpt-5.6-luna` | `xhigh` | Narrowly allowed |
 | Independent implementation review | `openai-codex/gpt-5.6-sol` | `high` | Prohibited |
-| Finding verification | `openai-codex/gpt-5.6-sol` | `high` | Prohibited |
+| Finding verification | `openai-codex/gpt-5.6-sol` | `medium` | Prohibited |
 | Explicit Z.AI alternative for any role | `zai/glm-5.3` | `max` | Follows the assigned role |
 | Explicit Claude alternative for any role | Claude Code `claude-opus-5` | `medium` effort | Follows the assigned role |
 
@@ -55,7 +55,7 @@ When implementation is requested:
 2. Give the selected implementation delegate one narrow mutation scope with explicit invariants, exact findings or objective, success criteria, required tests, required documentation updates, and prohibitions.
 3. State that existing user changes belong to the user and must not be reverted.
 4. Require the delegate to report changed paths and exact checks run.
-5. Spawn the selected mutating backend: Pi Luna/max by default, Z.AI GLM 5.3/max when explicitly selected, or Claude Opus 5/medium when explicitly selected. Wait for completion.
+5. Spawn the selected mutating backend: Pi Luna/xhigh by default, Z.AI GLM 5.3/max when explicitly selected, or Claude Opus 5/medium when explicitly selected. Wait for completion.
 6. Inspect the resulting diff and validation evidence before proceeding.
 
 Do not ask an implementation delegate to perform its own independent approval.
@@ -77,13 +77,13 @@ A passing test suite is evidence, not independent approval. Approval comes only 
 For each blocking finding:
 
 1. Preserve its complete text, including severity, location, evidence, reproduction or interleaving, impact, and required contract.
-2. Spawn a separate fresh verification-only delegate using the project's template: Pi Sol/high by default, Z.AI GLM 5.3/max when explicitly selected, or Claude Opus 5/medium when explicitly selected.
+2. Spawn a separate fresh verification-only delegate using the project's template: Pi Sol/medium by default, Z.AI GLM 5.3/max when explicitly selected, or Claude Opus 5/medium when explicitly selected.
 3. Require one classification: `REPRODUCED`, `PARTIALLY REPRODUCED`, `NOT REPRODUCED`, `ALREADY FIXED`, `DUPLICATE`, or `ARCHITECTURE AMBIGUITY`, unless the project defines another taxonomy.
 4. Do not let the verifier edit files, fix the defect, perform a broad review, or recursively delegate.
 5. If the result is `ARCHITECTURE AMBIGUITY`, stop and ask the user rather than silently choosing policy.
 6. If the finding is not reproduced, preserve the evidence and follow the project's disposition rules; do not implement a speculative fix.
 7. If reproduced or partially reproduced, create a focused remediation prompt containing the complete finding and complete verification report.
-8. Spawn one mutating delegate: Pi Luna/max by default, Z.AI GLM 5.3/max when explicitly selected, or Claude Opus 5/medium when explicitly selected. Add the failing regression first or alongside the smallest correct fix. Update required review documentation and run targeted gates.
+8. Spawn one mutating delegate: Pi Luna/xhigh by default, Z.AI GLM 5.3/max when explicitly selected, or Claude Opus 5/medium when explicitly selected. Add the failing regression first or alongside the smallest correct fix. Update required review documentation and run targeted gates.
 
 Group findings into one remediation only when they are tightly coupled and one coherent fix is narrower and safer than separate edits. Otherwise remediate serially.
 
@@ -103,7 +103,7 @@ After a no-findings verdict:
 
 1. Run the project-prescribed local or clean-tree gates.
 2. Confirm temporary prompt/report files are outside tracked paths.
-3. Report the final verdict, changed paths, exact checks, dirty/staged state, and remaining release steps.
+3. Report each selected model/effort, supervisor state and elapsed time, final verdict, changed paths, exact checks, dirty/staged state, and remaining release steps.
 4. Stop before staging, committing, pushing, opening a PR, merging, deploying, or other persistent transitions unless already authorized.
 
 ## Failure handling

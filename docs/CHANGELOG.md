@@ -2,6 +2,14 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-16 — Adopt role-specific delegate effort
+
+- Changed default implementation and focused remediation from Luna/max to Luna/xhigh.
+- Changed narrow finding verification from Sol/high to Sol/medium while retaining Sol/high for final independent review.
+- Kept explicitly selected Z.AI GLM 5.3/max and Claude Opus 5/medium alternatives unchanged.
+- Treated the external pricing/performance analysis as directional evidence only. This policy is an operational trial that requires local outcome observation.
+- Validation used model-selection, command-contract, skill, documentation, and whitespace checks without paid inference.
+
 ## 2026-08-15 — Bound delegated process lifetime
 
 - Confirmed repeated unbounded delegate failures, including one silent call that lasted about 85 minutes before SIGTERM and produced no report.

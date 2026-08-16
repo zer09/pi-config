@@ -31,7 +31,7 @@ prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
 supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
 uv run --no-project python "$supervisor" \
-  --label implementation-luna \
+  --label implementation-luna-xhigh \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -45,11 +45,11 @@ uv run --no-project python "$supervisor" \
     --approve \
     --provider openai-codex \
     --model gpt-5.6-luna \
-    --thinking max \
+    --thinking xhigh \
     @"$prompt_file"
 ```
 
-### Independent review or finding verification
+### Independent review
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
@@ -57,7 +57,7 @@ prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
 supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
 uv run --no-project python "$supervisor" \
-  --label review-sol \
+  --label review-sol-high \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -72,6 +72,32 @@ uv run --no-project python "$supervisor" \
     --provider openai-codex \
     --model gpt-5.6-sol \
     --thinking high \
+    @"$prompt_file"
+```
+
+### Finding verification
+
+```bash
+project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
+prompt_file="${TMPDIR:-/tmp}/project-verification-prompt.md"
+supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
+cd "$project_root"
+uv run --no-project python "$supervisor" \
+  --label verification-sol-medium \
+  -- \
+  env \
+    -u PI_SESSION_ID \
+    -u PI_SESSION_FILE \
+    -u PI_PROVIDER \
+    -u PI_MODEL \
+    -u PI_REASONING_LEVEL \
+    PI_SKIP_VERSION_CHECK=1 pi \
+    --print \
+    --no-session \
+    --approve \
+    --provider openai-codex \
+    --model gpt-5.6-sol \
+    --thinking medium \
     @"$prompt_file"
 ```
 
