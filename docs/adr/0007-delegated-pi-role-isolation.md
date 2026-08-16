@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-A successful implementation workflow used the current Pi session as an orchestrator and fresh one-shot Pi processes as implementation, independent-review, finding-verification, and focused-remediation delegates. The same role isolation applies when the user explicitly selects Z.AI GLM 5.3 through Pi or Claude Code with Claude Opus 5. The useful behavior came from more than merely asking a second model for help:
+A successful implementation workflow used the current Pi session as an orchestrator and fresh one-shot Pi processes as implementation, independent-review, finding-verification, and focused-remediation delegates. The same role isolation applies to default Z.AI GLM 5.3 implementation or when the user explicitly selects Z.AI for a read-only role or Claude Code with Claude Opus 5. The useful behavior came from more than merely asking a second model for help:
 
 - implementation and review used different role-appropriate models and reasoning levels;
 - each role started without conversation history;
@@ -23,7 +23,7 @@ The previously retired `context-watcher` was a broad orchestration runtime skill
 
 Repeated delegate calls exposed a missing lifecycle bound. One delegate remained silent for about 85 minutes and ended only after SIGTERM with no report. A later retry left no tool result when the parent session ended. Fresh sessions and role isolation do not protect against provider stalls, deadlocks, empty stdout, or abandoned descendants.
 
-A 2026-08-16 external chart review supplied only directional evidence that lower reasoning effort can reduce latency. Its subscription estimates and Pareto curve were not reliable enough to establish model policy. The user chose to adopt lower effort now as an operational trial. Final independent review retains higher effort because missed blockers have greater cost than slower execution.
+A 2026-08-16 external chart review supplied only directional evidence that lower reasoning effort can reduce latency. Its subscription estimates and Pareto curve were not reliable enough to establish model policy. After a brief lower-effort trial decision, the user selected GLM 5.3/max as the implementation default and retained Luna/xhigh only for positively classified small tasks. Final independent review retains higher effort because missed blockers have greater cost than slower execution.
 
 ## Decision
 
@@ -45,13 +45,14 @@ Pi 0.84.1 sets `AI_AGENT=pi` and `PI_CODING_AGENT=true` in each Pi child. Pi's b
 
 Default role assignments are:
 
-- implementation and focused remediation: `openai-codex/gpt-5.6-luna`, thinking `xhigh`;
+- implementation and focused remediation: `zai/glm-5.3`, thinking `max`;
+- small-task implementation or remediation only: `openai-codex/gpt-5.6-luna`, thinking `xhigh`;
 - independent review: `openai-codex/gpt-5.6-sol`, thinking `high`;
 - finding verification: `openai-codex/gpt-5.6-sol`, thinking `medium`;
-- explicit Z.AI alternative for any role: `zai/glm-5.3`, thinking `max`;
+- explicit Z.AI review or verification alternative: `zai/glm-5.3`, thinking `max`;
 - explicit Claude Code alternative for any role: `claude-opus-5`, effort `medium`.
 
-The OpenAI Codex role models remain the defaults. Use Z.AI or Claude Code only when the user or project explicitly selects that alternative. Pin `zai/glm-5.3` at `max` thinking or `claude-opus-5` at `medium` effort rather than using a moving alias. User instructions and more-specific project workflows may otherwise override model selection. Project role templates, finding taxonomies, and release gates take precedence over generic skill skeletons.
+GLM 5.3/max is the implementation and remediation default. The orchestrator may select Luna/xhigh only after recording that the task is narrow, follows an established pattern, has no material ambiguity or architecture, security, concurrency, schema, migration, broad-refactor, or cross-system concern, and should finish in a few turns. Uncertainty routes to GLM 5.3/max. Sol remains the default for read-only roles. Use Z.AI for review or verification, or Claude Code for any role, only when the user or project explicitly selects that alternative. Pin model and effort identifiers rather than using moving aliases. User instructions and more-specific project workflows may otherwise override model selection. Project role templates, finding taxonomies, and release gates take precedence over generic skill skeletons.
 
 Only one mutating delegate may run on a shared working tree, and the parent must not edit concurrently. Reviewers and verifiers are read-only and neutral; compare tree state before and after their runs. If a project provides separate finding-verification and focused-remediation templates, instantiate both in separate fresh processes. Parent-session analysis cannot replace required independent verification.
 
@@ -59,13 +60,13 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 
 ## Consequences
 
-- Other Pi sessions can reproduce the workflow with default Pi role models, explicitly selected Z.AI GLM 5.3 delegates, or explicitly selected Claude Code delegates from a compact automatic trigger.
+- Other Pi sessions can reproduce the workflow with default GLM 5.3/max implementation, guarded small-task Luna/xhigh routing, default Sol read-only roles, or explicitly selected Z.AI read-only and Claude Code alternatives from a compact automatic trigger.
 - The always-loaded global context grows only by the short trigger/safety section; detailed behavior remains on demand.
 - Independent-review credibility depends on role and context isolation rather than model self-approval.
 - Shared-tree safety remains prompt- and fingerprint-enforced; this is not an operating-system sandbox because reviewers may still have `bash`.
 - A stalled delegate now terminates within its configured bound. Empty stdout becomes a failed `missing_report` state instead of silent success.
 - Supervisor artifacts preserve the report, stderr, and terminal status without persisting the delegate command line.
-- Routine implementation and verification should complete faster if the directional evidence transfers to local workloads; final review retains Sol/high as the quality gate.
+- Complex or uncertain implementation routes to GLM 5.3/max. Luna/xhigh remains available only for clearly small, low-risk, few-turn work; final review retains Sol/high as the quality gate.
 - Model identifiers, thinking or effort levels, and process environment markers are maintenance points. Check each contract when Pi or Claude Code changes them.
 - Real delegate evaluations can spend provider tokens and may mutate a fixture, so structural validation is the default and live smoke tests require an appropriate disposable workspace and authorization.
 

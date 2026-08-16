@@ -2,6 +2,14 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-16 — Default implementation to GLM 5.3
+
+- Made Z.AI GLM 5.3/max the default model for delegated implementation and focused remediation.
+- Restricted Luna/xhigh to tasks the orchestrator positively classifies as narrow, pattern-based, low-risk, free of material ambiguity or cross-cutting concerns, and likely to finish in a few turns. Uncertainty routes to GLM 5.3/max.
+- Retained Sol/high independent review, Sol/medium finding verification, explicit Z.AI read-only selection, and explicit Claude Opus 5/medium selection.
+- Added recorded small-task classification and selected-route reporting so future delegate outcomes remain observable.
+- Validation used no-inference model selection, command contracts, all-skill checks, documentation checks, and supervisor regressions.
+
 ## 2026-08-16 — Adopt role-specific delegate effort
 
 - Changed default implementation and focused remediation from Luna/max to Luna/xhigh.

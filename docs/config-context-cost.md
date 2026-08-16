@@ -18,6 +18,8 @@ Delegated process-supervisor update: 2026-08-15 (added bounded child execution a
 
 Delegated role-effort update: 2026-08-16 (adopted Luna/xhigh implementation, Sol/medium verification, and retained Sol/high review; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated implementation-routing update: 2026-08-16 (made GLM 5.3/max the implementation default and restricted Luna/xhigh to classified small tasks; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -196,6 +198,19 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `references/prompt-contracts.md` | 2,916 | 3,102 | +186 | Loaded only before a delegate spawn |
 
 There is no startup-context increase. The on-demand reference grows because finding verification now has a distinct Sol/medium spawn contract while final independent review retains Sol/high.
+
+## 2026-08-16 delegated implementation-routing attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration was run. The skill description and full extension/tool inventory did not change.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,587 | 2,635 | +48 | Always loaded through the context-file block |
+| `delegated-pi-loop` description | 83 | 83 | 0 | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | 1,985 | 2,087 | +102 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 3,102 | 3,204 | +102 | Loaded only before a delegate spawn |
+
+The startup increase records the default GLM route and strict Luna small-task gate. Detailed classification criteria and exact commands remain progressively disclosed.
 
 ## Provider-calibrated baseline probes
 

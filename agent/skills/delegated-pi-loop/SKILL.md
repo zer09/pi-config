@@ -13,13 +13,14 @@ Read `references/prompt-contracts.md` before the first spawn. Use project-specif
 
 | Role | Provider/model | Thinking | Mutation |
 |---|---|---:|---|
-| Implementation or focused remediation | `openai-codex/gpt-5.6-luna` | `xhigh` | Narrowly allowed |
+| Implementation or focused remediation | `zai/glm-5.3` | `max` | Narrowly allowed |
+| Small-task implementation or remediation | `openai-codex/gpt-5.6-luna` | `xhigh` | Narrowly allowed |
 | Independent implementation review | `openai-codex/gpt-5.6-sol` | `high` | Prohibited |
 | Finding verification | `openai-codex/gpt-5.6-sol` | `medium` | Prohibited |
-| Explicit Z.AI alternative for any role | `zai/glm-5.3` | `max` | Follows the assigned role |
+| Explicit Z.AI review or verification alternative | `zai/glm-5.3` | `max` | Prohibited |
 | Explicit Claude alternative for any role | Claude Code `claude-opus-5` | `medium` effort | Follows the assigned role |
 
-Use Pi defaults unless the user or a more specific project workflow explicitly selects Z.AI or Claude Code. For Z.AI, pin `zai/glm-5.3` at `max` thinking. For Claude, pin `claude-opus-5` instead of the moving `opus` alias. Any explicitly requested model or reasoning level overrides these defaults.
+Default implementation and remediation to Z.AI GLM 5.3/max. Use Luna/xhigh only after the orchestrator records that the task is narrow, follows an established pattern, has no material ambiguity or architecture, security, concurrency, schema, migration, or cross-system concern, and should finish in a few turns. If any criterion is uncertain, use GLM 5.3/max. Keep Sol/high for independent review and Sol/medium for finding verification unless the user or project selects another backend. For Claude, pin `claude-opus-5` instead of the moving `opus` alias. Any explicitly requested model or reasoning level overrides these defaults.
 
 ## Non-negotiable execution rules
 
@@ -28,7 +29,7 @@ Use Pi defaults unless the user or a more specific project workflow explicitly s
 - Treat supervisor states other than `completed` as failures. Preserve its private temporary `report.md`, `stderr.log`, and `status.json` paths for diagnosis.
 - For Pi, including Z.AI GLM, use `--print --no-session --approve`. For Claude Code, use `--print --no-session-persistence` with role-appropriate non-interactive permissions.
 - Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before every delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates.
-- Use Z.AI GLM 5.3 only when the user or project explicitly selects it. Pin `--provider zai --model glm-5.3 --thinking max`.
+- Pin the default implementation/remediation route as `--provider zai --model glm-5.3 --thinking max`. Use Z.AI for review or verification only when the user or project explicitly selects it.
 - Keep the current session as the only orchestrator. Tell every delegate to execute its assigned role directly and never spawn another Pi, Claude Code, or subagent session.
 - Run delegates sequentially by default. Never run more than one mutating delegate at a time on a shared working tree.
 - Do not edit the tree while a mutating delegate is running.
@@ -55,7 +56,7 @@ When implementation is requested:
 2. Give the selected implementation delegate one narrow mutation scope with explicit invariants, exact findings or objective, success criteria, required tests, required documentation updates, and prohibitions.
 3. State that existing user changes belong to the user and must not be reverted.
 4. Require the delegate to report changed paths and exact checks run.
-5. Spawn the selected mutating backend: Pi Luna/xhigh by default, Z.AI GLM 5.3/max when explicitly selected, or Claude Opus 5/medium when explicitly selected. Wait for completion.
+5. Spawn Z.AI GLM 5.3/max by default. Use Pi Luna/xhigh only when the recorded small-task classification satisfies every role-default criterion. Use Claude Opus 5/medium when explicitly selected. Wait for completion.
 6. Inspect the resulting diff and validation evidence before proceeding.
 
 Do not ask an implementation delegate to perform its own independent approval.
@@ -83,7 +84,7 @@ For each blocking finding:
 5. If the result is `ARCHITECTURE AMBIGUITY`, stop and ask the user rather than silently choosing policy.
 6. If the finding is not reproduced, preserve the evidence and follow the project's disposition rules; do not implement a speculative fix.
 7. If reproduced or partially reproduced, create a focused remediation prompt containing the complete finding and complete verification report.
-8. Spawn one mutating delegate: Pi Luna/xhigh by default, Z.AI GLM 5.3/max when explicitly selected, or Claude Opus 5/medium when explicitly selected. Add the failing regression first or alongside the smallest correct fix. Update required review documentation and run targeted gates.
+8. Spawn Z.AI GLM 5.3/max by default. Use Pi Luna/xhigh only when the focused remediation independently satisfies every small-task criterion. Use Claude Opus 5/medium when explicitly selected. Add the failing regression first or alongside the smallest correct fix. Update required review documentation and run targeted gates.
 
 Group findings into one remediation only when they are tightly coupled and one coherent fix is narrower and safer than separate edits. Otherwise remediate serially.
 
@@ -115,4 +116,4 @@ After a no-findings verdict:
 
 ## Maintenance
 
-Update this custom local skill through `docs/skills/delegated-pi-loop-update-process.md`. Preserve fresh-session isolation for Pi and Claude Code, bounded child supervision, process-group cleanup, report diagnostics, role separation, the single-mutator rule, direct non-Context-Mode spawning, explicit Z.AI GLM 5.3/max and Claude Opus 5/medium selection, and explicit Git/hosted-service authorization gates.
+Update this custom local skill through `docs/skills/delegated-pi-loop-update-process.md`. Preserve fresh-session isolation for Pi and Claude Code, bounded child supervision, process-group cleanup, report diagnostics, role separation, the single-mutator rule, direct non-Context-Mode spawning, default GLM 5.3/max implementation, guarded small-task Luna/xhigh routing, explicit Claude Opus 5/medium selection, and explicit Git/hosted-service authorization gates.

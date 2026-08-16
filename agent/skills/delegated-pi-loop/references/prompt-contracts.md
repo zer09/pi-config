@@ -1,6 +1,6 @@
 # Delegated Pi, Z.AI, and Claude Code prompt and spawn contracts
 
-Load this reference before spawning delegates. Adapt project paths, documents, role templates, finding taxonomies, and gates without weakening the isolation and mutation rules. Use the default Pi role models unless the user or project explicitly selects Z.AI GLM 5.3 or Claude Code.
+Load this reference before spawning delegates. Adapt project paths, documents, role templates, finding taxonomies, and gates without weakening the isolation and mutation rules. Use default role routes unless the user or project explicitly selects another supported backend.
 
 ## Read-only tree fingerprint
 
@@ -23,7 +23,16 @@ Set the project, temporary prompt, and supervisor paths in the parent session. R
 
 The supervisor announces its private artifact directory before spawn, applies a 45-minute wall-clock deadline, emits a heartbeat every 60 seconds, enforces a 50 MiB combined output limit, terminates the complete child process group, and preserves `report.md`, `stderr.log`, and `status.json`. Use `--timeout-seconds <seconds>` before `--` only when the task has an explicitly justified larger bound. Never run an unbounded child.
 
-### Implementation or focused remediation
+Implementation and remediation default to GLM 5.3/max. The orchestrator may choose Luna/xhigh only when all of these conditions hold:
+
+1. The requested change is narrow and clearly bounded.
+2. The solution follows an established local pattern and has no material ambiguity.
+3. The task has no architecture, security, concurrency, schema, migration, broad-refactor, or cross-system concern.
+4. The delegate should finish in a few agent turns with targeted checks.
+
+Record the small-task classification before spawn. If any condition is uncertain, use GLM 5.3/max.
+
+### Default implementation or focused remediation
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
@@ -31,7 +40,7 @@ prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
 supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
 uv run --no-project python "$supervisor" \
-  --label implementation-luna-xhigh \
+  --label implementation-glm-5.3-max \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -43,9 +52,9 @@ uv run --no-project python "$supervisor" \
     --print \
     --no-session \
     --approve \
-    --provider openai-codex \
-    --model gpt-5.6-luna \
-    --thinking xhigh \
+    --provider zai \
+    --model glm-5.3 \
+    --thinking max \
     @"$prompt_file"
 ```
 
@@ -101,7 +110,7 @@ uv run --no-project python "$supervisor" \
     @"$prompt_file"
 ```
 
-### Explicit Z.AI GLM 5.3 implementation or remediation alternative
+### Small-task Luna implementation or remediation
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
@@ -109,7 +118,7 @@ prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
 supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
 uv run --no-project python "$supervisor" \
-  --label implementation-glm-5.3 \
+  --label implementation-luna-xhigh-small \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -121,9 +130,9 @@ uv run --no-project python "$supervisor" \
     --print \
     --no-session \
     --approve \
-    --provider zai \
-    --model glm-5.3 \
-    --thinking max \
+    --provider openai-codex \
+    --model gpt-5.6-luna \
+    --thinking xhigh \
     @"$prompt_file"
 ```
 

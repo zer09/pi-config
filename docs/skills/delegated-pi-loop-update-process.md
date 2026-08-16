@@ -1,6 +1,6 @@
 # Delegated Pi loop update process
 
-Purpose: maintain `agent/skills/delegated-pi-loop` as the local source of truth for orchestrating fresh, bounded Pi or Claude Code implementation, independent review, finding verification, and focused remediation delegates on one shared working tree. Pi delegates can use the default OpenAI Codex role models or explicitly selected Z.AI GLM 5.3.
+Purpose: maintain `agent/skills/delegated-pi-loop` as the local source of truth for orchestrating fresh, bounded Pi or Claude Code implementation, independent review, finding verification, and focused remediation delegates on one shared working tree. Implementation defaults to Z.AI GLM 5.3/max, with Luna/xhigh reserved for positively classified small tasks.
 
 ## Classification and provenance
 
@@ -35,16 +35,17 @@ Preserve all of these unless the user explicitly changes the workflow:
 4. Every delegate clears inherited parent `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL`. Claude delegates also clear `AI_AGENT` and `PI_CODING_AGENT`.
 5. Every delegate uses a fresh ephemeral process: Pi `--no-session` or Claude Code `--no-session-persistence`, never resume/continue.
 6. At most one mutating delegate runs on a shared working tree, with no concurrent parent edits.
-7. Implementation and remediation default to `openai-codex/gpt-5.6-luna` at `xhigh` thinking.
-8. Independent review defaults to `openai-codex/gpt-5.6-sol` at `high` thinking.
-9. Finding verification defaults to `openai-codex/gpt-5.6-sol` at `medium` thinking.
-10. When the user or project explicitly selects Z.AI, any role uses pinned `zai/glm-5.3` at `max` thinking through Pi.
-11. When the user or project explicitly selects Claude Code, any role uses pinned `claude-opus-5` at `medium` effort with role-appropriate permissions; the moving `opus` alias is not used.
-12. Reviewers and verifiers are read-only, neutral, and checked against pre/post tree fingerprints.
-13. A project-provided verification template must be instantiated before focused remediation; parent analysis is not a substitute.
-14. A fresh independent review follows every remediation round.
-15. Git transitions and hosted-service writes retain their separate explicit-authorization gates.
-16. Temporary prompts and reports remain outside tracked project paths and contain no secrets.
+7. Implementation and remediation default to pinned `zai/glm-5.3` at `max` thinking through Pi.
+8. Luna/xhigh is permitted for implementation or remediation only after the orchestrator records that the task is narrow, pattern-based, free of material ambiguity and architecture, security, concurrency, schema, migration, broad-refactor, or cross-system concerns, and likely to finish in a few turns. Uncertainty routes to GLM 5.3/max.
+9. Independent review defaults to `openai-codex/gpt-5.6-sol` at `high` thinking.
+10. Finding verification defaults to `openai-codex/gpt-5.6-sol` at `medium` thinking.
+11. Z.AI review or verification requires explicit user or project selection and uses pinned `zai/glm-5.3` at `max` thinking through Pi.
+12. When the user or project explicitly selects Claude Code, any role uses pinned `claude-opus-5` at `medium` effort with role-appropriate permissions; the moving `opus` alias is not used.
+13. Reviewers and verifiers are read-only, neutral, and checked against pre/post tree fingerprints.
+14. A project-provided verification template must be instantiated before focused remediation; parent analysis is not a substitute.
+15. A fresh independent review follows every remediation round.
+16. Git transitions and hosted-service writes retain their separate explicit-authorization gates.
+17. Temporary prompts and reports remain outside tracked project paths and contain no secrets.
 
 ## Update workflow
 
@@ -85,25 +86,26 @@ Also verify:
 - The runtime skill and reference contain no unresolved scaffold/TODO placeholders or user-specific home paths; generic prompt fields are clearly marked for replacement.
 - All changed local Markdown links resolve.
 - No caches, logs, delegate transcripts, temporary prompts, or evaluation artifacts were added.
-- The global rule and skill agree on direct bash routing, bounded child supervision, environment scrubbing, fresh Pi/Claude sessions, default role models, explicit Z.AI GLM 5.3/max selection, Claude permission modes, reviewer neutrality, and mutation gates.
+- The global rule and skill agree on direct bash routing, bounded child supervision, environment scrubbing, fresh Pi/Claude sessions, default GLM 5.3/max implementation, guarded small-task Luna/xhigh routing, Sol read-only defaults, Claude permission modes, reviewer neutrality, and mutation gates.
 - Existing unrelated dirty config files remain untouched.
 
 ## Evaluation guidance
 
 The workflow has objective structural checks but real behavior evaluation can spend provider tokens and mutate a test tree. Prefer a disposable local Git fixture when evaluation is warranted. Test these cases:
 
-1. Explicit delegated implementation triggers the skill and produces one Luna/xhigh spawn contract by default, one GLM 5.3/max Pi contract when Z.AI is selected, or one Opus 5/medium Claude Code contract when Claude is selected.
-2. Independent review produces a fresh Sol/high read-only contract by default, a GLM 5.3/max read-only contract when Z.AI is selected, or an Opus 5/medium read-only Claude Code contract when Claude is selected, with no remediation steering.
-3. Finding verification produces a separate fresh Sol/medium read-only contract by default before any focused remediation.
-4. A reproduced finding routes through verification, focused remediation, and a fresh review.
-5. A non-reproduced finding does not trigger speculative mutation.
-6. Architecture ambiguity stops for user input.
-7. A read-only delegate tree change invalidates the delegation instead of being silently reverted.
-8. Requests for ordinary coding without delegation do not force an unnecessary spawned loop.
-9. A stalled child reaches `timed_out`, receives SIGTERM then SIGKILL as needed, and leaves no active descendant.
-10. Excess output reaches `output_limit` before it can grow without bound.
-11. A zero exit with empty stdout reaches `missing_report` and cannot count as approval.
-12. A successful delegate preserves and replays its complete report while writing no command line to `status.json`.
-13. The parent reports each selected model/effort plus supervisor state and elapsed time so the operational trial remains observable.
+1. Delegated implementation produces one GLM 5.3/max spawn contract by default or one Opus 5/medium Claude Code contract when Claude is selected.
+2. Luna/xhigh implementation appears only after a recorded small-task classification satisfies every routing criterion; a missing, uncertain, complex, or high-risk classification routes to GLM 5.3/max.
+3. Independent review produces a fresh Sol/high read-only contract by default, a GLM 5.3/max read-only contract when Z.AI is selected, or an Opus 5/medium read-only Claude Code contract when Claude is selected, with no remediation steering.
+4. Finding verification produces a separate fresh Sol/medium read-only contract by default before any focused remediation.
+5. A reproduced finding routes through verification, focused remediation, and a fresh review.
+6. A non-reproduced finding does not trigger speculative mutation.
+7. Architecture ambiguity stops for user input.
+8. A read-only delegate tree change invalidates the delegation instead of being silently reverted.
+9. Requests for ordinary coding without delegation do not force an unnecessary spawned loop.
+10. A stalled child reaches `timed_out`, receives SIGTERM then SIGKILL as needed, and leaves no active descendant.
+11. Excess output reaches `output_limit` before it can grow without bound.
+12. A zero exit with empty stdout reaches `missing_report` and cannot count as approval.
+13. A successful delegate preserves and replays its complete report while writing no command line to `status.json`.
+14. The parent reports each selected model/effort plus supervisor state and elapsed time so routing outcomes remain observable.
 
 Do not run hosted-service mutations, use a real user project as an evaluation fixture, or persist provider credentials or delegate command lines in evaluation artifacts.
