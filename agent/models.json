@@ -101,6 +101,72 @@
           }
         }
       ]
+    },
+    "gorouter": {
+      "baseUrl": "https://gorouter.app/v1",
+      "api": "openai-completions",
+      "apiKey": "$GOROUTER_API_KEY",
+      "headers": {
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36"
+      },
+      "compat": {
+        "supportsStore": false,
+        "supportsDeveloperRole": false,
+        "supportsReasoningEffort": false
+      },
+      "models": [
+        {
+          "id": "claude-opus-5-thinking",
+          "name": "Claude Opus 5 Thinking",
+          "reasoning": true,
+          "input": ["text"],
+          "contextWindow": 1000000,
+          "maxTokens": 128000,
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": null,
+            "medium": null,
+            "high": "high",
+            "xhigh": null,
+            "max": null
+          }
+        },
+        {
+          "id": "claude-opus-4-8",
+          "name": "Claude Opus 4.8",
+          "reasoning": false,
+          "input": ["text"],
+          "contextWindow": 1000000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "claude-opus-4-8-thinking",
+          "name": "Claude Opus 4.8 Thinking",
+          "reasoning": true,
+          "input": ["text"],
+          "contextWindow": 1000000,
+          "maxTokens": 128000,
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": null,
+            "medium": null,
+            "high": "high",
+            "xhigh": null,
+            "max": null
+          }
+        },
+        {
+          "id": "claude-opus-5",
+          "name": "Claude Opus 5",
+          "reasoning": false,
+          "input": ["text"],
+          "contextWindow": 1000000,
+          "maxTokens": 128000
+        }
+      ]
     }
   }
 }
