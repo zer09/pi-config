@@ -2,6 +2,6 @@
   "aliases": [
     { "slug": "personal", "name": "OpenAI Codex Personal" },
     { "slug": "business", "name": "OpenAI Codex Business" },
-    { "slug": "gamsgo", "name": "OpenAI Codex GamsGo" }
+    { "slug": "zahlo", "name": "OpenAI Codex Zahlo" }
   ]
 }
