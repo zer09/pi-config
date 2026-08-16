@@ -25,6 +25,8 @@ The supervisor announces its private artifact directory before spawn, applies a 
 
 `run_delegate_chain.py` guards one or more ordered Pi routes around fresh supervisor attempts. It checks each exact provider/model against Pi's available catalog. It may move to the next route after catalog absence, a recognized provider-availability error, or an event-idle stall only when no tool execution started and no terminal delegate result exists. All routes share one wall deadline and receive one attempt each. The chain never returns to an earlier route, never persists delegate commands, and does not expose failed-route JSON or provider errors to the orchestrator.
 
+Catalog preflight and delegate children see provider credentials inherited by the parent Pi process. A credential variable added to shell configuration after Pi started is not visible to that process. Restart Pi from a refreshed shell before diagnosing the route as unavailable. Do not source interactive shell startup files inside delegate commands, and check only whether required variables are set without printing their values.
+
 Use `--timeout-seconds <seconds> --allow-extended-timeout` before `--` only when the user explicitly authorizes a larger wall deadline. Use `--idle-timeout-seconds <seconds> --allow-extended-idle` only for a known, intentionally silent tool. The supervisor rejects larger values without these explicit flags. Never run an unbounded child.
 
 Implementation and remediation default to GLM 5.3/max. The orchestrator may choose the GoRouter-first xhigh chain only when all of these conditions hold:

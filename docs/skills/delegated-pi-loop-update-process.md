@@ -38,7 +38,7 @@ Preserve all of these unless the user explicitly changes the workflow:
 5. Guarded routes and ordered chains preflight each exact provider/model against Pi's available catalog. A chain may move forward once after catalog absence, recognized provider unavailability, or an event-idle stall only before any tool starts and before any terminal delegate result. Every candidate uses a fresh process, all candidates share one wall deadline, and a chain never cycles.
 6. Every role prompt defines attempt/time budgets and ends with exactly one `DELEGATE_RESULT: COMPLETED|BLOCKED|FAILED` marker. Missing or malformed results fail explicitly.
 7. The supervisor terminates the complete child process group, preserves private final artifacts, rejects empty reports, and never persists the delegate command line.
-8. Every delegate clears inherited parent `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL`. Claude delegates also clear `AI_AGENT` and `PI_CODING_AGENT`.
+8. Every delegate clears inherited parent `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL`. Claude delegates also clear `AI_AGENT` and `PI_CODING_AGENT`. Provider credentials inherit unchanged from the parent Pi process. Variables added after Pi starts require a restart from a refreshed shell; delegate commands never source shell startup files or print credential values.
 9. Every delegate uses a fresh ephemeral process: Pi `--no-session` or Claude Code `--no-session-persistence`, never resume/continue.
 10. At most one mutating delegate runs on a shared working tree, with no concurrent parent edits. The two default read-only independent reviewers run concurrently; mutators and finding verifiers remain sequential.
 11. Implementation and remediation default to pinned `zai/glm-5.3` at `max` thinking through Pi.
@@ -60,7 +60,7 @@ Preserve all of these unless the user explicitly changes the workflow:
 3. Read the installed Pi `README.md`, `docs/json.md`, `docs/skills.md`, `docs/sessions.md`, and `docs/environment-variables.md` before changing Pi CLI/session behavior.
 4. Read current official Claude Code CLI, model-configuration, and headless documentation plus local `claude --help` before changing Claude commands, model aliases, effort, permissions, or persistence behavior.
 5. Compare proposed behavior against at least one current project execution guide when project-template precedence or role separation changes.
-6. Confirm every configured route ID and thinking level in `agent/models.json`. Use `pi --list-models provider/model` to distinguish configured routes from routes currently available with credentials. Also confirm Z.AI GLM 5.3/max and installed Claude Code Opus 5/effort support before changing defaults.
+6. Confirm every configured route ID and thinking level in `agent/models.json`. Use `pi --list-models provider/model` to distinguish configured routes from routes currently available with credentials. Before classifying a configured route as unavailable, confirm the parent Pi process inherited the required credential variable without printing its value. Restart Pi from a refreshed shell if the variable was added after startup. Also confirm Z.AI GLM 5.3/max and installed Claude Code Opus 5/effort support before changing defaults.
 7. Keep the global `AGENTS.md` section compact; move detailed commands and prompt formats into the runtime reference.
 8. Keep `SKILL.md` under 500 lines and preserve its maintenance pointer.
 9. Update `agents/openai.yaml` when the description or user-facing invocation changes.
@@ -92,7 +92,7 @@ Also verify:
 - The runtime skill and reference contain no unresolved scaffold/TODO placeholders or user-specific home paths; generic prompt fields are clearly marked for replacement.
 - All changed local Markdown links resolve.
 - No caches, logs, delegate transcripts, temporary prompts, or evaluation artifacts were added.
-- The global rule and skill agree on direct bash routing, private Pi JSON monitoring, event-idle and shared wall deadlines, bounded pre-tool route failover, the concurrent reviewer pair, structured outcomes, environment scrubbing, fresh sessions, exact model routing, Z.AI any-role availability, assigned-role mutation limits, Claude permission modes, reviewer neutrality, and mutation gates.
+- The global rule and skill agree on direct bash routing, private Pi JSON monitoring, event-idle and shared wall deadlines, bounded pre-tool route failover, the concurrent reviewer pair, structured outcomes, session-metadata scrubbing, provider-credential inheritance, fresh sessions, exact model routing, Z.AI any-role availability, assigned-role mutation limits, Claude permission modes, reviewer neutrality, and mutation gates.
 - Raw thinking, tool payloads, and JSON events do not appear in `report.md`, `stderr.log`, `status.json`, or replayed supervisor output after a normal terminal path.
 - Existing unrelated dirty config files remain untouched.
 
@@ -116,7 +116,7 @@ The workflow has objective structural checks but real behavior evaluation can sp
 14. Excess output reaches `output_limit` before it can grow without bound.
 15. A zero exit with no final report reaches `missing_report` and cannot count as approval.
 16. A successful delegate extracts and replays only its final report while writing no command line or raw event content to `status.json`.
-17. Catalog absence skips a route without starting a delegate. A guarded single route reports `routes_unavailable`. Recognized provider unavailability or an event-idle stall can advance a chain only before tool execution. Any tool start, terminal result, wall timeout, output limit, or unrelated failure disables automatic failover.
+17. Catalog absence skips a route without starting a delegate. A guarded single route reports `routes_unavailable`. Before treating that state as provider failure, verify that the parent Pi process inherited the required credential variable. Recognized provider unavailability or an event-idle stall can advance a chain only before tool execution. Any tool start, terminal result, wall timeout, output limit, or unrelated failure disables automatic failover.
 18. Every fallback route gets at most one fresh attempt, each chain shares its original wall deadline, and unavailable-route diagnostics remain private.
 19. The two default reviewers start concurrently, remain context-isolated from each other, and produce separate reports. One completed reviewer cannot satisfy the paired gate when the other fails or is unavailable.
 20. The parent reports both review outcomes plus each selected route, attempted routes, model/effort, supervisor state, phase, idle time, and elapsed time so outcomes remain observable.

@@ -2,6 +2,12 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-16 — Document delegated provider credential inheritance
+
+- Clarified that catalog preflight and delegate children inherit provider credentials from the parent Pi process.
+- Added restart guidance for credential variables configured after Pi starts, without sourcing shell startup files inside delegates or printing secret values.
+- Recorded successful bounded smokes for AgentRouter, SeekAI, and GoRouter after the parent environment refreshed, including a GoRouter `read` tool round trip.
+
 ## 2026-08-16 — Align Z.AI delegated role availability
 
 - Clarified that Z.AI GLM 5.3/max can serve any assigned delegated role while remaining the implementation/remediation default.

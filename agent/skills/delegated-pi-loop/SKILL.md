@@ -32,6 +32,7 @@ Default implementation and remediation to Z.AI GLM 5.3/max. Z.AI can serve any a
 - For Pi, including Z.AI GLM, use `--mode json --no-session --approve` with the supervisor's `pi-json` protocol. The supervisor parses activity privately, discards raw events after final extraction, and never replays thinking or tool payloads.
 - For Claude Code, use `--print --no-session-persistence` with role-appropriate non-interactive permissions and require the structured terminal-result marker.
 - Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before every delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates.
+- Provider credentials inherit from the parent Pi process. If a required variable was added after Pi started, restart Pi from a refreshed shell. Never source shell startup files inside delegate commands or print credential values.
 - Pin the default implementation/remediation route as `--provider zai --model glm-5.3 --thinking max`. Z.AI can serve any assigned role, but review or verification requires explicit selection. The assigned role controls mutation permissions.
 - Keep the current session as the only orchestrator. Tell every delegate to execute its assigned role directly and never spawn another Pi, Claude Code, or subagent session.
 - Run mutating delegates and finding verifiers sequentially. Launch the two default read-only independent reviewers concurrently. Never run more than one mutating delegate at a time on a shared working tree.
