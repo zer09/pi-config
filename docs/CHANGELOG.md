@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-16 — Replace default GoRouter roles with SeekAI
+
+- Changed solution investigator A to SeekAI Claude Opus 5/high.
+- Changed the small-task primary route to SeekAI Claude Opus 4.8/xhigh while preserving the AgentRouter Opus 4.8, SeekAI DeepSeek V4 Flash, and Luna fallbacks.
+- Changed independent reviewer A to SeekAI Claude Fable 5/high.
+- Removed GoRouter from default role assignments because its observed latency was too high; explicit user-selected routes remain possible through the generic supervisor.
+
 ## 2026-08-16 — Add independent solution investigation
 
 - Added two concurrent read-only solution investigators for problems without an accepted solution contract: GoRouter Opus 5 Thinking/high and AgentRouter Opus 5/high with AgentRouter GPT-5.6 Sol/high fallback.

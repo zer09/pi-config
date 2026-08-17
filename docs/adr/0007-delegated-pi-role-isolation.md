@@ -51,11 +51,11 @@ Pi 0.84.1 sets `AI_AGENT=pi` and `PI_CODING_AGENT=true` in each Pi child. Pi's b
 
 Default role assignments are:
 
-- independent solution investigation A: `gorouter/claude-opus-5-thinking`, thinking `high`;
+- independent solution investigation A: `seekai/claude-opus-5`, thinking `high`;
 - independent solution investigation B: `agentrouter/claude-opus-5` → `agentrouter/gpt-5.6-sol`, thinking `high`;
 - implementation and focused remediation: `zai/glm-5.3`, thinking `max`;
-- small-task implementation or remediation only: `gorouter/claude-opus-4-8-thinking` → `agentrouter/claude-opus-4-8` → `seekai/deepseek-v4-flash` → `openai-codex/gpt-5.6-luna`, thinking `xhigh`;
-- independent review A: `gorouter/claude-opus-5-thinking`, thinking `high`;
+- small-task implementation or remediation only: `seekai/claude-opus-4-8` → `agentrouter/claude-opus-4-8` → `seekai/deepseek-v4-flash` → `openai-codex/gpt-5.6-luna`, thinking `xhigh`;
+- independent review A: `seekai/claude-fable-5`, thinking `high`;
 - independent review B: `agentrouter/claude-opus-5` → `agentrouter/gpt-5.6-sol`, thinking `high`;
 - finding verification: `openai-codex/gpt-5.6-sol`, thinking `medium`;
 - explicit Z.AI alternative for any assigned role: `zai/glm-5.3`, thinking `max`, with mutation permissions inherited from the role;
@@ -63,7 +63,7 @@ Default role assignments are:
 
 When a problem lacks an accepted solution contract, default solution investigation launches both read-only investigators concurrently with the same neutral prompt. Only investigator B has fallback, from AgentRouter Opus 5/high to AgentRouter GPT-5.6 Sol/high before tool execution. Both reports remain isolated. The orchestrator verifies cited source and architecture evidence, compares the proposals, and finalizes one solution contract. Material architecture ambiguity stops for user input. Investigators do not implement and cannot serve as the later reviewers.
 
-GLM 5.3/max is available for any assigned role and remains the implementation and remediation default. Z.AI investigation, review, or verification requires explicit user or project selection and remains read-only. The assigned role, not the backend, controls mutation permissions. The orchestrator may select the GoRouter-first small-task chain only after recording that the task is narrow, follows an established pattern, has no material ambiguity or architecture, security, concurrency, schema, migration, broad-refactor, or cross-system concern, and should finish in a few turns. Uncertainty routes to GLM 5.3/max. Default independent review launches both fresh read-only reviewers concurrently after implementation. Only reviewer B has fallback, from AgentRouter Opus 5/high to AgentRouter GPT-5.6 Sol/high before tool execution. Both reviews must complete, and findings from either report require processing. An explicit Z.AI or Claude Code reviewer selection does not silently reduce a required two-reviewer gate. OpenAI Codex Sol/medium remains the finding-verification default. Use Claude Code for any role only when the user or project explicitly selects it. Pin model and effort identifiers rather than using moving aliases. User instructions and more-specific project workflows may otherwise override model selection. Project role templates, finding taxonomies, and release gates take precedence over generic skill skeletons.
+GLM 5.3/max is available for any assigned role and remains the implementation and remediation default. Z.AI investigation, review, or verification requires explicit user or project selection and remains read-only. The assigned role, not the backend, controls mutation permissions. The orchestrator may select the SeekAI Claude Opus 4.8-first small-task chain only after recording that the task is narrow, follows an established pattern, has no material ambiguity or architecture, security, concurrency, schema, migration, broad-refactor, or cross-system concern, and should finish in a few turns. Uncertainty routes to GLM 5.3/max. Default independent review launches both fresh read-only reviewers concurrently after implementation. Only reviewer B has fallback, from AgentRouter Opus 5/high to AgentRouter GPT-5.6 Sol/high before tool execution. Both reviews must complete, and findings from either report require processing. An explicit Z.AI or Claude Code reviewer selection does not silently reduce a required two-reviewer gate. OpenAI Codex Sol/medium remains the finding-verification default. Use Claude Code for any role only when the user or project explicitly selects it. Pin model and effort identifiers rather than using moving aliases. User instructions and more-specific project workflows may otherwise override model selection. Project role templates, finding taxonomies, and release gates take precedence over generic skill skeletons.
 
 Only one mutating delegate may run on a shared working tree, and the parent must not edit concurrently. Solution investigators, reviewers, and verifiers are read-only and neutral; compare tree state before and after their runs. Every role prompt defines attempt/time budgets and ends with one structured `DELEGATE_RESULT` marker. A delegate that cannot establish a required result within its budget reports `BLOCKED` and stops unrelated work. If a project provides separate solution-investigation, finding-verification, or focused-remediation templates, instantiate each in separate fresh processes. Parent-session analysis cannot replace required independent verification.
 
@@ -71,14 +71,14 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 
 ## Consequences
 
-- Other Pi sessions can reproduce concurrent pre-implementation solution investigation, parent evidence verification and synthesis, default GLM 5.3/max implementation, guarded GoRouter-first small-task fallback, fresh concurrent independent review, OpenAI Codex verification, or explicitly selected Z.AI and Claude Code assignments from a compact trigger.
+- Other Pi sessions can reproduce concurrent pre-implementation solution investigation, parent evidence verification and synthesis, default GLM 5.3/max implementation, guarded SeekAI Claude Opus 4.8-first small-task fallback, fresh concurrent independent review, OpenAI Codex verification, or explicitly selected Z.AI and Claude Code assignments from a compact trigger.
 - The always-loaded global context grows only by the short trigger/safety section; detailed behavior remains on demand.
 - Independent-review credibility depends on role and context isolation rather than model self-approval.
 - Shared-tree safety remains prompt- and fingerprint-enforced; this is not an operating-system sandbox because reviewers may still have `bash`.
 - A Pi delegate with no valid activity event for ten minutes reaches `stalled`; an active loop still reaches the 45-minute wall deadline.
 - `COMPLETED`, `BLOCKED`, and `FAILED` outcomes are machine-readable. Empty reports, malformed streams, and missing markers fail explicitly.
 - Supervisor artifacts preserve the final report, bounded stderr, activity metadata, and terminal status without persisting the command line or raw Pi events.
-- Complex or uncertain implementation routes to GLM 5.3/max. The GoRouter-first xhigh chain remains available only for clearly small, low-risk, few-turn work.
+- Complex or uncertain implementation routes to GLM 5.3/max. The SeekAI Claude Opus 4.8-first xhigh chain remains available only for clearly small, low-risk, few-turn work.
 - Conditional solution investigation consumes two concurrent provider calls before implementation. Final review consumes two additional fresh calls. A pair remains incomplete if either assigned delegate fails or is unavailable.
 - Catalog checks can skip an unavailable provider without spending a delegate attempt. Runtime fallback stops permanently once any tool starts or a terminal result exists.
 - Model identifiers, thinking or effort levels, live catalog availability, and process environment markers are maintenance points. Check each contract when Pi or Claude Code changes them.
@@ -100,7 +100,7 @@ Do not stage, commit, push, open or merge pull requests, deploy, or mutate hoste
 
 1. Validate the target skill and every Local Skill.
 2. Parse every `agents/openai.yaml` and verify the delegated skill's default prompt names `$delegated-pi-loop`.
-3. Check configured model IDs for the concurrent high-thinking solution pair, GoRouter-first xhigh implementation chain, fresh concurrent review pair and AgentRouter fallback, OpenAI Codex Sol/medium verification, and Z.AI GLM 5.3/max. Separately record which routes appear in Pi's live available catalog.
+3. Check configured model IDs for the concurrent SeekAI Opus 5/high solution pair, SeekAI Claude Opus 4.8-first xhigh implementation chain, fresh SeekAI Fable 5/high review pair and AgentRouter fallback, OpenAI Codex Sol/medium verification, and Z.AI GLM 5.3/max. Separately record which routes appear in Pi's live available catalog.
 4. Check the installed Claude Code version supports Opus 5, `--effort medium`, `--no-session-persistence`, and the documented permission flags.
 5. Check global and skill instructions agree on direct bash, bounded child supervision, environment scrubbing, fresh sessions, one mutator, concurrent context-isolated solution investigators, orchestrator evidence verification and synthesis, fresh neutral reviewers, paired gate semantics, and authorization gates.
 6. Run supervisor and chain regressions for private Pi JSON parsing, active-event liveness, idle stalls, shared wall deadlines, structured outcomes, context isolation, catalog skips, pre-tool provider failover, tool-start cutoff, successful/empty reports, and descendant cleanup.

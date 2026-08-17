@@ -30,6 +30,8 @@ Delegated provider-credential guidance update: 2026-08-16 (documented parent-pro
 
 Delegated solution-investigation update: 2026-08-16 (added a concurrent read-only pre-implementation solution pair and orchestrator synthesis contract; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated SeekAI role-routing update: 2026-08-16 (replaced three default GoRouter roles with SeekAI Claude Opus 5, Claude Opus 4.8, and Claude Fable 5; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -286,6 +288,19 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `references/prompt-contracts.md` | 4,555 | 5,537 | +982 | Loaded only before a delegate spawn |
 
 The startup increase adds one compact conditional solution-investigation rule and a broader skill trigger. Detailed investigator commands, evidence contracts, orchestrator synthesis, and reviewer-separation rules remain progressively disclosed.
+
+## 2026-08-16 delegated SeekAI role-routing attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,877 | 2,911 | +34 | Always loaded through the context-file block |
+| `delegated-pi-loop` description | 83 | 83 | 0 | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | 3,256 | 3,271 | +15 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 5,537 | 5,541 | +4 | Loaded only before a delegate spawn |
+
+The startup increase records exact SeekAI defaults for the solution and review pairs plus the guarded small-task chain. Detailed supervised commands remain progressively disclosed.
 
 ## Provider-calibrated baseline probes
 
