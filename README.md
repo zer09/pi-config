@@ -142,7 +142,7 @@ Important skill groups include:
 - Python tooling skills for `uv`, `ruff`, and `ty`
 - database skills for Postgres and MySQL
 - Figma and OpenAI-derived skills
-- session handoff, delegated Pi/Z.AI/Claude Code implementation-review loops, and local continuity workflows
+- session handoff, delegated Pi/Z.AI/Claude Code solution-investigation, implementation, and review loops, and local continuity workflows
 - skill creation and maintenance workflows
 
 The canonical skill inventory and keep/slim/remove decisions live in:

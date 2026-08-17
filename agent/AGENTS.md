@@ -82,16 +82,17 @@ This project does not use the full ASD-STE100 dictionary. Apply the common subst
 - Spawn delegates with direct `bash`, never Context Mode, and omit the bash tool timeout. Route every child through the bounded supervisor in `delegated-pi-loop`.
 - Run Pi delegates through the supervisor's private JSON activity protocol. Enforce event-idle and wall deadlines plus the structured terminal-result contract; do not forward raw thinking or tool events.
 - Clear inherited `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before each delegate. Also clear `AI_AGENT` and `PI_CODING_AGENT` before Claude delegates.
-- Use fresh ephemeral delegates: `--no-session` for Pi or `--no-session-persistence` for Claude Code. Run only one mutating delegate at a time, and do not edit concurrently with it. The two default read-only independent reviewers may run in parallel.
+- Use fresh ephemeral delegates: `--no-session` for Pi or `--no-session-persistence` for Claude Code. Run only one mutating delegate at a time, and do not edit concurrently with it. Each documented read-only pair may run in parallel.
+- When a problem lacks an accepted solution contract, run two fresh read-only solution investigators concurrently before implementation. Give both the same neutral problem, verify their cited source evidence, and finalize the solution as orchestrator. Do not reuse investigators as implementers or reviewers.
 - Default implementation and remediation to Z.AI GLM 5.3 with `--provider zai --model glm-5.3 --thinking max`.
 - Use the GoRouter-first xhigh fallback chain for implementation or remediation only after recording that the task satisfies every small-task criterion in `delegated-pi-loop`. If uncertain, use GLM 5.3/max.
 - Run two default independent reviewers concurrently: GoRouter Opus 5 Thinking/high, plus AgentRouter Opus 5/high with AgentRouter GPT-5.6 Sol/high as its pre-tool fallback. Keep OpenAI Codex Sol/medium as the finding-verification default.
 - Automatic route failover may skip an uncatalogued route or replace a provider-unavailable or event-idle attempt only before any tool execution. Never cycle routes or fail over after a terminal delegate result.
-- Z.AI GLM 5.3/max can serve any assigned role. It remains the implementation/remediation default; review or verification requires explicit selection, and assigned-role mutation limits remain binding.
+- Z.AI GLM 5.3/max can serve any assigned role. It remains the implementation/remediation default; investigation, review, or verification requires explicit selection when replacing a default route, and assigned-role mutation limits remain binding.
 - Use Claude Code only when the user or project explicitly selects it; pin Opus 5 with `--model claude-opus-5 --effort medium` rather than relying on the moving `opus` alias.
-- Read-only reviewers and verifiers must not edit files or Git state. Compare working-tree state before and after them and treat unexpected mutation as a failed delegation.
-- Project-specific execution guides and role templates take precedence. When separate finding-verification and focused-remediation templates exist, instantiate them; parent-session analysis is not a substitute.
-- Keep independent reviewers neutral: do not give them prior remediation reasoning, expected findings, or approval-oriented steering.
+- Read-only solution investigators, reviewers, and verifiers must not edit files or Git state. Compare working-tree state before and after them and treat unexpected mutation as a failed delegation.
+- Project-specific execution guides and role templates take precedence. When separate solution-investigation, finding-verification, or focused-remediation templates exist, instantiate them; parent-session analysis is not a substitute.
+- Keep independent reviewers neutral: do not give them solution-investigator reports, synthesis rationale, prior remediation reasoning, expected findings, or approval-oriented steering.
 - Do not stage, commit, push, or mutate hosted services during a delegated loop unless separately authorized.
 
 ## Python tooling

@@ -38,6 +38,69 @@ Implementation and remediation default to GLM 5.3/max. The orchestrator may choo
 
 Record the small-task classification before spawn. If any condition is uncertain, use GLM 5.3/max. The fallback models do not relax this role gate.
 
+### Concurrent solution-investigation pair
+
+Use this pair when a problem lacks an accepted solution contract. Launch both commands as separate direct bash tool calls in one parallel tool batch. Give both investigators the same neutral problem statement and preserve separate artifacts. They are read-only and must be fresh from every later implementer and reviewer.
+
+#### Investigator A: GoRouter Claude Opus 5 Thinking/high
+
+```bash
+project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
+prompt_file="${TMPDIR:-/tmp}/project-solution-investigation-prompt.md"
+chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate_chain.py"
+cd "$project_root"
+uv run --no-project python "$chain" \
+  --idle-warning-seconds 300 \
+  --idle-timeout-seconds 600 \
+  --label solution-gorouter-opus-5-thinking-high \
+  -- \
+  env \
+    -u PI_SESSION_ID \
+    -u PI_SESSION_FILE \
+    -u PI_PROVIDER \
+    -u PI_MODEL \
+    -u PI_REASONING_LEVEL \
+    PI_SKIP_VERSION_CHECK=1 pi \
+    --mode json \
+    --no-session \
+    --approve \
+    --provider gorouter \
+    --model claude-opus-5-thinking \
+    --thinking high \
+    @"$prompt_file"
+```
+
+#### Investigator B: AgentRouter Claude Opus 5/high with GPT-5.6 Sol/high fallback
+
+```bash
+project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
+prompt_file="${TMPDIR:-/tmp}/project-solution-investigation-prompt.md"
+chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate_chain.py"
+cd "$project_root"
+uv run --no-project python "$chain" \
+  --fallback-route agentrouter/gpt-5.6-sol:high \
+  --idle-warning-seconds 300 \
+  --idle-timeout-seconds 600 \
+  --label solution-agentrouter-opus-5-high \
+  -- \
+  env \
+    -u PI_SESSION_ID \
+    -u PI_SESSION_FILE \
+    -u PI_PROVIDER \
+    -u PI_MODEL \
+    -u PI_REASONING_LEVEL \
+    PI_SKIP_VERSION_CHECK=1 pi \
+    --mode json \
+    --no-session \
+    --approve \
+    --provider agentrouter \
+    --model claude-opus-5 \
+    --thinking high \
+    @"$prompt_file"
+```
+
+Both investigators must complete for the full pair. An explicitly selected Z.AI or Claude Code backend may replace an assigned investigator slot, but it does not reduce the required pair or relax read-only permissions. The orchestrator verifies material citations and claims, compares both proposals, resolves non-architectural differences, and writes the final solution contract. A surviving report remains useful evidence when one investigator fails, but it is not a complete independent pair. Material architecture ambiguity stops for user input.
+
 ### Default implementation or focused remediation
 
 ```bash
@@ -70,7 +133,7 @@ uv run --no-project python "$supervisor" \
 
 ### Concurrent independent-review pair
 
-Launch both commands as separate direct bash tool calls in one parallel tool batch. Do not put them in one shell with background jobs. Give both reviewers the same neutral review scope, but preserve separate artifact directories and outputs. Wait for both.
+Launch both commands as separate direct bash tool calls in one parallel tool batch. Do not put them in one shell with background jobs. Give both reviewers the same neutral review scope, but preserve separate artifact directories and outputs. Use fresh processes that did not participate in solution investigation or implementation. Do not give reviewers investigator reports, discarded alternatives, or orchestrator synthesis rationale. Wait for both.
 
 #### Reviewer A: GoRouter Claude Opus 5 Thinking/high
 
@@ -229,7 +292,7 @@ uv run --no-project python "$supervisor" \
     @"$prompt_file"
 ```
 
-Z.AI GLM 5.3/max can serve any assigned role. It remains the implementation/remediation default; review or verification requires explicit user or project selection. The assigned role prompt and orchestrator contract control mutation permissions, neutrality, tools, and output requirements. A backend selection never grants a reviewer or verifier mutation permission.
+Z.AI GLM 5.3/max can serve any assigned role. It remains the implementation/remediation default; investigation, review, or verification requires explicit user or project selection when replacing a default route. The assigned role prompt and orchestrator contract control mutation permissions, neutrality, tools, and output requirements. A backend selection never grants a solution investigator, reviewer, or verifier mutation permission.
 
 `PI_SKIP_VERSION_CHECK=1` suppresses Pi's version-check request; it does not disable the selected provider request. Do not use `PI_OFFLINE=1` for a provider-backed delegate.
 
@@ -267,16 +330,17 @@ uv run --no-project python "$supervisor" \
   < "$prompt_file"
 ```
 
-### Claude Code independent review or finding verification
+### Claude Code solution investigation, independent review, or finding verification
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
-prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
+prompt_file="${DELEGATE_PROMPT_FILE:?set DELEGATE_PROMPT_FILE to the assigned read-only role prompt}"
+role_label="${DELEGATE_ROLE_LABEL:?set DELEGATE_ROLE_LABEL to a safe read-only role label}"
 supervisor="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate.py"
 cd "$project_root"
 uv run --no-project python "$supervisor" \
   --require-result \
-  --label review-claude-opus-5 \
+  --label "$role_label-claude-opus-5-medium" \
   -- \
   env \
     -u AI_AGENT \
@@ -333,6 +397,37 @@ DELEGATE_RESULT: FAILED
 ```
 
 The marker must be the final non-whitespace line and must not appear earlier. `COMPLETED` means the delegate completed its assigned role; an independent review can therefore report required fixes and still use `COMPLETED`. Use `BLOCKED` when missing evidence, access, prerequisites, or reproducibility prevents role completion. Use `FAILED` when execution failed without a narrower blocker report. After `BLOCKED` or `FAILED`, do not start another attempt or unrelated task.
+
+## Solution-investigation prompt contract
+
+Use this read-only pair when the problem lacks an accepted solution contract. Give both investigators the same neutral problem statement, tree identity, governing documents, scope, attempt budgets, and output contract. Do not include an expected root cause, preferred solution, or the other investigator's report.
+
+Require each report to contain:
+
+```markdown
+# Problem interpretation
+
+# Root cause and relevant execution flow
+- Evidence:
+- Exact files and lines:
+
+# Recommended solution
+- Required behavior:
+- Likely changed files:
+- Architecture fit:
+
+# Alternatives and tradeoffs
+
+# Validation plan
+
+# Uncertainties and limits
+
+DELEGATE_RESULT: COMPLETED
+```
+
+Require exact `path:line` evidence for every material claim. Each investigator must explain control flow and distinguish observed facts from assumptions. The investigator may run bounded read-only diagnostics but must not edit files, mutate Git or hosted services, or recursively delegate. `BLOCKED` is valid when the attempt budget cannot establish the root cause or required evidence.
+
+The orchestrator treats every citation as a lead until it verifies the current source. The orchestrator compares agreements, conflicts, assumptions, and project decisions before producing one final solution contract. If the reports expose material architecture ambiguity, stop for user input instead of silently choosing policy.
 
 ## Implementation prompt contract
 
@@ -443,6 +538,7 @@ Store generated role prompts and complete delegate reports under `${TMPDIR:-/tmp
 
 Before the next role begins, preserve:
 
+- both solution-investigation reports and the orchestrator's verified final solution contract when that phase ran;
 - exact finding text;
 - verifier classification and evidence;
 - remediation scope and changed paths;

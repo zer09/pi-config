@@ -28,6 +28,8 @@ Delegated Z.AI role-alignment update: 2026-08-16 (clarified GLM 5.3/max availabi
 
 Delegated provider-credential guidance update: 2026-08-16 (documented parent-process credential inheritance and restart requirements; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated solution-investigation update: 2026-08-16 (added a concurrent read-only pre-implementation solution pair and orchestrator synthesis contract; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -271,6 +273,19 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `references/prompt-contracts.md` | 4,485 | 4,555 | +70 | Loaded only before a delegate spawn |
 
 There is no startup-context increase. Parent-environment and restart guidance remains progressively disclosed in the skill and spawn reference.
+
+## 2026-08-16 delegated solution-investigation attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,802 | 2,877 | +75 | Always loaded through the context-file block |
+| `delegated-pi-loop` description | 77 | 83 | +6 | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | 2,648 | 3,256 | +608 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 4,555 | 5,537 | +982 | Loaded only before a delegate spawn |
+
+The startup increase adds one compact conditional solution-investigation rule and a broader skill trigger. Detailed investigator commands, evidence contracts, orchestrator synthesis, and reviewer-separation rules remain progressively disclosed.
 
 ## Provider-calibrated baseline probes
 

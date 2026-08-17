@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-16 — Add independent solution investigation
+
+- Added two concurrent read-only solution investigators for problems without an accepted solution contract: GoRouter Opus 5 Thinking/high and AgentRouter Opus 5/high with AgentRouter GPT-5.6 Sol/high fallback.
+- Required both investigators to report root cause, exact source evidence, candidate solutions, alternatives, tradeoffs, validation, and uncertainties without editing the tree.
+- Made the parent orchestrator verify material citations and architecture claims before finalizing one solution contract for implementation.
+- Preserved post-implementation independence by requiring completely fresh reviewers with no investigator reports, discarded alternatives, or synthesis rationale.
+
 ## 2026-08-16 — Document delegated provider credential inheritance
 
 - Clarified that catalog preflight and delegate children inherit provider credentials from the parent Pi process.
