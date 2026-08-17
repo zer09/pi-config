@@ -32,6 +32,8 @@ Delegated solution-investigation update: 2026-08-16 (added a concurrent read-onl
 
 Delegated SeekAI role-routing update: 2026-08-16 (replaced three default GoRouter roles with SeekAI Claude Opus 5, Claude Opus 4.8, and Claude Fable 5; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated terminal-cleanup update: 2026-08-17 (accepted valid completed Pi lifecycles before process exit and cleaned up lingering process groups; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -301,6 +303,19 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `references/prompt-contracts.md` | 5,537 | 5,541 | +4 | Loaded only before a delegate spawn |
 
 The startup increase records exact SeekAI defaults for the solution and review pairs plus the guarded small-task chain. Detailed supervised commands remain progressively disclosed.
+
+## 2026-08-17 delegated terminal-cleanup attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,911 | 2,911 | 0 | Always loaded through the context-file block |
+| `delegated-pi-loop` description | 83 | 83 | 0 | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | 3,271 | 3,308 | +37 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 5,541 | 5,593 | +52 | Loaded only before a delegate spawn |
+
+The update adds no startup or skill-catalog cost. Terminal cleanup rules remain progressively disclosed in the skill and spawn reference.
 
 ## Provider-calibrated baseline probes
 

@@ -29,7 +29,7 @@ When a problem lacks an accepted solution contract, run both high-thinking solut
 
 - Run spawned Pi or Claude Code processes with direct `bash`, never Context Mode.
 - Omit the bash tool timeout, but run every child through `scripts/run_delegate.py`. Defaults are a 45-minute wall deadline, 50 MiB output limit, 5-minute Pi event-idle warning, and 10-minute Pi event-idle termination.
-- Treat supervisor states other than `completed` as failures. Preserve its private temporary report, stderr, status, and chain-attempt paths for diagnosis.
+- Treat supervisor states other than `completed` as failures. A valid `COMPLETED` report followed by final `agent_settled` is terminal success. The supervisor cleans up a lingering process group and records `completion_cleanup_performed`. Preserve its private temporary report, stderr, status, and chain-attempt paths for diagnosis.
 - Use `scripts/run_delegate_chain.py` only for documented ordered Pi routes. It may skip an uncatalogued route or start the next fresh route after provider unavailability or an event-idle stall, but only before any tool execution and within one shared 45-minute deadline.
 - For Pi, including Z.AI GLM, use `--mode json --no-session --approve` with the supervisor's `pi-json` protocol. The supervisor parses activity privately, discards raw events after final extraction, and never replays thinking or tool payloads.
 - For Claude Code, use `--print --no-session-persistence` with role-appropriate non-interactive permissions and require the structured terminal-result marker.

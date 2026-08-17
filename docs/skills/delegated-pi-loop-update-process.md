@@ -34,7 +34,7 @@ Preserve all of these unless the user explicitly changes the workflow:
 1. The parent session is the sole orchestrator; delegates do not recursively spawn Pi, Claude Code, or subagents.
 2. Delegates run through direct `bash`, not Context Mode. The outer bash tool call has no timeout, but every child runs through `run_delegate.py` with a positive wall-clock deadline.
 3. The supervisor defaults to a 45-minute wall deadline, 50 MiB child-output limit, 5-minute Pi event-idle warning, and 10-minute Pi event-idle termination. It rejects larger wall or idle values unless the caller supplies the corresponding explicit override flag; policy still requires user authorization or a known intentionally silent tool.
-4. Pi delegates use `--mode json` through protocol `pi-json`. Valid thinking, text, tool, message, turn, and agent events reset the activity clock. The supervisor extracts the final report, stores only activity metadata, never replays raw events, and deletes the raw event stream.
+4. Pi delegates use `--mode json` through protocol `pi-json`. Valid thinking, text, tool, message, turn, and agent events reset the activity clock. A valid `COMPLETED` report followed by final `agent_settled` is terminal success even if Pi remains alive; the supervisor cleans up the process group and records `completion_cleanup_performed`. Malformed trailing stream data still fails closed. The supervisor extracts the final report, stores only activity metadata, never replays raw events, and deletes the raw event stream.
 5. Guarded routes and ordered chains preflight each exact provider/model against Pi's available catalog. A chain may move forward once after catalog absence, recognized provider unavailability, or an event-idle stall only before any tool starts and before any terminal delegate result. Every candidate uses a fresh process, all candidates share one wall deadline, and a chain never cycles.
 6. Every role prompt defines attempt/time budgets and ends with exactly one `DELEGATE_RESULT: COMPLETED|BLOCKED|FAILED` marker. Missing or malformed results fail explicitly.
 7. The supervisor terminates the complete child process group, preserves private final artifacts, rejects empty reports, and never persists the delegate command line.
@@ -117,12 +117,13 @@ The workflow has objective structural checks but real behavior evaluation can sp
 12. Requests for ordinary coding without delegation do not force an unnecessary spawned loop.
 13. Valid Pi thinking and tool events keep the delegate active without entering orchestrator context.
 14. Five event-idle minutes produce one warning; ten event-idle minutes reach `stalled`, terminate the process group, and leave no active descendant.
-15. An active event stream cannot bypass the 45-minute `timed_out` wall deadline.
-16. `BLOCKED` and `FAILED` terminal markers stop work and return distinct non-success states. Missing markers reach `invalid_result`; malformed or incomplete Pi lifecycle streams reach `invalid_stream`.
-17. Excess output reaches `output_limit` before it can grow without bound.
-18. A zero exit with no final report reaches `missing_report` and cannot count as approval.
-19. A successful delegate extracts and replays only its final report while writing no command line or raw event content to `status.json`.
-20. Catalog absence skips a route without starting a delegate. A guarded single route reports `routes_unavailable`. Before treating that state as provider failure, verify that the parent Pi process inherited the required credential variable. Recognized provider unavailability or an event-idle stall can advance a chain only before tool execution. Any tool start, terminal result, wall timeout, output limit, or unrelated failure disables automatic failover.
+15. A child that emits a valid `COMPLETED` report, final `agent_end`, and `agent_settled` but remains alive reaches `completed` promptly, records completion cleanup, and leaves no active process. Partial trailing JSON still reaches `invalid_stream`.
+16. An active event stream cannot bypass the 45-minute `timed_out` wall deadline.
+17. `BLOCKED` and `FAILED` terminal markers stop work and return distinct non-success states. Missing markers reach `invalid_result`; malformed or incomplete Pi lifecycle streams reach `invalid_stream`.
+18. Excess output reaches `output_limit` before it can grow without bound.
+19. A zero exit with no final report reaches `missing_report` and cannot count as approval.
+20. A successful delegate extracts and replays only its final report while writing no command line or raw event content to `status.json`.
+21. Catalog absence skips a route without starting a delegate. A guarded single route reports `routes_unavailable`. Before treating that state as provider failure, verify that the parent Pi process inherited the required credential variable. Recognized provider unavailability or an event-idle stall can advance a chain only before tool execution. Any tool start, terminal result, wall timeout, output limit, or unrelated failure disables automatic failover.
 21. Every fallback route gets at most one fresh attempt, each chain shares its original wall deadline, and unavailable-route diagnostics remain private.
 22. Each two-agent pair starts concurrently, remains internally context-isolated, and produces separate reports. One completed delegate cannot satisfy a required pair when the other fails or is unavailable.
 23. The parent reports solution-investigation and review outcomes plus each selected route, attempted routes, model/effort, supervisor state, phase, idle time, and elapsed time so outcomes remain observable.

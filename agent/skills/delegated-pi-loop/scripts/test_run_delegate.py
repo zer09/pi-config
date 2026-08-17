@@ -228,6 +228,94 @@ class DelegateSupervisorTests(unittest.TestCase):
             self.assertGreater(status["activity_event_count"], 0)
             self.assertFalse((artifact_dir / "events.jsonl").exists())
 
+    def test_pi_json_completed_result_cleans_up_lingering_process(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            events = [
+                {"type": "session", "version": 3, "id": "test"},
+                {"type": "agent_start"},
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "stopReason": "stop",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Done.\n\nDELEGATE_RESULT: COMPLETED",
+                            }
+                        ],
+                    },
+                },
+                {"type": "agent_end", "messages": []},
+                {"type": "agent_settled"},
+                {"type": "entry_appended"},
+            ]
+            child_code = (
+                "import json,time; "
+                f"events={events!r}; "
+                "[print(json.dumps(event), flush=True) for event in events]; "
+                "time.sleep(30)"
+            )
+            result, artifact_dir = self.run_supervisor(
+                Path(temporary),
+                "pi-json-completed-cleanup",
+                child_code,
+                protocol="pi-json",
+                timeout=2,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn("state=stalled", result.stderr)
+            status = self.read_status(artifact_dir)
+            self.assertEqual(status["state"], "completed")
+            self.assertEqual(status["delegate_outcome"], "completed")
+            self.assertEqual(status["last_event"], "entry_appended")
+            self.assertTrue(status["agent_settled_seen"])
+            self.assertTrue(status["completion_cleanup_performed"])
+            self.assertLess(status["elapsed_seconds"], 2)
+
+    def test_pi_json_completed_cleanup_rejects_partial_trailing_event(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            events = [
+                {"type": "session", "version": 3, "id": "test"},
+                {"type": "agent_start"},
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "stopReason": "stop",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Done.\n\nDELEGATE_RESULT: COMPLETED",
+                            }
+                        ],
+                    },
+                },
+                {"type": "agent_end", "messages": []},
+                {"type": "agent_settled"},
+            ]
+            child_code = (
+                "import json,sys,time; "
+                f"events={events!r}; "
+                "[print(json.dumps(event), flush=True) for event in events]; "
+                "sys.stdout.write('{'); sys.stdout.flush(); "
+                "time.sleep(30)"
+            )
+            result, artifact_dir = self.run_supervisor(
+                Path(temporary),
+                "pi-json-completed-partial",
+                child_code,
+                protocol="pi-json",
+                timeout=2,
+            )
+
+            self.assertEqual(result.returncode, 79, result.stderr)
+            status = self.read_status(artifact_dir)
+            self.assertEqual(status["state"], "invalid_stream")
+            self.assertTrue(status["completion_cleanup_performed"])
+            self.assertIn("partial line", " ".join(status["stream_errors"]))
+
     def test_pi_json_silent_delegate_stalls(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             child_code = (
@@ -502,6 +590,43 @@ while True:
 
             self.assertEqual(result.returncode, 76, result.stderr)
             self.assertEqual(self.read_status(artifact_dir)["state"], "blocked")
+
+    def test_completed_cleanup_does_not_bypass_output_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            report = f"{'x' * 5000}\n\nDELEGATE_RESULT: COMPLETED"
+            events = [
+                {"type": "session", "version": 3, "id": "test"},
+                {"type": "agent_start"},
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "stopReason": "stop",
+                        "content": [{"type": "text", "text": report}],
+                    },
+                },
+                {"type": "agent_end", "messages": []},
+                {"type": "agent_settled"},
+            ]
+            child_code = (
+                "import json,time; "
+                f"events={events!r}; "
+                "[print(json.dumps(event), flush=True) for event in events]; "
+                "time.sleep(30)"
+            )
+            result, artifact_dir = self.run_supervisor(
+                Path(temporary),
+                "completed-output-limit",
+                child_code,
+                protocol="pi-json",
+                timeout=2,
+                max_output_bytes=100,
+            )
+
+            self.assertEqual(result.returncode, 74, result.stderr)
+            status = self.read_status(artifact_dir)
+            self.assertEqual(status["state"], "output_limit")
+            self.assertFalse(status["completion_cleanup_performed"])
 
     def test_output_limit_fails_and_preserves_diagnostics(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

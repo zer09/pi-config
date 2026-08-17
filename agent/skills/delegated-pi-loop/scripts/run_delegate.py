@@ -425,6 +425,7 @@ class PiJsonMonitor:
         self.agent_start_count = 0
         self.agent_end_count = 0
         self.agent_end_seen = False
+        self.agent_settled_seen = False
         self.tool_execution_count = 0
         self.route_unavailable_seen = False
         self.errors: list[str] = []
@@ -493,6 +494,7 @@ class PiJsonMonitor:
                     "Pi JSON agent_settled appeared before final agent_end"
                 )
                 return
+            self.agent_settled_seen = True
         elif event_type in PI_CORE_ACTIVITY_EVENTS:
             if not self.agent_running:
                 self.errors.append(
@@ -617,6 +619,7 @@ def run() -> int:
     process: subprocess.Popen[bytes] | None = None
     state = "spawn_failed"
     return_code: int | None = None
+    completion_cleanup_performed = False
 
     try:
         with (
@@ -683,6 +686,25 @@ def run() -> int:
                     return_code = process.poll()
                     break
                 if monitor is not None:
+                    if (
+                        monitor.outcome == "completed"
+                        and monitor.agent_end_seen
+                        and monitor.agent_settled_seen
+                        and not monitor.errors
+                    ):
+                        state = "completed"
+                        completion_cleanup_performed = True
+                        print(
+                            f"[delegate-supervisor] terminal result label={label} "
+                            "outcome=completed; cleaning up process group",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        terminate_process_group(
+                            process, process_group_id, args.grace_seconds
+                        )
+                        return_code = process.poll()
+                        break
                     idle_seconds = now - monitor.last_activity
                     if (
                         idle_seconds >= args.idle_warning_seconds
@@ -760,6 +782,8 @@ def run() -> int:
             atomic_write_text(report_path, monitor.final_report)
         # Raw thinking, text deltas, and tool payloads are runtime-only inputs.
         events_path.unlink(missing_ok=True)
+    if state == "completed" and monitor is not None and monitor.errors:
+        state = "invalid_stream"
     if state == "running":
         if return_code != 0:
             state = "child_failed"
@@ -800,6 +824,7 @@ def run() -> int:
         "ended_at": iso_now(),
         "elapsed_seconds": round(elapsed_seconds, 3),
         "exit_code": return_code,
+        "completion_cleanup_performed": completion_cleanup_performed,
         "output_bytes": output_bytes,
         "report_present": report_present,
         "report_path": str(report_path),
@@ -817,6 +842,7 @@ def run() -> int:
                 "agent_start_count": monitor.agent_start_count,
                 "agent_end_count": monitor.agent_end_count,
                 "agent_end_seen": monitor.agent_end_seen,
+                "agent_settled_seen": monitor.agent_settled_seen,
                 "tool_execution_count": monitor.tool_execution_count,
                 "route_unavailable_seen": monitor.route_unavailable_seen,
                 "stream_errors": monitor.errors,

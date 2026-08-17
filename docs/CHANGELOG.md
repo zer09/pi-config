@@ -2,6 +2,12 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-17 — Accept completed delegates that linger after settlement
+
+- Fixed the supervisor misclassifying valid completed OpenAI Codex and AgentRouter delegates as stalled when Pi remained alive after final `agent_settled`.
+- Made a valid `COMPLETED` report plus final settled lifecycle terminate the lingering process group and return success immediately.
+- Added `completion_cleanup_performed` status metadata and regressions for prompt cleanup plus malformed trailing JSON.
+
 ## 2026-08-16 — Replace default GoRouter roles with SeekAI
 
 - Changed solution investigator A to SeekAI Claude Opus 5/high.
