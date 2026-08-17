@@ -14,6 +14,9 @@
       "baseUrl": "https://agentrouter.org",
       "api": "anthropic-messages",
       "apiKey": "$AGENTROUTER_API_KEY",
+      "headers": {
+        "User-Agent": "pi-coding-agent"
+      },
       "models": [
         {
           "id": "claude-opus-4-8",
@@ -86,12 +89,19 @@
         {
           "id": "claude-opus-5",
           "name": "Claude Opus 5",
+          "api": "anthropic-messages",
+          "baseUrl": "https://seekai.cc",
           "reasoning": true,
           "input": ["text", "image"],
           "contextWindow": 1000000,
           "maxTokens": 128000,
+          "thinkingLevelMap": {
+            "xhigh": "xhigh",
+            "max": "max"
+          },
           "compat": {
-            "supportsReasoningEffort": false
+            "forceAdaptiveThinking": true,
+            "supportsStrictTools": true
           }
         },
         {
@@ -119,23 +129,37 @@
         {
           "id": "claude-opus-4-8",
           "name": "Claude Opus 4.8",
+          "api": "anthropic-messages",
+          "baseUrl": "https://seekai.cc",
           "reasoning": true,
           "input": ["text", "image"],
           "contextWindow": 1000000,
           "maxTokens": 128000,
+          "thinkingLevelMap": {
+            "xhigh": "xhigh",
+            "max": "max"
+          },
           "compat": {
-            "supportsReasoningEffort": false
+            "forceAdaptiveThinking": true,
+            "supportsStrictTools": true
           }
         },
         {
           "id": "claude-opus-4-7",
           "name": "Claude Opus 4.7",
+          "api": "anthropic-messages",
+          "baseUrl": "https://seekai.cc",
           "reasoning": true,
           "input": ["text", "image"],
           "contextWindow": 1000000,
           "maxTokens": 128000,
+          "thinkingLevelMap": {
+            "xhigh": "xhigh",
+            "max": "max"
+          },
           "compat": {
-            "supportsReasoningEffort": false
+            "forceAdaptiveThinking": true,
+            "supportsStrictTools": true
           }
         },
         {
