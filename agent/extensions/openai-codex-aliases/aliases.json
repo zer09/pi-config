@@ -1,7 +1,8 @@
 {
   "aliases": [
-    { "slug": "personal", "name": "OpenAI Codex Personal" },
-    { "slug": "business", "name": "OpenAI Codex Business" },
-    { "slug": "zahlo", "name": "OpenAI Codex Zahlo" }
+    { "slug": "zahlo", "name": "OpenAI Codex Zahlo" },
+    { "slug": "cgpt1", "name": "OpenAI Codex CGPT1" },
+    { "slug": "cgpt2", "name": "OpenAI Codex CGPT2" },
+    { "slug": "cgpt3", "name": "OpenAI Codex CGPT3" }
   ]
 }
