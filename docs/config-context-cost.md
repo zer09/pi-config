@@ -36,6 +36,10 @@ Delegated terminal-cleanup update: 2026-08-17 (accepted valid completed Pi lifec
 
 Delegated client-cancellation update: 2026-08-19 (recognized provider-side `client_gone` and `context canceled` signals while preserving the post-tool fallback cutoff; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated error-envelope update: 2026-08-19 (recognized the machine-rendered provider `[error]` envelope returned as the complete assistant report as a route-unavailability signal; provider calibration and the full extension/tool inventory were not rerun)
+
+Delegated single-line envelope refinement: 2026-08-19 (restricted that recognition to a one-line `[error]` envelope and kept multi-section `[error]`-prefixed reports terminal; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -331,6 +335,45 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `references/prompt-contracts.md` | 5,593 | 5,615 | +22 | Loaded only before a delegate spawn |
 
 The update adds no startup or skill-catalog cost. The exact gateway signals remain progressively disclosed in the spawn reference.
+
+## 2026-08-19 delegated error-envelope attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,582 | 2,582 | 0 | Always loaded through the context-file block |
+| `delegated-pi-loop` description | 83 | 83 | 0 | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | 3,308 | 3,378 | +70 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 5,615 | 5,671 | +56 | Loaded only before a delegate spawn |
+
+The update adds no startup or skill-catalog cost. The `agent/AGENTS.md` baseline reflects the later unrelated global-instruction refinement (2,582 measured locally); envelope-recognition rules remain progressively disclosed in the skill and spawn reference.
+
+## 2026-08-19 single-line envelope refinement attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,582 | 2,582 | 0 | Always loaded through the context-file block |
+| `delegated-pi-loop` description | 83 | 83 | 0 | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | 3,378 | 3,383 | +5 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 5,671 | 5,677 | +6 | Loaded only before a delegate spawn |
+
+The refinement adds no startup or skill-catalog cost. The single-line envelope rule remains progressively disclosed in the skill and spawn reference.
+
+## 2026-08-19 delegated scanner-error attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,582 | 2,582 | 0 | Always loaded through the context-file block |
+| `delegated-pi-loop` description | 83 | 83 | 0 | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | 3,383 | 3,383 | 0 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 5,677 | 5,693 | +16 | Loaded only before a delegate spawn |
+
+The update adds no startup or skill-catalog cost. The scanner-error signatures remain progressively disclosed in the spawn reference.
 
 ## Provider-calibrated baseline probes
 

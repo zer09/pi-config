@@ -2,6 +2,29 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-19 — Recognize SeekAI scanner-error stream failures
+
+- Classified the provider signatures `scanner_error` and `unexpected EOF` as provider unavailability in the existing availability pattern, matched case-insensitively with the existing underscore/space/hyphen tolerance for `scanner_error`.
+- Applied the signatures only to typed Pi error fields the supervisor already scans, plus the existing one-line `[error]` envelope, after a SeekAI Fable 5 attempt ended as `invalid_result` with `route_unavailable_seen` false while the dashboard reported `scanner_error`/`unexpected EOF` failures.
+- Let documented chains use their existing pre-tool fallback for the signal. Preserved the absolute post-tool cutoff: the observed five-tool attempt stays a terminal `invalid_result` failure, and arbitrary missing-marker reports remain non-replaceable.
+- Persisted no new provider text, request IDs, raw events, or status fields; only the existing `route_unavailable_seen` boolean can change.
+- Added regressions for pre-tool typed scanner-error fallback with private failed-route text, the post-tool cutoff, and the retry-path incident shape (typed error, retry cycle, unmarked substantial report).
+
+## 2026-08-19 — Restrict the provider error envelope to one line
+
+- Tightened machine error-envelope recognition: after outer whitespace is stripped, the report must be one nonempty logical line with no `\n` or `\r`, start with the exact `[error]` prefix, and match the availability pattern on that line only.
+- Kept the observed one-line `[error] Service temporarily unavailable` envelope positively recognized. A multi-section missing-marker report that starts with `[error]` and mentions a status code later now stays a terminal `invalid_result` failure with `route_unavailable_seen` false.
+- Added supervisor regressions for that multi-section non-match and for a report that starts with `[error]` yet ends with one valid `DELEGATE_RESULT: COMPLETED` marker; structured outcomes keep precedence over the availability signal, preserved by both the outcome guard and the single-line shape.
+- Restored doubled-brace escaping for the three membership collections in the fake-Pi fixture template without changing fixture behavior.
+
+## 2026-08-19 — Recognize provider error envelopes returned as report text
+
+- Fixed the supervisor storing a provider-rendered `[error] Service temporarily unavailable` notice as the final assistant report, recording `invalid_result`, and leaving `route_unavailable_seen` false.
+- Recognized exactly that whole-message machine envelope as provider unavailability when no structured delegate outcome exists and its body matches the existing availability pattern.
+- Let documented chains apply their existing pre-tool fallback for that signal; a guarded single route now ends as `routes_unavailable`. Preserved the post-tool and terminal-outcome cutoffs, the routing defaults, and the no-fallback Reviewer A policy.
+- Kept arbitrary missing-marker reports and prose that merely mentions unavailability as terminal failures, and persisted no new error detail beyond the existing boolean.
+- Added six regressions covering the observed representation, chain fallback with private failed-route text, guarded single-route exhaustion, the post-tool cutoff, prose and completed-report non-matches.
+
 ## 2026-08-19 — Recognize provider-side client cancellation
 
 - Classified `client_gone` and `context canceled` as provider-unavailability signals.

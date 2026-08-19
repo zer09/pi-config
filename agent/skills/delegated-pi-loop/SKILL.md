@@ -131,6 +131,7 @@ After a no-findings verdict:
 ## Failure handling
 
 - Automatic failover is limited to a documented route chain when the route is absent from Pi's available catalog, reports provider unavailability, or stalls before any tool starts. Each route gets one fresh attempt. Do not cycle routes.
+- Provider unavailability can arrive as a typed provider error or as the provider's machine-rendered one-line `[error]` envelope returned as the complete assistant report with no structured result. The supervisor recognizes only that single-line envelope. Prose or multi-section reports that merely mention an outage, and every other missing-marker report, remain terminal failures.
 - After any tool starts, or if a delegate blocks, fails, times out, exceeds output, returns a terminal result, or produces another invalid outcome, preserve artifacts and diagnose before any user-authorized fresh retry.
 - If either solution investigator does not complete, preserve the surviving report but do not treat the pair as complete independent solution evidence. If either default reviewer does not complete, the paired review gate is incomplete. Do not treat the surviving review as full independent approval.
 - If a read-only delegate mutates state, stop; do not silently revert user work.
@@ -139,4 +140,4 @@ After a no-findings verdict:
 
 ## Maintenance
 
-Update this custom local skill through `docs/skills/delegated-pi-loop-update-process.md`. Preserve fresh-session isolation, private Pi JSON activity monitoring, bounded pre-tool route failover, event-idle and wall deadlines, structured terminal results, process-group cleanup, role separation, the single-mutator rule, concurrent read-only solution investigation, fresh independent review, orchestrator evidence verification and solution synthesis, Z.AI any-role availability with assigned-role mutation limits, default GLM 5.3/max implementation, guarded SeekAI Claude Opus 4.8-first small-task routing, explicit Claude Opus 5/medium selection, and Git/hosted-service authorization gates.
+Update this custom local skill through `docs/skills/delegated-pi-loop-update-process.md`. Preserve fresh-session isolation, private Pi JSON activity monitoring, bounded pre-tool route failover, narrow machine error-envelope recognition, event-idle and wall deadlines, structured terminal results, process-group cleanup, role separation, the single-mutator rule, concurrent read-only solution investigation, fresh independent review, orchestrator evidence verification and solution synthesis, Z.AI any-role availability with assigned-role mutation limits, default GLM 5.3/max implementation, guarded SeekAI Claude Opus 4.8-first small-task routing, explicit Claude Opus 5/medium selection, and Git/hosted-service authorization gates.

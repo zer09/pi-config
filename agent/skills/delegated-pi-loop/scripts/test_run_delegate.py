@@ -456,6 +456,216 @@ while True:
             self.assertEqual(result.returncode, 78, result.stderr)
             self.assertEqual(self.read_status(artifact_dir)["state"], "invalid_result")
 
+    def test_pi_json_error_envelope_report_signals_route_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            events = [
+                {"type": "session", "version": 3, "id": "test"},
+                {"type": "agent_start"},
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "stopReason": "stop",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": (
+                                    "[error] Service temporarily unavailable, "
+                                    "please try again later"
+                                ),
+                            }
+                        ],
+                    },
+                },
+                {"type": "agent_end", "messages": []},
+                {"type": "agent_settled"},
+            ]
+            child_code = (
+                "import json; "
+                f"events={events!r}; "
+                "[print(json.dumps(event), flush=True) for event in events]"
+            )
+            result, artifact_dir = self.run_supervisor(
+                Path(temporary),
+                "pi-json-error-envelope",
+                child_code,
+                protocol="pi-json",
+            )
+
+            self.assertEqual(result.returncode, 78, result.stderr)
+            status = self.read_status(artifact_dir)
+            self.assertEqual(status["state"], "invalid_result")
+            self.assertIsNone(status["delegate_outcome"])
+            self.assertEqual(status["tool_execution_count"], 0)
+            self.assertTrue(status["agent_settled_seen"])
+            self.assertTrue(status["route_unavailable_seen"])
+
+    def test_pi_json_report_prose_mentioning_unavailability_stays_terminal(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            report = (
+                "# Review\n\n"
+                "The upstream service was temporarily unavailable during one "
+                "probe, so the remaining evidence is incomplete and unmarked."
+            )
+            events = [
+                {"type": "session", "version": 3, "id": "test"},
+                {"type": "agent_start"},
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "stopReason": "stop",
+                        "content": [{"type": "text", "text": report}],
+                    },
+                },
+                {"type": "agent_end", "messages": []},
+            ]
+            child_code = (
+                "import json; "
+                f"events={events!r}; "
+                "[print(json.dumps(event), flush=True) for event in events]"
+            )
+            result, artifact_dir = self.run_supervisor(
+                Path(temporary),
+                "pi-json-unavailable-prose",
+                child_code,
+                protocol="pi-json",
+            )
+
+            self.assertEqual(result.returncode, 78, result.stderr)
+            status = self.read_status(artifact_dir)
+            self.assertEqual(status["state"], "invalid_result")
+            self.assertIsNone(status["delegate_outcome"])
+            self.assertFalse(status["route_unavailable_seen"])
+
+    def test_pi_json_completed_report_discussing_unavailability_stays_completed(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            report = (
+                "# Review\n\n"
+                "The upstream service was temporarily unavailable during one "
+                "probe, then recovered; the required evidence is complete.\n\n"
+                "DELEGATE_RESULT: COMPLETED"
+            )
+            events = [
+                {"type": "session", "version": 3, "id": "test"},
+                {"type": "agent_start"},
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "stopReason": "stop",
+                        "content": [{"type": "text", "text": report}],
+                    },
+                },
+                {"type": "agent_end", "messages": []},
+                {"type": "agent_settled"},
+            ]
+            child_code = (
+                "import json; "
+                f"events={events!r}; "
+                "[print(json.dumps(event), flush=True) for event in events]"
+            )
+            result, artifact_dir = self.run_supervisor(
+                Path(temporary),
+                "pi-json-completed-unavailable",
+                child_code,
+                protocol="pi-json",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            status = self.read_status(artifact_dir)
+            self.assertEqual(status["state"], "completed")
+            self.assertEqual(status["delegate_outcome"], "completed")
+            self.assertFalse(status["route_unavailable_seen"])
+
+    def test_pi_json_multisection_error_prefixed_report_stays_terminal(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            report = (
+                "[error] The delegate could not finish.\n\n"
+                "## Diagnosis\n\n"
+                "The provider returned 503 while probing the upstream route, and "
+                "no structured result was produced."
+            )
+            events = [
+                {"type": "session", "version": 3, "id": "test"},
+                {"type": "agent_start"},
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "stopReason": "stop",
+                        "content": [{"type": "text", "text": report}],
+                    },
+                },
+                {"type": "agent_end", "messages": []},
+                {"type": "agent_settled"},
+            ]
+            child_code = (
+                "import json; "
+                f"events={events!r}; "
+                "[print(json.dumps(event), flush=True) for event in events]"
+            )
+            result, artifact_dir = self.run_supervisor(
+                Path(temporary),
+                "pi-json-error-prefixed-multisection",
+                child_code,
+                protocol="pi-json",
+            )
+
+            self.assertEqual(result.returncode, 78, result.stderr)
+            status = self.read_status(artifact_dir)
+            self.assertEqual(status["state"], "invalid_result")
+            self.assertIsNone(status["delegate_outcome"])
+            self.assertEqual(status["tool_execution_count"], 0)
+            self.assertFalse(status["route_unavailable_seen"])
+
+    def test_pi_json_error_prefixed_completed_report_stays_completed(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            report = (
+                "[error] Service temporarily unavailable during one probe, then "
+                "recovered; the required evidence is complete.\n\n"
+                "DELEGATE_RESULT: COMPLETED"
+            )
+            events = [
+                {"type": "session", "version": 3, "id": "test"},
+                {"type": "agent_start"},
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "stopReason": "stop",
+                        "content": [{"type": "text", "text": report}],
+                    },
+                },
+                {"type": "agent_end", "messages": []},
+                {"type": "agent_settled"},
+            ]
+            child_code = (
+                "import json; "
+                f"events={events!r}; "
+                "[print(json.dumps(event), flush=True) for event in events]"
+            )
+            result, artifact_dir = self.run_supervisor(
+                Path(temporary),
+                "pi-json-error-prefixed-completed",
+                child_code,
+                protocol="pi-json",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            status = self.read_status(artifact_dir)
+            self.assertEqual(status["state"], "completed")
+            self.assertEqual(status["delegate_outcome"], "completed")
+            self.assertFalse(status["route_unavailable_seen"])
+
     def test_pi_json_failed_result_terminates_early(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             events = [
@@ -540,6 +750,65 @@ while True:
             self.assertEqual(status["agent_start_count"], 2)
             self.assertEqual(status["agent_end_count"], 2)
             self.assertEqual(status["last_event"], "agent_settled")
+
+    def test_pi_json_scanner_error_retry_sets_route_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            events = [
+                {"type": "session", "version": 3, "id": "test"},
+                {"type": "agent_start"},
+                {
+                    "type": "message_update",
+                    "assistantMessageEvent": {
+                        "type": "error",
+                        "errorMessage": "scanner_error: unexpected EOF",
+                    },
+                },
+                {"type": "agent_end", "messages": [], "willRetry": True},
+                {
+                    "type": "auto_retry_start",
+                    "attempt": 1,
+                    "maxAttempts": 3,
+                    "delayMs": 1,
+                    "errorMessage": "scanner_error: unexpected EOF",
+                },
+                {"type": "auto_retry_end", "success": True, "attempt": 1},
+                {"type": "agent_start"},
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "stopReason": "stop",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": (
+                                    "Substantial report that never states a "
+                                    "terminal result marker."
+                                ),
+                            }
+                        ],
+                    },
+                },
+                {"type": "agent_end", "messages": []},
+                {"type": "agent_settled"},
+            ]
+            child_code = (
+                "import json; "
+                f"events={events!r}; "
+                "[print(json.dumps(event), flush=True) for event in events]"
+            )
+            result, artifact_dir = self.run_supervisor(
+                Path(temporary), "pi-json-scanner-error", child_code, protocol="pi-json"
+            )
+
+            self.assertEqual(result.returncode, 78, result.stderr)
+            status = self.read_status(artifact_dir)
+            self.assertEqual(status["state"], "invalid_result")
+            self.assertIsNone(status["delegate_outcome"])
+            self.assertEqual(status["agent_start_count"], 2)
+            self.assertEqual(status["tool_execution_count"], 0)
+            self.assertTrue(status["route_unavailable_seen"])
+            self.assertNotIn("scanner_error", json.dumps(status))
 
     def test_pi_json_missing_agent_end_is_invalid_stream(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -765,19 +1034,20 @@ emit({{"type": "session", "version": 3, "id": route}})
 emit({{"type": "agent_start"}})
 if behavior == "stall":
     time.sleep(30)
-if behavior in {{"tool-error", "tool-client-gone"}}:
+if behavior in {{"tool-error", "tool-client-gone", "tool-error-envelope", "tool-scanner-error"}}:
     emit({{
         "type": "tool_execution_start",
         "toolCallId": "call-1",
         "toolName": "read",
         "args": {{"path": "fixture"}},
     }})
-if behavior in {{"unavailable", "tool-error", "client-gone", "tool-client-gone"}}:
-    error_message = (
-        "client_gone: context canceled"
-        if behavior in {{"client-gone", "tool-client-gone"}}
-        else "503 Service unavailable"
-    )
+if behavior in {{"unavailable", "tool-error", "client-gone", "tool-client-gone", "scanner-error", "tool-scanner-error"}}:
+    if behavior in {{"client-gone", "tool-client-gone"}}:
+        error_message = "client_gone: context canceled"
+    elif behavior in {{"scanner-error", "tool-scanner-error"}}:
+        error_message = "scanner_error: unexpected EOF"
+    else:
+        error_message = "503 Service unavailable"
     emit({{
         "type": "message_end",
         "message": {{
@@ -789,6 +1059,20 @@ if behavior in {{"unavailable", "tool-error", "client-gone", "tool-client-gone"}
     }})
     emit({{"type": "agent_end", "messages": [], "willRetry": False}})
     raise SystemExit(1)
+if behavior in {{"error-envelope", "tool-error-envelope"}}:
+    emit({{
+        "type": "message_end",
+        "message": {{
+            "role": "assistant",
+            "content": [{{
+                "type": "text",
+                "text": "[error] Service temporarily unavailable, please try again later",
+            }}],
+            "stopReason": "stop",
+        }},
+    }})
+    emit({{"type": "agent_end", "messages": [], "willRetry": False}})
+    raise SystemExit(0)
 emit({{
     "type": "message_end",
     "message": {{
@@ -1016,6 +1300,112 @@ emit({{"type": "agent_end", "messages": [], "willRetry": False}})
             self.assertEqual(status["state"], "routes_unavailable")
             self.assertEqual(len(status["attempts"]), 1)
             self.assertEqual(invocations, [])
+
+    def test_error_envelope_falls_back_before_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, status, invocations = self.run_chain(
+                Path(temporary),
+                catalog=["primary/model-a", "backup/model-b"],
+                behaviors={
+                    "primary/model-a": "error-envelope",
+                    "backup/model-b": "complete",
+                },
+                fallbacks=["backup/model-b:high"],
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(invocations, ["primary/model-a", "backup/model-b"])
+            self.assertEqual(status["selected_route"], "backup/model-b:high")
+            self.assertEqual(
+                status["attempts"][0]["fallback_reason"],
+                "provider_unavailable_before_tools",
+            )
+            self.assertNotIn(
+                "[error] Service temporarily unavailable",
+                result.stdout + result.stderr,
+            )
+            self.assertNotIn(
+                "[error] Service temporarily unavailable",
+                json.dumps(status),
+            )
+
+    def test_error_envelope_exhausts_guarded_single_route(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, status, invocations = self.run_chain(
+                Path(temporary),
+                catalog=["primary/model-a"],
+                behaviors={"primary/model-a": "error-envelope"},
+                fallbacks=[],
+            )
+
+            self.assertEqual(result.returncode, 80, result.stderr)
+            self.assertEqual(status["state"], "routes_unavailable")
+            self.assertIsNone(status["selected_route"])
+            self.assertEqual(invocations, ["primary/model-a"])
+            self.assertEqual(status["attempts"][0]["state"], "invalid_result")
+            self.assertEqual(
+                status["attempts"][0]["fallback_reason"],
+                "provider_unavailable_before_tools",
+            )
+
+    def test_error_envelope_after_tool_disables_automatic_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, status, invocations = self.run_chain(
+                Path(temporary),
+                catalog=["primary/model-a", "backup/model-b"],
+                behaviors={
+                    "primary/model-a": "tool-error-envelope",
+                    "backup/model-b": "complete",
+                },
+                fallbacks=["backup/model-b:high"],
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(invocations, ["primary/model-a"])
+            self.assertEqual(status["selected_route"], "primary/model-a:xhigh")
+            self.assertEqual(status["state"], "invalid_result")
+            self.assertNotIn("fallback_reason", status["attempts"][0])
+
+    def test_scanner_error_falls_back_before_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, status, invocations = self.run_chain(
+                Path(temporary),
+                catalog=["primary/model-a", "backup/model-b"],
+                behaviors={
+                    "primary/model-a": "scanner-error",
+                    "backup/model-b": "complete",
+                },
+                fallbacks=["backup/model-b:high"],
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(invocations, ["primary/model-a", "backup/model-b"])
+            self.assertEqual(status["selected_route"], "backup/model-b:high")
+            self.assertEqual(
+                status["attempts"][0]["fallback_reason"],
+                "provider_unavailable_before_tools",
+            )
+            self.assertNotIn("scanner_error", result.stdout + result.stderr)
+            self.assertNotIn("unexpected EOF", result.stdout + result.stderr)
+            self.assertNotIn("scanner_error", json.dumps(status))
+            self.assertNotIn("unexpected EOF", json.dumps(status))
+
+    def test_scanner_error_after_tool_disables_automatic_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, status, invocations = self.run_chain(
+                Path(temporary),
+                catalog=["primary/model-a", "backup/model-b"],
+                behaviors={
+                    "primary/model-a": "tool-scanner-error",
+                    "backup/model-b": "complete",
+                },
+                fallbacks=["backup/model-b:high"],
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(invocations, ["primary/model-a"])
+            self.assertEqual(status["selected_route"], "primary/model-a:xhigh")
+            self.assertNotIn("fallback_reason", status["attempts"][0])
 
     def test_runtime_unavailability_can_exhaust_chain(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

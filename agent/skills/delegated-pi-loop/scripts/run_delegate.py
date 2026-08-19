@@ -45,9 +45,11 @@ ROUTE_UNAVAILABLE_PATTERN = re.compile(
     r"temporarily unavailable|internal server error|gateway timeout|"
     r"connection (?:reset|refused)|network error|fetch failed|"
     r"client[_ -]?gone|context cancel(?:ed|led)|"
+    r"scanner[_ -]?error|unexpected eof|"
     r"request (?:timed out|timeout)|unauthorized|invalid api key)",
     re.IGNORECASE,
 )
+MACHINE_ERROR_PREFIX = "[error]"
 
 PI_CORE_ACTIVITY_EVENTS = {
     "turn_start",
@@ -389,6 +391,19 @@ def route_unavailable_error(value: object) -> bool:
     return isinstance(value, str) and bool(ROUTE_UNAVAILABLE_PATTERN.search(value))
 
 
+def machine_error_envelope(report: str) -> bool:
+    # A provider can render its outage as a one-line machine envelope instead
+    # of a typed error. Only that single prefixed line counts, so multi-section
+    # reports and prose that merely mentions an outage never match.
+    stripped = report.strip()
+    if "\n" in stripped or "\r" in stripped:
+        return False
+    if not stripped.startswith(MACHINE_ERROR_PREFIX):
+        return False
+    body = stripped[len(MACHINE_ERROR_PREFIX) :].lstrip()
+    return route_unavailable_error(body)
+
+
 def assistant_text(message: object) -> str | None:
     if not isinstance(message, dict) or message.get("role") != "assistant":
         return None
@@ -569,6 +584,10 @@ class PiJsonMonitor:
             if report is not None:
                 self.final_report = report
                 self.outcome = parse_delegate_outcome(report)
+                # Error text delivered as the report itself is unstructured, so
+                # it can only ever mark the route unavailable, never succeed.
+                if self.outcome is None:
+                    self.route_unavailable_seen |= machine_error_envelope(report)
 
     def _record_activity(self, event_name: str, phase: str) -> None:
         self.last_activity = time.monotonic()
