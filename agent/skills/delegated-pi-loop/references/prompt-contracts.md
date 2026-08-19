@@ -29,20 +29,22 @@ Catalog preflight and delegate children see provider credentials inherited by th
 
 Use `--timeout-seconds <seconds> --allow-extended-timeout` before `--` only when the user explicitly authorizes a larger wall deadline. Use `--idle-timeout-seconds <seconds> --allow-extended-idle` only for a known, intentionally silent tool. The supervisor rejects larger values without these explicit flags. Never run an unbounded child.
 
-Implementation and remediation default to GLM 5.3/max. The orchestrator may choose the SeekAI Claude Opus 4.8-first xhigh chain only when all of these conditions hold:
+Implementation and remediation default to GLM 5.3/max. The orchestrator may choose the Tabitoken Claude Opus 4.8 Thinking-first chain only when all of these conditions hold:
 
 1. The requested change is narrow and clearly bounded.
 2. The solution follows an established local pattern and has no material ambiguity.
 3. The task has no architecture, security, concurrency, schema, migration, broad-refactor, or cross-system concern.
 4. The delegate should finish in a few agent turns with targeted checks.
 
-Record the small-task classification before spawn. If any condition is uncertain, use GLM 5.3/max. The fallback models do not relax this role gate.
+Record the small-task classification before spawn. If any condition is uncertain, use GLM 5.3/max. The fallback models do not relax this role gate. The Tabitoken primary intentionally runs at `high` because Tabitoken maps no `xhigh` thinking level for Claude Opus 4.8 Thinking, and it deliberately stays below the mapped `max` level to preserve the lower-cost purpose of this narrowly classified route; the AgentRouter and Luna fallbacks keep `xhigh`.
 
 ### Concurrent solution-investigation pair
 
 Use this pair when a problem lacks an accepted solution contract. Launch both commands as separate direct bash tool calls in one parallel tool batch. Give both investigators the same neutral problem statement and preserve separate artifacts. They are read-only and must be fresh from every later implementer and reviewer.
 
-#### Investigator A: SeekAI Claude Opus 5/high
+#### Investigator A: Tabitoken Claude Opus 5 Thinking/high
+
+Route: `tabitoken/claude-opus-5-thinking:high`.
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
@@ -52,7 +54,7 @@ cd "$project_root"
 uv run --no-project python "$chain" \
   --idle-warning-seconds 300 \
   --idle-timeout-seconds 600 \
-  --label solution-seekai-opus-5-high \
+  --label solution-tabitoken-opus-5-thinking-high \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -64,8 +66,8 @@ uv run --no-project python "$chain" \
     --mode json \
     --no-session \
     --approve \
-    --provider seekai \
-    --model claude-opus-5 \
+    --provider tabitoken \
+    --model claude-opus-5-thinking \
     --thinking high \
     @"$prompt_file"
 ```
@@ -135,9 +137,9 @@ uv run --no-project python "$supervisor" \
 
 Launch both commands as separate direct bash tool calls in one parallel tool batch. Do not put them in one shell with background jobs. Give both reviewers the same neutral review scope, but preserve separate artifact directories and outputs. Use fresh processes that did not participate in solution investigation or implementation. Do not give reviewers investigator reports, discarded alternatives, or orchestrator synthesis rationale. Wait for both.
 
-#### Reviewer A: SeekAI Claude Fable 5/high
+#### Reviewer A: Tabitoken Claude Opus 4.8 Thinking/high
 
-This guarded single route exits as `routes_unavailable` if SeekAI Claude Fable 5 is absent from Pi's live catalog.
+This guarded single route exits as `routes_unavailable` if Tabitoken Claude Opus 4.8 Thinking is absent from Pi's live catalog. Route: `tabitoken/claude-opus-4-8-thinking:high`. Tabitoken has no configured Fable-equivalent model, so Reviewer A uses Opus 4.8 Thinking/high; this avoids duplicating Investigator A's Opus 5 model and preserves model diversity within the review pair. When the small-task Tabitoken route implemented the change, this reviewer shares that model route, and the orchestrator records the overlap. Independence then rests on this fresh isolated reviewer process and Reviewer B, not on model separation. The implementer process cannot review its own work.
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
@@ -147,7 +149,7 @@ cd "$project_root"
 uv run --no-project python "$chain" \
   --idle-warning-seconds 300 \
   --idle-timeout-seconds 600 \
-  --label review-seekai-fable-5-high \
+  --label review-tabitoken-opus-4-8-thinking-high \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -159,8 +161,8 @@ uv run --no-project python "$chain" \
     --mode json \
     --no-session \
     --approve \
-    --provider seekai \
-    --model claude-fable-5 \
+    --provider tabitoken \
+    --model claude-opus-4-8-thinking \
     --thinking high \
     @"$prompt_file"
 ```
@@ -228,7 +230,7 @@ uv run --no-project python "$supervisor" \
 
 ### Small-task implementation or remediation chain
 
-Ordered routes: SeekAI Claude Opus 4.8/xhigh, AgentRouter Claude Opus 4.8/xhigh, SeekAI DeepSeek V4 Flash/xhigh, then OpenAI Codex GPT-5.6 Luna/xhigh.
+Ordered routes: `tabitoken/claude-opus-4-8-thinking:high`, `agentrouter/claude-opus-4-8:xhigh`, then `openai-codex/gpt-5.6-luna:xhigh`. The Tabitoken primary intentionally uses `high` because Tabitoken maps no `xhigh` thinking level for that model, and it deliberately stays below the mapped `max` level to preserve the lower-cost purpose of this narrowly classified route. Tabitoken has no configured DeepSeek equivalent, so no DeepSeek fallback exists in this chain.
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
@@ -237,7 +239,6 @@ chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/
 cd "$project_root"
 uv run --no-project python "$chain" \
   --fallback-route agentrouter/claude-opus-4-8:xhigh \
-  --fallback-route seekai/deepseek-v4-flash:xhigh \
   --fallback-route openai-codex/gpt-5.6-luna:xhigh \
   --idle-warning-seconds 300 \
   --idle-timeout-seconds 600 \
@@ -253,9 +254,9 @@ uv run --no-project python "$chain" \
     --mode json \
     --no-session \
     --approve \
-    --provider seekai \
-    --model claude-opus-4-8 \
-    --thinking xhigh \
+    --provider tabitoken \
+    --model claude-opus-4-8-thinking \
+    --thinking high \
     @"$prompt_file"
 ```
 

@@ -2,6 +2,17 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-20 — Replace active SeekAI delegate routes with Tabitoken
+
+- Changed solution investigator A from SeekAI Claude Opus 5/high to Tabitoken Claude Opus 5 Thinking/high.
+- Changed independent reviewer A from SeekAI Claude Fable 5/high to Tabitoken Claude Opus 4.8 Thinking/high because Tabitoken has no configured Fable-equivalent model and Opus 4.8 Thinking avoids duplicating Investigator A's Opus 5 model.
+- Changed the small-task chain primary from SeekAI Claude Opus 4.8/xhigh to Tabitoken Claude Opus 4.8 Thinking/high because Tabitoken maps no `xhigh` thinking level for that model and the primary deliberately stays below the mapped `max` level to preserve the lower-cost purpose of this narrowly classified route; the AgentRouter Opus 4.8/xhigh and Luna/xhigh fallbacks keep `xhigh`.
+- Removed the SeekAI DeepSeek V4 Flash/xhigh fallback because Tabitoken has no configured DeepSeek equivalent; no substitute fallback was invented.
+- Updated the skill trigger description, supervised command examples including provider, model, thinking, and labels, fallback-provider authority, ADR 0007 policy, update-process invariants, and context-cost attribution. Runtime scripts stayed provider-neutral and unchanged.
+- Preserved historical SeekAI incident narratives, historical changelog entries, and prior context-cost attributions as factual provenance.
+- Deferred live Tabitoken catalog validation because the parent Pi process has `TABITOKEN_API_KEY` unset; Pi must restart from a refreshed shell containing that variable before `pi --list-models tabitoken/...` availability checks or paid route smokes.
+- Validation: target-skill validation, delegated-loop supervisor regressions with bytecode disabled, Ruff lint and format checks, all-Local-Skills validation, `git diff --check`, dirty-file fingerprint checks, and active-policy route scans passed without paid provider calls.
+
 ## 2026-08-19 — Recognize SeekAI scanner-error stream failures
 
 - Classified the provider signatures `scanner_error` and `unexpected EOF` as provider unavailability in the existing availability pattern, matched case-insensitively with the existing underscore/space/hyphen tolerance for `scanner_error`.

@@ -40,6 +40,8 @@ Delegated error-envelope update: 2026-08-19 (recognized the machine-rendered pro
 
 Delegated single-line envelope refinement: 2026-08-19 (restricted that recognition to a one-line `[error]` envelope and kept multi-section `[error]`-prefixed reports terminal; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated Tabitoken route-policy update: 2026-08-20 (replaced the active SeekAI investigator A, reviewer A, and small-task-chain routes with Tabitoken routes and removed the DeepSeek fallback; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -374,6 +376,19 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `references/prompt-contracts.md` | 5,677 | 5,693 | +16 | Loaded only before a delegate spawn |
 
 The update adds no startup or skill-catalog cost. The scanner-error signatures remain progressively disclosed in the spawn reference.
+
+## 2026-08-20 delegated Tabitoken route-policy attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are the `HEAD` revision of each file.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,582 | 2,582 | 0 | Always loaded through the context-file block |
+| `delegated-pi-loop` description | 83 | 87 | +4 | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | 3,383 | 3,558 | +175 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 5,693 | 5,974 | +281 | Loaded only before a delegate spawn |
+
+The startup increase is limited to the skill-catalog description change (adding Tabitoken as a trigger keyword alongside SeekAI). The route-policy table, thinking-level rationale, model-route overlap rules, and exact supervised Tabitoken commands remain progressively disclosed in the skill and spawn reference.
 
 ## Provider-calibrated baseline probes
 
