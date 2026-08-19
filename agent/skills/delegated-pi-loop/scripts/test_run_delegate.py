@@ -765,21 +765,26 @@ emit({{"type": "session", "version": 3, "id": route}})
 emit({{"type": "agent_start"}})
 if behavior == "stall":
     time.sleep(30)
-if behavior == "tool-error":
+if behavior in {{"tool-error", "tool-client-gone"}}:
     emit({{
         "type": "tool_execution_start",
         "toolCallId": "call-1",
         "toolName": "read",
         "args": {{"path": "fixture"}},
     }})
-if behavior in {{"unavailable", "tool-error"}}:
+if behavior in {{"unavailable", "tool-error", "client-gone", "tool-client-gone"}}:
+    error_message = (
+        "client_gone: context canceled"
+        if behavior in {{"client-gone", "tool-client-gone"}}
+        else "503 Service unavailable"
+    )
     emit({{
         "type": "message_end",
         "message": {{
             "role": "assistant",
             "content": [],
             "stopReason": "error",
-            "errorMessage": "503 Service unavailable",
+            "errorMessage": error_message,
         }},
     }})
     emit({{"type": "agent_end", "messages": [], "willRetry": False}})
@@ -910,6 +915,27 @@ emit({{"type": "agent_end", "messages": [], "willRetry": False}})
             self.assertNotIn("@prompt.md", status_text)
             self.assertNotIn("503 Service unavailable", result.stdout + result.stderr)
 
+    def test_client_gone_falls_back_before_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, status, invocations = self.run_chain(
+                Path(temporary),
+                catalog=["primary/model-a", "backup/model-b"],
+                behaviors={
+                    "primary/model-a": "client-gone",
+                    "backup/model-b": "complete",
+                },
+                fallbacks=["backup/model-b:high"],
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(invocations, ["primary/model-a", "backup/model-b"])
+            self.assertEqual(
+                status["attempts"][0]["fallback_reason"],
+                "provider_unavailable_before_tools",
+            )
+            self.assertNotIn("client_gone", result.stdout + result.stderr)
+            self.assertNotIn("context canceled", result.stdout + result.stderr)
+
     def test_event_idle_falls_back_before_tools(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             result, status, invocations = self.run_chain(
@@ -936,6 +962,23 @@ emit({{"type": "agent_end", "messages": [], "willRetry": False}})
                 catalog=["primary/model-a", "backup/model-b"],
                 behaviors={
                     "primary/model-a": "tool-error",
+                    "backup/model-b": "complete",
+                },
+                fallbacks=["backup/model-b:high"],
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(invocations, ["primary/model-a"])
+            self.assertEqual(status["selected_route"], "primary/model-a:xhigh")
+            self.assertNotIn("fallback_reason", status["attempts"][0])
+
+    def test_client_gone_after_tool_disables_automatic_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result, status, invocations = self.run_chain(
+                Path(temporary),
+                catalog=["primary/model-a", "backup/model-b"],
+                behaviors={
+                    "primary/model-a": "tool-client-gone",
                     "backup/model-b": "complete",
                 },
                 fallbacks=["backup/model-b:high"],

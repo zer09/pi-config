@@ -44,6 +44,7 @@ ROUTE_UNAVAILABLE_PATTERN = re.compile(
     r"rate[ -]?limit|overload|(?:service|provider) unavailable|"
     r"temporarily unavailable|internal server error|gateway timeout|"
     r"connection (?:reset|refused)|network error|fetch failed|"
+    r"client[_ -]?gone|context cancel(?:ed|led)|"
     r"request (?:timed out|timeout)|unauthorized|invalid api key)",
     re.IGNORECASE,
 )

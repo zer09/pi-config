@@ -2,6 +2,12 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-19 — Recognize provider-side client cancellation
+
+- Classified `client_gone` and `context canceled` as provider-unavailability signals.
+- Allowed guarded fallback for those signals only before any tool execution.
+- Preserved the no-fallback safety boundary after tool execution and replaced the failed read-only reviewer explicitly.
+
 ## 2026-08-17 — Accept completed delegates that linger after settlement
 
 - Fixed the supervisor misclassifying valid completed OpenAI Codex and AgentRouter delegates as stalled when Pi remained alive after final `agent_settled`.

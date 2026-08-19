@@ -34,6 +34,8 @@ Delegated SeekAI role-routing update: 2026-08-16 (replaced three default GoRoute
 
 Delegated terminal-cleanup update: 2026-08-17 (accepted valid completed Pi lifecycles before process exit and cleaned up lingering process groups; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated client-cancellation update: 2026-08-19 (recognized provider-side `client_gone` and `context canceled` signals while preserving the post-tool fallback cutoff; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -316,6 +318,19 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `references/prompt-contracts.md` | 5,541 | 5,593 | +52 | Loaded only before a delegate spawn |
 
 The update adds no startup or skill-catalog cost. Terminal cleanup rules remain progressively disclosed in the skill and spawn reference.
+
+## 2026-08-19 delegated client-cancellation attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,911 | 2,911 | 0 | Always loaded through the context-file block |
+| `delegated-pi-loop` description | 83 | 83 | 0 | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | 3,308 | 3,308 | 0 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 5,593 | 5,615 | +22 | Loaded only before a delegate spawn |
+
+The update adds no startup or skill-catalog cost. The exact gateway signals remain progressively disclosed in the spawn reference.
 
 ## Provider-calibrated baseline probes
 
