@@ -414,6 +414,73 @@
           "maxTokens": 128000
         }
       ]
+    },
+    "tabitoken": {
+      "baseUrl": "https://tabitoken.cc",
+      "api": "anthropic-messages",
+      "apiKey": "$TABITOKEN_API_KEY",
+      "headers": {
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36"
+      },
+      "models": [
+        {
+          "id": "claude-opus-5-thinking",
+          "name": "Claude Opus 5 Thinking",
+          "reasoning": true,
+          "input": ["text"],
+          "contextWindow": 1000000,
+          "maxTokens": 128000,
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": "xhigh",
+            "max": "max"
+          },
+          "compat": {
+            "forceAdaptiveThinking": true
+          }
+        },
+        {
+          "id": "claude-opus-5",
+          "name": "Claude Opus 5",
+          "reasoning": false,
+          "input": ["text"],
+          "contextWindow": 1000000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "claude-opus-4-8-thinking",
+          "name": "Claude Opus 4.8 Thinking",
+          "reasoning": true,
+          "input": ["text"],
+          "contextWindow": 1000000,
+          "maxTokens": 128000,
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": "max"
+          },
+          "compat": {
+            "forceAdaptiveThinking": true
+          }
+        },
+        {
+          "id": "claude-opus-4-8",
+          "name": "Claude Opus 4.8",
+          "reasoning": false,
+          "input": ["text"],
+          "contextWindow": 1000000,
+          "maxTokens": 128000
+        }
+      ]
     }
   }
 }
