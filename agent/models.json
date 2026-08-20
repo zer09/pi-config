@@ -350,17 +350,12 @@
       ]
     },
     "gorouter": {
-      "baseUrl": "https://gorouter.app/v1",
-      "api": "openai-completions",
+      "baseUrl": "https://gorouter.app",
+      "api": "anthropic-messages",
       "apiKey": "$GOROUTER_API_KEY",
       "headers": {
         "Accept": "application/json",
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36"
-      },
-      "compat": {
-        "supportsStore": false,
-        "supportsDeveloperRole": false,
-        "supportsReasoningEffort": false
       },
       "models": [
         {
@@ -373,11 +368,15 @@
           "thinkingLevelMap": {
             "off": null,
             "minimal": null,
-            "low": null,
-            "medium": null,
+            "low": "low",
+            "medium": "medium",
             "high": "high",
             "xhigh": null,
             "max": null
+          },
+          "compat": {
+            "forceAdaptiveThinking": true,
+            "supportsStrictTools": true
           }
         },
         {
@@ -398,11 +397,15 @@
           "thinkingLevelMap": {
             "off": null,
             "minimal": null,
-            "low": null,
-            "medium": null,
+            "low": "low",
+            "medium": "medium",
             "high": "high",
             "xhigh": null,
             "max": null
+          },
+          "compat": {
+            "forceAdaptiveThinking": true,
+            "supportsStrictTools": true
           }
         },
         {
@@ -441,7 +444,8 @@
             "max": "max"
           },
           "compat": {
-            "forceAdaptiveThinking": true
+            "forceAdaptiveThinking": true,
+            "supportsStrictTools": true
           }
         },
         {
@@ -469,7 +473,8 @@
             "max": "max"
           },
           "compat": {
-            "forceAdaptiveThinking": true
+            "forceAdaptiveThinking": true,
+            "supportsStrictTools": true
           }
         },
         {
