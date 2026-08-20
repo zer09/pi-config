@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pi Browser Harness"
+  short_description: "Control the browser after explicit user setup"
+  default_prompt: "Use $pi-browser-harness to work in my browser after I complete the required setup."
