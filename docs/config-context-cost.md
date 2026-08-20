@@ -44,6 +44,8 @@ Delegated Tabitoken route-policy update: 2026-08-20 (replaced the active SeekAI 
 
 Delegated three-member primary-routing update: 2026-08-20 (expanded concurrent solution investigation and independent review to three members A/B/C with ordered backup maps, retired the Tabitoken-first small-task chain, and moved finding verification to Sol/high; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated A-route Muse update: 2026-08-21 (replaced the A Luna primary and SeekAI Luna backup with OpenCode Go Muse Spark 1.2 Contributor/xhigh for investigation and review; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -404,6 +406,19 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `references/prompt-contracts.md` | 5,974 | 6,742 | +768 | Loaded only before a delegate spawn |
 
 The startup increase is limited to the skill-catalog description change (adding CGPT3 and OpenCode Go as trigger keywords for the new primary backends). The three-member route table, ordered backup maps, the SeekAI Luna and HY3 thinking-level rationale, and the exact A/B/C supervised commands remain progressively disclosed in the skill and spawn reference.
+
+## 2026-08-21 delegated A-route Muse attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are the `HEAD` revision of each file and match the three-member primary-routing `After` column.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,582 | 2,582 | 0 | Always loaded through the context-file block |
+| `delegated-pi-loop` description | 95 | 91 | -4 | Loaded in the skill catalog |
+| `delegated-pi-loop/SKILL.md` | 3,604 | 3,598 | -6 | Loaded only when the skill is read |
+| `references/prompt-contracts.md` | 6,742 | 6,720 | -22 | Loaded only before a delegate spawn |
+
+The startup cost decreases by the removed CGPT3 trigger keyword in the skill-catalog description. The Muse Spark 1.2 Contributor thinking-level rationale and the reordered A backup map remain progressively disclosed in the skill and spawn reference.
 
 ## Provider-calibrated baseline probes
 

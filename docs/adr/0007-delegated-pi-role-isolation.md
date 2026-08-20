@@ -39,6 +39,8 @@ On 2026-08-20, the user replaced every remaining active SeekAI role route with T
 
 Later on 2026-08-20, the user expanded both conditional solution investigation and post-implementation independent review from two members to three: A, B, and C. A primaries on CGPT3 GPT-5.6 Luna/max, B on OpenCode Go DeepSeek V4 Flash/max, and C on OpenCode Go HY3/high. HY3 maps no `max` thinking level, so Pi would clamp `max` to `high`; the user selected HY3 at `high` explicitly. Investigation and review share the same primary assignments, and each member carries one ordered backup map covering SeekAI, AgentRouter, Tabitoken, and GoRouter routes. Those four backends are backup-only and never start as primaries in the default policy. Every gate requires all three reports; one or two surviving reports are useful evidence but cannot complete the gate. The user also raised finding verification from Sol/medium to Sol/high and retired the Tabitoken-first small-task implementation/remediation chain: narrow tasks now route to GLM 5.3/max like all other implementation work, and explicit user or project backend selection remains available with role-based permissions.
 
+On 2026-08-21, the user replaced the A primary for both conditional solution investigation and independent review: OpenCode Go Muse Spark 1.2 Contributor at `xhigh` replaces CGPT3 GPT-5.6 Luna at `max`, and the SeekAI GPT-5.6 Luna backup leaves the A map. Muse Spark 1.2 Contributor maps `max` to null in its local thinking-level map, so `xhigh` is its highest supported thinking level. A now backs up through AgentRouter GPT-5.6 Sol/max, Tabitoken Claude Opus 5 Thinking/max, SeekAI Claude Opus 5/max, and GoRouter Claude Opus 5 Thinking/high. The B and C maps, the three-member gates with all-three completion semantics, the backup-only status of the four fallback backends, and the GLM 5.3/max implementation default are unchanged.
+
 ## Decision
 
 Adopt a layered delegated-Pi workflow:
@@ -61,7 +63,7 @@ Pi 0.84.1 sets `AI_AGENT=pi` and `PI_CODING_AGENT=true` in each Pi child. Pi's b
 
 Default role assignments are:
 
-- independent solution investigation A: `openai-codex-cgpt3/gpt-5.6-luna`, thinking `max`, with the ordered backup map `seekai/gpt-5-6-luna` at `high`, because that model maps no `max` thinking level and Pi would clamp `max` to `high`, then `agentrouter/gpt-5.6-sol` → `tabitoken/claude-opus-5-thinking` at `max`, then `gorouter/claude-opus-5-thinking` at `high`;
+- independent solution investigation A: `opencode-go/muse-spark-1.2-contributor`, thinking `xhigh`, because that model's thinking-level map maps `max` to null and `xhigh` is its highest supported level, with the ordered backup map `agentrouter/gpt-5.6-sol` → `tabitoken/claude-opus-5-thinking` → `seekai/claude-opus-5`, all at `max`, then `gorouter/claude-opus-5-thinking` at `high`;
 - independent solution investigation B: `opencode-go/deepseek-v4-flash`, thinking `max`, with the ordered backup map `seekai/deepseek-v4-flash` → `agentrouter/claude-opus-5` → `tabitoken/claude-opus-5-thinking`, all at `max`, then `gorouter/claude-opus-5-thinking` at `high`;
 - independent solution investigation C: `opencode-go/hy3`, thinking `high`, because HY3 does not support `max` and Pi would clamp `max` to `high`; the user selected HY3 at `high`. Its ordered backup map is `agentrouter/claude-opus-5` → `tabitoken/claude-opus-5-thinking` → `seekai/claude-opus-5`, all at `max`, then `gorouter/claude-opus-5-thinking` at `high`;
 - implementation and focused remediation: `zai/glm-5.3`, thinking `max`;

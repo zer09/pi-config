@@ -2,6 +2,16 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-21 — Replace active A Luna routes with OpenCode Go Muse
+
+- Replaced the active A primary for both conditional solution investigation and independent review: `opencode-go/muse-spark-1.2-contributor:xhigh` replaces `openai-codex-cgpt3/gpt-5.6-luna:max` in the role table, route paragraphs, and both A spawn commands with updated provider, model, thinking, and labels.
+- Removed the active A SeekAI GPT-5.6 Luna/high backup as part of replacing Luna. A now backs up through `agentrouter/gpt-5.6-sol:max`, `tabitoken/claude-opus-5-thinking:max`, `seekai/claude-opus-5:max`, then `gorouter/claude-opus-5-thinking:high`. B and C maps are unchanged.
+- Documented that Muse Spark 1.2 Contributor maps `max` to null in its local `thinkingLevelMap`, so `xhigh` is its highest supported thinking level. Verified the route in Pi's live catalog and the stored level map without paid inference.
+- Removed CGPT3 from the skill trigger description because it no longer backs any delegated role; OpenCode Go already covers the new A primary.
+- Updated ADR 0007 current policy with a dated provenance paragraph, the update-process fallback-provider authority and invariants 11 and 16, evaluation guidance, and the context-cost attribution. Preserved the concurrent three-member gates, all-three completion semantics, backup-only AgentRouter, Tabitoken, SeekAI, and GoRouter policy, pre-tool-only fallback and supervisor safety rules, GLM 5.3/max implementation and remediation default, Sol/high finding verification, the retired small-task chain, and explicit Claude and Z.AI role behavior. Runtime scripts stayed unchanged.
+- Preserved historical ADR incident paragraphs, historical changelog entries, and historical context-cost attributions as factual provenance.
+- Validation: Muse live-catalog and thinking-level-map verification, exact A/B/C command-block comparison against the accepted maps, `bash -n` on every documented spawn block, target-skill and all-Local-Skills validation, supervisor regressions with bytecode disabled, Python compilation outside the tree, Ruff lint and format checks, `git diff --check`, link, placeholder, secret, and artifact checks, `o200k_base` attribution against the committed baseline, and dirty-file fingerprint checks, all without paid provider calls.
+
 ## 2026-08-20 — Expand delegated primary gates to three members
 
 - Expanded conditional solution investigation and post-implementation independent review from two members to three: A, B, and C, launched concurrently as three separate direct bash calls in one parallel tool batch with the same neutral prompt and separate artifacts. Every gate now requires all three reports; one or two surviving reports remain useful evidence but cannot complete the gate.

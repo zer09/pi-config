@@ -35,9 +35,9 @@ Implementation and remediation default to GLM 5.3/max. The former Tabitoken Clau
 
 Use this trio when a problem lacks an accepted solution contract. Launch all three commands as separate direct bash tool calls in one parallel tool batch. Give all three investigators the same neutral problem statement and preserve separate artifacts. They are read-only and must be fresh from every later implementer and reviewer. AgentRouter, Tabitoken, SeekAI, and GoRouter are backup-only backends: they never start as primaries in the default policy, and the chain preflights each route against Pi's live catalog and advances one fresh route at a time, only before tool execution, within one shared deadline, and without cycling.
 
-#### Investigator A: CGPT3 GPT-5.6 Luna/max with ordered backups
+#### Investigator A: OpenCode Go Muse Spark 1.2 Contributor/xhigh with ordered backups
 
-Route: `openai-codex-cgpt3/gpt-5.6-luna:max`, then `seekai/gpt-5-6-luna:high`, `agentrouter/gpt-5.6-sol:max`, `tabitoken/claude-opus-5-thinking:max`, and `gorouter/claude-opus-5-thinking:high`. SeekAI GPT-5.6 Luna maps no `max` thinking level: Pi would clamp `max` to `high`, so this backup runs at `high`.
+Route: `opencode-go/muse-spark-1.2-contributor:xhigh`, then `agentrouter/gpt-5.6-sol:max`, `tabitoken/claude-opus-5-thinking:max`, `seekai/claude-opus-5:max`, and `gorouter/claude-opus-5-thinking:high`. Muse Spark 1.2 Contributor maps `max` to null in its thinking-level map, so `xhigh` is its highest supported level.
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
@@ -45,13 +45,13 @@ prompt_file="${TMPDIR:-/tmp}/project-solution-investigation-prompt.md"
 chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate_chain.py"
 cd "$project_root"
 uv run --no-project python "$chain" \
-  --fallback-route seekai/gpt-5-6-luna:high \
   --fallback-route agentrouter/gpt-5.6-sol:max \
   --fallback-route tabitoken/claude-opus-5-thinking:max \
+  --fallback-route seekai/claude-opus-5:max \
   --fallback-route gorouter/claude-opus-5-thinking:high \
   --idle-warning-seconds 300 \
   --idle-timeout-seconds 600 \
-  --label solution-a-cgpt3-gpt-5.6-luna-max \
+  --label solution-a-opencode-go-muse-spark-1.2-contributor-xhigh \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -63,9 +63,9 @@ uv run --no-project python "$chain" \
     --mode json \
     --no-session \
     --approve \
-    --provider openai-codex-cgpt3 \
-    --model gpt-5.6-luna \
-    --thinking max \
+    --provider opencode-go \
+    --model muse-spark-1.2-contributor \
+    --thinking xhigh \
     @"$prompt_file"
 ```
 
@@ -173,9 +173,9 @@ uv run --no-project python "$supervisor" \
 
 Launch all three commands as separate direct bash tool calls in one parallel tool batch. Do not put them in one shell with background jobs. Give all three reviewers the same neutral review scope, but preserve separate artifact directories and outputs. Use fresh processes that did not participate in solution investigation or implementation. Do not give reviewers investigator reports, discarded alternatives, or orchestrator synthesis rationale. Wait for all three.
 
-#### Reviewer A: CGPT3 GPT-5.6 Luna/max with ordered backups
+#### Reviewer A: OpenCode Go Muse Spark 1.2 Contributor/xhigh with ordered backups
 
-Route: `openai-codex-cgpt3/gpt-5.6-luna:max`, then `seekai/gpt-5-6-luna:high`, `agentrouter/gpt-5.6-sol:max`, `tabitoken/claude-opus-5-thinking:max`, and `gorouter/claude-opus-5-thinking:high`. SeekAI GPT-5.6 Luna maps no `max` thinking level: Pi would clamp `max` to `high`, so this backup runs at `high`.
+Route: `opencode-go/muse-spark-1.2-contributor:xhigh`, then `agentrouter/gpt-5.6-sol:max`, `tabitoken/claude-opus-5-thinking:max`, `seekai/claude-opus-5:max`, and `gorouter/claude-opus-5-thinking:high`. Muse Spark 1.2 Contributor maps `max` to null in its thinking-level map, so `xhigh` is its highest supported level.
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
@@ -183,13 +183,13 @@ prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
 chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate_chain.py"
 cd "$project_root"
 uv run --no-project python "$chain" \
-  --fallback-route seekai/gpt-5-6-luna:high \
   --fallback-route agentrouter/gpt-5.6-sol:max \
   --fallback-route tabitoken/claude-opus-5-thinking:max \
+  --fallback-route seekai/claude-opus-5:max \
   --fallback-route gorouter/claude-opus-5-thinking:high \
   --idle-warning-seconds 300 \
   --idle-timeout-seconds 600 \
-  --label review-a-cgpt3-gpt-5.6-luna-max \
+  --label review-a-opencode-go-muse-spark-1.2-contributor-xhigh \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -201,9 +201,9 @@ uv run --no-project python "$chain" \
     --mode json \
     --no-session \
     --approve \
-    --provider openai-codex-cgpt3 \
-    --model gpt-5.6-luna \
-    --thinking max \
+    --provider opencode-go \
+    --model muse-spark-1.2-contributor \
+    --thinking xhigh \
     @"$prompt_file"
 ```
 
