@@ -1,6 +1,6 @@
 ---
 name: delegated-pi-loop
-description: "Orchestrate independent solution investigation, implementation, review, finding verification, and focused remediation with fresh bounded Pi or Claude Code processes and safe multi-provider fallback. Use when the user asks delegates to diagnose or solve a problem, delegate coding or review, use Z.AI, AgentRouter, Tabitoken, SeekAI, GoRouter, or Claude/Opus, verify findings separately, or iterate remediation and review until no findings remain."
+description: "Orchestrate independent solution investigation, implementation, review, finding verification, and focused remediation with fresh bounded Pi or Claude Code processes and safe multi-provider fallback. Use when the user asks delegates to diagnose or solve a problem, delegate coding or review, use Z.AI, CGPT3, OpenCode Go, AgentRouter, Tabitoken, SeekAI, GoRouter, or Claude/Opus, verify findings separately, or iterate remediation and review until no findings remain."
 ---
 
 # Delegated Pi Loop
@@ -13,17 +13,18 @@ Read `references/prompt-contracts.md` before the first spawn. Use project-specif
 
 | Role                                     | Provider/model                                                                      |           Thinking | Mutation                  |
 | ---------------------------------------- | ----------------------------------------------------------------------------------- | -----------------: | ------------------------- |
-| Independent solution investigation A     | Tabitoken Claude Opus 5 Thinking                                                    |             `high` | Prohibited                |
-| Independent solution investigation B     | AgentRouter Opus 5 → AgentRouter GPT-5.6 Sol                                        |             `high` | Prohibited                |
+| Independent solution investigation A     | `openai-codex-cgpt3/gpt-5.6-luna`                                                   |              `max` | Prohibited                |
+| Independent solution investigation B     | `opencode-go/deepseek-v4-flash`                                                     |              `max` | Prohibited                |
+| Independent solution investigation C     | `opencode-go/hy3`                                                                    |             `high` | Prohibited                |
 | Implementation or focused remediation    | `zai/glm-5.3`                                                                       |              `max` | Narrowly allowed          |
-| Small-task implementation or remediation | Tabitoken Claude Opus 4.8 Thinking → AgentRouter Opus 4.8 → Luna                    |   `high` → `xhigh` | Narrowly allowed          |
-| Independent implementation review A      | Tabitoken Claude Opus 4.8 Thinking                                                  |             `high` | Prohibited                |
-| Independent implementation review B      | AgentRouter Opus 5 → AgentRouter GPT-5.6 Sol                                        |             `high` | Prohibited                |
-| Finding verification                     | `openai-codex/gpt-5.6-sol`                                                          |           `medium` | Prohibited                |
+| Independent implementation review A      | `openai-codex-cgpt3/gpt-5.6-luna`                                                   |              `max` | Prohibited                |
+| Independent implementation review B      | `opencode-go/deepseek-v4-flash`                                                     |              `max` | Prohibited                |
+| Independent implementation review C      | `opencode-go/hy3`                                                                    |             `high` | Prohibited                |
+| Finding verification                     | `openai-codex/gpt-5.6-sol`                                                          |             `high` | Prohibited                |
 | Explicit Z.AI alternative for any role   | `zai/glm-5.3`                                                                       |              `max` | Follows the assigned role |
 | Explicit Claude alternative for any role | Claude Code `claude-opus-5`                                                         |    `medium` effort | Follows the assigned role |
 
-When a problem lacks an accepted solution contract, run both high-thinking solution investigators concurrently before implementation. Investigator B may fall back from AgentRouter Opus 5 to AgentRouter GPT-5.6 Sol before tool execution. The orchestrator verifies their cited evidence and finalizes the solution. Default implementation and remediation to Z.AI GLM 5.3/max. Z.AI can serve any assigned role, but investigation, review, or verification requires explicit user or project selection when it replaces a default route. The assigned role, not the backend, controls mutation permissions. Use the Tabitoken Claude Opus 4.8 Thinking-first small-task chain only after the orchestrator records that the task is narrow, follows an established pattern, has no material ambiguity or architecture, security, concurrency, schema, migration, or cross-system concern, and should finish in a few turns. The Tabitoken primary intentionally runs at `high` because Tabitoken maps no `xhigh` thinking level for Claude Opus 4.8 Thinking, and it deliberately stays below the mapped `max` level to preserve the lower-cost purpose of this narrowly classified route; the AgentRouter and Luna fallbacks keep `xhigh`. If any criterion is uncertain, use GLM 5.3/max. Run both default high-thinking independent reviewers concurrently after implementation. Reviewer A uses Tabitoken Claude Opus 4.8 Thinking because Tabitoken has no configured Fable-equivalent model, and this avoids duplicating Investigator A's Opus 5 model. When the small-task Tabitoken route implemented the change, Reviewer A shares that model route; independence then rests on a fresh isolated reviewer process and Reviewer B, not on model separation. The implementer process cannot review its own work. Reviewer B may use the same AgentRouter fallback. Keep OpenAI Codex Sol/medium for finding verification unless the user or project selects another backend. For Claude Code, pin `claude-opus-5` instead of the moving `opus` alias. Any explicitly requested model or reasoning level overrides these defaults.
+When a problem lacks an accepted solution contract, run the three solution investigators A, B, and C concurrently before implementation. Independent review uses the same three route maps after implementation. Each member carries one ordered backup map expressed as repeated `--fallback-route` options: A runs CGPT3 GPT-5.6 Luna/max, then SeekAI GPT-5.6 Luna/high, AgentRouter GPT-5.6 Sol/max, Tabitoken Claude Opus 5 Thinking/max, and GoRouter Claude Opus 5 Thinking/high; B runs OpenCode Go DeepSeek V4 Flash/max, then SeekAI DeepSeek V4 Flash/max, AgentRouter Claude Opus 5/max, Tabitoken Claude Opus 5 Thinking/max, and GoRouter Claude Opus 5 Thinking/high; C runs OpenCode Go HY3/high, then AgentRouter Claude Opus 5/max, Tabitoken Claude Opus 5 Thinking/max, SeekAI Claude Opus 5/max, and GoRouter Claude Opus 5 Thinking/high. HY3 does not support `max`: Pi would clamp `max` to `high`, and the user selected HY3 at `high`. SeekAI GPT-5.6 Luna maps no `max` thinking level: Pi would clamp `max` to `high`, so its backup runs at `high`. AgentRouter, Tabitoken, SeekAI, and GoRouter are backup-only backends; they never start as primaries in the default policy. Every investigation or review gate requires all three reports; one or two surviving reports are useful evidence but cannot complete the gate. The orchestrator verifies their cited evidence and finalizes the solution. Default implementation and remediation stays Z.AI GLM 5.3/max; the former Tabitoken-first small-task chain is retired, and narrow tasks also route to GLM 5.3/max unless the user or project explicitly selects another backend. Z.AI can serve any assigned role, but investigation, review, or verification requires explicit user or project selection when it replaces a default route. The assigned role, not the backend, controls mutation permissions. The implementer process cannot review its own work. Keep OpenAI Codex Sol/high for finding verification unless the user or project selects another backend. For Claude Code, pin `claude-opus-5` instead of the moving `opus` alias. Any explicitly requested model or reasoning level overrides these defaults.
 
 ## Non-negotiable execution rules
 
@@ -37,7 +38,7 @@ When a problem lacks an accepted solution contract, run both high-thinking solut
 - Provider credentials inherit from the parent Pi process. If a required variable was added after Pi started, restart Pi from a refreshed shell. Never source shell startup files inside delegate commands or print credential values.
 - Pin the default implementation/remediation route as `--provider zai --model glm-5.3 --thinking max`. Z.AI can serve any assigned role, but investigation, review, or verification requires explicit selection when replacing a default route. The assigned role controls mutation permissions.
 - Keep the current session as the only orchestrator. Tell every delegate to execute its assigned role directly and never spawn another Pi, Claude Code, or subagent session.
-- Run mutating delegates and finding verifiers sequentially. Launch each documented read-only pair concurrently: solution investigators before implementation and fresh independent reviewers after implementation. Never run more than one mutating delegate at a time on a shared working tree.
+- Run mutating delegates and finding verifiers sequentially. Launch each documented read-only three-member gate concurrently: solution investigators before implementation and fresh independent reviewers after implementation. Never run more than one mutating delegate at a time on a shared working tree.
 - Do not edit the tree while a mutating delegate is running.
 - Do not stage, unstage, stash, reset, clean, commit, push, or mutate a hosted service unless the user separately authorized that exact operation.
 - Never place credentials, tokens, cookies, private paths, or other secrets in delegate prompts or reports.
@@ -59,14 +60,14 @@ If the project defines role prompts such as solution investigation, implementati
 Use this step when the user asks to diagnose or solve a problem and no accepted implementation plan already defines the solution. Also use it when the root cause is unclear, multiple plausible solutions exist, several modules participate, or architecture intent requires interpretation. Skip it for a small task with an accepted plan or an obvious established pattern.
 
 1. Read only enough source context to frame one neutral problem statement. Do not preselect a root cause or solution.
-2. Create one temporary solution-investigation prompt outside the tracked tree. Give both investigators the same problem, governing documents, scope, read-only rules, evidence requirements, attempt budgets, and terminal-result contract.
-3. Launch two direct bash calls in one parallel tool batch: Tabitoken Claude Opus 5 Thinking/high and the AgentRouter Opus 5/high → AgentRouter GPT-5.6 Sol/high chain. Preserve separate artifacts and do not show either investigator the other report. When the user or project assigns Z.AI or Claude Code to an investigator role, preserve the same read-only contract and required two-investigator gate.
+2. Create one temporary solution-investigation prompt outside the tracked tree. Give all three investigators the same problem, governing documents, scope, read-only rules, evidence requirements, attempt budgets, and terminal-result contract.
+3. Launch three direct bash calls in one parallel tool batch: the A, B, and C chains defined in the role defaults. Preserve separate artifacts and do not show any investigator another member's report. When the user or project assigns Z.AI or Claude Code to an investigator role, preserve the same read-only contract and required three-member gate.
 4. Require each report to explain the root cause and relevant execution flow with exact `path:line` evidence. Require a recommended solution, likely changed files, alternatives, tradeoffs, validation plan, and uncertainties.
-5. Recompute the tree fingerprint after both finish. Any tracked, staged, or relevant untracked mutation invalidates that investigation.
+5. Recompute the tree fingerprint after all three finish. Any tracked, staged, or relevant untracked mutation invalidates that investigation.
 6. Verify material file, line, control-flow, and architecture claims against the current tree. Treat investigator citations as leads until verified.
 7. Compare agreements, conflicts, assumptions, and unresolved questions. The current orchestrator finalizes one solution contract from verified evidence and accepted project decisions.
 8. Stop for user input when disagreement reveals material architecture ambiguity. Do not silently select policy.
-9. Preserve both reports and the finalized solution contract outside tracked paths. Do not reuse either investigator as an implementer or post-implementation reviewer.
+9. Preserve all three reports and the finalized solution contract outside tracked paths. Do not reuse any investigator as an implementer or post-implementation reviewer.
 
 ### 3. Delegate implementation
 
@@ -76,7 +77,7 @@ When implementation is requested:
 2. Give the selected implementation delegate the finalized solution contract when solution investigation ran. Give every implementation delegate one narrow mutation scope with explicit invariants, exact findings or objective, success criteria, required tests, required documentation updates, and prohibitions.
 3. State that existing user changes belong to the user and must not be reverted.
 4. Define attempt/time budgets and require the final `DELEGATE_RESULT` marker from the reference. Require changed paths and exact checks run.
-5. Spawn Z.AI GLM 5.3/max by default. Use the ordered small-task chain only when the recorded classification satisfies every role-default criterion. Use Claude Opus 5/medium when explicitly selected. Wait for completion.
+5. Spawn Z.AI GLM 5.3/max by default. Use Claude Opus 5/medium when explicitly selected. Wait for completion.
 6. Inspect the resulting diff and validation evidence before proceeding.
 
 Do not ask an implementation delegate to perform its own independent approval.
@@ -87,10 +88,10 @@ Do not ask an implementation delegate to perform its own independent approval.
 2. Include the exact tree/base to review, governing documents, accepted behavior contract, scope exclusions, required gates, attempt/time budgets, finding format, verdict format, and final `DELEGATE_RESULT` marker.
 3. Do not include solution-investigator reports, discarded alternatives, synthesis rationale, prior remediation reasoning, expected findings, leading hints, or the parent session's conclusions.
 4. Explicitly prohibit edits, Git mutations, hosted-service writes, and recursive delegation.
-5. By default, launch two fresh direct bash calls in one parallel tool batch: Tabitoken Claude Opus 4.8 Thinking/high and the AgentRouter Opus 5/high → AgentRouter GPT-5.6 Sol/high chain. When the user or project assigns Z.AI or Claude Code to a review role, preserve the same neutral read-only contract. An explicit backend selection does not silently reduce a required two-reviewer gate. Wait for every reviewer required by the selected gate.
-6. Preserve both complete review outputs in separate temporary handoffs. Do not show either reviewer the other review.
-7. Recompute the tree fingerprint after both finish. If either reviewer changed tracked, staged, or relevant untracked state, stop, inspect the mutation, and treat that review as invalid until resolved.
-8. The review gate completes only when both reviewers complete. Process every blocking finding from either report; one no-findings verdict does not override the other report.
+5. By default, launch three fresh direct bash calls in one parallel tool batch: the A, B, and C chains defined in the role defaults. When the user or project assigns Z.AI or Claude Code to a review role, preserve the same neutral read-only contract. An explicit backend selection does not silently reduce a required three-reviewer gate. Wait for every reviewer required by the selected gate.
+6. Preserve all three complete review outputs in separate temporary handoffs. Do not show any reviewer another member's review.
+7. Recompute the tree fingerprint after all three finish. If any reviewer changed tracked, staged, or relevant untracked state, stop, inspect the mutation, and treat that review as invalid until resolved.
+8. The review gate completes only when all three reviewers complete. Process every blocking finding from any report; a no-findings verdict from a subset of reviewers does not override another report.
 
 A passing test suite is evidence, not independent approval. Approval comes only from the fresh reviewer verdict required by the project workflow.
 
@@ -99,13 +100,13 @@ A passing test suite is evidence, not independent approval. Approval comes only 
 For each blocking finding:
 
 1. Preserve its complete text, including severity, location, evidence, reproduction or interleaving, impact, and required contract.
-2. Give the verifier bounded attempts per required proof and require immediate `BLOCKED` reporting when its budget cannot establish the result. Spawn a separate fresh verification-only delegate using the project's template: Pi Sol/medium by default, Z.AI GLM 5.3/max when explicitly selected, or Claude Opus 5/medium when explicitly selected.
+2. Give the verifier bounded attempts per required proof and require immediate `BLOCKED` reporting when its budget cannot establish the result. Spawn a separate fresh verification-only delegate using the project's template: Pi Sol/high by default, Z.AI GLM 5.3/max when explicitly selected, or Claude Opus 5/medium when explicitly selected.
 3. Require one classification: `REPRODUCED`, `PARTIALLY REPRODUCED`, `NOT REPRODUCED`, `ALREADY FIXED`, `DUPLICATE`, or `ARCHITECTURE AMBIGUITY`, unless the project defines another taxonomy.
 4. Do not let the verifier edit files, fix the defect, perform a broad review, or recursively delegate.
 5. If the result is `ARCHITECTURE AMBIGUITY`, stop and ask the user rather than silently choosing policy.
 6. If the finding is not reproduced, preserve the evidence and follow the project's disposition rules; do not implement a speculative fix.
 7. If reproduced or partially reproduced, create a focused remediation prompt containing the complete finding and complete verification report.
-8. Spawn Z.AI GLM 5.3/max by default. Use the ordered small-task chain only when the focused remediation independently satisfies every small-task criterion. Use Claude Opus 5/medium when explicitly selected. Add the failing regression first or alongside the smallest correct fix. Update required review documentation and run targeted gates.
+8. Spawn Z.AI GLM 5.3/max by default. Use Claude Opus 5/medium when explicitly selected. Add the failing regression first or alongside the smallest correct fix. Update required review documentation and run targeted gates.
 
 Group findings into one remediation only when they are tightly coupled and one coherent fix is narrower and safer than separate edits. Otherwise remediate serially.
 
@@ -114,8 +115,8 @@ Group findings into one remediation only when they are tightly coupled and one c
 After remediation:
 
 1. Inspect the diff and targeted gates.
-2. Spawn a completely fresh concurrent independent-review pair using the same neutral review contract and isolated outputs.
-3. Repeat verification, remediation, and fresh paired review until both reviewers report no blocking findings.
+2. Spawn a completely fresh concurrent three-member independent review using the same neutral review contract and isolated outputs.
+3. Repeat verification, remediation, and fresh three-member review until all three reviewers report no blocking findings.
 
 Do not reuse, resume, or continue a solution investigator, reviewer, verifier, or implementer session in either backend. Do not substitute parent-session analysis for a required verification delegate.
 
@@ -133,11 +134,11 @@ After a no-findings verdict:
 - Automatic failover is limited to a documented route chain when the route is absent from Pi's available catalog, reports provider unavailability, or stalls before any tool starts. Each route gets one fresh attempt. Do not cycle routes.
 - Provider unavailability can arrive as a typed provider error or as the provider's machine-rendered one-line `[error]` envelope returned as the complete assistant report with no structured result. The supervisor recognizes only that single-line envelope. Prose or multi-section reports that merely mention an outage, and every other missing-marker report, remain terminal failures.
 - After any tool starts, or if a delegate blocks, fails, times out, exceeds output, returns a terminal result, or produces another invalid outcome, preserve artifacts and diagnose before any user-authorized fresh retry.
-- If either solution investigator does not complete, preserve the surviving report but do not treat the pair as complete independent solution evidence. If either default reviewer does not complete, the paired review gate is incomplete. Do not treat the surviving review as full independent approval.
+- If any solution investigator does not complete, preserve the surviving reports but do not treat the gate as complete independent solution evidence. If any default reviewer does not complete, the three-member review gate is incomplete. Do not treat the surviving reviews as full independent approval.
 - If a read-only delegate mutates state, stop; do not silently revert user work.
 - If instructions conflict, follow the most specific applicable instruction and surface material ambiguity.
 - If the same finding recurs, investigate the causal gap and strengthen the next verification/remediation handoff rather than steering the reviewer toward a pass.
 
 ## Maintenance
 
-Update this custom local skill through `docs/skills/delegated-pi-loop-update-process.md`. Preserve fresh-session isolation, private Pi JSON activity monitoring, bounded pre-tool route failover, narrow machine error-envelope recognition, event-idle and wall deadlines, structured terminal results, process-group cleanup, role separation, the single-mutator rule, concurrent read-only solution investigation, fresh independent review, orchestrator evidence verification and solution synthesis, Z.AI any-role availability with assigned-role mutation limits, default GLM 5.3/max implementation, guarded Tabitoken Claude Opus 4.8 Thinking-first small-task routing, explicit Claude Opus 5/medium selection, and Git/hosted-service authorization gates.
+Update this custom local skill through `docs/skills/delegated-pi-loop-update-process.md`. Preserve fresh-session isolation, private Pi JSON activity monitoring, bounded pre-tool route failover, narrow machine error-envelope recognition, event-idle and wall deadlines, structured terminal results, process-group cleanup, role separation, the single-mutator rule, three-member concurrent solution investigation, fresh three-member independent review, backup-only AgentRouter, Tabitoken, SeekAI, and GoRouter routes, orchestrator evidence verification and solution synthesis, Z.AI any-role availability with assigned-role mutation limits, default GLM 5.3/max implementation, explicit Claude Opus 5/medium selection, and Git/hosted-service authorization gates.

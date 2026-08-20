@@ -29,22 +29,15 @@ Catalog preflight and delegate children see provider credentials inherited by th
 
 Use `--timeout-seconds <seconds> --allow-extended-timeout` before `--` only when the user explicitly authorizes a larger wall deadline. Use `--idle-timeout-seconds <seconds> --allow-extended-idle` only for a known, intentionally silent tool. The supervisor rejects larger values without these explicit flags. Never run an unbounded child.
 
-Implementation and remediation default to GLM 5.3/max. The orchestrator may choose the Tabitoken Claude Opus 4.8 Thinking-first chain only when all of these conditions hold:
+Implementation and remediation default to GLM 5.3/max. The former Tabitoken Claude Opus 4.8 Thinking-first small-task chain is retired from the default policy: narrow implementation or remediation tasks also use GLM 5.3/max unless the user or project explicitly selects another backend. An explicit selection inherits the assigned role's mutation permissions and never widens them.
 
-1. The requested change is narrow and clearly bounded.
-2. The solution follows an established local pattern and has no material ambiguity.
-3. The task has no architecture, security, concurrency, schema, migration, broad-refactor, or cross-system concern.
-4. The delegate should finish in a few agent turns with targeted checks.
+### Concurrent solution-investigation trio
 
-Record the small-task classification before spawn. If any condition is uncertain, use GLM 5.3/max. The fallback models do not relax this role gate. The Tabitoken primary intentionally runs at `high` because Tabitoken maps no `xhigh` thinking level for Claude Opus 4.8 Thinking, and it deliberately stays below the mapped `max` level to preserve the lower-cost purpose of this narrowly classified route; the AgentRouter and Luna fallbacks keep `xhigh`.
+Use this trio when a problem lacks an accepted solution contract. Launch all three commands as separate direct bash tool calls in one parallel tool batch. Give all three investigators the same neutral problem statement and preserve separate artifacts. They are read-only and must be fresh from every later implementer and reviewer. AgentRouter, Tabitoken, SeekAI, and GoRouter are backup-only backends: they never start as primaries in the default policy, and the chain preflights each route against Pi's live catalog and advances one fresh route at a time, only before tool execution, within one shared deadline, and without cycling.
 
-### Concurrent solution-investigation pair
+#### Investigator A: CGPT3 GPT-5.6 Luna/max with ordered backups
 
-Use this pair when a problem lacks an accepted solution contract. Launch both commands as separate direct bash tool calls in one parallel tool batch. Give both investigators the same neutral problem statement and preserve separate artifacts. They are read-only and must be fresh from every later implementer and reviewer.
-
-#### Investigator A: Tabitoken Claude Opus 5 Thinking/high
-
-Route: `tabitoken/claude-opus-5-thinking:high`.
+Route: `openai-codex-cgpt3/gpt-5.6-luna:max`, then `seekai/gpt-5-6-luna:high`, `agentrouter/gpt-5.6-sol:max`, `tabitoken/claude-opus-5-thinking:max`, and `gorouter/claude-opus-5-thinking:high`. SeekAI GPT-5.6 Luna maps no `max` thinking level: Pi would clamp `max` to `high`, so this backup runs at `high`.
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
@@ -52,9 +45,13 @@ prompt_file="${TMPDIR:-/tmp}/project-solution-investigation-prompt.md"
 chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate_chain.py"
 cd "$project_root"
 uv run --no-project python "$chain" \
+  --fallback-route seekai/gpt-5-6-luna:high \
+  --fallback-route agentrouter/gpt-5.6-sol:max \
+  --fallback-route tabitoken/claude-opus-5-thinking:max \
+  --fallback-route gorouter/claude-opus-5-thinking:high \
   --idle-warning-seconds 300 \
   --idle-timeout-seconds 600 \
-  --label solution-tabitoken-opus-5-thinking-high \
+  --label solution-a-cgpt3-gpt-5.6-luna-max \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -66,13 +63,15 @@ uv run --no-project python "$chain" \
     --mode json \
     --no-session \
     --approve \
-    --provider tabitoken \
-    --model claude-opus-5-thinking \
-    --thinking high \
+    --provider openai-codex-cgpt3 \
+    --model gpt-5.6-luna \
+    --thinking max \
     @"$prompt_file"
 ```
 
-#### Investigator B: AgentRouter Claude Opus 5/high with GPT-5.6 Sol/high fallback
+#### Investigator B: OpenCode Go DeepSeek V4 Flash/max with ordered backups
+
+Route: `opencode-go/deepseek-v4-flash:max`, then `seekai/deepseek-v4-flash:max`, `agentrouter/claude-opus-5:max`, `tabitoken/claude-opus-5-thinking:max`, and `gorouter/claude-opus-5-thinking:high`.
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
@@ -80,10 +79,13 @@ prompt_file="${TMPDIR:-/tmp}/project-solution-investigation-prompt.md"
 chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate_chain.py"
 cd "$project_root"
 uv run --no-project python "$chain" \
-  --fallback-route agentrouter/gpt-5.6-sol:high \
+  --fallback-route seekai/deepseek-v4-flash:max \
+  --fallback-route agentrouter/claude-opus-5:max \
+  --fallback-route tabitoken/claude-opus-5-thinking:max \
+  --fallback-route gorouter/claude-opus-5-thinking:high \
   --idle-warning-seconds 300 \
   --idle-timeout-seconds 600 \
-  --label solution-agentrouter-opus-5-high \
+  --label solution-b-opencode-go-deepseek-v4-flash-max \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -95,13 +97,47 @@ uv run --no-project python "$chain" \
     --mode json \
     --no-session \
     --approve \
-    --provider agentrouter \
-    --model claude-opus-5 \
+    --provider opencode-go \
+    --model deepseek-v4-flash \
+    --thinking max \
+    @"$prompt_file"
+```
+
+#### Investigator C: OpenCode Go HY3/high with ordered backups
+
+Route: `opencode-go/hy3:high`, then `agentrouter/claude-opus-5:max`, `tabitoken/claude-opus-5-thinking:max`, `seekai/claude-opus-5:max`, and `gorouter/claude-opus-5-thinking:high`. HY3 does not support `max`: Pi would clamp `max` to `high`, and the user selected HY3 at `high`.
+
+```bash
+project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
+prompt_file="${TMPDIR:-/tmp}/project-solution-investigation-prompt.md"
+chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate_chain.py"
+cd "$project_root"
+uv run --no-project python "$chain" \
+  --fallback-route agentrouter/claude-opus-5:max \
+  --fallback-route tabitoken/claude-opus-5-thinking:max \
+  --fallback-route seekai/claude-opus-5:max \
+  --fallback-route gorouter/claude-opus-5-thinking:high \
+  --idle-warning-seconds 300 \
+  --idle-timeout-seconds 600 \
+  --label solution-c-opencode-go-hy3-high \
+  -- \
+  env \
+    -u PI_SESSION_ID \
+    -u PI_SESSION_FILE \
+    -u PI_PROVIDER \
+    -u PI_MODEL \
+    -u PI_REASONING_LEVEL \
+    PI_SKIP_VERSION_CHECK=1 pi \
+    --mode json \
+    --no-session \
+    --approve \
+    --provider opencode-go \
+    --model hy3 \
     --thinking high \
     @"$prompt_file"
 ```
 
-Both investigators must complete for the full pair. An explicitly selected Z.AI or Claude Code backend may replace an assigned investigator slot, but it does not reduce the required pair or relax read-only permissions. The orchestrator verifies material citations and claims, compares both proposals, resolves non-architectural differences, and writes the final solution contract. A surviving report remains useful evidence when one investigator fails, but it is not a complete independent pair. Material architecture ambiguity stops for user input.
+All three investigators must complete for the full gate. An explicitly selected Z.AI or Claude Code backend may replace an assigned investigator slot, but it does not reduce the required three-member gate or relax read-only permissions. The orchestrator verifies material citations and claims, compares all proposals, resolves non-architectural differences, and writes the final solution contract. One or two surviving reports remain useful evidence, but they are not a complete independent gate. Material architecture ambiguity stops for user input.
 
 ### Default implementation or focused remediation
 
@@ -133,13 +169,13 @@ uv run --no-project python "$supervisor" \
     @"$prompt_file"
 ```
 
-### Concurrent independent-review pair
+### Concurrent independent-review trio
 
-Launch both commands as separate direct bash tool calls in one parallel tool batch. Do not put them in one shell with background jobs. Give both reviewers the same neutral review scope, but preserve separate artifact directories and outputs. Use fresh processes that did not participate in solution investigation or implementation. Do not give reviewers investigator reports, discarded alternatives, or orchestrator synthesis rationale. Wait for both.
+Launch all three commands as separate direct bash tool calls in one parallel tool batch. Do not put them in one shell with background jobs. Give all three reviewers the same neutral review scope, but preserve separate artifact directories and outputs. Use fresh processes that did not participate in solution investigation or implementation. Do not give reviewers investigator reports, discarded alternatives, or orchestrator synthesis rationale. Wait for all three.
 
-#### Reviewer A: Tabitoken Claude Opus 4.8 Thinking/high
+#### Reviewer A: CGPT3 GPT-5.6 Luna/max with ordered backups
 
-This guarded single route exits as `routes_unavailable` if Tabitoken Claude Opus 4.8 Thinking is absent from Pi's live catalog. Route: `tabitoken/claude-opus-4-8-thinking:high`. Tabitoken has no configured Fable-equivalent model, so Reviewer A uses Opus 4.8 Thinking/high; this avoids duplicating Investigator A's Opus 5 model and preserves model diversity within the review pair. When the small-task Tabitoken route implemented the change, this reviewer shares that model route, and the orchestrator records the overlap. Independence then rests on this fresh isolated reviewer process and Reviewer B, not on model separation. The implementer process cannot review its own work.
+Route: `openai-codex-cgpt3/gpt-5.6-luna:max`, then `seekai/gpt-5-6-luna:high`, `agentrouter/gpt-5.6-sol:max`, `tabitoken/claude-opus-5-thinking:max`, and `gorouter/claude-opus-5-thinking:high`. SeekAI GPT-5.6 Luna maps no `max` thinking level: Pi would clamp `max` to `high`, so this backup runs at `high`.
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
@@ -147,9 +183,13 @@ prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
 chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate_chain.py"
 cd "$project_root"
 uv run --no-project python "$chain" \
+  --fallback-route seekai/gpt-5-6-luna:high \
+  --fallback-route agentrouter/gpt-5.6-sol:max \
+  --fallback-route tabitoken/claude-opus-5-thinking:max \
+  --fallback-route gorouter/claude-opus-5-thinking:high \
   --idle-warning-seconds 300 \
   --idle-timeout-seconds 600 \
-  --label review-tabitoken-opus-4-8-thinking-high \
+  --label review-a-cgpt3-gpt-5.6-luna-max \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -161,13 +201,15 @@ uv run --no-project python "$chain" \
     --mode json \
     --no-session \
     --approve \
-    --provider tabitoken \
-    --model claude-opus-4-8-thinking \
-    --thinking high \
+    --provider openai-codex-cgpt3 \
+    --model gpt-5.6-luna \
+    --thinking max \
     @"$prompt_file"
 ```
 
-#### Reviewer B: AgentRouter Claude Opus 5/high with GPT-5.6 Sol/high fallback
+#### Reviewer B: OpenCode Go DeepSeek V4 Flash/max with ordered backups
+
+Route: `opencode-go/deepseek-v4-flash:max`, then `seekai/deepseek-v4-flash:max`, `agentrouter/claude-opus-5:max`, `tabitoken/claude-opus-5-thinking:max`, and `gorouter/claude-opus-5-thinking:high`.
 
 ```bash
 project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
@@ -175,10 +217,13 @@ prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
 chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate_chain.py"
 cd "$project_root"
 uv run --no-project python "$chain" \
-  --fallback-route agentrouter/gpt-5.6-sol:high \
+  --fallback-route seekai/deepseek-v4-flash:max \
+  --fallback-route agentrouter/claude-opus-5:max \
+  --fallback-route tabitoken/claude-opus-5-thinking:max \
+  --fallback-route gorouter/claude-opus-5-thinking:high \
   --idle-warning-seconds 300 \
   --idle-timeout-seconds 600 \
-  --label review-agentrouter-opus-5-high \
+  --label review-b-opencode-go-deepseek-v4-flash-max \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -190,13 +235,47 @@ uv run --no-project python "$chain" \
     --mode json \
     --no-session \
     --approve \
-    --provider agentrouter \
-    --model claude-opus-5 \
+    --provider opencode-go \
+    --model deepseek-v4-flash \
+    --thinking max \
+    @"$prompt_file"
+```
+
+#### Reviewer C: OpenCode Go HY3/high with ordered backups
+
+Route: `opencode-go/hy3:high`, then `agentrouter/claude-opus-5:max`, `tabitoken/claude-opus-5-thinking:max`, `seekai/claude-opus-5:max`, and `gorouter/claude-opus-5-thinking:high`. HY3 does not support `max`: Pi would clamp `max` to `high`, and the user selected HY3 at `high`.
+
+```bash
+project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
+prompt_file="${TMPDIR:-/tmp}/project-review-prompt.md"
+chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate_chain.py"
+cd "$project_root"
+uv run --no-project python "$chain" \
+  --fallback-route agentrouter/claude-opus-5:max \
+  --fallback-route tabitoken/claude-opus-5-thinking:max \
+  --fallback-route seekai/claude-opus-5:max \
+  --fallback-route gorouter/claude-opus-5-thinking:high \
+  --idle-warning-seconds 300 \
+  --idle-timeout-seconds 600 \
+  --label review-c-opencode-go-hy3-high \
+  -- \
+  env \
+    -u PI_SESSION_ID \
+    -u PI_SESSION_FILE \
+    -u PI_PROVIDER \
+    -u PI_MODEL \
+    -u PI_REASONING_LEVEL \
+    PI_SKIP_VERSION_CHECK=1 pi \
+    --mode json \
+    --no-session \
+    --approve \
+    --provider opencode-go \
+    --model hy3 \
     --thinking high \
     @"$prompt_file"
 ```
 
-The paired review gate completes only when both commands return `completed`. Preserve both reports independently. Process every blocking finding from either report. If one command fails or is unavailable, the surviving report remains useful evidence but does not constitute the complete paired review gate. An explicit Z.AI or Claude Code selection may replace an assigned reviewer slot, but it does not silently reduce a required two-reviewer gate.
+The three-member review gate completes only when all three commands return `completed`. Preserve each report independently. Process every blocking finding from any report. If one or two commands fail or are unavailable, the surviving reports remain useful evidence but do not constitute the complete review gate. An explicit Z.AI or Claude Code selection may replace an assigned reviewer slot, but it does not silently reduce a required three-reviewer gate.
 
 ### Finding verification
 
@@ -210,7 +289,7 @@ uv run --no-project python "$supervisor" \
   --require-result \
   --idle-warning-seconds 300 \
   --idle-timeout-seconds 600 \
-  --label verification-sol-medium \
+  --label verification-sol-high \
   -- \
   env \
     -u PI_SESSION_ID \
@@ -224,38 +303,6 @@ uv run --no-project python "$supervisor" \
     --approve \
     --provider openai-codex \
     --model gpt-5.6-sol \
-    --thinking medium \
-    @"$prompt_file"
-```
-
-### Small-task implementation or remediation chain
-
-Ordered routes: `tabitoken/claude-opus-4-8-thinking:high`, `agentrouter/claude-opus-4-8:xhigh`, then `openai-codex/gpt-5.6-luna:xhigh`. The Tabitoken primary intentionally uses `high` because Tabitoken maps no `xhigh` thinking level for that model, and it deliberately stays below the mapped `max` level to preserve the lower-cost purpose of this narrowly classified route. Tabitoken has no configured DeepSeek equivalent, so no DeepSeek fallback exists in this chain.
-
-```bash
-project_root="${PROJECT_ROOT:?set PROJECT_ROOT to the delegated project root}"
-prompt_file="${TMPDIR:-/tmp}/project-implementation-prompt.md"
-chain="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills/delegated-pi-loop/scripts/run_delegate_chain.py"
-cd "$project_root"
-uv run --no-project python "$chain" \
-  --fallback-route agentrouter/claude-opus-4-8:xhigh \
-  --fallback-route openai-codex/gpt-5.6-luna:xhigh \
-  --idle-warning-seconds 300 \
-  --idle-timeout-seconds 600 \
-  --label implementation-small-task-chain \
-  -- \
-  env \
-    -u PI_SESSION_ID \
-    -u PI_SESSION_FILE \
-    -u PI_PROVIDER \
-    -u PI_MODEL \
-    -u PI_REASONING_LEVEL \
-    PI_SKIP_VERSION_CHECK=1 pi \
-    --mode json \
-    --no-session \
-    --approve \
-    --provider tabitoken \
-    --model claude-opus-4-8-thinking \
     --thinking high \
     @"$prompt_file"
 ```
@@ -401,7 +448,7 @@ The marker must be the final non-whitespace line and must not appear earlier. `C
 
 ## Solution-investigation prompt contract
 
-Use this read-only pair when the problem lacks an accepted solution contract. Give both investigators the same neutral problem statement, tree identity, governing documents, scope, attempt budgets, and output contract. Do not include an expected root cause, preferred solution, or the other investigator's report.
+Use this read-only trio when the problem lacks an accepted solution contract. Give all three investigators the same neutral problem statement, tree identity, governing documents, scope, attempt budgets, and output contract. Do not include an expected root cause, preferred solution, or another member's report.
 
 Require each report to contain:
 
@@ -539,7 +586,7 @@ Store generated role prompts and complete delegate reports under `${TMPDIR:-/tmp
 
 Before the next role begins, preserve:
 
-- both solution-investigation reports and the orchestrator's verified final solution contract when that phase ran;
+- all three solution-investigation reports and the orchestrator's verified final solution contract when that phase ran;
 - exact finding text;
 - verifier classification and evidence;
 - remediation scope and changed paths;

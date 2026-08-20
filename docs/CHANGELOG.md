@@ -2,6 +2,18 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-20 — Expand delegated primary gates to three members
+
+- Expanded conditional solution investigation and post-implementation independent review from two members to three: A, B, and C, launched concurrently as three separate direct bash calls in one parallel tool batch with the same neutral prompt and separate artifacts. Every gate now requires all three reports; one or two surviving reports remain useful evidence but cannot complete the gate.
+- Set identical primary assignments for investigation and review: A on `openai-codex-cgpt3/gpt-5.6-luna:max`, B on `opencode-go/deepseek-v4-flash:max`, and C on `opencode-go/hy3:high`. Documented that HY3 does not support `max` and Pi would clamp `max` to `high`; the user selected HY3 at `high`. Documented that SeekAI GPT-5.6 Luna maps no `max` thinking level, so its A backup runs at `high` because Pi would clamp an unmapped `max` to `high`.
+- Gave each member one ordered backup map expressed through repeated `--fallback-route` options. A backs up through `seekai/gpt-5-6-luna:high`, `agentrouter/gpt-5.6-sol:max`, `tabitoken/claude-opus-5-thinking:max`, then `gorouter/claude-opus-5-thinking:high`; B through `seekai/deepseek-v4-flash:max`, `agentrouter/claude-opus-5:max`, `tabitoken/claude-opus-5-thinking:max`, then `gorouter/claude-opus-5-thinking:high`; C through `agentrouter/claude-opus-5:max`, `tabitoken/claude-opus-5-thinking:max`, `seekai/claude-opus-5:max`, then `gorouter/claude-opus-5-thinking:high`.
+- Made AgentRouter, Tabitoken, SeekAI, and GoRouter backup-only backends that never start as primaries in the default policy, preserving catalog preflight, fresh attempts, the one-shared-deadline, no-cycle, no-post-tool-fallback, terminal-result, privacy, and process-cleanup rules.
+- Changed default finding verification from `openai-codex/gpt-5.6-sol:medium` to `openai-codex/gpt-5.6-sol:high` across labels, prose, commands, ADR, maintenance, and evaluation guidance.
+- Kept `zai/glm-5.3:max` as the default for all implementation and focused remediation and retired the Tabitoken-first small-task implementation/remediation route, removing its role-table row, eligibility narrative, command block, maintenance invariants, evaluation cases, and current-policy references. Explicit user or project backend selection remains allowed with role-based permissions.
+- Added CGPT3 and OpenCode Go to the skill trigger description because they are now primary delegated backends. Runtime scripts stayed unchanged; every new primary and backup route was verified in Pi's live catalog without paid provider calls.
+- Preserved historical SeekAI and Tabitoken incident narratives, historical changelog entries, and prior context-cost attributions as factual provenance.
+- Validation: target-skill validation, delegated-loop supervisor regressions with bytecode disabled, Ruff lint and format checks, Python compilation, all-Local-Skills validation, `bash -n` on every documented spawn block, `git diff --check`, dirty-file fingerprint checks, and active-policy route scans passed without paid provider calls.
+
 ## 2026-08-20 — Replace active SeekAI delegate routes with Tabitoken
 
 - Changed solution investigator A from SeekAI Claude Opus 5/high to Tabitoken Claude Opus 5 Thinking/high.
