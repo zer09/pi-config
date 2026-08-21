@@ -2,6 +2,14 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-22 — Keep plan and research authorship with the parent
+
+- Restricted automatic implementation delegation to repository implementation changes. The parent directly authors and saves plans, design notes, investigation reports, and research notes, including repository artifacts such as `PLAN.md`; these writes are an explicit exception to automatic implementation delegation.
+- Prohibited implementation and remediation delegates from researching, formulating, drafting, editing, saving, or revising plan and research deliverables. Solution delegates may still gather evidence and propose options, but the parent verifies that evidence, synthesizes conclusions, and remains the sole author of the final deliverable. The Oracle remains advisory and never authors or saves the plan.
+- Made artifact purpose authoritative rather than file extension or location. Pure planning or research work runs no implementation delegate, implementation review gate, or remediation. Implementation documentation such as README updates, ADRs, changelogs, policy files, and documentation accompanying code still follows the normal implementation delegation and review workflow.
+- Updated the global policy, model-visible `delegate_run` guidelines and focused source-scan test, maintenance contract, and ADR 0008 without changing role schemas, routes, scheduling, supervision, or result handling.
+- Validation: extension suite (67 tests), strict TypeScript check, `pi --list-models` extension load, local `tiktoken` context-cost recount, and `git diff --check`, with no delegate or paid inference run.
+
 ## 2026-08-22 — Remove global Git tree fingerprints for read-only delegates
 
 - Removed the active pre/post Git tree fingerprint capture and comparison from delegate execution for the read-only solution, review, verification, and oracle roles. Shared monorepo worktrees are modified concurrently by unrelated agents, so the before/after fingerprint cannot attribute the actor and incorrectly invalidated otherwise completed read-only reports; a concurrent working-tree change no longer converts a completed read-only delegate into a failure state.

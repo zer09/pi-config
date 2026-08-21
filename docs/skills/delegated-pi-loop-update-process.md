@@ -132,8 +132,8 @@ AgentRouter, Tabitoken, SeekAI, and GoRouter remain backup-only in default A/B/C
 
 ### Orchestration gates
 
-1. Use `delegate_run` automatically for repository changes unless the user explicitly opts out. Only a truly trivial edit, such as one typo with no behavior change, may be implemented directly by the parent; the parent never manually implements a non-trivial or small task.
-2. A small task with an accepted plan or an obvious established pattern skips the solution-investigation gate and still runs exactly one implementation delegate.
+1. Use `delegate_run` automatically for repository implementation changes unless the user explicitly opts out. The parent may directly make only a truly trivial edit with no behavior change or create and revise a plan or research deliverable. Classify these artifacts by purpose, not by `.md` extension or location: plans, design notes, investigation reports, and research notes remain parent-authored, while implementation documentation such as README updates, ADRs, changelogs, policy files, and documentation accompanying code still follows implementation delegation. Never use an implementation or remediation delegate to research, formulate, draft, save, or revise a plan or research deliverable. A pure planning or research request runs no implementation delegate, implementation review gate, or remediation.
+2. A small implementation task with an accepted plan or an obvious established pattern skips the solution-investigation gate and still runs exactly one implementation delegate.
 3. When no accepted solution contract exists and the root cause, architecture, or approach requires investigation, call solution A, B, C, and D concurrently with the same neutral assignment.
 4. Require all four reports. One, two, or three reports cannot complete the gate.
 5. Verify material citations and architecture claims before finalizing the implementation contract.

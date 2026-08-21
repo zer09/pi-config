@@ -64,6 +64,8 @@ Delegated verification-parallelism update: 2026-08-22 (moved independent finding
 
 Delegated fingerprint-removal update: 2026-08-22 (removed global pre/post Git tree fingerprints and the `read_only_mutation` state for read-only delegates; zero startup-context delta because no always-loaded surface changed; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated parent-authorship update: 2026-08-22 (made plan and research deliverables a purpose-based exception to implementation delegation, kept their authorship with the parent, and retained normal delegation for implementation documentation; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -543,6 +545,21 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | **Tool total** | **840** | **840** | **0** | Before provider-specific framing |
 
 The zero startup-context delta is exact for the measured surfaces: the fingerprint machinery lived only in runtime TypeScript (`runner.ts`, `artifacts.ts`, `types.ts`, `result.ts`) and the on-demand maintenance/ADR documents. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-22 delegated parent-authorship attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are commit `8673f24`, and prompt guidelines are joined with newlines using the same local serialization as the preceding attribution sections. The description, prompt snippet, and parameter schema are unchanged.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,831 | 3,071 | +240 | Always loaded through the context-file block |
+| `delegate_run` description | 75 | 75 | 0 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 579 | 847 | +268 | Included while the tool is active |
+| `delegate_run` parameter schema | 173 | 173 | 0 | Serialized as an active provider tool schema |
+| **Tool total** | **840** | **1,108** | **+268** | Before provider-specific framing |
+
+The directly attributed model-visible increase is +508 local tokens: +240 global instructions and +268 tool guidelines. The added text makes the exception purpose-based, reserves final plan and research authorship for the parent, prohibits implementation and remediation delegates from creating those deliverables, and keeps implementation documentation in the normal delegated workflow. Routes, role schemas, manager behavior, and runtime supervision are unchanged. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

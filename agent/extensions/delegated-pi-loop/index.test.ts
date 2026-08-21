@@ -8,23 +8,44 @@ test("registration guidelines encode the automatic delegation policy without pro
   assert.ok(guidelinesStart >= 0, "promptGuidelines array not found");
   const guidelines = source.slice(guidelinesStart, source.indexOf("parameters:", guidelinesStart));
 
-  // Delegation is automatic for repository changes; only the user can opt out,
-  // and only a truly trivial edit may bypass delegation entirely.
-  assert.match(guidelines, /automatically for repository changes unless the user explicitly opts out/);
-  assert.match(guidelines, /only a truly trivial edit, such as one typo with no behavior change, may be implemented directly by the parent/);
+  // Delegation is automatic for repository implementation changes unless the
+  // user opts out. Only trivial edits and parent-authored plan or research
+  // deliverables bypass implementation delegation.
+  assert.match(guidelines, /automatically for repository implementation changes unless the user explicitly opts out/);
+  assert.match(guidelines, /The parent may directly make only a truly trivial edit with no behavior change or create and revise the plan and research deliverables defined below/);
+  assert.match(guidelines, /the parent never manually implements a non-trivial or small implementation task/);
+  // The parent owns planning and research deliverables: it authors them
+  // directly, artifact writes are an explicit exception to automatic
+  // delegation, and no implementation or remediation delegate may author,
+  // research, or revise them. Plan/research artifacts are classified by
+  // purpose, and a pure planning or research request runs no implementation
+  // delegate, review gate, or remediation.
+  assert.match(guidelines, /The parent owns planning and research deliverables: directly formulate, draft, edit, and save every plan, design note, investigation report, and research note, including repository artifacts such as PLAN\.md/);
+  assert.match(guidelines, /Those artifact writes are an explicit exception to automatic delegation even when they change repository files/);
+  assert.match(guidelines, /plan and research artifacts are distinguished by purpose, not only by file extension or location/);
+  assert.match(guidelines, /Never call an implementation or remediation delegate to research, explore, formulate, draft, edit, save, or revise a plan or research deliverable/);
+  assert.match(guidelines, /An implementation delegate executes only a parent-finalized implementation contract that changes product code, configuration, operational behavior, or implementation documentation/);
+  assert.match(guidelines, /implementation documentation such as README updates, ADRs, changelogs, policy files, and documentation accompanying code/);
+  assert.match(guidelines, /a remediation delegate corrects only verification-confirmed findings in such implementation work/);
+  assert.match(guidelines, /A pure planning or research request runs no implementation delegate, implementation review gate, or remediation/);
+  assert.match(guidelines, /if the user later approves implementation, that later request follows the existing implementation delegation and review workflow/);
   // Small tasks skip only the solution-investigation gate and the oracle, and
   // still delegate implementation.
   assert.match(guidelines, /small task with an accepted plan or an obvious established pattern skips the solution-investigation gate and the oracle role and still runs exactly one implementation delegate/);
   // The parent inspects the implementation diff and evidence before the review gate.
   assert.match(guidelines, /implementation delegate's diff and evidence/);
   assert.match(guidelines, /review-a, review-b, review-c, and review-d concurrently/);
+  // Solution delegates gather evidence and propose options; the parent stays
+  // the sole author and owner of the final plan or research deliverable.
+  assert.match(guidelines, /Solution delegates may gather evidence and propose options, but the parent verifies the evidence, synthesizes conclusions, and remains sole author and owner of the final plan or research deliverable/);
   // Oracle policy: one fresh read-only oracle after a required solution gate,
-  // the exact main-model skip condition, advisory-only authority, and the
-  // neutral oracle prompt contents.
+  // the exact main-model skip condition, advisory-only authority that never
+  // authors or saves the final plan, and the neutral oracle prompt contents.
   assert.match(guidelines, /After a required solution gate, call delegate_run for exactly one fresh read-only oracle review of the draft solution contract/);
   assert.match(guidelines, /only when the parent session's current model is not exactly gpt-5\.6-sol; when it is gpt-5\.6-sol, skip the oracle and finalize the solution contract directly/);
   assert.match(guidelines, /Give the oracle role the neutral problem, governing documents, verified evidence, the draft solution contract, constraints, and unresolved uncertainties; do not give it raw investigator reports or the parent's synthesis rationale/);
-  assert.match(guidelines, /Treat the oracle as advisory, not the final authority: verify its VALID or REVISE analysis/);
+  assert.match(guidelines, /Treat the oracle as advisory, not the final authority: the oracle critiques the parent draft but never authors or saves the final plan/);
+  assert.match(guidelines, /Verify its VALID or REVISE analysis like any other evidence/);
   assert.match(guidelines, /run no automatic oracle loop; a non-completed oracle run blocks implementation/);
   assert.match(guidelines, /backend=zai or backend=claude is invalid for the oracle role/);
   assert.match(guidelines, /only one implementation, remediation, or oracle role at a time/);
