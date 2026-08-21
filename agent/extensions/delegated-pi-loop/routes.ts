@@ -24,7 +24,7 @@ const B_ROUTES: readonly PiRoute[] = [
 ];
 
 const C_ROUTES: readonly PiRoute[] = [
-  { kind: "pi", provider: "opencode-go", model: "hy3", thinking: "high" },
+  { kind: "pi", provider: "opencode-go", model: "ox-alpha-free", thinking: "max" },
   { kind: "pi", provider: "agentrouter", model: "claude-opus-5", thinking: "max" },
   { kind: "pi", provider: "tabitoken", model: "claude-opus-5-thinking", thinking: "max" },
   { kind: "pi", provider: "seekai", model: "claude-opus-5", thinking: "max" },

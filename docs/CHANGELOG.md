@@ -2,6 +2,14 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-21 — Replace the delegated C primary with Ox Alpha Free
+
+- Replaced the active C primary for both conditional solution investigation and independent review: `opencode-go/ox-alpha-free:max` replaces `opencode-go/hy3:high` in the executable route map and the focused route regression. The C ordered backup map is unchanged: AgentRouter Opus 5/max, Tabitoken Opus 5 Thinking/max, SeekAI Opus 5/max, then GoRouter Opus 5 Thinking/high.
+- Documented that Ox Alpha Free's local `thinkingLevelMap` maps `max` to `max`, so the C primary runs natively at `max` without Pi clamping, replacing the former HY3 no-`max` rationale. Verified the route in Pi's live catalog and the stored level map without paid inference.
+- Preserved the A/B/D route maps, D inheritance and single random draw, explicit backend overrides, implementation, remediation, and verification routes, pre-tool-only fallback cutoff, supervision, result, diagnostics, and fingerprint behavior.
+- Updated ADR 0007 current policy with a dated provenance paragraph while preserving historical HY3 paragraphs as factual provenance, the maintenance document's role table, thinking rationale, and catalog checks, and the context-cost line for this route-only change with a zero startup-context delta because the executable route map is not model-visible.
+- Validation: extension suite (45 tests), strict TypeScript check via a temporary config resolving Pi's installed declarations, `pi --list-models` extension load, live-catalog verification of the new C primary, `git diff --check`, and exact reference scans, all without paid inference.
+
 ## 2026-08-21 — Expand delegated gates to four members with role D
 
 - Added `solution-d` and `review-d` to the native `delegate_run` role enum. D carries the same independent read-only solution-investigation and review role contracts as A/B/C. Solution and review gates now launch A, B, C, and D concurrently with the same neutral assignment and require all four completed reports; the parent synthesizes evidence and does not vote.

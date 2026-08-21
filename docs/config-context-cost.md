@@ -52,6 +52,8 @@ Delegated native-result update: 2026-08-21 (made completed and failed delegate r
 
 Delegated four-member D expansion: 2026-08-21 (added solution/review D on GPT-5.5/medium across five eligible OpenAI Codex alias providers with inherited-or-random primary selection; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated C-route Ox update: 2026-08-21 (replaced the C HY3/high primary with OpenCode Go Ox Alpha Free/max for investigation and review; zero startup-context delta because the executable route map is TypeScript and is not model-visible; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
