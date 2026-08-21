@@ -148,7 +148,9 @@ export function roleIsReadOnly(role: DelegateRole): boolean {
 }
 
 export function roleIsExclusive(role: DelegateRole): boolean {
-  return role === "implementation" || role === "remediation" || role === "verification" || role === "oracle";
+  // Verification is not exclusive: DelegateManager gives it its own bounded
+  // rule (verification-only overlap, capped concurrency) instead.
+  return role === "implementation" || role === "remediation" || role === "oracle";
 }
 
 export function roleLabel(role: DelegateRole, backend: DelegateBackend): string {

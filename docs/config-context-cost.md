@@ -60,6 +60,8 @@ Delegated Sol-oracle update: 2026-08-21 (added the conditional read-only advisor
 
 Delegated C-route HY3 restoration: 2026-08-22 (restored the C Ox Alpha Free/max interim primary to OpenCode Go HY3/high for investigation and review; zero startup-context delta because the executable route map is TypeScript and is not model-visible; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated verification-parallelism update: 2026-08-22 (moved independent finding verification from sequential to bounded four-way concurrency with verification-only overlap and a manager batching error; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -509,6 +511,21 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | **Tool total** | **593** | **770** | **+177** | Before provider-specific framing |
 
 The always-loaded increase is +58 global instructions for the route-free oracle workflow responsibility and +177 tool metadata: the three new oracle guidelines plus the small-task, sequential-role, and backend clauses (10 to 13 guidelines, +175) and the `oracle` enum value in the role schema (+2). The oracle eligible-provider chain, `gpt-5.6-sol`/high routing, main-Sol skip detection, and backend rejection are executable TypeScript in `routes.ts` and are not sent to the model. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-22 delegated verification-parallelism attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are the `HEAD` revision of each file re-measured with the same serialization as the tables above: guidelines join with newlines and the parameter schema uses plain `JSON.stringify` separators. The `agent/AGENTS.md` before value reflects the later Linear-read routing addition and re-measures locally as 2,805, not the older 2,695 Sol-oracle baseline.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,805 | 2,831 | +26 | Always loaded through the context-file block |
+| `delegate_run` description | 75 | 75 | 0 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 509 | 579 | +70 | Included while the tool is active |
+| `delegate_run` parameter schema | 173 | 173 | 0 | Serialized as an active provider tool schema |
+| **Tool total** | **770** | **840** | **+70** | Before provider-specific framing |
+
+The always-loaded increase is +26 global instructions for the compact batching, consolidation, and batch-wait rules and +70 tool guidelines: the two verification guidelines (13 to 14 guidelines) replace the former single sequential-processing guideline. The verification concurrency matrix, the verification-only overlap rule, and the four-verification cap are executable TypeScript in `manager.ts` and are not sent to the model. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

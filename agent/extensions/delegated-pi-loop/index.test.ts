@@ -30,7 +30,17 @@ test("registration guidelines encode the automatic delegation policy without pro
   assert.match(guidelines, /only one implementation, remediation, or oracle role at a time/);
   // Blocking findings get fresh verification, only verification-confirmed findings
   // reach one focused remediation role, and fresh gates repeat until none remain.
-  assert.match(guidelines, /verification role, send only verification-confirmed findings to one focused remediation role/);
+  // Independent verifications run in bounded four-way batches, duplicates are
+  // consolidated first, dependent findings stay sequential, and the parent waits
+  // for the whole batch before remediation.
+  assert.match(guidelines, /consolidate exact duplicate findings first/);
+  assert.match(guidelines, /give each verification exactly one finding without sibling verification reports/);
+  assert.match(guidelines, /overlap verification only with other verification delegates/);
+  assert.match(guidelines, /Run independent finding verifications concurrently in batches of at most four/);
+  assert.match(guidelines, /keep dependent findings sequential/);
+  assert.match(guidelines, /wait for every verification in the current batch before remediation/);
+  assert.match(guidelines, /non-completed verification leaves its finding unresolved without erasing completed sibling reports/);
+  assert.match(guidelines, /Send only verification-confirmed findings to one focused remediation role/);
   assert.match(guidelines, /fresh four-reviewer gate until no blocking findings remain/);
   // Git transitions and hosted writes never ride on a completed delegate.
   assert.match(guidelines, /require separate explicit authorization/);

@@ -26,7 +26,7 @@ The extension runs as part of the parent Pi process, like CodeGraph and Context 
 | `agent/extensions/delegated-pi-loop/runner.ts` | Catalog preflight, ordered fresh-route fallback, shared deadline, read-only fingerprints, and the in-memory chain result. |
 | `agent/extensions/delegated-pi-loop/result.ts` | Model-visible Markdown result builders, terminal marker stripping, the native tool-result error patch, and execute-level finalization (diagnostic persistence, tool-result assembly, artifact cleanup). |
 | `agent/extensions/delegated-pi-loop/diagnostics.ts` | Private sanitized failure diagnostics under `${PI_CODING_AGENT_DIR:-~/.pi/agent}/logs/delegated-pi-loop/` with 0700/0600 permissions. |
-| `agent/extensions/delegated-pi-loop/manager.ts` | Parent-session concurrency guard and cancellation. |
+| `agent/extensions/delegated-pi-loop/manager.ts` | Parent-session concurrency guard (exclusive implementation/remediation/oracle, verification-only overlap with a four-verification cap) and cancellation. |
 | `agent/extensions/delegated-pi-loop/render.ts` | Compact and expanded tool rendering with last event, UTC receipt time, and the TUI-only diagnostic path. |
 | `agent/extensions/delegated-pi-loop/artifacts.ts` | Private temporary artifacts, atomic writes, best-effort directory removal, fingerprints, and bounded report output. |
 | `agent/extensions/delegated-pi-loop/types.ts` | Extension, route, progress, status, and result contracts. |
@@ -86,6 +86,15 @@ The retired `agent/skills/delegated-pi-loop/` directory must not be restored unl
 6. The diagnostic path travels only in `details` for the TUI renderer. Successful runs write no diagnostic.
 7. Execute-level finalization awaits `runDelegate`, persists the failure diagnostic when unsuccessful, assembles the final ToolResult, and then removes the temporary artifact directory for every terminal outcome in a `finally` that also runs when diagnostic persistence fails. A failed diagnostic write still returns sanitized failure content with no diagnostic path; directory removal stays best-effort.
 
+### Concurrency matrix
+
+The in-process DelegateManager enforces these rules before any child process spawns, with bounded tool errors:
+
+1. Verification delegates may overlap only other verification delegates, at most four concurrently (`VERIFICATION_CONCURRENCY_CAP`). A fifth concurrent verification is rejected with a bounded batching error; the parent batches the remaining findings after the current batch instead of retrying blindly.
+2. Verification never overlaps a solution, review, implementation, remediation, or oracle role in either start order.
+3. Solution and review roles keep their existing concurrent A/B/C/D gate behavior and remain unblocked by each other.
+4. Implementation, remediation, and oracle roles stay exclusive against every active delegate, including verification batches.
+
 ### Route fallback
 
 A route chain may advance only when all conditions are true:
@@ -136,8 +145,8 @@ AgentRouter, Tabitoken, SeekAI, and GoRouter remain backup-only in default A/B/C
 11. Run one implementation, remediation, or oracle delegate at a time.
 12. Do not let the parent edit the shared tree while a mutating delegate runs.
 13. After implementation or remediation, the parent inspects the delegate's diff and evidence, then calls fresh review A, B, C, and D concurrently with the same neutral review scope.
-14. Verify every blocking finding in a fresh sequential verification role before remediation.
-15. Send confirmed findings to one remediation delegate, then repeat the fresh four-reviewer gate; verification, remediation, and review repeat until no blocking findings remain.
+14. Verify every blocking finding in a fresh read-only verification role before remediation: consolidate exact duplicate findings first, give each verification exactly one finding without sibling verification reports, run independent findings concurrently in batches of at most four, and keep dependent findings sequential when one verification result materially affects another finding's contract or evidence.
+15. Wait for every required verification in the current batch before remediation: a failed or non-completed verification leaves its finding unresolved without erasing completed sibling reports, and remediation must not proceed as though the batch completed. Send only verification-confirmed findings to one remediation delegate, then repeat the fresh four-reviewer gate; verification, remediation, and review repeat until no blocking findings remain.
 16. Solution investigators cannot act as implementers or later reviewers. The oracle likewise never implements, reviews, or verifies.
 17. Read-only roles (solution, review, verification, oracle) receive pre/post Git status plus tracked, staged, and path-safe untracked-content hashes. Any detected tree change becomes `read_only_mutation`.
 18. Git transitions and hosted-service writes always require separate explicit authorization.
@@ -209,6 +218,8 @@ Also verify:
 - abort during catalog preflight stops the chain;
 - a main-Sol parent model and an explicit oracle backend are both rejected before any oracle child spawns, with a bounded tool error and no fabricated oracle report;
 - child Pi does not register `delegate_run` recursively;
+- one through four verification delegates overlap each other while a fifth concurrent verification is rejected with a bounded batching error, a released slot admits the next finding, and verification blocks and is blocked by solution, review, implementation, remediation, and oracle roles in both start orders;
+- solution and review concurrency is unchanged, and implementation, remediation, and oracle remain exclusive against every active delegate;
 - read-only fingerprint changes invalidate the result;
 - no delegate command line or credential value is persisted;
 - unrelated dirty files remain untouched;

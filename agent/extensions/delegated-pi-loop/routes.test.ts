@@ -112,7 +112,10 @@ test("classifies role permissions and sequential roles", () => {
   assert.equal(roleIsReadOnly("verification"), true);
   assert.equal(roleIsReadOnly("oracle"), true);
   assert.equal(roleIsReadOnly("implementation"), false);
-  assert.equal(roleIsExclusive("verification"), true);
+  // Verification is read-only but not exclusive: DelegateManager owns its
+  // bounded verification-only overlap rule with the four-delegate cap.
+  assert.equal(roleIsExclusive("verification"), false);
+  assert.equal(roleIsExclusive("remediation"), true);
   assert.equal(roleIsExclusive("implementation"), true);
   assert.equal(roleIsExclusive("oracle"), true);
   assert.equal(roleIsExclusive("review-a"), false);
