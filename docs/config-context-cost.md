@@ -54,6 +54,8 @@ Delegated four-member D expansion: 2026-08-21 (added solution/review D on GPT-5.
 
 Delegated C-route Ox update: 2026-08-21 (replaced the C HY3/high primary with OpenCode Go Ox Alpha Free/max for investigation and review; zero startup-context delta because the executable route map is TypeScript and is not model-visible; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated automatic-trigger update: 2026-08-21 (made `delegate_run` automatic for repository changes with an explicit opt-out, added a trivial-only direct-edit exception plus mandatory implementation delegation for small tasks, slimmed the global section, and removed provider route details from tool guidelines; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -473,6 +475,21 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | **Tool total** | **555** | **612** | **+57** | Before provider-specific framing |
 
 The always-loaded increase is +58 global instructions for the four-member D orchestration policy plus +57 tool metadata/schema for the two new role enum values and the D routing guideline. The D eligible-provider set, inherited-or-random primary selection, and canonical fallback order are executable TypeScript and are not sent to the model. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-21 delegated automatic-trigger attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are the `HEAD` revision of each file re-measured with the same serialization as this table; the plain parameter-schema serialization re-measures the prior recorded schema value of 217 as 171, and the schema is byte-identical before and after this change, so its delta is zero under any consistent serialization.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,681 | 2,637 | -44 | Always loaded through the context-file block |
+| `delegate_run` description | 75 | 75 | 0 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 307 | 334 | +27 | Included while the tool is active |
+| `delegate_run` parameter schema | 171 | 171 | 0 | Serialized as an active provider tool schema |
+| **Tool total** | **566** | **593** | **+27** | Before provider-specific framing |
+
+The directly attributed always-loaded surfaces shrink by a net 17 local tokens: the slim `## Delegated work` section removes 44 tokens of global instructions (12 rules to 7, no provider route maps), while the tool guidelines drop the role-D provider-route detail and add the automatic trigger, the trivial-only direct-edit exception, the mandatory implementation delegate for small tasks, the diff-inspection precondition, the confirmation-gated remediation wording, and the repeat-gate clause for a net +27 tokens. Provider/model route behavior remains executable TypeScript in `routes.ts` and is not sent to the model. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

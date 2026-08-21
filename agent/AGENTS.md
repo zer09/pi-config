@@ -98,20 +98,15 @@ Use these rules when the user says that an explanation did not land or asks for 
 - Use direct `bash` only for short low-output local checks or explicitly requested state-changing commands; do not use it for broad source/log/git/test output when `ctx_*` tools can index and filter.
 - Use native `read` for small targeted ranges and exact edit regions, and native `edit`/`write` for all file changes.
 
-## Delegated implementation and review
+## Delegated work
 
-- Use the native `delegate_run` tool when a task requires delegated investigation, implementation, review, verification, or remediation.
-- Treat the delegated Pi extension as the source of truth for provider routes, model defaults, deadlines, role separation, live event status, and terminal result contracts.
-- Keep the current Pi session as the sole orchestrator.
-- Do not permit delegates to start other agent sessions unless the user explicitly authorizes recursive delegation.
-- Use fresh delegates for every assigned role.
-- Run the solution A/B/C/D and review A/B/C/D read-only gates concurrently; each gate requires all four completed reports. D uses `gpt-5.5` at `medium` on only the five OpenAI Codex alias providers, never Cursor; its primary inherits the parent session's selected provider when eligible, otherwise one random eligible provider, with the other four behind it in canonical order.
-- Verify solution-investigator evidence before finalizing the implementation contract.
-- Run only one implementation, remediation, or finding-verification delegate at a time.
-- Do not edit files while a mutating delegate runs.
-- Treat a `delegate_run` state other than `completed`, including a read-only tree mutation, as a failed delegation.
-- Use project-specific execution guides and role templates when they exist.
-- Do not stage, commit, push, or mutate hosted services without separate authorization.
+- Use `delegate_run` automatically for repository changes unless the user explicitly opts out. The parent implements directly only a truly trivial edit, such as one typo with no behavior change; it never manually implements a non-trivial or small task.
+- Run solution investigation only when no accepted solution contract exists and the root cause, architecture, or approach requires investigation. A small task with an accepted plan or an obvious established pattern skips only that gate and still runs exactly one implementation delegate.
+- When investigation is needed, run solution A/B/C/D concurrently; the parent verifies the evidence and finalizes the contract.
+- For an accepted solution, run one implementation delegate; inspect its diff and evidence; then run review A/B/C/D concurrently.
+- Verify each blocking finding with a fresh finding-verification delegate; send confirmed findings to one remediation delegate; repeat the four-reviewer gate until no blocking findings remain.
+- Keep the parent as the sole orchestrator: one mutating or finding-verification delegate at a time, no recursive delegates, and no parent edits while a mutating delegate runs.
+- Stage, commit, push, deploy, and hosted-service writes always require separate explicit authorization.
 
 ## Python tooling
 

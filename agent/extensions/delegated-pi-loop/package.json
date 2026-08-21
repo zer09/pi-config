@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Native TypeScript delegated Pi orchestration with bounded route fallback and live event status.",
   "scripts": {
-    "test": "node --test monitor.test.ts routes.test.ts supervisor.test.ts runner.test.ts result.test.ts diagnostics.test.ts"
+    "test": "node --test monitor.test.ts routes.test.ts supervisor.test.ts runner.test.ts result.test.ts diagnostics.test.ts index.test.ts"
   },
   "pi": {
     "extensions": [

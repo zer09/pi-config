@@ -122,18 +122,20 @@ AgentRouter, Tabitoken, SeekAI, and GoRouter remain backup-only in default A/B/C
 
 ### Orchestration gates
 
-1. When no accepted solution contract exists, call solution A, B, C, and D concurrently with the same neutral assignment.
-2. Require all four reports. One, two, or three reports cannot complete the gate.
-3. Verify material citations and architecture claims before finalizing the implementation contract.
-4. Stop for user input on material architecture ambiguity.
-5. Run one implementation or remediation delegate at a time.
-6. Do not let the parent edit the shared tree while a mutating delegate runs.
-7. After implementation or remediation, call fresh review A, B, C, and D concurrently with the same neutral review scope.
-8. Verify every blocking finding in a fresh sequential verification role before remediation.
-9. Run a fresh four-reviewer gate after remediation.
-10. Solution investigators cannot act as implementers or later reviewers.
-11. Read-only roles receive pre/post Git status plus tracked, staged, and path-safe untracked-content hashes. Any detected tree change becomes `read_only_mutation`.
-12. Git transitions and hosted-service writes always require separate explicit authorization.
+1. Use `delegate_run` automatically for repository changes unless the user explicitly opts out. Only a truly trivial edit, such as one typo with no behavior change, may be implemented directly by the parent; the parent never manually implements a non-trivial or small task.
+2. A small task with an accepted plan or an obvious established pattern skips the solution-investigation gate and still runs exactly one implementation delegate.
+3. When no accepted solution contract exists and the root cause, architecture, or approach requires investigation, call solution A, B, C, and D concurrently with the same neutral assignment.
+4. Require all four reports. One, two, or three reports cannot complete the gate.
+5. Verify material citations and architecture claims before finalizing the implementation contract.
+6. Stop for user input on material architecture ambiguity.
+7. Run one implementation or remediation delegate at a time.
+8. Do not let the parent edit the shared tree while a mutating delegate runs.
+9. After implementation or remediation, the parent inspects the delegate's diff and evidence, then calls fresh review A, B, C, and D concurrently with the same neutral review scope.
+10. Verify every blocking finding in a fresh sequential verification role before remediation.
+11. Send confirmed findings to one remediation delegate, then repeat the fresh four-reviewer gate; verification, remediation, and review repeat until no blocking findings remain.
+12. Solution investigators cannot act as implementers or later reviewers.
+13. Read-only roles receive pre/post Git status plus tracked, staged, and path-safe untracked-content hashes. Any detected tree change becomes `read_only_mutation`.
+14. Git transitions and hosted-service writes always require separate explicit authorization.
 
 ## Update workflow
 
