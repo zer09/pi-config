@@ -105,7 +105,7 @@ Use these rules when the user says that an explanation did not land or asks for 
 - Keep the current Pi session as the sole orchestrator.
 - Do not permit delegates to start other agent sessions unless the user explicitly authorizes recursive delegation.
 - Use fresh delegates for every assigned role.
-- Run the solution A/B/C and review A/B/C read-only gates concurrently; each gate requires all three completed reports.
+- Run the solution A/B/C/D and review A/B/C/D read-only gates concurrently; each gate requires all four completed reports. D uses `gpt-5.5` at `medium` on only the five OpenAI Codex alias providers, never Cursor; its primary inherits the parent session's selected provider when eligible, otherwise one random eligible provider, with the other four behind it in canonical order.
 - Verify solution-investigator evidence before finalizing the implementation contract.
 - Run only one implementation, remediation, or finding-verification delegate at a time.
 - Do not edit files while a mutating delegate runs.

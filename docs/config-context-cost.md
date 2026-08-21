@@ -50,6 +50,8 @@ Delegated native-extension migration: 2026-08-21 (removed the runtime skill and 
 
 Delegated native-result update: 2026-08-21 (made completed and failed delegate results self-contained Markdown tool results and added failure-only private diagnostics; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated four-member D expansion: 2026-08-21 (added solution/review D on GPT-5.5/medium across five eligible OpenAI Codex alias providers with inherited-or-random primary selection; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -454,6 +456,21 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | **Tool total** | **516** | **547** | **+31** | Before provider-specific framing |
 
 The directly attributed migration delta is now approximately +497 local tokens before provider framing. The Markdown result body is dynamic tool output and enters context only after a delegate completes; JSON escaping is transport representation, not additional Markdown parsing. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-21 delegated four-member D expansion attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are the `HEAD` revision of each file re-measured with the same serialization as this table; the parameter schema is serialized with standard JSON separators, which re-measures the prior native-result schema value of 200 as 208, so the schema and tool-total deltas are like-for-like.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,623 | 2,681 | +58 | Always loaded through the context-file block |
+| `delegate_run` description | 75 | 75 | 0 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 259 | 307 | +48 | Included while the tool is active |
+| `delegate_run` parameter schema | 208 | 217 | +9 | Serialized as an active provider tool schema |
+| **Tool total** | **555** | **612** | **+57** | Before provider-specific framing |
+
+The always-loaded increase is +58 global instructions for the four-member D orchestration policy plus +57 tool metadata/schema for the two new role enum values and the D routing guideline. The D eligible-provider set, inherited-or-random primary selection, and canonical fallback order are executable TypeScript and are not sent to the model. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

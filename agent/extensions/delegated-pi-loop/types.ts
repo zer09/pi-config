@@ -4,10 +4,12 @@ export const DELEGATE_ROLES = [
   "solution-a",
   "solution-b",
   "solution-c",
+  "solution-d",
   "implementation",
   "review-a",
   "review-b",
   "review-c",
+  "review-d",
   "verification",
   "remediation",
 ] as const;
@@ -191,6 +193,8 @@ export interface ExtensionContext {
   readonly cwd: string;
   readonly mode?: string;
   readonly hasUI?: boolean;
+  /** Parent session's active model; supplies the currently selected provider. */
+  readonly model?: { readonly provider: string };
   readonly ui?: {
     setWidget(
       id: string,
@@ -243,6 +247,10 @@ export interface RunOptions {
   readonly prompt: string;
   readonly cwd: string;
   readonly signal?: AbortSignal;
+  /** Parent session's currently selected provider, from native extension context. */
+  readonly parentProvider?: string;
+  /** Deterministic injection point for the D-role random primary selection. */
+  readonly random?: () => number;
   readonly onProgress?: (progress: DelegateProgress) => void;
   readonly timeoutMs?: number;
   readonly idleWarningMs?: number;

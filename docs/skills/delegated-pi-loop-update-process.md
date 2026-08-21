@@ -112,24 +112,25 @@ Prose, multi-section reports, arbitrary missing markers, and every attempt that 
 | Solution or review A | `opencode-go/muse-spark-1.2-contributor:xhigh`, then AgentRouter Sol/max, Tabitoken Opus 5 Thinking/max, SeekAI Opus 5/max, GoRouter Opus 5 Thinking/high. |
 | Solution or review B | `opencode-go/deepseek-v4-flash:max`, then SeekAI DeepSeek V4 Flash/max, AgentRouter Opus 5/max, Tabitoken Opus 5 Thinking/max, GoRouter Opus 5 Thinking/high. |
 | Solution or review C | `opencode-go/hy3:high`, then AgentRouter Opus 5/max, Tabitoken Opus 5 Thinking/max, SeekAI Opus 5/max, GoRouter Opus 5 Thinking/high. |
+| Solution or review D | `gpt-5.5` at `medium` on exactly one ordered member chain of the five eligible providers `openai-codex`, `openai-codex-zahlo`, `openai-codex-cgpt1`, `openai-codex-cgpt2`, `openai-codex-cgpt3`. The primary is the parent session's currently selected provider (read from native extension context, never environment variables) when that provider is eligible; otherwise one randomly selected eligible provider. The remaining four follow in the stable canonical order listed here. Cursor is excluded from D by definition. The selection happens exactly once per `delegate_run` invocation, and the ordered attempts return through the existing chain result machinery. |
 | Implementation or remediation | `zai/glm-5.3:max`. |
 | Finding verification | `openai-codex/gpt-5.6-sol:high`. |
 | Explicit Z.AI alternative | `zai/glm-5.3:max` with assigned-role permissions. |
 | Explicit Claude Code alternative | `claude-opus-5`, effort `medium`, with assigned-role permissions. |
 
-AgentRouter, Tabitoken, SeekAI, and GoRouter remain backup-only in default A/B/C maps. Muse Spark uses `xhigh` because its `max` map is null. HY3 uses `high` because it does not support `max`.
+AgentRouter, Tabitoken, SeekAI, and GoRouter remain backup-only in default A/B/C maps. Muse Spark uses `xhigh` because its `max` map is null. HY3 uses `high` because it does not support `max`. D routes never leave the five eligible OpenAI Codex alias providers.
 
 ### Orchestration gates
 
-1. When no accepted solution contract exists, call solution A, B, and C concurrently with the same neutral assignment.
-2. Require all three reports. One or two reports cannot complete the gate.
+1. When no accepted solution contract exists, call solution A, B, C, and D concurrently with the same neutral assignment.
+2. Require all four reports. One, two, or three reports cannot complete the gate.
 3. Verify material citations and architecture claims before finalizing the implementation contract.
 4. Stop for user input on material architecture ambiguity.
 5. Run one implementation or remediation delegate at a time.
 6. Do not let the parent edit the shared tree while a mutating delegate runs.
-7. After implementation or remediation, call fresh review A, B, and C concurrently with the same neutral review scope.
+7. After implementation or remediation, call fresh review A, B, C, and D concurrently with the same neutral review scope.
 8. Verify every blocking finding in a fresh sequential verification role before remediation.
-9. Run a fresh three-reviewer gate after remediation.
+9. Run a fresh four-reviewer gate after remediation.
 10. Solution investigators cannot act as implementers or later reviewers.
 11. Read-only roles receive pre/post Git status plus tracked, staged, and path-safe untracked-content hashes. Any detected tree change becomes `read_only_mutation`.
 12. Git transitions and hosted-service writes always require separate explicit authorization.
@@ -178,6 +179,11 @@ pi --list-models agentrouter/claude-opus-5
 pi --list-models gorouter/claude-opus-5-thinking
 pi --list-models zai/glm-5.3
 pi --list-models openai-codex/gpt-5.6-sol
+pi --list-models openai-codex/gpt-5.5
+pi --list-models openai-codex-zahlo/gpt-5.5
+pi --list-models openai-codex-cgpt1/gpt-5.5
+pi --list-models openai-codex-cgpt2/gpt-5.5
+pi --list-models openai-codex-cgpt3/gpt-5.5
 ```
 
 Also verify:

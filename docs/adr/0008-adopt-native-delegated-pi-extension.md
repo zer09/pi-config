@@ -18,7 +18,7 @@ Separate child agent processes remain necessary. Running the extension inside th
 
 Replace the `delegated-pi-loop` Local Skill and Python supervisors with the native TypeScript extension under `agent/extensions/delegated-pi-loop/`.
 
-The extension registers one `delegate_run` custom tool. The parent Pi agent remains the sole orchestrator and calls one tool instance per assigned role. Pi's normal parallel tool execution supports the solution A/B/C and review A/B/C gates. An in-process manager rejects concurrent implementation, remediation, or verification roles.
+The extension registers one `delegate_run` custom tool. The parent Pi agent remains the sole orchestrator and calls one tool instance per assigned role. Pi's normal parallel tool execution supports the solution A/B/C/D and review A/B/C/D gates. An in-process manager rejects concurrent implementation, remediation, or verification roles.
 
 The extension directly supervises child Pi and Claude Code processes. Child processes inherit provider credentials and operating-system permissions from the parent environment. The extension clears stale parent session metadata before spawn and uses fresh ephemeral child sessions.
 

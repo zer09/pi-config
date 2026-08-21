@@ -4,6 +4,7 @@ import type {
   DelegateRole,
   DelegateRoute,
   PiRoute,
+  ThinkingLevel,
 } from "./types.ts";
 
 const A_ROUTES: readonly PiRoute[] = [
@@ -30,6 +31,51 @@ const C_ROUTES: readonly PiRoute[] = [
   { kind: "pi", provider: "gorouter", model: "claude-opus-5-thinking", thinking: "high" },
 ];
 
+// D-eligible providers in stable canonical order. Cursor is excluded by
+// definition: only these five OpenAI Codex providers may serve D.
+const D_ELIGIBLE_PROVIDERS: readonly string[] = [
+  "openai-codex",
+  "openai-codex-zahlo",
+  "openai-codex-cgpt1",
+  "openai-codex-cgpt2",
+  "openai-codex-cgpt3",
+];
+const D_MODEL = "gpt-5.5";
+const D_THINKING: ThinkingLevel = "medium";
+
+export interface RoutesOptions {
+  /** Parent session's currently selected provider from native extension context. */
+  readonly parentProvider?: string;
+  /** Injected randomness so tests pin the D primary without flakiness. */
+  readonly random?: () => number;
+}
+
+function dRoute(provider: string): PiRoute {
+  return { kind: "pi", provider, model: D_MODEL, thinking: D_THINKING };
+}
+
+/**
+ * D's ordered chain: the primary is the inherited parent provider when it is
+ * eligible, otherwise one random eligible provider; the other four follow in
+ * canonical order. Selection happens once per call, so one delegate_run
+ * invocation yields exactly one random draw.
+ */
+function dRoutes(options: RoutesOptions): readonly PiRoute[] {
+  const eligible = D_ELIGIBLE_PROVIDERS;
+  const inherited = options.parentProvider !== undefined && eligible.includes(options.parentProvider)
+    ? options.parentProvider
+    : undefined;
+  let primary = inherited;
+  if (primary === undefined) {
+    // Clamp keeps a misbehaving random source inside the eligible set.
+    const value = options.random?.() ?? Math.random();
+    const index = Math.max(0, Math.min(eligible.length - 1, Math.floor(value * eligible.length)));
+    primary = eligible[index]!;
+  }
+  const remaining = eligible.filter((provider) => provider !== primary);
+  return [dRoute(primary), ...remaining.map(dRoute)];
+}
+
 const IMPLEMENTATION_ROUTE: PiRoute = {
   kind: "pi",
   provider: "zai",
@@ -50,13 +96,18 @@ const CLAUDE_ROUTE: ClaudeRoute = {
   effort: "medium",
 };
 
-export function routesFor(role: DelegateRole, backend: DelegateBackend): readonly DelegateRoute[] {
+export function routesFor(
+  role: DelegateRole,
+  backend: DelegateBackend,
+  options: RoutesOptions = {},
+): readonly DelegateRoute[] {
   if (backend === "zai") return [IMPLEMENTATION_ROUTE];
   if (backend === "claude") return [CLAUDE_ROUTE];
 
   if (role === "solution-a" || role === "review-a") return A_ROUTES;
   if (role === "solution-b" || role === "review-b") return B_ROUTES;
   if (role === "solution-c" || role === "review-c") return C_ROUTES;
+  if (role === "solution-d" || role === "review-d") return dRoutes(options);
   if (role === "verification") return [VERIFICATION_ROUTE];
   return [IMPLEMENTATION_ROUTE];
 }

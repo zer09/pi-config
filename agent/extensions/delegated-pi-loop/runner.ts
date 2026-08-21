@@ -172,7 +172,12 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     ? await captureTreeFingerprint(options.cwd)
     : undefined;
   const attempts: ChainAttempt[] = [];
-  const routes = routesFor(options.role, backend);
+  // Route selection happens exactly once per invocation, which also fixes
+  // D's single random primary draw for this run.
+  const routes = routesFor(options.role, backend, {
+    parentProvider: options.parentProvider,
+    random: options.random,
+  });
   const piInvocation = options.piInvocation ?? resolvePiInvocation();
   let selectedRoute: string | undefined;
   let report = "";

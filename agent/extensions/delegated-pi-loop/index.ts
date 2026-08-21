@@ -18,7 +18,7 @@ import type {
 
 const DelegateParameters = Type.Object({
   role: StringEnum(DELEGATE_ROLES, {
-    description: "Assigned isolated role. Use matching A/B/C roles concurrently for required three-member gates.",
+    description: "Assigned isolated role. Use matching A/B/C/D roles concurrently for required four-member gates.",
   }),
   prompt: Type.String({
     minLength: 1,
@@ -93,11 +93,12 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
     promptSnippet: "Run one fresh bounded delegate with role-specific routing and live event status",
     promptGuidelines: [
       "Use delegate_run only when the user or project requests delegated investigation, implementation, review, verification, or remediation.",
-      "When no accepted solution contract exists, call delegate_run for solution-a, solution-b, and solution-c concurrently with the same neutral assignment; all three must complete before synthesis.",
+      "When no accepted solution contract exists, call delegate_run for solution-a, solution-b, solution-c, and solution-d concurrently with the same neutral assignment; all four must complete before synthesis.",
       "The parent Pi agent must verify investigator evidence and finalize the solution contract before calling delegate_run for implementation.",
       "Call delegate_run for only one implementation or remediation role at a time, and do not edit the working tree while that delegate runs.",
-      "After implementation or remediation, call delegate_run for review-a, review-b, and review-c concurrently with the same neutral review scope; all three must complete.",
-      "Process each blocking review finding through a fresh delegate_run verification role before a focused remediation role, then run a fresh three-reviewer gate.",
+      "After implementation or remediation, call delegate_run for review-a, review-b, review-c, and review-d concurrently with the same neutral review scope; all four must complete.",
+      "Process each blocking review finding through a fresh delegate_run verification role before a focused remediation role, then run a fresh four-reviewer gate.",
+      "Role D uses gpt-5.5/medium on only the five OpenAI Codex alias providers, never Cursor; the D primary inherits the parent's selected provider when eligible, otherwise one random eligible provider.",
       "Use delegate_run backend=default unless the user or project explicitly selects Z.AI or Claude Code for the assigned role; backend selection never changes role mutation permissions.",
       "Treat every delegate_run state other than completed as a failed delegation reported as a tool error with sanitized status fields, and do not retry outside the tool's bounded pre-tool route fallback without user-authorized diagnosis.",
       "Do not stage, commit, push, deploy, or mutate hosted services because a delegate completed; those transitions require separate explicit authorization.",
@@ -118,6 +119,9 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
           backend,
           prompt: params.prompt,
           cwd,
+          // D inherits the parent's selected provider through native
+          // extension context, never by inspecting the environment.
+          parentProvider: ctx.model?.provider,
           signal: runSignal,
           onProgress: (progress) => {
             onUpdate?.(partialResult(progress));

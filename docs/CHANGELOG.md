@@ -2,6 +2,17 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-21 — Expand delegated gates to four members with role D
+
+- Added `solution-d` and `review-d` to the native `delegate_run` role enum. D carries the same independent read-only solution-investigation and review role contracts as A/B/C. Solution and review gates now launch A, B, C, and D concurrently with the same neutral assignment and require all four completed reports; the parent synthesizes evidence and does not vote.
+- D always uses `gpt-5.5` at thinking `medium` under backend=default across exactly five eligible providers: `openai-codex`, `openai-codex-zahlo`, `openai-codex-cgpt1`, `openai-codex-cgpt2`, and `openai-codex-cgpt3`. Cursor is excluded from D by definition.
+- The D primary inherits the parent session's currently selected provider read from native extension context (`ctx.model?.provider`), never by inspecting environment variables. When the parent provider is ineligible, one eligible provider is selected at random. The draw happens exactly once per `delegate_run` invocation through an injectable selection point, the remaining four providers follow in stable canonical order, existing catalog preflight still skips unavailable routes, and the ordered attempts return through the existing chain result machinery.
+- Explicit backend=zai or backend=claude continues to override default D routing with assigned-role permissions, exactly as for other roles. The A/B/C route maps and all implementation, remediation, and verification routes are unchanged.
+- Preserved shared deadlines, pre-tool-only fallback with no post-tool fallback, process-group cleanup, the raw-Markdown result envelope, private failure diagnostics, one-second UI throttling, read-only fingerprint invalidation, and recursive-delegate suppression.
+- Updated the model-facing tool role enum description and prompt guidelines, the global orchestration policy in `agent/AGENTS.md`, ADR 0007 current policy with a dated provenance paragraph while preserving historical incident paragraphs, ADR 0008's gate description, the maintenance document's role table, orchestration gates, and catalog checks, and the context-cost attribution with measured local token deltas.
+- Added deterministic regressions for inherited eligible provider, ineligible-parent random primary with a single draw, canonical remaining fallback order, Cursor exclusion, explicit backend override for D, D gate recording through the runner chain, and unchanged A/B/C maps.
+- Validation: extension suite (45 tests), strict TypeScript check via a temporary config resolving Pi's installed declarations, `pi --list-models` extension load, live-catalog verification of the five eligible `gpt-5.5` routes, `git diff --check`, and documentation scans, all without paid inference.
+
 ## 2026-08-21 — Adopt the native delegate_run result and diagnostics contract
 
 - Made `delegate_run` return raw Markdown in model-visible `content[0].text`: a minimal status header plus the delegate's verbatim report for completed runs, with the validated terminal `DELEGATE_RESULT: COMPLETED` marker stripped to avoid duplicate status tokens. Report, status, artifact, and diagnostic paths no longer appear in model-visible content.

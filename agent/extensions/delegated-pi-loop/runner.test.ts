@@ -176,6 +176,68 @@ test("does not fall back after any tool execution", async () => {
   await assert.rejects(() => stat(result.artifactDir), enoent);
 });
 
+test("D draws one random primary per invocation and records the ordered chain", async () => {
+  const fixture = await fakePi(
+    ["openai-codex/gpt-5.5"],
+    { "openai-codex/gpt-5.5": "complete" },
+  );
+  let randomCalls = 0;
+  const result = await runDelegate({
+    role: "solution-d",
+    backend: "default",
+    prompt: "Investigate the fixture without editing it.",
+    cwd: fixture.root,
+    // cursor is ineligible, so the injected draw must pick the primary.
+    parentProvider: "cursor",
+    random: () => {
+      randomCalls += 1;
+      return 0.7; // floor(0.7 * 5) = 3 -> openai-codex-cgpt2 primary
+    },
+    piInvocation: fixture.invocation,
+    timeoutMs: 3000,
+    idleWarningMs: 200,
+    idleTimeoutMs: 800,
+    graceMs: 100,
+  });
+  assert.equal(randomCalls, 1);
+  assert.equal(result.state, "completed");
+  assert.equal(result.selectedRoute, "openai-codex/gpt-5.5:medium");
+  // The uncatalogued random primary is skipped by catalog preflight; the
+  // selected and remaining routes return through the existing attempt chain.
+  assert.deepEqual(result.attempts.map((attempt) => attempt.route), [
+    "openai-codex-cgpt2/gpt-5.5:medium",
+    "openai-codex/gpt-5.5:medium",
+  ]);
+  assert.equal(result.attempts[0]?.state, "catalog_unavailable");
+  const toolResult = await finalizeDelegateRun(result);
+  assert.match(toolResult.content[0]!.text, /## Delegate solution-d completed/);
+});
+
+test("D inherits the parent's eligible provider as its primary", async () => {
+  const fixture = await fakePi(
+    ["openai-codex-cgpt3/gpt-5.5"],
+    { "openai-codex-cgpt3/gpt-5.5": "complete" },
+  );
+  const result = await runDelegate({
+    role: "review-d",
+    backend: "default",
+    prompt: "Review only.",
+    cwd: fixture.root,
+    parentProvider: "openai-codex-cgpt3",
+    random: () => 0.99,
+    piInvocation: fixture.invocation,
+    timeoutMs: 3000,
+    idleWarningMs: 200,
+    idleTimeoutMs: 800,
+    graceMs: 100,
+  });
+  assert.equal(result.state, "completed");
+  assert.equal(result.selectedRoute, "openai-codex-cgpt3/gpt-5.5:medium");
+  assert.equal(result.attempts.length, 1);
+  assert.match(result.report, /Completed on openai-codex-cgpt3\/gpt-5\.5/);
+  await finalizeDelegateRun(result);
+});
+
 test("invalidates a read-only delegate that changes the Git tree", async () => {
   const fixture = await fakePi(
     ["opencode-go/muse-spark-1.2-contributor"],
