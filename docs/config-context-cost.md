@@ -46,6 +46,8 @@ Delegated three-member primary-routing update: 2026-08-20 (expanded concurrent s
 
 Delegated A-route Muse update: 2026-08-21 (replaced the A Luna primary and SeekAI Luna backup with OpenCode Go Muse Spark 1.2 Contributor/xhigh for investigation and review; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated native-extension migration: 2026-08-21 (removed the runtime skill and added the native `delegate_run` tool with live last-event timestamps; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -419,6 +421,23 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `references/prompt-contracts.md` | 6,742 | 6,720 | -22 | Loaded only before a delegate spawn |
 
 The startup cost decreases by the removed CGPT3 trigger keyword in the skill-catalog description. The Muse Spark 1.2 Contributor thinking-level rationale and the reordered A backup map remain progressively disclosed in the skill and spawn reference.
+
+## 2026-08-21 delegated native-extension attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are the `HEAD` revision. Tool values count the registered description, prompt snippet, prompt guidelines, and compact parameter schema without provider-specific framing.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,582 | 2,623 | +41 | Always loaded through the context-file block |
+| `delegated-pi-loop` skill description | 91 | 0 | -91 | Removed from the skill catalog |
+| `delegated-pi-loop/SKILL.md` | 3,598 | 0 | Removed | Retired on-demand runtime body |
+| `references/prompt-contracts.md` | 6,720 | 0 | Removed | Retired on-demand spawn reference |
+| `delegate_run` description | 0 | 48 | +48 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 0 | 13 | +13 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 0 | 255 | +255 | Included while the tool is active |
+| `delegate_run` compact parameter schema | 0 | 200 | +200 | Serialized as an active provider tool schema |
+
+The directly attributed always-loaded surfaces move by approximately +466 local tokens before provider framing: +41 global instructions, -91 skill catalog, and +516 custom tool metadata/schema. The extension replaces 10,318 on-demand skill/reference tokens with executable TypeScript that is not sent to the model. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

@@ -6,11 +6,11 @@ Use this Skill Maintenance Doc for Custom Local Skills whose source of truth is 
 
 - Any new custom Local Skill with no dedicated upstream source.
 - `directus-browser` is a custom Local Skill with its own update process in `directus-browser-update-process.md`.
-- `delegated-pi-loop` is a custom Local Skill with its own update process in `delegated-pi-loop-update-process.md`.
 
 Retired custom skills:
 
 - `context-watcher`: retired during the old pasted-skills re-setup. Do not restore unless the user explicitly asks for a broad orchestration runtime skill again.
+- `delegated-pi-loop`: replaced by the native TypeScript `delegate_run` extension. Maintain it through `delegated-pi-loop-update-process.md`; do not restore the runtime skill unless explicitly requested.
 - `codegraph`: removed as a standalone Local Skill. CodeGraph remains available through Pi's native graph-first tools and global/project guidance.
 - `edge-case-analysis`: removed during the skill slimming pass because the base model can perform this generic reasoning workflow without a runtime skill.
 - `codebase-memory-mcp`: replaced by CodeGraph. See `../adr/0002-codegraph-replaces-codebase-memory-mcp.md`.

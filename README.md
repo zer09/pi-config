@@ -82,7 +82,7 @@ It defines:
 - preferred file-reading and file-editing behavior
 - Python tooling defaults around `uv`, `ruff`, and `ty`
 - tool routing for CodeGraph, Context Mode, GitHub CLI, direct shell, and native file tools
-- delegated multi-provider Pi or Claude Code orchestration with bounded pre-tool fallback, fresh role isolation, neutral review, and one shared-tree mutator at a time
+- native delegated multi-provider Pi or Claude Code orchestration with bounded pre-tool fallback, fresh role isolation, neutral review, live event status, and one shared-tree mutator at a time
 
 Project-local `AGENTS.md` or `CLAUDE.md` files may add more specific instructions. The most specific applicable instruction wins.
 
@@ -94,6 +94,7 @@ Local extensions live under `agent/extensions/`.
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `codegraph/`       | Native Pi CodeGraph tools for source exploration, symbol lookup, callers/callees, impact analysis, indexed file discovery, and graph status.          |
 | `context-mode/`    | Lean wrapper around upstream `context-mode`, exposing only `ctx_execute_file`, `ctx_batch_execute`, and `ctx_search` for large-output workflows.      |
+| `delegated-pi-loop/` | Native TypeScript `delegate_run` tool with bounded subprocess supervision, ordered route fallback, role isolation, and live last-event timestamps.   |
 | `web-search/`      | Local Gemini + Exa grounded search extension exposing `web_search` and `fetch_contents`.                                                              |
 | `footer/`          | Custom compact Pi TUI footer with git state, cwd, extension status, prompt timer, token/context usage, model, thinking glyph, and Fastlane indicator. |
 | `fastlane/`        | Session toggle for eligible Codex Fast mode via `/fastlane`; publishes active state consumed by `footer`.                                             |
@@ -142,7 +143,7 @@ Important skill groups include:
 - Python tooling skills for `uv`, `ruff`, and `ty`
 - database skills for Postgres and MySQL
 - Figma and OpenAI-derived skills
-- session handoff, delegated Pi/Z.AI/Claude Code solution-investigation, implementation, and review loops, and local continuity workflows
+- session handoff and local continuity workflows; delegated Pi/Z.AI/Claude Code loops now run through the native TypeScript extension
 - skill creation and maintenance workflows
 
 The canonical skill inventory and keep/slim/remove decisions live in:

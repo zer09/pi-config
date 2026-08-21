@@ -1,0 +1,18 @@
+{
+  "name": "pi-delegated-pi-loop-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Native TypeScript delegated Pi orchestration with bounded route fallback and live event status.",
+  "scripts": {
+    "test": "node --test monitor.test.ts routes.test.ts supervisor.test.ts runner.test.ts"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

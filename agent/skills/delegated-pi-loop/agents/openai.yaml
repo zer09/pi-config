@@ -1,4 +1,0 @@
-interface:
-  display_name: "Delegated Multi-Model Loop"
-  short_description: "Run bounded multi-provider delegate loops"
-  default_prompt: "Use $delegated-pi-loop to orchestrate fresh bounded solution investigation, implementation, verification, remediation, and independent review delegates with safe provider fallback."

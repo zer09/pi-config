@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted for role isolation and safety policy. The Local Skill and Python supervisor mechanism is superseded by ADR 0008.
 
 ## Context
 

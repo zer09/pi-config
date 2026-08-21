@@ -2,6 +2,15 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-21 — Replace delegated-loop skill with native TypeScript extension
+
+- Replaced the `delegated-pi-loop` Local Skill and Python supervisors with the native `agent/extensions/delegated-pi-loop/` extension and `delegate_run` custom tool.
+- Kept fresh Pi/Claude role processes, the A/B/C route maps, pre-tool-only fallback, shared deadlines, terminal markers, read-only fingerprints, and one-mutator safety.
+- Added live sanitized progress rendering and an aggregate TUI widget with each delegate's last accepted event, optional tool name, exact UTC receipt time, relative age, phase, route, attempt, and elapsed time.
+- Added parent-session cancellation, process-group cleanup after natural leader exit, child recursion suppression, and a child-side parent watchdog.
+- Retired the runtime skill, updated global routing and maintenance docs, and recorded the architecture change in ADR 0008.
+- Added TypeScript tests for event privacy, timestamps, lifecycle parsing, route policy, catalog fallback, stalls, malformed trailing JSON, terminal cleanup, and descendant cleanup.
+
 ## 2026-08-21 — Replace active A Luna routes with OpenCode Go Muse
 
 - Replaced the active A primary for both conditional solution investigation and independent review: `opencode-go/muse-spark-1.2-contributor:xhigh` replaces `openai-codex-cgpt3/gpt-5.6-luna:max` in the role table, route paragraphs, and both A spawn commands with updated provider, model, thinking, and labels.

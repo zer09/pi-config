@@ -87,7 +87,7 @@ Installing a new skill means:
 - `crit-update-process.md`: update workflow for the local Crit review-loop and Crit CLI skills.
 - `custom-local-skills-update-process.md`: update workflow for custom Local Skills and retired notes for the former context-watcher/codegraph runtime skills.
 - `directus-browser-update-process.md`: update workflow for the custom Directus Studio browser-operation skill.
-- `delegated-pi-loop-update-process.md`: update workflow for the custom bounded, fresh-session multi-provider Pi and Claude Code solution-investigation, implementation, verification, remediation, and independent-review orchestrator.
+- `delegated-pi-loop-update-process.md`: native TypeScript delegated Pi extension maintenance workflow and retired-skill migration notes.
 - `firebase-skills-update-process.md`: update workflow for Firebase and Genkit skills.
 - `gh-cli-update-process.md`: update workflow for the generated GitHub CLI skill and its command references.
 - `grill-with-docs-usage.md`: usage reference for initializing CONTEXT.md and applying ADR guidance in other repos.
@@ -109,6 +109,7 @@ These runtime skills were removed during the skill slimming pass because their w
 
 - `agentmemory`
 - `context-watcher`
+- `delegated-pi-loop` (replaced by the native TypeScript `delegate_run` extension)
 - `context7-cli`
 - Chrome DevTools MCP skill group: `a11y-debugging`, `chrome-devtools`, `chrome-devtools-cli`, `debug-optimize-lcp`, `memory-leak-debugging`, `troubleshooting`
 - `edge-case-analysis`

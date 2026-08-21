@@ -100,15 +100,16 @@ Use these rules when the user says that an explanation did not land or asks for 
 
 ## Delegated implementation and review
 
-- Load and follow the `delegated-pi-loop` skill when a task requires delegated investigation, implementation, review, verification, or remediation.
-- Treat the skill as the source of truth for provider routes, model defaults, deadlines, role separation, and terminal result contracts.
+- Use the native `delegate_run` tool when a task requires delegated investigation, implementation, review, verification, or remediation.
+- Treat the delegated Pi extension as the source of truth for provider routes, model defaults, deadlines, role separation, live event status, and terminal result contracts.
 - Keep the current Pi session as the sole orchestrator.
 - Do not permit delegates to start other agent sessions unless the user explicitly authorizes recursive delegation.
-- Use fresh delegates and the supervisor required by the skill.
-- Run only one mutating delegate at a time.
+- Use fresh delegates for every assigned role.
+- Run the solution A/B/C and review A/B/C read-only gates concurrently; each gate requires all three completed reports.
+- Verify solution-investigator evidence before finalizing the implementation contract.
+- Run only one implementation, remediation, or finding-verification delegate at a time.
 - Do not edit files while a mutating delegate runs.
-- Verify the working tree before and after each read-only delegate.
-- Treat unexpected mutation by a read-only delegate as a failed delegation.
+- Treat a `delegate_run` state other than `completed`, including a read-only tree mutation, as a failed delegation.
 - Use project-specific execution guides and role templates when they exist.
 - Do not stage, commit, push, or mutate hosted services without separate authorization.
 
