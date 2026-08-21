@@ -5,6 +5,7 @@ export const DELEGATE_ROLES = [
   "solution-b",
   "solution-c",
   "solution-d",
+  "oracle",
   "implementation",
   "review-a",
   "review-b",
@@ -193,8 +194,8 @@ export interface ExtensionContext {
   readonly cwd: string;
   readonly mode?: string;
   readonly hasUI?: boolean;
-  /** Parent session's active model; supplies the currently selected provider. */
-  readonly model?: { readonly provider: string };
+  /** Parent session's active model; supplies the selected provider and model id. */
+  readonly model?: { readonly provider: string; readonly id?: string };
   readonly ui?: {
     setWidget(
       id: string,
@@ -249,7 +250,9 @@ export interface RunOptions {
   readonly signal?: AbortSignal;
   /** Parent session's currently selected provider, from native extension context. */
   readonly parentProvider?: string;
-  /** Deterministic injection point for the D-role random primary selection. */
+  /** Parent session's currently selected model id, from native extension context. */
+  readonly parentModelId?: string;
+  /** Deterministic injection point for the D and oracle random primary selection. */
   readonly random?: () => number;
   readonly onProgress?: (progress: DelegateProgress) => void;
   readonly timeoutMs?: number;

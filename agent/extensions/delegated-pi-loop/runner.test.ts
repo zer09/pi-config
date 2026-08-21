@@ -238,6 +238,117 @@ test("D inherits the parent's eligible provider as its primary", async () => {
   await finalizeDelegateRun(result);
 });
 
+test("oracle records its fallback chain and stays read-only through fingerprints", async () => {
+  const fixture = await fakePi(
+    ["openai-codex/gpt-5.6-sol"],
+    { "openai-codex/gpt-5.6-sol": "complete" },
+  );
+  await execFileAsync("git", ["-C", fixture.root, "init", "-q"]);
+  let randomCalls = 0;
+  const result = await runDelegate({
+    role: "oracle",
+    backend: "default",
+    prompt: "Review the draft contract without editing it.",
+    cwd: fixture.root,
+    parentProvider: "cursor",
+    random: () => {
+      randomCalls += 1;
+      return 0.7; // floor(0.7 * 5) = 3 -> openai-codex-cgpt2 primary
+    },
+    piInvocation: fixture.invocation,
+    timeoutMs: 3000,
+    idleWarningMs: 200,
+    idleTimeoutMs: 800,
+    graceMs: 100,
+  });
+  assert.equal(randomCalls, 1);
+  assert.equal(result.label, "oracle");
+  assert.equal(result.state, "completed");
+  assert.equal(result.selectedRoute, "openai-codex/gpt-5.6-sol:high");
+  // The uncatalogued random primary is skipped by catalog preflight; the
+  // remaining canonical routes return through the existing attempt chain.
+  assert.deepEqual(result.attempts.map((attempt) => attempt.route), [
+    "openai-codex-cgpt2/gpt-5.6-sol:high",
+    "openai-codex/gpt-5.6-sol:high",
+  ]);
+  assert.equal(result.attempts[0]?.state, "catalog_unavailable");
+  assert.match(result.report, /Completed on openai-codex\/gpt-5\.6-sol/);
+  // The oracle is read-only: pre/post Git fingerprints are captured and equal.
+  assert.ok(result.fingerprintBefore);
+  assert.ok(result.fingerprintAfter);
+  assert.equal(result.fingerprintBefore?.status, result.fingerprintAfter?.status);
+  const toolResult = await finalizeDelegateRun(result);
+  assert.match(toolResult.content[0]!.text, /## Delegate oracle completed/);
+});
+
+test("a main-Sol parent is rejected before any oracle child spawns on any provider", async () => {
+  const fixture = await fakePi(
+    ["openai-codex/gpt-5.6-sol"],
+    { "openai-codex/gpt-5.6-sol": "complete" },
+  );
+  // The skip fires even though the serving parent provider is oracle-eligible:
+  // detection reads the parent model id only.
+  await assert.rejects(
+    () => runDelegate({
+      role: "oracle",
+      backend: "default",
+      prompt: "Review only.",
+      cwd: fixture.root,
+      parentProvider: "openai-codex",
+      parentModelId: "gpt-5.6-sol",
+      piInvocation: fixture.invocation,
+      timeoutMs: 3000,
+      idleWarningMs: 200,
+      idleTimeoutMs: 800,
+      graceMs: 100,
+    }),
+    (error: unknown) => {
+      assert.match((error as Error).message, /Skip the oracle role.*gpt-5\.6-sol.*finalize the solution contract directly/);
+      return true;
+    },
+  );
+  // A non-Sol parent model proceeds through the same invocation.
+  const allowed = await runDelegate({
+    role: "oracle",
+    backend: "default",
+    prompt: "Review only.",
+    cwd: fixture.root,
+    parentProvider: "openai-codex",
+    parentModelId: "gpt-5.5",
+    piInvocation: fixture.invocation,
+    timeoutMs: 3000,
+    idleWarningMs: 200,
+    idleTimeoutMs: 800,
+    graceMs: 100,
+  });
+  assert.equal(allowed.state, "completed");
+  await finalizeDelegateRun(allowed);
+});
+
+test("an explicit oracle backend is rejected before any child spawns", async () => {
+  const fixture = await fakePi(
+    ["zai/glm-5.3", "openai-codex/gpt-5.6-sol"],
+    { "zai/glm-5.3": "complete", "openai-codex/gpt-5.6-sol": "complete" },
+  );
+  for (const backend of ["zai", "claude"] as const) {
+    await assert.rejects(
+      () => runDelegate({
+        role: "oracle",
+        backend,
+        prompt: "Review only.",
+        cwd: fixture.root,
+        parentProvider: "zai",
+        piInvocation: fixture.invocation,
+        timeoutMs: 3000,
+        idleWarningMs: 200,
+        idleTimeoutMs: 800,
+        graceMs: 100,
+      }),
+      new RegExp(`backend=${backend} must not replace gpt-5\\.6-sol`),
+    );
+  }
+});
+
 test("invalidates a read-only delegate that changes the Git tree", async () => {
   const fixture = await fakePi(
     ["opencode-go/muse-spark-1.2-contributor"],

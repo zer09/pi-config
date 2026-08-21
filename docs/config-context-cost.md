@@ -56,6 +56,8 @@ Delegated C-route Ox update: 2026-08-21 (replaced the C HY3/high primary with Op
 
 Delegated automatic-trigger update: 2026-08-21 (made `delegate_run` automatic for repository changes with an explicit opt-out, added a trivial-only direct-edit exception plus mandatory implementation delegation for small tasks, slimmed the global section, and removed provider route details from tool guidelines; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated Sol-oracle update: 2026-08-21 (added the conditional read-only advisory `oracle` role on `gpt-5.6-sol`/high across the five D-eligible providers with inherited-or-random primary selection, model-id-based main-Sol skip, pre-spawn backend rejection, and oracle orchestration guidelines; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -490,6 +492,21 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | **Tool total** | **566** | **593** | **+27** | Before provider-specific framing |
 
 The directly attributed always-loaded surfaces shrink by a net 17 local tokens: the slim `## Delegated work` section removes 44 tokens of global instructions (12 rules to 7, no provider route maps), while the tool guidelines drop the role-D provider-route detail and add the automatic trigger, the trivial-only direct-edit exception, the mandatory implementation delegate for small tasks, the diff-inspection precondition, the confirmation-gated remediation wording, and the repeat-gate clause for a net +27 tokens. Provider/model route behavior remains executable TypeScript in `routes.ts` and is not sent to the model. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-21 delegated Sol-oracle attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are the `HEAD` revision of each file re-measured with the same serialization as the tables above: guidelines join with newlines and the parameter schema uses plain `JSON.stringify` separators.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,637 | 2,695 | +58 | Always loaded through the context-file block |
+| `delegate_run` description | 75 | 75 | 0 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 334 | 509 | +175 | Included while the tool is active |
+| `delegate_run` parameter schema | 171 | 173 | +2 | Serialized as an active provider tool schema |
+| **Tool total** | **593** | **770** | **+177** | Before provider-specific framing |
+
+The always-loaded increase is +58 global instructions for the route-free oracle workflow responsibility and +177 tool metadata: the three new oracle guidelines plus the small-task, sequential-role, and backend clauses (10 to 13 guidelines, +175) and the `oracle` enum value in the role schema (+2). The oracle eligible-provider chain, `gpt-5.6-sol`/high routing, main-Sol skip detection, and backend rejection are executable TypeScript in `routes.ts` and are not sent to the model. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

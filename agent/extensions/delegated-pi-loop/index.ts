@@ -93,13 +93,16 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
     promptSnippet: "Run one fresh bounded delegate with role-specific routing and live event status",
     promptGuidelines: [
       "Use delegate_run automatically for repository changes unless the user explicitly opts out; only a truly trivial edit, such as one typo with no behavior change, may be implemented directly by the parent.",
-      "A small task with an accepted plan or an obvious established pattern skips the solution-investigation gate and still runs exactly one implementation delegate.",
+      "A small task with an accepted plan or an obvious established pattern skips the solution-investigation gate and the oracle role and still runs exactly one implementation delegate.",
       "When no accepted solution contract exists and the root cause, architecture, or approach requires investigation, call delegate_run for solution-a, solution-b, solution-c, and solution-d concurrently with the same neutral assignment; all four must complete before synthesis.",
+      "After a required solution gate, call delegate_run for exactly one fresh read-only oracle review of the draft solution contract, and only when the parent session's current model is not exactly gpt-5.6-sol; when it is gpt-5.6-sol, skip the oracle and finalize the solution contract directly.",
+      "Give the oracle role the neutral problem, governing documents, verified evidence, the draft solution contract, constraints, and unresolved uncertainties; do not give it raw investigator reports or the parent's synthesis rationale.",
+      "Treat the oracle as advisory, not the final authority: verify its VALID or REVISE analysis like any other evidence, revise the draft contract when warranted, finalize it, and run no automatic oracle loop; a non-completed oracle run blocks implementation.",
       "The parent Pi agent must verify investigator evidence and finalize the solution contract before calling delegate_run for implementation.",
-      "Call delegate_run for only one implementation or remediation role at a time, and do not edit the working tree while that delegate runs.",
+      "Call delegate_run for only one implementation, remediation, or oracle role at a time, and do not edit the working tree while that delegate runs.",
       "After inspecting the implementation delegate's diff and evidence, call delegate_run for review-a, review-b, review-c, and review-d concurrently with the same neutral review scope; all four must complete.",
       "Process each blocking review finding through a fresh delegate_run verification role, send only verification-confirmed findings to one focused remediation role, then run a fresh four-reviewer gate until no blocking findings remain.",
-      "Use delegate_run backend=default unless the user or project explicitly selects Z.AI or Claude Code for the assigned role; backend selection never changes role mutation permissions.",
+      "Use delegate_run backend=default unless the user or project explicitly selects Z.AI or Claude Code for the assigned role; backend selection never changes role mutation permissions, and backend=zai or backend=claude is invalid for the oracle role.",
       "Treat every delegate_run state other than completed as a failed delegation reported as a tool error with sanitized status fields, and do not retry outside the tool's bounded pre-tool route fallback without user-authorized diagnosis.",
       "Do not stage, commit, push, deploy, or mutate hosted services because a delegate completed; those transitions require separate explicit authorization.",
     ],
@@ -119,9 +122,11 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
           backend,
           prompt: params.prompt,
           cwd,
-          // D inherits the parent's selected provider through native
-          // extension context, never by inspecting the environment.
+          // D and the oracle inherit the parent's selected provider through
+          // native extension context, never by inspecting the environment;
+          // the oracle main-Sol skip likewise reads the parent model id.
           parentProvider: ctx.model?.provider,
+          parentModelId: ctx.model?.id,
           signal: runSignal,
           onProgress: (progress) => {
             onUpdate?.(partialResult(progress));

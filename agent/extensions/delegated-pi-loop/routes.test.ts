@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildDelegatePrompt, roleIsExclusive, roleIsReadOnly, routeKey, routesFor } from "./routes.ts";
+import { buildDelegatePrompt, oracleGuard, roleIsExclusive, roleIsReadOnly, routeKey, routesFor } from "./routes.ts";
+import { DELEGATE_ROLES } from "./types.ts";
 
 test("preserves ordered A, B, and C default route maps", () => {
   assert.deepEqual(routesFor("solution-a", "default").map(routeKey), [
@@ -109,11 +110,129 @@ test("classifies role permissions and sequential roles", () => {
   assert.equal(roleIsReadOnly("review-c"), true);
   assert.equal(roleIsReadOnly("review-d"), true);
   assert.equal(roleIsReadOnly("verification"), true);
+  assert.equal(roleIsReadOnly("oracle"), true);
   assert.equal(roleIsReadOnly("implementation"), false);
   assert.equal(roleIsExclusive("verification"), true);
   assert.equal(roleIsExclusive("implementation"), true);
+  assert.equal(roleIsExclusive("oracle"), true);
   assert.equal(roleIsExclusive("review-a"), false);
   assert.equal(roleIsExclusive("review-d"), false);
+});
+
+test("exposes the oracle role in the model-visible role enum", () => {
+  assert.ok(DELEGATE_ROLES.includes("oracle"));
+  assert.equal(DELEGATE_ROLES.filter((role) => role === "oracle").length, 1);
+});
+
+test("oracle uses exactly gpt-5.6-sol at high across five D-eligible providers", () => {
+  const routes = routesFor("oracle", "default", { parentProvider: "openai-codex" });
+  assert.equal(routes.length, 5);
+  for (const route of routes) {
+    if (route.kind !== "pi") assert.fail("oracle routes must be Pi routes");
+    assert.equal(route.model, "gpt-5.6-sol");
+    assert.equal(route.thinking, "high");
+  }
+  assert.deepEqual(routes.map(routeKey), [
+    "openai-codex/gpt-5.6-sol:high",
+    "openai-codex-zahlo/gpt-5.6-sol:high",
+    "openai-codex-cgpt1/gpt-5.6-sol:high",
+    "openai-codex-cgpt2/gpt-5.6-sol:high",
+    "openai-codex-cgpt3/gpt-5.6-sol:high",
+  ]);
+});
+
+test("oracle inherits an eligible parent provider and never consults randomness", () => {
+  let randomCalls = 0;
+  const routes = routesFor("oracle", "default", {
+    parentProvider: "openai-codex-cgpt2",
+    random: () => {
+      randomCalls += 1;
+      return 0.99;
+    },
+  });
+  assert.equal(randomCalls, 0);
+  assert.deepEqual(routes.map(routeKey), [
+    "openai-codex-cgpt2/gpt-5.6-sol:high",
+    "openai-codex/gpt-5.6-sol:high",
+    "openai-codex-zahlo/gpt-5.6-sol:high",
+    "openai-codex-cgpt1/gpt-5.6-sol:high",
+    "openai-codex-cgpt3/gpt-5.6-sol:high",
+  ]);
+});
+
+test("oracle draws one random eligible primary and keeps the rest canonical", () => {
+  let randomCalls = 0;
+  const routes = routesFor("oracle", "default", {
+    parentProvider: "zai",
+    random: () => {
+      randomCalls += 1;
+      return 0.3;
+    },
+  });
+  assert.equal(randomCalls, 1);
+  assert.deepEqual(routes.map(routeKey), [
+    "openai-codex-zahlo/gpt-5.6-sol:high",
+    "openai-codex/gpt-5.6-sol:high",
+    "openai-codex-cgpt1/gpt-5.6-sol:high",
+    "openai-codex-cgpt2/gpt-5.6-sol:high",
+    "openai-codex-cgpt3/gpt-5.6-sol:high",
+  ]);
+  const otherRoutes = routesFor("oracle", "default", { parentProvider: "zai", random: () => 0.99 });
+  assert.deepEqual(otherRoutes.map(routeKey), [
+    "openai-codex-cgpt3/gpt-5.6-sol:high",
+    "openai-codex/gpt-5.6-sol:high",
+    "openai-codex-zahlo/gpt-5.6-sol:high",
+    "openai-codex-cgpt1/gpt-5.6-sol:high",
+    "openai-codex-cgpt2/gpt-5.6-sol:high",
+  ]);
+});
+
+test("oracle excludes Cursor, AgentRouter, SeekAI, and every other provider", () => {
+  for (const ineligibleParent of ["cursor", "agentrouter", "seekai", "zai", "opencode-go", "gorouter", "tabitoken"]) {
+    const routes = routesFor("oracle", "default", { parentProvider: ineligibleParent, random: () => 0 });
+    assert.equal(routes.length, 5);
+    for (const route of routes) {
+      if (route.kind !== "pi") assert.fail("oracle routes must be Pi routes");
+      assert.match(route.provider, /^openai-codex(-zahlo|-cgpt[123])?$/);
+    }
+  }
+  // An ineligible parent provider never becomes the oracle primary.
+  const routes = routesFor("oracle", "default", { parentProvider: "cursor", random: () => 0 });
+  assert.equal(routeKey(routes[0]!), "openai-codex/gpt-5.6-sol:high");
+});
+
+test("oracle rejects explicit backend overrides instead of silently replacing Sol", () => {
+  assert.throws(() => routesFor("oracle", "zai"), /oracle role requires default Pi routing.*zai.*gpt-5\.6-sol/);
+  assert.throws(() => routesFor("oracle", "claude"), /oracle role requires default Pi routing.*claude.*gpt-5\.6-sol/);
+  // Non-oracle roles keep their explicit backend overrides.
+  assert.equal(routeKey(routesFor("implementation", "zai")[0]!), "zai/glm-5.3:max");
+});
+
+test("main-Sol skip detection is exact and model-id based across providers", () => {
+  // Exact model id triggers the skip regardless of the serving provider.
+  assert.match(oracleGuard("oracle", "default", "gpt-5.6-sol")?.message ?? "", /Skip the oracle role/);
+  // Lookalike and sibling model ids never trigger the skip.
+  assert.equal(oracleGuard("oracle", "default", "gpt-5.6-sol-latest"), undefined);
+  assert.equal(oracleGuard("oracle", "default", "gpt-5.5"), undefined);
+  assert.equal(oracleGuard("oracle", "default", undefined), undefined);
+  assert.equal(oracleGuard("oracle", "default", "claude-opus-5"), undefined);
+  // The guard only constrains the oracle role.
+  assert.equal(oracleGuard("verification", "default", "gpt-5.6-sol"), undefined);
+  // Non-default oracle backends are rejected before spawning.
+  assert.match(oracleGuard("oracle", "zai", undefined)?.message ?? "", /backend=zai must not replace gpt-5\.6-sol/);
+  assert.match(oracleGuard("oracle", "claude", "gpt-5.5")?.message ?? "", /backend=claude must not replace gpt-5\.6-sol/);
+});
+
+test("builds the oracle role contract with verdict and evidence requirements", () => {
+  const prompt = buildDelegatePrompt("oracle", "/tmp/project", "Review the draft contract.");
+  assert.match(prompt, /read-only advisory solution oracle/);
+  assert.match(prompt, /Do not edit files, mutate Git, write to hosted services, implement, or start delegates/);
+  assert.match(prompt, /exactly one verdict, VALID or REVISE/);
+  assert.match(prompt, /correctness analysis, missing invariants and risks/);
+  assert.match(prompt, /exact path:line evidence/);
+  assert.match(prompt, /advisory, not the final authority/);
+  assert.match(prompt, /DELEGATE_RESULT: COMPLETED/);
+  assert.match(prompt, /Review the draft contract\./);
 });
 
 test("builds a non-recursive prompt with terminal contract", () => {

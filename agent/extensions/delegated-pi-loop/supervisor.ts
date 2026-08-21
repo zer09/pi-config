@@ -5,7 +5,7 @@ import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { atomicWriteJson, atomicWriteText } from "./artifacts.ts";
 import { parseDelegateOutcome, PiJsonMonitor } from "./monitor.ts";
-import { routeKey } from "./routes.ts";
+import { roleIsReadOnly, routeKey } from "./routes.ts";
 import type {
   AttemptStatus,
   ClaudeRoute,
@@ -424,7 +424,10 @@ export async function superviseClaude(options: SuperviseClaudeOptions): Promise<
   let lastEvent = "process_start";
   let lastEventAt = startedAt;
   const stderrStream = createWriteStream(stderrPath, { flags: "wx", mode: 0o600 });
-  const readOnly = options.role.startsWith("solution-") || options.role.startsWith("review-") || options.role === "verification";
+  // One authoritative predicate with runner fingerprints; this also keeps a
+  // defensively misrouted oracle read-only even though routes reject a
+  // Claude-backed oracle before spawn.
+  const readOnly = roleIsReadOnly(options.role);
   const args = [
     "--print",
     "--model",

@@ -30,7 +30,7 @@ The extension runs as part of the parent Pi process, like CodeGraph and Context 
 | `agent/extensions/delegated-pi-loop/render.ts` | Compact and expanded tool rendering with last event, UTC receipt time, and the TUI-only diagnostic path. |
 | `agent/extensions/delegated-pi-loop/artifacts.ts` | Private temporary artifacts, atomic writes, best-effort directory removal, fingerprints, and bounded report output. |
 | `agent/extensions/delegated-pi-loop/types.ts` | Extension, route, progress, status, and result contracts. |
-| `agent/extensions/delegated-pi-loop/*.test.ts` | Monitor, route, supervisor, cleanup, fallback, result Markdown, diagnostics, and integration regressions. |
+| `agent/extensions/delegated-pi-loop/*.test.ts` | Monitor, route, manager concurrency, supervisor, cleanup, fallback, result Markdown, diagnostics, and integration regressions. |
 | `docs/skills/delegated-pi-loop-update-process.md` | This maintenance and validation contract. |
 
 The retired `agent/skills/delegated-pi-loop/` directory must not be restored unless the user explicitly requests a separate skill layer.
@@ -113,12 +113,13 @@ Prose, multi-section reports, arbitrary missing markers, and every attempt that 
 | Solution or review B | `opencode-go/deepseek-v4-flash:max`, then SeekAI DeepSeek V4 Flash/max, AgentRouter Opus 5/max, Tabitoken Opus 5 Thinking/max, GoRouter Opus 5 Thinking/high. |
 | Solution or review C | `opencode-go/ox-alpha-free:max`, then AgentRouter Opus 5/max, Tabitoken Opus 5 Thinking/max, SeekAI Opus 5/max, GoRouter Opus 5 Thinking/high. |
 | Solution or review D | `gpt-5.5` at `medium` on exactly one ordered member chain of the five eligible providers `openai-codex`, `openai-codex-zahlo`, `openai-codex-cgpt1`, `openai-codex-cgpt2`, `openai-codex-cgpt3`. The primary is the parent session's currently selected provider (read from native extension context, never environment variables) when that provider is eligible; otherwise one randomly selected eligible provider. The remaining four follow in the stable canonical order listed here. Cursor is excluded from D by definition. The selection happens exactly once per `delegate_run` invocation, and the ordered attempts return through the existing chain result machinery. |
+| Solution oracle | `gpt-5.6-sol` at `high` on exactly one ordered member chain of the same five eligible providers with the same inherited-eligible-or-one-random primary selection and canonical fallback order as D. The oracle runs exactly once against the synthesized draft solution contract after a required solution gate. Main-Sol skip detection is model-id based, not provider based: the parent model id `gpt-5.6-sol` skips the oracle on any parent provider, and the check reads `ctx.model.id` from native extension context. Explicit backend=zai or backend=claude is invalid for the oracle and is rejected before spawning. |
 | Implementation or remediation | `zai/glm-5.3:max`. |
 | Finding verification | `openai-codex/gpt-5.6-sol:high`. |
 | Explicit Z.AI alternative | `zai/glm-5.3:max` with assigned-role permissions. |
 | Explicit Claude Code alternative | `claude-opus-5`, effort `medium`, with assigned-role permissions. |
 
-AgentRouter, Tabitoken, SeekAI, and GoRouter remain backup-only in default A/B/C maps. Muse Spark uses `xhigh` because its `max` map is null. Ox Alpha Free maps `max` to `max`, so the C primary runs at `max` natively. D routes never leave the five eligible OpenAI Codex alias providers.
+AgentRouter, Tabitoken, SeekAI, and GoRouter remain backup-only in default A/B/C maps. Muse Spark uses `xhigh` because its `max` map is null. Ox Alpha Free maps `max` to `max`, so the C primary runs at `max` natively. D and oracle routes never leave the five eligible OpenAI Codex alias providers.
 
 ### Orchestration gates
 
@@ -127,15 +128,19 @@ AgentRouter, Tabitoken, SeekAI, and GoRouter remain backup-only in default A/B/C
 3. When no accepted solution contract exists and the root cause, architecture, or approach requires investigation, call solution A, B, C, and D concurrently with the same neutral assignment.
 4. Require all four reports. One, two, or three reports cannot complete the gate.
 5. Verify material citations and architecture claims before finalizing the implementation contract.
-6. Stop for user input on material architecture ambiguity.
-7. Run one implementation or remediation delegate at a time.
-8. Do not let the parent edit the shared tree while a mutating delegate runs.
-9. After implementation or remediation, the parent inspects the delegate's diff and evidence, then calls fresh review A, B, C, and D concurrently with the same neutral review scope.
-10. Verify every blocking finding in a fresh sequential verification role before remediation.
-11. Send confirmed findings to one remediation delegate, then repeat the fresh four-reviewer gate; verification, remediation, and review repeat until no blocking findings remain.
-12. Solution investigators cannot act as implementers or later reviewers.
-13. Read-only roles receive pre/post Git status plus tracked, staged, and path-safe untracked-content hashes. Any detected tree change becomes `read_only_mutation`.
-14. Git transitions and hosted-service writes always require separate explicit authorization.
+6. After a required solution gate, run exactly one fresh read-only oracle delegate against the synthesized draft solution contract before implementation.
+7. Skip the oracle when the parent session's current model id is exactly `gpt-5.6-sol` on any provider; finalize the solution contract directly. A small task that skips solution investigation also skips the oracle.
+8. Give the oracle the neutral problem, governing documents, verified evidence, the draft solution contract, constraints, and unresolved uncertainties; never raw investigator reports or the parent's synthesis rationale.
+9. Treat the oracle as advisory, not the final authority: the parent verifies `VALID` or `REVISE` claims, revises the draft when warranted, finalizes the contract, and starts no automatic oracle loop. A non-completed oracle run blocks implementation.
+10. Stop for user input on material architecture ambiguity.
+11. Run one implementation, remediation, or oracle delegate at a time.
+12. Do not let the parent edit the shared tree while a mutating delegate runs.
+13. After implementation or remediation, the parent inspects the delegate's diff and evidence, then calls fresh review A, B, C, and D concurrently with the same neutral review scope.
+14. Verify every blocking finding in a fresh sequential verification role before remediation.
+15. Send confirmed findings to one remediation delegate, then repeat the fresh four-reviewer gate; verification, remediation, and review repeat until no blocking findings remain.
+16. Solution investigators cannot act as implementers or later reviewers. The oracle likewise never implements, reviews, or verifies.
+17. Read-only roles (solution, review, verification, oracle) receive pre/post Git status plus tracked, staged, and path-safe untracked-content hashes. Any detected tree change becomes `read_only_mutation`.
+18. Git transitions and hosted-service writes always require separate explicit authorization.
 
 ## Update workflow
 
@@ -181,6 +186,10 @@ pi --list-models agentrouter/claude-opus-5
 pi --list-models gorouter/claude-opus-5-thinking
 pi --list-models zai/glm-5.3
 pi --list-models openai-codex/gpt-5.6-sol
+pi --list-models openai-codex-zahlo/gpt-5.6-sol
+pi --list-models openai-codex-cgpt1/gpt-5.6-sol
+pi --list-models openai-codex-cgpt2/gpt-5.6-sol
+pi --list-models openai-codex-cgpt3/gpt-5.6-sol
 pi --list-models openai-codex/gpt-5.5
 pi --list-models openai-codex-zahlo/gpt-5.5
 pi --list-models openai-codex-cgpt1/gpt-5.5
@@ -198,6 +207,7 @@ Also verify:
 - partial trailing JSON fails closed;
 - fallback never occurs after tool execution or a terminal marker;
 - abort during catalog preflight stops the chain;
+- a main-Sol parent model and an explicit oracle backend are both rejected before any oracle child spawns, with a bounded tool error and no fabricated oracle report;
 - child Pi does not register `delegate_run` recursively;
 - read-only fingerprint changes invalidate the result;
 - no delegate command line or credential value is persisted;

@@ -10,7 +10,7 @@ import {
   fingerprintsEqual,
   readPrivateText,
 } from "./artifacts.ts";
-import { buildDelegatePrompt, roleIsReadOnly, roleLabel, routeKey, routesFor } from "./routes.ts";
+import { buildDelegatePrompt, oracleGuard, roleIsReadOnly, roleLabel, routeKey, routesFor } from "./routes.ts";
 import {
   DEFAULT_GRACE_MS,
   DEFAULT_IDLE_TIMEOUT_MS,
@@ -145,6 +145,10 @@ function initialProgress(label: string, options: RunOptions): DelegateProgress {
 }
 
 export async function runDelegate(options: RunOptions): Promise<DelegateRunResult> {
+  // Defensive oracle gates run before any artifact or child process exists, so
+  // a main-Sol parent or an explicit oracle backend never spawns a delegate.
+  const guard = oracleGuard(options.role, options.backend, options.parentModelId);
+  if (guard) throw guard;
   const backend = options.backend;
   const label = roleLabel(options.role, backend);
   const started = performance.now();

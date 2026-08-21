@@ -13,7 +13,7 @@ export class DelegateManager {
   begin(id: string, role: DelegateRole): AbortSignal {
     const exclusiveActive = [...this.active.values()].some((run) => roleIsExclusive(run.role));
     if (exclusiveActive || (roleIsExclusive(role) && this.active.size > 0)) {
-      throw new Error("An implementation, remediation, or verification delegate must run sequentially");
+      throw new Error("An implementation, remediation, verification, or oracle delegate must run sequentially");
     }
     const controller = new AbortController();
     this.active.set(id, { id, role, controller });

@@ -43,37 +43,55 @@ const D_ELIGIBLE_PROVIDERS: readonly string[] = [
 const D_MODEL = "gpt-5.5";
 const D_THINKING: ThinkingLevel = "medium";
 
+// The oracle uses exactly the five D-eligible providers in the same canonical
+// order. Cursor, AgentRouter, SeekAI, and every other provider are excluded.
+const ORACLE_ELIGIBLE_PROVIDERS: readonly string[] = D_ELIGIBLE_PROVIDERS;
+export const ORACLE_MODEL = "gpt-5.6-sol";
+const ORACLE_THINKING: ThinkingLevel = "high";
+
 export interface RoutesOptions {
   /** Parent session's currently selected provider from native extension context. */
   readonly parentProvider?: string;
-  /** Injected randomness so tests pin the D primary without flakiness. */
+  /** Injected randomness so tests pin the D and oracle primary without flakiness. */
   readonly random?: () => number;
 }
 
-function dRoute(provider: string): PiRoute {
-  return { kind: "pi", provider, model: D_MODEL, thinking: D_THINKING };
-}
-
-/**
- * D's ordered chain: the primary is the inherited parent provider when it is
- * eligible, otherwise one random eligible provider; the other four follow in
- * canonical order. Selection happens once per call, so one delegate_run
- * invocation yields exactly one random draw.
- */
-function dRoutes(options: RoutesOptions): readonly PiRoute[] {
-  const eligible = D_ELIGIBLE_PROVIDERS;
+function eligiblePrimary(eligible: readonly string[], options: RoutesOptions): string {
   const inherited = options.parentProvider !== undefined && eligible.includes(options.parentProvider)
     ? options.parentProvider
     : undefined;
-  let primary = inherited;
-  if (primary === undefined) {
-    // Clamp keeps a misbehaving random source inside the eligible set.
-    const value = options.random?.() ?? Math.random();
-    const index = Math.max(0, Math.min(eligible.length - 1, Math.floor(value * eligible.length)));
-    primary = eligible[index]!;
-  }
+  if (inherited !== undefined) return inherited;
+  // Clamp keeps a misbehaving random source inside the eligible set.
+  const value = options.random?.() ?? Math.random();
+  const index = Math.max(0, Math.min(eligible.length - 1, Math.floor(value * eligible.length)));
+  return eligible[index]!;
+}
+
+/**
+ * Shared ordered chain for inherited-or-random provider roles: the primary is
+ * the inherited parent provider when it is eligible, otherwise one random
+ * eligible provider; the remaining providers follow in canonical order.
+ * Selection happens once per call, so one delegate_run invocation yields
+ * exactly one random draw.
+ */
+function eligibleProviderChain(
+  model: string,
+  thinking: ThinkingLevel,
+  eligible: readonly string[],
+  options: RoutesOptions,
+): readonly PiRoute[] {
+  const primary = eligiblePrimary(eligible, options);
   const remaining = eligible.filter((provider) => provider !== primary);
-  return [dRoute(primary), ...remaining.map(dRoute)];
+  const route = (provider: string): PiRoute => ({ kind: "pi", provider, model, thinking });
+  return [route(primary), ...remaining.map(route)];
+}
+
+function dRoutes(options: RoutesOptions): readonly PiRoute[] {
+  return eligibleProviderChain(D_MODEL, D_THINKING, D_ELIGIBLE_PROVIDERS, options);
+}
+
+function oracleRoutes(options: RoutesOptions): readonly PiRoute[] {
+  return eligibleProviderChain(ORACLE_MODEL, ORACLE_THINKING, ORACLE_ELIGIBLE_PROVIDERS, options);
 }
 
 const IMPLEMENTATION_ROUTE: PiRoute = {
@@ -101,6 +119,14 @@ export function routesFor(
   backend: DelegateBackend,
   options: RoutesOptions = {},
 ): readonly DelegateRoute[] {
+  // The oracle must never silently replace Sol with another backend, so its
+  // backend check precedes the explicit-backend overrides.
+  if (role === "oracle") {
+    if (backend !== "default") {
+      throw new Error(`The oracle role requires default Pi routing; backend=${backend} must not replace ${ORACLE_MODEL}`);
+    }
+    return oracleRoutes(options);
+  }
   if (backend === "zai") return [IMPLEMENTATION_ROUTE];
   if (backend === "claude") return [CLAUDE_ROUTE];
 
@@ -118,16 +144,42 @@ export function routeKey(route: DelegateRoute): string {
 }
 
 export function roleIsReadOnly(role: DelegateRole): boolean {
-  return role.startsWith("solution-") || role.startsWith("review-") || role === "verification";
+  return role.startsWith("solution-") || role.startsWith("review-") || role === "verification" || role === "oracle";
 }
 
 export function roleIsExclusive(role: DelegateRole): boolean {
-  return role === "implementation" || role === "remediation" || role === "verification";
+  return role === "implementation" || role === "remediation" || role === "verification" || role === "oracle";
 }
 
 export function roleLabel(role: DelegateRole, backend: DelegateBackend): string {
   const suffix = backend === "default" ? "" : `-${backend}`;
   return `${role}${suffix}`;
+}
+
+/**
+ * Pre-spawn oracle guard, enforced before any artifact or child process:
+ * - main-Sol skip: detection is model-id based, so gpt-5.6-sol on any parent
+ *   provider skips the oracle instead of reviewing itself;
+ * - backend: only default Pi routing may serve the oracle, so explicit Z.AI
+ *   or Claude backends cannot silently replace Sol.
+ * Returning undefined means the run may proceed; the thrown message stays
+ * bounded and model-visible so no fabricated oracle report is produced.
+ */
+export function oracleGuard(
+  role: DelegateRole,
+  backend: DelegateBackend,
+  parentModelId: string | undefined,
+): Error | undefined {
+  if (role !== "oracle") return undefined;
+  if (parentModelId === ORACLE_MODEL) {
+    return new Error(
+      `Skip the oracle role: the parent session already runs ${ORACLE_MODEL}; finalize the solution contract directly`,
+    );
+  }
+  if (backend !== "default") {
+    return new Error(`The oracle role requires default Pi routing; backend=${backend} must not replace ${ORACLE_MODEL}`);
+  }
+  return undefined;
 }
 
 function roleContract(role: DelegateRole): string {
@@ -141,6 +193,13 @@ Support every material claim with exact path:line evidence. Distinguish observed
     return `This is an independent read-only implementation review. Do not edit files, mutate Git, or write to hosted services.
 Remain neutral. Do not infer expected findings. Report a verdict, structured findings, gate evidence, and deferred scope or limits.
 Each finding must include severity, location, evidence, reproduction or interleaving, impact, required contract, and suggested validation.`;
+  }
+
+  if (role === "oracle") {
+    return `This is the read-only advisory solution oracle. Do not edit files, mutate Git, write to hosted services, implement, or start delegates.
+Review the supplied draft solution contract against the neutral problem, governing documents, and verified evidence.
+Report exactly one verdict, VALID or REVISE, with correctness analysis, missing invariants and risks, better alternatives where material, exact path:line evidence, validation changes, and limits.
+The verdict is advisory, not the final authority: the parent verifies oracle claims and owns the final contract.`;
   }
 
   if (role === "verification") {
