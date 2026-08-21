@@ -21,8 +21,8 @@ export function diagnosticsDirectory(): string {
 
 /**
  * Sanitized bounded failure record. Excludes prompts, delegate reports, raw
- * stdout/stderr, tool arguments and results, Git status and fingerprints,
- * credentials, provider bodies, and every file path. Temporary supervision
+ * stdout/stderr, tool arguments and results, Git state, credentials,
+ * provider bodies, and every file path. Temporary supervision
  * artifacts are removed by the caller after this record is persisted.
  */
 export function failureDiagnostic(result: DelegateRunResult): Record<string, unknown> {

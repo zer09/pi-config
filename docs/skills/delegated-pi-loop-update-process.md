@@ -1,6 +1,6 @@
 # Delegated Pi extension update process
 
-Purpose: maintain the native TypeScript `delegate_run` Pi extension that runs inside the parent Pi process and supervises fresh Pi or Claude Code delegates. The extension owns route selection, bounded subprocess lifecycle, private JSON parsing, live last-event timestamps, role isolation, read-only fingerprints, terminal result enforcement, the Markdown tool-result envelope with native error marking, and private failure diagnostics.
+Purpose: maintain the native TypeScript `delegate_run` Pi extension that runs inside the parent Pi process and supervises fresh Pi or Claude Code delegates. The extension owns route selection, bounded subprocess lifecycle, private JSON parsing, live last-event timestamps, role isolation with role-contract read-only enforcement, terminal result enforcement, the Markdown tool-result envelope with native error marking, and private failure diagnostics.
 
 ## Classification and provenance
 
@@ -23,12 +23,12 @@ The extension runs as part of the parent Pi process, like CodeGraph and Context 
 | `agent/extensions/delegated-pi-loop/routes.ts` | Role classification, route maps, prompt contracts, and terminal marker contract. |
 | `agent/extensions/delegated-pi-loop/monitor.ts` | Private Pi JSON lifecycle parsing, sanitized event metadata, terminal report extraction, and availability classification. |
 | `agent/extensions/delegated-pi-loop/supervisor.ts` | Process groups, deadlines, output bounds, environment scrubbing, live progress, artifact status, and Claude plain protocol. |
-| `agent/extensions/delegated-pi-loop/runner.ts` | Catalog preflight, ordered fresh-route fallback, shared deadline, read-only fingerprints, and the in-memory chain result. |
+| `agent/extensions/delegated-pi-loop/runner.ts` | Catalog preflight, ordered fresh-route fallback, shared deadline, and the in-memory chain result. |
 | `agent/extensions/delegated-pi-loop/result.ts` | Model-visible Markdown result builders, terminal marker stripping, the native tool-result error patch, and execute-level finalization (diagnostic persistence, tool-result assembly, artifact cleanup). |
 | `agent/extensions/delegated-pi-loop/diagnostics.ts` | Private sanitized failure diagnostics under `${PI_CODING_AGENT_DIR:-~/.pi/agent}/logs/delegated-pi-loop/` with 0700/0600 permissions. |
 | `agent/extensions/delegated-pi-loop/manager.ts` | Parent-session concurrency guard (exclusive implementation/remediation/oracle, verification-only overlap with a four-verification cap) and cancellation. |
 | `agent/extensions/delegated-pi-loop/render.ts` | Compact and expanded tool rendering with last event, UTC receipt time, and the TUI-only diagnostic path. |
-| `agent/extensions/delegated-pi-loop/artifacts.ts` | Private temporary artifacts, atomic writes, best-effort directory removal, fingerprints, and bounded report output. |
+| `agent/extensions/delegated-pi-loop/artifacts.ts` | Private temporary artifacts, atomic writes, best-effort directory removal, and bounded report output. |
 | `agent/extensions/delegated-pi-loop/types.ts` | Extension, route, progress, status, and result contracts. |
 | `agent/extensions/delegated-pi-loop/*.test.ts` | Monitor, route, manager concurrency, supervisor, cleanup, fallback, result Markdown, diagnostics, and integration regressions. |
 | `docs/skills/delegated-pi-loop-update-process.md` | This maintenance and validation contract. |
@@ -82,7 +82,7 @@ The retired `agent/skills/delegated-pi-loop/` directory must not be restored unl
 2. Successful runs return a minimal status header (label, `completed`, route, elapsed) followed by the delegate's final Markdown body with the validated terminal `DELEGATE_RESULT: COMPLETED` marker stripped. Report, status, artifact, and diagnostic paths never appear in model-visible content.
 3. Unsuccessful runs return a compact sanitized failure Markdown: state, role, backend, selected or final route when present, phase, last sanitized event with optional tool name, exact UTC receipt time, elapsed time, the ordered attempt chain, and one deterministic per-state summary sentence. It excludes reports, raw stdout/stderr, prompts, tool arguments and results, provider response bodies, credentials, and all file paths.
 4. The extension registers a native `tool_result` handler that patches unsuccessful `delegate_run` results to `isError: true` while preserving the returned Markdown content and renderer details. `execute` itself never throws for a supervised failure.
-5. Unsuccessful runs persist one small private diagnostic JSON under `${PI_CODING_AGENT_DIR:-~/.pi/agent}/logs/delegated-pi-loop/` with 0700 directories and 0600 atomic files. It contains only bounded sanitized fields (state, role, backend, routes, times, sanitized progress and attempts, bounded stream errors). It excludes prompts, delegate reports, raw stdout/stderr, tool arguments and results, Git status and fingerprints, credentials, provider bodies, and every file path. The temporary supervision artifact directory is removed after the diagnostic is persisted, so nothing in `/tmp` outlives the run beyond best-effort removal limits.
+5. Unsuccessful runs persist one small private diagnostic JSON under `${PI_CODING_AGENT_DIR:-~/.pi/agent}/logs/delegated-pi-loop/` with 0700 directories and 0600 atomic files. It contains only bounded sanitized fields (state, role, backend, routes, times, sanitized progress and attempts, bounded stream errors). It excludes prompts, delegate reports, raw stdout/stderr, tool arguments and results, Git state, credentials, provider bodies, and every file path. The temporary supervision artifact directory is removed after the diagnostic is persisted, so nothing in `/tmp` outlives the run beyond best-effort removal limits.
 6. The diagnostic path travels only in `details` for the TUI renderer. Successful runs write no diagnostic.
 7. Execute-level finalization awaits `runDelegate`, persists the failure diagnostic when unsuccessful, assembles the final ToolResult, and then removes the temporary artifact directory for every terminal outcome in a `finally` that also runs when diagnostic persistence fails. A failed diagnostic write still returns sanitized failure content with no diagnostic path; directory removal stays best-effort.
 
@@ -148,7 +148,7 @@ AgentRouter, Tabitoken, SeekAI, and GoRouter remain backup-only in default A/B/C
 14. Verify every blocking finding in a fresh read-only verification role before remediation: consolidate exact duplicate findings first, give each verification exactly one finding without sibling verification reports, run independent findings concurrently in batches of at most four, and keep dependent findings sequential when one verification result materially affects another finding's contract or evidence.
 15. Wait for every required verification in the current batch before remediation: a failed or non-completed verification leaves its finding unresolved without erasing completed sibling reports, and remediation must not proceed as though the batch completed. Send only verification-confirmed findings to one remediation delegate, then repeat the fresh four-reviewer gate; verification, remediation, and review repeat until no blocking findings remain.
 16. Solution investigators cannot act as implementers or later reviewers. The oracle likewise never implements, reviews, or verifies.
-17. Read-only roles (solution, review, verification, oracle) receive pre/post Git status plus tracked, staged, and path-safe untracked-content hashes. Any detected tree change becomes `read_only_mutation`.
+17. Read-only roles (solution, review, verification, oracle) stay read-only through their role contracts and the existing permission classification, including the direct Claude read-only permission arguments. Global pre/post Git tree fingerprints and the `read_only_mutation` state were removed because shared monorepo worktrees are modified concurrently by unrelated agents and a before/after fingerprint cannot attribute the actor. Residual risk: Pi-based read-only delegates still receive the normal tool set and extensions and can misuse writable tools; without fingerprinting the extension does not automatically detect such mutation. No filesystem sandbox, worktree clone, path exclusion, configuration flag, or replacement mutation detector may be added without a new decision.
 18. Git transitions and hosted-service writes always require separate explicit authorization.
 
 ## Update workflow
@@ -158,7 +158,7 @@ AgentRouter, Tabitoken, SeekAI, and GoRouter remain backup-only in default A/B/C
 3. Compare process and renderer patterns with the local CodeGraph and Context Mode extensions.
 4. Confirm every route and thinking level in Pi's live catalog without running paid inference.
 5. Confirm Claude Code supports the pinned model, effort, persistence, permission, and tool flags.
-6. Preserve parent-process extension execution, child role isolation, environment inheritance, recursive-delegation suppression, deadlines, private event handling, exact timestamps, process-group cleanup, fallback cutoffs, fingerprints, concurrency gates, the raw-Markdown tool-result contract, native error marking through `tool_result`, and the 0700/0600 failure diagnostic contract.
+6. Preserve parent-process extension execution, child role isolation, environment inheritance, recursive-delegation suppression, deadlines, private event handling, exact timestamps, process-group cleanup, fallback cutoffs, concurrency gates, the raw-Markdown tool-result contract, native error marking through `tool_result`, and the 0700/0600 failure diagnostic contract.
 7. Update tests before or with behavior changes.
 8. Update `agent/AGENTS.md`, root `README.md`, ADRs, and context-cost accounting when the active tool contract changes.
 9. Do not restore the retired runtime skill or Python supervisors.
@@ -220,7 +220,7 @@ Also verify:
 - child Pi does not register `delegate_run` recursively;
 - one through four verification delegates overlap each other while a fifth concurrent verification is rejected with a bounded batching error, a released slot admits the next finding, and verification blocks and is blocked by solution, review, implementation, remediation, and oracle roles in both start orders;
 - solution and review concurrency is unchanged, and implementation, remediation, and oracle remain exclusive against every active delegate;
-- read-only fingerprint changes invalidate the result;
+- a read-only delegate that changes the working tree still completes and returns its report: no `read_only_mutation` state, tree-fingerprint capture, comparison, or fingerprint result fields exist in any runtime source;
 - no delegate command line or credential value is persisted;
 - unrelated dirty files remain untouched;
 - every terminal outcome removes its temporary supervision artifact directory after diagnostic persistence and tool-result assembly, and no chain-level `report.md` or `status.json` is ever written;

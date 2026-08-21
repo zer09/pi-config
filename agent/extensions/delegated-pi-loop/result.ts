@@ -18,7 +18,6 @@ const STATE_SUMMARIES: Readonly<Record<string, string>> = {
   child_failed: "The delegate process exited with a non-zero status.",
   spawn_failed: "The delegate process could not be started.",
   interrupted: "The delegate was cancelled before completion.",
-  read_only_mutation: "A read-only delegate changed the working tree; its report was invalidated.",
 };
 const FALLBACK_SUMMARY = "The delegate did not reach a terminal supervision state.";
 

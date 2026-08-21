@@ -166,7 +166,7 @@ test("every non-completed state has a deterministic safe summary", () => {
   const states = [
     "catalog_check", "running", "routes_unavailable", "stalled", "timed_out", "output_limit",
     "blocked", "delegate_failed", "invalid_result", "invalid_stream", "missing_report",
-    "child_failed", "spawn_failed", "interrupted", "read_only_mutation",
+    "child_failed", "spawn_failed", "interrupted",
   ];
   const summaries = new Set(states.map((state) => failureMarkdown(failedResult({ state: state as DelegateRunResult["state"] })).split("\n").pop()));
   // Every state maps to a non-empty fixed sentence, with real spread across states.
@@ -180,7 +180,7 @@ test("every non-completed state has a deterministic safe summary", () => {
 
 test("tool_result patch marks only unsuccessful delegate_run results as errors", () => {
   assert.deepEqual(delegateToolResultPatch({ toolName: "delegate_run", details: { state: "stalled" } }), { isError: true });
-  assert.deepEqual(delegateToolResultPatch({ toolName: "delegate_run", details: { state: "read_only_mutation" } }), { isError: true });
+  assert.deepEqual(delegateToolResultPatch({ toolName: "delegate_run", details: { state: "invalid_result" } }), { isError: true });
   assert.equal(delegateToolResultPatch({ toolName: "delegate_run", details: { state: "completed" } }), undefined);
   assert.equal(delegateToolResultPatch({ toolName: "bash", details: { state: "stalled" } }), undefined);
   assert.equal(delegateToolResultPatch({ toolName: "delegate_run", details: undefined }), undefined);
@@ -201,6 +201,8 @@ test("final tool result keeps the diagnostic path out of content and in details"
   assert.equal(failed.content[0]!.text.includes(diagnosticPath), false);
   assert.equal(failed.details?.state, "stalled");
   assert.deepEqual(failed.details?.attempts, failedResult().attempts);
+  assert.equal("fingerprintBefore" in (failed.details ?? {}), false);
+  assert.equal("fingerprintAfter" in (failed.details ?? {}), false);
 });
 
 test("diagnostic footer line is TUI-formatted with the raw path", () => {

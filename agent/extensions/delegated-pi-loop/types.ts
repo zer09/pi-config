@@ -37,8 +37,7 @@ export type DelegateState =
   | "missing_report"
   | "child_failed"
   | "spawn_failed"
-  | "interrupted"
-  | "read_only_mutation";
+  | "interrupted";
 
 export interface PiRoute {
   readonly kind: "pi";
@@ -134,14 +133,6 @@ export interface ChainAttempt {
   readonly fallbackReason?: "event_idle_before_tools" | "provider_unavailable_before_tools";
 }
 
-export interface TreeFingerprint {
-  readonly gitRoot: string;
-  readonly status: string;
-  readonly unstagedSha256: string;
-  readonly stagedSha256: string;
-  readonly untrackedSha256: string;
-}
-
 /**
  * In-memory chain outcome. `artifactDir` is the caller-owned private temporary
  * supervision directory; the caller removes it after persisting any failure
@@ -162,8 +153,6 @@ export interface DelegateRunResult {
   readonly elapsedSeconds: number;
   readonly streamErrors: readonly string[];
   readonly progress: DelegateProgress;
-  readonly fingerprintBefore?: TreeFingerprint;
-  readonly fingerprintAfter?: TreeFingerprint;
 }
 
 export interface DelegateToolParams {

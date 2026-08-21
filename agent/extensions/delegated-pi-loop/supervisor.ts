@@ -424,8 +424,8 @@ export async function superviseClaude(options: SuperviseClaudeOptions): Promise<
   let lastEvent = "process_start";
   let lastEventAt = startedAt;
   const stderrStream = createWriteStream(stderrPath, { flags: "wx", mode: 0o600 });
-  // One authoritative predicate with runner fingerprints; this also keeps a
-  // defensively misrouted oracle read-only even though routes reject a
+  // One authoritative read-only predicate from role classification; this also
+  // keeps a defensively misrouted oracle read-only even though routes reject a
   // Claude-backed oracle before spawn.
   const readOnly = roleIsReadOnly(options.role);
   const args = [

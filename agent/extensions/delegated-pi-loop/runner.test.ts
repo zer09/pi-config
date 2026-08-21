@@ -238,12 +238,11 @@ test("D inherits the parent's eligible provider as its primary", async () => {
   await finalizeDelegateRun(result);
 });
 
-test("oracle records its fallback chain and stays read-only through fingerprints", async () => {
+test("oracle records its fallback chain", async () => {
   const fixture = await fakePi(
     ["openai-codex/gpt-5.6-sol"],
     { "openai-codex/gpt-5.6-sol": "complete" },
   );
-  await execFileAsync("git", ["-C", fixture.root, "init", "-q"]);
   let randomCalls = 0;
   const result = await runDelegate({
     role: "oracle",
@@ -273,10 +272,6 @@ test("oracle records its fallback chain and stays read-only through fingerprints
   ]);
   assert.equal(result.attempts[0]?.state, "catalog_unavailable");
   assert.match(result.report, /Completed on openai-codex\/gpt-5\.6-sol/);
-  // The oracle is read-only: pre/post Git fingerprints are captured and equal.
-  assert.ok(result.fingerprintBefore);
-  assert.ok(result.fingerprintAfter);
-  assert.equal(result.fingerprintBefore?.status, result.fingerprintAfter?.status);
   const toolResult = await finalizeDelegateRun(result);
   assert.match(toolResult.content[0]!.text, /## Delegate oracle completed/);
 });
@@ -349,7 +344,7 @@ test("an explicit oracle backend is rejected before any child spawns", async () 
   }
 });
 
-test("invalidates a read-only delegate that changes the Git tree", async () => {
+test("a read-only delegate that changes the Git tree still completes without invalidation", async () => {
   const fixture = await fakePi(
     ["opencode-go/muse-spark-1.2-contributor"],
     { "opencode-go/muse-spark-1.2-contributor": "mutate-existing" },
@@ -367,15 +362,35 @@ test("invalidates a read-only delegate that changes the Git tree", async () => {
     idleTimeoutMs: 800,
     graceMs: 100,
   });
-  assert.equal(result.state, "read_only_mutation");
-  assert.equal(result.progress.lastEvent, "tree_fingerprint_changed");
-  // The fingerprint-invalidated run is unsuccessful: its artifacts survive
-  // until execute-level finalization and are removed with a diagnostic.
-  await stat(result.artifactDir);
-  await assert.rejects(() => stat(path.join(result.artifactDir, "status.json")), enoent);
-  await withDiagnosticsRoot(async () => {
-    const toolResult = await finalizeDelegateRun(result);
-    assert.equal(typeof toolResult.details?.diagnosticPath, "string");
-  });
-  await assert.rejects(() => stat(result.artifactDir), enoent);
+  // The working tree changed during the read-only run, but the removed
+  // global fingerprint check no longer attributes the change to the
+  // delegate: the completed report survives and no invalidation state exists.
+  assert.equal(result.state, "completed");
+  assert.match(result.report, /Completed on opencode-go\/muse-spark-1\.2-contributor/);
+  assert.notEqual(result.progress.lastEvent, "tree_fingerprint_changed");
+  assert.equal("fingerprintBefore" in result, false);
+  assert.equal("fingerprintAfter" in result, false);
+  assert.equal(await readFile(path.join(fixture.root, "existing-untracked.txt"), "utf8"), "after");
+  const toolResult = await finalizeDelegateRun(result);
+  assert.match(toolResult.content[0]!.text, /## Delegate review-a completed/);
+});
+
+test("runtime sources contain no tree-fingerprint capture or read-only-mutation state", async () => {
+  // Global pre/post Git tree fingerprints were removed because shared
+  // monorepo worktrees change concurrently under unrelated agents, so a
+  // before/after fingerprint cannot attribute the actor. Keep the runtime
+  // surface free of reintroduced capture, comparison, and result plumbing.
+  for (const file of [
+    "artifacts.ts", "diagnostics.ts", "index.ts", "manager.ts", "monitor.ts",
+    "render.ts", "result.ts", "routes.ts", "runner.ts", "supervisor.ts", "types.ts",
+  ]) {
+    const source = await readFile(new URL(`./${file}`, import.meta.url), "utf8");
+    for (const forbidden of [
+      "read_only_mutation", "tree_fingerprint_changed", "TreeFingerprint",
+      "captureTreeFingerprint", "fingerprintsEqual", "hashUntrackedFiles",
+      "fingerprintBefore", "fingerprintAfter",
+    ]) {
+      assert.ok(!source.includes(forbidden), `${file} must not contain "${forbidden}"`);
+    }
+  }
 });

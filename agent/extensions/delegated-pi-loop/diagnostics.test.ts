@@ -36,14 +36,6 @@ function failedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunRe
       toolExecutionCount: 4,
       idleWarningCount: 1,
     },
-    fingerprintBefore: {
-      gitRoot: "/home/gc/project",
-      status: "M file.txt",
-      unstagedSha256: "SECRET-UNSTAGED",
-      stagedSha256: "SECRET-STAGED",
-      untrackedSha256: "SECRET-UNTRACKED",
-    },
-    fingerprintAfter: undefined,
     ...overrides,
   };
 }
@@ -92,13 +84,14 @@ test("diagnostic content is bounded, sanitized, and free of excluded material", 
     assert.equal(parsed.toolExecutionCount, 4);
     assert.deepEqual(parsed.streamErrors, ["Pi JSON stream ended with a partial line"]);
 
+    // The removed tree-fingerprint fields stay excluded if ever reintroduced.
     for (const forbidden of [
       "report", "reportPath", "statusPath", "artifactDir", "prompt", "stdout", "stderr",
       "fingerprintBefore", "fingerprintAfter", "args", "credentials",
     ]) {
       assert.equal(forbidden in parsed, false, `diagnostic must not contain key ${forbidden}`);
     }
-    assert.doesNotMatch(content, /SECRET-REPORT-BODY|SECRET-UNSTAGED|SECRET-STAGED|SECRET-UNTRACKED/);
+    assert.doesNotMatch(content, /SECRET-REPORT-BODY/);
     assert.doesNotMatch(content, /\/tmp\/|delegated-pi-implementation-x/);
   });
 });

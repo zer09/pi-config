@@ -62,6 +62,8 @@ Delegated C-route HY3 restoration: 2026-08-22 (restored the C Ox Alpha Free/max 
 
 Delegated verification-parallelism update: 2026-08-22 (moved independent finding verification from sequential to bounded four-way concurrency with verification-only overlap and a manager batching error; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated fingerprint-removal update: 2026-08-22 (removed global pre/post Git tree fingerprints and the `read_only_mutation` state for read-only delegates; zero startup-context delta because no always-loaded surface changed; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -526,6 +528,21 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | **Tool total** | **770** | **840** | **+70** | Before provider-specific framing |
 
 The always-loaded increase is +26 global instructions for the compact batching, consolidation, and batch-wait rules and +70 tool guidelines: the two verification guidelines (13 to 14 guidelines) replace the former single sequential-processing guideline. The verification concurrency matrix, the verification-only overlap rule, and the four-verification cap are executable TypeScript in `manager.ts` and are not sent to the model. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-22 delegated fingerprint-removal attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. The removed pre/post Git tree-fingerprint capture, the `read_only_mutation` state, and the fingerprint result fields are executable TypeScript and were never model-visible. `agent/AGENTS.md` and `index.ts` (the `delegate_run` description, prompt snippet, prompt guidelines, and parameter schema) are byte-identical before and after, so every always-loaded surface is unchanged.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 2,831 | 2,831 | 0 | Always loaded through the context-file block |
+| `delegate_run` description | 75 | 75 | 0 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 579 | 579 | 0 | Included while the tool is active |
+| `delegate_run` parameter schema | 173 | 173 | 0 | Serialized as an active provider tool schema |
+| **Tool total** | **840** | **840** | **0** | Before provider-specific framing |
+
+The zero startup-context delta is exact for the measured surfaces: the fingerprint machinery lived only in runtime TypeScript (`runner.ts`, `artifacts.ts`, `types.ts`, `result.ts`) and the on-demand maintenance/ADR documents. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

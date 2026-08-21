@@ -4,13 +4,11 @@ import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import {
   atomicWriteText,
-  captureTreeFingerprint,
   createArtifactDir,
   createPrivateDirectory,
-  fingerprintsEqual,
   readPrivateText,
 } from "./artifacts.ts";
-import { buildDelegatePrompt, oracleGuard, roleIsReadOnly, roleLabel, routeKey, routesFor } from "./routes.ts";
+import { buildDelegatePrompt, oracleGuard, roleLabel, routeKey, routesFor } from "./routes.ts";
 import {
   DEFAULT_GRACE_MS,
   DEFAULT_IDLE_TIMEOUT_MS,
@@ -172,9 +170,6 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
   await atomicWriteText(promptPath, prompt);
   await chmod(promptPath, 0o600);
 
-  const fingerprintBefore = roleIsReadOnly(options.role)
-    ? await captureTreeFingerprint(options.cwd)
-    : undefined;
   const attempts: ChainAttempt[] = [];
   // Route selection happens exactly once per invocation, which also fixes
   // D's single random primary draw for this run.
@@ -285,20 +280,6 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     break;
   }
 
-  const fingerprintAfter = roleIsReadOnly(options.role)
-    ? await captureTreeFingerprint(options.cwd)
-    : undefined;
-  if (roleIsReadOnly(options.role) && !fingerprintsEqual(fingerprintBefore, fingerprintAfter)) {
-    finalState = "read_only_mutation";
-    finalProgress = {
-      ...finalProgress,
-      state: finalState,
-      phase: "complete",
-      lastEvent: "tree_fingerprint_changed",
-      lastEventAt: new Date().toISOString(),
-    };
-  }
-
   const elapsed = roundedSeconds(performance.now() - started);
   const endedAt = new Date().toISOString();
   // All outcome data travels in memory; no chain-level report.md or status.json
@@ -321,7 +302,5 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     elapsedSeconds: elapsed,
     streamErrors: terminalStreamErrors,
     progress: finalProgress,
-    fingerprintBefore,
-    fingerprintAfter,
   };
 }
