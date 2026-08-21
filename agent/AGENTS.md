@@ -96,6 +96,7 @@ Use these rules when the user says that an explanation did not land or asks for 
 - Prefer `ctx_batch_execute` for command sets/noisy output and `ctx_execute_file` for large local files or saved command output. If they do not surface the needed answer, use `ctx_search` on the indexed output before rerunning, switching tools, or asking the user.
 - For GitHub repo/issue/PR/release/workflow reads or writes, use the `gh-cli` skill and authenticated `gh`; do not use browser/web tools on github.com unless explicitly asked for public web research.
 - Use direct `bash` only for short low-output local checks or explicitly requested state-changing commands; do not use it for broad source/log/git/test output when `ctx_*` tools can index and filter.
+- Linear reads are an exception that takes precedence over the generic Context Mode rule: for Linear reads and retrieval, load the `linear-cli` skill and run the local `linear` command with direct `bash`. Never use `ctx_batch_execute`, `ctx_execute_file`, or `ctx_search` for Linear output or recovery. Do not intentionally summarize, filter, or bound the issue response before it enters agent context. If the native tool hard-truncates an unusually large response, retrieve the explicit missing sections with the Linear CLI rather than Context Mode.
 - Use native `read` for small targeted ranges and exact edit regions, and native `edit`/`write` for all file changes.
 
 ## Delegated work

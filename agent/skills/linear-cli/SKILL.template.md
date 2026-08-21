@@ -10,7 +10,8 @@ Use the local `linear` command for Linear reads and carefully gated writes. Line
 ## Core rules
 
 - Prefer the installed `linear` command. Establish its version through the workflow below when it is not already known; if the command is missing, suggest `npx @schpet/linear-cli` instead of installing unless the user asks.
-- Keep read-only command output bounded when it may exceed 20 lines: issue searches, schema output, GraphQL JSON, comments, documents, or generated help.
+- Run read commands with direct `bash` so the complete Linear response enters agent context. Do not intentionally summarize, filter, or bound the issue response before it enters agent context. If the native tool hard-truncates an unusually large response, retrieve the explicit missing sections with the Linear CLI rather than Context Mode.
+- Never use `ctx_batch_execute`, `ctx_execute_file`, or `ctx_search` for Linear output or recovery.
 - Before any mutation, verify the target identifier, team/project/workspace, command, flags, and body file. If the user did not request that exact mutation, provide a command draft instead of running it.
 - Never print tokens. `linear auth token` writes a secret to stdout; do not run it in a way that enters the transcript, logs, shell history, or committed files.
 
@@ -73,9 +74,10 @@ Known gotchas:
 Prefer first-class CLI commands. Use `linear api` only when the CLI does not expose the needed read or mutation.
 
 ```bash
-linear schema -o "${TMPDIR:-/tmp}/linear-schema.graphql"
-rg -n "type Issue|cycle" "${TMPDIR:-/tmp}/linear-schema.graphql"
+linear schema
 ```
+
+The initial `linear schema` response must enter agent context through direct `bash` before any filtering or storage. Do not redirect, pipe, or filter the initial schema output, and never use Context Mode for it.
 
 Pass GraphQL queries with variables through heredoc stdin, especially when a query contains non-null markers such as `String!`:
 
@@ -85,7 +87,7 @@ query($teamId: String!) { team(id: $teamId) { name } }
 GRAPHQL
 ```
 
-For JSON processing, print only the derived fields and save large raw payloads to temp files if needed. Avoid direct `curl` unless full HTTP control is required and the user explicitly requested the operation.
+For JSON processing, the complete `linear api` read response must enter agent context through direct `bash` before any derived-field processing or temporary-file storage. Do not pipe, redirect, summarize, filter, or bound the initial read so only partial output reaches context. If the harness hard-truncates the output, retrieve the explicit missing sections with narrower or paginated Linear API queries, never Context Mode. Avoid direct `curl` unless full HTTP control is required and the user explicitly requested the operation.
 
 ## Maintenance
 
