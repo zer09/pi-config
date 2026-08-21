@@ -2,7 +2,7 @@ import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
-import { combinedSignal, DelegateManager } from "./manager.ts";
+import { combinedSignal, DelegateManager, type ActiveDelegate } from "./manager.ts";
 import { renderDelegateCall, renderDelegateResult } from "./render.ts";
 import { delegateToolResultPatch, finalizeDelegateRun } from "./result.ts";
 import { runDelegate } from "./runner.ts";
@@ -33,14 +33,32 @@ const DelegateParameters = Type.Object({
   })),
 });
 
-function partialResult(progress: DelegateProgress): ToolResult {
+function partialResult(delegateId: number, progress: DelegateProgress): ToolResult {
   return {
     content: [{
       type: "text",
       text: `${progress.label}: ${progress.state}; last=${progress.lastEvent}; at=${progress.lastEventAt}`,
     }],
-    details: { progress },
+    details: { delegateId, progress },
   };
+}
+
+function finalResult(delegateId: number, result: ToolResult): ToolResult {
+  return {
+    ...result,
+    details: { ...result.details, delegateId },
+  };
+}
+
+function elapsedText(seconds: number): string {
+  const totalSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainder = String(totalSeconds % 60).padStart(2, "0");
+  return `${String(minutes).padStart(2, "0")}:${remainder}`;
+}
+
+function activeDelegateLabel(delegate: ActiveDelegate): string {
+  return `#${delegate.id}  ${delegate.role}  ${delegate.state}  ${elapsedText(delegate.elapsedSeconds)}`;
 }
 
 export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
@@ -73,6 +91,53 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
   }
 
   const manager = new DelegateManager();
+
+  pi.registerCommand("delegate:list", {
+    description: "Show active delegates and prefill a targeted stop command.",
+    handler: async (_args, ctx) => {
+      const active = manager.listActive();
+      if (active.length === 0) {
+        ctx.ui.notify("No active delegates.", "info");
+        return;
+      }
+      if (!ctx.hasUI) {
+        ctx.ui.notify("Active delegate selection requires an interactive UI.", "warning");
+        return;
+      }
+
+      const labels = active.map(activeDelegateLabel);
+      const selected = await ctx.ui.select("Active delegates", labels);
+      if (!selected) return;
+      const selectedIndex = labels.indexOf(selected);
+      const delegate = active[selectedIndex];
+      if (delegate) ctx.ui.setEditorText(`/delegate:stop ${delegate.id}`);
+    },
+  });
+
+  pi.registerCommand("delegate:stop", {
+    description: "Stop one active delegate by its displayed numeric ID.",
+    handler: (args, ctx) => {
+      const value = args.trim();
+      if (!/^[1-9]\d*$/.test(value)) {
+        ctx.ui.notify("Usage: /delegate:stop <positive numeric id>", "error");
+        return;
+      }
+      const delegateId = Number(value);
+      if (!Number.isSafeInteger(delegateId)) {
+        ctx.ui.notify("Delegate ID is outside the supported numeric range.", "error");
+        return;
+      }
+
+      const stopped = manager.stop(delegateId);
+      if (stopped.status === "not_found") {
+        ctx.ui.notify(`Delegate #${delegateId} is no longer active.`, "warning");
+      } else if (stopped.status === "already_stopping") {
+        ctx.ui.notify(`Delegate #${delegateId} is already stopping.`, "warning");
+      } else {
+        ctx.ui.notify(`Stopping delegate #${delegateId} (${stopped.delegate.role})...`, "info");
+      }
+    },
+  });
 
   pi.on("session_shutdown", () => {
     manager.abortAll();
@@ -117,8 +182,8 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
       const backend = (params.backend ?? "default") as DelegateBackend;
       const candidateCwd = params.cwd ? path.resolve(ctx.cwd, params.cwd) : ctx.cwd;
       const cwd = await realpath(candidateCwd);
-      const managerSignal = manager.begin(toolCallId, role);
-      const runSignal = combinedSignal(signal, managerSignal);
+      const handle = manager.begin(toolCallId, role);
+      const runSignal = combinedSignal(signal, handle.signal);
 
       try {
         const result = await runDelegate({
@@ -133,20 +198,23 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
           parentModelId: ctx.model?.id,
           signal: runSignal,
           onProgress: (progress) => {
-            onUpdate?.(partialResult(progress));
+            manager.update(toolCallId, progress);
+            onUpdate?.(partialResult(handle.id, progress));
           },
         });
         // Terminal finalization: persist the compact failure diagnostic for
         // unsuccessful runs (path travels only in details for the TUI
         // renderer), assemble the raw-Markdown ToolResult, then remove the
         // temporary supervision artifacts for every terminal outcome.
-        return await finalizeDelegateRun(result);
+        return finalResult(handle.id, await finalizeDelegateRun(result));
       } finally {
         manager.finish(toolCallId);
       }
     },
 
-    renderCall: renderDelegateCall,
+    renderCall: (args, theme, context) => (
+      renderDelegateCall(args, theme, context, manager.idFor(context.toolCallId))
+    ),
     renderResult: renderDelegateResult,
   });
 }

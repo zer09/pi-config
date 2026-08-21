@@ -66,6 +66,8 @@ Delegated fingerprint-removal update: 2026-08-22 (removed global pre/post Git tr
 
 Delegated parent-authorship update: 2026-08-22 (made plan and research deliverables a purpose-based exception to implementation delegation, kept their authorship with the parent, and retained normal delegation for implementation documentation; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated targeted-cancellation update: 2026-08-22 (added session-local numeric delegate IDs plus `/delegate:list` and `/delegate:stop`; zero startup model-context delta because command metadata and TUI-only result details are not included in the model prompt; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -560,6 +562,21 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | **Tool total** | **840** | **1,108** | **+268** | Before provider-specific framing |
 
 The directly attributed model-visible increase is +508 local tokens: +240 global instructions and +268 tool guidelines. The added text makes the exception purpose-based, reserves final plan and research authorship for the parent, prohibits implementation and remediation delegates from creating those deliverables, and keeps implementation documentation in the normal delegated workflow. Routes, role schemas, manager behavior, and runtime supervision are unchanged. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-22 delegated targeted-cancellation attribution
+
+This change was checked locally against commit `c9e2065`; no paid provider calibration or full extension/tool inventory rerun was performed. `agent/AGENTS.md` and the model-visible `delegate_run` description, prompt snippet, prompt guidelines, and parameter schema are byte-identical. Numeric IDs live in TUI-only tool details, while `/delegate:list` and `/delegate:stop` are local extension command metadata that Pi does not include in the default model prompt.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 3,071 | 3,071 | 0 | Always loaded through the context-file block |
+| `delegate_run` description | 75 | 75 | 0 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 847 | 847 | 0 | Included while the tool is active |
+| `delegate_run` parameter schema | 173 | 173 | 0 | Serialized as an active provider tool schema |
+| **Tool total** | **1,108** | **1,108** | **0** | Before provider-specific framing |
+
+The startup model-context delta is exactly zero for the measured surfaces. The two slash-command descriptions add only interactive command-routing metadata, and the numeric ID plus active-run state stay in extension memory or TUI-only details. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

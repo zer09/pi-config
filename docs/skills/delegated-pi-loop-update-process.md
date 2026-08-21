@@ -1,6 +1,6 @@
 # Delegated Pi extension update process
 
-Purpose: maintain the native TypeScript `delegate_run` Pi extension that runs inside the parent Pi process and supervises fresh Pi or Claude Code delegates. The extension owns route selection, bounded subprocess lifecycle, private JSON parsing, live last-event timestamps, role isolation with role-contract read-only enforcement, terminal result enforcement, the Markdown tool-result envelope with native error marking, and private failure diagnostics.
+Purpose: maintain the native TypeScript `delegate_run` Pi extension that runs inside the parent Pi process and supervises fresh Pi or Claude Code delegates. The extension owns route selection, bounded subprocess lifecycle, private JSON parsing, live last-event timestamps, targeted user cancellation, role isolation with role-contract read-only enforcement, terminal result enforcement, the Markdown tool-result envelope with native error marking, and private failure diagnostics.
 
 ## Classification and provenance
 
@@ -19,15 +19,15 @@ The extension runs as part of the parent Pi process, like CodeGraph and Context 
 | Path | Responsibility |
 |---|---|
 | `agent/AGENTS.md` | Compact trigger and global orchestration safety rules. |
-| `agent/extensions/delegated-pi-loop/index.ts` | Extension entrypoint, `delegate_run` registration, prompt guidance, execute-level finalization, native `tool_result` error marking, child watchdog, and lifecycle cleanup. |
+| `agent/extensions/delegated-pi-loop/index.ts` | Extension entrypoint, `delegate_run` registration, `/delegate:list` and `/delegate:stop` commands, prompt guidance, execute-level finalization, native `tool_result` error marking, child watchdog, and lifecycle cleanup. |
 | `agent/extensions/delegated-pi-loop/routes.ts` | Role classification, route maps, prompt contracts, and terminal marker contract. |
 | `agent/extensions/delegated-pi-loop/monitor.ts` | Private Pi JSON lifecycle parsing, sanitized event metadata, terminal report extraction, and availability classification. |
 | `agent/extensions/delegated-pi-loop/supervisor.ts` | Process groups, deadlines, output bounds, environment scrubbing, live progress, artifact status, and Claude plain protocol. |
 | `agent/extensions/delegated-pi-loop/runner.ts` | Catalog preflight, ordered fresh-route fallback, shared deadline, and the in-memory chain result. |
 | `agent/extensions/delegated-pi-loop/result.ts` | Model-visible Markdown result builders, terminal marker stripping, the native tool-result error patch, and execute-level finalization (diagnostic persistence, tool-result assembly, artifact cleanup). |
 | `agent/extensions/delegated-pi-loop/diagnostics.ts` | Private sanitized failure diagnostics under `${PI_CODING_AGENT_DIR:-~/.pi/agent}/logs/delegated-pi-loop/` with 0700/0600 permissions. |
-| `agent/extensions/delegated-pi-loop/manager.ts` | Parent-session concurrency guard (exclusive implementation/remediation/oracle, verification-only overlap with a four-verification cap) and cancellation. |
-| `agent/extensions/delegated-pi-loop/render.ts` | Compact and expanded tool rendering with last event, UTC receipt time, and the TUI-only diagnostic path. |
+| `agent/extensions/delegated-pi-loop/manager.ts` | Parent-session concurrency guard (exclusive implementation/remediation/oracle, verification-only overlap with a four-verification cap), monotonic delegate IDs, active-run summaries, and targeted cancellation. |
+| `agent/extensions/delegated-pi-loop/render.ts` | Compact and expanded tool rendering with the numeric delegate ID, last event, UTC receipt time, and the TUI-only diagnostic path. |
 | `agent/extensions/delegated-pi-loop/artifacts.ts` | Private temporary artifacts, atomic writes, best-effort directory removal, and bounded report output. |
 | `agent/extensions/delegated-pi-loop/types.ts` | Extension, route, progress, status, and result contracts. |
 | `agent/extensions/delegated-pi-loop/*.test.ts` | Monitor, route, manager concurrency, supervisor, cleanup, fallback, result Markdown, diagnostics, and integration regressions. |
@@ -46,8 +46,9 @@ The retired `agent/skills/delegated-pi-loop/` directory must not be restored unl
 5. Child Claude Code uses `--print --no-session-persistence` with role-appropriate permissions.
 6. `PI_DELEGATED_CHILD=1` suppresses `delegate_run` registration inside child Pi.
 7. A child-side watchdog checks `PI_DELEGATE_PARENT_PID` and terminates the child's process group if the parent disappears.
-8. `session_shutdown` aborts all active delegates.
-9. Process-group cleanup runs after timeout, abort, terminal completion, and natural leader exit so descendants cannot remain.
+8. Every successfully admitted delegate receives a session-local monotonic numeric ID. IDs start at 1, are never reused during the extension lifetime, and reset only when reload or session replacement creates a fresh extension instance after aborting old delegates.
+9. `session_shutdown` aborts all active delegates.
+10. Process-group cleanup runs after timeout, abort, terminal completion, and natural leader exit so descendants cannot remain.
 
 ### Environment and permissions
 
@@ -72,7 +73,7 @@ The retired `agent/skills/delegated-pi-loop/` directory must not be restored unl
    - phase;
    - UTC supervisor receipt time;
    - monotonic activity time for idle enforcement.
-8. The streaming tool renderer shows the last event, its UTC time, relative age, route, phase, attempt, and elapsed time. Normal Pi child progress is throttled to at most once per second without slowing the independent 100 ms safety checks. No separate footer or below-editor widget duplicates this state. For unsuccessful results the renderer also shows the private diagnostic path; nothing prompts or automatically reads it.
+8. The streaming tool renderer shows the session-local numeric delegate ID, last event, its UTC time, relative age, route, phase, attempt, and elapsed time. The numeric ID also persists in final TUI-only tool details so restored result rendering can identify the run. Normal Pi child progress is throttled to at most once per second without slowing the independent 100 ms safety checks. No separate footer or below-editor widget duplicates this state. For unsuccessful results the renderer also shows the private diagnostic path; nothing prompts or automatically reads it.
 9. A valid `DELEGATE_RESULT: COMPLETED` report followed by final `agent_end` and `agent_settled` is terminal success even if Pi remains alive.
 10. `BLOCKED`, `FAILED`, missing reports, malformed markers, malformed lifecycle streams, partial trailing JSON, output overflow, stalls, and wall timeout remain distinct non-success states.
 
@@ -94,6 +95,14 @@ The in-process DelegateManager enforces these rules before any child process spa
 2. Verification never overlaps a solution, review, implementation, remediation, or oracle role in either start order.
 3. Solution and review roles keep their existing concurrent A/B/C/D gate behavior and remain unblocked by each other.
 4. Implementation, remediation, and oracle roles stay exclusive against every active delegate, including verification batches.
+
+### User cancellation
+
+1. `/delegate:list` opens a stable TUI selector of active numeric IDs, roles, states, and elapsed times. Selecting a row only prefills `/delegate:stop <id>` in the main editor; it never stops a delegate automatically. Escape closes the selector without action, and an empty list reports `No active delegates.`
+2. `/delegate:stop <id>` accepts one positive safe integer and aborts only that active delegate through its manager-owned `AbortController`. Unknown, completed, and already-stopping IDs return bounded notifications.
+3. Targeted cancellation keeps the manager slot active until `execute` finalization finishes, so a new exclusive delegate cannot start while the old process group is still terminating. Sibling delegates remain active.
+4. The combined abort signal reaches catalog preflight and both Pi and Claude supervisors. The supervisor terminates the selected process group, the chain ends as `interrupted` without provider fallback, normal failure diagnostics and artifact cleanup run, and descendants cannot remain.
+5. Both commands execute locally without an LLM turn and remain available while the main agent is busy. There is no BTW-specific cancellation command or raw process-kill path.
 
 ### Route fallback
 
@@ -220,6 +229,7 @@ Also verify:
 - child Pi does not register `delegate_run` recursively;
 - one through four verification delegates overlap each other while a fifth concurrent verification is rejected with a bounded batching error, a released slot admits the next finding, and verification blocks and is blocked by solution, review, implementation, remediation, and oracle roles in both start orders;
 - solution and review concurrency is unchanged, and implementation, remediation, and oracle remain exclusive against every active delegate;
+- admitted delegates receive monotonic session-local numeric IDs that are never reused; the ID appears in active and settled tool rendering, `/delegate:list` prefills but does not execute `/delegate:stop <id>`, targeted stop aborts only the selected signal while siblings continue, the manager slot remains until cleanup, stale or repeated IDs return bounded notifications, and cancellation ends as `interrupted` without fallback;
 - a read-only delegate that changes the working tree still completes and returns its report: no `read_only_mutation` state, tree-fingerprint capture, comparison, or fingerprint result fields exist in any runtime source;
 - no delegate command line or credential value is persisted;
 - unrelated dirty files remain untouched;

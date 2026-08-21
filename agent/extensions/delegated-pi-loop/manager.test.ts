@@ -13,14 +13,14 @@ test("verification delegates overlap other verification delegates up to the four
   const manager = new DelegateManager();
   // One, two, three, and four concurrent verifications all start cleanly.
   for (let index = 1; index <= 4; index += 1) {
-    manager.begin(`v${index}`, "verification");
+    assert.equal(manager.begin(`v${index}`, "verification").id, index);
   }
   // The fifth concurrent verification is rejected with a bounded batching error.
   assert.throws(() => manager.begin("v5", "verification"), CAP_ERROR);
   assert.throws(() => manager.begin("v6", "verification"), CAP_ERROR);
   // Finishing one verification releases a slot for the next finding.
   manager.finish("v2");
-  manager.begin("v5", "verification");
+  assert.equal(manager.begin("v5", "verification").id, 5);
   assert.throws(() => manager.begin("v6", "verification"), CAP_ERROR);
   // Draining all verifications resets the batch capacity completely.
   for (const id of ["v1", "v3", "v4", "v5"]) manager.finish(id);
@@ -97,13 +97,66 @@ test("solution and review concurrency is unchanged inside and across gates", () 
   manager.begin("r5", "review-a");
 });
 
+test("assigns monotonic numeric IDs without reusing completed IDs", () => {
+  const manager = new DelegateManager();
+  const first = manager.begin("tool-a", "review-a");
+  const second = manager.begin("tool-b", "review-b");
+  assert.equal(first.id, 1);
+  assert.equal(second.id, 2);
+  manager.finish("tool-a");
+  const third = manager.begin("tool-c", "review-c");
+  assert.equal(third.id, 3);
+  assert.deepEqual(manager.listActive().map((delegate) => delegate.id), [2, 3]);
+});
+
+test("stops only the selected delegate and retains it until cleanup finishes", () => {
+  const manager = new DelegateManager();
+  const first = manager.begin("tool-a", "review-a");
+  const second = manager.begin("tool-b", "review-b");
+
+  const stopped = manager.stop(first.id);
+  assert.equal(stopped.status, "stopping");
+  assert.equal(first.signal.aborted, true);
+  assert.equal(second.signal.aborted, false);
+  assert.deepEqual(manager.listActive().map(({ id, state }) => ({ id, state })), [
+    { id: 1, state: "stopping" },
+    { id: 2, state: "starting" },
+  ]);
+  assert.equal(manager.stop(first.id).status, "already_stopping");
+  assert.equal(manager.stop(999).status, "not_found");
+
+  manager.finish("tool-a");
+  assert.deepEqual(manager.listActive().map((delegate) => delegate.id), [2]);
+});
+
+test("active delegate progress supplies list state and elapsed time", () => {
+  const manager = new DelegateManager();
+  const handle = manager.begin("tool-a", "review-a");
+  manager.update("tool-a", {
+    label: "review-a",
+    role: "review-a",
+    state: "running",
+    protocol: "pi-json",
+    route: "provider/model:high",
+    attempt: 1,
+    phase: "agent",
+    lastEvent: "message_update",
+    lastEventAt: "2026-08-22T00:00:00.000Z",
+    idleSeconds: 0,
+    elapsedSeconds: 12.3,
+    toolExecutionCount: 0,
+    idleWarningCount: 0,
+  });
+  assert.deepEqual(manager.listActive(), [{ id: handle.id, role: "review-a", state: "running", elapsedSeconds: 12.3 }]);
+});
+
 test("abortAll aborts concurrent verification siblings", () => {
   const manager = new DelegateManager();
-  const signals = ["v1", "v2", "v3", "v4"].map((id) => manager.begin(id, "verification"));
+  const handles = ["v1", "v2", "v3", "v4"].map((id) => manager.begin(id, "verification"));
   manager.abortAll();
-  for (const signal of signals) assert.equal(signal.aborted, true);
-  // The cleared manager accepts a fresh verification batch again.
-  manager.begin("fresh", "verification");
+  for (const handle of handles) assert.equal(handle.signal.aborted, true);
+  // The cleared manager accepts a fresh verification batch without reusing IDs.
+  assert.equal(manager.begin("fresh", "verification").id, 5);
 });
 
 test("combinedSignal forwards aborts from either source", () => {

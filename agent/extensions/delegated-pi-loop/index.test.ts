@@ -81,3 +81,18 @@ test("registration guidelines encode the automatic delegation policy without pro
     assert.equal(mention, "gpt-5.6-sol", `only the exact gpt-5.6-sol condition may appear, found "${mention}"`);
   }
 });
+
+test("registers targeted delegate list and stop commands without a BTW control path", async () => {
+  const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
+  const renderSource = await readFile(new URL("./render.ts", import.meta.url), "utf8");
+  assert.match(source, /registerCommand\("delegate:list"/);
+  assert.match(source, /select\("Active delegates", labels\)/);
+  assert.match(source, /setEditorText\(`\/delegate:stop \$\{delegate\.id\}`\)/);
+  assert.match(source, /registerCommand\("delegate:stop"/);
+  assert.match(source, /manager\.stop\(delegateId\)/);
+  assert.match(source, /Delegate #\$\{delegateId\} is no longer active/);
+  assert.match(renderSource, /`Delegate \$\{id\}`/);
+  assert.match(renderSource, /`⏳ \$\{id\}\$\{progress\.label\}`/);
+  assert.match(renderSource, /`\$\{id\}\$\{String\(state\)\}`/);
+  assert.doesNotMatch(source, /btw:delegate/);
+});

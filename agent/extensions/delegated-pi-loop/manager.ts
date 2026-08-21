@@ -1,19 +1,38 @@
 import { roleIsExclusive } from "./routes.ts";
-import type { DelegateRole } from "./types.ts";
+import type { DelegateProgress, DelegateRole, DelegateState } from "./types.ts";
 
 interface ActiveRun {
-  readonly id: string;
+  readonly delegateId: number;
   readonly role: DelegateRole;
   readonly controller: AbortController;
+  readonly startedAt: number;
+  progress?: DelegateProgress;
 }
+
+export interface DelegateHandle {
+  readonly id: number;
+  readonly signal: AbortSignal;
+}
+
+export interface ActiveDelegate {
+  readonly id: number;
+  readonly role: DelegateRole;
+  readonly state: DelegateState | "starting" | "stopping";
+  readonly elapsedSeconds: number;
+}
+
+export type StopDelegateResult =
+  | { readonly status: "stopping" | "already_stopping"; readonly delegate: ActiveDelegate }
+  | { readonly status: "not_found" };
 
 /** Maximum verification delegates that may overlap; the parent batches findings beyond this cap. */
 export const VERIFICATION_CONCURRENCY_CAP = 4;
 
 export class DelegateManager {
   private readonly active = new Map<string, ActiveRun>();
+  private nextDelegateId = 1;
 
-  begin(id: string, role: DelegateRole): AbortSignal {
+  begin(toolCallId: string, role: DelegateRole): DelegateHandle {
     const activeRoles = [...this.active.values()].map((run) => run.role);
 
     // Verification overlaps only sibling verifications: it never starts next
@@ -44,17 +63,59 @@ export class DelegateManager {
     }
 
     const controller = new AbortController();
-    this.active.set(id, { id, role, controller });
-    return controller.signal;
+    const delegateId = this.nextDelegateId++;
+    this.active.set(toolCallId, {
+      delegateId,
+      role,
+      controller,
+      startedAt: performance.now(),
+    });
+    return { id: delegateId, signal: controller.signal };
   }
 
-  finish(id: string): void {
-    this.active.delete(id);
+  update(toolCallId: string, progress: DelegateProgress): void {
+    const run = this.active.get(toolCallId);
+    if (run) run.progress = progress;
+  }
+
+  idFor(toolCallId: string | undefined): number | undefined {
+    if (!toolCallId) return undefined;
+    return this.active.get(toolCallId)?.delegateId;
+  }
+
+  listActive(): readonly ActiveDelegate[] {
+    return [...this.active.values()]
+      .sort((left, right) => left.delegateId - right.delegateId)
+      .map((run) => this.describe(run));
+  }
+
+  stop(delegateId: number): StopDelegateResult {
+    const run = [...this.active.values()].find((candidate) => candidate.delegateId === delegateId);
+    if (!run) return { status: "not_found" };
+    const delegate = this.describe(run);
+    if (run.controller.signal.aborted) return { status: "already_stopping", delegate };
+    run.controller.abort();
+    return { status: "stopping", delegate: { ...delegate, state: "stopping" } };
+  }
+
+  finish(toolCallId: string): void {
+    this.active.delete(toolCallId);
   }
 
   abortAll(): void {
     for (const run of this.active.values()) run.controller.abort();
     this.active.clear();
+  }
+
+  private describe(run: ActiveRun): ActiveDelegate {
+    const elapsedSeconds = run.progress?.elapsedSeconds
+      ?? Math.round((performance.now() - run.startedAt) / 100) / 10;
+    return {
+      id: run.delegateId,
+      role: run.role,
+      state: run.controller.signal.aborted ? "stopping" : (run.progress?.state ?? "starting"),
+      elapsedSeconds,
+    };
   }
 }
 

@@ -2,6 +2,15 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-22 — Add targeted delegate cancellation
+
+- Added session-local monotonic numeric IDs for admitted delegates. IDs start at 1, are never reused during an extension lifetime, remain private aliases rather than tool-call IDs or process IDs, and appear in active and settled delegate tool rendering.
+- Added `/delegate:list`, which opens a stable TUI selector showing each active delegate's ID, role, state, and elapsed time. Selecting a row only prefills `/delegate:stop <id>` in the main editor; it does not cancel automatically, and Escape leaves every delegate running.
+- Added `/delegate:stop <id>`, which validates one positive safe integer and aborts only the selected manager-owned controller. Sibling delegates continue, stale and repeated IDs receive bounded notifications, and the manager retains the stopped run until supervisor process-group cleanup and execute finalization finish.
+- Targeted cancellation uses the existing combined abort signal and terminal `interrupted` path, so it reaches catalog preflight plus Pi and Claude supervision, performs normal diagnostics and artifact cleanup, removes descendants, and never advances provider fallback. No BTW-specific control or raw PID kill path was added.
+- Added focused manager and source/render-contract regressions for ID allocation, non-reuse, active progress, targeted abort isolation, retained cleanup slots, command registration, selector prefill, and numeric ID rendering. Provider/model routes, role permissions, model-visible tool guidance, and orchestration gates are unchanged.
+- Validation: extension suite (71 tests), strict TypeScript check, `pi --list-models` extension load, context-cost verification, and `git diff --check`, with no paid delegate inference.
+
 ## 2026-08-22 — Keep plan and research authorship with the parent
 
 - Restricted automatic implementation delegation to repository implementation changes. The parent directly authors and saves plans, design notes, investigation reports, and research notes, including repository artifacts such as `PLAN.md`; these writes are an explicit exception to automatic implementation delegation.

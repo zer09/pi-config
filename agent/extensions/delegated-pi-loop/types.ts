@@ -179,23 +179,35 @@ export interface DelegateToolResultEvent {
 
 export type ToolUpdateHandler = (result: ToolResult) => void;
 
+export interface ExtensionUI {
+  notify(message: string, level: "info" | "warning" | "error"): void;
+  select(title: string, options: string[]): Promise<string | undefined>;
+  setEditorText(text: string): void;
+  setWidget(
+    id: string,
+    value: string[] | undefined,
+    options?: { readonly placement?: "aboveEditor" | "belowEditor" },
+  ): void;
+}
+
 export interface ExtensionContext {
   readonly cwd: string;
   readonly mode?: string;
   readonly hasUI?: boolean;
   /** Parent session's active model; supplies the selected provider and model id. */
   readonly model?: { readonly provider: string; readonly id?: string };
-  readonly ui?: {
-    setWidget(
-      id: string,
-      value: string[] | undefined,
-      options?: { readonly placement?: "aboveEditor" | "belowEditor" },
-    ): void;
-  };
+  readonly ui?: ExtensionUI;
+}
+
+export interface ExtensionCommandContext extends ExtensionContext {
+  readonly hasUI: boolean;
+  readonly ui: ExtensionUI;
 }
 
 export interface ToolRenderContext {
   readonly lastComponent?: unknown;
+  readonly toolCallId?: string;
+  readonly state?: Record<string, unknown>;
 }
 
 export interface ToolDefinition<Params extends object> {
@@ -223,6 +235,13 @@ export interface ToolDefinition<Params extends object> {
 
 export interface ExtensionAPI {
   registerTool<Params extends object>(tool: ToolDefinition<Params>): void;
+  registerCommand(
+    name: string,
+    command: {
+      readonly description: string;
+      readonly handler: (args: string, ctx: ExtensionCommandContext) => void | Promise<void>;
+    },
+  ): void;
   on(event: string, handler: (...args: unknown[]) => unknown): void;
 }
 

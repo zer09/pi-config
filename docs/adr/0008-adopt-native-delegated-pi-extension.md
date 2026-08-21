@@ -30,7 +30,9 @@ The extension privately parses Pi JSON events. For every accepted activity event
 - a monotonic activity time for idle enforcement; and
 - an ISO-8601 UTC supervisor receipt time for display.
 
-It does not publish or persist thinking, text deltas, tool arguments, or tool results. The native `delegate_run` tool renderer streams this state in the tool's own row: while a delegate runs, Pi re-renders the live tool block in place with the current route, state, phase, attempt, last event, exact UTC time, relative age, and elapsed time, and the settled render keeps the final state, route, elapsed time, and last event in front of the collapsed report. No separate aggregate, footer, or below-editor widget duplicates this state.
+It does not publish or persist thinking, text deltas, tool arguments, or tool results. The native `delegate_run` tool renderer streams this state in the tool's own row: while a delegate runs, Pi re-renders the live tool block in place with the session-local monotonic numeric delegate ID, current route, state, phase, attempt, last event, exact UTC time, relative age, and elapsed time, and the settled render keeps the ID, final state, route, elapsed time, and last event in front of the collapsed report. No separate aggregate, footer, or below-editor widget duplicates this state.
+
+The manager assigns IDs `1, 2, 3, ...` only after a run passes its concurrency gate, never reuses an ID during that extension lifetime, and retains an aborted run until process-group cleanup and execute finalization finish. `/delegate:list` opens a stable active-run selector and only prefills `/delegate:stop <id>`; `/delegate:stop <id>` aborts that manager-owned controller, leaves siblings running, and produces the existing `interrupted` terminal path without fallback. The commands execute locally without an LLM turn. There is no BTW-specific command or raw PID control.
 
 Preserve ADR 0007's route maps, structured terminal markers, 45-minute wall deadline, 50 MiB output limit, 5-minute idle warning, 10-minute idle termination, pre-tool-only fallback, private artifacts, role separation, and authorization boundaries.
 

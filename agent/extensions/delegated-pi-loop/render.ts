@@ -38,15 +38,26 @@ function eventText(progress: DelegateProgress): string {
     : progress.lastEvent;
 }
 
+function delegateIdFrom(result: ToolResult, context: ToolRenderContext): number | undefined {
+  const value = result.details?.delegateId;
+  const delegateId = typeof value === "number" ? value : undefined;
+  if (delegateId !== undefined && context.state) context.state.delegateId = delegateId;
+  return delegateId ?? (typeof context.state?.delegateId === "number" ? context.state.delegateId : undefined);
+}
+
 export function renderDelegateCall(
   args: DelegateToolParams,
   theme: RenderTheme,
   context: ToolRenderContext,
+  activeDelegateId?: number,
 ): Text {
   const text = reuseText(context);
+  const stateDelegateId = typeof context.state?.delegateId === "number" ? context.state.delegateId : undefined;
+  const delegateId = activeDelegateId ?? stateDelegateId;
+  const id = delegateId === undefined ? "" : `#${delegateId} `;
   const backend = args.backend && args.backend !== "default" ? ` backend=${args.backend}` : "";
   text.setText(
-    theme.fg("toolTitle", theme.bold("Delegate "))
+    theme.fg("toolTitle", theme.bold(`Delegate ${id}`))
       + theme.fg("accent", args.role)
       + theme.fg("muted", backend),
   );
@@ -61,12 +72,14 @@ export function renderDelegateResult(
 ): Text {
   const text = reuseText(context);
   const progress = progressFrom(result);
+  const delegateId = delegateIdFrom(result, context);
+  const id = delegateId === undefined ? "" : `#${delegateId} `;
 
   if (options.isPartial && progress) {
     const route = progress.route ?? "selecting route";
     const event = eventText(progress);
     text.setText([
-      theme.fg("warning", `⏳ ${progress.label}`) + theme.fg("muted", `  ${route}`),
+      theme.fg("warning", `⏳ ${id}${progress.label}`) + theme.fg("muted", `  ${route}`),
       theme.fg("muted", `phase: ${progress.phase}  state: ${progress.state}  attempt: ${progress.attempt}`),
       theme.fg("toolOutput", `last: ${event}`),
       theme.fg("dim", `at: ${ageText(progress.lastEventAt)}  elapsed: ${progress.elapsedSeconds.toFixed(1)}s`),
@@ -79,7 +92,7 @@ export function renderDelegateResult(
   const state = typeof result.details?.state === "string" ? result.details.state : "completed";
   const successful = state === "completed";
   const icon = successful ? theme.fg("success", "✓") : theme.fg("error", "✗");
-  let rendered = `${icon} ${theme.fg("toolTitle", theme.bold(String(state)))}`;
+  let rendered = `${icon} ${theme.fg("toolTitle", theme.bold(`${id}${String(state)}`))}`;
   if (progress) {
     rendered += theme.fg("muted", `  ${progress.route ?? "no route"}  ${progress.elapsedSeconds.toFixed(1)}s`);
     rendered += `\n${theme.fg("dim", `last: ${eventText(progress)} at ${ageText(progress.lastEventAt)}`)}`;
