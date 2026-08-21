@@ -26,7 +26,7 @@ The extension runs as part of the parent Pi process, like CodeGraph and Context 
 | `agent/extensions/delegated-pi-loop/runner.ts` | Catalog preflight, ordered fresh-route fallback, shared deadline, read-only fingerprints, and the in-memory chain result. |
 | `agent/extensions/delegated-pi-loop/result.ts` | Model-visible Markdown result builders, terminal marker stripping, the native tool-result error patch, and execute-level finalization (diagnostic persistence, tool-result assembly, artifact cleanup). |
 | `agent/extensions/delegated-pi-loop/diagnostics.ts` | Private sanitized failure diagnostics under `${PI_CODING_AGENT_DIR:-~/.pi/agent}/logs/delegated-pi-loop/` with 0700/0600 permissions. |
-| `agent/extensions/delegated-pi-loop/manager.ts` | Parent-session concurrency guard, cancellation, and aggregate TUI widget. |
+| `agent/extensions/delegated-pi-loop/manager.ts` | Parent-session concurrency guard and cancellation. |
 | `agent/extensions/delegated-pi-loop/render.ts` | Compact and expanded tool rendering with last event, UTC receipt time, and the TUI-only diagnostic path. |
 | `agent/extensions/delegated-pi-loop/artifacts.ts` | Private temporary artifacts, atomic writes, best-effort directory removal, fingerprints, and bounded report output. |
 | `agent/extensions/delegated-pi-loop/types.ts` | Extension, route, progress, status, and result contracts. |
@@ -72,7 +72,7 @@ The retired `agent/skills/delegated-pi-loop/` directory must not be restored unl
    - phase;
    - UTC supervisor receipt time;
    - monotonic activity time for idle enforcement.
-8. The tool renderer and aggregate widget show the last event, its UTC time, relative age, route, phase, attempt, and elapsed time. For unsuccessful results the renderer also shows the private diagnostic path; nothing prompts or automatically reads it.
+8. The streaming tool renderer shows the last event, its UTC time, relative age, route, phase, attempt, and elapsed time. Normal Pi child progress is throttled to at most once per second without slowing the independent 100 ms safety checks. No separate footer or below-editor widget duplicates this state. For unsuccessful results the renderer also shows the private diagnostic path; nothing prompts or automatically reads it.
 9. A valid `DELEGATE_RESULT: COMPLETED` report followed by final `agent_end` and `agent_settled` is terminal success even if Pi remains alive.
 10. `BLOCKED`, `FAILED`, missing reports, malformed markers, malformed lifecycle streams, partial trailing JSON, output overflow, stalls, and wall timeout remain distinct non-success states.
 

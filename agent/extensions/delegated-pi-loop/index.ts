@@ -33,24 +33,6 @@ const DelegateParameters = Type.Object({
   })),
 });
 
-function initialProgress(role: DelegateRole): DelegateProgress {
-  const now = new Date().toISOString();
-  return {
-    label: role,
-    role,
-    state: "catalog_check",
-    protocol: "pi-json",
-    attempt: 0,
-    phase: "starting",
-    lastEvent: "extension_start",
-    lastEventAt: now,
-    idleSeconds: 0,
-    elapsedSeconds: 0,
-    toolExecutionCount: 0,
-    idleWarningCount: 0,
-  };
-}
-
 function partialResult(progress: DelegateProgress): ToolResult {
   return {
     content: [{
@@ -127,8 +109,7 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
       const backend = (params.backend ?? "default") as DelegateBackend;
       const candidateCwd = params.cwd ? path.resolve(ctx.cwd, params.cwd) : ctx.cwd;
       const cwd = await realpath(candidateCwd);
-      const starting = initialProgress(role);
-      const managerSignal = manager.begin(toolCallId, role, starting, ctx);
+      const managerSignal = manager.begin(toolCallId, role);
       const runSignal = combinedSignal(signal, managerSignal);
 
       try {
@@ -139,7 +120,6 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
           cwd,
           signal: runSignal,
           onProgress: (progress) => {
-            manager.update(toolCallId, progress, ctx);
             onUpdate?.(partialResult(progress));
           },
         });
@@ -149,7 +129,7 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
         // temporary supervision artifacts for every terminal outcome.
         return await finalizeDelegateRun(result);
       } finally {
-        manager.finish(toolCallId, ctx);
+        manager.finish(toolCallId);
       }
     },
 

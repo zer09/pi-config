@@ -21,6 +21,7 @@ export const DEFAULT_GRACE_MS = 15 * 1000;
 export const DEFAULT_IDLE_WARNING_MS = 5 * 60 * 1000;
 export const DEFAULT_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 export const DEFAULT_MAX_OUTPUT_BYTES = 50 * 1024 * 1024;
+const PROGRESS_INTERVAL_MS = 1_000;
 
 interface SuperviseBaseOptions {
   readonly label: string;
@@ -233,7 +234,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
 
   function emitProgress(force: boolean): void {
     const now = performance.now();
-    if (!force && now - lastProgressAt < 200) return;
+    if (!force && now - lastProgressAt < PROGRESS_INTERVAL_MS) return;
     lastProgressAt = now;
     options.onProgress?.(progressFromMonitor(options, state, started, monitor));
   }
@@ -273,7 +274,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     const now = performance.now();
     const snapshot = monitor.snapshot();
     const idleMs = now - snapshot.lastActivityMonotonic;
-    emitProgress(true);
+    emitProgress(false);
 
     if (outputBytes > options.maxOutputBytes) {
       terminalRequested = true;
