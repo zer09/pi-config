@@ -111,7 +111,7 @@ Prose, multi-section reports, arbitrary missing markers, and every attempt that 
 |---|---|
 | Solution or review A | `opencode-go/muse-spark-1.2-contributor:xhigh`, then AgentRouter Sol/max, Tabitoken Opus 5 Thinking/max, SeekAI Opus 5/max, GoRouter Opus 5 Thinking/high. |
 | Solution or review B | `opencode-go/deepseek-v4-flash:max`, then SeekAI DeepSeek V4 Flash/max, AgentRouter Opus 5/max, Tabitoken Opus 5 Thinking/max, GoRouter Opus 5 Thinking/high. |
-| Solution or review C | `opencode-go/ox-alpha-free:max`, then AgentRouter Opus 5/max, Tabitoken Opus 5 Thinking/max, SeekAI Opus 5/max, GoRouter Opus 5 Thinking/high. |
+| Solution or review C | `opencode-go/hy3:high`, then AgentRouter Opus 5/max, Tabitoken Opus 5 Thinking/max, SeekAI Opus 5/max, GoRouter Opus 5 Thinking/high. |
 | Solution or review D | `gpt-5.5` at `medium` on exactly one ordered member chain of the five eligible providers `openai-codex`, `openai-codex-zahlo`, `openai-codex-cgpt1`, `openai-codex-cgpt2`, `openai-codex-cgpt3`. The primary is the parent session's currently selected provider (read from native extension context, never environment variables) when that provider is eligible; otherwise one randomly selected eligible provider. The remaining four follow in the stable canonical order listed here. Cursor is excluded from D by definition. The selection happens exactly once per `delegate_run` invocation, and the ordered attempts return through the existing chain result machinery. |
 | Solution oracle | `gpt-5.6-sol` at `high` on exactly one ordered member chain of the same five eligible providers with the same inherited-eligible-or-one-random primary selection and canonical fallback order as D. The oracle runs exactly once against the synthesized draft solution contract after a required solution gate. Main-Sol skip detection is model-id based, not provider based: the parent model id `gpt-5.6-sol` skips the oracle on any parent provider, and the check reads `ctx.model.id` from native extension context. Explicit backend=zai or backend=claude is invalid for the oracle and is rejected before spawning. |
 | Implementation or remediation | `zai/glm-5.3:max`. |
@@ -119,7 +119,7 @@ Prose, multi-section reports, arbitrary missing markers, and every attempt that 
 | Explicit Z.AI alternative | `zai/glm-5.3:max` with assigned-role permissions. |
 | Explicit Claude Code alternative | `claude-opus-5`, effort `medium`, with assigned-role permissions. |
 
-AgentRouter, Tabitoken, SeekAI, and GoRouter remain backup-only in default A/B/C maps. Muse Spark uses `xhigh` because its `max` map is null. Ox Alpha Free maps `max` to `max`, so the C primary runs at `max` natively. D and oracle routes never leave the five eligible OpenAI Codex alias providers.
+AgentRouter, Tabitoken, SeekAI, and GoRouter remain backup-only in default A/B/C maps. Muse Spark uses `xhigh` because its `max` map is null. HY3 uses `high` because it does not support `max`. D and oracle routes never leave the five eligible OpenAI Codex alias providers.
 
 ### Orchestration gates
 
@@ -177,7 +177,7 @@ Verify route catalog entries:
 ```bash
 pi --list-models opencode-go/muse-spark-1.2-contributor
 pi --list-models opencode-go/deepseek-v4-flash
-pi --list-models opencode-go/ox-alpha-free
+pi --list-models opencode-go/hy3
 pi --list-models agentrouter/gpt-5.6-sol
 pi --list-models tabitoken/claude-opus-5-thinking
 pi --list-models seekai/claude-opus-5

@@ -12,7 +12,7 @@ test("preserves ordered A, B, and C default route maps", () => {
     "gorouter/claude-opus-5-thinking:high",
   ]);
   assert.equal(routeKey(routesFor("review-b", "default")[0]!), "opencode-go/deepseek-v4-flash:max");
-  assert.equal(routeKey(routesFor("review-c", "default")[0]!), "opencode-go/ox-alpha-free:max");
+  assert.equal(routeKey(routesFor("review-c", "default")[0]!), "opencode-go/hy3:high");
   // A/B/C maps ignore parent-provider inheritance and injected randomness.
   assert.deepEqual(
     routesFor("solution-a", "default", { parentProvider: "openai-codex-cgpt2", random: () => 0 }).map(routeKey),

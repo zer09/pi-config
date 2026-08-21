@@ -2,6 +2,14 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-22 — Restore the delegated C primary to HY3
+
+- Restored the active C primary for both conditional solution investigation and independent review: `opencode-go/hy3:high` replaces `opencode-go/ox-alpha-free:max` in the executable route map and the focused route regression. The C ordered backup map is unchanged: AgentRouter Opus 5/max, Tabitoken Opus 5 Thinking/max, SeekAI Opus 5/max, then GoRouter Opus 5 Thinking/high.
+- Documented that HY3's live catalog entry still maps `max` to null in its local thinking-level map, so the restored C primary runs at `high`, the highest mapped level, replacing the interim Ox Alpha native-`max` rationale. Verified the route in Pi's live catalog and the stored level map without paid inference.
+- Preserved the A/B/D route maps, D inheritance and single random draw, the conditional Sol oracle routing and model-id-based skip, explicit backend overrides, implementation, remediation, and verification routes, pre-tool-only fallback cutoff, supervision, result, diagnostics, and fingerprint behavior.
+- Updated ADR 0007 current policy with a dated restoration paragraph while preserving the earlier HY3 and interim Ox Alpha paragraphs as factual provenance, the maintenance document's role table, thinking rationale, and catalog checks, and the context-cost line for this route-only change with a zero startup-context delta because the executable route map is not model-visible.
+- Validation: extension suite (60 tests), strict TypeScript check via a temporary config resolving Pi's installed declarations, `pi --list-models` extension load, live-catalog verification of the restored C primary and its no-`max` level map, `git diff --check`, and exact reference scans, all without paid inference.
+
 ## 2026-08-21 — Add the conditional Sol oracle stage
 
 - Added a distinct read-only advisory `oracle` role to the native `delegate_run` tool between solution synthesis and implementation. The oracle runs exactly once, only after a required solution A/B/C/D investigation gate completed, the parent verified evidence, and the parent synthesized a draft solution contract; a small task that skips solution investigation also skips the oracle and still runs exactly one implementation delegate.

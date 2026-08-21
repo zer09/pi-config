@@ -58,6 +58,8 @@ Delegated automatic-trigger update: 2026-08-21 (made `delegate_run` automatic fo
 
 Delegated Sol-oracle update: 2026-08-21 (added the conditional read-only advisory `oracle` role on `gpt-5.6-sol`/high across the five D-eligible providers with inherited-or-random primary selection, model-id-based main-Sol skip, pre-spawn backend rejection, and oracle orchestration guidelines; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated C-route HY3 restoration: 2026-08-22 (restored the C Ox Alpha Free/max interim primary to OpenCode Go HY3/high for investigation and review; zero startup-context delta because the executable route map is TypeScript and is not model-visible; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
