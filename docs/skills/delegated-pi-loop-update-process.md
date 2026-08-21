@@ -1,6 +1,6 @@
 # Delegated Pi extension update process
 
-Purpose: maintain the native TypeScript `delegate_run` Pi extension that runs inside the parent Pi process and supervises fresh Pi or Claude Code delegates. The extension owns route selection, bounded subprocess lifecycle, private JSON parsing, live last-event timestamps, role isolation, read-only fingerprints, and terminal result enforcement.
+Purpose: maintain the native TypeScript `delegate_run` Pi extension that runs inside the parent Pi process and supervises fresh Pi or Claude Code delegates. The extension owns route selection, bounded subprocess lifecycle, private JSON parsing, live last-event timestamps, role isolation, read-only fingerprints, terminal result enforcement, the Markdown tool-result envelope with native error marking, and private failure diagnostics.
 
 ## Classification and provenance
 
@@ -19,16 +19,18 @@ The extension runs as part of the parent Pi process, like CodeGraph and Context 
 | Path | Responsibility |
 |---|---|
 | `agent/AGENTS.md` | Compact trigger and global orchestration safety rules. |
-| `agent/extensions/delegated-pi-loop/index.ts` | Extension entrypoint, `delegate_run` registration, prompt guidance, child watchdog, and lifecycle cleanup. |
+| `agent/extensions/delegated-pi-loop/index.ts` | Extension entrypoint, `delegate_run` registration, prompt guidance, execute-level finalization, native `tool_result` error marking, child watchdog, and lifecycle cleanup. |
 | `agent/extensions/delegated-pi-loop/routes.ts` | Role classification, route maps, prompt contracts, and terminal marker contract. |
 | `agent/extensions/delegated-pi-loop/monitor.ts` | Private Pi JSON lifecycle parsing, sanitized event metadata, terminal report extraction, and availability classification. |
 | `agent/extensions/delegated-pi-loop/supervisor.ts` | Process groups, deadlines, output bounds, environment scrubbing, live progress, artifact status, and Claude plain protocol. |
-| `agent/extensions/delegated-pi-loop/runner.ts` | Catalog preflight, ordered fresh-route fallback, shared deadline, read-only fingerprints, and chain result. |
+| `agent/extensions/delegated-pi-loop/runner.ts` | Catalog preflight, ordered fresh-route fallback, shared deadline, read-only fingerprints, and the in-memory chain result. |
+| `agent/extensions/delegated-pi-loop/result.ts` | Model-visible Markdown result builders, terminal marker stripping, the native tool-result error patch, and execute-level finalization (diagnostic persistence, tool-result assembly, artifact cleanup). |
+| `agent/extensions/delegated-pi-loop/diagnostics.ts` | Private sanitized failure diagnostics under `${PI_CODING_AGENT_DIR:-~/.pi/agent}/logs/delegated-pi-loop/` with 0700/0600 permissions. |
 | `agent/extensions/delegated-pi-loop/manager.ts` | Parent-session concurrency guard, cancellation, and aggregate TUI widget. |
-| `agent/extensions/delegated-pi-loop/render.ts` | Compact and expanded tool rendering with last event and UTC receipt time. |
-| `agent/extensions/delegated-pi-loop/artifacts.ts` | Private temporary artifacts, atomic writes, fingerprints, and bounded report output. |
+| `agent/extensions/delegated-pi-loop/render.ts` | Compact and expanded tool rendering with last event, UTC receipt time, and the TUI-only diagnostic path. |
+| `agent/extensions/delegated-pi-loop/artifacts.ts` | Private temporary artifacts, atomic writes, best-effort directory removal, fingerprints, and bounded report output. |
 | `agent/extensions/delegated-pi-loop/types.ts` | Extension, route, progress, status, and result contracts. |
-| `agent/extensions/delegated-pi-loop/*.test.ts` | Monitor, route, supervisor, cleanup, fallback, and integration regressions. |
+| `agent/extensions/delegated-pi-loop/*.test.ts` | Monitor, route, supervisor, cleanup, fallback, result Markdown, diagnostics, and integration regressions. |
 | `docs/skills/delegated-pi-loop-update-process.md` | This maintenance and validation contract. |
 
 The retired `agent/skills/delegated-pi-loop/` directory must not be restored unless the user explicitly requests a separate skill layer.
@@ -63,16 +65,26 @@ The retired `agent/skills/delegated-pi-loop/` directory must not be restored unl
 3. Default Pi event-idle warning: 5 minutes.
 4. Default Pi event-idle termination: 10 minutes.
 5. Thinking, text deltas, tool arguments, and tool results remain private runtime input.
-6. Persist only the final report, bounded stderr, status, prompt, and sanitized activity metadata in a private temporary directory.
+6. Temporary supervision artifacts (prompt and per-attempt report, stderr, and status files) may exist while a run is in flight in a private temporary directory. No chain-level `report.md` or `status.json` is written; every chain outcome returns in memory. Every terminal outcome removes the entire artifact directory after the failure diagnostic is persisted and the tool result is assembled.
 7. Every accepted activity event records:
    - event type;
    - optional tool name, never tool arguments;
    - phase;
    - UTC supervisor receipt time;
    - monotonic activity time for idle enforcement.
-8. The tool renderer and aggregate widget show the last event, its UTC time, relative age, route, phase, attempt, and elapsed time.
+8. The tool renderer and aggregate widget show the last event, its UTC time, relative age, route, phase, attempt, and elapsed time. For unsuccessful results the renderer also shows the private diagnostic path; nothing prompts or automatically reads it.
 9. A valid `DELEGATE_RESULT: COMPLETED` report followed by final `agent_end` and `agent_settled` is terminal success even if Pi remains alive.
 10. `BLOCKED`, `FAILED`, missing reports, malformed markers, malformed lifecycle streams, partial trailing JSON, output overflow, stalls, and wall timeout remain distinct non-success states.
+
+### Tool result contract
+
+1. `execute` always returns the native ToolResult envelope; model-visible `content[0].text` is raw Markdown, and JSON escaping is transport-only. Delegate Markdown is passed through verbatim, never parsed into plain text.
+2. Successful runs return a minimal status header (label, `completed`, route, elapsed) followed by the delegate's final Markdown body with the validated terminal `DELEGATE_RESULT: COMPLETED` marker stripped. Report, status, artifact, and diagnostic paths never appear in model-visible content.
+3. Unsuccessful runs return a compact sanitized failure Markdown: state, role, backend, selected or final route when present, phase, last sanitized event with optional tool name, exact UTC receipt time, elapsed time, the ordered attempt chain, and one deterministic per-state summary sentence. It excludes reports, raw stdout/stderr, prompts, tool arguments and results, provider response bodies, credentials, and all file paths.
+4. The extension registers a native `tool_result` handler that patches unsuccessful `delegate_run` results to `isError: true` while preserving the returned Markdown content and renderer details. `execute` itself never throws for a supervised failure.
+5. Unsuccessful runs persist one small private diagnostic JSON under `${PI_CODING_AGENT_DIR:-~/.pi/agent}/logs/delegated-pi-loop/` with 0700 directories and 0600 atomic files. It contains only bounded sanitized fields (state, role, backend, routes, times, sanitized progress and attempts, bounded stream errors). It excludes prompts, delegate reports, raw stdout/stderr, tool arguments and results, Git status and fingerprints, credentials, provider bodies, and every file path. The temporary supervision artifact directory is removed after the diagnostic is persisted, so nothing in `/tmp` outlives the run beyond best-effort removal limits.
+6. The diagnostic path travels only in `details` for the TUI renderer. Successful runs write no diagnostic.
+7. Execute-level finalization awaits `runDelegate`, persists the failure diagnostic when unsuccessful, assembles the final ToolResult, and then removes the temporary artifact directory for every terminal outcome in a `finally` that also runs when diagnostic persistence fails. A failed diagnostic write still returns sanitized failure content with no diagnostic path; directory removal stays best-effort.
 
 ### Route fallback
 
@@ -129,7 +141,7 @@ AgentRouter, Tabitoken, SeekAI, and GoRouter remain backup-only in default A/B/C
 3. Compare process and renderer patterns with the local CodeGraph and Context Mode extensions.
 4. Confirm every route and thinking level in Pi's live catalog without running paid inference.
 5. Confirm Claude Code supports the pinned model, effort, persistence, permission, and tool flags.
-6. Preserve parent-process extension execution, child role isolation, environment inheritance, recursive-delegation suppression, deadlines, private event handling, exact timestamps, process-group cleanup, fallback cutoffs, fingerprints, and concurrency gates.
+6. Preserve parent-process extension execution, child role isolation, environment inheritance, recursive-delegation suppression, deadlines, private event handling, exact timestamps, process-group cleanup, fallback cutoffs, fingerprints, concurrency gates, the raw-Markdown tool-result contract, native error marking through `tool_result`, and the 0700/0600 failure diagnostic contract.
 7. Update tests before or with behavior changes.
 8. Update `agent/AGENTS.md`, root `README.md`, ADRs, and context-cost accounting when the active tool contract changes.
 9. Do not restore the retired runtime skill or Python supervisors.
@@ -170,7 +182,7 @@ pi --list-models openai-codex/gpt-5.6-sol
 
 Also verify:
 
-- no raw thinking or tool payload appears in reports, status, progress, or test output;
+- no raw thinking or tool payload appears in reports, status, progress, diagnostics, or test output;
 - `lastEventAt` is an ISO-8601 UTC receipt timestamp and updates on every accepted activity event;
 - empty deltas do not reset event-idle time;
 - a completed settled lifecycle cleans up a lingering process group;
@@ -181,6 +193,10 @@ Also verify:
 - child Pi does not register `delegate_run` recursively;
 - read-only fingerprint changes invalidate the result;
 - no delegate command line or credential value is persisted;
-- unrelated dirty files remain untouched.
+- unrelated dirty files remain untouched;
+- every terminal outcome removes its temporary supervision artifact directory after diagnostic persistence and tool-result assembly, and no chain-level `report.md` or `status.json` is ever written;
+- successful runs return exact Markdown with the terminal marker stripped and no paths;
+- unsuccessful runs return the compact sanitized failure Markdown, are patched to `isError: true` through the native `tool_result` lifecycle, persist one 0600 diagnostic JSON under `logs/delegated-pi-loop/` with only bounded sanitized fields and no file paths, and surface its path only in the TUI renderer;
+- a diagnostic write failure still returns sanitized failure content with no diagnostic path and performs artifact cleanup.
 
 Run paid model smokes only when the user authorizes the provider cost and mutation scope. Use a disposable local Git fixture for mutating tests.

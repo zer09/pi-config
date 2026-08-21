@@ -1,5 +1,6 @@
 import { keyText } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
+import { diagnosticLine } from "./result.ts";
 import type {
   DelegateProgress,
   DelegateToolParams,
@@ -82,6 +83,11 @@ export function renderDelegateResult(
   if (progress) {
     rendered += theme.fg("muted", `  ${progress.route ?? "no route"}  ${progress.elapsedSeconds.toFixed(1)}s`);
     rendered += `\n${theme.fg("dim", `last: ${eventText(progress)} at ${ageText(progress.lastEventAt)}`)}`;
+  }
+  // TUI-only: the private diagnostic path for unsuccessful runs never enters
+  // model-visible tool content. Shown without any read prompt.
+  if (!successful && typeof result.details?.diagnosticPath === "string") {
+    rendered += `\n${theme.fg("dim", diagnosticLine(result.details.diagnosticPath))}`;
   }
 
   const visible = options.expanded ? lines : lines.slice(0, COLLAPSED_REPORT_LINES);

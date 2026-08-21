@@ -2,10 +2,10 @@ import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
-import { truncateUtf8 } from "./artifacts.ts";
 import { combinedSignal, DelegateManager } from "./manager.ts";
 import { renderDelegateCall, renderDelegateResult } from "./render.ts";
-import { DELEGATE_TOOL_OUTPUT_LIMIT, runDelegate } from "./runner.ts";
+import { delegateToolResultPatch, finalizeDelegateRun } from "./result.ts";
+import { runDelegate } from "./runner.ts";
 import { DELEGATE_BACKENDS, DELEGATE_ROLES } from "./types.ts";
 import type {
   DelegateBackend,
@@ -61,15 +61,6 @@ function partialResult(progress: DelegateProgress): ToolResult {
   };
 }
 
-function finalText(state: string, report: string, reportPath: string, statusPath: string): string {
-  const body = report.trim() || `Delegate ended with state: ${state}`;
-  const { text, truncatedBytes } = truncateUtf8(body, DELEGATE_TOOL_OUTPUT_LIMIT - 1024);
-  const truncation = truncatedBytes > 0
-    ? `\n\n[Report truncated by ${truncatedBytes} bytes. Full report: ${reportPath}]`
-    : "";
-  return `${text}${truncation}\n\nDelegate state: ${state}\nStatus: ${statusPath}`;
-}
-
 export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
   // Child delegates inherit all parent extensions. Suppress the tool in children
   // and let the child kill its own process group if the parent disappears.
@@ -105,10 +96,18 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
     manager.abortAll();
   });
 
+  // Native tool-result lifecycle: unsuccessful delegate_run results are marked
+  // as Pi tool errors while their Markdown content and renderer details stay
+  // intact, so diagnostics never need to reach the model.
+  pi.on("tool_result", (...args: unknown[]) => {
+    const event = args[0] as { toolName: string; details?: unknown };
+    return delegateToolResultPatch(event);
+  });
+
   pi.registerTool<DelegateToolParams>({
     name: "delegate_run",
     label: "Delegate Run",
-    description: "Run one fresh bounded Pi or Claude Code delegate in an isolated role. Default investigation and review roles use ordered provider fallback before any tool executes. Streams the last sanitized child event and its UTC receipt time. The parent remains the sole orchestrator.",
+    description: "Run one fresh bounded Pi or Claude Code delegate in an isolated role. Default investigation and review roles use ordered provider fallback before any tool executes. Streams the last sanitized child event and its UTC receipt time. A completed run returns the delegate's Markdown report; any other state returns a compact sanitized failure status and is marked as a tool error. The parent remains the sole orchestrator.",
     promptSnippet: "Run one fresh bounded delegate with role-specific routing and live event status",
     promptGuidelines: [
       "Use delegate_run only when the user or project requests delegated investigation, implementation, review, verification, or remediation.",
@@ -118,7 +117,7 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
       "After implementation or remediation, call delegate_run for review-a, review-b, and review-c concurrently with the same neutral review scope; all three must complete.",
       "Process each blocking review finding through a fresh delegate_run verification role before a focused remediation role, then run a fresh three-reviewer gate.",
       "Use delegate_run backend=default unless the user or project explicitly selects Z.AI or Claude Code for the assigned role; backend selection never changes role mutation permissions.",
-      "Treat every delegate_run state other than completed as a failed delegation, preserve its artifact paths, and do not retry outside the tool's bounded pre-tool route fallback without user-authorized diagnosis.",
+      "Treat every delegate_run state other than completed as a failed delegation reported as a tool error with sanitized status fields, and do not retry outside the tool's bounded pre-tool route fallback without user-authorized diagnosis.",
       "Do not stage, commit, push, deploy, or mutate hosted services because a delegate completed; those transitions require separate explicit authorization.",
     ],
     parameters: DelegateParameters as unknown as Record<string, unknown>,
@@ -144,24 +143,11 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
             onUpdate?.(partialResult(progress));
           },
         });
-        return {
-          content: [{
-            type: "text",
-            text: finalText(result.state, result.report, result.reportPath, result.statusPath),
-          }],
-          details: {
-            state: result.state,
-            role: result.role,
-            backend: result.backend,
-            selectedRoute: result.selectedRoute,
-            attempts: result.attempts,
-            artifactDir: result.artifactDir,
-            reportPath: result.reportPath,
-            statusPath: result.statusPath,
-            elapsedSeconds: result.elapsedSeconds,
-            progress: result.progress,
-          },
-        };
+        // Terminal finalization: persist the compact failure diagnostic for
+        // unsuccessful runs (path travels only in details for the TUI
+        // renderer), assemble the raw-Markdown ToolResult, then remove the
+        // temporary supervision artifacts for every terminal outcome.
+        return await finalizeDelegateRun(result);
       } finally {
         manager.finish(toolCallId, ctx);
       }

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { chmod, lstat, mkdir, mkdtemp, open, readFile, readlink, realpath, rename } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, open, readFile, readlink, realpath, rename, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
@@ -8,6 +8,9 @@ import { promisify } from "node:util";
 import type { TreeFingerprint } from "./types.ts";
 
 const execFileAsync = promisify(execFile);
+
+/** Model-visible delegate output bound shared by the runner and result builders. */
+export const DELEGATE_TOOL_OUTPUT_LIMIT = 50 * 1024;
 
 export function safeLabel(value: string): string {
   return value.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[-.]+|[-.]+$/g, "").slice(0, 64) || "delegate";
@@ -39,6 +42,16 @@ export async function atomicWriteText(filePath: string, content: string): Promis
 
 export async function atomicWriteJson(filePath: string, value: unknown): Promise<void> {
   await atomicWriteText(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+/** Best-effort recursive removal of a supervision artifact directory. */
+export async function removeDirectory(directory: string): Promise<void> {
+  try {
+    await rm(directory, { recursive: true, force: true });
+  } catch {
+    // Temporary supervision artifacts may outlive the run when the platform
+    // refuses removal; the operating system owns tmpdir cleanup afterward.
+  }
 }
 
 export async function readPrivateText(filePath: string): Promise<string> {

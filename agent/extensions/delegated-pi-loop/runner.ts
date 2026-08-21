@@ -3,7 +3,6 @@ import { chmod } from "node:fs/promises";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import {
-  atomicWriteJson,
   atomicWriteText,
   captureTreeFingerprint,
   createArtifactDir,
@@ -34,8 +33,6 @@ import type {
   PiRoute,
   RunOptions,
 } from "./types.ts";
-
-const TOOL_OUTPUT_LIMIT = 50 * 1024;
 
 function roundedSeconds(milliseconds: number): number {
   return Math.round(milliseconds / 100) / 10;
@@ -162,10 +159,11 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     throw new Error("idle limits must be positive, ordered, and no longer than 10 minutes");
   }
 
+  // Private temporary supervision directory. The caller owns its removal:
+  // it must survive this return so the caller can persist the failure
+  // diagnostic and assemble the tool result before cleanup.
   const artifactDir = await createArtifactDir(label);
   const promptPath = path.join(artifactDir, "prompt.md");
-  const reportPath = path.join(artifactDir, "report.md");
-  const statusPath = path.join(artifactDir, "status.json");
   const prompt = buildDelegatePrompt(options.role, options.cwd, options.prompt);
   await atomicWriteText(promptPath, prompt);
   await chmod(promptPath, 0o600);
@@ -180,6 +178,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
   let report = "";
   let finalState: DelegateState = "routes_unavailable";
   let finalProgress = initialProgress(label, options);
+  let terminalStreamErrors: readonly string[] = [];
   options.onProgress?.(finalProgress);
 
   for (let index = 0; index < routes.length; index += 1) {
@@ -245,26 +244,24 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     const attemptStatus = route.kind === "pi"
       ? await supervisePi({ ...common, route, piInvocation })
       : await superviseClaude({ ...common, route, prompt });
-    const attempt: ChainAttempt = {
+    terminalStreamErrors = attemptStatus.streamErrors;
+    attempts.push({
       route: routeKey(route),
       state: attemptStatus.state,
       elapsedSeconds: roundedSeconds(performance.now() - attemptStarted),
-      artifactDir: attemptDir,
-    };
-    attempts.push(attempt);
+    });
 
     if (attemptStatus.state === "completed") {
       selectedRoute = routeKey(route);
       finalState = "completed";
       report = await readPrivateText(attemptStatus.reportPath);
-      await atomicWriteText(reportPath, report);
       finalProgress = progressFromStatus(attemptStatus, index + 1);
       break;
     }
 
     const reason = route.kind === "pi" ? fallbackReason(attemptStatus) : undefined;
     if (reason !== undefined) {
-      attempts[attempts.length - 1] = { ...attempt, fallbackReason: reason };
+      attempts[attempts.length - 1] = { ...attempts[attempts.length - 1]!, fallbackReason: reason };
       if (index < routes.length - 1) continue;
       finalState = "routes_unavailable";
       break;
@@ -274,7 +271,6 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     finalState = attemptStatus.state;
     if (attemptStatus.reportPresent) {
       report = await readPrivateText(attemptStatus.reportPath);
-      await atomicWriteText(reportPath, report);
     }
     finalProgress = progressFromStatus(attemptStatus, index + 1);
     break;
@@ -295,22 +291,10 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
   }
 
   const elapsed = roundedSeconds(performance.now() - started);
-  const chainStatus = {
-    schemaVersion: 1,
-    label,
-    role: options.role,
-    backend,
-    state: finalState,
-    startedAt,
-    endedAt: new Date().toISOString(),
-    elapsedSeconds: elapsed,
-    selectedRoute,
-    attempts,
-    reportPath,
-    fingerprintBefore,
-    fingerprintAfter,
-  };
-  await atomicWriteJson(statusPath, chainStatus);
+  const endedAt = new Date().toISOString();
+  // All outcome data travels in memory; no chain-level report.md or status.json
+  // is written. The caller persists the failure diagnostic (if any), assembles
+  // the tool result, and then removes the artifact directory.
   finalProgress = { ...finalProgress, state: finalState, elapsedSeconds: elapsed };
   options.onProgress?.(finalProgress);
 
@@ -320,16 +304,15 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     backend,
     state: finalState,
     report,
-    reportPath,
-    statusPath,
     artifactDir,
     selectedRoute,
     attempts,
+    startedAt,
+    endedAt,
     elapsedSeconds: elapsed,
+    streamErrors: terminalStreamErrors,
     progress: finalProgress,
     fingerprintBefore,
     fingerprintAfter,
   };
 }
-
-export const DELEGATE_TOOL_OUTPUT_LIMIT = TOOL_OUTPUT_LIMIT;

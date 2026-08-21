@@ -1,14 +1,32 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
+import { finalizeDelegateRun } from "./result.ts";
 import { runDelegate } from "./runner.ts";
+import type { ToolResult } from "./types.ts";
 
 const execFileAsync = promisify(execFile);
 type Behavior = "complete" | "unavailable" | "tool-unavailable" | "mutate-existing";
+
+function enoent(error: NodeJS.ErrnoException): boolean {
+  return error.code === "ENOENT";
+}
+
+async function withDiagnosticsRoot<T>(run: (root: string) => Promise<T>): Promise<T> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "delegate-runner-diag-"));
+  const previous = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = root;
+  try {
+    return await run(root);
+  } finally {
+    if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previous;
+  }
+}
 
 async function fakePi(
   catalog: readonly string[],
@@ -94,9 +112,22 @@ test("skips an uncatalogued primary and completes on a fresh fallback route", as
   assert.equal(result.attempts[0]?.state, "catalog_unavailable");
   assert.match(result.report, /Completed on agentrouter\/gpt-5\.6-sol/);
   assert.ok(updates.some((update) => update.startsWith("agent_settled@")));
-  const status = JSON.parse(await readFile(result.statusPath, "utf8"));
-  assert.equal(status.selectedRoute, "agentrouter/gpt-5.6-sol:max");
-  assert.equal("command" in status, false);
+  assert.match(result.startedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.match(result.endedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.deepEqual(result.streamErrors, []);
+  assert.equal("artifactDir" in (result.attempts[0] ?? {}), false);
+  // The outcome returns in memory: no chain-level report.md or status.json is
+  // written, and the temporary supervision artifacts survive until
+  // execute-level finalization so the caller can act on them.
+  await stat(result.artifactDir);
+  await assert.rejects(() => stat(path.join(result.artifactDir, "status.json")), enoent);
+  await assert.rejects(() => stat(path.join(result.artifactDir, "report.md")), enoent);
+  const toolResult = await finalizeDelegateRun(result);
+  assert.match(toolResult.content[0]!.text, /## Delegate solution-a completed/);
+  assert.equal("diagnosticPath" in (toolResult.details ?? {}), false);
+  assert.doesNotMatch(JSON.stringify(toolResult), /delegated-pi-solution-a/);
+  // After execute-level assembly every temporary artifact is gone.
+  await assert.rejects(() => stat(result.artifactDir), enoent);
 });
 
 test("falls back after pre-tool provider unavailability", async () => {
@@ -124,6 +155,25 @@ test("does not fall back after any tool execution", async () => {
   assert.equal(result.selectedRoute, "opencode-go/muse-spark-1.2-contributor:xhigh");
   assert.equal(result.attempts.length, 1);
   assert.equal(result.attempts[0]?.fallbackReason, undefined);
+  // Failure data returns in memory: no chain-level status.json exists and the
+  // temporary artifacts survive until execute-level finalization.
+  await stat(result.artifactDir);
+  await assert.rejects(() => stat(path.join(result.artifactDir, "status.json")), enoent);
+  await withDiagnosticsRoot(async (root) => {
+    const toolResult: ToolResult = await finalizeDelegateRun(result);
+    const diagnosticPath = toolResult.details?.diagnosticPath;
+    assert.equal(typeof diagnosticPath, "string");
+    assert.ok((diagnosticPath as string).startsWith(path.join(root, "logs", "delegated-pi-loop")));
+    assert.match(toolResult.content[0]!.text, /## Delegate solution-a failed: /);
+    assert.doesNotMatch(toolResult.content[0]!.text, /\/tmp\/|diagnostic log/);
+    assert.doesNotMatch(JSON.stringify(toolResult.details?.attempts), /artifactDir|\/tmp\//);
+    const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
+    assert.equal("artifactDir" in diagnostic, false);
+    assert.doesNotMatch(JSON.stringify(diagnostic), /\/tmp\/|delegated-pi-solution-a/);
+  });
+  // After diagnostic persistence and tool-result assembly every temporary
+  // artifact is gone, including the unsuccessful run's artifacts.
+  await assert.rejects(() => stat(result.artifactDir), enoent);
 });
 
 test("invalidates a read-only delegate that changes the Git tree", async () => {
@@ -146,4 +196,13 @@ test("invalidates a read-only delegate that changes the Git tree", async () => {
   });
   assert.equal(result.state, "read_only_mutation");
   assert.equal(result.progress.lastEvent, "tree_fingerprint_changed");
+  // The fingerprint-invalidated run is unsuccessful: its artifacts survive
+  // until execute-level finalization and are removed with a diagnostic.
+  await stat(result.artifactDir);
+  await assert.rejects(() => stat(path.join(result.artifactDir, "status.json")), enoent);
+  await withDiagnosticsRoot(async () => {
+    const toolResult = await finalizeDelegateRun(result);
+    assert.equal(typeof toolResult.details?.diagnosticPath, "string");
+  });
+  await assert.rejects(() => stat(result.artifactDir), enoent);
 });

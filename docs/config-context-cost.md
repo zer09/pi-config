@@ -48,6 +48,8 @@ Delegated A-route Muse update: 2026-08-21 (replaced the A Luna primary and SeekA
 
 Delegated native-extension migration: 2026-08-21 (removed the runtime skill and added the native `delegate_run` tool with live last-event timestamps; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated native-result update: 2026-08-21 (made completed and failed delegate results self-contained Markdown tool results and added failure-only private diagnostics; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -438,6 +440,20 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | `delegate_run` compact parameter schema | 0 | 200 | +200 | Serialized as an active provider tool schema |
 
 The directly attributed always-loaded surfaces move by approximately +466 local tokens before provider framing: +41 global instructions, -91 skill catalog, and +516 custom tool metadata/schema. The extension replaces 10,318 on-demand skill/reference tokens with executable TypeScript that is not sent to the model. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-21 delegated native-result attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. The tool input schema is unchanged. The longer result-contract description and failure-handling guideline are always loaded while `delegate_run` is active.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| `delegate_run` description | 48 | 75 | +27 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 255 | 259 | +4 | Included while the tool is active |
+| `delegate_run` compact parameter schema | 200 | 200 | 0 | Serialized as an active provider tool schema |
+| **Tool total** | **516** | **547** | **+31** | Before provider-specific framing |
+
+The directly attributed migration delta is now approximately +497 local tokens before provider framing. The Markdown result body is dynamic tool output and enters context only after a delegate completes; JSON escaping is transport representation, not additional Markdown parsing. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

@@ -2,6 +2,18 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-21 — Adopt the native delegate_run result and diagnostics contract
+
+- Made `delegate_run` return raw Markdown in model-visible `content[0].text`: a minimal status header plus the delegate's verbatim report for completed runs, with the validated terminal `DELEGATE_RESULT: COMPLETED` marker stripped to avoid duplicate status tokens. Report, status, artifact, and diagnostic paths no longer appear in model-visible content.
+- Replaced the old failure body with a compact sanitized failure Markdown carrying state, role, backend, selected or final route, phase, the last sanitized event with its exact UTC receipt time, elapsed time, the ordered attempt chain, and one deterministic per-state summary sentence, so the parent can act without reading any diagnostics.
+- Marked unsuccessful `delegate_run` results as Pi tool errors through the native `tool_result` extension lifecycle, preserving the structured Markdown content and renderer details instead of exposing diagnostics to the model.
+- Added a small private failure diagnostic JSON under `${PI_CODING_AGENT_DIR:-~/.pi/agent}/logs/delegated-pi-loop/` with 0700 directories and 0600 atomic files, holding only bounded sanitized fields (times, routes, sanitized progress and attempts, bounded stream errors) and excluding prompts, reports, raw output, tool payloads, Git fingerprints, credentials, provider bodies, and every file path.
+- Surfaced the diagnostic path only in the TUI renderer for unsuccessful results, with no read prompt, and never in model-visible tool content.
+- Removed per-attempt artifact paths from chain attempts, ToolResult details, and the failure diagnostic, and stopped writing the chain-level `status.json` and `report.md`; every chain outcome now returns in memory.
+- Made execute-level finalization remove the entire temporary supervision artifact directory for every terminal outcome (completed and unsuccessful) after the failure diagnostic is persisted and the tool result is assembled, in a `finally` that also runs when diagnostic persistence fails; a failed diagnostic write still returns sanitized failure content with no diagnostic path, and directory removal stays best-effort.
+- Added regressions for exact happy and failure Markdown, sanitization, the `tool_result` error patch, diagnostic permissions, location and content bounds, TUI-only diagnostic path handling, execute-level artifact cleanup for every terminal outcome, absence of chain-level `status.json`, path-free attempts and diagnostics, and diagnostic-write-failure cleanup.
+- Validation: extension suite (39 tests), strict TypeScript check via a temporary config resolving Pi's installed declarations, `pi --list-models` extension load, and live-catalog verification of every role route, all without paid inference.
+
 ## 2026-08-21 — Replace delegated-loop skill with native TypeScript extension
 
 - Replaced the `delegated-pi-loop` Local Skill and Python supervisors with the native `agent/extensions/delegated-pi-loop/` extension and `delegate_run` custom tool.

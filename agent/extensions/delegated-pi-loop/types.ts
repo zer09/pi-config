@@ -128,7 +128,6 @@ export interface ChainAttempt {
   readonly route: string;
   readonly state: DelegateState | "catalog_unavailable";
   readonly elapsedSeconds: number;
-  readonly artifactDir?: string;
   readonly fallbackReason?: "event_idle_before_tools" | "provider_unavailable_before_tools";
 }
 
@@ -140,18 +139,25 @@ export interface TreeFingerprint {
   readonly untrackedSha256: string;
 }
 
+/**
+ * In-memory chain outcome. `artifactDir` is the caller-owned private temporary
+ * supervision directory; the caller removes it after persisting any failure
+ * diagnostic and assembling the tool result. All other data is in memory, so
+ * no report/status file fields exist.
+ */
 export interface DelegateRunResult {
   readonly label: string;
   readonly role: DelegateRole;
   readonly backend: DelegateBackend;
   readonly state: DelegateState;
   readonly report: string;
-  readonly reportPath: string;
-  readonly statusPath: string;
   readonly artifactDir: string;
   readonly selectedRoute?: string;
   readonly attempts: readonly ChainAttempt[];
+  readonly startedAt: string;
+  readonly endedAt: string;
   readonly elapsedSeconds: number;
+  readonly streamErrors: readonly string[];
   readonly progress: DelegateProgress;
   readonly fingerprintBefore?: TreeFingerprint;
   readonly fingerprintAfter?: TreeFingerprint;
@@ -167,6 +173,16 @@ export interface DelegateToolParams {
 export interface ToolResult {
   readonly content: Array<{ readonly type: "text"; readonly text: string }>;
   readonly details?: Record<string, unknown>;
+}
+
+export interface DelegateToolResultEvent {
+  readonly type: "tool_result";
+  readonly toolName: string;
+  readonly toolCallId: string;
+  readonly input: Record<string, unknown>;
+  readonly content: readonly unknown[];
+  readonly details?: unknown;
+  readonly isError: boolean;
 }
 
 export type ToolUpdateHandler = (result: ToolResult) => void;
