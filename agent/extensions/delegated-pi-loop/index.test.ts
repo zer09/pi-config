@@ -104,6 +104,7 @@ test("registers targeted delegate list and stop commands without a BTW control p
   const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
   const renderSource = await readFile(new URL("./render.ts", import.meta.url), "utf8");
   assert.match(source, /registerCommand\("delegate:list"/);
+  assert.match(source, /const labels = active\.map\(activeDelegateLabel\)/);
   assert.match(source, /select\("Active delegates", labels\)/);
   assert.match(source, /setEditorText\(`\/delegate:stop \$\{delegate\.id\}`\)/);
   assert.match(source, /registerCommand\("delegate:stop"/);

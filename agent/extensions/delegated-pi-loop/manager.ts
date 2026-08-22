@@ -18,7 +18,25 @@ export interface ActiveDelegate {
   readonly id: number;
   readonly role: DelegateRole;
   readonly state: DelegateState | "starting" | "stopping";
+  /** Route key ("provider/model:thinking") or an explicit placeholder before the first progress event. */
+  readonly route: string;
+  /** Monitor phase or "starting" before the first progress event. */
+  readonly phase: string;
+  /** Report round; a delegate without progress is still on its initial round 1. */
+  readonly reportRound: 1 | 2;
   readonly elapsedSeconds: number;
+}
+
+/** Choice label for the /delegate:list picker: id, role, state, route, phase, round, elapsed. */
+export function activeDelegateLabel(delegate: ActiveDelegate): string {
+  return `#${delegate.id}  ${delegate.role}  ${delegate.state}  ${delegate.route}  phase=${delegate.phase}  round ${delegate.reportRound}/2  ${elapsedText(delegate.elapsedSeconds)}`;
+}
+
+function elapsedText(seconds: number): string {
+  const totalSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainder = String(totalSeconds % 60).padStart(2, "0");
+  return `${String(minutes).padStart(2, "0")}:${remainder}`;
 }
 
 export type StopDelegateResult =
@@ -114,6 +132,11 @@ export class DelegateManager {
       id: run.delegateId,
       role: run.role,
       state: run.controller.signal.aborted ? "stopping" : (run.progress?.state ?? "starting"),
+      // A delegate that has not reported progress yet is still selecting its
+      // route and sits in the monitor's initial phase at report round 1.
+      route: run.progress?.route ?? "selecting route",
+      phase: run.progress?.phase ?? "starting",
+      reportRound: run.progress?.reportRound ?? 1,
       elapsedSeconds,
     };
   }

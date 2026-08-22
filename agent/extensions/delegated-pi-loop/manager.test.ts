@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { combinedSignal, DelegateManager, VERIFICATION_CONCURRENCY_CAP } from "./manager.ts";
-import type { DelegateRole } from "./types.ts";
+import {
+  activeDelegateLabel,
+  combinedSignal,
+  DelegateManager,
+  VERIFICATION_CONCURRENCY_CAP,
+  type ActiveDelegate,
+} from "./manager.ts";
+import type { DelegateProgress, DelegateRole } from "./types.ts";
 
 const EXCLUSIVE_ROLES: readonly DelegateRole[] = ["implementation", "remediation", "oracle"];
 const OVERLAP_ERROR = /A verification delegate may overlap only other verification delegates/;
@@ -129,15 +135,13 @@ test("stops only the selected delegate and retains it until cleanup finishes", (
   assert.deepEqual(manager.listActive().map((delegate) => delegate.id), [2]);
 });
 
-test("active delegate progress supplies list state and elapsed time", () => {
-  const manager = new DelegateManager();
-  const handle = manager.begin("tool-a", "review-a");
-  manager.update("tool-a", {
+function progress(overrides: Partial<DelegateProgress> = {}): DelegateProgress {
+  return {
     label: "review-a",
     role: "review-a",
     state: "running",
     protocol: "pi-rpc",
-    route: "provider/model:high",
+    route: "agentrouter/gpt-5.6-sol:max",
     attempt: 1,
     phase: "agent",
     lastEvent: "message_update",
@@ -148,8 +152,71 @@ test("active delegate progress supplies list state and elapsed time", () => {
     idleWarningCount: 0,
     reportNudgeCount: 0,
     reportRound: 1,
-  });
-  assert.deepEqual(manager.listActive(), [{ id: handle.id, role: "review-a", state: "running", elapsedSeconds: 12.3 }]);
+    ...overrides,
+  };
+}
+
+test("active delegate progress supplies list state and elapsed time", () => {
+  const manager = new DelegateManager();
+  const handle = manager.begin("tool-a", "review-a");
+  manager.update("tool-a", progress({
+    route: "provider/model:high",
+    phase: "agent",
+    reportRound: 2,
+  }));
+  assert.deepEqual(manager.listActive(), [{
+    id: handle.id,
+    role: "review-a",
+    state: "running",
+    route: "provider/model:high",
+    phase: "agent",
+    reportRound: 2,
+    elapsedSeconds: 12.3,
+  }]);
+});
+
+test("a starting delegate without progress carries explicit list placeholders", () => {
+  const manager = new DelegateManager();
+  manager.begin("tool-a", "solution-b");
+  const [delegate] = manager.listActive();
+  assert.equal(delegate.state, "starting");
+  assert.equal(delegate.route, "selecting route");
+  assert.equal(delegate.phase, "starting");
+  assert.equal(delegate.reportRound, 1);
+  assert.equal(typeof delegate.elapsedSeconds, "number");
+});
+
+test("list choice labels render every field for starting and active-progress delegates", () => {
+  const manager = new DelegateManager();
+  manager.begin("starting-tool", "solution-b");
+  manager.begin("active-tool", "review-a");
+  manager.update("active-tool", progress({
+    state: "running",
+    route: "agentrouter/gpt-5.6-sol:max",
+    phase: "tool",
+    reportRound: 2,
+    elapsedSeconds: 250.9,
+  }));
+  assert.deepEqual(manager.listActive().map(activeDelegateLabel), [
+    "#1  solution-b  starting  selecting route  phase=starting  round 1/2  00:00",
+    "#2  review-a  running  agentrouter/gpt-5.6-sol:max  phase=tool  round 2/2  04:10",
+  ]);
+});
+
+test("list choice labels format elapsed time, rounds, and stopping state exactly", () => {
+  const stopping: ActiveDelegate = {
+    id: 12,
+    role: "verification",
+    state: "stopping",
+    route: "provider/model:medium",
+    phase: "tool",
+    reportRound: 1,
+    elapsedSeconds: 3605.4,
+  };
+  assert.equal(
+    activeDelegateLabel(stopping),
+    "#12  verification  stopping  provider/model:medium  phase=tool  round 1/2  60:05",
+  );
 });
 
 test("abortAll aborts concurrent verification siblings", () => {

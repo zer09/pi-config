@@ -2,7 +2,7 @@ import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
-import { combinedSignal, DelegateManager, type ActiveDelegate } from "./manager.ts";
+import { activeDelegateLabel, combinedSignal, DelegateManager } from "./manager.ts";
 import { renderDelegateCall, renderDelegateResult } from "./render.ts";
 import { delegateToolResultPatch, finalizeDelegateRun } from "./result.ts";
 import { runDelegate } from "./runner.ts";
@@ -48,17 +48,6 @@ function finalResult(delegateId: number, result: ToolResult): ToolResult {
     ...result,
     details: { ...result.details, delegateId },
   };
-}
-
-function elapsedText(seconds: number): string {
-  const totalSeconds = Math.max(0, Math.floor(seconds));
-  const minutes = Math.floor(totalSeconds / 60);
-  const remainder = String(totalSeconds % 60).padStart(2, "0");
-  return `${String(minutes).padStart(2, "0")}:${remainder}`;
-}
-
-function activeDelegateLabel(delegate: ActiveDelegate): string {
-  return `#${delegate.id}  ${delegate.role}  ${delegate.state}  ${elapsedText(delegate.elapsedSeconds)}`;
 }
 
 export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
