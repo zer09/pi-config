@@ -578,6 +578,21 @@ This change was checked locally against commit `c9e2065`; no paid provider calib
 
 The startup model-context delta is exactly zero for the measured surfaces. The two slash-command descriptions add only interactive command-routing metadata, and the numeric ID plus active-run state stay in extension memory or TUI-only details. Provider-reported input remains the authority and was not rerun.
 
+## 2026-08-22 delegated Pi RPC and direct-backend removal attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are commit `dfed923`. The tool schema uses the same plain `JSON.stringify` serialization as the preceding attribution sections, and prompt guidelines are joined with newlines.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 3,071 | 3,070 | -1 | Always loaded through the context-file block |
+| `delegate_run` description | 75 | 73 | -2 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 847 | 839 | -8 | Included while the tool is active |
+| `delegate_run` parameter schema | 173 | 167 | -6 | Serialized as an active provider tool schema |
+| **Tool total** | **1,108** | **1,092** | **-16** | Before provider-specific framing |
+
+The directly attributed model-visible surfaces shrink by 17 local tokens: one token from the compact global policy and 16 tokens from removing direct Claude Code backend text and the `claude` enum value from active tool metadata. Strict RPC supervision, report recovery, provider categories, and Pi-served Claude route handling remain executable TypeScript and add no startup model context. Provider-reported input remains the authority and was not rerun.
+
 ## Provider-calibrated baseline probes
 
 These real probes used fixed prompt `hi` and read the provider usage from `message_end` / session usage.

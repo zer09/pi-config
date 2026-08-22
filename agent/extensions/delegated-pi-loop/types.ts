@@ -15,12 +15,20 @@ export const DELEGATE_ROLES = [
   "remediation",
 ] as const;
 
-export const DELEGATE_BACKENDS = ["default", "zai", "claude"] as const;
+export const DELEGATE_BACKENDS = ["default", "zai"] as const;
 
 export type DelegateRole = (typeof DELEGATE_ROLES)[number];
 export type DelegateBackend = (typeof DELEGATE_BACKENDS)[number];
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-export type DelegateProtocol = "pi-json" | "plain";
+export type DelegateProtocol = "pi-rpc";
+export type ProviderFailureCategory =
+  | "credits_exhausted"
+  | "quota_exhausted"
+  | "billing_limit"
+  | "usage_limit"
+  | "authentication"
+  | "rate_limit"
+  | "provider_unavailable";
 
 export type DelegateState =
   | "catalog_check"
@@ -32,6 +40,8 @@ export type DelegateState =
   | "output_limit"
   | "blocked"
   | "delegate_failed"
+  | "provider_failed"
+  | "prompt_rejected"
   | "invalid_result"
   | "invalid_stream"
   | "missing_report"
@@ -46,13 +56,7 @@ export interface PiRoute {
   readonly thinking: ThinkingLevel;
 }
 
-export interface ClaudeRoute {
-  readonly kind: "claude";
-  readonly model: "claude-opus-5";
-  readonly effort: "medium";
-}
-
-export type DelegateRoute = PiRoute | ClaudeRoute;
+export type DelegateRoute = PiRoute;
 
 export interface DelegateProgress {
   readonly label: string;
@@ -69,6 +73,10 @@ export interface DelegateProgress {
   readonly elapsedSeconds: number;
   readonly toolExecutionCount: number;
   readonly idleWarningCount: number;
+  readonly reportNudgeCount: 0 | 1;
+  readonly reportRecoveryReason?: "missing_report" | "invalid_result";
+  readonly reportRound: 1 | 2;
+  readonly providerFailureCategory?: ProviderFailureCategory;
 }
 
 export interface MonitorSnapshot {
@@ -89,6 +97,8 @@ export interface MonitorSnapshot {
   readonly agentSettledSeen: boolean;
   readonly toolExecutionCount: number;
   readonly routeUnavailableSeen: boolean;
+  readonly providerFailureCategory?: ProviderFailureCategory;
+  readonly reportRound: 1 | 2;
   readonly errors: readonly string[];
 }
 
@@ -123,6 +133,11 @@ export interface AttemptStatus {
   readonly agentSettledSeen: boolean;
   readonly toolExecutionCount: number;
   readonly routeUnavailableSeen: boolean;
+  readonly providerFailureCategory?: ProviderFailureCategory;
+  readonly reportNudgeCount: 0 | 1;
+  readonly reportRecoveryReason?: "missing_report" | "invalid_result";
+  readonly reportRound: 1 | 2;
+  readonly reportRecoveryAccepted: boolean;
   readonly streamErrors: readonly string[];
 }
 

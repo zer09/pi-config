@@ -17,7 +17,6 @@ import {
   DEFAULT_TIMEOUT_MS,
   delegateEnvironment,
   resolvePiInvocation,
-  superviseClaude,
   supervisePi,
   terminateProcessGroup,
 } from "./supervisor.ts";
@@ -46,7 +45,7 @@ async function routeIsCatalogued(
   const args = [...invocation.prefixArgs, "--list-models", `${route.provider}/${route.model}`];
   const child = spawn(invocation.command, args, {
     cwd,
-    env: delegateEnvironment("pi"),
+    env: delegateEnvironment(),
     shell: false,
     detached: process.platform !== "win32",
     stdio: ["ignore", "pipe", "pipe"],
@@ -89,17 +88,13 @@ async function routeIsCatalogued(
 }
 
 function fallbackReason(status: AttemptStatus): ChainAttempt["fallbackReason"] | undefined {
-  if (status.delegateOutcome !== undefined || status.toolExecutionCount !== 0) return undefined;
+  if (
+    status.delegateOutcome !== undefined
+    || status.toolExecutionCount !== 0
+    || status.reportRecoveryAccepted
+  ) return undefined;
   if (status.state === "stalled") return "event_idle_before_tools";
-  const terminalStates: readonly DelegateState[] = [
-    "completed",
-    "blocked",
-    "delegate_failed",
-    "timed_out",
-    "output_limit",
-    "interrupted",
-  ];
-  if (status.routeUnavailableSeen && !terminalStates.includes(status.state)) {
+  if (status.state === "provider_failed" && status.providerFailureCategory !== undefined) {
     return "provider_unavailable_before_tools";
   }
   return undefined;
@@ -121,6 +116,10 @@ function progressFromStatus(status: AttemptStatus, attempt: number): DelegatePro
     elapsedSeconds: status.elapsedSeconds,
     toolExecutionCount: status.toolExecutionCount,
     idleWarningCount: status.idleWarningCount,
+    reportNudgeCount: status.reportNudgeCount,
+    reportRecoveryReason: status.reportRecoveryReason,
+    reportRound: status.reportRound,
+    providerFailureCategory: status.providerFailureCategory,
   };
 }
 
@@ -130,7 +129,7 @@ function initialProgress(label: string, options: RunOptions): DelegateProgress {
     label,
     role: options.role,
     state: "catalog_check",
-    protocol: "pi-json",
+    protocol: "pi-rpc",
     attempt: 0,
     phase: "catalog",
     lastEvent: "catalog_check",
@@ -139,6 +138,8 @@ function initialProgress(label: string, options: RunOptions): DelegateProgress {
     elapsedSeconds: 0,
     toolExecutionCount: 0,
     idleWarningCount: 0,
+    reportNudgeCount: 0,
+    reportRound: 1,
   };
 }
 
@@ -197,31 +198,29 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       break;
     }
 
-    if (route.kind === "pi") {
-      finalProgress = {
-        ...finalProgress,
-        state: "catalog_check",
+    finalProgress = {
+      ...finalProgress,
+      state: "catalog_check",
+      route: routeKey(route),
+      attempt: index + 1,
+      lastEvent: "catalog_check",
+      lastEventAt: new Date().toISOString(),
+      elapsedSeconds: roundedSeconds(performance.now() - started),
+    };
+    options.onProgress?.(finalProgress);
+    const catalogStarted = performance.now();
+    const available = await routeIsCatalogued(piInvocation, route, options.cwd, remainingMs, options.signal);
+    if (options.signal?.aborted) {
+      finalState = "interrupted";
+      break;
+    }
+    if (!available) {
+      attempts.push({
         route: routeKey(route),
-        attempt: index + 1,
-        lastEvent: "catalog_check",
-        lastEventAt: new Date().toISOString(),
-        elapsedSeconds: roundedSeconds(performance.now() - started),
-      };
-      options.onProgress?.(finalProgress);
-      const catalogStarted = performance.now();
-      const available = await routeIsCatalogued(piInvocation, route, options.cwd, remainingMs, options.signal);
-      if (options.signal?.aborted) {
-        finalState = "interrupted";
-        break;
-      }
-      if (!available) {
-        attempts.push({
-          route: routeKey(route),
-          state: "catalog_unavailable",
-          elapsedSeconds: roundedSeconds(performance.now() - catalogStarted),
-        });
-        continue;
-      }
+        state: "catalog_unavailable",
+        elapsedSeconds: roundedSeconds(performance.now() - catalogStarted),
+      });
+      continue;
     }
 
     const attemptDir = path.join(artifactDir, `attempt-${String(index + 1).padStart(2, "0")}`);
@@ -245,9 +244,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       },
     };
     const attemptStarted = performance.now();
-    const attemptStatus = route.kind === "pi"
-      ? await supervisePi({ ...common, route, piInvocation })
-      : await superviseClaude({ ...common, route, prompt });
+    const attemptStatus = await supervisePi({ ...common, route, piInvocation });
     terminalStreamErrors = attemptStatus.streamErrors;
     attempts.push({
       route: routeKey(route),
@@ -263,7 +260,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       break;
     }
 
-    const reason = route.kind === "pi" ? fallbackReason(attemptStatus) : undefined;
+    const reason = fallbackReason(attemptStatus);
     if (reason !== undefined) {
       attempts[attempts.length - 1] = { ...attempts[attempts.length - 1]!, fallbackReason: reason };
       if (index < routes.length - 1) continue;

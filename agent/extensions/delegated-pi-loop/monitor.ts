@@ -1,11 +1,15 @@
-import type { MonitorSnapshot } from "./types.ts";
+import { classifyProviderFailure } from "./protocol.ts";
+import type {
+  DelegateState,
+  MonitorSnapshot,
+  ProviderFailureCategory,
+} from "./types.ts";
 
 const RESULT_LINE_PATTERN = /^DELEGATE_RESULT:\s*(COMPLETED|BLOCKED|FAILED)\s*$/gm;
 const RESULT_PATTERN = /(?:^|\n)DELEGATE_RESULT:\s*(COMPLETED|BLOCKED|FAILED)\s*$/;
-const ROUTE_UNAVAILABLE_PATTERN = /(?:\b(?:401|403|408|429|500|502|503|504|524|529)\b|no models? match|model[^\n]{0,80}(?:not found|unavailable)|rate[ -]?limit|overload|(?:service|provider) unavailable|temporarily unavailable|internal server error|gateway timeout|connection (?:reset|refused)|network error|fetch failed|client[_ -]?gone|context cancel(?:ed|led)|scanner[_ -]?error|unexpected eof|request (?:timed out|timeout)|unauthorized|invalid api key)/i;
 const MACHINE_ERROR_PREFIX = "[error]";
 
-const PI_CORE_ACTIVITY_EVENTS = new Set([
+const CORE_ACTIVITY_EVENTS = new Set([
   "turn_start",
   "turn_end",
   "message_start",
@@ -15,7 +19,7 @@ const PI_CORE_ACTIVITY_EVENTS = new Set([
   "tool_execution_end",
 ]);
 
-const PI_SESSION_ACTIVITY_EVENTS = new Set([
+const SESSION_ACTIVITY_EVENTS = new Set([
   "agent_start",
   "agent_end",
   "agent_settled",
@@ -28,9 +32,10 @@ const PI_SESSION_ACTIVITY_EVENTS = new Set([
   "summarization_retry_finished",
   "bash_execution_update",
   "entry_appended",
+  "queue_update",
 ]);
 
-const PI_MESSAGE_ACTIVITY_EVENTS = new Set([
+const MESSAGE_ACTIVITY_EVENTS = new Set([
   "start",
   "text_start",
   "text_delta",
@@ -45,33 +50,58 @@ const PI_MESSAGE_ACTIVITY_EVENTS = new Set([
   "error",
 ]);
 
+type Outcome = "completed" | "blocked" | "failed";
+type ReportRound = 1 | 2;
+
+interface RoundState {
+  promptAccepted: boolean;
+  agentRunning: boolean;
+  agentStartCount: number;
+  agentEndCount: number;
+  finalAgentEndSeen: boolean;
+  settledSeen: boolean;
+  finalReport?: string;
+  outcome?: Outcome;
+  providerFailureCategory?: ProviderFailureCategory;
+}
+
+function emptyRound(): RoundState {
+  return {
+    promptAccepted: false,
+    agentRunning: false,
+    agentStartCount: 0,
+    agentEndCount: 0,
+    finalAgentEndSeen: false,
+    settledSeen: false,
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function parseDelegateOutcome(report: string): "completed" | "blocked" | "failed" | undefined {
+export function parseDelegateOutcome(report: string): Outcome | undefined {
   const markers = [...report.matchAll(RESULT_LINE_PATTERN)];
   if (markers.length !== 1) return undefined;
   const match = RESULT_PATTERN.exec(report.trimEnd());
-  return match?.[1]?.toLowerCase() as "completed" | "blocked" | "failed" | undefined;
+  return match?.[1]?.toLowerCase() as Outcome | undefined;
 }
 
 export function routeUnavailableError(value: unknown): boolean {
-  return typeof value === "string" && ROUTE_UNAVAILABLE_PATTERN.test(value);
+  return classifyProviderFailure(value) !== undefined;
 }
 
 export function machineErrorEnvelope(report: string): boolean {
   const stripped = report.trim();
   if (stripped.includes("\n") || stripped.includes("\r")) return false;
   if (!stripped.startsWith(MACHINE_ERROR_PREFIX)) return false;
-  return routeUnavailableError(stripped.slice(MACHINE_ERROR_PREFIX.length).trimStart());
+  return classifyProviderFailure(stripped.slice(MACHINE_ERROR_PREFIX.length).trimStart()) !== undefined;
 }
 
 function assistantText(message: unknown): string | undefined {
   if (!isRecord(message) || message.role !== "assistant") return undefined;
   if (message.stopReason !== "stop" && message.stopReason !== "length") return undefined;
   if (!Array.isArray(message.content)) return undefined;
-
   const text = message.content
     .filter((item): item is Record<string, unknown> => isRecord(item))
     .filter((item) => item.type === "text" && typeof item.text === "string")
@@ -80,7 +110,16 @@ function assistantText(message: unknown): string | undefined {
   return text.trim() ? text : undefined;
 }
 
-export class PiJsonMonitor {
+function categoryFromRecord(record: Record<string, unknown>): ProviderFailureCategory | undefined {
+  for (const key of ["errorMessage", "error", "finalError", "message"]) {
+    const category = classifyProviderFailure(record[key]);
+    if (category !== undefined) return category;
+  }
+  return undefined;
+}
+
+/** Monitors one accepted RPC child session containing at most two report rounds. */
+export class PiRpcMonitor {
   private phaseValue = "starting";
   private lastEventValue = "process_start";
   private lastEventDetailValue: string | undefined;
@@ -88,17 +127,10 @@ export class PiJsonMonitor {
   private lastActivityValue: number;
   private activityEventCountValue = 0;
   private warningCountValue = 0;
-  private finalReportValue: string | undefined;
-  private outcomeValue: "completed" | "blocked" | "failed" | undefined;
-  private sessionSeenValue = false;
-  private agentRunningValue = false;
-  private agentStartCountValue = 0;
-  private agentEndCountValue = 0;
-  private agentEndSeenValue = false;
-  private agentSettledSeenValue = false;
   private toolExecutionCountValue = 0;
-  private routeUnavailableSeenValue = false;
+  private reportRoundValue: ReportRound = 1;
   private readonly errorsValue: string[] = [];
+  private readonly rounds: Record<ReportRound, RoundState> = { 1: emptyRound(), 2: emptyRound() };
   private readonly monotonicNow: () => number;
   private readonly wallNow: () => string;
   private readonly onActivity: (() => void) | undefined;
@@ -117,76 +149,97 @@ export class PiJsonMonitor {
     this.onActivity = onActivity;
   }
 
-  consumeLine(line: string): void {
-    let event: unknown;
-    try {
-      event = JSON.parse(line);
-    } catch (error) {
-      this.errorsValue.push(`Invalid Pi JSON event: ${error instanceof Error ? error.message : String(error)}`);
+  beginRecovery(): void {
+    this.reportRoundValue = 2;
+    this.phaseValue = "recovering_report";
+  }
+
+  acceptPrompt(round: ReportRound): void {
+    const state = this.rounds[round];
+    if (state.promptAccepted) {
+      this.addError("duplicate_prompt_acceptance");
       return;
     }
-    if (!isRecord(event)) {
-      this.errorsValue.push("Pi JSON event must be an object");
+    if (round === 2) {
+      const firstState = this.classifyRound(1);
+      if (firstState !== "missing_report" && firstState !== "invalid_result") {
+        this.addError("recovery_prompt_before_eligible_settlement");
+        return;
+      }
+    }
+    state.promptAccepted = true;
+    this.reportRoundValue = round;
+    this.recordActivity(`prompt-${round}_accepted`, round === 2 ? "recovering_report" : "provider");
+  }
+
+  recordUiActivity(method: string): void {
+    this.recordActivity("extension_ui_request", this.phaseValue, method.slice(0, 80));
+  }
+
+  addProtocolError(category: string): void {
+    this.addError(`rpc_${category.slice(0, 80)}`);
+  }
+
+  consumeEvent(round: ReportRound, event: Record<string, unknown>): void {
+    const state = this.rounds[round];
+    if (!state.promptAccepted) {
+      this.addError("event_before_prompt_acceptance");
+      return;
+    }
+    if (round !== this.reportRoundValue) {
+      this.addError("event_for_inactive_round");
       return;
     }
 
     const eventType = event.type;
+    if (typeof eventType !== "string") {
+      this.addError("event_type_missing");
+      return;
+    }
     if (eventType === "session") {
-      if (this.sessionSeenValue || this.activityEventCountValue > 0) {
-        this.errorsValue.push("Pi JSON session event must appear exactly once first");
-        return;
-      }
-      this.sessionSeenValue = true;
-      this.recordActivity("session", "starting");
+      this.addError("json_session_event_in_rpc_stream");
       return;
     }
-    if (!this.sessionSeenValue) {
-      this.errorsValue.push("Pi JSON activity appeared before the session event");
-      return;
-    }
-    if (typeof eventType !== "string") return;
 
     if (eventType === "agent_start") {
-      if (this.agentRunningValue || this.agentEndSeenValue) {
-        this.errorsValue.push("Pi JSON agent_start lifecycle is invalid");
+      if (state.agentRunning || state.finalAgentEndSeen || state.settledSeen) {
+        this.addError("invalid_agent_start_lifecycle");
         return;
       }
-      this.agentRunningValue = true;
-      this.agentStartCountValue += 1;
+      state.agentRunning = true;
+      state.agentStartCount += 1;
     } else if (eventType === "agent_end") {
-      if (!this.agentRunningValue) {
-        this.errorsValue.push("Pi JSON agent_end lifecycle is invalid");
+      if (!state.agentRunning) {
+        this.addError("invalid_agent_end_lifecycle");
         return;
       }
-      this.agentRunningValue = false;
-      this.agentEndCountValue += 1;
-      this.agentEndSeenValue = event.willRetry !== true;
+      state.agentRunning = false;
+      state.agentEndCount += 1;
+      state.finalAgentEndSeen = event.willRetry !== true;
     } else if (eventType === "agent_settled") {
-      if (!this.agentEndSeenValue || this.agentRunningValue) {
-        this.errorsValue.push("Pi JSON agent_settled appeared before final agent_end");
+      if (!state.finalAgentEndSeen || state.agentRunning || state.settledSeen) {
+        this.addError("agent_settled_before_final_agent_end");
         return;
       }
-      this.agentSettledSeenValue = true;
-    } else if (PI_CORE_ACTIVITY_EVENTS.has(eventType) && !this.agentRunningValue) {
-      this.errorsValue.push(`Pi JSON ${eventType} is outside the agent lifecycle`);
+      state.settledSeen = true;
+    } else if (CORE_ACTIVITY_EVENTS.has(eventType) && !state.agentRunning) {
+      this.addError(`${eventType.slice(0, 60)}_outside_agent_lifecycle`);
       return;
     }
 
     if (eventType === "message_update") {
-      if (!this.agentRunningValue) {
-        this.errorsValue.push("Pi JSON message_update is outside the agent lifecycle");
+      if (!state.agentRunning) {
+        this.addError("message_update_outside_agent_lifecycle");
         return;
       }
       const update = event.assistantMessageEvent;
       if (!isRecord(update)) {
-        this.errorsValue.push("message_update lacks assistantMessageEvent");
+        this.addError("message_update_missing_event");
         return;
       }
       const updateType = update.type;
-      if (typeof updateType !== "string" || !PI_MESSAGE_ACTIVITY_EVENTS.has(updateType)) return;
-      if (updateType === "error") {
-        this.routeUnavailableSeenValue ||= routeUnavailableError(update.errorMessage ?? update.error);
-      }
+      if (typeof updateType !== "string" || !MESSAGE_ACTIVITY_EVENTS.has(updateType)) return;
+      if (updateType === "error") this.recordProviderFailure(state, categoryFromRecord(update) ?? "provider_unavailable");
       if (updateType.endsWith("_delta") && !update.delta) return;
       let phase = updateType.startsWith("thinking_") ? "thinking" : "responding";
       if (updateType.startsWith("toolcall_")) phase = "tool_selection";
@@ -194,13 +247,17 @@ export class PiJsonMonitor {
       return;
     }
 
-    if (!PI_CORE_ACTIVITY_EVENTS.has(eventType) && !PI_SESSION_ACTIVITY_EVENTS.has(eventType)) return;
+    if (!CORE_ACTIVITY_EVENTS.has(eventType) && !SESSION_ACTIVITY_EVENTS.has(eventType)) return;
     if (eventType === "bash_execution_update" && !event.delta) return;
     if (eventType === "tool_execution_start") this.toolExecutionCountValue += 1;
     if (eventType === "auto_retry_start") {
-      this.routeUnavailableSeenValue ||= routeUnavailableError(event.errorMessage);
-    } else if (eventType === "auto_retry_end") {
-      this.routeUnavailableSeenValue ||= routeUnavailableError(event.finalError);
+      const category = categoryFromRecord(event);
+      if (category !== undefined) this.recordProviderFailure(state, category);
+    } else if (eventType === "auto_retry_end" && event.success === false) {
+      this.recordProviderFailure(state, categoryFromRecord(event) ?? "provider_unavailable");
+    } else if (eventType === "compaction_end" && event.aborted === false && event.result === null) {
+      const category = categoryFromRecord(event);
+      if (category !== undefined) this.recordProviderFailure(state, category);
     }
 
     let phase = this.phaseValue;
@@ -212,26 +269,48 @@ export class PiJsonMonitor {
     else if (eventType === "agent_end" || eventType === "agent_settled") phase = "complete";
 
     const detail = eventType.startsWith("tool_execution_") && typeof event.toolName === "string"
-      ? event.toolName
+      ? event.toolName.slice(0, 80)
       : undefined;
     this.recordActivity(eventType, phase, detail);
 
     if (eventType === "message_end") {
       const message = event.message;
-      if (isRecord(message)) this.routeUnavailableSeenValue ||= routeUnavailableError(message.errorMessage);
+      if (!isRecord(message) || message.role !== "assistant") return;
+      if (message.stopReason === "error") {
+        this.recordProviderFailure(state, categoryFromRecord(message) ?? "provider_unavailable");
+      }
       const report = assistantText(message);
-      if (report !== undefined) {
-        this.finalReportValue = report;
-        this.outcomeValue = parseDelegateOutcome(report);
-        if (this.outcomeValue === undefined) {
-          this.routeUnavailableSeenValue ||= machineErrorEnvelope(report);
-        }
+      state.finalReport = report;
+      state.outcome = report === undefined ? undefined : parseDelegateOutcome(report);
+      if (report !== undefined && state.outcome === undefined && machineErrorEnvelope(report)) {
+        this.recordProviderFailure(
+          state,
+          classifyProviderFailure(report.slice(MACHINE_ERROR_PREFIX.length).trimStart()) ?? "provider_unavailable",
+        );
       }
     }
   }
 
-  finish(hasPartialLine: boolean): void {
-    if (hasPartialLine) this.errorsValue.push("Pi JSON stream ended with a partial line");
+  classifyRound(round: ReportRound, processEnded = false): DelegateState | "running" {
+    const state = this.rounds[round];
+    if (this.errorsValue.length > 0) return "invalid_stream";
+    if (state.outcome === "blocked") return "blocked";
+    if (state.outcome === "failed") return "delegate_failed";
+    if (state.outcome === "completed") {
+      return state.finalAgentEndSeen && state.settledSeen ? "completed" : "running";
+    }
+    if (state.providerFailureCategory !== undefined && (state.settledSeen || processEnded)) return "provider_failed";
+    if (!state.settledSeen) return "running";
+    if (state.finalReport === undefined || !state.finalReport.trim()) return "missing_report";
+    return "invalid_result";
+  }
+
+  finalReport(round: ReportRound = this.reportRoundValue): string | undefined {
+    return this.rounds[round].finalReport;
+  }
+
+  outcome(round: ReportRound = this.reportRoundValue): Outcome | undefined {
+    return this.rounds[round].outcome;
   }
 
   issueIdleWarning(): void {
@@ -239,6 +318,10 @@ export class PiJsonMonitor {
   }
 
   snapshot(): MonitorSnapshot {
+    const current = this.rounds[this.reportRoundValue];
+    const first = this.rounds[1];
+    const second = this.rounds[2];
+    const providerFailureCategory = current.providerFailureCategory ?? first.providerFailureCategory;
     return {
       phase: this.phaseValue,
       lastEvent: this.lastEventValue,
@@ -247,23 +330,35 @@ export class PiJsonMonitor {
       lastActivityMonotonic: this.lastActivityValue,
       activityEventCount: this.activityEventCountValue,
       warningCount: this.warningCountValue,
-      finalReport: this.finalReportValue,
-      outcome: this.outcomeValue,
-      sessionSeen: this.sessionSeenValue,
-      agentRunning: this.agentRunningValue,
-      agentStartCount: this.agentStartCountValue,
-      agentEndCount: this.agentEndCountValue,
-      agentEndSeen: this.agentEndSeenValue,
-      agentSettledSeen: this.agentSettledSeenValue,
+      finalReport: current.finalReport,
+      outcome: current.outcome,
+      sessionSeen: first.promptAccepted,
+      agentRunning: current.agentRunning,
+      agentStartCount: first.agentStartCount + second.agentStartCount,
+      agentEndCount: first.agentEndCount + second.agentEndCount,
+      agentEndSeen: current.finalAgentEndSeen,
+      agentSettledSeen: current.settledSeen,
       toolExecutionCount: this.toolExecutionCountValue,
-      routeUnavailableSeen: this.routeUnavailableSeenValue,
+      routeUnavailableSeen: providerFailureCategory !== undefined,
+      providerFailureCategory,
+      reportRound: this.reportRoundValue,
       errors: [...this.errorsValue],
     };
   }
 
+  private recordProviderFailure(state: RoundState, category: ProviderFailureCategory): void {
+    if (state.providerFailureCategory === undefined || state.providerFailureCategory === "provider_unavailable") {
+      state.providerFailureCategory = category;
+    }
+  }
+
+  private addError(category: string): void {
+    this.errorsValue.push(category.slice(0, 120));
+  }
+
   private recordActivity(eventName: string, phase: string, detail?: string): void {
     this.lastActivityValue = this.monotonicNow();
-    this.lastEventValue = eventName;
+    this.lastEventValue = eventName.slice(0, 80);
     this.lastEventDetailValue = detail;
     this.lastEventAtValue = this.wallNow();
     this.phaseValue = phase;

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { DELEGATE_BACKENDS } from "./types.ts";
 
 test("registration guidelines encode the automatic delegation policy without provider route details", async () => {
   const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
@@ -47,7 +48,8 @@ test("registration guidelines encode the automatic delegation policy without pro
   assert.match(guidelines, /Treat the oracle as advisory, not the final authority: the oracle critiques the parent draft but never authors or saves the final plan/);
   assert.match(guidelines, /Verify its VALID or REVISE analysis like any other evidence/);
   assert.match(guidelines, /run no automatic oracle loop; a non-completed oracle run blocks implementation/);
-  assert.match(guidelines, /backend=zai or backend=claude is invalid for the oracle role/);
+  assert.match(guidelines, /backend=zai is invalid for the oracle role/);
+  assert.doesNotMatch(guidelines, /Claude Code|backend=claude/);
   assert.match(guidelines, /only one implementation, remediation, or oracle role at a time/);
   // Blocking findings get fresh verification, only verification-confirmed findings
   // reach one focused remediation role, and fresh gates repeat until none remain.
@@ -80,6 +82,22 @@ test("registration guidelines encode the automatic delegation policy without pro
   for (const mention of modelMentions) {
     assert.equal(mention, "gpt-5.6-sol", `only the exact gpt-5.6-sol condition may appear, found "${mention}"`);
   }
+});
+
+test("public schema and runtime contain no direct Claude CLI backend", async () => {
+  assert.deepEqual(DELEGATE_BACKENDS, ["default", "zai"]);
+  const files = ["index.ts", "routes.ts", "runner.ts", "supervisor.ts", "types.ts"];
+  const forbidden = [
+    "ClaudeRoute", "CLAUDE_ROUTE", "superviseClaude", "spawn(\"claude\"", "--print",
+    "--no-session-persistence", "permission-mode", "allowedTools", "disallowedTools",
+    "claude-code/", "protocol: \"plain\"", "backend=claude",
+  ];
+  for (const file of files) {
+    const source = await readFile(new URL(`./${file}`, import.meta.url), "utf8");
+    for (const value of forbidden) assert.ok(!source.includes(value), `${file} must not contain ${value}`);
+  }
+  const index = await readFile(new URL("./index.ts", import.meta.url), "utf8");
+  assert.match(index, /StringEnum\(DELEGATE_BACKENDS/);
 });
 
 test("registers targeted delegate list and stop commands without a BTW control path", async () => {

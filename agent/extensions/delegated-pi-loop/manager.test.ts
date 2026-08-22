@@ -136,7 +136,7 @@ test("active delegate progress supplies list state and elapsed time", () => {
     label: "review-a",
     role: "review-a",
     state: "running",
-    protocol: "pi-json",
+    protocol: "pi-rpc",
     route: "provider/model:high",
     attempt: 1,
     phase: "agent",
@@ -146,6 +146,8 @@ test("active delegate progress supplies list state and elapsed time", () => {
     elapsedSeconds: 12.3,
     toolExecutionCount: 0,
     idleWarningCount: 0,
+    reportNudgeCount: 0,
+    reportRound: 1,
   });
   assert.deepEqual(manager.listActive(), [{ id: handle.id, role: "review-a", state: "running", elapsedSeconds: 12.3 }]);
 });

@@ -11,8 +11,20 @@ test("preserves ordered A, B, and C default route maps", () => {
     "seekai/claude-opus-5:max",
     "gorouter/claude-opus-5-thinking:high",
   ]);
-  assert.equal(routeKey(routesFor("review-b", "default")[0]!), "opencode-go/deepseek-v4-flash:max");
-  assert.equal(routeKey(routesFor("review-c", "default")[0]!), "opencode-go/hy3:high");
+  assert.deepEqual(routesFor("review-b", "default").map(routeKey), [
+    "opencode-go/deepseek-v4-flash:max",
+    "seekai/deepseek-v4-flash:max",
+    "agentrouter/claude-opus-5:max",
+    "tabitoken/claude-opus-5-thinking:max",
+    "gorouter/claude-opus-5-thinking:high",
+  ]);
+  assert.deepEqual(routesFor("review-c", "default").map(routeKey), [
+    "opencode-go/hy3:high",
+    "agentrouter/claude-opus-5:max",
+    "tabitoken/claude-opus-5-thinking:max",
+    "seekai/claude-opus-5:max",
+    "gorouter/claude-opus-5-thinking:high",
+  ]);
   // A/B/C maps ignore parent-provider inheritance and injected randomness.
   assert.deepEqual(
     routesFor("solution-a", "default", { parentProvider: "openai-codex-cgpt2", random: () => 0 }).map(routeKey),
@@ -83,9 +95,9 @@ test("D excludes ineligible providers such as Cursor from the whole chain", () =
   assert.equal(routeKey(routes[0]!), "openai-codex/gpt-5.5:medium");
 });
 
-test("explicit backends override D default routing exactly like other roles", () => {
+test("explicit Z.AI overrides D default routing exactly like other roles", () => {
   assert.equal(routeKey(routesFor("solution-d", "zai")[0]!), "zai/glm-5.3:max");
-  assert.equal(routeKey(routesFor("review-d", "claude")[0]!), "claude-code/claude-opus-5:medium");
+  assert.equal(routeKey(routesFor("review-d", "zai")[0]!), "zai/glm-5.3:max");
   // Explicit backends ignore parent-provider inheritance.
   assert.deepEqual(
     routesFor("solution-d", "zai", { parentProvider: "openai-codex", random: () => 0 }),
@@ -99,9 +111,9 @@ test("keeps implementation, remediation, and verification defaults pinned", () =
   assert.equal(routeKey(routesFor("verification", "default")[0]!), "openai-codex/gpt-5.6-sol:high");
 });
 
-test("explicit backends preserve role while replacing the route", () => {
+test("explicit Z.AI preserves role while replacing the route", () => {
   assert.equal(routeKey(routesFor("review-a", "zai")[0]!), "zai/glm-5.3:max");
-  assert.equal(routeKey(routesFor("implementation", "claude")[0]!), "claude-code/claude-opus-5:medium");
+  assert.equal(routeKey(routesFor("implementation", "zai")[0]!), "zai/glm-5.3:max");
 });
 
 test("classifies role permissions and sequential roles", () => {
@@ -206,7 +218,6 @@ test("oracle excludes Cursor, AgentRouter, SeekAI, and every other provider", ()
 
 test("oracle rejects explicit backend overrides instead of silently replacing Sol", () => {
   assert.throws(() => routesFor("oracle", "zai"), /oracle role requires default Pi routing.*zai.*gpt-5\.6-sol/);
-  assert.throws(() => routesFor("oracle", "claude"), /oracle role requires default Pi routing.*claude.*gpt-5\.6-sol/);
   // Non-oracle roles keep their explicit backend overrides.
   assert.equal(routeKey(routesFor("implementation", "zai")[0]!), "zai/glm-5.3:max");
 });
@@ -223,7 +234,6 @@ test("main-Sol skip detection is exact and model-id based across providers", () 
   assert.equal(oracleGuard("verification", "default", "gpt-5.6-sol"), undefined);
   // Non-default oracle backends are rejected before spawning.
   assert.match(oracleGuard("oracle", "zai", undefined)?.message ?? "", /backend=zai must not replace gpt-5\.6-sol/);
-  assert.match(oracleGuard("oracle", "claude", "gpt-5.5")?.message ?? "", /backend=claude must not replace gpt-5\.6-sol/);
 });
 
 test("builds the oracle role contract with verdict and evidence requirements", () => {

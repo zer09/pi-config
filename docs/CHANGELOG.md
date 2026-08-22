@@ -2,6 +2,15 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-22 — Migrate delegates to persistent Pi RPC sessions
+
+- Replaced one-shot Pi JSON children with one persistent strict-JSONL Pi RPC child per route attempt. The extension sends correlated `prompt-1`, buffers bounded early lifecycle events until command acceptance, cancels blocking extension UI requests, and preserves process groups, cancellation, deadlines, output bounds, privacy, manager IDs, and recursive suppression.
+- Added exactly one fixed same-session `prompt-2` recovery after a clean settled `missing_report` or `invalid_result`. The second response is complete and authoritative; no report merging, marker insertion, third prompt, deadline reset, output reset, or new route attempt occurs.
+- Added canonical `provider_failed` and `prompt_rejected` states. Typed provider errors and bounded credit, quota, billing, usage, authentication, rate-limit, network, overload, timeout, and model-availability categories are evaluated before report recovery. Pre-tool provider failures retain ordered fallback; failures after tools or accepted recovery fail closed.
+- Removed the direct Claude Code CLI backend completely: public `backend=claude`, Claude route/runtime types, `claude --print` supervision, permission flags, environment handling, plain protocol, fixtures, and Oracle branches are gone. The extension does not inspect or modify the user's Claude CLI. Pi-served Claude model routes remain unchanged and run as ordinary Pi RPC children.
+- Updated tool schema/guidance, types, rendering, diagnostics schema 2, policy, README, maintenance documentation, ADR current policy, tests, and local context-cost attribution.
+- Validation: extension suite (102 tests), strict TypeScript with unused-symbol checks, no-inference extension/catalog loading, direct-backend scans, route-order comparison, context-cost recount, and `git diff --check`. The live provider smoke remains deferred pending explicit paid-inference approval.
+
 ## 2026-08-22 — Add targeted delegate cancellation
 
 - Added session-local monotonic numeric IDs for admitted delegates. IDs start at 1, are never reused during an extension lifetime, remain private aliases rather than tool-call IDs or process IDs, and appear in active and settled delegate tool rendering.

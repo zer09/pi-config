@@ -1,11 +1,4 @@
-import type {
-  ClaudeRoute,
-  DelegateBackend,
-  DelegateRole,
-  DelegateRoute,
-  PiRoute,
-  ThinkingLevel,
-} from "./types.ts";
+import type { DelegateBackend, DelegateRole, PiRoute, ThinkingLevel } from "./types.ts";
 
 const A_ROUTES: readonly PiRoute[] = [
   { kind: "pi", provider: "opencode-go", model: "muse-spark-1.2-contributor", thinking: "xhigh" },
@@ -108,17 +101,11 @@ const VERIFICATION_ROUTE: PiRoute = {
   thinking: "high",
 };
 
-const CLAUDE_ROUTE: ClaudeRoute = {
-  kind: "claude",
-  model: "claude-opus-5",
-  effort: "medium",
-};
-
 export function routesFor(
   role: DelegateRole,
   backend: DelegateBackend,
   options: RoutesOptions = {},
-): readonly DelegateRoute[] {
+): readonly PiRoute[] {
   // The oracle must never silently replace Sol with another backend, so its
   // backend check precedes the explicit-backend overrides.
   if (role === "oracle") {
@@ -128,7 +115,6 @@ export function routesFor(
     return oracleRoutes(options);
   }
   if (backend === "zai") return [IMPLEMENTATION_ROUTE];
-  if (backend === "claude") return [CLAUDE_ROUTE];
 
   if (role === "solution-a" || role === "review-a") return A_ROUTES;
   if (role === "solution-b" || role === "review-b") return B_ROUTES;
@@ -138,8 +124,7 @@ export function routesFor(
   return [IMPLEMENTATION_ROUTE];
 }
 
-export function routeKey(route: DelegateRoute): string {
-  if (route.kind === "claude") return `claude-code/${route.model}:${route.effort}`;
+export function routeKey(route: PiRoute): string {
   return `${route.provider}/${route.model}:${route.thinking}`;
 }
 
@@ -163,7 +148,7 @@ export function roleLabel(role: DelegateRole, backend: DelegateBackend): string 
  * - main-Sol skip: detection is model-id based, so gpt-5.6-sol on any parent
  *   provider skips the oracle instead of reviewing itself;
  * - backend: only default Pi routing may serve the oracle, so explicit Z.AI
- *   or Claude backends cannot silently replace Sol.
+ *   cannot silently replace Sol.
  * Returning undefined means the run may proceed; the thrown message stays
  * bounded and model-visible so no fabricated oracle report is produced.
  */

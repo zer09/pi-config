@@ -10,7 +10,7 @@ import { runDelegate } from "./runner.ts";
 import type { ToolResult } from "./types.ts";
 
 const execFileAsync = promisify(execFile);
-type Behavior = "complete" | "unavailable" | "tool-unavailable" | "mutate-existing";
+type Behavior = "complete" | "unavailable" | "credit" | "tool-unavailable" | "mutate-existing" | "missing-recover" | "missing-provider";
 
 function enoent(error: NodeJS.ErrnoException): boolean {
   return error.code === "ENOENT";
@@ -53,30 +53,51 @@ const model = args[args.indexOf("--model") + 1];
 const route = provider + "/" + model;
 const behavior = behaviors[route] ?? "complete";
 const emit = (event) => console.log(JSON.stringify(event));
-emit({ type: "session" });
-emit({ type: "agent_start" });
-if (behavior === "tool-unavailable") {
-  emit({ type: "tool_execution_start", toolCallId: "1", toolName: "read", args: { path: "fixture" } });
-}
-if (behavior === "unavailable" || behavior === "tool-unavailable") {
-  emit({
-    type: "message_end",
-    message: { role: "assistant", stopReason: "error", content: [], errorMessage: "503 Service unavailable" },
-  });
-  emit({ type: "agent_end", willRetry: false });
-  process.exit(1);
-}
-if (behavior === "mutate-existing") writeFileSync("existing-untracked.txt", "after");
-emit({
-  type: "message_end",
-  message: {
-    role: "assistant",
-    stopReason: "stop",
-    content: [{ type: "text", text: "Completed on " + route + ".\\n\\nDELEGATE_RESULT: COMPLETED" }],
-  },
+let buffer = "";
+let round = 0;
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString("utf8");
+  while (buffer.includes("\\n")) {
+    const newline = buffer.indexOf("\\n");
+    const line = buffer.slice(0, newline);
+    buffer = buffer.slice(newline + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type !== "prompt") continue;
+    round += 1;
+    emit({ id: command.id, type: "response", command: "prompt", success: true });
+    emit({ type: "agent_start" });
+    if (behavior === "tool-unavailable") {
+      emit({ type: "tool_execution_start", toolCallId: "1", toolName: "read", args: { path: "fixture" } });
+    }
+    if (behavior === "unavailable" || behavior === "credit" || behavior === "tool-unavailable" || (behavior === "missing-provider" && round === 2)) {
+      emit({ type: "message_update", assistantMessageEvent: {
+        type: "error",
+        errorMessage: behavior === "credit" ? "credit balance depleted PRIVATE" : "503 Service unavailable",
+      } });
+      emit({ type: "agent_end", willRetry: false });
+      emit({ type: "agent_settled" });
+      continue;
+    }
+    if ((behavior === "missing-recover" || behavior === "missing-provider") && round === 1) {
+      emit({ type: "agent_end", willRetry: false });
+      emit({ type: "agent_settled" });
+      continue;
+    }
+    if (behavior === "mutate-existing") writeFileSync("existing-untracked.txt", "after");
+    emit({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        stopReason: "stop",
+        content: [{ type: "text", text: "Completed on " + route + ".\\n\\nDELEGATE_RESULT: COMPLETED" }],
+      },
+    });
+    emit({ type: "agent_end", willRetry: false });
+    emit({ type: "agent_settled" });
+  }
 });
-emit({ type: "agent_end", willRetry: false });
-emit({ type: "agent_settled" });
+setInterval(() => {}, 1000);
 `, { mode: 0o700 });
   return { root, invocation: { command: process.execPath, prefixArgs: [script] } };
 }
@@ -141,6 +162,64 @@ test("falls back after pre-tool provider unavailability", async () => {
   assert.equal(result.state, "completed");
   assert.equal(result.selectedRoute, "agentrouter/gpt-5.6-sol:max");
   assert.equal(result.attempts[0]?.fallbackReason, "provider_unavailable_before_tools");
+});
+
+test("credit exhaustion before tools advances without consuming report recovery", async () => {
+  const { result } = await runFixture(
+    ["opencode-go/muse-spark-1.2-contributor", "agentrouter/gpt-5.6-sol"],
+    {
+      "opencode-go/muse-spark-1.2-contributor": "credit",
+      "agentrouter/gpt-5.6-sol": "complete",
+    },
+  );
+  assert.equal(result.state, "completed");
+  assert.equal(result.attempts[0]?.state, "provider_failed");
+  assert.equal(result.attempts[0]?.fallbackReason, "provider_unavailable_before_tools");
+  assert.equal(result.progress.reportNudgeCount, 0);
+});
+
+test("all depleted routes end as routes_unavailable", async () => {
+  const catalog = [
+    "opencode-go/muse-spark-1.2-contributor",
+    "agentrouter/gpt-5.6-sol",
+    "tabitoken/claude-opus-5-thinking",
+    "seekai/claude-opus-5",
+    "gorouter/claude-opus-5-thinking",
+  ];
+  const behaviors = Object.fromEntries(catalog.map((route) => [route, "credit"])) as Record<string, Behavior>;
+  const { result } = await runFixture(catalog, behaviors);
+  assert.equal(result.state, "routes_unavailable");
+  assert.equal(result.attempts.length, 5);
+  assert.ok(result.attempts.every((attempt) => attempt.state === "provider_failed"));
+});
+
+test("one route attempt can recover in the same session without fallback", async () => {
+  const { result } = await runFixture(
+    ["opencode-go/muse-spark-1.2-contributor", "agentrouter/gpt-5.6-sol"],
+    {
+      "opencode-go/muse-spark-1.2-contributor": "missing-recover",
+      "agentrouter/gpt-5.6-sol": "complete",
+    },
+  );
+  assert.equal(result.state, "completed");
+  assert.equal(result.selectedRoute, "opencode-go/muse-spark-1.2-contributor:xhigh");
+  assert.equal(result.attempts.length, 1);
+  assert.equal(result.progress.reportNudgeCount, 1);
+  assert.equal(result.progress.reportRound, 2);
+});
+
+test("no fallback occurs after recovery starts even when the provider then fails", async () => {
+  const { result } = await runFixture(
+    ["opencode-go/muse-spark-1.2-contributor", "agentrouter/gpt-5.6-sol"],
+    {
+      "opencode-go/muse-spark-1.2-contributor": "missing-provider",
+      "agentrouter/gpt-5.6-sol": "complete",
+    },
+  );
+  assert.equal(result.state, "provider_failed");
+  assert.equal(result.selectedRoute, "opencode-go/muse-spark-1.2-contributor:xhigh");
+  assert.equal(result.attempts.length, 1);
+  assert.equal(result.progress.reportNudgeCount, 1);
 });
 
 test("does not fall back after any tool execution", async () => {
@@ -325,23 +404,21 @@ test("an explicit oracle backend is rejected before any child spawns", async () 
     ["zai/glm-5.3", "openai-codex/gpt-5.6-sol"],
     { "zai/glm-5.3": "complete", "openai-codex/gpt-5.6-sol": "complete" },
   );
-  for (const backend of ["zai", "claude"] as const) {
-    await assert.rejects(
-      () => runDelegate({
-        role: "oracle",
-        backend,
-        prompt: "Review only.",
-        cwd: fixture.root,
-        parentProvider: "zai",
-        piInvocation: fixture.invocation,
-        timeoutMs: 3000,
-        idleWarningMs: 200,
-        idleTimeoutMs: 800,
-        graceMs: 100,
-      }),
-      new RegExp(`backend=${backend} must not replace gpt-5\\.6-sol`),
-    );
-  }
+  await assert.rejects(
+    () => runDelegate({
+      role: "oracle",
+      backend: "zai",
+      prompt: "Review only.",
+      cwd: fixture.root,
+      parentProvider: "zai",
+      piInvocation: fixture.invocation,
+      timeoutMs: 3000,
+      idleWarningMs: 200,
+      idleTimeoutMs: 800,
+      graceMs: 100,
+    }),
+    /backend=zai must not replace gpt-5\.6-sol/,
+  );
 });
 
 test("a read-only delegate that changes the Git tree still completes without invalidation", async () => {

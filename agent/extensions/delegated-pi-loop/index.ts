@@ -25,7 +25,7 @@ const DelegateParameters = Type.Object({
     description: "Complete neutral role assignment, governing documents, scope, success checks, and prohibitions.",
   }),
   backend: Type.Optional(StringEnum(DELEGATE_BACKENDS, {
-    description: "Use default routing unless the user or project explicitly selected Z.AI or Claude Code.",
+    description: "Use default routing unless the user or project explicitly selected Z.AI.",
     default: "default",
   })),
   cwd: Type.Optional(Type.String({
@@ -154,7 +154,7 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
   pi.registerTool<DelegateToolParams>({
     name: "delegate_run",
     label: "Delegate Run",
-    description: "Run one fresh bounded Pi or Claude Code delegate in an isolated role. Default investigation and review roles use ordered provider fallback before any tool executes. Streams the last sanitized child event and its UTC receipt time. A completed run returns the delegate's Markdown report; any other state returns a compact sanitized failure status and is marked as a tool error. The parent remains the sole orchestrator.",
+    description: "Run one fresh bounded Pi RPC delegate in an isolated role. Default investigation and review roles use ordered provider fallback before any tool executes. Streams the last sanitized child event and its UTC receipt time. A completed run returns the delegate's Markdown report; any other state returns a compact sanitized failure status and is marked as a tool error. The parent remains the sole orchestrator.",
     promptSnippet: "Run one fresh bounded delegate with role-specific routing and live event status",
     promptGuidelines: [
       "Use delegate_run automatically for repository implementation changes unless the user explicitly opts out. The parent may directly make only a truly trivial edit with no behavior change or create and revise the plan and research deliverables defined below; the parent never manually implements a non-trivial or small implementation task.",
@@ -171,7 +171,7 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
       "After inspecting the implementation delegate's diff and evidence, call delegate_run for review-a, review-b, review-c, and review-d concurrently with the same neutral review scope; all four must complete.",
       "Process blocking review findings through fresh delegate_run verification roles: consolidate exact duplicate findings first, give each verification exactly one finding without sibling verification reports, and overlap verification only with other verification delegates.",
       "Run independent finding verifications concurrently in batches of at most four and keep dependent findings sequential; wait for every verification in the current batch before remediation, because a non-completed verification leaves its finding unresolved without erasing completed sibling reports. Send only verification-confirmed findings to one focused remediation role, then run a fresh four-reviewer gate until no blocking findings remain.",
-      "Use delegate_run backend=default unless the user or project explicitly selects Z.AI or Claude Code for the assigned role; backend selection never changes role mutation permissions, and backend=zai or backend=claude is invalid for the oracle role.",
+      "Use delegate_run backend=default unless the user or project explicitly selects Z.AI for the assigned role; backend selection never changes role mutation permissions, and backend=zai is invalid for the oracle role.",
       "Treat every delegate_run state other than completed as a failed delegation reported as a tool error with sanitized status fields, and do not retry outside the tool's bounded pre-tool route fallback without user-authorized diagnosis.",
       "Do not stage, commit, push, deploy, or mutate hosted services because a delegate completed; those transitions require separate explicit authorization.",
     ],

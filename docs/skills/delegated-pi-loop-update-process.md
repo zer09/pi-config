@@ -1,177 +1,115 @@
 # Delegated Pi extension update process
 
-Purpose: maintain the native TypeScript `delegate_run` Pi extension that runs inside the parent Pi process and supervises fresh Pi or Claude Code delegates. The extension owns route selection, bounded subprocess lifecycle, private JSON parsing, live last-event timestamps, targeted user cancellation, role isolation with role-contract read-only enforcement, terminal result enforcement, the Markdown tool-result envelope with native error marking, and private failure diagnostics.
+Purpose: maintain the native TypeScript `delegate_run` extension that runs in the parent Pi process and supervises fresh ephemeral Pi RPC children. The extension owns role routing, strict RPC JSONL, one same-session report recovery, provider-failure classification, bounded subprocess lifecycle, private event parsing, targeted cancellation, result validation, diagnostics, and cleanup.
 
-## Classification and provenance
+## Classification and authority
 
-- Former Local Skill classification: **remove it**. The runtime skill was replaced by the native extension.
-- Extension classification: **keep it**. Process supervision, fallback cutoffs, live event parsing, and shared-tree safety are executable behavior that should not be reconstructed in prompts.
-- Source of truth: this Pi config, ADR 0007 as historical role-isolation rationale, ADR 0008 as the native-extension decision, and the installed Pi extension/JSON documentation.
-- Pi harness authority: installed `@earendil-works/pi-coding-agent` documentation for extensions, JSON mode, CLI flags, project trust, and environment variables.
-- Route authority: `agent/extensions/delegated-pi-loop/routes.ts`, checked against `agent/models.json` and Pi's live model catalog.
-- Claude authority: installed `claude --help` for model, effort, persistence, permission, and tool flags.
-- Project execution guides and accepted architecture decisions remain authoritative for task-specific prompts, findings, gates, and release transitions.
-
-The extension runs as part of the parent Pi process, like CodeGraph and Context Mode. It spawns fresh child agents because role and context isolation still require separate agent processes. Child processes inherit provider credentials and operating-system permissions from the parent environment. The extension clears stale parent session metadata before each spawn.
+- Extension classification: **keep it**. Process supervision, fallback cutoffs, report recovery, and shared-tree safety are executable behavior.
+- Source of truth: this Pi config, ADR 0007, ADR 0008, and installed Pi RPC/extension documentation.
+- Route authority: `agent/extensions/delegated-pi-loop/routes.ts`, checked against Pi's live model catalog.
+- Direct Claude Code authority: none. The extension has no direct Claude CLI backend and must not inspect, invoke, install, uninstall, or modify the user's Claude CLI.
+- Claude-named models served through ordinary Pi providers remain supported. Their provider/model route order is independent from the removed direct CLI integration.
 
 ## Owned surfaces
 
 | Path | Responsibility |
 |---|---|
-| `agent/AGENTS.md` | Compact trigger and global orchestration safety rules. |
-| `agent/extensions/delegated-pi-loop/index.ts` | Extension entrypoint, `delegate_run` registration, `/delegate:list` and `/delegate:stop` commands, prompt guidance, execute-level finalization, native `tool_result` error marking, child watchdog, and lifecycle cleanup. |
-| `agent/extensions/delegated-pi-loop/routes.ts` | Role classification, route maps, prompt contracts, and terminal marker contract. |
-| `agent/extensions/delegated-pi-loop/monitor.ts` | Private Pi JSON lifecycle parsing, sanitized event metadata, terminal report extraction, and availability classification. |
-| `agent/extensions/delegated-pi-loop/supervisor.ts` | Process groups, deadlines, output bounds, environment scrubbing, live progress, artifact status, and Claude plain protocol. |
-| `agent/extensions/delegated-pi-loop/runner.ts` | Catalog preflight, ordered fresh-route fallback, shared deadline, and the in-memory chain result. |
-| `agent/extensions/delegated-pi-loop/result.ts` | Model-visible Markdown result builders, terminal marker stripping, the native tool-result error patch, and execute-level finalization (diagnostic persistence, tool-result assembly, artifact cleanup). |
-| `agent/extensions/delegated-pi-loop/diagnostics.ts` | Private sanitized failure diagnostics under `${PI_CODING_AGENT_DIR:-~/.pi/agent}/logs/delegated-pi-loop/` with 0700/0600 permissions. |
-| `agent/extensions/delegated-pi-loop/manager.ts` | Parent-session concurrency guard (exclusive implementation/remediation/oracle, verification-only overlap with a four-verification cap), monotonic delegate IDs, active-run summaries, and targeted cancellation. |
-| `agent/extensions/delegated-pi-loop/render.ts` | Compact and expanded tool rendering with the numeric delegate ID, last event, UTC receipt time, and the TUI-only diagnostic path. |
-| `agent/extensions/delegated-pi-loop/artifacts.ts` | Private temporary artifacts, atomic writes, best-effort directory removal, and bounded report output. |
-| `agent/extensions/delegated-pi-loop/types.ts` | Extension, route, progress, status, and result contracts. |
-| `agent/extensions/delegated-pi-loop/*.test.ts` | Monitor, route, manager concurrency, supervisor, cleanup, fallback, result Markdown, diagnostics, and integration regressions. |
-| `docs/skills/delegated-pi-loop-update-process.md` | This maintenance and validation contract. |
+| `agent/AGENTS.md` | Compact trigger and orchestration policy. |
+| `agent/extensions/delegated-pi-loop/index.ts` | Tool registration, model-visible schema/guidance, commands, child recursion suppression, and execute finalization. |
+| `agent/extensions/delegated-pi-loop/protocol.ts` | Strict LF-framed RPC JSONL, prompt correlation, UI cancellation, and bounded provider-failure categories. |
+| `agent/extensions/delegated-pi-loop/monitor.ts` | Two-round Pi lifecycle validation, report extraction, activity, and structured provider-failure evidence. |
+| `agent/extensions/delegated-pi-loop/supervisor.ts` | Persistent RPC child, limits, cancellation, process groups, cleanup, progress, and private artifacts. |
+| `agent/extensions/delegated-pi-loop/runner.ts` | Catalog preflight, ordered pre-tool fallback, route attempts, and shared deadline. |
+| `agent/extensions/delegated-pi-loop/routes.ts` | Pi route maps, role classification, role prompts, and terminal marker contract. |
+| `agent/extensions/delegated-pi-loop/result.ts` | Model-visible Markdown, terminal-marker stripping, error marking, and final cleanup. |
+| `agent/extensions/delegated-pi-loop/diagnostics.ts` | Bounded private failure diagnostics. |
+| `agent/extensions/delegated-pi-loop/manager.ts` | Concurrency, numeric IDs, active summaries, and targeted cancellation. |
+| `agent/extensions/delegated-pi-loop/render.ts` | Compact and expanded TUI rendering. |
+| `agent/extensions/delegated-pi-loop/artifacts.ts` | Private temporary artifacts and bounded output helpers. |
+| `agent/extensions/delegated-pi-loop/types.ts` | Runtime, progress, result, and diagnostic contracts. |
+| `agent/extensions/delegated-pi-loop/*.test.ts` | Protocol, monitor, supervisor, runner, privacy, rendering, and policy regressions. |
 
-The retired `agent/skills/delegated-pi-loop/` directory must not be restored unless the user explicitly requests a separate skill layer.
+The retired runtime skill and the removed direct Claude CLI backend must not be restored without a new explicit decision.
 
 ## Runtime contract
 
 ### Parent and child boundaries
 
-1. The extension executes inside the parent Pi process and registers `delegate_run` as a native custom tool.
-2. The parent Pi session remains the sole orchestrator and synthesizes all delegate reports.
-3. Each assigned role starts in a fresh ephemeral Pi or Claude Code process.
-4. Child Pi uses `--mode json --no-session --approve`.
-5. Child Claude Code uses `--print --no-session-persistence` with role-appropriate permissions.
-6. `PI_DELEGATED_CHILD=1` suppresses `delegate_run` registration inside child Pi.
-7. A child-side watchdog checks `PI_DELEGATE_PARENT_PID` and terminates the child's process group if the parent disappears.
-8. Every successfully admitted delegate receives a session-local monotonic numeric ID. IDs start at 1, are never reused during the extension lifetime, and reset only when reload or session replacement creates a fresh extension instance after aborting old delegates.
-9. `session_shutdown` aborts all active delegates.
-10. Process-group cleanup runs after timeout, abort, terminal completion, and natural leader exit so descendants cannot remain.
+1. The extension executes in the parent Pi process and registers `delegate_run`.
+2. The parent remains the sole orchestrator and receives only a validated final report.
+3. Each route attempt starts one separate ephemeral Pi process with `--mode rpc --no-session --approve` and a piped stdin.
+4. One route attempt uses one persistent child session for the initial task and, when eligible, one report-recovery prompt.
+5. `PI_DELEGATED_CHILD=1` suppresses recursive `delegate_run` registration.
+6. `PI_DELEGATE_PARENT_PID` lets the child watchdog terminate its process group if the parent disappears.
+7. Numeric delegate IDs and manager slots remain active through both report rounds and cleanup.
+8. `session_shutdown`, Escape, and `/delegate:stop <id>` cancel either round and remove the full process group.
 
-### Environment and permissions
+### RPC and report recovery
 
-1. Provider credentials and operating-system permissions inherit from the parent Pi process.
-2. Clear `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` before every delegate.
-3. Clear `AI_AGENT` and `PI_CODING_AGENT` before Claude Code delegates.
-4. Set `PI_SKIP_VERSION_CHECK=1` for child Pi startup.
-5. Never persist delegate command lines or credential values.
-6. A backend never widens the assigned role's mutation permissions.
+1. Send the initial command as one LF-terminated object with id `prompt-1` and type `prompt`.
+2. A successful correlated `response` accepts the command. It does not complete the task.
+3. Buffer bounded lifecycle events that arrive before the matching successful response, then process them in order.
+4. A rejected prompt command becomes `prompt_rejected`. It never becomes `missing_report`, never falls back, and receives no extra prompt.
+5. Split stdout only on LF, strip one trailing CR, preserve partial UTF-8 with `StringDecoder`, and fail closed on malformed, duplicate, unknown, oversized, or trailing protocol records.
+6. Cancel blocking `select`, `confirm`, `input`, and `editor` extension UI requests with one matching `extension_ui_response`. Consume fire-and-forget UI requests without replying.
+7. A clean settled `missing_report` or `invalid_result` receives exactly one fixed `prompt-2` recovery command in the same child session.
+8. The recovery response must be a complete self-contained report. The extension never merges reports or inserts a marker.
+9. There is no third prompt.
+10. `BLOCKED` and `FAILED` remain immediate after their authoritative final assistant message. `COMPLETED` remains provisional until final `agent_end`, `agent_settled`, and a clean stream.
 
-### Lifecycle bounds and privacy
+### Provider failure and fallback
 
-1. Default wall deadline: 45 minutes.
-2. Default combined child output limit: 50 MiB.
-3. Default Pi event-idle warning: 5 minutes.
-4. Default Pi event-idle termination: 10 minutes.
-5. Thinking, text deltas, tool arguments, and tool results remain private runtime input.
-6. Temporary supervision artifacts (prompt and per-attempt report, stderr, and status files) may exist while a run is in flight in a private temporary directory. No chain-level `report.md` or `status.json` is written; every chain outcome returns in memory. Every terminal outcome removes the entire artifact directory after the failure diagnostic is persisted and the tool result is assembled.
-7. Every accepted activity event records:
-   - event type;
-   - optional tool name, never tool arguments;
-   - phase;
-   - UTC supervisor receipt time;
-   - monotonic activity time for idle enforcement.
-8. The streaming tool renderer shows the session-local numeric delegate ID, last event, its UTC time, relative age, route, phase, attempt, and elapsed time. The numeric ID also persists in final TUI-only tool details so restored result rendering can identify the run. Normal Pi child progress is throttled to at most once per second without slowing the independent 100 ms safety checks. No separate footer or below-editor widget duplicates this state. For unsuccessful results the renderer also shows the private diagnostic path; nothing prompts or automatically reads it.
-9. A valid `DELEGATE_RESULT: COMPLETED` report followed by final `agent_end` and `agent_settled` is terminal success even if Pi remains alive.
-10. `BLOCKED`, `FAILED`, missing reports, malformed markers, malformed lifecycle streams, partial trailing JSON, output overflow, stalls, and wall timeout remain distinct non-success states.
+1. Classify typed `message_update` errors and assistant `message_end` with `stopReason: "error"` before report-recovery eligibility.
+2. Confirm transient evidence only after retries fail or the round settles without a valid result. A later valid `COMPLETED`, `BLOCKED`, or `FAILED` result supersedes recovered retry evidence.
+3. Retain only a bounded category: `credits_exhausted`, `quota_exhausted`, `billing_limit`, `usage_limit`, `authentication`, `rate_limit`, or `provider_unavailable`.
+4. Compatibility phrase matching covers HTTP 402/payment required, quota exhaustion, depleted credits or credit balances, billing/spending/usage limits, authentication, rate limits, overload, timeout, network, and model availability.
+5. Never retain raw provider errors, billing text, balances, account data, credentials, prompts, reports, or protocol payloads in status, diagnostics, rendering, or failure Markdown.
+6. A provider failure before tools has state `provider_failed` and may carry `provider_unavailable_before_tools`, which advances the existing ordered route chain.
+7. A provider failure after any tool fails closed on the selected route.
+8. A provider failure after the recovery prompt is accepted fails closed even when no tool ran.
+9. A provider failure never consumes the report-recovery prompt.
+10. If all eligible routes fail before tools, the chain ends as `routes_unavailable`.
+11. The existing pre-tool idle fallback remains. No other fallback is allowed.
 
-### Tool result contract
+### Limits, privacy, and cleanup
 
-1. `execute` always returns the native ToolResult envelope; model-visible `content[0].text` is raw Markdown, and JSON escaping is transport-only. Delegate Markdown is passed through verbatim, never parsed into plain text.
-2. Successful runs return a minimal status header (label, `completed`, route, elapsed) followed by the delegate's final Markdown body with the validated terminal `DELEGATE_RESULT: COMPLETED` marker stripped. Report, status, artifact, and diagnostic paths never appear in model-visible content.
-3. Unsuccessful runs return a compact sanitized failure Markdown: state, role, backend, selected or final route when present, phase, last sanitized event with optional tool name, exact UTC receipt time, elapsed time, the ordered attempt chain, and one deterministic per-state summary sentence. It excludes reports, raw stdout/stderr, prompts, tool arguments and results, provider response bodies, credentials, and all file paths.
-4. The extension registers a native `tool_result` handler that patches unsuccessful `delegate_run` results to `isError: true` while preserving the returned Markdown content and renderer details. `execute` itself never throws for a supervised failure.
-5. Unsuccessful runs persist one small private diagnostic JSON under `${PI_CODING_AGENT_DIR:-~/.pi/agent}/logs/delegated-pi-loop/` with 0700 directories and 0600 atomic files. It contains only bounded sanitized fields (state, role, backend, routes, times, sanitized progress and attempts, bounded stream errors). It excludes prompts, delegate reports, raw stdout/stderr, tool arguments and results, Git state, credentials, provider bodies, and every file path. The temporary supervision artifact directory is removed after the diagnostic is persisted, so nothing in `/tmp` outlives the run beyond best-effort removal limits.
-6. The diagnostic path travels only in `details` for the TUI renderer. Successful runs write no diagnostic.
-7. Execute-level finalization awaits `runDelegate`, persists the failure diagnostic when unsuccessful, assembles the final ToolResult, and then removes the temporary artifact directory for every terminal outcome in a `finally` that also runs when diagnostic persistence fails. A failed diagnostic write still returns sanitized failure content with no diagnostic path; directory removal stays best-effort.
+1. One shared 45-minute wall deadline covers initial work and recovery.
+2. One shared five-minute idle warning and ten-minute idle deadline covers both rounds. Accepted activity resets idle age; empty deltas do not.
+3. One cumulative 50 MiB limit covers protocol and child output across both rounds.
+4. Progress rendering is throttled to about one second independently from 100 ms safety checks.
+5. Temporary prompt, report, stderr, and status artifacts use private permissions. The prompt artifact remains for supervision, but no chain-level report or status file is written.
+6. Successful output contains only the validated final report with the completed marker stripped.
+7. Unsuccessful output contains deterministic bounded Markdown without raw child content or file paths.
+8. Failure diagnostics use schema version 2 and include only bounded state, route, timing, recovery metadata, provider category, sanitized progress, attempts, and stream error categories.
+9. Process-group termination remains authoritative after final classification. The extension then waits for cleanup, persists a failure diagnostic when needed, removes temporary artifacts, and releases the manager slot.
 
-### Concurrency matrix
+### Backends and routes
 
-The in-process DelegateManager enforces these rules before any child process spawns, with bounded tool errors:
+- Public backends are exactly `default` and `zai`.
+- `backend=claude` is not in the schema or runtime types and must fail tool schema validation before execution.
+- The oracle requires `backend=default`; explicit Z.AI is rejected before spawn.
+- A/B/C Pi route arrays, including Tabitoken, SeekAI, AgentRouter, and GoRouter model IDs that contain `claude`, remain supported and retain their exact ordering.
+- D and Oracle still select one inherited eligible or random primary once, then use the canonical remaining OpenAI Codex aliases.
+- Implementation and remediation remain `zai/glm-5.3:max`; verification remains `openai-codex/gpt-5.6-sol:high`.
+- Backend selection never changes role mutation permissions.
 
-1. Verification delegates may overlap only other verification delegates, at most four concurrently (`VERIFICATION_CONCURRENCY_CAP`). A fifth concurrent verification is rejected with a bounded batching error; the parent batches the remaining findings after the current batch instead of retrying blindly.
-2. Verification never overlaps a solution, review, implementation, remediation, or oracle role in either start order.
-3. Solution and review roles keep their existing concurrent A/B/C/D gate behavior and remain unblocked by each other.
-4. Implementation, remediation, and oracle roles stay exclusive against every active delegate, including verification batches.
+### Concurrency and authorization
 
-### User cancellation
-
-1. `/delegate:list` opens a stable TUI selector of active numeric IDs, roles, states, and elapsed times. Selecting a row only prefills `/delegate:stop <id>` in the main editor; it never stops a delegate automatically. Escape closes the selector without action, and an empty list reports `No active delegates.`
-2. `/delegate:stop <id>` accepts one positive safe integer and aborts only that active delegate through its manager-owned `AbortController`. Unknown, completed, and already-stopping IDs return bounded notifications.
-3. Targeted cancellation keeps the manager slot active until `execute` finalization finishes, so a new exclusive delegate cannot start while the old process group is still terminating. Sibling delegates remain active.
-4. The combined abort signal reaches catalog preflight and both Pi and Claude supervisors. The supervisor terminates the selected process group, the chain ends as `interrupted` without provider fallback, normal failure diagnostics and artifact cleanup run, and descendants cannot remain.
-5. Both commands execute locally without an LLM turn and remain available while the main agent is busy. There is no BTW-specific cancellation command or raw process-kill path.
-
-### Route fallback
-
-A route chain may advance only when all conditions are true:
-
-1. No terminal delegate result exists.
-2. No tool execution started.
-3. The route is absent from Pi's live catalog, or the attempt reports recognized provider unavailability, or the attempt reaches event-idle stall.
-4. The next route is fresh and has not been tried.
-5. The original shared wall deadline still has time remaining.
-
-Recognized availability signals remain narrow:
-
-- typed status codes and provider/network availability errors;
-- `client_gone` and `context canceled`;
-- `scanner_error` and `unexpected EOF`;
-- a complete single-line `[error] ...` machine envelope.
-
-Prose, multi-section reports, arbitrary missing markers, and every attempt that started a tool remain terminal failures rather than fallback triggers.
-
-### Role routes
-
-| Role | Default route |
-|---|---|
-| Solution or review A | `opencode-go/muse-spark-1.2-contributor:xhigh`, then AgentRouter Sol/max, Tabitoken Opus 5 Thinking/max, SeekAI Opus 5/max, GoRouter Opus 5 Thinking/high. |
-| Solution or review B | `opencode-go/deepseek-v4-flash:max`, then SeekAI DeepSeek V4 Flash/max, AgentRouter Opus 5/max, Tabitoken Opus 5 Thinking/max, GoRouter Opus 5 Thinking/high. |
-| Solution or review C | `opencode-go/hy3:high`, then AgentRouter Opus 5/max, Tabitoken Opus 5 Thinking/max, SeekAI Opus 5/max, GoRouter Opus 5 Thinking/high. |
-| Solution or review D | `gpt-5.5` at `medium` on exactly one ordered member chain of the five eligible providers `openai-codex`, `openai-codex-zahlo`, `openai-codex-cgpt1`, `openai-codex-cgpt2`, `openai-codex-cgpt3`. The primary is the parent session's currently selected provider (read from native extension context, never environment variables) when that provider is eligible; otherwise one randomly selected eligible provider. The remaining four follow in the stable canonical order listed here. Cursor is excluded from D by definition. The selection happens exactly once per `delegate_run` invocation, and the ordered attempts return through the existing chain result machinery. |
-| Solution oracle | `gpt-5.6-sol` at `high` on exactly one ordered member chain of the same five eligible providers with the same inherited-eligible-or-one-random primary selection and canonical fallback order as D. The oracle runs exactly once against the synthesized draft solution contract after a required solution gate. Main-Sol skip detection is model-id based, not provider based: the parent model id `gpt-5.6-sol` skips the oracle on any parent provider, and the check reads `ctx.model.id` from native extension context. Explicit backend=zai or backend=claude is invalid for the oracle and is rejected before spawning. |
-| Implementation or remediation | `zai/glm-5.3:max`. |
-| Finding verification | `openai-codex/gpt-5.6-sol:high`. |
-| Explicit Z.AI alternative | `zai/glm-5.3:max` with assigned-role permissions. |
-| Explicit Claude Code alternative | `claude-opus-5`, effort `medium`, with assigned-role permissions. |
-
-AgentRouter, Tabitoken, SeekAI, and GoRouter remain backup-only in default A/B/C maps. Muse Spark uses `xhigh` because its `max` map is null. HY3 uses `high` because it does not support `max`. D and oracle routes never leave the five eligible OpenAI Codex alias providers.
-
-### Orchestration gates
-
-1. Use `delegate_run` automatically for repository implementation changes unless the user explicitly opts out. The parent may directly make only a truly trivial edit with no behavior change or create and revise a plan or research deliverable. Classify these artifacts by purpose, not by `.md` extension or location: plans, design notes, investigation reports, and research notes remain parent-authored, while implementation documentation such as README updates, ADRs, changelogs, policy files, and documentation accompanying code still follows implementation delegation. Never use an implementation or remediation delegate to research, formulate, draft, save, or revise a plan or research deliverable. A pure planning or research request runs no implementation delegate, implementation review gate, or remediation.
-2. A small implementation task with an accepted plan or an obvious established pattern skips the solution-investigation gate and still runs exactly one implementation delegate.
-3. When no accepted solution contract exists and the root cause, architecture, or approach requires investigation, call solution A, B, C, and D concurrently with the same neutral assignment.
-4. Require all four reports. One, two, or three reports cannot complete the gate.
-5. Verify material citations and architecture claims before finalizing the implementation contract.
-6. After a required solution gate, run exactly one fresh read-only oracle delegate against the synthesized draft solution contract before implementation.
-7. Skip the oracle when the parent session's current model id is exactly `gpt-5.6-sol` on any provider; finalize the solution contract directly. A small task that skips solution investigation also skips the oracle.
-8. Give the oracle the neutral problem, governing documents, verified evidence, the draft solution contract, constraints, and unresolved uncertainties; never raw investigator reports or the parent's synthesis rationale.
-9. Treat the oracle as advisory, not the final authority: the parent verifies `VALID` or `REVISE` claims, revises the draft when warranted, finalizes the contract, and starts no automatic oracle loop. A non-completed oracle run blocks implementation.
-10. Stop for user input on material architecture ambiguity.
-11. Run one implementation, remediation, or oracle delegate at a time.
-12. Do not let the parent edit the shared tree while a mutating delegate runs.
-13. After implementation or remediation, the parent inspects the delegate's diff and evidence, then calls fresh review A, B, C, and D concurrently with the same neutral review scope.
-14. Verify every blocking finding in a fresh read-only verification role before remediation: consolidate exact duplicate findings first, give each verification exactly one finding without sibling verification reports, run independent findings concurrently in batches of at most four, and keep dependent findings sequential when one verification result materially affects another finding's contract or evidence.
-15. Wait for every required verification in the current batch before remediation: a failed or non-completed verification leaves its finding unresolved without erasing completed sibling reports, and remediation must not proceed as though the batch completed. Send only verification-confirmed findings to one remediation delegate, then repeat the fresh four-reviewer gate; verification, remediation, and review repeat until no blocking findings remain.
-16. Solution investigators cannot act as implementers or later reviewers. The oracle likewise never implements, reviews, or verifies.
-17. Read-only roles (solution, review, verification, oracle) stay read-only through their role contracts and the existing permission classification, including the direct Claude read-only permission arguments. Global pre/post Git tree fingerprints and the `read_only_mutation` state were removed because shared monorepo worktrees are modified concurrently by unrelated agents and a before/after fingerprint cannot attribute the actor. Residual risk: Pi-based read-only delegates still receive the normal tool set and extensions and can misuse writable tools; without fingerprinting the extension does not automatically detect such mutation. No filesystem sandbox, worktree clone, path exclusion, configuration flag, or replacement mutation detector may be added without a new decision.
-18. Git transitions and hosted-service writes always require separate explicit authorization.
+1. Solution and review A/B/C/D roles retain their concurrent gates.
+2. Independent verifications overlap only other verifications, in batches of at most four.
+3. Implementation, remediation, and oracle remain exclusive against every active delegate.
+4. Read-only roles remain semantic contracts, not filesystem sandboxes.
+5. The parent must not edit while a mutating delegate runs.
+6. Staging, commits, pushes, deployments, and hosted-service writes require separate explicit authorization.
 
 ## Update workflow
 
-1. Read installed Pi `docs/extensions.md`, `docs/json.md`, `docs/environment-variables.md`, and `docs/tui.md` completely.
+1. Read installed Pi `docs/rpc.md`, `docs/extensions.md`, `docs/json.md`, `docs/environment-variables.md`, and `docs/tui.md` completely.
 2. Read ADR 0007, ADR 0008, this document, and every owned source file.
-3. Compare process and renderer patterns with the local CodeGraph and Context Mode extensions.
-4. Confirm every route and thinking level in Pi's live catalog without running paid inference.
-5. Confirm Claude Code supports the pinned model, effort, persistence, permission, and tool flags.
-6. Preserve parent-process extension execution, child role isolation, environment inheritance, recursive-delegation suppression, deadlines, private event handling, exact timestamps, process-group cleanup, fallback cutoffs, concurrency gates, the raw-Markdown tool-result contract, native error marking through `tool_result`, and the 0700/0600 failure diagnostic contract.
-7. Update tests before or with behavior changes.
-8. Update `agent/AGENTS.md`, root `README.md`, ADRs, and context-cost accounting when the active tool contract changes.
-9. Do not restore the retired runtime skill or Python supervisors.
-10. Run structural validation before any paid delegate smoke.
+3. Preserve route arrays, role contracts, manager IDs, cancellation, cleanup, deadlines, privacy, diagnostics, and recursive suppression.
+4. Update tests with behavior changes.
+5. Update `agent/AGENTS.md`, root `README.md`, ADR current-policy text, changelog, and context-cost accounting when the public tool contract changes.
+6. Do not run paid model inference without explicit authorization.
 
 ## Required checks
 
@@ -182,15 +120,15 @@ cd ~/.pi/agent/extensions/delegated-pi-loop
 npm test
 ```
 
-Run a strict TypeScript check using the repository's available TypeScript toolchain or an equivalent temporary config that resolves Pi's installed type declarations.
+Run strict TypeScript with `strict`, `noUnusedLocals`, and `noUnusedParameters` against the installed Pi declarations.
 
-Validate extension loading without paid inference:
+Validate extension loading without inference:
 
 ```bash
 pi --list-models zai/glm-5.3
 ```
 
-Verify route catalog entries:
+Verify each route with `pi --list-models`, including all Pi-served Claude model routes:
 
 ```bash
 pi --list-models opencode-go/muse-spark-1.2-contributor
@@ -217,25 +155,18 @@ pi --list-models openai-codex-cgpt3/gpt-5.5
 
 Also verify:
 
-- no raw thinking or tool payload appears in reports, status, progress, diagnostics, or test output;
-- `lastEventAt` is an ISO-8601 UTC receipt timestamp and updates on every accepted activity event;
-- empty deltas do not reset event-idle time;
-- a completed settled lifecycle cleans up a lingering process group;
-- natural leader exit cleans up descendants;
-- partial trailing JSON fails closed;
-- fallback never occurs after tool execution or a terminal marker;
-- abort during catalog preflight stops the chain;
-- a main-Sol parent model and an explicit oracle backend are both rejected before any oracle child spawns, with a bounded tool error and no fabricated oracle report;
-- child Pi does not register `delegate_run` recursively;
-- one through four verification delegates overlap each other while a fifth concurrent verification is rejected with a bounded batching error, a released slot admits the next finding, and verification blocks and is blocked by solution, review, implementation, remediation, and oracle roles in both start orders;
-- solution and review concurrency is unchanged, and implementation, remediation, and oracle remain exclusive against every active delegate;
-- admitted delegates receive monotonic session-local numeric IDs that are never reused; the ID appears in active and settled tool rendering, `/delegate:list` prefills but does not execute `/delegate:stop <id>`, targeted stop aborts only the selected signal while siblings continue, the manager slot remains until cleanup, stale or repeated IDs return bounded notifications, and cancellation ends as `interrupted` without fallback;
-- a read-only delegate that changes the working tree still completes and returns its report: no `read_only_mutation` state, tree-fingerprint capture, comparison, or fingerprint result fields exist in any runtime source;
-- no delegate command line or credential value is persisted;
+- fake clean missing reports receive one same-session recovery prompt;
+- fake credit-depleted routes fall back before tools without a recovery prompt;
+- provider failures after tools or accepted recovery do not fall back;
+- prompt rejection fails closed;
+- one child PID handles both prompts;
+- first invalid reports never reach parent content;
+- shared deadlines and cumulative output bounds do not reset;
+- UI requests cannot block the child;
+- cancellation and natural completion remove descendants;
+- direct Claude route, backend, runner, supervisor, permission, plain-protocol, and fixture scans are empty;
+- Pi-served Claude route arrays and order are unchanged;
 - unrelated dirty files remain untouched;
-- every terminal outcome removes its temporary supervision artifact directory after diagnostic persistence and tool-result assembly, and no chain-level `report.md` or `status.json` is ever written;
-- successful runs return exact Markdown with the terminal marker stripped and no paths;
-- unsuccessful runs return the compact sanitized failure Markdown, are patched to `isError: true` through the native `tool_result` lifecycle, persist one 0600 diagnostic JSON under `logs/delegated-pi-loop/` with only bounded sanitized fields and no file paths, and surface its path only in the TUI renderer;
-- a diagnostic write failure still returns sanitized failure content with no diagnostic path and performs artifact cleanup.
-
-Run paid model smokes only when the user authorizes the provider cost and mutation scope. Use a disposable local Git fixture for mutating tests.
+- `git diff --check` passes;
+- the active model-visible context surfaces are recounted locally;
+- no paid inference or live smoke runs without explicit approval.

@@ -2,13 +2,12 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, existsSync } from "node:fs";
 import { chmod, stat } from "node:fs/promises";
 import path from "node:path";
-import { StringDecoder } from "node:string_decoder";
-import { atomicWriteJson, atomicWriteText } from "./artifacts.ts";
-import { parseDelegateOutcome, PiJsonMonitor } from "./monitor.ts";
-import { roleIsReadOnly, routeKey } from "./routes.ts";
+import { atomicWriteJson, atomicWriteText, readPrivateText } from "./artifacts.ts";
+import { PiRpcMonitor } from "./monitor.ts";
+import { RECOVERY_PROMPT, RpcJsonlProtocol, type ProtocolRecord } from "./protocol.ts";
+import { routeKey } from "./routes.ts";
 import type {
   AttemptStatus,
-  ClaudeRoute,
   DelegateProgress,
   DelegateRole,
   DelegateState,
@@ -44,11 +43,6 @@ export interface SupervisePiOptions extends SuperviseBaseOptions {
   readonly piInvocation: PiInvocation;
 }
 
-export interface SuperviseClaudeOptions extends SuperviseBaseOptions {
-  readonly route: ClaudeRoute;
-  readonly prompt: string;
-}
-
 function isoNow(): string {
   return new Date().toISOString();
 }
@@ -63,15 +57,12 @@ export function resolvePiInvocation(): PiInvocation {
   if (currentScript && !isBunVirtualScript && existsSync(currentScript)) {
     return { command: process.execPath, prefixArgs: [currentScript] };
   }
-
   const executable = path.basename(process.execPath).toLowerCase();
-  if (!/^(node|bun)(\.exe)?$/.test(executable)) {
-    return { command: process.execPath, prefixArgs: [] };
-  }
+  if (!/^(node|bun)(\.exe)?$/.test(executable)) return { command: process.execPath, prefixArgs: [] };
   return { command: "pi", prefixArgs: [] };
 }
 
-export function delegateEnvironment(kind: "pi" | "claude"): NodeJS.ProcessEnv {
+export function delegateEnvironment(): NodeJS.ProcessEnv {
   const environment = { ...process.env };
   for (const key of [
     "PI_SESSION_ID",
@@ -81,10 +72,6 @@ export function delegateEnvironment(kind: "pi" | "claude"): NodeJS.ProcessEnv {
     "PI_REASONING_LEVEL",
   ]) {
     delete environment[key];
-  }
-  if (kind === "claude") {
-    delete environment.AI_AGENT;
-    delete environment.PI_CODING_AGENT;
   }
   environment.PI_SKIP_VERSION_CHECK = "1";
   environment.PI_DELEGATED_CHILD = "1";
@@ -118,7 +105,6 @@ export async function terminateProcessGroup(child: ChildProcess, graceMs: number
     if (processIsRunning(child)) child.kill("SIGKILL");
     return;
   }
-
   const groupExists = (): boolean => {
     try {
       process.kill(-child.pid!, 0);
@@ -134,7 +120,6 @@ export async function terminateProcessGroup(child: ChildProcess, graceMs: number
       if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
     }
   };
-
   if (!groupExists()) return;
   signalGroup("SIGTERM");
   const deadline = performance.now() + graceMs;
@@ -148,14 +133,13 @@ export async function terminateProcessGroup(child: ChildProcess, graceMs: number
 function spawnDetached(command: string, args: readonly string[], options: {
   cwd: string;
   env: NodeJS.ProcessEnv;
-  stdin?: "pipe" | "ignore";
 }): ChildProcess {
   return spawn(command, [...args], {
     cwd: options.cwd,
     env: options.env,
     shell: false,
     detached: process.platform !== "win32",
-    stdio: [options.stdin ?? "ignore", "pipe", "pipe"],
+    stdio: ["pipe", "pipe", "pipe"],
   });
 }
 
@@ -171,14 +155,16 @@ function progressFromMonitor(
   options: SupervisePiOptions,
   state: DelegateState,
   started: number,
-  monitor: PiJsonMonitor,
+  monitor: PiRpcMonitor,
+  reportNudgeCount: 0 | 1,
+  reportRecoveryReason: "missing_report" | "invalid_result" | undefined,
 ): DelegateProgress {
   const snapshot = monitor.snapshot();
   return {
     label: options.label,
     role: options.role,
     state,
-    protocol: "pi-json",
+    protocol: "pi-rpc",
     route: routeKey(options.route),
     attempt: options.attempt,
     phase: snapshot.phase,
@@ -189,6 +175,10 @@ function progressFromMonitor(
     elapsedSeconds: elapsedSeconds(started),
     toolExecutionCount: snapshot.toolExecutionCount,
     idleWarningCount: snapshot.warningCount,
+    reportNudgeCount,
+    reportRecoveryReason,
+    reportRound: snapshot.reportRound,
+    providerFailureCategory: snapshot.providerFailureCategory,
   };
 }
 
@@ -199,24 +189,25 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   const stderrPath = path.join(options.artifactDir, "stderr.log");
   const statusPath = path.join(options.artifactDir, "status.json");
   const stderrStream = createWriteStream(stderrPath, { flags: "wx", mode: 0o600 });
+  const prompt = await readPrivateText(options.promptPath);
+  const protocol = new RpcJsonlProtocol();
+  const initialCommand = protocol.beginPrompt(1, prompt);
+  const monitor = new PiRpcMonitor(started, startedAt, () => performance.now(), isoNow, () => emitProgress(false));
   let outputBytes = 0;
-  let stdoutBuffer = "";
-  const stdoutDecoder = new StringDecoder("utf8");
   let state: DelegateState = "running";
   let completionCleanupPerformed = false;
   let idleWarningIssued = false;
   let lastProgressAt = 0;
   let terminalRequested = false;
   let terminationPromise: Promise<void> | undefined;
+  let reportNudgeCount: 0 | 1 = 0;
+  let reportRecoveryReason: "missing_report" | "invalid_result" | undefined;
+  let reportRecoveryAccepted = false;
 
-  const monitor = new PiJsonMonitor(started, startedAt, () => performance.now(), isoNow, () => {
-    idleWarningIssued = false;
-    emitProgress(false);
-  });
   const args = [
     ...options.piInvocation.prefixArgs,
     "--mode",
-    "json",
+    "rpc",
     "--no-session",
     "--approve",
     "--provider",
@@ -225,18 +216,125 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     options.route.model,
     "--thinking",
     options.route.thinking,
-    `@${options.promptPath}`,
   ];
   const child = spawnDetached(options.piInvocation.command, args, {
     cwd: options.cwd,
-    env: delegateEnvironment("pi"),
+    env: delegateEnvironment(),
   });
 
   function emitProgress(force: boolean): void {
     const now = performance.now();
     if (!force && now - lastProgressAt < PROGRESS_INTERVAL_MS) return;
     lastProgressAt = now;
-    options.onProgress?.(progressFromMonitor(options, state, started, monitor));
+    options.onProgress?.(progressFromMonitor(
+      options,
+      state,
+      started,
+      monitor,
+      reportNudgeCount,
+      reportRecoveryReason,
+    ));
+  }
+
+  function requestTermination(nextState: DelegateState, cleanup = false): void {
+    if (terminalRequested) return;
+    terminalRequested = true;
+    state = nextState;
+    completionCleanupPerformed = cleanup;
+    terminationPromise = terminateProcessGroup(child, options.graceMs);
+  }
+
+  function writeProtocol(line: string): boolean {
+    outputBytes += Buffer.byteLength(line);
+    if (outputBytes > options.maxOutputBytes) {
+      requestTermination("output_limit");
+      return false;
+    }
+    if (!child.stdin || child.stdin.destroyed || !processIsRunning(child)) return false;
+    try {
+      child.stdin.write(line);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function evaluateRound(): void {
+    if (terminalRequested) return;
+    const snapshot = monitor.snapshot();
+    if (snapshot.errors.length > 0) {
+      requestTermination("invalid_stream");
+      return;
+    }
+    const roundState = monitor.classifyRound(snapshot.reportRound);
+    if (roundState === "running") return;
+    if (roundState === "blocked" || roundState === "delegate_failed") {
+      requestTermination(roundState);
+      return;
+    }
+    if (roundState === "completed" || roundState === "provider_failed") {
+      requestTermination(roundState, roundState === "completed");
+      return;
+    }
+    if (roundState !== "missing_report" && roundState !== "invalid_result") {
+      requestTermination(roundState);
+      return;
+    }
+    if (snapshot.reportRound === 2) {
+      requestTermination(roundState);
+      return;
+    }
+    if (
+      reportNudgeCount !== 0
+      || !processIsRunning(child)
+      || options.signal?.aborted
+      || outputBytes > options.maxOutputBytes
+      || performance.now() - started >= options.timeoutMs
+    ) {
+      requestTermination(roundState);
+      return;
+    }
+    reportNudgeCount = 1;
+    reportRecoveryReason = roundState;
+    monitor.beginRecovery();
+    let command: string;
+    try {
+      command = protocol.beginPrompt(2, RECOVERY_PROMPT);
+    } catch {
+      requestTermination("invalid_stream");
+      return;
+    }
+    if (!writeProtocol(command)) requestTermination("child_failed");
+    else emitProgress(true);
+  }
+
+  function handleProtocolRecord(record: ProtocolRecord): void {
+    if (record.kind === "protocol_error") {
+      monitor.addProtocolError(record.category);
+      state = "invalid_stream";
+      if (!terminalRequested) requestTermination("invalid_stream");
+      return;
+    }
+    if (record.kind === "prompt_rejected") {
+      requestTermination("prompt_rejected");
+      return;
+    }
+    if (record.kind === "ui_response") {
+      if (!writeProtocol(record.line)) requestTermination("child_failed");
+      return;
+    }
+    if (record.kind === "ui_activity") {
+      monitor.recordUiActivity(record.method);
+      return;
+    }
+    if (record.kind === "prompt_accepted") {
+      monitor.acceptPrompt(record.round);
+      if (record.round === 2) reportRecoveryAccepted = true;
+      evaluateRound();
+      return;
+    }
+    monitor.consumeEvent(record.round, record.event);
+    evaluateRound();
   }
 
   const closePromise = new Promise<void>((resolve) => child.once("close", () => resolve()));
@@ -244,28 +342,23 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   child.once("error", (error) => {
     spawnError = error;
   });
-
+  child.stdin?.on("error", () => {});
   child.stdout?.on("data", (chunk: Buffer) => {
     outputBytes += chunk.byteLength;
-    if (outputBytes > options.maxOutputBytes) return;
-    stdoutBuffer += stdoutDecoder.write(chunk);
-    const lines = stdoutBuffer.split("\n");
-    stdoutBuffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (line.trim()) monitor.consumeLine(line);
+    if (outputBytes > options.maxOutputBytes) {
+      requestTermination("output_limit");
+      return;
     }
+    protocol.feed(chunk, handleProtocolRecord);
   });
   child.stderr?.on("data", (chunk: Buffer) => {
     outputBytes += chunk.byteLength;
-    stderrStream.write(chunk);
+    if (outputBytes > options.maxOutputBytes) requestTermination("output_limit");
+    else stderrStream.write(chunk);
   });
+  writeProtocol(initialCommand);
 
-  const abort = () => {
-    if (terminalRequested) return;
-    terminalRequested = true;
-    state = "interrupted";
-    terminationPromise = terminateProcessGroup(child, options.graceMs);
-  };
+  const abort = () => requestTermination("interrupted");
   if (options.signal?.aborted) abort();
   else options.signal?.addEventListener("abort", abort, { once: true });
 
@@ -275,46 +368,13 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     const snapshot = monitor.snapshot();
     const idleMs = now - snapshot.lastActivityMonotonic;
     emitProgress(false);
-
-    if (outputBytes > options.maxOutputBytes) {
-      terminalRequested = true;
-      state = "output_limit";
-      terminationPromise = terminateProcessGroup(child, options.graceMs);
-      return;
-    }
-    if (snapshot.outcome === "blocked" || snapshot.outcome === "failed") {
-      terminalRequested = true;
-      state = snapshot.outcome === "blocked" ? "blocked" : "delegate_failed";
-      terminationPromise = terminateProcessGroup(child, options.graceMs);
-      return;
-    }
-    if (
-      snapshot.outcome === "completed"
-      && snapshot.agentEndSeen
-      && snapshot.agentSettledSeen
-      && snapshot.errors.length === 0
-    ) {
-      terminalRequested = true;
-      state = "completed";
-      completionCleanupPerformed = true;
-      terminationPromise = terminateProcessGroup(child, options.graceMs);
-      return;
-    }
-    if (idleMs >= options.idleWarningMs && !idleWarningIssued) {
+    if (outputBytes > options.maxOutputBytes) requestTermination("output_limit");
+    else if (idleMs >= options.idleTimeoutMs) requestTermination("stalled");
+    else if (now - started >= options.timeoutMs) requestTermination("timed_out");
+    else if (idleMs >= options.idleWarningMs && !idleWarningIssued) {
       idleWarningIssued = true;
       monitor.issueIdleWarning();
       emitProgress(true);
-    }
-    if (idleMs >= options.idleTimeoutMs) {
-      terminalRequested = true;
-      state = "stalled";
-      terminationPromise = terminateProcessGroup(child, options.graceMs);
-      return;
-    }
-    if (now - started >= options.timeoutMs) {
-      terminalRequested = true;
-      state = "timed_out";
-      terminationPromise = terminateProcessGroup(child, options.graceMs);
     }
   }, 100);
 
@@ -323,9 +383,8 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   if (terminationPromise) await terminationPromise;
   else await terminateProcessGroup(child, options.graceMs);
   options.signal?.removeEventListener("abort", abort);
-  stdoutBuffer += stdoutDecoder.end();
-  if (stdoutBuffer.trim()) monitor.finish(true);
-  else monitor.finish(false);
+  if (!terminalRequested || completionCleanupPerformed) protocol.finish(handleProtocolRecord);
+  child.stdin?.end();
   stderrStream.end();
   await new Promise<void>((resolve) => stderrStream.once("finish", resolve));
   await chmod(stderrPath, 0o600);
@@ -334,29 +393,26 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   if (outputBytes > options.maxOutputBytes) state = "output_limit";
   else if (!terminalRequested) {
     if (spawnError) state = "spawn_failed";
-    else if (child.exitCode !== 0) state = "child_failed";
-    else if (snapshot.errors.length > 0 || !snapshot.agentEndSeen) state = "invalid_stream";
-    else state = "completed";
+    else {
+      const classified = monitor.classifyRound(snapshot.reportRound, true);
+      if (classified !== "running") state = classified;
+      else if (child.exitCode !== 0) state = "child_failed";
+      else state = "invalid_stream";
+    }
   }
-  if (state === "completed" && snapshot.errors.length > 0) state = "invalid_stream";
+  if (snapshot.errors.length > 0 && state === "completed") state = "invalid_stream";
 
-  if (snapshot.finalReport !== undefined) await atomicWriteText(reportPath, snapshot.finalReport);
-  const reportPresent = snapshot.finalReport?.trim().length ? true : false;
-  if (state === "completed" && !reportPresent) state = "missing_report";
-  else if (state === "completed") {
-    if (snapshot.outcome === "blocked") state = "blocked";
-    else if (snapshot.outcome === "failed") state = "delegate_failed";
-    else if (snapshot.outcome !== "completed") state = "invalid_result";
-  }
-
+  const finalReport = monitor.finalReport(snapshot.reportRound);
+  if (finalReport !== undefined) await atomicWriteText(reportPath, finalReport);
+  const reportPresent = Boolean(finalReport?.trim());
   const status: AttemptStatus = {
     schemaVersion: 1,
     label: options.label,
     role: options.role,
     route: routeKey(options.route),
-    protocol: "pi-json",
+    protocol: "pi-rpc",
     state,
-    delegateOutcome: snapshot.outcome,
+    delegateOutcome: monitor.outcome(snapshot.reportRound),
     startedAt,
     endedAt: isoNow(),
     elapsedSeconds: elapsedSeconds(started),
@@ -380,187 +436,15 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     agentSettledSeen: snapshot.agentSettledSeen,
     toolExecutionCount: snapshot.toolExecutionCount,
     routeUnavailableSeen: snapshot.routeUnavailableSeen,
+    providerFailureCategory: snapshot.providerFailureCategory,
+    reportNudgeCount,
+    reportRecoveryReason,
+    reportRound: snapshot.reportRound,
+    reportRecoveryAccepted,
     streamErrors: snapshot.errors,
   };
   await atomicWriteJson(statusPath, status);
   emitProgress(true);
-  return status;
-}
-
-function plainProgress(
-  options: SuperviseClaudeOptions,
-  state: DelegateState,
-  started: number,
-  lastEvent: string,
-  lastEventAt: string,
-): DelegateProgress {
-  return {
-    label: options.label,
-    role: options.role,
-    state,
-    protocol: "plain",
-    route: routeKey(options.route),
-    attempt: options.attempt,
-    phase: state === "running" ? "provider" : "complete",
-    lastEvent,
-    lastEventAt,
-    idleSeconds: 0,
-    elapsedSeconds: elapsedSeconds(started),
-    toolExecutionCount: 0,
-    idleWarningCount: 0,
-  };
-}
-
-export async function superviseClaude(options: SuperviseClaudeOptions): Promise<AttemptStatus> {
-  const started = performance.now();
-  const startedAt = isoNow();
-  const reportPath = path.join(options.artifactDir, "report.md");
-  const stderrPath = path.join(options.artifactDir, "stderr.log");
-  const statusPath = path.join(options.artifactDir, "status.json");
-  let state: DelegateState = "running";
-  let outputBytes = 0;
-  let report = "";
-  const stdoutDecoder = new StringDecoder("utf8");
-  let lastEvent = "process_start";
-  let lastEventAt = startedAt;
-  const stderrStream = createWriteStream(stderrPath, { flags: "wx", mode: 0o600 });
-  // One authoritative read-only predicate from role classification; this also
-  // keeps a defensively misrouted oracle read-only even though routes reject a
-  // Claude-backed oracle before spawn.
-  const readOnly = roleIsReadOnly(options.role);
-  const args = [
-    "--print",
-    "--model",
-    options.route.model,
-    "--effort",
-    options.route.effort,
-    "--no-session-persistence",
-    "--permission-mode",
-    readOnly ? "dontAsk" : "acceptEdits",
-    "--allowedTools",
-    readOnly ? "Read,Glob,Grep,Bash" : "Read,Edit,Write,Glob,Grep,Bash",
-    "--disallowedTools",
-    readOnly ? "Edit,Write,Agent" : "Agent",
-    "--no-chrome",
-    readOnly
-      ? "Execute the complete read-only delegated task supplied on stdin."
-      : "Execute the complete delegated task supplied on stdin.",
-  ];
-  const child = spawnDetached("claude", args, {
-    cwd: options.cwd,
-    env: delegateEnvironment("claude"),
-    stdin: "pipe",
-  });
-  const closePromise = new Promise<void>((resolve) => child.once("close", () => resolve()));
-  let spawnError: Error | undefined;
-  child.once("error", (error) => {
-    spawnError = error;
-  });
-  child.stdin?.on("error", () => {});
-  child.stdin?.end(options.prompt);
-
-  const emit = () => options.onProgress?.(plainProgress(options, state, started, lastEvent, lastEventAt));
-  emit();
-  child.stdout?.on("data", (chunk: Buffer) => {
-    outputBytes += chunk.byteLength;
-    if (outputBytes <= options.maxOutputBytes) report += stdoutDecoder.write(chunk);
-    lastEvent = "stdout_activity";
-    lastEventAt = isoNow();
-  });
-  child.stderr?.on("data", (chunk: Buffer) => {
-    outputBytes += chunk.byteLength;
-    stderrStream.write(chunk);
-    lastEvent = "stderr_activity";
-    lastEventAt = isoNow();
-  });
-
-  let terminalRequested = false;
-  let terminationPromise: Promise<void> | undefined;
-  let lastHeartbeat = started;
-  const abort = () => {
-    if (terminalRequested) return;
-    terminalRequested = true;
-    state = "interrupted";
-    terminationPromise = terminateProcessGroup(child, options.graceMs);
-  };
-  if (options.signal?.aborted) abort();
-  else options.signal?.addEventListener("abort", abort, { once: true });
-
-  const ticker = setInterval(() => {
-    if (terminalRequested || !processIsRunning(child)) return;
-    emit();
-    if (outputBytes > options.maxOutputBytes) {
-      terminalRequested = true;
-      state = "output_limit";
-      terminationPromise = terminateProcessGroup(child, options.graceMs);
-    } else if (performance.now() - started >= options.timeoutMs) {
-      terminalRequested = true;
-      state = "timed_out";
-      terminationPromise = terminateProcessGroup(child, options.graceMs);
-    } else if (performance.now() - lastHeartbeat >= 60_000) {
-      lastHeartbeat = performance.now();
-      lastEvent = "process_heartbeat";
-      lastEventAt = isoNow();
-    }
-  }, 1000);
-
-  await closePromise;
-  clearInterval(ticker);
-  if (terminationPromise) await terminationPromise;
-  else await terminateProcessGroup(child, options.graceMs);
-  options.signal?.removeEventListener("abort", abort);
-  report += stdoutDecoder.end();
-  stderrStream.end();
-  await new Promise<void>((resolve) => stderrStream.once("finish", resolve));
-  await chmod(stderrPath, 0o600);
-
-  const outcome = parseDelegateOutcome(report);
-  if (outputBytes > options.maxOutputBytes) state = "output_limit";
-  else if (!terminalRequested) {
-    if (spawnError) state = "spawn_failed";
-    else if (child.exitCode !== 0) state = "child_failed";
-    else if (!report.trim()) state = "missing_report";
-    else if (outcome === "completed") state = "completed";
-    else if (outcome === "blocked") state = "blocked";
-    else if (outcome === "failed") state = "delegate_failed";
-    else state = "invalid_result";
-  }
-  if (report.trim()) await atomicWriteText(reportPath, report);
-
-  const status: AttemptStatus = {
-    schemaVersion: 1,
-    label: options.label,
-    role: options.role,
-    route: routeKey(options.route),
-    protocol: "plain",
-    state,
-    delegateOutcome: outcome,
-    startedAt,
-    endedAt: isoNow(),
-    elapsedSeconds: elapsedSeconds(started),
-    exitCode: child.exitCode,
-    completionCleanupPerformed: false,
-    outputBytes,
-    reportPresent: Boolean(report.trim()),
-    reportPath,
-    stderrPath,
-    activityEventCount: 0,
-    lastEvent,
-    lastEventAt,
-    phase: "complete",
-    idleSeconds: 0,
-    idleWarningCount: 0,
-    sessionSeen: false,
-    agentStartCount: 0,
-    agentEndCount: 0,
-    agentEndSeen: false,
-    agentSettledSeen: false,
-    toolExecutionCount: 0,
-    routeUnavailableSeen: false,
-    streamErrors: [],
-  };
-  await atomicWriteJson(statusPath, status);
-  emit();
   return status;
 }
 

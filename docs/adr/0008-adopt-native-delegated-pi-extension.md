@@ -20,9 +20,15 @@ Replace the `delegated-pi-loop` Local Skill and Python supervisors with the nati
 
 The extension registers one `delegate_run` custom tool. The parent Pi agent remains the sole orchestrator and calls one tool instance per assigned role. Pi's normal parallel tool execution supports the solution A/B/C/D and review A/B/C/D gates. An in-process manager keeps implementation, remediation, and oracle roles exclusive against every active delegate, allows finding-verification roles to overlap only other verification roles in batches of at most four with a bounded rejection for a fifth, and leaves solution/review concurrency unchanged; the oracle role runs between solution synthesis and implementation as the advisory Sol review defined by ADR 0007, and the extension rejects a main-Sol parent or a non-default oracle backend before spawning.
 
-The extension directly supervises child Pi and Claude Code processes. Child processes inherit provider credentials and operating-system permissions from the parent environment. The extension clears stale parent session metadata before spawn and uses fresh ephemeral child sessions.
+The extension directly supervises only child Pi RPC processes. The former direct Claude Code CLI backend is removed, including its public backend value, route type, supervisor, permissions, and plain protocol. Claude-named models remain supported when ordinary Pi providers serve them. Child processes inherit provider credentials and operating-system permissions from the parent environment. The extension clears stale parent session metadata before spawn and uses fresh ephemeral child sessions.
 
-The extension privately parses Pi JSON events. For every accepted activity event, it records only:
+Each route attempt uses one persistent `--mode rpc --no-session --approve` child. The extension sends the assigned task as correlated `prompt-1`. A clean settled `missing_report` or `invalid_result` receives exactly one fixed `prompt-2` in the same child session. The second response is complete and authoritative; the extension never merges reports or inserts a marker. One wall deadline, idle policy, output bound, manager ID, cancellation path, and process group cover both rounds.
+
+The strict RPC layer splits only on LF, preserves partial UTF-8, bounds records before parsing, correlates prompt responses, buffers early lifecycle events until acceptance, cancels blocking extension UI requests, and fails closed on malformed protocol. A rejected prompt becomes `prompt_rejected`.
+
+Structured provider failure is classified before report recovery. Typed assistant errors and bounded compatibility signatures for credit, quota, billing, usage, authentication, rate-limit, network, overload, timeout, and model availability produce only a bounded category. Before tools, `provider_failed` can use the existing provider fallback. After tools or accepted recovery, it fails closed.
+
+The extension privately parses Pi RPC events. For every accepted activity event, it records only:
 
 - the event type;
 - an optional tool name;
@@ -38,7 +44,7 @@ Preserve ADR 0007's route maps, structured terminal markers, 45-minute wall dead
 
 The parent is the sole author of plan and research deliverables, including repository artifacts. Solution delegates may gather evidence and propose options, but implementation and remediation delegates must not research, formulate, draft, save, or revise these deliverables. Pure planning or research work does not run an implementation delegate, implementation review gate, or remediation. This exception is based on the artifact's purpose rather than its `.md` extension: implementation documentation such as README updates, ADRs, changelogs, policy files, and documentation accompanying code still follows implementation delegation.
 
-Global pre/post Git tree fingerprints and the `read_only_mutation` state were removed on 2026-08-22. Shared monorepo worktrees are modified concurrently by unrelated agents, so a before/after fingerprint cannot attribute the actor and incorrectly invalidated otherwise completed read-only reports. Read-only roles stay enforced through their role contracts and the existing permission classification, including the direct Claude read-only permission arguments. Residual risk: Pi-based read-only delegates still receive the normal tool set and extensions and can misuse writable tools; without fingerprinting the extension does not automatically detect such mutation.
+Global pre/post Git tree fingerprints and the `read_only_mutation` state were removed on 2026-08-22. Shared monorepo worktrees are modified concurrently by unrelated agents, so a before/after fingerprint cannot attribute the actor and incorrectly invalidated otherwise completed read-only reports. Read-only roles stay enforced through their role contracts and the existing Pi role classification. Residual risk: Pi-based read-only delegates still receive the normal tool set and extensions and can misuse writable tools; without fingerprinting the extension does not automatically detect such mutation.
 
 Set `PI_DELEGATED_CHILD=1` for child Pi. The extension does not register `delegate_run` in a delegated child, which makes recursive delegation unavailable even if a prompt ignores the prohibition. A child-side parent watchdog terminates the child process group if the parent disappears. The parent extension aborts active groups during `session_shutdown`, and the supervisor cleans descendants after natural leader exit.
 
@@ -51,9 +57,12 @@ Retire and remove `agent/skills/delegated-pi-loop/`. Keep its maintenance docume
 - Route policy and safety checks become deterministic executable behavior instead of prompt-driven shell construction.
 - Provider credentials and OS permissions inherit from the parent Pi process without copying secrets into prompts or commands.
 - Fresh subprocesses still isolate role context and model state.
-- The active tool schema adds startup context cost, while removal of the skill catalog entry offsets part of that cost.
+- The active tool schema remains startup context, while removing direct Claude backend metadata reduces its current cost.
 - TypeScript tests replace the Python supervisor suite.
-- Explicit Claude Code roles retain plain-protocol heartbeats because Claude's existing contract does not expose Pi JSON events.
+- The public backend schema contains only `default` and `zai`; direct Claude CLI supervision and plain-protocol heartbeats no longer exist.
+- Pi-served Claude model routes remain normal Pi RPC routes and retain their provider/model ordering.
+- Exactly one same-session report recovery improves malformed-report handling without repeating assigned work in a fresh route.
+- Runtime provider failures use `provider_failed`, while rejected RPC prompts use `prompt_rejected`.
 
 ## Alternatives rejected
 

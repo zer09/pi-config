@@ -109,7 +109,7 @@ Use these rules when the user says that an explanation did not land or asks for 
 - After a required solution gate, run one read-only solution-oracle review of the synthesized draft contract before implementation, unless the parent session already runs the oracle model; the oracle critiques the parent draft but never authors or saves the final plan, and the parent verifies the oracle verdict, revises if warranted, and finalizes the contract before implementation.
 - For an accepted solution, run one implementation delegate; inspect its diff and evidence; then run review A/B/C/D concurrently.
 - Verify blocking findings with fresh finding-verification delegates: consolidate exact duplicates, run independent findings in batches of at most four, keep dependent findings sequential, wait for the whole batch, and send confirmed findings to one remediation delegate; repeat the four-reviewer gate until no blocking findings remain.
-- Keep the parent as the sole orchestrator: one mutating or oracle delegate at a time, verification overlapping only other verifications, no recursive delegates, and no parent edits while a mutating delegate runs.
+- Keep the parent as sole orchestrator: default routing unless explicit Z.AI, default-only oracle, one mutator or oracle, verification-only overlap, no recursion, and no parent edits during mutation.
 - Stage, commit, push, deploy, and hosted-service writes always require separate explicit authorization.
 
 ## Python tooling

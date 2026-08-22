@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Native TypeScript delegated Pi orchestration with bounded route fallback and live event status.",
+  "description": "Native TypeScript delegated Pi RPC orchestration with same-session report recovery.",
   "scripts": {
-    "test": "node --test monitor.test.ts routes.test.ts manager.test.ts supervisor.test.ts runner.test.ts result.test.ts diagnostics.test.ts index.test.ts"
+    "test": "node --test protocol.test.ts monitor.test.ts routes.test.ts manager.test.ts supervisor.test.ts runner.test.ts result.test.ts diagnostics.test.ts index.test.ts"
   },
   "pi": {
     "extensions": [

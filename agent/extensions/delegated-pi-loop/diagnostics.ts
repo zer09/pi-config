@@ -27,7 +27,7 @@ export function diagnosticsDirectory(): string {
  */
 export function failureDiagnostic(result: DelegateRunResult): Record<string, unknown> {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     writtenAt: new Date().toISOString(),
     label: result.label,
     role: result.role,
@@ -44,6 +44,10 @@ export function failureDiagnostic(result: DelegateRunResult): Record<string, unk
     idleSeconds: result.progress.idleSeconds,
     toolExecutionCount: result.progress.toolExecutionCount,
     idleWarningCount: result.progress.idleWarningCount,
+    recoveryAttempted: result.progress.reportNudgeCount === 1,
+    reportRecoveryReason: result.progress.reportRecoveryReason,
+    finalRound: result.progress.reportRound,
+    providerFailureCategory: result.progress.providerFailureCategory,
     attempts: result.attempts.slice(0, MAX_ATTEMPTS).map((attempt) => ({
       route: attempt.route,
       state: attempt.state,

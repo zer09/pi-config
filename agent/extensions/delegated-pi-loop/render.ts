@@ -78,8 +78,11 @@ export function renderDelegateResult(
   if (options.isPartial && progress) {
     const route = progress.route ?? "selecting route";
     const event = eventText(progress);
+    const heading = progress.reportRound === 2
+      ? `⏳ ${id}${progress.label} · recovering report · round 2/2`
+      : `⏳ ${id}${progress.label}`;
     text.setText([
-      theme.fg("warning", `⏳ ${id}${progress.label}`) + theme.fg("muted", `  ${route}`),
+      theme.fg("warning", heading) + theme.fg("muted", `  ${route}`),
       theme.fg("muted", `phase: ${progress.phase}  state: ${progress.state}  attempt: ${progress.attempt}`),
       theme.fg("toolOutput", `last: ${event}`),
       theme.fg("dim", `at: ${ageText(progress.lastEventAt)}  elapsed: ${progress.elapsedSeconds.toFixed(1)}s`),

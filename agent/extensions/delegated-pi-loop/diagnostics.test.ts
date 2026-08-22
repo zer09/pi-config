@@ -19,12 +19,12 @@ function failedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunRe
     startedAt: "2026-08-21T09:49:47.600Z",
     endedAt: "2026-08-21T10:00:00.000Z",
     elapsedSeconds: 612.4,
-    streamErrors: ["Pi JSON stream ended with a partial line"],
+    streamErrors: ["rpc_partial_record"],
     progress: {
       label: "implementation",
       role: "implementation",
       state: "invalid_stream",
-      protocol: "pi-json",
+      protocol: "pi-rpc",
       route: "zai/glm-5.3:max",
       attempt: 1,
       phase: "tool",
@@ -35,6 +35,9 @@ function failedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunRe
       elapsedSeconds: 612.4,
       toolExecutionCount: 4,
       idleWarningCount: 1,
+      reportNudgeCount: 1,
+      reportRecoveryReason: "invalid_result",
+      reportRound: 2,
     },
     ...overrides,
   };
@@ -74,7 +77,7 @@ test("diagnostic content is bounded, sanitized, and free of excluded material", 
     const content = await readFile(filePath, "utf8");
     const parsed = JSON.parse(content) as Record<string, unknown>;
 
-    assert.equal(parsed.schemaVersion, 1);
+    assert.equal(parsed.schemaVersion, 2);
     assert.equal(parsed.state, "invalid_stream");
     assert.equal(parsed.role, "implementation");
     assert.equal(parsed.selectedRoute, "zai/glm-5.3:max");
@@ -82,7 +85,10 @@ test("diagnostic content is bounded, sanitized, and free of excluded material", 
     assert.equal(parsed.lastEventDetail, "edit");
     assert.equal(parsed.lastEventAt, "2026-08-21T09:59:58.000Z");
     assert.equal(parsed.toolExecutionCount, 4);
-    assert.deepEqual(parsed.streamErrors, ["Pi JSON stream ended with a partial line"]);
+    assert.equal(parsed.recoveryAttempted, true);
+    assert.equal(parsed.reportRecoveryReason, "invalid_result");
+    assert.equal(parsed.finalRound, 2);
+    assert.deepEqual(parsed.streamErrors, ["rpc_partial_record"]);
 
     // The removed tree-fingerprint fields stay excluded if ever reintroduced.
     for (const forbidden of [

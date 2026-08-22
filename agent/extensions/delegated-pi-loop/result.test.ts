@@ -19,7 +19,7 @@ function progress(overrides: Partial<DelegateProgress> = {}): DelegateProgress {
     label: "solution-a",
     role: "solution-a",
     state: "stalled",
-    protocol: "pi-json",
+    protocol: "pi-rpc",
     route: "opencode-go/muse-spark-1.2-contributor:xhigh",
     attempt: 1,
     phase: "provider",
@@ -30,6 +30,8 @@ function progress(overrides: Partial<DelegateProgress> = {}): DelegateProgress {
     elapsedSeconds: 612.4,
     toolExecutionCount: 2,
     idleWarningCount: 0,
+    reportNudgeCount: 0,
+    reportRound: 1,
     ...overrides,
   };
 }
@@ -165,7 +167,7 @@ test("failure Markdown never exposes the report, output, or any paths", () => {
 test("every non-completed state has a deterministic safe summary", () => {
   const states = [
     "catalog_check", "running", "routes_unavailable", "stalled", "timed_out", "output_limit",
-    "blocked", "delegate_failed", "invalid_result", "invalid_stream", "missing_report",
+    "blocked", "delegate_failed", "provider_failed", "prompt_rejected", "invalid_result", "invalid_stream", "missing_report",
     "child_failed", "spawn_failed", "interrupted",
   ];
   const summaries = new Set(states.map((state) => failureMarkdown(failedResult({ state: state as DelegateRunResult["state"] })).split("\n").pop()));
