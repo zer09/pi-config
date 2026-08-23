@@ -87,43 +87,6 @@
         }
       ]
     },
-    "seekai": {
-      "baseUrl": "https://seekai.cc/v1",
-      "api": "openai-completions",
-      "apiKey": "$SEEKAI_API_KEY",
-      "compat": {
-        "supportsStore": false,
-        "supportsDeveloperRole": false
-      },
-      "models": [
-        {
-          "id": "claude-fable-5",
-          "name": "Claude Fable 5",
-          "api": "anthropic-messages",
-          "baseUrl": "https://seekai.cc",
-          "reasoning": false,
-          "input": ["text", "image"],
-          "contextWindow": 1000000,
-          "maxTokens": 128000
-        },
-        {
-          "id": "deepseek-v4-flash",
-          "name": "DeepSeek V4 Flash",
-          "reasoning": false,
-          "input": ["text"],
-          "contextWindow": 1000000,
-          "maxTokens": 384000
-        },
-        {
-          "id": "gpt-5.6-sol",
-          "name": "GPT-5.6 Sol",
-          "reasoning": false,
-          "input": ["text", "image"],
-          "contextWindow": 272000,
-          "maxTokens": 128000
-        }
-      ]
-    },
     "gorouter": {
       "baseUrl": "https://gorouter.app",
       "api": "anthropic-messages",
