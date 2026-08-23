@@ -651,14 +651,13 @@ test("an exhausted operational chain ends as routes_unavailable", async () => {
     "opencode-go/muse-spark-1.2-contributor",
     "agentrouter/gpt-5.6-sol",
     "tabitoken/claude-opus-5-thinking",
-    "seekai/claude-opus-5",
     "gorouter/claude-opus-5-thinking",
   ];
   const behaviors = Object.fromEntries(catalog.map((route) => [route, "credit"])) as Record<string, Behavior>;
   const fixture = await fakePi(catalog, behaviors);
   const toolResult = await runAndFinalize(baseOptions(fixture), async (result, finalize) => {
     assert.equal(result.state, "routes_unavailable");
-    assert.equal(result.attempts.length, 5);
+    assert.equal(result.attempts.length, 4);
     assert.ok(result.attempts.every((attempt) => attempt.state === "provider_failed"));
     assert.equal(result.report, "");
     // The routes_unavailable failure diagnostic is persisted under the owned
@@ -959,12 +958,12 @@ test("D draws one random primary per invocation and records the ordered chain", 
     async (result, finalize) => {
       assert.equal(randomCalls, 1);
       assert.equal(result.state, "completed");
-      assert.equal(result.selectedRoute, "openai-codex/gpt-5.5:medium");
+      assert.equal(result.selectedRoute, "openai-codex/gpt-5.5:high");
       // The uncatalogued random primary is skipped by catalog preflight; the
       // selected and remaining routes return through the existing attempt chain.
       assert.deepEqual(result.attempts.map((attempt) => attempt.route), [
-        "openai-codex-cgpt2/gpt-5.5:medium",
-        "openai-codex/gpt-5.5:medium",
+        "openai-codex-cgpt2/gpt-5.5:high",
+        "openai-codex/gpt-5.5:high",
       ]);
       assert.equal(result.attempts[0]?.state, "catalog_unavailable");
       return finalize();
@@ -987,7 +986,7 @@ test("D inherits the parent's eligible provider as its primary", async () => {
     }),
     async (result) => {
       assert.equal(result.state, "completed");
-      assert.equal(result.selectedRoute, "openai-codex-cgpt4/gpt-5.5:medium");
+      assert.equal(result.selectedRoute, "openai-codex-cgpt4/gpt-5.5:high");
       assert.equal(result.attempts.length, 1);
       assert.match(result.report, /Completed on openai-codex-cgpt4\/gpt-5\.5/);
     },

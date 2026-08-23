@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -98,6 +98,41 @@ test("the shipped routing config loads and fails closed on invalid files", async
   const empty = path.join(root, "not-an-object.json");
   await writeFile(empty, "[]");
   assert.throws(() => readRoutingConfigFile(empty), /routing config invalid: document must be a JSON object/);
+});
+
+test("the shipped routing config contains no seekai occurrence", async () => {
+  // Regression: the seekai provider was removed from the routing policy
+  // entirely (not disabled), so it must not reappear anywhere in the file.
+  const text = await readFile(new URL("./routing.json", import.meta.url), "utf8");
+  assert.equal(text.includes("seekai"), false);
+});
+
+test("the shipped config pins the opus and gpt-5.5 thinking capabilities", () => {
+  const config = loadRoutingConfig();
+  // agentrouter/claude-opus-5 gained high support with high as its default
+  // while keeping the higher xhigh and max levels; tabitoken and gorouter
+  // keep their declared levels with high already the default.
+  assert.deepEqual(config.models["claude-opus-5"]?.providers.agentrouter, {
+    thinking: ["high", "xhigh", "max"],
+    default: "high",
+  });
+  assert.deepEqual(config.models["claude-opus-5-thinking"]?.providers.tabitoken, {
+    thinking: ["low", "medium", "high", "xhigh", "max"],
+    default: "high",
+  });
+  assert.deepEqual(config.models["claude-opus-5-thinking"]?.providers.gorouter, {
+    thinking: ["low", "medium", "high"],
+    default: "high",
+  });
+  // Gate D runs gpt-5.5 at high across its full provider set; every
+  // provider keeps its declared scale with high as the default.
+  for (const provider of CODEX_PROVIDERS) {
+    assert.deepEqual(
+      config.models["gpt-5.5"]?.providers[provider],
+      { thinking: ["off", "minimal", "low", "medium", "high", "xhigh"], default: "high" },
+      provider,
+    );
+  }
 });
 
 test("config validation rejects structural violations", () => {
@@ -351,44 +386,40 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
   const expectedA = [
     "opencode-go/muse-spark-1.2-contributor:xhigh",
     "agentrouter/gpt-5.6-sol:max",
-    "tabitoken/claude-opus-5-thinking:max",
-    "seekai/claude-opus-5:max",
+    "tabitoken/claude-opus-5-thinking:high",
     "gorouter/claude-opus-5-thinking:high",
   ];
   const expectedB = [
     "opencode-go/deepseek-v4-flash:max",
-    "seekai/deepseek-v4-flash:max",
-    "agentrouter/claude-opus-5:max",
-    "tabitoken/claude-opus-5-thinking:max",
+    "agentrouter/claude-opus-5:high",
+    "tabitoken/claude-opus-5-thinking:high",
     "gorouter/claude-opus-5-thinking:high",
   ];
   const expectedC = [
     "opencode-go/hy3:high",
-    "agentrouter/claude-opus-5:max",
-    "tabitoken/claude-opus-5-thinking:max",
-    "seekai/claude-opus-5:max",
+    "agentrouter/claude-opus-5:high",
+    "tabitoken/claude-opus-5-thinking:high",
     "gorouter/claude-opus-5-thinking:high",
   ];
-  // Solution and review pairs share one profile and produce identical chains.
-  // Multi-provider tiers need an injected draw to stay deterministic.
+  // Solution and review pairs share one profile and produce identical
+  // chains. Every A/B/C tier allowlists exactly one provider after the
+  // seekai removal, so the chains are deterministic without a random draw.
   assert.deepEqual(keys("solution-a"), expectedA);
   assert.deepEqual(keys("review-a"), expectedA);
-  assert.deepEqual(
-    selectRoutes(config, "solution-b", undefined, { random: () => 0 }).map(routeKey),
-    expectedB,
-  );
-  assert.deepEqual(selectRoutes(config, "review-b", undefined, { random: () => 0 }).map(routeKey), expectedB);
-  assert.deepEqual(selectRoutes(config, "review-c", undefined, { random: () => 0 }).map(routeKey), expectedC);
+  assert.deepEqual(keys("solution-b"), expectedB);
+  assert.deepEqual(keys("review-b"), expectedB);
+  assert.deepEqual(keys("solution-c"), expectedC);
+  assert.deepEqual(keys("review-c"), expectedC);
   // Single-provider tiers stay deterministic without parent preference or a draw.
   assert.deepEqual(
-    selectRoutes(config, "solution-a", undefined, { parentProvider: "seekai", random: () => 0.99 }).map(routeKey),
+    selectRoutes(config, "solution-a", undefined, { parentProvider: "gorouter", random: () => 0.99 }).map(routeKey),
     expectedA,
   );
 });
 
 test("gate D and the oracle include cgpt4 and cgpt5 with inherited or random primaries", () => {
   const config = loadRoutingConfig();
-  const canonicalD = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.5:medium`);
+  const canonicalD = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.5:high`);
   const canonicalOracle = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.6-sol:high`);
 
   // An eligible parent provider becomes the primary without a random draw.
@@ -401,7 +432,7 @@ test("gate D and the oracle include cgpt4 and cgpt5 with inherited or random pri
         return 0.99;
       },
     }).map(routeKey),
-    ["openai-codex-cgpt4/gpt-5.5:medium", ...canonicalD.filter((key) => key !== "openai-codex-cgpt4/gpt-5.5:medium")],
+    ["openai-codex-cgpt4/gpt-5.5:high", ...canonicalD.filter((key) => key !== "openai-codex-cgpt4/gpt-5.5:high")],
   );
   assert.deepEqual(
     selectRoutes(config, "oracle", undefined, { parentProvider: "openai-codex-cgpt5" }).map(routeKey),
@@ -420,10 +451,10 @@ test("gate D and the oracle include cgpt4 and cgpt5 with inherited or random pri
     },
   });
   assert.equal(draws, 1);
-  assert.equal(routeKey(dRoutes[0]!), "openai-codex-cgpt2/gpt-5.5:medium");
+  assert.equal(routeKey(dRoutes[0]!), "openai-codex-cgpt2/gpt-5.5:high");
   assert.deepEqual(
     dRoutes.slice(1).map(routeKey),
-    canonicalD.filter((key) => key !== "openai-codex-cgpt2/gpt-5.5:medium"),
+    canonicalD.filter((key) => key !== "openai-codex-cgpt2/gpt-5.5:high"),
   );
 
   let oracleDraws = 0;
@@ -576,22 +607,30 @@ test("selected routes never carry whitespace-only provider or model ids", () => 
 
 test("the parent provider is preferred inside a multi-provider tier", () => {
   const config = loadRoutingConfig();
-  // gate-b groups deepseek-v4-flash on opencode-go and seekai: a seekai parent
-  // promotes seekai to the primary of that tier without touching tier order.
+  // Gate D still groups one model across several providers: an eligible
+  // parent provider becomes that tier's primary without touching the stable
+  // order of the remaining providers.
+  const canonicalD = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.5:high`);
   assert.deepEqual(
-    selectRoutes(config, "solution-b", undefined, { parentProvider: "seekai" }).map(routeKey),
+    selectRoutes(config, "solution-d", undefined, { parentProvider: "openai-codex-cgpt1" }).map(routeKey),
+    ["openai-codex-cgpt1/gpt-5.5:high", ...canonicalD.filter((key) => key !== "openai-codex-cgpt1/gpt-5.5:high")],
+  );
+  // Gate B's deepseek-v4-flash pool lost seekai and is single-provider now:
+  // even a seekai parent cannot promote the removed provider back into a
+  // route, and the chain stays deterministic without a draw.
+  assert.deepEqual(
+    selectRoutes(config, "solution-b", undefined, { parentProvider: "seekai", random: () => 0.99 }).map(routeKey),
     [
-      "seekai/deepseek-v4-flash:max",
       "opencode-go/deepseek-v4-flash:max",
-      "agentrouter/claude-opus-5:max",
-      "tabitoken/claude-opus-5-thinking:max",
+      "agentrouter/claude-opus-5:high",
+      "tabitoken/claude-opus-5-thinking:high",
       "gorouter/claude-opus-5-thinking:high",
     ],
   );
   // An unrelated parent provider does not disturb the stable order.
   assert.deepEqual(
-    selectRoutes(config, "review-b", undefined, { parentProvider: "zai", random: () => 0 }).map(routeKey).slice(0, 2),
-    ["opencode-go/deepseek-v4-flash:max", "seekai/deepseek-v4-flash:max"],
+    selectRoutes(config, "review-d", undefined, { parentProvider: "zai", random: () => 0 }).map(routeKey).slice(0, 2),
+    ["openai-codex/gpt-5.5:high", "openai-codex-zahlo/gpt-5.5:high"],
   );
 });
 
@@ -712,7 +751,7 @@ test("provider-only overrides pin and filter the configured tiers", () => {
   );
   assert.deepEqual(
     selectRoutes(config, "solution-d", { provider: "openai-codex-cgpt4", reason: "user requested cgpt4" }).map(routeKey),
-    ["openai-codex-cgpt4/gpt-5.5:medium"],
+    ["openai-codex-cgpt4/gpt-5.5:high"],
   );
   // A provider that cannot serve any configured tier is a bounded error.
   assert.throws(
@@ -757,15 +796,14 @@ test("exclusion overrides filter providers inside every tier", () => {
   assert.deepEqual(
     selectRoutes(config, "solution-b", { excludeProviders: ["opencode-go"], reason: "opencode-go is down" }).map(routeKey),
     [
-      "seekai/deepseek-v4-flash:max",
-      "agentrouter/claude-opus-5:max",
-      "tabitoken/claude-opus-5-thinking:max",
+      "agentrouter/claude-opus-5:high",
+      "tabitoken/claude-opus-5-thinking:high",
       "gorouter/claude-opus-5-thinking:high",
     ],
   );
   assert.deepEqual(
     selectRoutes(config, "solution-d", { excludeProviders: ["openai-codex", "openai-codex-zahlo", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-cgpt3", "openai-codex-cgpt4"], reason: "only cgpt5" }).map(routeKey),
-    ["openai-codex-cgpt5/gpt-5.5:medium"],
+    ["openai-codex-cgpt5/gpt-5.5:high"],
   );
   // Excluding every eligible provider is a bounded error, not an empty run.
   assert.throws(

@@ -20,12 +20,13 @@
     "openai-codex-cgpt2/gpt-5.6-sol",
     "openai-codex-cgpt3/gpt-5.6-sol",
     "opencode-go/deepseek-v4-pro",
-    "zai/glm-5.3"
+    "zai/glm-5.3",
+    "agentrouter/claude-opus-5"
   ],
-  "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.6-sol",
-  "defaultThinkingLevel": "medium",
-  "theme": "light",
+  "defaultProvider": "openai-codex-cgpt6",
+  "defaultModel": "gpt-5.5",
+  "defaultThinkingLevel": "high",
+  "theme": "dark",
   "transport": "websocket-cached",
   "hideThinkingBlock": false,
   "showHardwareCursor": false

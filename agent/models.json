@@ -261,6 +261,25 @@
           "maxTokens": 128000
         }
       ]
+    },
+    "tokenreply": {
+      "baseUrl": "https://api.tokenreply.com",
+      "api": "anthropic-messages",
+      "apiKey": "$TOKENREPLY_API_KEY",
+      "authHeader": true,
+      "compat": {
+        "supportsLongCacheRetention": false
+      },
+      "models": [
+        {
+          "id": "claude-fable-5",
+          "name": "Claude Fable 5",
+          "reasoning": false,
+          "input": ["text", "image"],
+          "contextWindow": 1000000,
+          "maxTokens": 128000
+        }
+      ]
     }
   }
 }
