@@ -95,9 +95,9 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 - The strict loader fails closed on a missing or invalid config before any artifact or child process; there is no compiled-route fallback.
 - The config encodes model capability records (provider-specific supported thinking levels and a default), reusable profiles of ordered model tiers with optional provider allowlists, a complete mapping for every `DelegateRole`, disabled providers, a per-profile override policy, and Oracle safety tied to the configured Oracle model id.
 - One shared selector serves every role: per tier it derives eligible providers from capabilities, intersects allowlists, disabled providers, and override exclusions, prefers the parent's selected provider when eligible, otherwise draws one random primary, appends the remaining providers in stable config order, and concatenates the tiers.
-- Gate A, B, and C keep their configured tier order, including Tabitoken, AgentRouter, and GoRouter model IDs that contain `claude`; after the SeekAI removal every A/B/C tier allowlists exactly one provider, each Claude tier runs at thinking `high`, and the chains are deterministic without a random draw. Gate D runs `gpt-5.5` at thinking `high` and the Oracle runs `gpt-5.6-sol` at thinking `high` on the seven eligible OpenAI Codex alias providers `openai-codex`, `openai-codex-zahlo`, `openai-codex-cgpt1` through `openai-codex-cgpt5`; Cursor stays excluded. Inside those two multi-provider chains the primary is the eligible parent provider, otherwise exactly one random draw, and the remaining providers follow in stable config order.
+- Gate A, B, and C keep their configured tier order, including Tabitoken, AgentRouter, and GoRouter model IDs that contain `claude`; every tier allowlists exactly one provider and is deterministic without a random draw. Gate C starts with `tokenreply/ox-alpha:xhigh`, then Hy3 and the existing Opus-high fallbacks. Gate D runs `gpt-5.5` at thinking `high` and the Oracle runs `gpt-5.6-sol` at thinking `high` on the eight eligible OpenAI Codex alias providers `openai-codex`, `openai-codex-zahlo`, and `openai-codex-cgpt1` through `openai-codex-cgpt6`; Cursor stays excluded. Inside those two multi-provider chains the primary is the eligible parent provider, otherwise exactly one random draw, and the remaining providers follow in stable config order.
 - A temporary extra reviewer needs no dedicated role or profile: it reuses an existing non-exclusive review role with a distinct prompt, and an optional reason-required one-run `routingOverride` such as `openai-codex-cgpt5/gpt-5.6-sol` at thinking `high` pins its distinct route for that run without changing role permissions or concurrency.
-- Implementation and remediation remain `zai/glm-5.3:max`; verification remains `openai-codex/gpt-5.6-sol:high`.
+- Implementation and remediation use non-thinking `tokenreply/claude-fable-5:off` first and retain `zai/glm-5.3:max` as the operational fallback; verification remains `openai-codex/gpt-5.6-sol:high`.
 - The public tool schema has no routine backend parameter. The optional exceptional `routingOverride` carries `provider`, `model`, `thinking`, `excludeProviders`, and a mandatory non-empty `reason`; empty or no-op overrides are rejected, the Oracle rejects every override, and an override never changes role permissions or concurrency.
 - Guidance states routing is automatic and an override is valid only for an explicit user or project operational request; no default route matrix is model-visible.
 
@@ -143,11 +143,13 @@ Verify each route with `pi --list-models`, including all Pi-served Claude model 
 ```bash
 pi --list-models opencode-go/muse-spark-1.2-contributor
 pi --list-models opencode-go/deepseek-v4-flash
+pi --list-models tokenreply/ox-alpha
 pi --list-models opencode-go/hy3
 pi --list-models agentrouter/gpt-5.6-sol
 pi --list-models tabitoken/claude-opus-5-thinking
 pi --list-models agentrouter/claude-opus-5
 pi --list-models gorouter/claude-opus-5-thinking
+pi --list-models tokenreply/claude-fable-5
 pi --list-models zai/glm-5.3
 pi --list-models openai-codex/gpt-5.6-sol
 pi --list-models openai-codex-zahlo/gpt-5.6-sol
@@ -156,6 +158,7 @@ pi --list-models openai-codex-cgpt2/gpt-5.6-sol
 pi --list-models openai-codex-cgpt3/gpt-5.6-sol
 pi --list-models openai-codex-cgpt4/gpt-5.6-sol
 pi --list-models openai-codex-cgpt5/gpt-5.6-sol
+pi --list-models openai-codex-cgpt6/gpt-5.6-sol
 pi --list-models openai-codex/gpt-5.5
 pi --list-models openai-codex-zahlo/gpt-5.5
 pi --list-models openai-codex-cgpt1/gpt-5.5
@@ -163,6 +166,7 @@ pi --list-models openai-codex-cgpt2/gpt-5.5
 pi --list-models openai-codex-cgpt3/gpt-5.5
 pi --list-models openai-codex-cgpt4/gpt-5.5
 pi --list-models openai-codex-cgpt5/gpt-5.5
+pi --list-models openai-codex-cgpt6/gpt-5.5
 ```
 
 Also verify:

@@ -23,6 +23,7 @@ const CODEX_PROVIDERS = [
   "openai-codex-cgpt3",
   "openai-codex-cgpt4",
   "openai-codex-cgpt5",
+  "openai-codex-cgpt6",
 ] as const;
 
 function syntheticConfig(overrides: {
@@ -107,8 +108,16 @@ test("the shipped routing config contains no seekai occurrence", async () => {
   assert.equal(text.includes("seekai"), false);
 });
 
-test("the shipped config pins the opus and gpt-5.5 thinking capabilities", () => {
+test("the shipped config pins delegate model thinking capabilities", () => {
   const config = loadRoutingConfig();
+  assert.deepEqual(config.models["ox-alpha"]?.providers.tokenreply, {
+    thinking: ["xhigh"],
+    default: "xhigh",
+  });
+  assert.deepEqual(config.models["claude-fable-5"]?.providers.tokenreply, {
+    thinking: ["off"],
+    default: "off",
+  });
   // agentrouter/claude-opus-5 gained high support with high as its default
   // while keeping the higher xhigh and max levels; tabitoken and gorouter
   // keep their declared levels with high already the default.
@@ -385,7 +394,7 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
   const keys = (role: DelegateRole) => selectRoutes(config, role).map(routeKey);
   const expectedA = [
     "opencode-go/muse-spark-1.2-contributor:xhigh",
-    "agentrouter/gpt-5.6-sol:max",
+    "agentrouter/gpt-5.6-sol:high",
     "tabitoken/claude-opus-5-thinking:high",
     "gorouter/claude-opus-5-thinking:high",
   ];
@@ -396,6 +405,7 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
     "gorouter/claude-opus-5-thinking:high",
   ];
   const expectedC = [
+    "tokenreply/ox-alpha:xhigh",
     "opencode-go/hy3:high",
     "agentrouter/claude-opus-5:high",
     "tabitoken/claude-opus-5-thinking:high",
@@ -417,7 +427,7 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
   );
 });
 
-test("gate D and the oracle include cgpt4 and cgpt5 with inherited or random primaries", () => {
+test("gate D and the oracle include every configured Codex alias with inherited or random primaries", () => {
   const config = loadRoutingConfig();
   const canonicalD = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.5:high`);
   const canonicalOracle = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.6-sol:high`);
@@ -447,7 +457,7 @@ test("gate D and the oracle include cgpt4 and cgpt5 with inherited or random pri
     parentProvider: "cursor",
     random: () => {
       draws += 1;
-      return 0.5; // floor(0.5 * 7) = 3 -> openai-codex-cgpt2
+      return 0.4; // floor(0.4 * 8) = 3 -> openai-codex-cgpt2
     },
   });
   assert.equal(draws, 1);
@@ -466,10 +476,10 @@ test("gate D and the oracle include cgpt4 and cgpt5 with inherited or random pri
     },
   });
   assert.equal(oracleDraws, 1);
-  assert.equal(routeKey(oracleRoutes[0]!), "openai-codex-cgpt5/gpt-5.6-sol:high");
+  assert.equal(routeKey(oracleRoutes[0]!), "openai-codex-cgpt6/gpt-5.6-sol:high");
   assert.deepEqual(
     oracleRoutes.slice(1).map(routeKey),
-    canonicalOracle.filter((key) => key !== "openai-codex-cgpt5/gpt-5.6-sol:high"),
+    canonicalOracle.filter((key) => key !== "openai-codex-cgpt6/gpt-5.6-sol:high"),
   );
 
   // Cursor and every non-Codex provider stay excluded from the whole chain.
@@ -481,10 +491,11 @@ test("gate D and the oracle include cgpt4 and cgpt5 with inherited or random pri
   }
 });
 
-test("implementation, remediation, and verification routes stay pinned", () => {
+test("implementation and remediation use Fable before the GLM fallback while verification stays pinned", () => {
   const config = loadRoutingConfig();
-  assert.deepEqual(selectRoutes(config, "implementation").map(routeKey), ["zai/glm-5.3:max"]);
-  assert.deepEqual(selectRoutes(config, "remediation").map(routeKey), ["zai/glm-5.3:max"]);
+  const implementationRoutes = ["tokenreply/claude-fable-5:off", "zai/glm-5.3:max"];
+  assert.deepEqual(selectRoutes(config, "implementation").map(routeKey), implementationRoutes);
+  assert.deepEqual(selectRoutes(config, "remediation").map(routeKey), implementationRoutes);
   assert.deepEqual(selectRoutes(config, "verification").map(routeKey), ["openai-codex/gpt-5.6-sol:high"]);
   assert.deepEqual([...oracleModelIds(config)], ["gpt-5.6-sol"]);
 });
@@ -802,12 +813,12 @@ test("exclusion overrides filter providers inside every tier", () => {
     ],
   );
   assert.deepEqual(
-    selectRoutes(config, "solution-d", { excludeProviders: ["openai-codex", "openai-codex-zahlo", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-cgpt3", "openai-codex-cgpt4"], reason: "only cgpt5" }).map(routeKey),
+    selectRoutes(config, "solution-d", { excludeProviders: ["openai-codex", "openai-codex-zahlo", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-cgpt3", "openai-codex-cgpt4", "openai-codex-cgpt6"], reason: "only cgpt5" }).map(routeKey),
     ["openai-codex-cgpt5/gpt-5.5:high"],
   );
   // Excluding every eligible provider is a bounded error, not an empty run.
   assert.throws(
-    () => selectRoutes(config, "implementation", { excludeProviders: ["zai"], reason: "invalid" }),
+    () => selectRoutes(config, "implementation", { excludeProviders: ["tokenreply", "zai"], reason: "invalid" }),
     /routing produced no eligible route/,
   );
 });

@@ -589,7 +589,7 @@ test("skips an uncatalogued primary and completes on a fresh fallback route", as
     }),
     async (result, finalize) => {
       assert.equal(result.state, "completed");
-      assert.equal(result.selectedRoute, "agentrouter/gpt-5.6-sol:max");
+      assert.equal(result.selectedRoute, "agentrouter/gpt-5.6-sol:high");
       assert.equal(result.attempts[0]?.state, "catalog_unavailable");
       assert.match(result.report, /Completed on agentrouter\/gpt-5\.6-sol/);
       assert.ok(updates.some((update) => update.startsWith("agent_settled@")));
@@ -624,7 +624,7 @@ test("falls back after pre-tool provider unavailability", async () => {
   );
   await runAndFinalize(baseOptions(fixture), async (result) => {
     assert.equal(result.state, "completed");
-    assert.equal(result.selectedRoute, "agentrouter/gpt-5.6-sol:max");
+    assert.equal(result.selectedRoute, "agentrouter/gpt-5.6-sol:high");
     assert.equal(result.attempts[0]?.state, "provider_failed");
     assert.equal(result.attempts[0]?.restartAfterWork, undefined);
     assert.equal(result.progress.restartAfterWorkCount, 0);
@@ -704,7 +704,7 @@ test("operational failure after accepted report recovery falls back with the res
   );
   await runAndFinalize(baseOptions(fixture), async (result) => {
     assert.equal(result.state, "completed");
-    assert.equal(result.selectedRoute, "agentrouter/gpt-5.6-sol:max");
+    assert.equal(result.selectedRoute, "agentrouter/gpt-5.6-sol:high");
     assert.equal(result.attempts.length, 2);
     assert.equal(result.attempts[0]?.state, "provider_failed");
     // Recovery was accepted on the first route, so the restart note was applied.
@@ -726,7 +726,7 @@ test("operational failure after tool execution falls back with the restart note"
   );
   await runAndFinalize(baseOptions(fixture), async (result) => {
     assert.equal(result.state, "completed");
-    assert.equal(result.selectedRoute, "agentrouter/gpt-5.6-sol:max");
+    assert.equal(result.selectedRoute, "agentrouter/gpt-5.6-sol:high");
     assert.equal(result.attempts.length, 2);
     assert.equal(result.attempts[0]?.state, "provider_failed");
     assert.equal(result.attempts[0]?.restartAfterWork, true);

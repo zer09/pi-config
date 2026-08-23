@@ -2,6 +2,14 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-24 — Add TokenReply delegates and the CGPT6 routing alias
+
+- Added `tokenreply/ox-alpha:xhigh` as the first Gate C tier, ahead of the preserved `opencode-go/hy3:high` route and existing Opus-high fallbacks.
+- Added `tokenreply/claude-fable-5:off` as the implementation/remediation primary with `zai/glm-5.3:max` retained as its operational fallback. Fable is intentionally non-thinking; Ox Alpha is pinned to `xhigh`.
+- Added `openai-codex-cgpt6` capability records and provider entries to Gate D's `gpt-5.5:high` and the Oracle's `gpt-5.6-sol:high` alias pools. Added only the two CGPT6 model entries to `enabledModels`; TokenReply remains delegate-only.
+- Updated exact-chain, capability, provider-pool, exclusion, implementation-fallback, and runner expectations, plus ADR 0009 and the maintenance route/catalog inventory. Preserved the user's current settings defaults and display changes.
+- Validation: extension suite (177 tests), strict TypeScript with unused-symbol checks, semantic route assertions, no-inference catalog checks for TokenReply and CGPT6, and `git diff --check`. No paid inference or live delegate smoke was run.
+
 ## 2026-08-24 — Remove SeekAI from delegated routing and raise Opus/GPT-5.5 gate thinking to high
 
 - Removed the `seekai` provider from `agent/extensions/delegated-pi-loop/routing.json` entirely: both capability records (`deepseek-v4-flash` and `claude-opus-5`) and every profile reference are gone rather than disabled (`disabledProviders` stays empty), Gate B's `deepseek-v4-flash` tier now runs on `opencode-go` alone, and the two SeekAI `claude-opus-5` backup tiers left Gates A and C. A direct regression now fails when `seekai` occurs anywhere in the shipped config text.

@@ -54,6 +54,10 @@
         "openai-codex-cgpt5": {
           "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
+        },
+        "openai-codex-cgpt6": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
         }
       }
     },
@@ -86,6 +90,10 @@
         "openai-codex-cgpt5": {
           "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
           "default": "high"
+        },
+        "openai-codex-cgpt6": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
         }
       }
     },
@@ -104,6 +112,16 @@
           "default": "high"
         },
         "gorouter": { "thinking": ["low", "medium", "high"], "default": "high" }
+      }
+    },
+    "ox-alpha": {
+      "providers": {
+        "tokenreply": { "thinking": ["xhigh"], "default": "xhigh" }
+      }
+    },
+    "claude-fable-5": {
+      "providers": {
+        "tokenreply": { "thinking": ["off"], "default": "off" }
       }
     },
     "glm-5.3": {
@@ -163,6 +181,7 @@
     },
     "gate-c": {
       "tiers": [
+        { "model": "ox-alpha", "thinking": "xhigh", "providers": ["tokenreply"] },
         { "model": "hy3", "thinking": "high", "providers": ["opencode-go"] },
         {
           "model": "claude-opus-5",
@@ -193,7 +212,8 @@
             "openai-codex-cgpt2",
             "openai-codex-cgpt3",
             "openai-codex-cgpt4",
-            "openai-codex-cgpt5"
+            "openai-codex-cgpt5",
+            "openai-codex-cgpt6"
           ]
         }
       ]
@@ -211,13 +231,17 @@
             "openai-codex-cgpt2",
             "openai-codex-cgpt3",
             "openai-codex-cgpt4",
-            "openai-codex-cgpt5"
+            "openai-codex-cgpt5",
+            "openai-codex-cgpt6"
           ]
         }
       ]
     },
     "implementation": {
-      "tiers": [{ "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }]
+      "tiers": [
+        { "model": "claude-fable-5", "thinking": "off", "providers": ["tokenreply"] },
+        { "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }
+      ]
     },
     "verification": {
       "tiers": [
