@@ -41,7 +41,7 @@ const RoutingOverrideParameters = Type.Object({
 
 const DelegateParameters = Type.Object({
   role: StringEnum(DELEGATE_ROLES, {
-    description: "Assigned isolated role. Use matching gate roles concurrently: solution A/B/C/D (four members) and review A/B/C/D/E (five members).",
+    description: "Assigned isolated role. Use matching A/B/C/D roles concurrently for required four-member gates.",
   }),
   prompt: Type.String({
     minLength: 1,
@@ -177,9 +177,9 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
       "Treat the oracle as advisory, not the final authority: the oracle critiques the parent draft but never authors or saves the final plan. Verify its VALID or REVISE analysis like any other evidence, revise the draft contract when warranted, finalize it, and run no automatic oracle loop; a non-completed oracle run blocks implementation.",
       "The parent Pi agent must verify investigator evidence and finalize the solution contract before calling delegate_run for implementation.",
       "Call delegate_run for only one implementation, remediation, or oracle role at a time, and do not edit the working tree while that delegate runs.",
-      "After inspecting the implementation delegate's diff and evidence, call delegate_run for review-a, review-b, review-c, review-d, and review-e concurrently with the same neutral review scope; all five must complete.",
+      "After inspecting the implementation delegate's diff and evidence, call delegate_run for review-a, review-b, review-c, and review-d concurrently with the same neutral review scope; all four must complete.",
       "Process blocking review findings through fresh delegate_run verification roles: consolidate exact duplicate findings first, give each verification exactly one finding without sibling verification reports, and overlap verification only with other verification delegates.",
-      "Run independent finding verifications concurrently in batches of at most four and keep dependent findings sequential; wait for every verification in the current batch before remediation, because a non-completed verification leaves its finding unresolved without erasing completed sibling reports. Send only verification-confirmed findings to one focused remediation role, then run a fresh five-reviewer gate until no blocking findings remain.",
+      "Run independent finding verifications concurrently in batches of at most four and keep dependent findings sequential; wait for every verification in the current batch before remediation, because a non-completed verification leaves its finding unresolved without erasing completed sibling reports. Send only verification-confirmed findings to one focused remediation role, then run a fresh four-reviewer gate until no blocking findings remain.",
       "Delegate routing, including model, thinking, and provider fallback after operational failures, is automatic from the extension-owned routing configuration; pass routingOverride only when the user or project explicitly requests an operational route change for that one run, never for the oracle role, and know that routingOverride never changes role permissions or concurrency.",
       "Treat every delegate_run state other than completed as a failed delegation reported as a tool error with sanitized status fields, and do not retry outside the tool's bounded operational route fallback without user-authorized diagnosis.",
       "Do not stage, commit, push, deploy, or mutate hosted services because a delegate completed; those transitions require separate explicit authorization.",

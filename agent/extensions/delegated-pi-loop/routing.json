@@ -5,7 +5,10 @@
   "models": {
     "muse-spark-1.2-contributor": {
       "providers": {
-        "opencode-go": { "thinking": ["minimal", "low", "medium", "high", "xhigh"], "default": "xhigh" }
+        "opencode-go": {
+          "thinking": ["minimal", "low", "medium", "high", "xhigh"],
+          "default": "xhigh"
+        }
       }
     },
     "deepseek-v4-flash": {
@@ -21,36 +24,84 @@
     },
     "gpt-5.6-sol": {
       "providers": {
-        "agentrouter": { "thinking": ["off", "low", "medium", "high", "xhigh", "max"], "default": "max" },
-        "openai-codex": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" },
-        "openai-codex-zahlo": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" },
-        "openai-codex-cgpt1": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" },
-        "openai-codex-cgpt2": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" },
-        "openai-codex-cgpt3": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" },
-        "openai-codex-cgpt4": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" },
-        "openai-codex-cgpt5": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" }
+        "agentrouter": {
+          "thinking": ["off", "low", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-zahlo": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt1": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt2": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt3": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt4": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt5": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        }
       }
     },
     "gpt-5.5": {
       "providers": {
-        "openai-codex": { "thinking": ["minimal", "medium", "xhigh"], "default": "medium" },
-        "openai-codex-zahlo": { "thinking": ["minimal", "medium", "xhigh"], "default": "medium" },
-        "openai-codex-cgpt1": { "thinking": ["minimal", "medium", "xhigh"], "default": "medium" },
-        "openai-codex-cgpt2": { "thinking": ["minimal", "medium", "xhigh"], "default": "medium" },
-        "openai-codex-cgpt3": { "thinking": ["minimal", "medium", "xhigh"], "default": "medium" },
-        "openai-codex-cgpt4": { "thinking": ["minimal", "medium", "xhigh"], "default": "medium" },
-        "openai-codex-cgpt5": { "thinking": ["minimal", "medium", "xhigh"], "default": "medium" }
+        "openai-codex": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "openai-codex-zahlo": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "openai-codex-cgpt1": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "openai-codex-cgpt2": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "openai-codex-cgpt3": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "openai-codex-cgpt4": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "openai-codex-cgpt5": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        }
       }
     },
     "claude-opus-5": {
       "providers": {
-        "agentrouter": { "thinking": ["xhigh", "max"], "default": "max" },
-        "seekai": { "thinking": ["xhigh", "max"], "default": "max" }
+        "agentrouter": { "thinking": ["xhigh", "max"], "default": "xhigh" },
+        "seekai": { "thinking": ["xhigh", "max"], "default": "xhigh" }
       }
     },
     "claude-opus-5-thinking": {
       "providers": {
-        "tabitoken": { "thinking": ["low", "medium", "high", "xhigh", "max"], "default": "max" },
+        "tabitoken": {
+          "thinking": ["low", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
         "gorouter": { "thinking": ["low", "medium", "high"], "default": "high" }
       }
     },
@@ -63,54 +114,127 @@
   "profiles": {
     "gate-a": {
       "tiers": [
-        { "model": "muse-spark-1.2-contributor", "thinking": "xhigh", "providers": ["opencode-go"] },
-        { "model": "gpt-5.6-sol", "thinking": "max", "providers": ["agentrouter"] },
-        { "model": "claude-opus-5-thinking", "thinking": "max", "providers": ["tabitoken"] },
-        { "model": "claude-opus-5", "thinking": "max", "providers": ["seekai"] },
-        { "model": "claude-opus-5-thinking", "thinking": "high", "providers": ["gorouter"] }
+        {
+          "model": "muse-spark-1.2-contributor",
+          "thinking": "xhigh",
+          "providers": ["opencode-go"]
+        },
+        {
+          "model": "gpt-5.6-sol",
+          "thinking": "max",
+          "providers": ["agentrouter"]
+        },
+        {
+          "model": "claude-opus-5-thinking",
+          "thinking": "max",
+          "providers": ["tabitoken"]
+        },
+        {
+          "model": "claude-opus-5",
+          "thinking": "max",
+          "providers": ["seekai"]
+        },
+        {
+          "model": "claude-opus-5-thinking",
+          "thinking": "high",
+          "providers": ["gorouter"]
+        }
       ]
     },
     "gate-b": {
       "tiers": [
-        { "model": "deepseek-v4-flash", "thinking": "max", "providers": ["opencode-go", "seekai"] },
-        { "model": "claude-opus-5", "thinking": "max", "providers": ["agentrouter"] },
-        { "model": "claude-opus-5-thinking", "thinking": "max", "providers": ["tabitoken"] },
-        { "model": "claude-opus-5-thinking", "thinking": "high", "providers": ["gorouter"] }
+        {
+          "model": "deepseek-v4-flash",
+          "thinking": "max",
+          "providers": ["opencode-go", "seekai"]
+        },
+        {
+          "model": "claude-opus-5",
+          "thinking": "max",
+          "providers": ["agentrouter"]
+        },
+        {
+          "model": "claude-opus-5-thinking",
+          "thinking": "max",
+          "providers": ["tabitoken"]
+        },
+        {
+          "model": "claude-opus-5-thinking",
+          "thinking": "high",
+          "providers": ["gorouter"]
+        }
       ]
     },
     "gate-c": {
       "tiers": [
         { "model": "hy3", "thinking": "high", "providers": ["opencode-go"] },
-        { "model": "claude-opus-5", "thinking": "max", "providers": ["agentrouter"] },
-        { "model": "claude-opus-5-thinking", "thinking": "max", "providers": ["tabitoken"] },
-        { "model": "claude-opus-5", "thinking": "max", "providers": ["seekai"] },
-        { "model": "claude-opus-5-thinking", "thinking": "high", "providers": ["gorouter"] }
+        {
+          "model": "claude-opus-5",
+          "thinking": "max",
+          "providers": ["agentrouter"]
+        },
+        {
+          "model": "claude-opus-5-thinking",
+          "thinking": "max",
+          "providers": ["tabitoken"]
+        },
+        {
+          "model": "claude-opus-5",
+          "thinking": "max",
+          "providers": ["seekai"]
+        },
+        {
+          "model": "claude-opus-5-thinking",
+          "thinking": "high",
+          "providers": ["gorouter"]
+        }
       ]
     },
     "gate-d": {
       "tiers": [
-        { "model": "gpt-5.5", "thinking": "medium", "providers": ["openai-codex", "openai-codex-zahlo", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-cgpt3", "openai-codex-cgpt4", "openai-codex-cgpt5"] }
-      ]
-    },
-    "gate-e": {
-      "tiers": [
-        { "model": "gpt-5.6-sol", "thinking": "high", "providers": ["openai-codex-cgpt5"] }
+        {
+          "model": "gpt-5.5",
+          "thinking": "medium",
+          "providers": [
+            "openai-codex",
+            "openai-codex-zahlo",
+            "openai-codex-cgpt1",
+            "openai-codex-cgpt2",
+            "openai-codex-cgpt3",
+            "openai-codex-cgpt4",
+            "openai-codex-cgpt5"
+          ]
+        }
       ]
     },
     "oracle": {
       "overridePolicy": "rejected",
       "tiers": [
-        { "model": "gpt-5.6-sol", "thinking": "high", "providers": ["openai-codex", "openai-codex-zahlo", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-cgpt3", "openai-codex-cgpt4", "openai-codex-cgpt5"] }
+        {
+          "model": "gpt-5.6-sol",
+          "thinking": "high",
+          "providers": [
+            "openai-codex",
+            "openai-codex-zahlo",
+            "openai-codex-cgpt1",
+            "openai-codex-cgpt2",
+            "openai-codex-cgpt3",
+            "openai-codex-cgpt4",
+            "openai-codex-cgpt5"
+          ]
+        }
       ]
     },
     "implementation": {
-      "tiers": [
-        { "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }
-      ]
+      "tiers": [{ "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }]
     },
     "verification": {
       "tiers": [
-        { "model": "gpt-5.6-sol", "thinking": "high", "providers": ["openai-codex"] }
+        {
+          "model": "gpt-5.6-sol",
+          "thinking": "high",
+          "providers": ["openai-codex"]
+        }
       ]
     }
   },
@@ -123,7 +247,6 @@
     "review-b": { "profile": "gate-b" },
     "review-c": { "profile": "gate-c" },
     "review-d": { "profile": "gate-d" },
-    "review-e": { "profile": "gate-e" },
     "oracle": { "profile": "oracle" },
     "implementation": { "profile": "implementation" },
     "remediation": { "profile": "implementation" },

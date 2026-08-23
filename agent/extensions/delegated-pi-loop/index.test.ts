@@ -34,7 +34,7 @@ test("registration guidelines encode the automatic delegation policy without pro
   assert.match(guidelines, /small task with an accepted plan or an obvious established pattern skips the solution-investigation gate and the oracle role and still runs exactly one implementation delegate/);
   // The parent inspects the implementation diff and evidence before the review gate.
   assert.match(guidelines, /implementation delegate's diff and evidence/);
-  assert.match(guidelines, /review-a, review-b, review-c, review-d, and review-e concurrently/);
+  assert.match(guidelines, /review-a, review-b, review-c, and review-d concurrently/);
   // Solution delegates gather evidence and propose options; the parent stays
   // the sole author and owner of the final plan or research deliverable.
   assert.match(guidelines, /Solution delegates may gather evidence and propose options, but the parent verifies the evidence, synthesizes conclusions, and remains sole author and owner of the final plan or research deliverable/);
@@ -63,7 +63,7 @@ test("registration guidelines encode the automatic delegation policy without pro
   assert.match(guidelines, /wait for every verification in the current batch before remediation/);
   assert.match(guidelines, /non-completed verification leaves its finding unresolved without erasing completed sibling reports/);
   assert.match(guidelines, /Send only verification-confirmed findings to one focused remediation role/);
-  assert.match(guidelines, /fresh five-reviewer gate until no blocking findings remain/);
+  assert.match(guidelines, /fresh four-reviewer gate until no blocking findings remain/);
   // Routing is automatic and config-driven; routingOverride is the only
   // exceptional escape hatch and is invalid for the oracle role.
   assert.match(guidelines, /Delegate routing, including model, thinking, and provider fallback after operational failures, is automatic from the extension-owned routing configuration/);

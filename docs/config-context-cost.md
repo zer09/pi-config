@@ -72,6 +72,8 @@ Delegated routing-configuration update: 2026-08-23 (moved delegated routing into
 
 Delegated five-reviewer update: 2026-08-23 (added the fifth implementation reviewer `review-e` on the dedicated single-tier `gate-e` route `openai-codex-cgpt5/gpt-5.6-sol:high` and updated the review gate to five members A/B/C/D/E; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated four-reviewer restoration: 2026-08-23 (removed the persistent fifth reviewer `review-e` and its `gate-e` profile, restored the four-member review gate A/B/C/D, and documented the temporary extra-reviewer mechanism that reuses an existing review role with an optional reason-required one-run routing override; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -626,6 +628,21 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | **Tool total** | **1,227** | **1,246** | **+19** | Before provider-specific framing |
 
 The directly attributed model-visible increase is +20 local tokens: +1 global instruction for the five-reviewer gate policy, +3 guidelines naming all five review roles, and +16 parameter schema for the `review-e` enum value and the role description that now names the four-member solution and five-member review gates. The dedicated `gate-e` route stays in `routing.json` and is not model-visible. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-23 delegated four-reviewer restoration attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are commit `23e1916`, re-measured with the same serialization as the tables above, which re-measures the prior recorded guidelines value of 863 as 855 while the parameter-schema value of 288 reproduces exactly; deltas are like-for-like. The restored four-reviewer role set and the temporary-extra mechanism's reuse of existing review roles live in `routing.json`, `types.ts`, and executable TypeScript and add no startup model context.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 3,083 | 3,082 | -1 | Always loaded through the context-file block |
+| `delegate_run` description | 82 | 82 | 0 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 855 | 852 | -3 | Included while the tool is active |
+| `delegate_run` parameter schema | 288 | 272 | -16 | Serialized as an active provider tool schema |
+| **Tool total** | **1,238** | **1,219** | **-19** | Before provider-specific framing |
+
+The directly attributed model-visible decrease is -20 local tokens: -1 global instruction restoring the four-reviewer gate policy, -3 guidelines naming the four review roles, and -16 parameter schema for the removed `review-e` enum value and the restored plain role description. The decrease exactly reverses the five-reviewer expansion's +20. A temporary extra reviewer reuses an existing review role and the exceptional `routingOverride`, so no schema surface returns. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

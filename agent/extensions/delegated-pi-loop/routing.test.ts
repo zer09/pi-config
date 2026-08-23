@@ -69,7 +69,6 @@ function syntheticConfig(overrides: {
       "review-b": { profile: "two-tier" },
       "review-c": { profile: "two-tier" },
       "review-d": { profile: "two-tier" },
-      "review-e": { profile: "two-tier" },
       oracle: { profile: "pinned" },
       implementation: { profile: "two-tier" },
       remediation: { profile: "two-tier" },
@@ -459,34 +458,51 @@ test("implementation, remediation, and verification routes stay pinned", () => {
   assert.deepEqual([...oracleModelIds(config)], ["gpt-5.6-sol"]);
 });
 
-test("review-e resolves its dedicated single-tier profile through the shared selector", () => {
+test("the shipped config keeps exactly four review roles and no dedicated fifth-reviewer profile", () => {
   const config = loadRoutingConfig();
-  // Exactly one tier, one allowlisted provider, no code special case: the
-  // common selector derives the single deterministic route like any other role.
-  assert.equal(config.profiles[config.roles["review-e"].profile]!.tiers.length, 1);
-  assert.equal(config.roles["review-e"].profile, "gate-e");
-  let draws = 0;
+  const reviews = DELEGATE_ROLES.filter((role) => role.startsWith("review-"));
+  assert.deepEqual(reviews, ["review-a", "review-b", "review-c", "review-d"]);
+  // Review pairs share the solution profiles; no gate-e-style profile exists.
+  for (const [role, profile] of [
+    ["review-a", "gate-a"],
+    ["review-b", "gate-b"],
+    ["review-c", "gate-c"],
+    ["review-d", "gate-d"],
+  ] as const) {
+    assert.equal(config.roles[role].profile, profile);
+  }
+  assert.equal("gate-e" in config.profiles, false);
+});
+
+test("a temporary extra reviewer pins one exact route through a reason-required one-run override", () => {
+  const config = loadRoutingConfig();
+  // A temporary extra reviewer reuses an existing non-exclusive review role;
+  // when it must run a distinct route for that one run, the exceptional
+  // routingOverride pins it exactly after capability validation.
   assert.deepEqual(
-    selectRoutes(config, "review-e", undefined, {
-      parentProvider: "agentrouter",
-      random: () => {
-        draws += 1;
-        return 0.99;
-      },
+    selectRoutes(config, "review-a", {
+      provider: "openai-codex-cgpt5",
+      model: "gpt-5.6-sol",
+      thinking: "high",
+      reason: "temporary extra reviewer on a distinct route",
     }).map(routeKey),
     ["openai-codex-cgpt5/gpt-5.6-sol:high"],
   );
-  assert.equal(draws, 0, "a single-provider tier never consumes a random draw");
-  // An eligible parent provider becomes the primary of the same single route.
-  assert.deepEqual(
-    selectRoutes(config, "review-e", undefined, { parentProvider: "openai-codex-cgpt5" }).map(routeKey),
-    ["openai-codex-cgpt5/gpt-5.6-sol:high"],
+  // The one-run override stays exceptional: the reason is mandatory and the
+  // override never changes role classification.
+  assert.throws(
+    () => selectRoutes(config, "review-a", {
+      provider: "openai-codex-cgpt5",
+      model: "gpt-5.6-sol",
+      thinking: "high",
+      reason: "   ",
+    }),
+    /requires a non-empty reason/,
   );
-  // Overrides stay available for review-e like every non-oracle role.
-  assert.deepEqual(
-    selectRoutes(config, "review-e", { model: "glm-5.3", reason: "user requested Z.AI for this review" }).map(routeKey),
-    ["zai/glm-5.3:max"],
-  );
+  assert.equal(roleIsReadOnly("review-a"), true);
+  assert.equal(roleIsExclusive("review-a"), false);
+  // Without the override the reused role keeps its normal profile chain.
+  assert.ok(selectRoutes(config, "review-a", undefined, { random: () => 0 }).length > 1);
 });
 
 test("every role selects a non-empty chain of Pi routes", () => {
@@ -719,7 +735,7 @@ test("provider plus model overrides are exact after capability validation", () =
   // Without an explicit thinking level the provider's configured default applies.
   assert.deepEqual(
     selectRoutes(config, "implementation", { provider: "agentrouter", model: "gpt-5.6-sol", reason: "user requested sol on agentrouter" }).map(routeKey),
-    ["agentrouter/gpt-5.6-sol:max"],
+    ["agentrouter/gpt-5.6-sol:high"],
   );
   // Capability violations fail closed.
   assert.throws(

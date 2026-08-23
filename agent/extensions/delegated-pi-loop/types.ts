@@ -12,7 +12,6 @@ export const DELEGATE_ROLES = [
   "review-b",
   "review-c",
   "review-d",
-  "review-e",
   "verification",
   "remediation",
 ] as const;

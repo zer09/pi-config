@@ -92,14 +92,14 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 - The config encodes model capability records (provider-specific supported thinking levels and a default), reusable profiles of ordered model tiers with optional provider allowlists, a complete mapping for every `DelegateRole`, disabled providers, a per-profile override policy, and Oracle safety tied to the configured Oracle model id.
 - One shared selector serves every role: per tier it derives eligible providers from capabilities, intersects allowlists, disabled providers, and override exclusions, prefers the parent's selected provider when eligible, otherwise draws one random primary, appends the remaining providers in stable config order, and concatenates the tiers.
 - Gate A, B, and C keep their configured tier order, including Tabitoken, SeekAI, AgentRouter, and GoRouter model IDs that contain `claude`. Inside Gate B's OpenCode Go/SeekAI `deepseek-v4-flash` tier the primary is the eligible parent provider, otherwise exactly one random draw, and the remaining providers follow in stable config order; every other gate tier is single-provider and deterministic. Gate D and the Oracle run on the seven eligible OpenAI Codex alias providers `openai-codex`, `openai-codex-zahlo`, `openai-codex-cgpt1` through `openai-codex-cgpt5`; Cursor stays excluded.
-- Review E maps to the dedicated single-tier `gate-e` profile: `openai-codex-cgpt5/gpt-5.6-sol` at thinking `high`, one deterministic route with no provider fallback, selected by the same shared selector.
+- A temporary extra reviewer needs no dedicated role or profile: it reuses an existing non-exclusive review role with a distinct prompt, and an optional reason-required one-run `routingOverride` such as `openai-codex-cgpt5/gpt-5.6-sol` at thinking `high` pins its distinct route for that run without changing role permissions or concurrency.
 - Implementation and remediation remain `zai/glm-5.3:max`; verification remains `openai-codex/gpt-5.6-sol:high`.
 - The public tool schema has no routine backend parameter. The optional exceptional `routingOverride` carries `provider`, `model`, `thinking`, `excludeProviders`, and a mandatory non-empty `reason`; empty or no-op overrides are rejected, the Oracle rejects every override, and an override never changes role permissions or concurrency.
 - Guidance states routing is automatic and an override is valid only for an explicit user or project operational request; no default route matrix is model-visible.
 
 ### Concurrency and authorization
 
-1. Solution A/B/C/D and review A/B/C/D/E roles retain their concurrent gates; review-e behaves exactly like the other non-exclusive review roles.
+1. Solution A/B/C/D and review A/B/C/D roles retain their concurrent gates; a temporary extra reviewer reuses an existing non-exclusive review role under the same overlap rules, and the manager admits duplicate review roles by design.
 2. Independent verifications overlap only other verifications, in batches of at most four.
 3. Implementation, remediation, and oracle remain exclusive against every active delegate.
 4. Read-only roles remain semantic contracts, not filesystem sandboxes.
