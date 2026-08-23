@@ -1,119 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildDelegatePrompt, oracleGuard, roleIsExclusive, roleIsReadOnly, routeKey, routesFor } from "./routes.ts";
+import {
+  RESTART_AFTER_WORK_NOTE,
+  buildDelegatePrompt,
+  oracleGuard,
+  roleIsExclusive,
+  roleIsReadOnly,
+  roleLabel,
+  routeKey,
+} from "./routes.ts";
 import { DELEGATE_ROLES } from "./types.ts";
 
-test("preserves ordered A, B, and C default route maps", () => {
-  assert.deepEqual(routesFor("solution-a", "default").map(routeKey), [
-    "opencode-go/muse-spark-1.2-contributor:xhigh",
-    "agentrouter/gpt-5.6-sol:max",
-    "tabitoken/claude-opus-5-thinking:max",
-    "seekai/claude-opus-5:max",
-    "gorouter/claude-opus-5-thinking:high",
-  ]);
-  assert.deepEqual(routesFor("review-b", "default").map(routeKey), [
-    "opencode-go/deepseek-v4-flash:max",
-    "seekai/deepseek-v4-flash:max",
-    "agentrouter/claude-opus-5:max",
-    "tabitoken/claude-opus-5-thinking:max",
-    "gorouter/claude-opus-5-thinking:high",
-  ]);
-  assert.deepEqual(routesFor("review-c", "default").map(routeKey), [
-    "opencode-go/hy3:high",
-    "agentrouter/claude-opus-5:max",
-    "tabitoken/claude-opus-5-thinking:max",
-    "seekai/claude-opus-5:max",
-    "gorouter/claude-opus-5-thinking:high",
-  ]);
-  // A/B/C maps ignore parent-provider inheritance and injected randomness.
-  assert.deepEqual(
-    routesFor("solution-a", "default", { parentProvider: "openai-codex-cgpt2", random: () => 0 }).map(routeKey),
-    routesFor("solution-a", "default").map(routeKey),
+const ORACLE_MODEL = "gpt-5.6-sol";
+
+test("routeKey keeps the Pi-only provider/model:thinking format", () => {
+  assert.equal(
+    routeKey({ provider: "openai-codex-cgpt4", model: "gpt-5.5", thinking: "medium" }),
+    "openai-codex-cgpt4/gpt-5.5:medium",
   );
-});
-
-test("D inherits an eligible parent provider as its primary", () => {
-  assert.deepEqual(routesFor("solution-d", "default", { parentProvider: "openai-codex-cgpt2" }).map(routeKey), [
-    "openai-codex-cgpt2/gpt-5.5:medium",
-    "openai-codex/gpt-5.5:medium",
-    "openai-codex-zahlo/gpt-5.5:medium",
-    "openai-codex-cgpt1/gpt-5.5:medium",
-    "openai-codex-cgpt3/gpt-5.5:medium",
-  ]);
-  // Inheritance needs no randomness: the injected source is never consulted.
-  let randomCalls = 0;
-  const routes = routesFor("review-d", "default", {
-    parentProvider: "openai-codex",
-    random: () => {
-      randomCalls += 1;
-      return 0.99;
-    },
-  });
-  assert.equal(routeKey(routes[0]!), "openai-codex/gpt-5.5:medium");
-  assert.equal(randomCalls, 0);
-});
-
-test("D selects one random eligible primary exactly once and keeps the rest canonical", () => {
-  let randomCalls = 0;
-  const routes = routesFor("solution-d", "default", {
-    parentProvider: "zai",
-    random: () => {
-      randomCalls += 1;
-      return 0.3;
-    },
-  });
-  assert.equal(randomCalls, 1);
-  assert.deepEqual(routes.map(routeKey), [
-    "openai-codex-zahlo/gpt-5.5:medium",
-    "openai-codex/gpt-5.5:medium",
-    "openai-codex-cgpt1/gpt-5.5:medium",
-    "openai-codex-cgpt2/gpt-5.5:medium",
-    "openai-codex-cgpt3/gpt-5.5:medium",
-  ]);
-  // A different draw only moves the primary; the canonical order is stable.
-  const otherRoutes = routesFor("review-d", "default", { parentProvider: "zai", random: () => 0.99 });
-  assert.deepEqual(otherRoutes.map(routeKey), [
-    "openai-codex-cgpt3/gpt-5.5:medium",
-    "openai-codex/gpt-5.5:medium",
-    "openai-codex-zahlo/gpt-5.5:medium",
-    "openai-codex-cgpt1/gpt-5.5:medium",
-    "openai-codex-cgpt2/gpt-5.5:medium",
-  ]);
-});
-
-test("D excludes ineligible providers such as Cursor from the whole chain", () => {
-  const routes = routesFor("solution-d", "default", { parentProvider: "cursor", random: () => 0 });
-  assert.equal(routes.length, 5);
-  for (const route of routes) {
-    if (route.kind !== "pi") assert.fail("D routes must be Pi routes");
-    assert.equal(route.model, "gpt-5.5");
-    assert.equal(route.thinking, "medium");
-    assert.notEqual(route.provider, "cursor");
-    assert.match(route.provider, /^openai-codex(-zahlo|-cgpt[123])?$/);
-  }
-  // Cursor never becomes primary even when the parent session selected it.
-  assert.equal(routeKey(routes[0]!), "openai-codex/gpt-5.5:medium");
-});
-
-test("explicit Z.AI overrides D default routing exactly like other roles", () => {
-  assert.equal(routeKey(routesFor("solution-d", "zai")[0]!), "zai/glm-5.3:max");
-  assert.equal(routeKey(routesFor("review-d", "zai")[0]!), "zai/glm-5.3:max");
-  // Explicit backends ignore parent-provider inheritance.
-  assert.deepEqual(
-    routesFor("solution-d", "zai", { parentProvider: "openai-codex", random: () => 0 }),
-    routesFor("solution-d", "zai"),
-  );
-});
-
-test("keeps implementation, remediation, and verification defaults pinned", () => {
-  assert.equal(routeKey(routesFor("implementation", "default")[0]!), "zai/glm-5.3:max");
-  assert.equal(routeKey(routesFor("remediation", "default")[0]!), "zai/glm-5.3:max");
-  assert.equal(routeKey(routesFor("verification", "default")[0]!), "openai-codex/gpt-5.6-sol:high");
-});
-
-test("explicit Z.AI preserves role while replacing the route", () => {
-  assert.equal(routeKey(routesFor("review-a", "zai")[0]!), "zai/glm-5.3:max");
-  assert.equal(routeKey(routesFor("implementation", "zai")[0]!), "zai/glm-5.3:max");
 });
 
 test("classifies role permissions and sequential roles", () => {
@@ -121,6 +25,7 @@ test("classifies role permissions and sequential roles", () => {
   assert.equal(roleIsReadOnly("solution-d"), true);
   assert.equal(roleIsReadOnly("review-c"), true);
   assert.equal(roleIsReadOnly("review-d"), true);
+  assert.equal(roleIsReadOnly("review-e"), true);
   assert.equal(roleIsReadOnly("verification"), true);
   assert.equal(roleIsReadOnly("oracle"), true);
   assert.equal(roleIsReadOnly("implementation"), false);
@@ -132,6 +37,7 @@ test("classifies role permissions and sequential roles", () => {
   assert.equal(roleIsExclusive("oracle"), true);
   assert.equal(roleIsExclusive("review-a"), false);
   assert.equal(roleIsExclusive("review-d"), false);
+  assert.equal(roleIsExclusive("review-e"), false);
 });
 
 test("exposes the oracle role in the model-visible role enum", () => {
@@ -139,101 +45,43 @@ test("exposes the oracle role in the model-visible role enum", () => {
   assert.equal(DELEGATE_ROLES.filter((role) => role === "oracle").length, 1);
 });
 
-test("oracle uses exactly gpt-5.6-sol at high across five D-eligible providers", () => {
-  const routes = routesFor("oracle", "default", { parentProvider: "openai-codex" });
-  assert.equal(routes.length, 5);
-  for (const route of routes) {
-    if (route.kind !== "pi") assert.fail("oracle routes must be Pi routes");
-    assert.equal(route.model, "gpt-5.6-sol");
-    assert.equal(route.thinking, "high");
-  }
-  assert.deepEqual(routes.map(routeKey), [
-    "openai-codex/gpt-5.6-sol:high",
-    "openai-codex-zahlo/gpt-5.6-sol:high",
-    "openai-codex-cgpt1/gpt-5.6-sol:high",
-    "openai-codex-cgpt2/gpt-5.6-sol:high",
-    "openai-codex-cgpt3/gpt-5.6-sol:high",
-  ]);
+test("exposes the five review roles in the model-visible role enum", () => {
+  const reviews = DELEGATE_ROLES.filter((role) => role.startsWith("review-"));
+  assert.deepEqual(reviews, ["review-a", "review-b", "review-c", "review-d", "review-e"]);
 });
 
-test("oracle inherits an eligible parent provider and never consults randomness", () => {
-  let randomCalls = 0;
-  const routes = routesFor("oracle", "default", {
-    parentProvider: "openai-codex-cgpt2",
-    random: () => {
-      randomCalls += 1;
-      return 0.99;
-    },
-  });
-  assert.equal(randomCalls, 0);
-  assert.deepEqual(routes.map(routeKey), [
-    "openai-codex-cgpt2/gpt-5.6-sol:high",
-    "openai-codex/gpt-5.6-sol:high",
-    "openai-codex-zahlo/gpt-5.6-sol:high",
-    "openai-codex-cgpt1/gpt-5.6-sol:high",
-    "openai-codex-cgpt3/gpt-5.6-sol:high",
-  ]);
+test("role labels carry the plain role without a backend suffix", () => {
+  assert.equal(roleLabel("solution-a"), "solution-a");
+  assert.equal(roleLabel("oracle"), "oracle");
+  assert.equal(roleLabel("implementation"), "implementation");
 });
 
-test("oracle draws one random eligible primary and keeps the rest canonical", () => {
-  let randomCalls = 0;
-  const routes = routesFor("oracle", "default", {
-    parentProvider: "zai",
-    random: () => {
-      randomCalls += 1;
-      return 0.3;
-    },
-  });
-  assert.equal(randomCalls, 1);
-  assert.deepEqual(routes.map(routeKey), [
-    "openai-codex-zahlo/gpt-5.6-sol:high",
-    "openai-codex/gpt-5.6-sol:high",
-    "openai-codex-cgpt1/gpt-5.6-sol:high",
-    "openai-codex-cgpt2/gpt-5.6-sol:high",
-    "openai-codex-cgpt3/gpt-5.6-sol:high",
-  ]);
-  const otherRoutes = routesFor("oracle", "default", { parentProvider: "zai", random: () => 0.99 });
-  assert.deepEqual(otherRoutes.map(routeKey), [
-    "openai-codex-cgpt3/gpt-5.6-sol:high",
-    "openai-codex/gpt-5.6-sol:high",
-    "openai-codex-zahlo/gpt-5.6-sol:high",
-    "openai-codex-cgpt1/gpt-5.6-sol:high",
-    "openai-codex-cgpt2/gpt-5.6-sol:high",
-  ]);
-});
-
-test("oracle excludes Cursor, AgentRouter, SeekAI, and every other provider", () => {
-  for (const ineligibleParent of ["cursor", "agentrouter", "seekai", "zai", "opencode-go", "gorouter", "tabitoken"]) {
-    const routes = routesFor("oracle", "default", { parentProvider: ineligibleParent, random: () => 0 });
-    assert.equal(routes.length, 5);
-    for (const route of routes) {
-      if (route.kind !== "pi") assert.fail("oracle routes must be Pi routes");
-      assert.match(route.provider, /^openai-codex(-zahlo|-cgpt[123])?$/);
-    }
-  }
-  // An ineligible parent provider never becomes the oracle primary.
-  const routes = routesFor("oracle", "default", { parentProvider: "cursor", random: () => 0 });
-  assert.equal(routeKey(routes[0]!), "openai-codex/gpt-5.6-sol:high");
-});
-
-test("oracle rejects explicit backend overrides instead of silently replacing Sol", () => {
-  assert.throws(() => routesFor("oracle", "zai"), /oracle role requires default Pi routing.*zai.*gpt-5\.6-sol/);
-  // Non-oracle roles keep their explicit backend overrides.
-  assert.equal(routeKey(routesFor("implementation", "zai")[0]!), "zai/glm-5.3:max");
-});
-
-test("main-Sol skip detection is exact and model-id based across providers", () => {
+test("main-Sol skip detection is exact, model-id based, and covers every configured oracle model", () => {
+  const models = new Set([ORACLE_MODEL]);
   // Exact model id triggers the skip regardless of the serving provider.
-  assert.match(oracleGuard("oracle", "default", "gpt-5.6-sol")?.message ?? "", /Skip the oracle role/);
+  assert.match(oracleGuard("oracle", ORACLE_MODEL, models)?.message ?? "", /Skip the oracle role/);
+  assert.match(
+    oracleGuard("oracle", ORACLE_MODEL, models)?.message ?? "",
+    /gpt-5\.6-sol.*finalize the solution contract directly/,
+  );
   // Lookalike and sibling model ids never trigger the skip.
-  assert.equal(oracleGuard("oracle", "default", "gpt-5.6-sol-latest"), undefined);
-  assert.equal(oracleGuard("oracle", "default", "gpt-5.5"), undefined);
-  assert.equal(oracleGuard("oracle", "default", undefined), undefined);
-  assert.equal(oracleGuard("oracle", "default", "claude-opus-5"), undefined);
+  assert.equal(oracleGuard("oracle", "gpt-5.6-sol-latest", models), undefined);
+  assert.equal(oracleGuard("oracle", "gpt-5.5", models), undefined);
+  assert.equal(oracleGuard("oracle", undefined, models), undefined);
+  assert.equal(oracleGuard("oracle", "claude-opus-5", models), undefined);
   // The guard only constrains the oracle role.
-  assert.equal(oracleGuard("verification", "default", "gpt-5.6-sol"), undefined);
-  // Non-default oracle backends are rejected before spawning.
-  assert.match(oracleGuard("oracle", "zai", undefined)?.message ?? "", /backend=zai must not replace gpt-5\.6-sol/);
+  assert.equal(oracleGuard("verification", ORACLE_MODEL, models), undefined);
+  // A differently configured oracle model set changes the skip target.
+  const alternates = new Set(["gpt-5.5"]);
+  assert.equal(oracleGuard("oracle", "gpt-5.5", alternates) instanceof Error, true);
+  assert.equal(oracleGuard("oracle", ORACLE_MODEL, alternates), undefined);
+  // Multi-tier oracle profiles: a parent matching any configured oracle
+  // model is rejected, not only the first tier's model.
+  const twoTier = new Set(["model-x", "model-y"]);
+  assert.match(oracleGuard("oracle", "model-y", twoTier)?.message ?? "", /parent session already runs model-y/);
+  assert.match(oracleGuard("oracle", "model-x", twoTier)?.message ?? "", /parent session already runs model-x/);
+  assert.equal(oracleGuard("oracle", "model-z", twoTier), undefined);
+  assert.equal(oracleGuard("oracle", undefined, twoTier), undefined);
 });
 
 test("builds the oracle role contract with verdict and evidence requirements", () => {
@@ -246,6 +94,8 @@ test("builds the oracle role contract with verdict and evidence requirements", (
   assert.match(prompt, /advisory, not the final authority/);
   assert.match(prompt, /DELEGATE_RESULT: COMPLETED/);
   assert.match(prompt, /Review the draft contract\./);
+  // Without the restart flag the fixed restart note stays absent.
+  assert.ok(!prompt.includes(RESTART_AFTER_WORK_NOTE));
 });
 
 test("builds a non-recursive prompt with terminal contract", () => {
@@ -254,4 +104,34 @@ test("builds a non-recursive prompt with terminal contract", () => {
   assert.match(prompt, /independent read-only implementation review/i);
   assert.match(prompt, /DELEGATE_RESULT: COMPLETED/);
   assert.match(prompt, /Review the candidate\./);
+});
+
+test("the restart note is fixed, sanitized, and appended at most once", () => {
+  // The note is generic: no provider errors, raw output, tool payloads,
+  // reports, paths, or credentials ever enter it.
+  for (const forbidden of ["/tmp", "http", "key", "token", "error:", "provider=", "/"]) {
+    if (forbidden === "/") {
+      assert.ok(!RESTART_AFTER_WORK_NOTE.includes("://"));
+      continue;
+    }
+    assert.ok(!RESTART_AFTER_WORK_NOTE.toLowerCase().includes(forbidden.toLowerCase()));
+  }
+  assert.match(RESTART_AFTER_WORK_NOTE, /may already have changed the working tree/);
+  assert.match(RESTART_AFTER_WORK_NOTE, /current state of the working tree as authoritative/);
+  assert.match(RESTART_AFTER_WORK_NOTE, /inspect the existing work before acting/);
+  assert.match(RESTART_AFTER_WORK_NOTE, /do not repeat an irreversible operation/);
+
+  const plain = buildDelegatePrompt("review-a", "/tmp/project", "Review the candidate.");
+  const restarted = buildDelegatePrompt("review-a", "/tmp/project", "Review the candidate.", {
+    restartAfterWork: true,
+  });
+  assert.equal(restarted.split(RESTART_AFTER_WORK_NOTE).length - 1, 1);
+  assert.ok(restarted.length > plain.length);
+  // Regenerating from the same original assignment never stacks the note.
+  const restartedTwice = buildDelegatePrompt("review-a", "/tmp/project", "Review the candidate.", {
+    restartAfterWork: true,
+  });
+  assert.equal(restartedTwice, restarted);
+  // The assigned task itself stays intact in the restarted prompt.
+  assert.match(restarted, /## Assigned task\n\nReview the candidate\./);
 });

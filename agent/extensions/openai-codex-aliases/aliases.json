@@ -3,6 +3,8 @@
     { "slug": "zahlo", "name": "OpenAI Codex Zahlo" },
     { "slug": "cgpt1", "name": "OpenAI Codex CGPT1" },
     { "slug": "cgpt2", "name": "OpenAI Codex CGPT2" },
-    { "slug": "cgpt3", "name": "OpenAI Codex CGPT3" }
+    { "slug": "cgpt3", "name": "OpenAI Codex CGPT3" },
+    { "slug": "cgpt4", "name": "OpenAI Codex CGPT4 K12" },
+    { "slug": "cgpt5", "name": "OpenAI Codex CGPT4 K12 - 2" }
   ]
 }

@@ -68,6 +68,10 @@ Delegated parent-authorship update: 2026-08-22 (made plan and research deliverab
 
 Delegated targeted-cancellation update: 2026-08-22 (added session-local numeric delegate IDs plus `/delegate:list` and `/delegate:stop`; zero startup model-context delta because command metadata and TUI-only result details are not included in the model prompt; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated routing-configuration update: 2026-08-23 (moved delegated routing into the extension-owned versioned `routing.json` with a strict fail-closed loader and one shared tier selector, added the exceptional `routingOverride` replacing the routine backend parameter, switched to operational-failure fallback with a fixed sanitized restart note, and added the cgpt4/cgpt5 Codex alias routes; provider calibration and the full extension/tool inventory were not rerun)
+
+Delegated five-reviewer update: 2026-08-23 (added the fifth implementation reviewer `review-e` on the dedicated single-tier `gate-e` route `openai-codex-cgpt5/gpt-5.6-sol:high` and updated the review gate to five members A/B/C/D/E; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -592,6 +596,36 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | **Tool total** | **1,108** | **1,092** | **-16** | Before provider-specific framing |
 
 The directly attributed model-visible surfaces shrink by 17 local tokens: one token from the compact global policy and 16 tokens from removing direct Claude Code backend text and the `claude` enum value from active tool metadata. Strict RPC supervision, report recovery, provider categories, and Pi-served Claude route handling remain executable TypeScript and add no startup model context. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-23 delegated routing-configuration attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are commit `621eee8`. The parameter schema is serialized with plain `JSON.stringify` of the real TypeBox object built from each revision's index.ts, which re-measures the prior recorded schema value of 167 as 153 and the prior tool total of 1,092 as 1,078; deltas are like-for-like. Prompt guidelines are joined with newlines. The routing configuration, selector, operational fallback, and restart note live in `routing.json`/`routing.ts`/`runner.ts` and are not sent to the model.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 3,070 | 3,082 | +12 | Always loaded through the context-file block |
+| `delegate_run` description | 73 | 82 | +9 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 839 | 860 | +21 | Included while the tool is active |
+| `delegate_run` parameter schema | 153 | 258 | +105 | Serialized as an active provider tool schema |
+| **Tool total** | **1,078** | **1,213** | **+135** | Before provider-specific framing |
+
+The directly attributed model-visible increase is +147 local tokens: +12 global instructions replacing the explicit-backend clause with automatic-config-driven routing, +9 description and +21 guidelines stating routing is automatic with the exceptional `routingOverride` contract, and +105 parameter schema for the optional override object with its mandatory reason. The default route matrix, tier order, capability records, and restart note stay in `routing.json` and executable TypeScript and are not model-visible. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-23 delegated five-reviewer E expansion attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are the working-tree state before this change, re-measured with the same serialization as the routing-configuration table above, which re-measures the prior recorded parameter-schema value of 258 as 272; deltas are like-for-like. The `gate-e` profile and `review-e` role mapping live in `routing.json` and are not model-visible.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 3,082 | 3,083 | +1 | Always loaded through the context-file block |
+| `delegate_run` description | 82 | 82 | 0 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 860 | 863 | +3 | Included while the tool is active |
+| `delegate_run` parameter schema | 272 | 288 | +16 | Serialized as an active provider tool schema |
+| **Tool total** | **1,227** | **1,246** | **+19** | Before provider-specific framing |
+
+The directly attributed model-visible increase is +20 local tokens: +1 global instruction for the five-reviewer gate policy, +3 guidelines naming all five review roles, and +16 parameter schema for the `review-e` enum value and the role description that now names the four-member solution and five-member review gates. The dedicated `gate-e` route stays in `routing.json` and is not model-visible. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

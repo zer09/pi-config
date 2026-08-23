@@ -41,7 +41,7 @@ test("a single verification still runs alone without siblings", () => {
 });
 
 test("verification blocks solution and review roles in both directions", () => {
-  for (const role of ["solution-a", "solution-d", "review-a", "review-d"] as const) {
+  for (const role of ["solution-a", "solution-d", "review-a", "review-d", "review-e"] as const) {
     const verificationFirst = new DelegateManager();
     verificationFirst.begin("v1", "verification");
     assert.throws(() => verificationFirst.begin("sibling", role), OVERLAP_ERROR);
@@ -99,8 +99,12 @@ test("solution and review concurrency is unchanged inside and across gates", () 
   manager.begin("r2", "review-b");
   manager.begin("r3", "review-c");
   manager.begin("r4", "review-d");
+  // review-e behaves exactly like the other non-exclusive review roles:
+  // the full five-reviewer gate overlaps under the existing gate rules.
+  manager.begin("r5", "review-e");
   for (const id of ["s1", "s2", "s3", "s4"]) manager.finish(id);
-  manager.begin("r5", "review-a");
+  manager.begin("r6", "review-a");
+  manager.begin("r7", "review-e");
 });
 
 test("assigns monotonic numeric IDs without reusing completed IDs", () => {
@@ -150,6 +154,7 @@ function progress(overrides: Partial<DelegateProgress> = {}): DelegateProgress {
     elapsedSeconds: 12.3,
     toolExecutionCount: 0,
     idleWarningCount: 0,
+    restartAfterWorkCount: 0,
     reportNudgeCount: 0,
     reportRound: 1,
     ...overrides,

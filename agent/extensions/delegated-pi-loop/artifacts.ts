@@ -9,9 +9,40 @@ export function safeLabel(value: string): string {
   return value.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[-.]+|[-.]+$/g, "").slice(0, 64) || "delegate";
 }
 
-export async function createArtifactDir(label: string): Promise<string> {
-  const directory = await mkdtemp(path.join(os.tmpdir(), `delegated-pi-${safeLabel(label)}-`));
+/** Applies the private permission set to a freshly created artifact directory. */
+async function chmodPrivate(directory: string): Promise<void> {
   await chmod(directory, 0o700);
+}
+
+/**
+ * Parent directory for supervision artifacts. `PI_DELEGATE_ARTIFACT_PARENT`
+ * is a narrow test-injection seam so a test process can own one unique
+ * sandbox instead of sharing the real tmpdir; it is never model-visible and
+ * never set outside tests, which default to the operating system tmpdir.
+ */
+export function artifactParentDirectory(): string {
+  return process.env.PI_DELEGATE_ARTIFACT_PARENT || os.tmpdir();
+}
+
+/**
+ * Creates the private supervision artifact directory. The permission step is
+ * injectable only so tests can fault-inject its failure; the default keeps
+ * the 0700 permission requirement.
+ */
+export async function createArtifactDir(
+  label: string,
+  applyPrivatePermissions: (directory: string) => Promise<void> = chmodPrivate,
+): Promise<string> {
+  const directory = await mkdtemp(path.join(artifactParentDirectory(), `delegated-pi-${safeLabel(label)}-`));
+  try {
+    await applyPrivatePermissions(directory);
+  } catch (error) {
+    // mkdtemp succeeded but the directory is not provably private: remove it
+    // best-effort and surface the original permission error instead of
+    // leaking an unrestricted artifact directory.
+    await removeDirectory(directory);
+    throw error;
+  }
   return directory;
 }
 

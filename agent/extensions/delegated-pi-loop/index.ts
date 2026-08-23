@@ -6,28 +6,48 @@ import { activeDelegateLabel, combinedSignal, DelegateManager } from "./manager.
 import { renderDelegateCall, renderDelegateResult } from "./render.ts";
 import { delegateToolResultPatch, finalizeDelegateRun } from "./result.ts";
 import { runDelegate } from "./runner.ts";
-import { DELEGATE_BACKENDS, DELEGATE_ROLES } from "./types.ts";
+import { DELEGATE_ROLES } from "./types.ts";
 import type {
-  DelegateBackend,
   DelegateProgress,
   DelegateRole,
   DelegateToolParams,
   ExtensionAPI,
+  RoutingOverride,
   ToolResult,
 } from "./types.ts";
 
+const RoutingOverrideParameters = Type.Object({
+  provider: Type.Optional(Type.String({
+    minLength: 1,
+    description: "Pin or filter providers for this one run.",
+  })),
+  model: Type.Optional(Type.String({
+    minLength: 1,
+    description: "Run this configured model for this one run.",
+  })),
+  thinking: Type.Optional(Type.String({
+    minLength: 1,
+    description: "Thinking level for the overridden model.",
+  })),
+  excludeProviders: Type.Optional(Type.Array(Type.String({ minLength: 1 }), {
+    minItems: 1,
+    description: "Providers to exclude for this one run.",
+  })),
+  reason: Type.String({
+    minLength: 1,
+    description: "Mandatory non-empty justification for this exceptional routing change.",
+  }),
+});
+
 const DelegateParameters = Type.Object({
   role: StringEnum(DELEGATE_ROLES, {
-    description: "Assigned isolated role. Use matching A/B/C/D roles concurrently for required four-member gates.",
+    description: "Assigned isolated role. Use matching gate roles concurrently: solution A/B/C/D (four members) and review A/B/C/D/E (five members).",
   }),
   prompt: Type.String({
     minLength: 1,
     description: "Complete neutral role assignment, governing documents, scope, success checks, and prohibitions.",
   }),
-  backend: Type.Optional(StringEnum(DELEGATE_BACKENDS, {
-    description: "Use default routing unless the user or project explicitly selected Z.AI.",
-    default: "default",
-  })),
+  routingOverride: Type.Optional(RoutingOverrideParameters),
   cwd: Type.Optional(Type.String({
     description: "Delegate working directory. Relative paths resolve from the parent Pi working directory.",
   })),
@@ -143,7 +163,7 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
   pi.registerTool<DelegateToolParams>({
     name: "delegate_run",
     label: "Delegate Run",
-    description: "Run one fresh bounded Pi RPC delegate in an isolated role. Default investigation and review roles use ordered provider fallback before any tool executes. Streams the last sanitized child event and its UTC receipt time. A completed run returns the delegate's Markdown report; any other state returns a compact sanitized failure status and is marked as a tool error. The parent remains the sole orchestrator.",
+    description: "Run one fresh bounded Pi RPC delegate in an isolated role. Routing, including model, thinking, and provider fallback after operational failures, is automatic from the extension-owned routing configuration. Streams the last sanitized child event and its UTC receipt time. A completed run returns the delegate's Markdown report; any other state returns a compact sanitized failure status and is marked as a tool error. The parent remains the sole orchestrator.",
     promptSnippet: "Run one fresh bounded delegate with role-specific routing and live event status",
     promptGuidelines: [
       "Use delegate_run automatically for repository implementation changes unless the user explicitly opts out. The parent may directly make only a truly trivial edit with no behavior change or create and revise the plan and research deliverables defined below; the parent never manually implements a non-trivial or small implementation task.",
@@ -152,23 +172,23 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
       "A pure planning or research request runs no implementation delegate, implementation review gate, or remediation; if the user later approves implementation, that later request follows the existing implementation delegation and review workflow.",
       "A small task with an accepted plan or an obvious established pattern skips the solution-investigation gate and the oracle role and still runs exactly one implementation delegate.",
       "When no accepted solution contract exists and the root cause, architecture, or approach requires investigation, call delegate_run for solution-a, solution-b, solution-c, and solution-d concurrently with the same neutral assignment; all four must complete before synthesis. Solution delegates may gather evidence and propose options, but the parent verifies the evidence, synthesizes conclusions, and remains sole author and owner of the final plan or research deliverable.",
-      "After a required solution gate, call delegate_run for exactly one fresh read-only oracle review of the draft solution contract, and only when the parent session's current model is not exactly gpt-5.6-sol; when it is gpt-5.6-sol, skip the oracle and finalize the solution contract directly.",
+      "After a required solution gate, call delegate_run for exactly one fresh read-only oracle review of the draft solution contract, and only when the parent session's current model is not one of the configured Oracle profile models; when it is, skip the oracle and finalize the solution contract directly.",
       "Give the oracle role the neutral problem, governing documents, verified evidence, the draft solution contract, constraints, and unresolved uncertainties; do not give it raw investigator reports or the parent's synthesis rationale.",
       "Treat the oracle as advisory, not the final authority: the oracle critiques the parent draft but never authors or saves the final plan. Verify its VALID or REVISE analysis like any other evidence, revise the draft contract when warranted, finalize it, and run no automatic oracle loop; a non-completed oracle run blocks implementation.",
       "The parent Pi agent must verify investigator evidence and finalize the solution contract before calling delegate_run for implementation.",
       "Call delegate_run for only one implementation, remediation, or oracle role at a time, and do not edit the working tree while that delegate runs.",
-      "After inspecting the implementation delegate's diff and evidence, call delegate_run for review-a, review-b, review-c, and review-d concurrently with the same neutral review scope; all four must complete.",
+      "After inspecting the implementation delegate's diff and evidence, call delegate_run for review-a, review-b, review-c, review-d, and review-e concurrently with the same neutral review scope; all five must complete.",
       "Process blocking review findings through fresh delegate_run verification roles: consolidate exact duplicate findings first, give each verification exactly one finding without sibling verification reports, and overlap verification only with other verification delegates.",
-      "Run independent finding verifications concurrently in batches of at most four and keep dependent findings sequential; wait for every verification in the current batch before remediation, because a non-completed verification leaves its finding unresolved without erasing completed sibling reports. Send only verification-confirmed findings to one focused remediation role, then run a fresh four-reviewer gate until no blocking findings remain.",
-      "Use delegate_run backend=default unless the user or project explicitly selects Z.AI for the assigned role; backend selection never changes role mutation permissions, and backend=zai is invalid for the oracle role.",
-      "Treat every delegate_run state other than completed as a failed delegation reported as a tool error with sanitized status fields, and do not retry outside the tool's bounded pre-tool route fallback without user-authorized diagnosis.",
+      "Run independent finding verifications concurrently in batches of at most four and keep dependent findings sequential; wait for every verification in the current batch before remediation, because a non-completed verification leaves its finding unresolved without erasing completed sibling reports. Send only verification-confirmed findings to one focused remediation role, then run a fresh five-reviewer gate until no blocking findings remain.",
+      "Delegate routing, including model, thinking, and provider fallback after operational failures, is automatic from the extension-owned routing configuration; pass routingOverride only when the user or project explicitly requests an operational route change for that one run, never for the oracle role, and know that routingOverride never changes role permissions or concurrency.",
+      "Treat every delegate_run state other than completed as a failed delegation reported as a tool error with sanitized status fields, and do not retry outside the tool's bounded operational route fallback without user-authorized diagnosis.",
       "Do not stage, commit, push, deploy, or mutate hosted services because a delegate completed; those transitions require separate explicit authorization.",
     ],
     parameters: DelegateParameters as unknown as Record<string, unknown>,
 
     async execute(toolCallId, params, signal, onUpdate, ctx) {
       const role = params.role as DelegateRole;
-      const backend = (params.backend ?? "default") as DelegateBackend;
+      const routingOverride = params.routingOverride as RoutingOverride | undefined;
       const candidateCwd = params.cwd ? path.resolve(ctx.cwd, params.cwd) : ctx.cwd;
       const cwd = await realpath(candidateCwd);
       const handle = manager.begin(toolCallId, role);
@@ -177,12 +197,12 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
       try {
         const result = await runDelegate({
           role,
-          backend,
+          routingOverride,
           prompt: params.prompt,
           cwd,
-          // D and the oracle inherit the parent's selected provider through
-          // native extension context, never by inspecting the environment;
-          // the oracle main-Sol skip likewise reads the parent model id.
+          // Roles inherit the parent's selected provider through native
+          // extension context, never by inspecting the environment; the
+          // oracle main-model skip likewise reads the parent model id.
           parentProvider: ctx.model?.provider,
           parentModelId: ctx.model?.id,
           signal: runSignal,

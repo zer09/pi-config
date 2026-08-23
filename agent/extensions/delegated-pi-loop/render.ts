@@ -55,11 +55,11 @@ export function renderDelegateCall(
   const stateDelegateId = typeof context.state?.delegateId === "number" ? context.state.delegateId : undefined;
   const delegateId = activeDelegateId ?? stateDelegateId;
   const id = delegateId === undefined ? "" : `#${delegateId} `;
-  const backend = args.backend && args.backend !== "default" ? ` backend=${args.backend}` : "";
+  const override = args.routingOverride !== undefined ? " override" : "";
   text.setText(
     theme.fg("toolTitle", theme.bold(`Delegate ${id}`))
       + theme.fg("accent", args.role)
-      + theme.fg("muted", backend),
+      + theme.fg("muted", override),
   );
   return text;
 }
@@ -78,12 +78,13 @@ export function renderDelegateResult(
   if (options.isPartial && progress) {
     const route = progress.route ?? "selecting route";
     const event = eventText(progress);
+    const restarts = progress.restartAfterWorkCount > 0 ? `  restarts: ${progress.restartAfterWorkCount}` : "";
     const heading = progress.reportRound === 2
       ? `⏳ ${id}${progress.label} · recovering report · round 2/2`
       : `⏳ ${id}${progress.label}`;
     text.setText([
       theme.fg("warning", heading) + theme.fg("muted", `  ${route}`),
-      theme.fg("muted", `phase: ${progress.phase}  state: ${progress.state}  attempt: ${progress.attempt}`),
+      theme.fg("muted", `phase: ${progress.phase}  state: ${progress.state}  attempt: ${progress.attempt}${restarts}`),
       theme.fg("toolOutput", `last: ${event}`),
       theme.fg("dim", `at: ${ageText(progress.lastEventAt)}  elapsed: ${progress.elapsedSeconds.toFixed(1)}s`),
     ].join("\n"));
@@ -97,7 +98,10 @@ export function renderDelegateResult(
   const icon = successful ? theme.fg("success", "✓") : theme.fg("error", "✗");
   let rendered = `${icon} ${theme.fg("toolTitle", theme.bold(`${id}${String(state)}`))}`;
   if (progress) {
-    rendered += theme.fg("muted", `  ${progress.route ?? "no route"}  ${progress.elapsedSeconds.toFixed(1)}s`);
+    const restarts = progress.restartAfterWorkCount > 0
+      ? `  restarts after work: ${progress.restartAfterWorkCount}`
+      : "";
+    rendered += theme.fg("muted", `  ${progress.route ?? "no route"}  ${progress.elapsedSeconds.toFixed(1)}s${restarts}`);
     rendered += `\n${theme.fg("dim", `last: ${eventText(progress)} at ${ageText(progress.lastEventAt)}`)}`;
   }
   // TUI-only: the private diagnostic path for unsuccessful runs never enters

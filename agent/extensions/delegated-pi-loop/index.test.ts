@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { DELEGATE_BACKENDS } from "./types.ts";
 
 test("registration guidelines encode the automatic delegation policy without provider route details", async () => {
   const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
@@ -35,20 +34,20 @@ test("registration guidelines encode the automatic delegation policy without pro
   assert.match(guidelines, /small task with an accepted plan or an obvious established pattern skips the solution-investigation gate and the oracle role and still runs exactly one implementation delegate/);
   // The parent inspects the implementation diff and evidence before the review gate.
   assert.match(guidelines, /implementation delegate's diff and evidence/);
-  assert.match(guidelines, /review-a, review-b, review-c, and review-d concurrently/);
+  assert.match(guidelines, /review-a, review-b, review-c, review-d, and review-e concurrently/);
   // Solution delegates gather evidence and propose options; the parent stays
   // the sole author and owner of the final plan or research deliverable.
   assert.match(guidelines, /Solution delegates may gather evidence and propose options, but the parent verifies the evidence, synthesizes conclusions, and remains sole author and owner of the final plan or research deliverable/);
   // Oracle policy: one fresh read-only oracle after a required solution gate,
-  // the exact main-model skip condition, advisory-only authority that never
-  // authors or saves the final plan, and the neutral oracle prompt contents.
+  // the configured-Oracle-model set skip condition, advisory-only authority
+  // that never authors or saves the final plan, and the neutral oracle prompt
+  // contents.
   assert.match(guidelines, /After a required solution gate, call delegate_run for exactly one fresh read-only oracle review of the draft solution contract/);
-  assert.match(guidelines, /only when the parent session's current model is not exactly gpt-5\.6-sol; when it is gpt-5\.6-sol, skip the oracle and finalize the solution contract directly/);
+  assert.match(guidelines, /only when the parent session's current model is not one of the configured Oracle profile models; when it is, skip the oracle and finalize the solution contract directly/);
   assert.match(guidelines, /Give the oracle role the neutral problem, governing documents, verified evidence, the draft solution contract, constraints, and unresolved uncertainties; do not give it raw investigator reports or the parent's synthesis rationale/);
   assert.match(guidelines, /Treat the oracle as advisory, not the final authority: the oracle critiques the parent draft but never authors or saves the final plan/);
   assert.match(guidelines, /Verify its VALID or REVISE analysis like any other evidence/);
   assert.match(guidelines, /run no automatic oracle loop; a non-completed oracle run blocks implementation/);
-  assert.match(guidelines, /backend=zai is invalid for the oracle role/);
   assert.doesNotMatch(guidelines, /Claude Code|backend=claude/);
   assert.match(guidelines, /only one implementation, remediation, or oracle role at a time/);
   // Blocking findings get fresh verification, only verification-confirmed findings
@@ -64,40 +63,52 @@ test("registration guidelines encode the automatic delegation policy without pro
   assert.match(guidelines, /wait for every verification in the current batch before remediation/);
   assert.match(guidelines, /non-completed verification leaves its finding unresolved without erasing completed sibling reports/);
   assert.match(guidelines, /Send only verification-confirmed findings to one focused remediation role/);
-  assert.match(guidelines, /fresh four-reviewer gate until no blocking findings remain/);
+  assert.match(guidelines, /fresh five-reviewer gate until no blocking findings remain/);
+  // Routing is automatic and config-driven; routingOverride is the only
+  // exceptional escape hatch and is invalid for the oracle role.
+  assert.match(guidelines, /Delegate routing, including model, thinking, and provider fallback after operational failures, is automatic from the extension-owned routing configuration/);
+  assert.match(guidelines, /pass routingOverride only when the user or project explicitly requests an operational route change for that one run, never for the oracle role/);
+  assert.match(guidelines, /routingOverride never changes role permissions or concurrency/);
+  assert.match(guidelines, /do not retry outside the tool's bounded operational route fallback without user-authorized diagnosis/);
   // Git transitions and hosted writes never ride on a completed delegate.
   assert.match(guidelines, /require separate explicit authorization/);
 
-  // Role routes live in routes.ts; model-visible guidelines stay route-free.
-  // The oracle main-Sol skip condition is the one sanctioned model mention:
-  // every gpt-5.6 reference must be the exact gpt-5.6-sol condition, and no
-  // provider route map detail may appear. Compare lowercased text so mixed-case
-  // reintroductions still fail.
+  // Role routes live in routing.json; model-visible guidelines stay route-free.
+  // The oracle skip condition references the configured Oracle models as a
+  // set, so no concrete model id may appear in the guidelines at all. Compare
+  // lowercased text so mixed-case reintroductions still fail.
   const lowered = guidelines.toLowerCase();
-  for (const routeDetail of ["gpt-5.5", "codex", "cursor", "ox-alpha", "hy3", "opus", "deepseek", "muse-spark", "glm-"]) {
+  for (const routeDetail of ["gpt-5.5", "gpt-5.6", "codex", "cursor", "ox-alpha", "hy3", "opus", "deepseek", "muse-spark", "glm-", "backend", "z.ai", "zai"]) {
     assert.ok(!lowered.includes(routeDetail), `route detail "${routeDetail}" must not appear in prompt guidelines`);
-  }
-  const modelMentions = lowered.match(/gpt-5\.6[a-z0-9.-]*/g) ?? [];
-  assert.ok(modelMentions.length > 0, "the exact main-Sol skip condition must appear in prompt guidelines");
-  for (const mention of modelMentions) {
-    assert.equal(mention, "gpt-5.6-sol", `only the exact gpt-5.6-sol condition may appear, found "${mention}"`);
   }
 });
 
+test("the tool schema replaces routine backend selection with an exceptional routing override", async () => {
+  const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
+  // The routine backend parameter is gone from the model-visible schema.
+  assert.doesNotMatch(source, /backend\s*:/);
+  assert.doesNotMatch(source, /backend\?/);
+  assert.doesNotMatch(source, /backend=/);
+  // The exceptional override is optional with a mandatory non-empty reason.
+  assert.match(source, /routingOverride: Type\.Optional\(RoutingOverrideParameters\)/);
+  assert.match(source, /reason: Type\.String\(\{\s*\n\s*minLength: 1,/);
+  assert.match(source, /excludeProviders: Type\.Optional\(Type\.Array\(Type\.String\(\{ minLength: 1 \}\), \{/);
+});
+
 test("public schema and runtime contain no direct Claude CLI backend", async () => {
-  assert.deepEqual(DELEGATE_BACKENDS, ["default", "zai"]);
-  const files = ["index.ts", "routes.ts", "runner.ts", "supervisor.ts", "types.ts"];
+  const files = ["index.ts", "routing.ts", "routes.ts", "runner.ts", "supervisor.ts", "types.ts"];
   const forbidden = [
     "ClaudeRoute", "CLAUDE_ROUTE", "superviseClaude", "spawn(\"claude\"", "--print",
     "--no-session-persistence", "permission-mode", "allowedTools", "disallowedTools",
     "claude-code/", "protocol: \"plain\"", "backend=claude",
+    "DelegateBackend", "DELEGATE_BACKENDS",
   ];
   for (const file of files) {
     const source = await readFile(new URL(`./${file}`, import.meta.url), "utf8");
     for (const value of forbidden) assert.ok(!source.includes(value), `${file} must not contain ${value}`);
   }
   const index = await readFile(new URL("./index.ts", import.meta.url), "utf8");
-  assert.match(index, /StringEnum\(DELEGATE_BACKENDS/);
+  assert.match(index, /StringEnum\(DELEGATE_ROLES/);
 });
 
 test("registers targeted delegate list and stop commands without a BTW control path", async () => {
@@ -114,4 +125,9 @@ test("registers targeted delegate list and stop commands without a BTW control p
   assert.match(renderSource, /`⏳ \$\{id\}\$\{progress\.label\}`/);
   assert.match(renderSource, /`\$\{id\}\$\{String\(state\)\}`/);
   assert.doesNotMatch(source, /btw:delegate/);
+  // The live render surfaces bounded restart-after-work metadata.
+  assert.match(renderSource, /restarts: \$\{progress\.restartAfterWorkCount\}/);
+  assert.match(renderSource, /restarts after work: \$\{progress\.restartAfterWorkCount\}/);
+  // The call render marks an exceptional override without route details.
+  assert.match(renderSource, /args\.routingOverride !== undefined \? " override" : ""/);
 });

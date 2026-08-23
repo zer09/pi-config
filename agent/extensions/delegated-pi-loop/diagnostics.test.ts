@@ -10,12 +10,11 @@ function failedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunRe
   return {
     label: "implementation",
     role: "implementation",
-    backend: "default",
     state: "invalid_stream",
     report: "SECRET-REPORT-BODY",
     artifactDir: "/tmp/delegated-pi-implementation-x",
     selectedRoute: "zai/glm-5.3:max",
-    attempts: [{ route: "zai/glm-5.3:max", state: "invalid_stream", elapsedSeconds: 12.5 }],
+    attempts: [{ route: "zai/glm-5.3:max", state: "invalid_stream", elapsedSeconds: 12.5, restartAfterWork: true }],
     startedAt: "2026-08-21T09:49:47.600Z",
     endedAt: "2026-08-21T10:00:00.000Z",
     elapsedSeconds: 612.4,
@@ -35,6 +34,7 @@ function failedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunRe
       elapsedSeconds: 612.4,
       toolExecutionCount: 4,
       idleWarningCount: 1,
+      restartAfterWorkCount: 1,
       reportNudgeCount: 1,
       reportRecoveryReason: "invalid_result",
       reportRound: 2,
@@ -77,7 +77,7 @@ test("diagnostic content is bounded, sanitized, and free of excluded material", 
     const content = await readFile(filePath, "utf8");
     const parsed = JSON.parse(content) as Record<string, unknown>;
 
-    assert.equal(parsed.schemaVersion, 2);
+    assert.equal(parsed.schemaVersion, 3);
     assert.equal(parsed.state, "invalid_stream");
     assert.equal(parsed.role, "implementation");
     assert.equal(parsed.selectedRoute, "zai/glm-5.3:max");
@@ -85,6 +85,10 @@ test("diagnostic content is bounded, sanitized, and free of excluded material", 
     assert.equal(parsed.lastEventDetail, "edit");
     assert.equal(parsed.lastEventAt, "2026-08-21T09:59:58.000Z");
     assert.equal(parsed.toolExecutionCount, 4);
+    assert.equal(parsed.restartAfterWorkCount, 1);
+    assert.deepEqual(parsed.attempts, [
+      { route: "zai/glm-5.3:max", state: "invalid_stream", elapsedSeconds: 12.5, restartAfterWork: true },
+    ]);
     assert.equal(parsed.recoveryAttempted, true);
     assert.equal(parsed.reportRecoveryReason, "invalid_result");
     assert.equal(parsed.finalRound, 2);

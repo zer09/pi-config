@@ -1,4 +1,5 @@
 import type { Component } from "@earendil-works/pi-tui";
+import type { RoutingConfig } from "./routing.ts";
 
 export const DELEGATE_ROLES = [
   "solution-a",
@@ -11,15 +12,29 @@ export const DELEGATE_ROLES = [
   "review-b",
   "review-c",
   "review-d",
+  "review-e",
   "verification",
   "remediation",
 ] as const;
 
-export const DELEGATE_BACKENDS = ["default", "zai"] as const;
+export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
 export type DelegateRole = (typeof DELEGATE_ROLES)[number];
-export type DelegateBackend = (typeof DELEGATE_BACKENDS)[number];
-export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
+
+/**
+ * Exceptional one-run routing change. Routing is automatic from the
+ * extension-owned routing configuration; an override is valid only for an
+ * explicit user or project operational request, never for the oracle role.
+ * An override never changes role permissions or concurrency.
+ */
+export interface RoutingOverride {
+  readonly provider?: string;
+  readonly model?: string;
+  readonly thinking?: string;
+  readonly excludeProviders?: readonly string[];
+  readonly reason: string;
+}
 export type DelegateProtocol = "pi-rpc";
 export type ProviderFailureCategory =
   | "credits_exhausted"
@@ -47,6 +62,7 @@ export type DelegateState =
   | "missing_report"
   | "child_failed"
   | "spawn_failed"
+  | "cleanup_failed"
   | "interrupted";
 
 export interface PiRoute {
@@ -73,6 +89,8 @@ export interface DelegateProgress {
   readonly elapsedSeconds: number;
   readonly toolExecutionCount: number;
   readonly idleWarningCount: number;
+  /** How many times the chain advanced after an attempt that had executed tools or accepted report recovery. */
+  readonly restartAfterWorkCount: number;
   readonly reportNudgeCount: 0 | 1;
   readonly reportRecoveryReason?: "missing_report" | "invalid_result";
   readonly reportRound: 1 | 2;
@@ -145,7 +163,8 @@ export interface ChainAttempt {
   readonly route: string;
   readonly state: DelegateState | "catalog_unavailable";
   readonly elapsedSeconds: number;
-  readonly fallbackReason?: "event_idle_before_tools" | "provider_unavailable_before_tools";
+  /** True when this attempt had executed tools or accepted recovery, so the next attempt received the restart note. */
+  readonly restartAfterWork?: boolean;
 }
 
 /**
@@ -157,7 +176,6 @@ export interface ChainAttempt {
 export interface DelegateRunResult {
   readonly label: string;
   readonly role: DelegateRole;
-  readonly backend: DelegateBackend;
   readonly state: DelegateState;
   readonly report: string;
   readonly artifactDir: string;
@@ -173,7 +191,7 @@ export interface DelegateRunResult {
 export interface DelegateToolParams {
   readonly role: DelegateRole;
   readonly prompt: string;
-  readonly backend?: DelegateBackend;
+  readonly routingOverride?: RoutingOverride;
   readonly cwd?: string;
 }
 
@@ -267,15 +285,16 @@ export interface RenderTheme {
 
 export interface RunOptions {
   readonly role: DelegateRole;
-  readonly backend: DelegateBackend;
   readonly prompt: string;
   readonly cwd: string;
   readonly signal?: AbortSignal;
+  /** Optional exceptional routing override from an explicit user or project operational request. */
+  readonly routingOverride?: RoutingOverride;
   /** Parent session's currently selected provider, from native extension context. */
   readonly parentProvider?: string;
   /** Parent session's currently selected model id, from native extension context. */
   readonly parentModelId?: string;
-  /** Deterministic injection point for the D and oracle random primary selection. */
+  /** Deterministic injection point for random primary selection inside multi-provider tiers. */
   readonly random?: () => number;
   readonly onProgress?: (progress: DelegateProgress) => void;
   readonly timeoutMs?: number;
@@ -284,6 +303,8 @@ export interface RunOptions {
   readonly maxOutputBytes?: number;
   readonly graceMs?: number;
   readonly piInvocation?: PiInvocation;
+  /** Optional pre-validated routing config; deterministic injection point so tests can exercise alternate profiles. */
+  readonly routingConfig?: RoutingConfig;
 }
 
 export interface PiInvocation {

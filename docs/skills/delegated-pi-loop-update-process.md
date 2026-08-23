@@ -5,8 +5,8 @@ Purpose: maintain the native TypeScript `delegate_run` extension that runs in th
 ## Classification and authority
 
 - Extension classification: **keep it**. Process supervision, fallback cutoffs, report recovery, and shared-tree safety are executable behavior.
-- Source of truth: this Pi config, ADR 0007, ADR 0008, and installed Pi RPC/extension documentation.
-- Route authority: `agent/extensions/delegated-pi-loop/routes.ts`, checked against Pi's live model catalog.
+- Source of truth: this Pi config, ADR 0007, ADR 0008, ADR 0009, and installed Pi RPC/extension documentation.
+- Route authority: `agent/extensions/delegated-pi-loop/routing.json`, strictly validated by `routing.ts` at load time and checked against Pi's live model catalog.
 - Direct Claude Code authority: none. The extension has no direct Claude CLI backend and must not inspect, invoke, install, uninstall, or modify the user's Claude CLI.
 - Claude-named models served through ordinary Pi providers remain supported. Their provider/model route order is independent from the removed direct CLI integration.
 
@@ -19,8 +19,10 @@ Purpose: maintain the native TypeScript `delegate_run` extension that runs in th
 | `agent/extensions/delegated-pi-loop/protocol.ts` | Strict LF-framed RPC JSONL, prompt correlation, UI cancellation, and bounded provider-failure categories. |
 | `agent/extensions/delegated-pi-loop/monitor.ts` | Two-round Pi lifecycle validation, report extraction, activity, and structured provider-failure evidence. |
 | `agent/extensions/delegated-pi-loop/supervisor.ts` | Persistent RPC child, limits, cancellation, process groups, cleanup, progress, and private artifacts. |
-| `agent/extensions/delegated-pi-loop/runner.ts` | Catalog preflight, ordered pre-tool fallback, route attempts, and shared deadline. |
-| `agent/extensions/delegated-pi-loop/routes.ts` | Pi route maps, role classification, role prompts, and terminal marker contract. |
+| `agent/extensions/delegated-pi-loop/runner.ts` | Catalog preflight, operational route fallback, restart-note application, route attempts, and shared deadline. |
+| `agent/extensions/delegated-pi-loop/routing.json` | Extension-owned versioned routing policy: capabilities, profiles, tiers, role mapping, disabled providers, override policy, Oracle safety. |
+| `agent/extensions/delegated-pi-loop/routing.ts` | Strict routing config loader/validator and the one shared route selector. |
+| `agent/extensions/delegated-pi-loop/routes.ts` | Role classification, role prompts, the fixed restart note, and the terminal marker contract. |
 | `agent/extensions/delegated-pi-loop/result.ts` | Model-visible Markdown, terminal-marker stripping, error marking, and final cleanup. |
 | `agent/extensions/delegated-pi-loop/diagnostics.ts` | Bounded private failure diagnostics. |
 | `agent/extensions/delegated-pi-loop/manager.ts` | Concurrency, numeric IDs, active summaries, and targeted cancellation. |
@@ -49,7 +51,7 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 1. Send the initial command as one LF-terminated object with id `prompt-1` and type `prompt`.
 2. A successful correlated `response` accepts the command. It does not complete the task.
 3. Buffer bounded lifecycle events that arrive before the matching successful response, then process them in order.
-4. A rejected prompt command becomes `prompt_rejected`. It never becomes `missing_report`, never falls back, and receives no extra prompt.
+4. A rejected prompt command becomes `prompt_rejected`. It never becomes `missing_report`, never receives a recovery prompt, and advances operationally to the next configured route.
 5. Split stdout only on LF, strip one trailing CR, preserve partial UTF-8 with `StringDecoder`, and fail closed on malformed, duplicate, unknown, oversized, or trailing protocol records.
 6. Cancel blocking `select`, `confirm`, `input`, and `editor` extension UI requests with one matching `extension_ui_response`. Consume fire-and-forget UI requests without replying.
 7. A clean settled `missing_report` or `invalid_result` receives exactly one fixed `prompt-2` recovery command in the same child session.
@@ -64,38 +66,40 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 3. Retain only a bounded category: `credits_exhausted`, `quota_exhausted`, `billing_limit`, `usage_limit`, `authentication`, `rate_limit`, or `provider_unavailable`.
 4. Compatibility phrase matching covers HTTP 402/payment required, quota exhaustion, depleted credits or credit balances, billing/spending/usage limits, authentication, rate limits, overload, timeout, network, and model availability.
 5. Never retain raw provider errors, billing text, balances, account data, credentials, prompts, reports, or protocol payloads in status, diagnostics, rendering, or failure Markdown.
-6. A provider failure before tools has state `provider_failed` and may carry `provider_unavailable_before_tools`, which advances the existing ordered route chain.
-7. A provider failure after any tool fails closed on the selected route.
-8. A provider failure after the recovery prompt is accepted fails closed even when no tool ran.
-9. A provider failure never consumes the report-recovery prompt.
-10. If all eligible routes fail before tools, the chain ends as `routes_unavailable`.
-11. The existing pre-tool idle fallback remains. No other fallback is allowed.
+6. Operational failure states always advance to the next route, even after tools or accepted report recovery: `provider_failed`, `stalled`, `timed_out`, `output_limit`, `prompt_rejected`, `invalid_result`, `invalid_stream`, `missing_report`, `child_failed`, and `spawn_failed`.
+7. Terminal states never fall back: `completed`, intentional `blocked`, intentional `delegate_failed`, `interrupted`, and the sanitized `cleanup_failed` proof failure. Catalog-unavailable routes still continue without spending an attempt.
+8. When advancing after an attempt that executed tools or accepted report recovery, rewrite the next attempt's private prompt from the original assignment plus the one fixed sanitized restart note. The note never carries provider errors, raw output, tool payloads, reports, paths, or credentials, and rebuilding from the original assignment keeps it from stacking.
+9. A bounded restart-after-work count and per-attempt restart flags travel in progress, attempts, diagnostics, and rendering.
+10. An exhausted operational chain ends as the existing safe `routes_unavailable` outcome without surfacing partial reports.
+11. A provider failure never consumes the report-recovery prompt.
 
 ### Limits, privacy, and cleanup
 
-1. One shared 45-minute wall deadline covers initial work and recovery.
+1. One shared 45-minute wall deadline covers initial work and recovery. Each route receives a deterministic soft share of the current cumulative remainder, divided equally across the routes still ahead and covering that route's catalog preflight, supervision, and cleanup; the final route's share is the full remainder. The share is an absolute route deadline: supervision reserves a termination budget (capped at the configured grace and half the remaining share, and never below the mandatory cleanup tail of forced-kill verification plus final stderr/status/progress cleanup) before route work, every termination is clamped to that deadline, and the graceful window is clamped so forced kill and its verification still fit before it; when the graceful window cannot fit termination escalates immediately to SIGKILL. The soft supervision cutoff runs on a one-shot timer scheduled directly for its deadline, so shares shorter than the 100 ms progress interval are still enforced at their own deadline; the interval only covers progress, idle, and output checks. A remaining share that cannot fit the mandatory reserve records a soft `timed_out` without spawning and advances while the route is non-final. Catalog and supervision termination are awaited with a positive proof: the leader's close event (or its recorded exit) plus a final dead-group probe; no route's group overlaps the next route's, and a group that stays alive after SIGKILL or a close that stays unconfirmed reports the terminal sanitized `cleanup_failed` state, which fails the chain closed and never falls back. A non-final route stopped at its soft share records `timed_out` and the chain advances while cumulative time remains; a catalog preflight stopped by its share records `timed_out` rather than `catalog_unavailable`; chain-level `timed_out` occurs only when the cumulative deadline itself is exhausted.
 2. One shared five-minute idle warning and ten-minute idle deadline covers both rounds. Accepted activity resets idle age; empty deltas do not.
 3. One cumulative 50 MiB limit covers protocol and child output across both rounds.
 4. Progress rendering is throttled to about one second independently from 100 ms safety checks.
 5. Temporary prompt, report, stderr, and status artifacts use private permissions. The prompt artifact remains for supervision, but no chain-level report or status file is written.
 6. Successful output contains only the validated final report with the completed marker stripped.
 7. Unsuccessful output contains deterministic bounded Markdown without raw child content or file paths.
-8. Failure diagnostics use schema version 2 and include only bounded state, route, timing, recovery metadata, provider category, sanitized progress, attempts, and stream error categories.
-9. Process-group termination remains authoritative after final classification. The extension then waits for cleanup, persists a failure diagnostic when needed, removes temporary artifacts, and releases the manager slot.
+8. Failure diagnostics use schema version 3 and include only bounded state, route, timing, recovery metadata, provider category, sanitized progress, attempts, and stream error categories.
+9. Process-group termination remains authoritative after final classification, and it resolves only with a positive cleanup proof (leader close or recorded exit plus a final dead-group probe); an unproven cleanup records the sanitized terminal `cleanup_failed` state. The extension then waits for cleanup, persists a failure diagnostic when needed, removes temporary artifacts, and releases the manager slot.
 
-### Backends and routes
+### Routing configuration and overrides
 
-- Public backends are exactly `default` and `zai`.
-- `backend=claude` is not in the schema or runtime types and must fail tool schema validation before execution.
-- The oracle requires `backend=default`; explicit Z.AI is rejected before spawn.
-- A/B/C Pi route arrays, including Tabitoken, SeekAI, AgentRouter, and GoRouter model IDs that contain `claude`, remain supported and retain their exact ordering.
-- D and Oracle still select one inherited eligible or random primary once, then use the canonical remaining OpenAI Codex aliases.
+- `routing.json` is the single authority for model, provider, and thinking policy. It is not coupled to `agent/settings.json`, enabled models, `models.json`, or `models-store.json`.
+- The strict loader fails closed on a missing or invalid config before any artifact or child process; there is no compiled-route fallback.
+- The config encodes model capability records (provider-specific supported thinking levels and a default), reusable profiles of ordered model tiers with optional provider allowlists, a complete mapping for every `DelegateRole`, disabled providers, a per-profile override policy, and Oracle safety tied to the configured Oracle model id.
+- One shared selector serves every role: per tier it derives eligible providers from capabilities, intersects allowlists, disabled providers, and override exclusions, prefers the parent's selected provider when eligible, otherwise draws one random primary, appends the remaining providers in stable config order, and concatenates the tiers.
+- Gate A, B, and C keep their configured tier order, including Tabitoken, SeekAI, AgentRouter, and GoRouter model IDs that contain `claude`. Inside Gate B's OpenCode Go/SeekAI `deepseek-v4-flash` tier the primary is the eligible parent provider, otherwise exactly one random draw, and the remaining providers follow in stable config order; every other gate tier is single-provider and deterministic. Gate D and the Oracle run on the seven eligible OpenAI Codex alias providers `openai-codex`, `openai-codex-zahlo`, `openai-codex-cgpt1` through `openai-codex-cgpt5`; Cursor stays excluded.
+- Review E maps to the dedicated single-tier `gate-e` profile: `openai-codex-cgpt5/gpt-5.6-sol` at thinking `high`, one deterministic route with no provider fallback, selected by the same shared selector.
 - Implementation and remediation remain `zai/glm-5.3:max`; verification remains `openai-codex/gpt-5.6-sol:high`.
-- Backend selection never changes role mutation permissions.
+- The public tool schema has no routine backend parameter. The optional exceptional `routingOverride` carries `provider`, `model`, `thinking`, `excludeProviders`, and a mandatory non-empty `reason`; empty or no-op overrides are rejected, the Oracle rejects every override, and an override never changes role permissions or concurrency.
+- Guidance states routing is automatic and an override is valid only for an explicit user or project operational request; no default route matrix is model-visible.
 
 ### Concurrency and authorization
 
-1. Solution and review A/B/C/D roles retain their concurrent gates.
+1. Solution A/B/C/D and review A/B/C/D/E roles retain their concurrent gates; review-e behaves exactly like the other non-exclusive review roles.
 2. Independent verifications overlap only other verifications, in batches of at most four.
 3. Implementation, remediation, and oracle remain exclusive against every active delegate.
 4. Read-only roles remain semantic contracts, not filesystem sandboxes.
@@ -105,8 +109,8 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 ## Update workflow
 
 1. Read installed Pi `docs/rpc.md`, `docs/extensions.md`, `docs/json.md`, `docs/environment-variables.md`, and `docs/tui.md` completely.
-2. Read ADR 0007, ADR 0008, this document, and every owned source file.
-3. Preserve route arrays, role contracts, manager IDs, cancellation, cleanup, deadlines, privacy, diagnostics, and recursive suppression.
+2. Read ADR 0007, ADR 0008, ADR 0009, this document, and every owned source file.
+3. Preserve `routing.json` route intent, role contracts, manager IDs, cancellation, cleanup, deadlines, privacy, diagnostics, and recursive suppression.
 4. Update tests with behavior changes.
 5. Update `agent/AGENTS.md`, root `README.md`, ADR current-policy text, changelog, and context-cost accounting when the public tool contract changes.
 6. Do not run paid model inference without explicit authorization.
@@ -146,26 +150,33 @@ pi --list-models openai-codex-zahlo/gpt-5.6-sol
 pi --list-models openai-codex-cgpt1/gpt-5.6-sol
 pi --list-models openai-codex-cgpt2/gpt-5.6-sol
 pi --list-models openai-codex-cgpt3/gpt-5.6-sol
+pi --list-models openai-codex-cgpt4/gpt-5.6-sol
+pi --list-models openai-codex-cgpt5/gpt-5.6-sol
 pi --list-models openai-codex/gpt-5.5
 pi --list-models openai-codex-zahlo/gpt-5.5
 pi --list-models openai-codex-cgpt1/gpt-5.5
 pi --list-models openai-codex-cgpt2/gpt-5.5
 pi --list-models openai-codex-cgpt3/gpt-5.5
+pi --list-models openai-codex-cgpt4/gpt-5.5
+pi --list-models openai-codex-cgpt5/gpt-5.5
 ```
 
 Also verify:
 
+- `routing.json` passes the strict validator and a missing or invalid file fails closed with no compiled-route fallback;
 - fake clean missing reports receive one same-session recovery prompt;
 - fake credit-depleted routes fall back before tools without a recovery prompt;
-- provider failures after tools or accepted recovery do not fall back;
-- prompt rejection fails closed;
+- operational failures after tools or accepted recovery fall back with the fixed sanitized restart note, which never stacks and never leaks provider errors, raw output, tool payloads, reports, paths, or credentials;
+- intentional `blocked` and `delegate_failed` outcomes, completed runs, and interruption stay terminal without fallback;
+- routing overrides are exceptional only: no-op overrides are rejected, the Oracle rejects every override, and overrides never change role permissions or concurrency;
+- prompt rejection advances operationally to the next route;
 - one child PID handles both prompts;
 - first invalid reports never reach parent content;
 - shared deadlines and cumulative output bounds do not reset;
 - UI requests cannot block the child;
 - cancellation and natural completion remove descendants;
 - direct Claude route, backend, runner, supervisor, permission, plain-protocol, and fixture scans are empty;
-- Pi-served Claude route arrays and order are unchanged;
+- Pi-served Claude routes keep their encoded tier order, with primary rotation only inside Gate B's OpenCode Go/SeekAI tier;
 - unrelated dirty files remain untouched;
 - `git diff --check` passes;
 - the active model-visible context surfaces are recounted locally;

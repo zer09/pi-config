@@ -30,6 +30,7 @@ function progress(overrides: Partial<DelegateProgress> = {}): DelegateProgress {
     elapsedSeconds: 612.4,
     toolExecutionCount: 2,
     idleWarningCount: 0,
+    restartAfterWorkCount: 0,
     reportNudgeCount: 0,
     reportRound: 1,
     ...overrides,
@@ -40,7 +41,6 @@ function completedResult(report: string): DelegateRunResult {
   return {
     label: "solution-a",
     role: "solution-a",
-    backend: "default",
     state: "completed",
     report,
     artifactDir: "/tmp/delegated-pi-solution-a-abc",
@@ -61,7 +61,6 @@ function failedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunRe
   return {
     label: "solution-a",
     role: "solution-a",
-    backend: "default",
     state: "stalled",
     report: "SECRET-REPORT-BODY\n\nDELEGATE_RESULT: COMPLETED",
     artifactDir: "/tmp/delegated-pi-solution-a-abc",
@@ -71,14 +70,14 @@ function failedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunRe
         route: "opencode-go/muse-spark-1.2-contributor:xhigh",
         state: "stalled",
         elapsedSeconds: 301.0,
-        fallbackReason: "event_idle_before_tools",
+        restartAfterWork: true,
       },
     ],
     startedAt: "2026-08-21T09:49:47.600Z",
     endedAt: "2026-08-21T10:00:00.000Z",
     elapsedSeconds: 612.4,
     streamErrors: ["Pi JSON stream ended with a partial line"],
-    progress: progress(),
+    progress: progress({ restartAfterWorkCount: 1 }),
     ...overrides,
   };
 }
@@ -128,13 +127,13 @@ test("failure Markdown is exact, sanitized, and acts without diagnostics", () =>
     "",
     "- state: stalled",
     "- role: solution-a",
-    "- backend: default",
     "- route: opencode-go/muse-spark-1.2-contributor:xhigh",
+    "- restarts after work: 1",
     "- phase: provider",
     "- last event: tool_execution_start (read)",
     "- last event at: 2026-08-21T10:00:00.000Z",
     "- elapsed: 612.4s",
-    "- attempts: opencode-go/muse-spark-1.2-contributor:xhigh -> stalled (event_idle_before_tools)",
+    "- attempts: opencode-go/muse-spark-1.2-contributor:xhigh -> stalled (restart after work)",
     "",
     "The delegate stopped emitting accepted activity and was terminated at the event-idle deadline.",
   ].join("\n"));
@@ -168,7 +167,7 @@ test("every non-completed state has a deterministic safe summary", () => {
   const states = [
     "catalog_check", "running", "routes_unavailable", "stalled", "timed_out", "output_limit",
     "blocked", "delegate_failed", "provider_failed", "prompt_rejected", "invalid_result", "invalid_stream", "missing_report",
-    "child_failed", "spawn_failed", "interrupted",
+    "child_failed", "spawn_failed", "cleanup_failed", "interrupted",
   ];
   const summaries = new Set(states.map((state) => failureMarkdown(failedResult({ state: state as DelegateRunResult["state"] })).split("\n").pop()));
   // Every state maps to a non-empty fixed sentence, with real spread across states.

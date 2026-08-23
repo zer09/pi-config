@@ -27,11 +27,10 @@ export function diagnosticsDirectory(): string {
  */
 export function failureDiagnostic(result: DelegateRunResult): Record<string, unknown> {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     writtenAt: new Date().toISOString(),
     label: result.label,
     role: result.role,
-    backend: result.backend,
     state: result.state,
     startedAt: result.startedAt,
     endedAt: result.endedAt,
@@ -44,6 +43,7 @@ export function failureDiagnostic(result: DelegateRunResult): Record<string, unk
     idleSeconds: result.progress.idleSeconds,
     toolExecutionCount: result.progress.toolExecutionCount,
     idleWarningCount: result.progress.idleWarningCount,
+    restartAfterWorkCount: result.progress.restartAfterWorkCount,
     recoveryAttempted: result.progress.reportNudgeCount === 1,
     reportRecoveryReason: result.progress.reportRecoveryReason,
     finalRound: result.progress.reportRound,
@@ -52,7 +52,7 @@ export function failureDiagnostic(result: DelegateRunResult): Record<string, unk
       route: attempt.route,
       state: attempt.state,
       elapsedSeconds: attempt.elapsedSeconds,
-      ...(attempt.fallbackReason === undefined ? {} : { fallbackReason: attempt.fallbackReason }),
+      ...(attempt.restartAfterWork === undefined ? {} : { restartAfterWork: attempt.restartAfterWork }),
     })),
     streamErrors: result.streamErrors.slice(0, MAX_STREAM_ERRORS).map(boundedText).filter(Boolean),
   };

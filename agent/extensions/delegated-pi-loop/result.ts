@@ -19,6 +19,7 @@ const STATE_SUMMARIES: Readonly<Record<string, string>> = {
   missing_report: "The delegate completed its lifecycle without a final assistant report.",
   child_failed: "The delegate process exited with a non-zero status.",
   spawn_failed: "The delegate process could not be started.",
+  cleanup_failed: "The delegate process group could not be proven dead, so the chain stopped without fallback.",
   interrupted: "The delegate was cancelled before completion.",
 };
 const FALLBACK_SUMMARY = "The delegate did not reach a terminal supervision state.";
@@ -37,9 +38,9 @@ function safeSummary(state: string): string {
 function attemptText(result: DelegateRunResult): string | undefined {
   if (result.attempts.length === 0) return undefined;
   return result.attempts
-    .map((attempt) => attempt.fallbackReason === undefined
-      ? `${attempt.route} -> ${attempt.state}`
-      : `${attempt.route} -> ${attempt.state} (${attempt.fallbackReason})`)
+    .map((attempt) => attempt.restartAfterWork === true
+      ? `${attempt.route} -> ${attempt.state} (restart after work)`
+      : `${attempt.route} -> ${attempt.state}`)
     .join("; ");
 }
 
@@ -77,9 +78,11 @@ export function failureMarkdown(result: DelegateRunResult): string {
     "",
     `- state: ${result.state}`,
     `- role: ${result.role}`,
-    `- backend: ${result.backend}`,
   ];
   if (result.selectedRoute !== undefined) lines.push(`- route: ${result.selectedRoute}`);
+  if (result.progress.restartAfterWorkCount > 0) {
+    lines.push(`- restarts after work: ${result.progress.restartAfterWorkCount}`);
+  }
   lines.push(`- phase: ${bounded(result.progress.phase) ?? "unknown"}`);
   const lastEvent = bounded(result.progress.lastEvent) ?? "unknown";
   const lastEventDetail = bounded(result.progress.lastEventDetail);
@@ -107,11 +110,11 @@ export function finalToolResult(result: DelegateRunResult, diagnosticPath?: stri
     details: {
       state: result.state,
       role: result.role,
-      backend: result.backend,
       selectedRoute: result.selectedRoute,
       attempts: result.attempts,
       elapsedSeconds: result.elapsedSeconds,
       progress: result.progress,
+      restartAfterWorkCount: result.progress.restartAfterWorkCount,
       reportNudgeCount: result.progress.reportNudgeCount,
       reportRecoveryReason: result.progress.reportRecoveryReason,
       reportRound: result.progress.reportRound,
