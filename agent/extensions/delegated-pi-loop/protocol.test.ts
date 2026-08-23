@@ -142,3 +142,14 @@ test("classifies credit, quota, billing, usage, auth, rate, and availability fai
   ]);
   for (const [input, expected] of cases) assert.equal(classifyProviderFailure(input), expected);
 });
+
+test("the recovery prompt requires the reason line with exact allowed codes for non-completed results", () => {
+  assert.match(RECOVERY_PROMPT, /one DELEGATE_REASON line directly above the marker with one exact allowed code/);
+  assert.match(RECOVERY_PROMPT, /no prose, paths, or details/);
+  assert.match(RECOVERY_PROMPT, /BLOCKED allows evidence_inaccessible,/);
+  assert.match(RECOVERY_PROMPT, /FAILED allows\s+execution_failure, verification_failure, internal_inconsistency,/);
+  assert.match(RECOVERY_PROMPT, /COMPLETED takes no reason line; reviews with findings must\s+use COMPLETED/);
+  // The recovery prompt stays marker-protocol focused: it never carries raw
+  // output, provider text, or paths.
+  assert.doesNotMatch(RECOVERY_PROMPT, /http|\/home\/|token=/i);
+});

@@ -134,6 +134,14 @@ DELEGATE_RESULT: COMPLETED
 DELEGATE_RESULT: BLOCKED
 DELEGATE_RESULT: FAILED
 
-The marker must be the final non-whitespace line and must not appear earlier. COMPLETED means this assigned role finished; a review may report required fixes and still use COMPLETED. After BLOCKED or FAILED, do not start another attempt or unrelated task.
+A BLOCKED or FAILED result must carry exactly one reason line directly above the marker, containing one exact code and nothing else:
+
+DELEGATE_REASON: <code>
+
+Allowed BLOCKED codes: evidence_inaccessible (required evidence could not be accessed), user_decision_required (a user decision is required first), assignment_conflict (the assignment conflicts with itself or project rules), policy_restriction (a policy rule prevents the assigned work), budget_exhausted (the attempt budget ran out), external_dependency (an external dependency is unavailable), finding_reported (a finding was reported; reviews with findings must use COMPLETED instead).
+Allowed FAILED codes: execution_failure (execution of the assigned work failed), verification_failure (a required verification failed), internal_inconsistency (the result contradicts itself), policy_violation (a policy rule was violated during execution).
+Use only the exact code on the reason line: no prose, paths, or details. COMPLETED carries no reason line. Reviews with findings must use COMPLETED, never BLOCKED with finding_reported.
+
+The marker must be the final non-whitespace line and must not appear earlier. The reason line must sit directly above the marker and appear exactly once. COMPLETED means this assigned role finished; a review may report required fixes and still use COMPLETED. After BLOCKED or FAILED, do not start another attempt or unrelated task.
 `;
 }

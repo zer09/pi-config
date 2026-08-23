@@ -1,4 +1,12 @@
 import { classifyProviderFailure } from "./protocol.ts";
+import {
+  BLOCKED_REASON_CODES,
+  DELEGATE_REASON_UNSPECIFIED,
+  FAILED_REASON_CODES,
+  type DelegateReasonCode,
+  type DelegateReasonStatus,
+  type DelegateTerminalReasonValue,
+} from "./types.ts";
 import type {
   DelegateState,
   MonitorSnapshot,
@@ -7,6 +15,11 @@ import type {
 
 const RESULT_LINE_PATTERN = /^DELEGATE_RESULT:\s*(COMPLETED|BLOCKED|FAILED)\s*$/gm;
 const RESULT_PATTERN = /(?:^|\n)DELEGATE_RESULT:\s*(COMPLETED|BLOCKED|FAILED)\s*$/;
+const REASON_PREFIX = "DELEGATE_REASON:";
+const REASON_CODE_PATTERN = /^[a-z][a-z0-9_]*$/;
+const MAX_REASON_VALUE_LENGTH = 64;
+const BLOCKED_REASON_SET: ReadonlySet<string> = new Set(BLOCKED_REASON_CODES);
+const FAILED_REASON_SET: ReadonlySet<string> = new Set(FAILED_REASON_CODES);
 const MACHINE_ERROR_PREFIX = "[error]";
 
 const CORE_ACTIVITY_EVENTS = new Set([
@@ -53,6 +66,18 @@ const MESSAGE_ACTIVITY_EVENTS = new Set([
 type Outcome = "completed" | "blocked" | "failed";
 type ReportRound = 1 | 2;
 
+/** Parsed terminal reason line: an accepted closed code, or why none was accepted. */
+export type TerminalReason =
+  | { readonly status: "accepted"; readonly code: DelegateReasonCode }
+  | { readonly status: "rejected" }
+  | { readonly status: "missing" };
+
+/** Strictly parsed terminal structure of one final report. */
+export interface DelegateTerminal {
+  readonly outcome?: Outcome;
+  readonly reason?: TerminalReason;
+}
+
 interface RoundState {
   promptAccepted: boolean;
   agentRunning: boolean;
@@ -62,7 +87,37 @@ interface RoundState {
   settledSeen: boolean;
   finalReport?: string;
   outcome?: Outcome;
+  reason?: TerminalReason;
   providerFailureCategory?: ProviderFailureCategory;
+}
+
+/**
+ * Snapshot reason fields for one round. Only non-completed outcomes carry
+ * a reason; an accepted code stays typed, anything else becomes the fixed
+ * internal unspecified value with its missing or rejected status.
+ */
+function terminalReasonFields(state: RoundState): {
+  readonly terminalReason?: DelegateTerminalReasonValue;
+  readonly reasonStatus?: DelegateReasonStatus;
+  readonly blockedMisuseSuspected?: boolean;
+} {
+  if (state.outcome !== "blocked" && state.outcome !== "failed") return {};
+  const reason = state.reason;
+  if (reason?.status === "accepted") {
+    // The misuse flag comes from the outcome and the accepted code together,
+    // never from the role alone; a FAILED outcome never sets it.
+    return state.outcome === "blocked"
+      ? {
+        terminalReason: reason.code,
+        reasonStatus: "accepted",
+        blockedMisuseSuspected: reason.code === "finding_reported",
+      }
+      : { terminalReason: reason.code, reasonStatus: "accepted" };
+  }
+  return {
+    terminalReason: DELEGATE_REASON_UNSPECIFIED,
+    reasonStatus: reason === undefined ? "missing" : reason.status,
+  };
 }
 
 function emptyRound(): RoundState {
@@ -81,10 +136,49 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function parseDelegateOutcome(report: string): Outcome | undefined {
+  return parseDelegateTerminal(report).outcome;
+}
+
+/**
+ * Strict terminal-structure parser for the DELEGATE_RESULT marker and the
+ * DELEGATE_REASON line directly above it. Only exact fixed reason codes are
+ * accepted; unknown, malformed, duplicate, misplaced, path-like,
+ * credential-like, overlong, Unicode, or outcome-mismatched values are
+ * discarded as rejected, and a report without any reason line stays legacy
+ * missing. A reason line paired with COMPLETED violates the contract, so
+ * the whole terminal structure is invalid and the outcome becomes
+ * undefined, following the existing invalid-result recovery behavior. No
+ * delegate-authored free text is ever retained.
+ */
+export function parseDelegateTerminal(report: string): DelegateTerminal {
   const markers = [...report.matchAll(RESULT_LINE_PATTERN)];
-  if (markers.length !== 1) return undefined;
-  const match = RESULT_PATTERN.exec(report.trimEnd());
-  return match?.[1]?.toLowerCase() as Outcome | undefined;
+  if (markers.length !== 1) return {};
+  const trimmed = report.trimEnd();
+  const match = RESULT_PATTERN.exec(trimmed);
+  if (!match) return {};
+  const outcome = match[1]!.toLowerCase() as Outcome;
+  const lines = trimmed.split(/\r?\n/);
+  const candidate = lines.length >= 2 ? lines[lines.length - 2]!.trim() : undefined;
+  const reasonLines = lines.filter((line) => line.trim().startsWith(REASON_PREFIX));
+  if (outcome === "completed") {
+    return reasonLines.length > 0 ? {} : { outcome };
+  }
+  if (reasonLines.length > 1) return { outcome, reason: { status: "rejected" } };
+  if (candidate !== undefined && candidate.startsWith(REASON_PREFIX)) {
+    const value = candidate.slice(REASON_PREFIX.length).trim();
+    const allowed = outcome === "blocked" ? BLOCKED_REASON_SET : FAILED_REASON_SET;
+    if (
+      value.length >= 1
+      && value.length <= MAX_REASON_VALUE_LENGTH
+      && REASON_CODE_PATTERN.test(value)
+      && allowed.has(value)
+    ) {
+      return { outcome, reason: { status: "accepted", code: value as DelegateReasonCode } };
+    }
+    return { outcome, reason: { status: "rejected" } };
+  }
+  // A reason line that is not directly above the marker is misplaced.
+  return { outcome, reason: reasonLines.length === 1 ? { status: "rejected" } : { status: "missing" } };
 }
 
 export function routeUnavailableError(value: unknown): boolean {
@@ -281,7 +375,9 @@ export class PiRpcMonitor {
       }
       const report = assistantText(message);
       state.finalReport = report;
-      state.outcome = report === undefined ? undefined : parseDelegateOutcome(report);
+      const terminal = report === undefined ? undefined : parseDelegateTerminal(report);
+      state.outcome = terminal?.outcome;
+      state.reason = terminal?.reason;
       if (report !== undefined && state.outcome === undefined && machineErrorEnvelope(report)) {
         this.recordProviderFailure(
           state,
@@ -322,6 +418,7 @@ export class PiRpcMonitor {
     const first = this.rounds[1];
     const second = this.rounds[2];
     const providerFailureCategory = current.providerFailureCategory ?? first.providerFailureCategory;
+    const reason = terminalReasonFields(current);
     return {
       phase: this.phaseValue,
       lastEvent: this.lastEventValue,
@@ -332,6 +429,9 @@ export class PiRpcMonitor {
       warningCount: this.warningCountValue,
       finalReport: current.finalReport,
       outcome: current.outcome,
+      terminalReason: reason.terminalReason,
+      reasonStatus: reason.reasonStatus,
+      blockedMisuseSuspected: reason.blockedMisuseSuspected,
       sessionSeen: first.promptAccepted,
       agentRunning: current.agentRunning,
       agentStartCount: first.agentStartCount + second.agentStartCount,

@@ -304,6 +304,10 @@ function progressFromMonitor(
     reportRecoveryReason,
     reportRound: snapshot.reportRound,
     providerFailureCategory: snapshot.providerFailureCategory,
+    delegateOutcome: snapshot.outcome,
+    terminalReason: snapshot.terminalReason,
+    reasonStatus: snapshot.reasonStatus,
+    blockedMisuseSuspected: snapshot.blockedMisuseSuspected,
   };
 }
 
@@ -376,6 +380,9 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     protocol: "pi-rpc",
     state: finalState,
     delegateOutcome: monitor.outcome(snapshot.reportRound),
+    terminalReason: snapshot.terminalReason,
+    reasonStatus: snapshot.reasonStatus,
+    blockedMisuseSuspected: snapshot.blockedMisuseSuspected,
     startedAt,
     endedAt: isoNow(),
     elapsedSeconds: elapsedSeconds(started),

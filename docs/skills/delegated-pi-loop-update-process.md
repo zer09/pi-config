@@ -58,6 +58,10 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 8. The recovery response must be a complete self-contained report. The extension never merges reports or inserts a marker.
 9. There is no third prompt.
 10. `BLOCKED` and `FAILED` remain immediate after their authoritative final assistant message. `COMPLETED` remains provisional until final `agent_end`, `agent_settled`, and a clean stream.
+11. A non-completed terminal report carries exactly one `DELEGATE_REASON: <code>` line directly above the final `DELEGATE_RESULT` marker. Allowed BLOCKED codes are `evidence_inaccessible`, `user_decision_required`, `assignment_conflict`, `policy_restriction`, `budget_exhausted`, `external_dependency`, and `finding_reported`; allowed FAILED codes are `execution_failure`, `verification_failure`, `internal_inconsistency`, and `policy_violation`.
+12. The parser accepts only exact fixed codes. Unknown, malformed, duplicate, misplaced, path-like, credential-like, overlong, Unicode, or outcome-mismatched values are discarded; a BLOCKED/FAILED outcome then stays terminal with reason `unspecified` plus status `rejected`, and a bare legacy marker stays terminal with `unspecified` plus `missing`. No delegate-authored free text is ever persisted or rendered.
+13. A reason line paired with `COMPLETED` violates the terminal contract and follows the existing `invalid_result` recovery and fallback behavior. A missing or rejected reason never triggers report recovery or route fallback by itself.
+14. A `blockedMisuseSuspected` flag is recorded only when the outcome is BLOCKED and the accepted reason is `finding_reported`, because reviews with findings must use `COMPLETED`; it is never inferred from the role alone. The typed reason, reason status, and flag propagate through RoundState/MonitorSnapshot, AttemptStatus (schema stays 1), DelegateProgress, supervisor status/progress, the runner result, ToolResult details, failure diagnostics (schema 4), and the fixed failure-Markdown reason lines.
 
 ### Provider failure and fallback
 
@@ -82,7 +86,7 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 5. Temporary prompt, report, stderr, and status artifacts use private permissions. The prompt artifact remains for supervision, but no chain-level report or status file is written.
 6. Successful output contains only the validated final report with the completed marker stripped.
 7. Unsuccessful output contains deterministic bounded Markdown without raw child content or file paths.
-8. Failure diagnostics use schema version 3 and include only bounded state, route, timing, recovery metadata, provider category, sanitized progress, attempts, and stream error categories.
+8. Failure diagnostics use schema version 4 and include only bounded state, delegate outcome, terminal reason and status, the misuse flag, route, timing, recovery metadata, provider category, sanitized progress, attempts, and stream error categories; no delegate-authored reason text is included.
 9. Process-group termination remains authoritative after final classification, and it resolves only with a positive cleanup proof (leader close or recorded exit plus a final dead-group probe); an unproven cleanup records the sanitized terminal `cleanup_failed` state. The extension then waits for cleanup, persists a failure diagnostic when needed, removes temporary artifacts, and releases the manager slot.
 
 ### Routing configuration and overrides
@@ -105,6 +109,8 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 4. Read-only roles remain semantic contracts, not filesystem sandboxes.
 5. The parent must not edit while a mutating delegate runs.
 6. Staging, commits, pushes, deployments, and hosted-service writes require separate explicit authorization.
+7. The four-reviewer gate stays strict: all four reviews must complete before the gate passes. After one or more reviewers fail operationally or end non-completed (including `blocked`, `cleanup_failed`, and `routes_unavailable`), only the user may explicitly waive the named failed reviewer roles for that one current gate; the parent then continues with the completed reports, records which reviewers were waived and that the gate completed under user waiver, and never labels a waived failure as a reviewer pass. The waiver is one-shot and gate-scoped: it changes no later gates, role schema, routing, or concurrency, it does not dismiss findings from completed reviewers or waive finding verification, remediation, or other safety rules, and it must not be inferred from a generic request to continue, commit, or skip retries. Gate completion is parent-side orchestration policy; the extension enforces no waiver state.
+8. The solution-investigation gate stays strict in parallel: all four investigators must complete before synthesis. After one or more solution delegates fail operationally or end non-completed (including `blocked`, `cleanup_failed`, and `routes_unavailable`), only the user may explicitly waive the named failed solution roles for that one current solution gate; the parent then continues synthesis using only the completed solution reports plus parent-verified repository evidence, records which solution roles were waived and that the solution gate proceeded under user waiver, and never labels a waived failure as completed or passed. At least one solution delegate must have completed; the user cannot waive the entire evidence set and synthesize from zero completed investigator reports. The waiver is one-shot and gate-scoped: it changes no later solution gates, role schema, routing, or concurrency, it does not fabricate or dismiss evidence, resolve uncertainties, authorize implementation, replace parent evidence verification, skip the advisory oracle when otherwise required, or weaken implementation, review, verification, or remediation rules, and it must not be inferred from a generic request to continue, commit, or skip retries. Gate completion is parent-side orchestration policy; the extension enforces no waiver state.
 
 ## Update workflow
 
@@ -167,7 +173,7 @@ Also verify:
 - fake clean missing reports receive one same-session recovery prompt;
 - fake credit-depleted routes fall back before tools without a recovery prompt;
 - operational failures after tools or accepted recovery fall back with the fixed sanitized restart note, which never stacks and never leaks provider errors, raw output, tool payloads, reports, paths, or credentials;
-- intentional `blocked` and `delegate_failed` outcomes, completed runs, and interruption stay terminal without fallback;
+- intentional `blocked` and `delegate_failed` outcomes, completed runs, and interruption stay terminal without fallback, including with a missing or rejected terminal reason, and a reason line paired with COMPLETED follows the invalid-result recovery path;
 - routing overrides are exceptional only: no-op overrides are rejected, the Oracle rejects every override, and overrides never change role permissions or concurrency;
 - prompt rejection advances operationally to the next route;
 - one child PID handles both prompts;

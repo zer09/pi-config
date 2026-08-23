@@ -22,16 +22,21 @@ export function diagnosticsDirectory(): string {
 /**
  * Sanitized bounded failure record. Excludes prompts, delegate reports, raw
  * stdout/stderr, tool arguments and results, Git state, credentials,
- * provider bodies, and every file path. Temporary supervision
- * artifacts are removed by the caller after this record is persisted.
+ * provider bodies, delegate-authored reason text, and every file path.
+ * Temporary supervision artifacts are removed by the caller after this
+ * record is persisted.
  */
 export function failureDiagnostic(result: DelegateRunResult): Record<string, unknown> {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     writtenAt: new Date().toISOString(),
     label: result.label,
     role: result.role,
     state: result.state,
+    delegateOutcome: result.progress.delegateOutcome,
+    terminalReason: result.progress.terminalReason,
+    reasonStatus: result.progress.reasonStatus,
+    blockedMisuseSuspected: result.progress.blockedMisuseSuspected,
     startedAt: result.startedAt,
     endedAt: result.endedAt,
     elapsedSeconds: result.elapsedSeconds,

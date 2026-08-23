@@ -24,6 +24,23 @@ const STATE_SUMMARIES: Readonly<Record<string, string>> = {
 };
 const FALLBACK_SUMMARY = "The delegate did not reach a terminal supervision state.";
 
+/** Fixed actionable summaries for accepted terminal reason codes; never report text. */
+const REASON_SUMMARIES: Readonly<Record<string, string>> = {
+  evidence_inaccessible: "The delegate could not access evidence the assignment required.",
+  user_decision_required: "The delegate stopped because a user decision is required.",
+  assignment_conflict: "The assignment conflicts with itself or with project rules.",
+  policy_restriction: "A policy restriction prevents the assigned work.",
+  budget_exhausted: "The attempt budget was exhausted before a required result was available.",
+  external_dependency: "An external dependency is unavailable.",
+  finding_reported: "A finding should have been returned with DELEGATE_RESULT: COMPLETED; reviews with findings must use COMPLETED, never BLOCKED.",
+  execution_failure: "Executing the assigned work failed.",
+  verification_failure: "A required verification did not pass.",
+  internal_inconsistency: "The result contradicts itself or the observed state.",
+  policy_violation: "A policy rule was violated during execution.",
+};
+const REASON_MISSING_SUMMARY = "No terminal reason code was provided; the outcome stands.";
+const REASON_REJECTED_SUMMARY = "The terminal reason line was invalid and was discarded; the outcome stands.";
+
 const TERMINAL_MARKER_PATTERN = /[ \t]*DELEGATE_RESULT:[ \t]*COMPLETED[ \t\r\n]*$/;
 
 function bounded(value: string | undefined, limit = FIELD_LIMIT): string | undefined {
@@ -33,6 +50,27 @@ function bounded(value: string | undefined, limit = FIELD_LIMIT): string | undef
 
 function safeSummary(state: string): string {
   return STATE_SUMMARIES[state] ?? FALLBACK_SUMMARY;
+}
+
+/**
+ * Fixed model-visible reason bullet for a non-completed terminal outcome.
+ * Shows only the accepted enum code or the fixed unspecified label for a
+ * missing or rejected reason; raw delegate-authored reason text never
+ * reaches this surface.
+ */
+function terminalReasonBullet(reason: string | undefined, status: string | undefined): string | undefined {
+  if (reason === undefined || status === undefined) return undefined;
+  if (status === "accepted" && reason !== "unspecified") return `- terminal reason: ${reason}`;
+  if (status === "rejected") return "- terminal reason: unspecified (rejected)";
+  return "- terminal reason: unspecified (missing)";
+}
+
+/** Fixed actionable reason summary; never carries report or reason text. */
+function terminalReasonSummary(reason: string | undefined, status: string | undefined): string | undefined {
+  if (reason === undefined || status === undefined) return undefined;
+  if (status === "accepted" && reason !== "unspecified") return REASON_SUMMARIES[reason] ?? undefined;
+  if (status === "rejected") return REASON_REJECTED_SUMMARY;
+  return REASON_MISSING_SUMMARY;
 }
 
 function attemptText(result: DelegateRunResult): string | undefined {
@@ -91,7 +129,11 @@ export function failureMarkdown(result: DelegateRunResult): string {
   lines.push(`- elapsed: ${result.elapsedSeconds.toFixed(1)}s`);
   const attempts = attemptText(result);
   if (attempts !== undefined) lines.push(`- attempts: ${attempts}`);
-  lines.push("", safeSummary(result.state));
+  const reasonBullet = terminalReasonBullet(result.terminalReason, result.reasonStatus);
+  if (reasonBullet !== undefined) lines.push(reasonBullet);
+  const summary = safeSummary(result.state);
+  const reasonSummary = terminalReasonSummary(result.terminalReason, result.reasonStatus);
+  lines.push("", reasonSummary === undefined ? summary : `${summary}\n${reasonSummary}`);
   return lines.join("\n");
 }
 
@@ -119,6 +161,10 @@ export function finalToolResult(result: DelegateRunResult, diagnosticPath?: stri
       reportRecoveryReason: result.progress.reportRecoveryReason,
       reportRound: result.progress.reportRound,
       providerFailureCategory: result.progress.providerFailureCategory,
+      delegateOutcome: result.delegateOutcome,
+      terminalReason: result.terminalReason,
+      reasonStatus: result.reasonStatus,
+      blockedMisuseSuspected: result.blockedMisuseSuspected,
       ...(diagnosticPath === undefined ? {} : { diagnosticPath }),
     },
   };

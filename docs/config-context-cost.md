@@ -74,6 +74,12 @@ Delegated five-reviewer update: 2026-08-23 (added the fifth implementation revie
 
 Delegated four-reviewer restoration: 2026-08-23 (removed the persistent fifth reviewer `review-e` and its `gate-e` profile, restored the four-member review gate A/B/C/D, and documented the temporary extra-reviewer mechanism that reuses an existing review role with an optional reason-required one-run routing override; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated reviewer-waiver update: 2026-08-24 (added the user-authorized one-shot gate-scoped reviewer waiver to the strict four-reviewer gate guidance; provider calibration and the full extension/tool inventory were not rerun)
+
+Delegated terminal-reason update: 2026-08-24 (added the typed `DELEGATE_REASON` terminal reason contract for BLOCKED and FAILED delegate outcomes with closed enums, strict parsing, propagation, and diagnostic schema 4; provider calibration and the full extension/tool inventory were not rerun)
+
+Delegated solution-waiver update: 2026-08-24 (added the user-authorized one-shot gate-scoped solution-investigator waiver with the at-least-one-completed-report rule to the strict four-investigator solution gate guidance; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -643,6 +649,42 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | **Tool total** | **1,238** | **1,219** | **-19** | Before provider-specific framing |
 
 The directly attributed model-visible decrease is -20 local tokens: -1 global instruction restoring the four-reviewer gate policy, -3 guidelines naming the four review roles, and -16 parameter schema for the removed `review-e` enum value and the restored plain role description. The decrease exactly reverses the five-reviewer expansion's +20. A temporary extra reviewer reuses an existing review role and the exceptional `routingOverride`, so no schema surface returns. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-24 delegated reviewer-waiver attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are commit `c00e068`, re-measured with the same serialization as the tables above: `agent/AGENTS.md` reproduces the recorded 3,082 exactly and the guidelines reproduce the recorded 852 exactly, so deltas are like-for-like. The waiver is parent-side orchestration policy; no runtime, schema, or routing surface changed.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 3,082 | 3,274 | +192 | Always loaded through the context-file block |
+| `delegate_run` description | 82 | 82 | 0 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 852 | 1,038 | +186 | Included while the tool is active |
+| `delegate_run` parameter schema | 272 | 272 | 0 | Serialized as an active provider tool schema |
+| **Tool total** | **1,219** | **1,405** | **+186** | Before provider-specific framing |
+
+The directly attributed model-visible increase is +378 local tokens: +192 global instructions and +186 tool guidelines for the three new waiver rules (explicit named-role user waiver, one-shot gate-scoped recording without pass relabeling, and no inference from generic continue/commit/skip-retry requests). The strict four-reviewer default, the temporary-extra mechanism, role schemas, routing, and runtime behavior are unchanged. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-24 delegated terminal-reason attribution
+
+This change added the typed `DELEGATE_REASON` terminal reason contract for non-completed delegate outcomes. It changes only runtime child-session prompts and private supervision state: the `delegate_run` description (82), prompt snippet (13), prompt guidelines (1,038), parameter schema (272), and the always-loaded `agent/AGENTS.md` global instructions (3,274) are unchanged, so the parent startup and active-tool surfaces have a zero local-token delta and were not re-serialized with `tiktoken`.
+
+The growth is child-side only: the fixed `buildDelegatePrompt` terminal-instruction section and `RECOVERY_PROMPT` now list the closed reason enums, require one exact `DELEGATE_REASON` line above a BLOCKED or FAILED marker, and forbid prose, paths, or details on that line. Those strings are sent only to the delegated child at run time and never enter the parent context, so they carry no parent-context cost. No paid provider calibration or full extension/tool inventory rerun was performed; provider-reported input remains the authority.
+
+## 2026-08-24 delegated solution-waiver attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are the working-tree state before this change, re-measured with the same serialization as the tables above: `agent/AGENTS.md` reproduces the recorded 3,274 exactly and the guidelines reproduce the recorded 1,038 exactly, so deltas are like-for-like. The waiver is parent-side orchestration policy; no runtime, schema, or routing surface changed, and the reviewer-waiver policy is unchanged.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 3,274 | 3,509 | +235 | Always loaded through the context-file block |
+| `delegate_run` description | 82 | 82 | 0 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 1,038 | 1,284 | +246 | Included while the tool is active |
+| `delegate_run` parameter schema | 272 | 272 | 0 | Serialized as an active provider tool schema |
+| **Tool total** | **1,405** | **1,651** | **+246** | Before provider-specific framing |
+
+The directly attributed model-visible increase is +481 local tokens: +235 global instructions and +246 tool guidelines for the three new solution-waiver rules (the explicit named-role user waiver with completed-reports-plus-parent-verified-evidence synthesis, the one-shot gate-scoped recording with the at-least-one-completed-report prohibition on waiving the entire evidence set and oracle preservation, and no inference from generic continue/commit/skip-retry requests). The strict four-investigator default, the reviewer-waiver policy, the oracle, role schemas, routing, and runtime behavior are unchanged. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

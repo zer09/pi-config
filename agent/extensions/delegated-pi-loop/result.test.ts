@@ -163,6 +163,78 @@ test("failure Markdown never exposes the report, output, or any paths", () => {
   assert.doesNotMatch(text, /logs\/delegated-pi-loop/);
 });
 
+test("failure Markdown shows only the accepted reason enum with a fixed summary", () => {
+  const text = failureMarkdown(blockedRun({ terminalReason: "budget_exhausted", reasonStatus: "accepted" }));
+  assert.match(text, /- terminal reason: budget_exhausted/);
+  assert.match(text, /The delegate ended with DELEGATE_RESULT: BLOCKED\.\nThe attempt budget was exhausted before a required result was available\./);
+});
+
+test("failure Markdown pins the finding_reported misuse to the COMPLETED contract", () => {
+  const text = failureMarkdown(blockedRun({
+    terminalReason: "finding_reported",
+    reasonStatus: "accepted",
+    blockedMisuseSuspected: true,
+  }));
+  assert.match(text, /- terminal reason: finding_reported/);
+  assert.match(text, /A finding should have been returned with DELEGATE_RESULT: COMPLETED; reviews with findings must use COMPLETED, never BLOCKED\./);
+});
+
+test("failure Markdown uses fixed unspecified labels for missing and rejected reasons", () => {
+  const missing = failureMarkdown(blockedRun({ terminalReason: "unspecified", reasonStatus: "missing" }));
+  assert.match(missing, /- terminal reason: unspecified \(missing\)/);
+  assert.match(missing, /No terminal reason code was provided; the outcome stands\./);
+
+  const rejected = failureMarkdown(blockedRun({ terminalReason: "unspecified", reasonStatus: "rejected" }));
+  assert.match(rejected, /- terminal reason: unspecified \(rejected\)/);
+  assert.match(rejected, /The terminal reason line was invalid and was discarded; the outcome stands\./);
+});
+
+test("failure Markdown carries no reason line without a non-completed delegate outcome", () => {
+  for (const state of ["stalled", "routes_unavailable", "interrupted"] as const) {
+    const text = failureMarkdown(failedResult({ state }));
+    assert.doesNotMatch(text, /terminal reason/);
+  }
+  // Even a stale accepted-looking reason on a completed run never renders.
+  const completedText = failureMarkdown(failedResult({ state: "completed" }));
+  assert.doesNotMatch(completedText, /terminal reason/);
+});
+
+test("final tool result details carry the typed reason and misuse flag for blocked runs", () => {
+  const result = blockedRun({
+    terminalReason: "finding_reported",
+    reasonStatus: "accepted",
+    blockedMisuseSuspected: true,
+  });
+  const toolResult = finalToolResult(result) as ToolResult;
+  assert.equal(toolResult.details?.delegateOutcome, "blocked");
+  assert.equal(toolResult.details?.terminalReason, "finding_reported");
+  assert.equal(toolResult.details?.reasonStatus, "accepted");
+  assert.equal(toolResult.details?.blockedMisuseSuspected, true);
+  assert.equal((toolResult.details?.progress as DelegateProgress).terminalReason, "finding_reported");
+  assert.match(toolResult.content[0]!.text, /- terminal reason: finding_reported/);
+  assert.doesNotMatch(JSON.stringify(toolResult), /SECRET-REPORT-BODY/);
+});
+
+/** A blocked DelegateRunResult whose reason fields can be injected. */
+function blockedRun(
+  reason: Pick<DelegateRunResult, "terminalReason" | "reasonStatus"> & { blockedMisuseSuspected?: boolean },
+): DelegateRunResult {
+  return failedResult({
+    state: "blocked",
+    delegateOutcome: "blocked",
+    ...reason,
+    progress: progress({
+      state: "blocked",
+      lastEvent: "message_end",
+      lastEventDetail: undefined,
+      delegateOutcome: "blocked",
+      terminalReason: reason.terminalReason,
+      reasonStatus: reason.reasonStatus,
+      blockedMisuseSuspected: reason.blockedMisuseSuspected,
+    }),
+  });
+}
+
 test("every non-completed state has a deterministic safe summary", () => {
   const states = [
     "catalog_check", "running", "routes_unavailable", "stalled", "timed_out", "output_limit",

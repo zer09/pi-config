@@ -35,9 +35,47 @@ test("registration guidelines encode the automatic delegation policy without pro
   // The parent inspects the implementation diff and evidence before the review gate.
   assert.match(guidelines, /implementation delegate's diff and evidence/);
   assert.match(guidelines, /review-a, review-b, review-c, and review-d concurrently/);
+  // Reviewer-gate waiver: the strict all-four default stands, and only the
+  // user may explicitly waive named failed reviewer roles for the one
+  // current gate. The waiver continues with completed reports, records the
+  // waived roles, never relabels failures as passes, stays one-shot and
+  // gate-scoped, keeps findings from completed reviewers, and is never
+  // inferred from generic continue/commit/skip-retry requests.
+  assert.match(guidelines, /all four must complete/);
+  assert.match(guidelines, /the gate stays blocked by default; only the user may explicitly waive the named failed reviewer roles for that one current gate/);
+  assert.match(guidelines, /continue with the completed review reports instead of retrying or stopping solely because the waived reviewers failed/);
+  assert.match(guidelines, /A reviewer waiver is one-shot and gate-scoped/);
+  assert.match(guidelines, /it changes no later gates, role schema, routing, or concurrency/);
+  assert.match(guidelines, /state which reviewers were waived and that the gate completed under user waiver/);
+  assert.match(guidelines, /never label a waived failure as a reviewer pass/);
+  assert.match(guidelines, /does not dismiss findings from completed reviewers/);
+  assert.match(guidelines, /Do not infer a reviewer waiver from a generic request to continue, commit, or skip retries/);
+  assert.match(guidelines, /C may be waived for this gate, authorizes only that named waiver/);
   // Solution delegates gather evidence and propose options; the parent stays
   // the sole author and owner of the final plan or research deliverable.
   assert.match(guidelines, /Solution delegates may gather evidence and propose options, but the parent verifies the evidence, synthesizes conclusions, and remains sole author and owner of the final plan or research deliverable/);
+  // Solution-gate waiver: the strict all-four default stands before synthesis,
+  // and only the user may explicitly waive named failed solution roles for
+  // the one current solution gate. The waiver continues synthesis from
+  // completed reports plus parent-verified repository evidence, requires at
+  // least one completed investigator (zero completed reports cannot be waived
+  // into a synthesis), records the waived roles without relabeling failures,
+  // stays one-shot and gate-scoped, preserves the advisory oracle and the
+  // downstream implementation/review/verification/remediation rules, and is
+  // never inferred from generic continue/commit/skip-retry requests.
+  assert.match(guidelines, /all four must complete before synthesis/);
+  assert.match(guidelines, /the gate stays blocked by default; only the user may explicitly waive the named failed solution roles for that one current solution gate/);
+  assert.match(guidelines, /continue synthesis using only the completed solution reports plus parent-verified repository evidence/);
+  assert.match(guidelines, /At least one solution delegate must have completed: the user cannot waive the entire evidence set and synthesize from zero completed investigator reports/);
+  assert.match(guidelines, /A solution waiver is one-shot and gate-scoped/);
+  assert.match(guidelines, /it changes no later solution gates, role schema, routing, or concurrency/);
+  assert.match(guidelines, /state which solution roles were waived and that the solution gate proceeded under user waiver/);
+  assert.match(guidelines, /never label a waived failure as completed or passed/);
+  assert.match(guidelines, /does not fabricate or dismiss evidence, resolve uncertainties, authorize implementation, replace parent evidence verification/);
+  assert.match(guidelines, /skip the advisory oracle when otherwise required/);
+  assert.match(guidelines, /weaken implementation, review, verification, or remediation rules/);
+  assert.match(guidelines, /Do not infer a solution waiver from a generic request to continue, commit, or skip retries/);
+  assert.match(guidelines, /solution C may be waived for this gate, authorizes only that named waiver/);
   // Oracle policy: one fresh read-only oracle after a required solution gate,
   // the configured-Oracle-model set skip condition, advisory-only authority
   // that never authors or saves the final plan, and the neutral oracle prompt

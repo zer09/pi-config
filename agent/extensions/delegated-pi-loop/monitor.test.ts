@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { machineErrorEnvelope, parseDelegateOutcome, PiRpcMonitor } from "./monitor.ts";
+import { machineErrorEnvelope, parseDelegateOutcome, parseDelegateTerminal, PiRpcMonitor } from "./monitor.ts";
 
 type Round = 1 | 2;
 
@@ -57,6 +57,92 @@ test("accepts exactly one terminal marker at the final line", () => {
   assert.equal(parseDelegateOutcome("Done\n\nDELEGATE_RESULT: COMPLETED"), "completed");
   assert.equal(parseDelegateOutcome("DELEGATE_RESULT: COMPLETED\nmore"), undefined);
   assert.equal(parseDelegateOutcome("DELEGATE_RESULT: COMPLETED\nDELEGATE_RESULT: COMPLETED"), undefined);
+});
+
+test("parses accepted reason codes for BLOCKED and FAILED terminals", () => {
+  const cases = [
+    ["BLOCKED", "evidence_inaccessible"],
+    ["BLOCKED", "user_decision_required"],
+    ["BLOCKED", "assignment_conflict"],
+    ["BLOCKED", "policy_restriction"],
+    ["BLOCKED", "budget_exhausted"],
+    ["BLOCKED", "external_dependency"],
+    ["BLOCKED", "finding_reported"],
+    ["FAILED", "execution_failure"],
+    ["FAILED", "verification_failure"],
+    ["FAILED", "internal_inconsistency"],
+    ["FAILED", "policy_violation"],
+  ] as const;
+  for (const [marker, code] of cases) {
+    const terminal = parseDelegateTerminal(`Stopped.\n\nDELEGATE_REASON: ${code}\nDELEGATE_RESULT: ${marker}`);
+    assert.equal(terminal.outcome, marker.toLowerCase(), code);
+    assert.deepEqual(terminal.reason, { status: "accepted", code }, code);
+  }
+});
+
+test("legacy BLOCKED and FAILED without a reason line stay terminal with reason missing", () => {
+  for (const [marker, outcome] of [["BLOCKED", "blocked"], ["FAILED", "failed"]] as const) {
+    const terminal = parseDelegateTerminal(`Stopped.\n\nDELEGATE_RESULT: ${marker}`);
+    assert.equal(terminal.outcome, outcome);
+    assert.deepEqual(terminal.reason, { status: "missing" });
+  }
+});
+
+test("unknown, malformed, path-like, credential-like, overlong, and Unicode reason values are discarded", () => {
+  const rejectedValues = [
+    "not_a_code",
+    "budget exhausted",
+    "/home/gc/PRIVATE_PATH",
+    "sk-PRIVATE-KEY-9f2a",
+    `${"a".repeat(200)}`,
+    "réason",
+    "Budget_Exhausted",
+    "budget_exhausted extra",
+    "",
+  ];
+  for (const value of rejectedValues) {
+    const terminal = parseDelegateTerminal(`Stopped.\n\nDELEGATE_REASON: ${value}\nDELEGATE_RESULT: BLOCKED`);
+    assert.equal(terminal.outcome, "blocked", value);
+    assert.deepEqual(terminal.reason, { status: "rejected" }, value);
+  }
+});
+
+test("outcome-mismatched, duplicate, and misplaced reason lines are discarded", () => {
+  // FAILED-only code paired with BLOCKED and the reverse.
+  assert.deepEqual(
+    parseDelegateTerminal("Stopped.\n\nDELEGATE_REASON: execution_failure\nDELEGATE_RESULT: BLOCKED").reason,
+    { status: "rejected" },
+  );
+  assert.deepEqual(
+    parseDelegateTerminal("Stopped.\n\nDELEGATE_REASON: budget_exhausted\nDELEGATE_RESULT: FAILED").reason,
+    { status: "rejected" },
+  );
+  // Duplicate reason lines, one above the marker and one in the body.
+  assert.deepEqual(
+    parseDelegateTerminal(
+      "DELEGATE_REASON: budget_exhausted\n\nStopped.\n\nDELEGATE_REASON: budget_exhausted\nDELEGATE_RESULT: BLOCKED",
+    ).reason,
+    { status: "rejected" },
+  );
+  // Misplaced: a reason line exists but not directly above the marker.
+  assert.deepEqual(
+    parseDelegateTerminal("DELEGATE_REASON: budget_exhausted\n\nStopped.\n\nDELEGATE_RESULT: BLOCKED").reason,
+    { status: "rejected" },
+  );
+});
+
+test("a reason line paired with COMPLETED invalidates the terminal structure", () => {
+  assert.equal(
+    parseDelegateOutcome("Done.\n\nDELEGATE_REASON: budget_exhausted\nDELEGATE_RESULT: COMPLETED"),
+    undefined,
+  );
+  assert.equal(
+    parseDelegateTerminal("DELEGATE_REASON: budget_exhausted\n\nDone.\n\nDELEGATE_RESULT: COMPLETED").outcome,
+    undefined,
+  );
+  const plain = parseDelegateTerminal("Done.\n\nDELEGATE_RESULT: COMPLETED");
+  assert.equal(plain.outcome, "completed");
+  assert.equal(plain.reason, undefined);
 });
 
 test("empty deltas do not reset activity", () => {
@@ -202,4 +288,70 @@ test("recognizes only single-line machine error envelopes", () => {
   assert.equal(machineErrorEnvelope("[error] Service temporarily unavailable"), true);
   assert.equal(machineErrorEnvelope("[error] Service temporarily unavailable\n\nDetails"), false);
   assert.equal(machineErrorEnvelope("Report mentions service temporarily unavailable"), false);
+});
+
+test("snapshots carry the typed reason, status, and misuse flag without raw reason text", () => {
+  // Accepted finding_reported on BLOCKED sets the misuse flag from the outcome.
+  const misuse = monitor().monitor;
+  misuse.acceptPrompt(1);
+  consume(misuse, 1, { type: "agent_start" });
+  consume(misuse, 1, assistant("Reported a finding.\n\nDELEGATE_REASON: finding_reported\nDELEGATE_RESULT: BLOCKED"));
+  let snapshot = misuse.snapshot();
+  assert.equal(snapshot.outcome, "blocked");
+  assert.equal(snapshot.terminalReason, "finding_reported");
+  assert.equal(snapshot.reasonStatus, "accepted");
+  assert.equal(snapshot.blockedMisuseSuspected, true);
+  assert.equal(misuse.classifyRound(1), "blocked");
+
+  // Any other accepted BLOCKED code keeps the flag off; the role is irrelevant.
+  const plain = monitor().monitor;
+  plain.acceptPrompt(1);
+  consume(plain, 1, { type: "agent_start" });
+  consume(plain, 1, assistant("Stopped.\n\nDELEGATE_REASON: budget_exhausted\nDELEGATE_RESULT: BLOCKED"));
+  snapshot = plain.snapshot();
+  assert.equal(snapshot.terminalReason, "budget_exhausted");
+  assert.equal(snapshot.reasonStatus, "accepted");
+  assert.equal(snapshot.blockedMisuseSuspected, false);
+
+  // A bare legacy BLOCKED stays terminal with unspecified and missing.
+  const legacy = monitor().monitor;
+  legacy.acceptPrompt(1);
+  consume(legacy, 1, { type: "agent_start" });
+  consume(legacy, 1, assistant("Stopped.\n\nDELEGATE_RESULT: BLOCKED"));
+  snapshot = legacy.snapshot();
+  assert.equal(snapshot.terminalReason, "unspecified");
+  assert.equal(snapshot.reasonStatus, "missing");
+  assert.equal(snapshot.blockedMisuseSuspected, undefined);
+  assert.equal(legacy.classifyRound(1), "blocked");
+
+  // A rejected reason value exposes only unspecified plus rejected, and the
+  // raw value never reaches the snapshot.
+  const rejected = monitor().monitor;
+  rejected.acceptPrompt(1);
+  consume(rejected, 1, { type: "agent_start" });
+  consume(
+    rejected,
+    1,
+    assistant("Stopped.\n\nDELEGATE_REASON: /home/gc/SECRET-PATH/sk-RAWTOKEN99\nDELEGATE_RESULT: FAILED"),
+  );
+  snapshot = rejected.snapshot();
+  assert.equal(snapshot.outcome, "failed");
+  assert.equal(snapshot.terminalReason, "unspecified");
+  assert.equal(snapshot.reasonStatus, "rejected");
+  assert.equal(snapshot.blockedMisuseSuspected, undefined);
+  // finalReport is the in-memory report by design; every other snapshot
+  // field stays free of the raw delegate-authored reason value.
+  const { finalReport: _finalReport, ...snapshotWithoutReport } = snapshot;
+  assert.doesNotMatch(JSON.stringify(snapshotWithoutReport), /SECRET|RAWTOKEN/);
+  assert.equal(rejected.classifyRound(1), "delegate_failed");
+
+  // COMPLETED carries no reason fields at all.
+  const completed = monitor().monitor;
+  completed.acceptPrompt(1);
+  settle(completed, 1, "Done.\n\nDELEGATE_RESULT: COMPLETED");
+  snapshot = completed.snapshot();
+  assert.equal(snapshot.outcome, "completed");
+  assert.equal(snapshot.terminalReason, undefined);
+  assert.equal(snapshot.reasonStatus, undefined);
+  assert.equal(snapshot.blockedMisuseSuspected, undefined);
 });

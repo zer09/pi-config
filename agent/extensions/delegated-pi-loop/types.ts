@@ -44,6 +44,41 @@ export type ProviderFailureCategory =
   | "rate_limit"
   | "provider_unavailable";
 
+/** Closed terminal reason enum for BLOCKED delegate outcomes. */
+export const BLOCKED_REASON_CODES = [
+  "evidence_inaccessible",
+  "user_decision_required",
+  "assignment_conflict",
+  "policy_restriction",
+  "budget_exhausted",
+  "external_dependency",
+  "finding_reported",
+] as const;
+
+/** Closed terminal reason enum for FAILED delegate outcomes. */
+export const FAILED_REASON_CODES = [
+  "execution_failure",
+  "verification_failure",
+  "internal_inconsistency",
+  "policy_violation",
+] as const;
+
+export type BlockedReasonCode = (typeof BLOCKED_REASON_CODES)[number];
+export type FailedReasonCode = (typeof FAILED_REASON_CODES)[number];
+export type DelegateReasonCode = BlockedReasonCode | FailedReasonCode;
+
+/** Internal value exposed when a non-completed reason is absent or was discarded. */
+export const DELEGATE_REASON_UNSPECIFIED = "unspecified" as const;
+export type DelegateReasonUnspecified = typeof DELEGATE_REASON_UNSPECIFIED;
+
+/** Acceptance state of a non-completed terminal reason line. */
+export type DelegateReasonStatus = "accepted" | "missing" | "rejected";
+
+/** Bounded terminal reason value: one closed code or the internal unspecified value. */
+export type DelegateTerminalReasonValue = DelegateReasonCode | DelegateReasonUnspecified;
+
+export type DelegateOutcome = "completed" | "blocked" | "failed";
+
 export type DelegateState =
   | "catalog_check"
   | "running"
@@ -94,6 +129,11 @@ export interface DelegateProgress {
   readonly reportRecoveryReason?: "missing_report" | "invalid_result";
   readonly reportRound: 1 | 2;
   readonly providerFailureCategory?: ProviderFailureCategory;
+  readonly delegateOutcome?: DelegateOutcome;
+  readonly terminalReason?: DelegateTerminalReasonValue;
+  readonly reasonStatus?: DelegateReasonStatus;
+  /** True only when outcome is BLOCKED with accepted reason finding_reported; never inferred from role. */
+  readonly blockedMisuseSuspected?: boolean;
 }
 
 export interface MonitorSnapshot {
@@ -106,6 +146,9 @@ export interface MonitorSnapshot {
   readonly warningCount: number;
   readonly finalReport?: string;
   readonly outcome?: "completed" | "blocked" | "failed";
+  readonly terminalReason?: DelegateTerminalReasonValue;
+  readonly reasonStatus?: DelegateReasonStatus;
+  readonly blockedMisuseSuspected?: boolean;
   readonly sessionSeen: boolean;
   readonly agentRunning: boolean;
   readonly agentStartCount: number;
@@ -126,7 +169,10 @@ export interface AttemptStatus {
   readonly route: string;
   readonly protocol: DelegateProtocol;
   readonly state: DelegateState;
-  readonly delegateOutcome?: "completed" | "blocked" | "failed";
+  readonly delegateOutcome?: DelegateOutcome;
+  readonly terminalReason?: DelegateTerminalReasonValue;
+  readonly reasonStatus?: DelegateReasonStatus;
+  readonly blockedMisuseSuspected?: boolean;
   readonly startedAt: string;
   readonly endedAt: string;
   readonly elapsedSeconds: number;
@@ -185,6 +231,10 @@ export interface DelegateRunResult {
   readonly elapsedSeconds: number;
   readonly streamErrors: readonly string[];
   readonly progress: DelegateProgress;
+  readonly delegateOutcome?: DelegateOutcome;
+  readonly terminalReason?: DelegateTerminalReasonValue;
+  readonly reasonStatus?: DelegateReasonStatus;
+  readonly blockedMisuseSuspected?: boolean;
 }
 
 export interface DelegateToolParams {

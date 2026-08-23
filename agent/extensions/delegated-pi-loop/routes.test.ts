@@ -104,6 +104,30 @@ test("builds a non-recursive prompt with terminal contract", () => {
   assert.match(prompt, /Review the candidate\./);
 });
 
+test("terminal instructions require one exact reason code for BLOCKED and FAILED", () => {
+  const prompt = buildDelegatePrompt("implementation", "/tmp/project", "Implement the contract.");
+  // The reason line sits directly above the marker, exactly once, code only.
+  assert.match(prompt, /A BLOCKED or FAILED result must carry exactly one reason line directly above the marker/);
+  assert.match(prompt, /DELEGATE_REASON: <code>/);
+  assert.match(prompt, /Use only the exact code on the reason line: no prose, paths, or details/);
+  assert.match(prompt, /The reason line must sit directly above the marker and appear exactly once/);
+  // Every closed code is listed with its concise meaning.
+  for (const code of [
+    "evidence_inaccessible", "user_decision_required", "assignment_conflict",
+    "policy_restriction", "budget_exhausted", "external_dependency", "finding_reported",
+    "execution_failure", "verification_failure", "internal_inconsistency", "policy_violation",
+  ]) {
+    assert.ok(prompt.includes(code), `terminal contract must list ${code}`);
+  }
+  // Reviews with findings must use COMPLETED, never BLOCKED.
+  assert.match(prompt, /Reviews with findings must use COMPLETED, never BLOCKED with finding_reported/);
+  assert.match(prompt, /finding_reported \(a finding was reported; reviews with findings must use COMPLETED instead\)/);
+  // COMPLETED carries no reason line and the marker rules are unchanged.
+  assert.match(prompt, /COMPLETED carries no reason line/);
+  assert.match(prompt, /The marker must be the final non-whitespace line and must not appear earlier/);
+  assert.match(prompt, /After BLOCKED or FAILED, do not start another attempt or unrelated task/);
+});
+
 test("the restart note is fixed, sanitized, and appended at most once", () => {
   // The note is generic: no provider errors, raw output, tool payloads,
   // reports, paths, or credentials ever enter it.

@@ -28,9 +28,12 @@ import {
 import type {
   AttemptStatus,
   ChainAttempt,
+  DelegateOutcome,
   DelegateProgress,
+  DelegateReasonStatus,
   DelegateRunResult,
   DelegateState,
+  DelegateTerminalReasonValue,
   PiInvocation,
   PiRoute,
   RunOptions,
@@ -198,6 +201,10 @@ function progressFromStatus(status: AttemptStatus, attempt: number, restartAfter
     reportRecoveryReason: status.reportRecoveryReason,
     reportRound: status.reportRound,
     providerFailureCategory: status.providerFailureCategory,
+    delegateOutcome: status.delegateOutcome,
+    terminalReason: status.terminalReason,
+    reasonStatus: status.reasonStatus,
+    blockedMisuseSuspected: status.blockedMisuseSuspected,
   };
 }
 
@@ -276,6 +283,10 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     let finalProgress = initialProgress(label, options);
     let restartAfterWorkCount = 0;
     let terminalStreamErrors: readonly string[] = [];
+    let delegateOutcome: DelegateOutcome | undefined;
+    let terminalReason: DelegateTerminalReasonValue | undefined;
+    let reasonStatus: DelegateReasonStatus | undefined;
+    let blockedMisuseSuspected: boolean | undefined;
     options.onProgress?.(finalProgress);
 
     for (let index = 0; index < routes.length; index += 1) {
@@ -419,19 +430,29 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         finalState = "completed";
         report = await readPrivateText(attemptStatus.reportPath);
         finalProgress = progressFromStatus(attemptStatus, index + 1, restartAfterWorkCount);
+        delegateOutcome = attemptStatus.delegateOutcome;
+        terminalReason = attemptStatus.terminalReason;
+        reasonStatus = attemptStatus.reasonStatus;
+        blockedMisuseSuspected = attemptStatus.blockedMisuseSuspected;
         break;
       }
 
       if (!isOperationalFailureState(attemptStatus.state)) {
         // Completed, intentional BLOCKED/FAILED markers, interruption, and
         // cleanup failure are terminal: the delegate's own outcome stands
-        // (or the group stays unproven) and no route advances.
+        // (or the group stays unproven) and no route advances. A missing or
+        // rejected terminal reason never changes that: BLOCKED and FAILED
+        // stay terminal with reason unspecified.
         selectedRoute = routeKey(route);
         finalState = attemptStatus.state;
         if (attemptStatus.reportPresent) {
           report = await readPrivateText(attemptStatus.reportPath);
         }
         finalProgress = progressFromStatus(attemptStatus, index + 1, restartAfterWorkCount);
+        delegateOutcome = attemptStatus.delegateOutcome;
+        terminalReason = attemptStatus.terminalReason;
+        reasonStatus = attemptStatus.reasonStatus;
+        blockedMisuseSuspected = attemptStatus.blockedMisuseSuspected;
         break;
       }
 
@@ -477,6 +498,10 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       elapsedSeconds: elapsed,
       streamErrors: terminalStreamErrors,
       progress: finalProgress,
+      delegateOutcome,
+      terminalReason,
+      reasonStatus,
+      blockedMisuseSuspected,
     };
   } catch (error) {
     // A throw before the successful return (for example a throwing

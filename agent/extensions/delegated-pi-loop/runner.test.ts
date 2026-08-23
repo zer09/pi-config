@@ -24,7 +24,8 @@ type Behavior =
   | "missing-provider"
   | "blocked"
   | "failed"
-  | "hang";
+  | "hang"
+  | "custom";
 
 function enoent(error: NodeJS.ErrnoException): boolean {
   return error.code === "ENOENT";
@@ -165,7 +166,14 @@ async function runAndFinalize<T>(
 async function fakePi(
   catalog: readonly string[],
   behaviors: Readonly<Record<string, Behavior>>,
-  options: { catalogDelayMs?: number; catalogDelayRoute?: string; spawnMarker?: boolean; supervisionLog?: boolean } = {},
+  options: {
+    catalogDelayMs?: number;
+    catalogDelayRoute?: string;
+    spawnMarker?: boolean;
+    supervisionLog?: boolean;
+    reportText?: string;
+    recoveryReportText?: string;
+  } = {},
 ): Promise<{
   root: string;
   invocation: { command: string; prefixArgs: string[] };
@@ -180,6 +188,8 @@ import { appendFileSync, writeFileSync } from "node:fs";
 const args = process.argv.slice(2);
 const catalog = ${JSON.stringify(catalog)};
 const behaviors = ${JSON.stringify(behaviors)};
+const customReportText = ${JSON.stringify(options.reportText ?? null)};
+const recoveryReportText = ${JSON.stringify(options.recoveryReportText ?? null)};
 const catalogDelayMs = ${options.catalogDelayMs ?? 0};
 const catalogDelayRoute = ${JSON.stringify(options.catalogDelayRoute ?? null)};
 const spawnMarkerPath = ${JSON.stringify(spawnMarkerPath ?? null)};
@@ -242,7 +252,9 @@ if (args.includes("--list-models")) {
         ? "Blocked on evidence.\\n\\nDELEGATE_RESULT: BLOCKED"
         : behavior === "failed"
           ? "Failed.\\n\\nDELEGATE_RESULT: FAILED"
-          : "Completed on " + route + ".\\n\\nDELEGATE_RESULT: COMPLETED";
+          : behavior === "custom"
+            ? (round === 2 && recoveryReportText !== null ? recoveryReportText : customReportText)
+            : "Completed on " + route + ".\\n\\nDELEGATE_RESULT: COMPLETED";
       emit({
         type: "message_end",
         message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text }] },
@@ -778,8 +790,140 @@ test("intentional BLOCKED and FAILED delegate outcomes stay terminal without fal
       assert.equal(result.selectedRoute, "opencode-go/muse-spark-1.2-contributor:xhigh");
       assert.match(result.report, /DELEGATE_RESULT: (BLOCKED|FAILED)/);
       assert.equal(result.progress.restartAfterWorkCount, 0);
+      // Legacy bare markers keep their terminal outcome with unspecified reason.
+      assert.equal(result.delegateOutcome, behavior === "blocked" ? "blocked" : "failed");
+      assert.equal(result.terminalReason, "unspecified");
+      assert.equal(result.reasonStatus, "missing");
+      assert.equal(result.blockedMisuseSuspected, undefined);
     });
   }
+});
+
+test("accepted reason codes propagate typed through result, progress, details, and Markdown", async () => {
+  const cases = [
+    ["Blocked.\n\nDELEGATE_REASON: budget_exhausted\nDELEGATE_RESULT: BLOCKED", "blocked", "blocked", "budget_exhausted", false],
+    ["Blocked.\n\nDELEGATE_REASON: finding_reported\nDELEGATE_RESULT: BLOCKED", "blocked", "blocked", "finding_reported", true],
+    ["Failed.\n\nDELEGATE_REASON: execution_failure\nDELEGATE_RESULT: FAILED", "delegate_failed", "failed", "execution_failure", undefined],
+  ] as const;
+  for (const [reportText, expectedState, outcome, reason, misuse] of cases) {
+    const fixture = await fakePi(
+      ["opencode-go/muse-spark-1.2-contributor", "agentrouter/gpt-5.6-sol"],
+      {
+        "opencode-go/muse-spark-1.2-contributor": "custom",
+        "agentrouter/gpt-5.6-sol": "complete",
+      },
+      { reportText },
+    );
+    const toolResult = await runAndFinalize(baseOptions(fixture), async (result, finalize) => {
+      assert.equal(result.state, expectedState, reason);
+      // The intentional outcome stays terminal: one attempt, no fallback.
+      assert.equal(result.attempts.length, 1, reason);
+      assert.equal(result.selectedRoute, "opencode-go/muse-spark-1.2-contributor:xhigh", reason);
+      assert.equal(result.delegateOutcome, outcome, reason);
+      assert.equal(result.terminalReason, reason, reason);
+      assert.equal(result.reasonStatus, "accepted", reason);
+      assert.equal(result.blockedMisuseSuspected, misuse, reason);
+      assert.equal(result.progress.terminalReason, reason, reason);
+      assert.equal(result.progress.reasonStatus, "accepted", reason);
+      assert.equal(result.progress.blockedMisuseSuspected, misuse, reason);
+      return finalize();
+    });
+    assert.equal(toolResult.details?.terminalReason, reason, reason);
+    assert.equal(toolResult.details?.reasonStatus, "accepted", reason);
+    assert.equal(toolResult.details?.blockedMisuseSuspected, misuse, reason);
+    assert.match(toolResult.content[0]!.text, new RegExp(`^- terminal reason: ${reason}$`, "m"), reason);
+  }
+});
+
+test("missing or rejected reasons never change BLOCKED and FAILED terminality or trigger fallback", async () => {
+  const cases = [
+    // Legacy bare marker: reason missing.
+    ["Blocked.\n\nDELEGATE_RESULT: BLOCKED", "blocked", "missing"],
+    // Rejected reason values: path-like, credential-like, and unknown code.
+    ["Blocked.\n\nDELEGATE_REASON: /home/gc/SECRET-PATH/tok\nDELEGATE_RESULT: BLOCKED", "blocked", "rejected"],
+    ["Failed.\n\nDELEGATE_REASON: sk-RAWTOKEN99\nDELEGATE_RESULT: FAILED", "delegate_failed", "rejected"],
+    ["Failed.\n\nDELEGATE_REASON: not_a_real_code\nDELEGATE_RESULT: FAILED", "delegate_failed", "rejected"],
+  ] as const;
+  for (const [reportText, expectedState, reasonStatus] of cases) {
+    const fixture = await fakePi(
+      ["opencode-go/muse-spark-1.2-contributor", "agentrouter/gpt-5.6-sol"],
+      {
+        "opencode-go/muse-spark-1.2-contributor": "custom",
+        "agentrouter/gpt-5.6-sol": "complete",
+      },
+      { reportText },
+    );
+    await runAndFinalize(baseOptions(fixture), async (result) => {
+      assert.equal(result.state, expectedState, reportText);
+      // The intentional terminal outcome stands and no route advances solely
+      // because the reason is missing or rejected.
+      assert.equal(result.attempts.length, 1, reportText);
+      assert.equal(result.terminalReason, "unspecified", reportText);
+      assert.equal(result.reasonStatus, reasonStatus, reportText);
+      assert.equal(result.blockedMisuseSuspected, undefined, reportText);
+    });
+  }
+});
+
+test("a COMPLETED-with-reason response follows invalid-result recovery on the same route", async () => {
+  const fixture = await fakePi(
+    ["opencode-go/muse-spark-1.2-contributor"],
+    { "opencode-go/muse-spark-1.2-contributor": "custom" },
+    {
+      reportText: "Done.\n\nDELEGATE_REASON: budget_exhausted\nDELEGATE_RESULT: COMPLETED",
+      recoveryReportText: "Recovered.\n\nDELEGATE_RESULT: COMPLETED",
+    },
+  );
+  const toolResult = await runAndFinalize(baseOptions(fixture), async (result, finalize) => {
+    assert.equal(result.state, "completed");
+    assert.equal(result.attempts.length, 1);
+    assert.equal(result.attempts[0]?.state, "completed");
+    assert.equal(result.progress.reportRound, 2);
+    assert.equal(result.progress.reportRecoveryReason, "invalid_result");
+    assert.equal(result.delegateOutcome, "completed");
+    assert.equal(result.terminalReason, undefined);
+    assert.equal(result.reasonStatus, undefined);
+    return finalize();
+  });
+  assert.match(toolResult.content[0]!.text, /## Delegate solution-a completed/);
+});
+
+test("raw reason values never reach statuses, Markdown, details, or diagnostics", async () => {
+  const reportText = "Blocked.\n\nDELEGATE_REASON: /home/gc/SECRET-PATH/sk-RAWTOKEN99\nDELEGATE_RESULT: BLOCKED";
+  const fixture = await fakePi(
+    ["opencode-go/muse-spark-1.2-contributor"],
+    { "opencode-go/muse-spark-1.2-contributor": "custom" },
+    { reportText },
+  );
+  const toolResult = await runAndFinalize(baseOptions(fixture), async (result, finalize) => {
+    assert.equal(result.state, "blocked");
+    const progressText = JSON.stringify(result.progress);
+    assert.doesNotMatch(progressText, /SECRET|RAWTOKEN/);
+    // The persisted per-attempt status artifact carries the typed reason only.
+    const attemptStatus = JSON.parse(
+      await readFile(path.join(result.artifactDir, "attempt-01", "status.json"), "utf8"),
+    ) as Record<string, unknown>;
+    assert.equal(attemptStatus.schemaVersion, 1);
+    assert.equal(attemptStatus.delegateOutcome, "blocked");
+    assert.equal(attemptStatus.terminalReason, "unspecified");
+    assert.equal(attemptStatus.reasonStatus, "rejected");
+    assert.doesNotMatch(JSON.stringify(attemptStatus), /SECRET|RAWTOKEN|DELEGATE_REASON/);
+    return finalize();
+  });
+  const markdown = toolResult.content[0]!.text;
+  assert.match(markdown, /- terminal reason: unspecified \(rejected\)/);
+  assert.match(markdown, /The terminal reason line was invalid and was discarded; the outcome stands\./);
+  assert.doesNotMatch(markdown, /SECRET|RAWTOKEN|DELEGATE_REASON/);
+  const detailsText = JSON.stringify(toolResult.details);
+  assert.doesNotMatch(detailsText, /SECRET|RAWTOKEN/);
+  const diagnosticPath = toolResult.details?.diagnosticPath;
+  assert.equal(typeof diagnosticPath, "string");
+  const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
+  assert.equal(diagnostic.schemaVersion, 4);
+  assert.equal(diagnostic.delegateOutcome, "blocked");
+  assert.equal(diagnostic.terminalReason, "unspecified");
+  assert.equal(diagnostic.reasonStatus, "rejected");
+  assert.doesNotMatch(JSON.stringify(diagnostic), /SECRET|RAWTOKEN|DELEGATE_REASON/);
 });
 
 test("an interrupted run stays terminal without attempts or fallback", async () => {

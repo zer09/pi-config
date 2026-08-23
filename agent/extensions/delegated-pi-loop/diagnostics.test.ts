@@ -77,9 +77,14 @@ test("diagnostic content is bounded, sanitized, and free of excluded material", 
     const content = await readFile(filePath, "utf8");
     const parsed = JSON.parse(content) as Record<string, unknown>;
 
-    assert.equal(parsed.schemaVersion, 3);
+    assert.equal(parsed.schemaVersion, 4);
     assert.equal(parsed.state, "invalid_stream");
     assert.equal(parsed.role, "implementation");
+    // A run without a delegate terminal outcome carries no reason fields.
+    assert.equal("delegateOutcome" in parsed, false);
+    assert.equal("terminalReason" in parsed, false);
+    assert.equal("reasonStatus" in parsed, false);
+    assert.equal("blockedMisuseSuspected" in parsed, false);
     assert.equal(parsed.selectedRoute, "zai/glm-5.3:max");
     assert.equal(parsed.lastEvent, "tool_execution_end");
     assert.equal(parsed.lastEventDetail, "edit");
@@ -105,6 +110,54 @@ test("diagnostic content is bounded, sanitized, and free of excluded material", 
     assert.doesNotMatch(content, /\/tmp\/|delegated-pi-implementation-x/);
   });
 });
+
+test("schema 4 records typed terminal reason fields for non-completed outcomes without raw reason text", async () => {
+  await withDiagnosticsRoot(async () => {
+    const accepted = await writeFailureDiagnostic(blockedResult({
+      report: "SECRET-REPORT-BODY\n\nDELEGATE_REASON: finding_reported\nDELEGATE_RESULT: BLOCKED",
+      progress: blockedProgress({ delegateOutcome: "blocked", terminalReason: "finding_reported", reasonStatus: "accepted", blockedMisuseSuspected: true }),
+    }));
+    const acceptedContent = await readFile(accepted, "utf8");
+    const acceptedParsed = JSON.parse(acceptedContent) as Record<string, unknown>;
+    assert.equal(acceptedParsed.schemaVersion, 4);
+    assert.equal(acceptedParsed.delegateOutcome, "blocked");
+    assert.equal(acceptedParsed.terminalReason, "finding_reported");
+    assert.equal(acceptedParsed.reasonStatus, "accepted");
+    assert.equal(acceptedParsed.blockedMisuseSuspected, true);
+    assert.doesNotMatch(acceptedContent, /SECRET-REPORT-BODY|DELEGATE_REASON|DELEGATE_RESULT/);
+
+    const rejected = await writeFailureDiagnostic(failedResult({
+      state: "delegate_failed",
+      progress: blockedProgress({ state: "delegate_failed", delegateOutcome: "failed", terminalReason: "unspecified", reasonStatus: "rejected" }),
+    }));
+    const rejectedContent = await readFile(rejected, "utf8");
+    const rejectedParsed = JSON.parse(rejectedContent) as Record<string, unknown>;
+    assert.equal(rejectedParsed.terminalReason, "unspecified");
+    assert.equal(rejectedParsed.reasonStatus, "rejected");
+    assert.equal(rejectedParsed.blockedMisuseSuspected, undefined);
+    assert.doesNotMatch(rejectedContent, /DELEGATE_REASON|DELEGATE_RESULT/);
+  });
+});
+
+/** A blocked DelegateRunResult fixture whose progress can carry typed reason fields. */
+function blockedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunResult {
+  return failedResult({
+    state: "blocked",
+    selectedRoute: "zai/glm-5.3:max",
+    attempts: [{ route: "zai/glm-5.3:max", state: "blocked", elapsedSeconds: 12.5 }],
+    ...overrides,
+  });
+}
+
+function blockedProgress(overrides: Partial<DelegateRunResult["progress"]> = {}): DelegateRunResult["progress"] {
+  return {
+    ...failedResult().progress,
+    state: "blocked",
+    lastEvent: "message_end",
+    lastEventDetail: undefined,
+    ...overrides,
+  };
+}
 
 test("bounds attempts and stream errors in the diagnostic", async () => {
   await withDiagnosticsRoot(async () => {

@@ -219,6 +219,77 @@ test("provider failure after a tool remains provider_failed and records work", a
   assert.equal(status.reportNudgeCount, 0);
 });
 
+test("BLOCKED with an accepted reason stays terminal and records typed reason fields", async () => {
+  const events = [
+    { type: "agent_start" },
+    {
+      type: "message_end",
+      message: {
+        role: "assistant",
+        stopReason: "stop",
+        content: [{ type: "text", text: "Stopped.\n\nDELEGATE_REASON: budget_exhausted\nDELEGATE_RESULT: BLOCKED" }],
+      },
+    },
+  ];
+  const { status, progress, root } = await run(eventScript([events]));
+  assert.equal(status.state, "blocked");
+  assert.equal(status.delegateOutcome, "blocked");
+  assert.equal(status.terminalReason, "budget_exhausted");
+  assert.equal(status.reasonStatus, "accepted");
+  assert.equal(status.blockedMisuseSuspected, false);
+  assert.ok(progress.some((item) => item.state === "blocked" && item.terminalReason === "budget_exhausted" && item.reasonStatus === "accepted"));
+  // A terminal BLOCKED never spends the recovery prompt.
+  const commands = (await readFile(path.join(root, "commands.jsonl"), "utf8")).trim().split("\n");
+  assert.equal(commands.length, 1);
+});
+
+test("a rejected reason value never reaches status or progress surfaces", async () => {
+  const events = [
+    { type: "agent_start" },
+    {
+      type: "message_end",
+      message: {
+        role: "assistant",
+        stopReason: "stop",
+        content: [{ type: "text", text: "Stopped.\n\nDELEGATE_REASON: /home/gc/SECRET-PATH/sk-RAWTOKEN99\nDELEGATE_RESULT: FAILED" }],
+      },
+    },
+  ];
+  const { status, progress } = await run(eventScript([events]));
+  assert.equal(status.state, "delegate_failed");
+  assert.equal(status.delegateOutcome, "failed");
+  assert.equal(status.terminalReason, "unspecified");
+  assert.equal(status.reasonStatus, "rejected");
+  assert.ok(progress.some((item) => item.state === "delegate_failed" && item.terminalReason === "unspecified" && item.reasonStatus === "rejected"));
+  assert.doesNotMatch(JSON.stringify(status), /SECRET|RAWTOKEN/);
+  assert.doesNotMatch(JSON.stringify(progress), /SECRET|RAWTOKEN/);
+});
+
+test("a COMPLETED-with-reason response follows invalid-result recovery in the same child", async () => {
+  const withReason = [
+    { type: "agent_start" },
+    {
+      type: "message_end",
+      message: {
+        role: "assistant",
+        stopReason: "stop",
+        content: [{ type: "text", text: "Done.\n\nDELEGATE_REASON: budget_exhausted\nDELEGATE_RESULT: COMPLETED" }],
+      },
+    },
+    { type: "agent_end", willRetry: false },
+    { type: "agent_settled" },
+  ];
+  const { status, root } = await run(eventScript([withReason, completed("Recovered.\n\nDELEGATE_RESULT: COMPLETED")]));
+  assert.equal(status.state, "completed");
+  assert.equal(status.reportNudgeCount, 1);
+  assert.equal(status.reportRecoveryReason, "invalid_result");
+  assert.equal(status.reportRound, 2);
+  assert.equal(status.delegateOutcome, "completed");
+  assert.equal(status.terminalReason, undefined);
+  const commands = (await readFile(path.join(root, "commands.jsonl"), "utf8")).trim().split("\n");
+  assert.equal(commands.length, 2);
+});
+
 test("extension UI dialog requests are cancelled and cannot block", async () => {
   const script = `
 import { appendFileSync } from "node:fs";
