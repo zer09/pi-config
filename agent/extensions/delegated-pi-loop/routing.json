@@ -118,11 +118,6 @@
         "tokenreply": { "thinking": ["xhigh"], "default": "xhigh" }
       }
     },
-    "claude-fable-5": {
-      "providers": {
-        "tokenreply": { "thinking": ["off"], "default": "off" }
-      }
-    },
     "glm-5.3": {
       "providers": {
         "zai": { "thinking": ["low", "high", "max"], "default": "max" }
@@ -160,7 +155,11 @@
     },
     "gate-c": {
       "tiers": [
-        { "model": "ox-alpha", "thinking": "xhigh", "providers": ["tokenreply"] },
+        {
+          "model": "ox-alpha",
+          "thinking": "xhigh",
+          "providers": ["tokenreply"]
+        },
         { "model": "hy3", "thinking": "high", "providers": ["opencode-go"] },
         {
           "model": "claude-opus-5",
@@ -207,6 +206,36 @@
         }
       ]
     },
+    "gate-f": {
+      "tiers": [
+        {
+          "model": "claude-opus-5",
+          "thinking": "high",
+          "providers": ["agentrouter"]
+        },
+        { "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }
+      ]
+    },
+    "gate-g": {
+      "tiers": [
+        { "model": "glm-5.3", "thinking": "max", "providers": ["zai"] },
+        {
+          "model": "gpt-5.6-sol",
+          "thinking": "high",
+          "providers": [
+            "openai-codex",
+            "openai-codex-zahlo",
+            "openai-codex-cgpt1",
+            "openai-codex-cgpt2",
+            "openai-codex-cgpt3",
+            "openai-codex-cgpt4",
+            "openai-codex-cgpt5",
+            "openai-codex-cgpt6",
+            "openai-codex-cgpt7"
+          ]
+        }
+      ]
+    },
     "oracle": {
       "overridePolicy": "rejected",
       "tiers": [
@@ -229,7 +258,6 @@
     },
     "implementation": {
       "tiers": [
-        { "model": "claude-fable-5", "thinking": "off", "providers": ["tokenreply"] },
         { "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }
       ]
     },
@@ -249,10 +277,12 @@
     "solution-c": { "profile": "gate-c" },
     "solution-d": { "profile": "gate-d" },
     "solution-e": { "profile": "gate-e" },
+    "solution-f": { "profile": "gate-f" },
     "review-a": { "profile": "gate-a" },
     "review-b": { "profile": "gate-b" },
     "review-c": { "profile": "gate-c" },
     "review-d": { "profile": "gate-d" },
+    "review-e": { "profile": "gate-g" },
     "oracle": { "profile": "oracle" },
     "implementation": { "profile": "implementation" },
     "remediation": { "profile": "implementation" },

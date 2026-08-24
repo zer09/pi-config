@@ -24,8 +24,10 @@ test("classifies role permissions and sequential roles", () => {
   assert.equal(roleIsReadOnly("solution-a"), true);
   assert.equal(roleIsReadOnly("solution-d"), true);
   assert.equal(roleIsReadOnly("solution-e"), true);
+  assert.equal(roleIsReadOnly("solution-f"), true);
   assert.equal(roleIsReadOnly("review-c"), true);
   assert.equal(roleIsReadOnly("review-d"), true);
+  assert.equal(roleIsReadOnly("review-e"), true);
   assert.equal(roleIsReadOnly("verification"), true);
   assert.equal(roleIsReadOnly("oracle"), true);
   assert.equal(roleIsReadOnly("implementation"), false);
@@ -37,6 +39,7 @@ test("classifies role permissions and sequential roles", () => {
   assert.equal(roleIsExclusive("oracle"), true);
   assert.equal(roleIsExclusive("review-a"), false);
   assert.equal(roleIsExclusive("review-d"), false);
+  assert.equal(roleIsExclusive("review-e"), false);
 });
 
 test("exposes the oracle role in the model-visible role enum", () => {
@@ -44,11 +47,11 @@ test("exposes the oracle role in the model-visible role enum", () => {
   assert.equal(DELEGATE_ROLES.filter((role) => role === "oracle").length, 1);
 });
 
-test("exposes five solution roles and four review roles in the model-visible role enum", () => {
+test("exposes six solution roles and five review roles in the model-visible role enum", () => {
   const solutions = DELEGATE_ROLES.filter((role) => role.startsWith("solution-"));
   const reviews = DELEGATE_ROLES.filter((role) => role.startsWith("review-"));
-  assert.deepEqual(solutions, ["solution-a", "solution-b", "solution-c", "solution-d", "solution-e"]);
-  assert.deepEqual(reviews, ["review-a", "review-b", "review-c", "review-d"]);
+  assert.deepEqual(solutions, ["solution-a", "solution-b", "solution-c", "solution-d", "solution-e", "solution-f"]);
+  assert.deepEqual(reviews, ["review-a", "review-b", "review-c", "review-d", "review-e"]);
 });
 
 test("role labels carry the plain role without a backend suffix", () => {

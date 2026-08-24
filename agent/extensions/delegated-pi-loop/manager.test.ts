@@ -41,7 +41,7 @@ test("a single verification still runs alone without siblings", () => {
 });
 
 test("verification blocks solution and review roles in both directions", () => {
-  for (const role of ["solution-a", "solution-d", "solution-e", "review-a", "review-d"] as const) {
+  for (const role of ["solution-a", "solution-d", "solution-e", "solution-f", "review-a", "review-d", "review-e"] as const) {
     const verificationFirst = new DelegateManager();
     verificationFirst.begin("v1", "verification");
     assert.throws(() => verificationFirst.begin("sibling", role), OVERLAP_ERROR);
@@ -96,32 +96,35 @@ test("solution and review concurrency is unchanged inside and across gates", () 
   manager.begin("s3", "solution-c");
   manager.begin("s4", "solution-d");
   manager.begin("s5", "solution-e");
+  manager.begin("s6", "solution-f");
   manager.begin("r1", "review-a");
   manager.begin("r2", "review-b");
   manager.begin("r3", "review-c");
   manager.begin("r4", "review-d");
-  for (const id of ["s1", "s2", "s3", "s4", "s5"]) manager.finish(id);
+  manager.begin("r5", "review-e");
+  for (const id of ["s1", "s2", "s3", "s4", "s5", "s6"]) manager.finish(id);
   manager.begin("r6", "review-a");
   manager.begin("r7", "review-b");
+  manager.begin("r8", "review-e");
 });
 
-// A temporary extra reviewer needs no dedicated role: it reuses an existing
-// non-exclusive review role under a distinct assignment, and the manager
-// admits the duplicate because review roles carry no per-role slot.
-test("a temporary extra reviewer reuses an existing non-exclusive review role", () => {
+// A temporary sixth reviewer may reuse a non-exclusive role: permanent
+// review-e already occupies the five-member default gate.
+test("a temporary sixth reviewer reuses an existing non-exclusive review role", () => {
   const manager = new DelegateManager();
   manager.begin("r1", "review-a");
   manager.begin("r2", "review-b");
   manager.begin("r3", "review-c");
   manager.begin("r4", "review-d");
-  // The extra reviewer of this one gate reuses review-a under a distinct
+  manager.begin("r5", "review-e");
+  // The temporary sixth reviewer reuses review-a under a distinct
   // assignment; duplicate non-exclusive review roles overlap by design.
-  const extra = manager.begin("r5-extra", "review-a");
-  assert.equal(extra.id, 5);
+  const extra = manager.begin("r6-extra", "review-a");
+  assert.equal(extra.id, 6);
   // Verification and exclusive roles still refuse to overlap the duplicate.
   assert.throws(() => manager.begin("v1", "verification"), OVERLAP_ERROR);
   assert.throws(() => manager.begin("mutator", "implementation"), EXCLUSIVE_ERROR);
-  manager.finish("r5-extra");
+  manager.finish("r6-extra");
   // The reuse leaves no residue: a later gate still starts the plain roles.
   manager.begin("r6", "review-d");
 });

@@ -2,6 +2,19 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-24 — Remove TokenReply Fable from implementation routing
+
+- Removed the `tokenreply/claude-fable-5` capability record and implementation-profile tier because the route no longer has sufficient credit. TokenReply remains configured for Gate C's `ox-alpha:xhigh` route.
+- Implementation and remediation now route only to `zai/glm-5.3:max`. Updated exact route, capability absence, exclusion, ADR, maintenance, and catalog-check expectations.
+- The public role schema and model-visible guidance are unchanged, so this route-only update adds no parent startup-context cost.
+
+## 2026-08-24 — Expand delegated gates to six investigators and five reviewers
+
+- Added permanent `solution-f` mapped to `gate-f` and permanent `review-e` mapped to `gate-g`; preserved the user-owned routing configuration and its exact route/profile ownership.
+- Expanded the required solution gate to A/B/C/D/E/F and the required implementation review gate to A/B/C/D/E. The temporary extra-review mechanism now applies only to an occasional sixth reviewer reusing a non-exclusive role.
+- Updated the public role enum, model-visible guidance, focused role/routing/manager/index tests, current policy, ADRs, maintenance guidance, and context-cost attribution. The deadline and liveness behavior remain unchanged.
+- Validation: extension suite (189 tests), strict TypeScript with unused-symbol checks via a temporary config resolving Pi's installed declarations, and `git diff --check`. No paid inference or live delegate smoke. Local `tiktoken` `o200k_base` attribution counts +16 model-visible tokens (+2 global instructions, +6 tool guidelines, +8 role enum and description schema); the `gate-f`/`gate-g` profiles live in `routing.json` and are not model-visible; provider-reported input remains the authority and was not rerun.
+
 ## 2026-08-24 — Make delegated deadlines provider-count independent
 
 - Replaced equal-share route allocation with one monotonic 45-minute productive-work deadline. Every sequential route receives the same absolute deadline and the actual remaining time; global `timed_out/work_deadline` is terminal, while a 15-second catalog preflight timeout can continue while work time remains.

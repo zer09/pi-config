@@ -34,14 +34,14 @@ test("registration guidelines encode the automatic delegation policy without pro
   assert.match(guidelines, /small task with an accepted plan or an obvious established pattern skips the solution-investigation gate and the oracle role and still runs exactly one implementation delegate/);
   // The parent inspects the implementation diff and evidence before the review gate.
   assert.match(guidelines, /implementation delegate's diff and evidence/);
-  assert.match(guidelines, /review-a, review-b, review-c, and review-d concurrently/);
-  // Reviewer-gate waiver: the strict all-four default stands, and only the
+  assert.match(guidelines, /review-a, review-b, review-c, review-d, and review-e concurrently/);
+  // Reviewer-gate waiver: the strict all-five default stands, and only the
   // user may explicitly waive named failed reviewer roles for the one
   // current gate. The waiver continues with completed reports, records the
   // waived roles, never relabels failures as passes, stays one-shot and
   // gate-scoped, keeps findings from completed reviewers, and is never
   // inferred from generic continue/commit/skip-retry requests.
-  assert.match(guidelines, /all four must complete/);
+  assert.match(guidelines, /all five must complete/);
   assert.match(guidelines, /the gate stays blocked by default; only the user may explicitly waive the named failed reviewer roles for that one current gate/);
   assert.match(guidelines, /continue with the completed review reports instead of retrying or stopping solely because the waived reviewers failed/);
   assert.match(guidelines, /A reviewer waiver is one-shot and gate-scoped/);
@@ -54,7 +54,7 @@ test("registration guidelines encode the automatic delegation policy without pro
   // Solution delegates gather evidence and propose options; the parent stays
   // the sole author and owner of the final plan or research deliverable.
   assert.match(guidelines, /Solution delegates may gather evidence and propose options, but the parent verifies the evidence, synthesizes conclusions, and remains sole author and owner of the final plan or research deliverable/);
-  // Solution-gate waiver: the strict all-five default stands before synthesis,
+  // Solution-gate waiver: the strict all-six default stands before synthesis,
   // and only the user may explicitly waive named failed solution roles for
   // the one current solution gate. The waiver continues synthesis from
   // completed reports plus parent-verified repository evidence, requires at
@@ -63,8 +63,8 @@ test("registration guidelines encode the automatic delegation policy without pro
   // stays one-shot and gate-scoped, preserves the advisory oracle and the
   // downstream implementation/review/verification/remediation rules, and is
   // never inferred from generic continue/commit/skip-retry requests.
-  assert.match(guidelines, /solution-a, solution-b, solution-c, solution-d, and solution-e concurrently/);
-  assert.match(guidelines, /all five must complete before synthesis/);
+  assert.match(guidelines, /solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently/);
+  assert.match(guidelines, /all six must complete before synthesis/);
   assert.match(guidelines, /the gate stays blocked by default; only the user may explicitly waive the named failed solution roles for that one current solution gate/);
   assert.match(guidelines, /continue synthesis using only the completed solution reports plus parent-verified repository evidence/);
   assert.match(guidelines, /At least one solution delegate must have completed: the user cannot waive the entire evidence set and synthesize from zero completed investigator reports/);
@@ -102,7 +102,7 @@ test("registration guidelines encode the automatic delegation policy without pro
   assert.match(guidelines, /wait for every verification in the current batch before remediation/);
   assert.match(guidelines, /non-completed verification leaves its finding unresolved without erasing completed sibling reports/);
   assert.match(guidelines, /Send only verification-confirmed findings to one focused remediation role/);
-  assert.match(guidelines, /fresh four-reviewer gate until no blocking findings remain/);
+  assert.match(guidelines, /fresh five-reviewer gate until no blocking findings remain/);
   // Routing is automatic and config-driven; routingOverride is the only
   // exceptional escape hatch and is invalid for the oracle role.
   assert.match(guidelines, /Delegate routing, including model, thinking, and provider fallback after operational failures, is automatic from the extension-owned routing configuration/);

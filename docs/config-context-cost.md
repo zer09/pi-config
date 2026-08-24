@@ -82,6 +82,8 @@ Delegated solution-waiver update: 2026-08-24 (added the user-authorized one-shot
 
 Delegated fifth-solution update: 2026-08-24 (expanded the required solution gate to A/B/C/D/E and added the `solution-e` role; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated six-investigator five-reviewer expansion: 2026-08-24 (added permanent `solution-f` on `gate-f` and permanent `review-e` on `gate-g`, expanding the required solution gate to A/B/C/D/E/F and the review gate to A/B/C/D/E; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -702,6 +704,21 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | **Tool total** | **1,651** | **1,662** | **+11** | Before provider-specific framing |
 
 The directly attributed model-visible increase is +12 local tokens: +1 global instruction for the five-investigator policy, +3 tool-guideline tokens naming Solution E and the five-completion rule, and +8 parameter-schema tokens for the `solution-e` enum value and updated role description. The dedicated Solution E route and shared selector behavior remain executable configuration and code outside parent startup context. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-24 delegated six-investigator five-reviewer expansion attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are commit `5c67646`, re-measured with the same serialization as the prior tables: raw `agent/AGENTS.md` reproduces the recorded 3,510 exactly, and the `delegate_run` description (82), prompt snippet (13), prompt guidelines (1,287), and parameter schema (280) reproduce the recorded fifth-solution after values exactly, so every delta is like-for-like.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 3,510 | 3,512 | +2 | Always loaded through the context-file block |
+| `delegate_run` description | 82 | 82 | 0 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 1,287 | 1,293 | +6 | Included while the tool is active |
+| `delegate_run` parameter schema | 280 | 288 | +8 | Serialized as an active provider tool schema |
+| **Tool total** | **1,662** | **1,676** | **+14** | Before provider-specific framing |
+
+The directly attributed model-visible increase is +16 local tokens: +2 global instructions renaming the required gates to six investigators A/B/C/D/E/F and five reviewers A/B/C/D/E, +6 tool-guideline tokens naming Solution F and Review E with the six-completion and five-completion rules and the five-reviewer remediation gate, and +8 parameter-schema tokens for the `solution-f` and `review-e` enum values and the role description that now names the six-member solution and five-member review gates. The `gate-f` and `gate-g` chains, the `solution-f`/`review-e` role-profile ownership, and the shared selector behavior live in `routing.json` and executable TypeScript and are not model-visible at parent startup. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

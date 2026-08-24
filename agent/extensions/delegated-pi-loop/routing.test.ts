@@ -68,10 +68,12 @@ function syntheticConfig(overrides: {
       "solution-c": { profile: "two-tier" },
       "solution-d": { profile: "two-tier" },
       "solution-e": { profile: "two-tier" },
+      "solution-f": { profile: "two-tier" },
       "review-a": { profile: "two-tier" },
       "review-b": { profile: "two-tier" },
       "review-c": { profile: "two-tier" },
       "review-d": { profile: "two-tier" },
+      "review-e": { profile: "two-tier" },
       oracle: { profile: "pinned" },
       implementation: { profile: "two-tier" },
       remediation: { profile: "two-tier" },
@@ -118,10 +120,7 @@ test("the shipped config pins delegate model thinking capabilities", () => {
     thinking: ["xhigh"],
     default: "xhigh",
   });
-  assert.deepEqual(config.models["claude-fable-5"]?.providers.tokenreply, {
-    thinking: ["off"],
-    default: "off",
-  });
+  assert.equal(config.models["claude-fable-5"], undefined);
   // agentrouter/claude-opus-5 keeps high as its default while retaining the
   // higher xhigh and max levels.
   assert.deepEqual(config.models["claude-opus-5"]?.providers.agentrouter, {
@@ -210,7 +209,7 @@ test("config validation rejects structural violations", () => {
       name: "extra role mapping",
       mutate: (document) => {
         const roles = document.roles as Record<string, unknown>;
-        roles["solution-f"] = { profile: "two-tier" };
+        roles["unknown-role"] = { profile: "two-tier" };
       },
       pattern: /roles must map exactly every delegate role/,
     },
@@ -416,10 +415,12 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
   );
 });
 
-test("gate D, solution E, and the oracle include every configured Codex alias with inherited or random primaries", () => {
+test("gate D, solution E/F, review E, and the oracle select their configured chains", () => {
   const config = loadRoutingConfig();
   const canonicalD = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.5:high`);
   const canonicalOracle = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.6-sol:high`);
+  const expectedF = ["agentrouter/claude-opus-5:high", "zai/glm-5.3:max"];
+  const expectedG = ["zai/glm-5.3:max", ...canonicalOracle];
 
   // An eligible parent provider becomes the primary without a random draw.
   let randomCalls = 0;
@@ -475,7 +476,16 @@ test("gate D, solution E, and the oracle include every configured Codex alias wi
     canonicalOracle.filter((key) => key !== "openai-codex-cgpt7/gpt-5.6-sol:high"),
   );
 
-  // Cursor and every non-Codex provider stay excluded from the whole chain.
+  assert.deepEqual(selectRoutes(config, "solution-f").map(routeKey), expectedF);
+  // Gate G's multi-provider Codex tier draws its primary; pin the draw so the
+  // chain is exactly the stable config order.
+  assert.deepEqual(
+    selectRoutes(config, "review-e", undefined, { random: () => 0 }).map(routeKey),
+    expectedG,
+  );
+
+  // Cursor and every non-Codex provider stay excluded from the Gate D,
+  // Solution E, Review E, and Oracle Codex chains.
   for (const routes of [
     selectRoutes(config, "solution-d", undefined, { random: () => 0 }),
     selectRoutes(config, "solution-e", undefined, { random: () => 0 }),
@@ -488,31 +498,23 @@ test("gate D, solution E, and the oracle include every configured Codex alias wi
   }
 });
 
-test("implementation and remediation use Fable before the GLM fallback while verification stays pinned", () => {
+test("implementation and remediation use only GLM while verification stays pinned", () => {
   const config = loadRoutingConfig();
-  const implementationRoutes = ["tokenreply/claude-fable-5:off", "zai/glm-5.3:max"];
+  const implementationRoutes = ["zai/glm-5.3:max"];
   assert.deepEqual(selectRoutes(config, "implementation").map(routeKey), implementationRoutes);
   assert.deepEqual(selectRoutes(config, "remediation").map(routeKey), implementationRoutes);
   assert.deepEqual(selectRoutes(config, "verification").map(routeKey), ["openai-codex/gpt-5.6-sol:high"]);
   assert.deepEqual([...oracleModelIds(config)], ["gpt-5.6-sol"]);
 });
 
-test("the shipped config keeps exactly four review roles while Solution E owns gate-e", () => {
+test("the shipped config assigns solution-f to gate-f and review-e to gate-g", () => {
   const config = loadRoutingConfig();
   const reviews = DELEGATE_ROLES.filter((role) => role.startsWith("review-"));
-  assert.deepEqual(reviews, ["review-a", "review-b", "review-c", "review-d"]);
-  // Reviews A-D still share their matching solution profiles. The new gate-e
-  // profile belongs only to Solution E and does not reintroduce review-e.
-  for (const [role, profile] of [
-    ["review-a", "gate-a"],
-    ["review-b", "gate-b"],
-    ["review-c", "gate-c"],
-    ["review-d", "gate-d"],
-  ] as const) {
-    assert.equal(config.roles[role].profile, profile);
-  }
-  assert.equal(config.roles["solution-e"].profile, "gate-e");
-  assert.equal("gate-e" in config.profiles, true);
+  assert.deepEqual(reviews, ["review-a", "review-b", "review-c", "review-d", "review-e"]);
+  assert.equal(config.roles["solution-f"].profile, "gate-f");
+  assert.equal(config.roles["review-e"].profile, "gate-g");
+  assert.equal("gate-f" in config.profiles, true);
+  assert.equal("gate-g" in config.profiles, true);
 });
 
 test("a temporary extra reviewer pins one exact route through a reason-required one-run override", () => {
@@ -815,7 +817,7 @@ test("exclusion overrides filter providers inside every tier", () => {
   );
   // Excluding every eligible provider is a bounded error, not an empty run.
   assert.throws(
-    () => selectRoutes(config, "implementation", { excludeProviders: ["tokenreply", "zai"], reason: "invalid" }),
+    () => selectRoutes(config, "implementation", { excludeProviders: ["zai"], reason: "invalid" }),
     /routing produced no eligible route/,
   );
 });
