@@ -3,7 +3,7 @@ import { mkdtemp, readFile, readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { diagnosticPermissions, writeFailureDiagnostic } from "./diagnostics.ts";
+import { diagnosticPermissions, failureDiagnostic, writeFailureDiagnostic } from "./diagnostics.ts";
 import type { DelegateRunResult } from "./types.ts";
 
 function failedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunResult {
@@ -11,6 +11,9 @@ function failedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunRe
     label: "implementation",
     role: "implementation",
     state: "invalid_stream",
+    deadlineCause: "idle_deadline",
+    cleanupFailureReason: "group_alive",
+    interruptionSource: "tool_call_abort",
     report: "SECRET-REPORT-BODY",
     artifactDir: "/tmp/delegated-pi-implementation-x",
     selectedRoute: "zai/glm-5.3:max",
@@ -19,6 +22,7 @@ function failedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunRe
     endedAt: "2026-08-21T10:00:00.000Z",
     elapsedSeconds: 612.4,
     streamErrors: ["rpc_partial_record"],
+    workBudgetSeconds: 2700,
     progress: {
       label: "implementation",
       role: "implementation",
@@ -38,6 +42,11 @@ function failedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunRe
       reportNudgeCount: 1,
       reportRecoveryReason: "invalid_result",
       reportRound: 2,
+      workBudgetSeconds: 2700,
+      remainingWorkSecondsAtAttemptStart: 2700,
+      activeToolCount: 1,
+      activeToolName: "ctx_batch_execute",
+      activeToolElapsedSeconds: 154.7,
     },
     ...overrides,
   };
@@ -77,9 +86,16 @@ test("diagnostic content is bounded, sanitized, and free of excluded material", 
     const content = await readFile(filePath, "utf8");
     const parsed = JSON.parse(content) as Record<string, unknown>;
 
-    assert.equal(parsed.schemaVersion, 4);
+    assert.equal(parsed.schemaVersion, 5);
     assert.equal(parsed.state, "invalid_stream");
     assert.equal(parsed.role, "implementation");
+    assert.equal(parsed.deadlineCause, "idle_deadline");
+    assert.equal(parsed.workBudgetSeconds, 2700);
+    assert.equal(parsed.cleanupFailureReason, "group_alive");
+    assert.equal(parsed.interruptionSource, "tool_call_abort");
+    assert.equal(parsed.activeToolCount, 1);
+    assert.equal(parsed.activeToolName, "ctx_batch_execute");
+    assert.equal(parsed.activeToolElapsedSeconds, 154.7);
     // A run without a delegate terminal outcome carries no reason fields.
     assert.equal("delegateOutcome" in parsed, false);
     assert.equal("terminalReason" in parsed, false);
@@ -111,7 +127,7 @@ test("diagnostic content is bounded, sanitized, and free of excluded material", 
   });
 });
 
-test("schema 4 records typed terminal reason fields for non-completed outcomes without raw reason text", async () => {
+test("schema 5 records typed terminal reason fields for non-completed outcomes without raw reason text", async () => {
   await withDiagnosticsRoot(async () => {
     const accepted = await writeFailureDiagnostic(blockedResult({
       report: "SECRET-REPORT-BODY\n\nDELEGATE_REASON: finding_reported\nDELEGATE_RESULT: BLOCKED",
@@ -119,7 +135,7 @@ test("schema 4 records typed terminal reason fields for non-completed outcomes w
     }));
     const acceptedContent = await readFile(accepted, "utf8");
     const acceptedParsed = JSON.parse(acceptedContent) as Record<string, unknown>;
-    assert.equal(acceptedParsed.schemaVersion, 4);
+    assert.equal(acceptedParsed.schemaVersion, 5);
     assert.equal(acceptedParsed.delegateOutcome, "blocked");
     assert.equal(acceptedParsed.terminalReason, "finding_reported");
     assert.equal(acceptedParsed.reasonStatus, "accepted");
@@ -175,6 +191,42 @@ test("bounds attempts and stream errors in the diagnostic", async () => {
     assert.equal(streamErrors.length, 20);
     assert.ok(streamErrors.every((error) => error.length <= 200));
   });
+});
+
+test("schema 5 rejects seeded paths, credentials, payloads, signals, pids, and raw errors", () => {
+  const forbidden = "/home/gc/PRIVATE_PATH sk-SECRET_TOKEN SIGKILL pid=4242 provider-body tool-argument tool-result raw-error";
+  const result = failedResult({
+    label: forbidden,
+    selectedRoute: forbidden,
+    startedAt: forbidden,
+    endedAt: forbidden,
+    deadlineCause: forbidden as never,
+    cleanupFailureReason: forbidden as never,
+    interruptionSource: forbidden as never,
+    streamErrors: [forbidden, ...Array.from({ length: 30 }, () => "rpc_partial_record")],
+    attempts: [{
+      route: forbidden,
+      state: "invalid_stream",
+      elapsedSeconds: 1,
+      activeToolName: forbidden,
+      deadlineCause: forbidden as never,
+      cleanupFailureReason: forbidden as never,
+      interruptionSource: forbidden as never,
+    }],
+    progress: {
+      ...failedResult().progress,
+      phase: forbidden,
+      lastEvent: forbidden,
+      lastEventDetail: forbidden,
+      lastEventAt: forbidden,
+      activeToolName: forbidden,
+    },
+  });
+  const content = JSON.stringify(failureDiagnostic(result));
+  for (const token of ["PRIVATE_PATH", "SECRET_TOKEN", "SIGKILL", "4242", "provider-body", "tool-argument", "tool-result", "raw-error"]) {
+    assert.ok(!content.includes(token), token);
+  }
+  assert.ok(Buffer.byteLength(content) < 16 * 1024, `diagnostic must stay bounded: ${Buffer.byteLength(content)}`);
 });
 
 test("refuses diagnostics for successful runs and leaves the logs directory empty", async () => {

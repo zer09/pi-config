@@ -2,15 +2,44 @@ import { chmod, mkdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { atomicWriteJson, safeLabel } from "./artifacts.ts";
+import { BLOCKED_REASON_CODES, DELEGATE_REASON_UNSPECIFIED, FAILED_REASON_CODES } from "./types.ts";
 import type { DelegateRunResult } from "./types.ts";
 
 const MAX_ATTEMPTS = 10;
 const MAX_STREAM_ERRORS = 20;
 const MAX_ERROR_LENGTH = 200;
+const SAFE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/;
+const DEADLINE_CAUSES = new Set(["work_deadline", "idle_deadline", "catalog_preflight"]);
+const CLEANUP_REASONS = new Set(["group_alive", "close_unconfirmed"]);
+const INTERRUPTION_SOURCES = new Set(["delegate_stop", "session_shutdown", "tool_call_abort", "unknown"]);
+const DELEGATE_STATES = new Set([
+  "catalog_check", "running", "completed", "routes_unavailable", "stalled", "timed_out", "output_limit",
+  "blocked", "delegate_failed", "provider_failed", "prompt_rejected", "invalid_result", "invalid_stream",
+  "missing_report", "child_failed", "spawn_failed", "cleanup_failed", "interrupted", "catalog_unavailable",
+]);
+const TERMINAL_REASONS = new Set([...BLOCKED_REASON_CODES, ...FAILED_REASON_CODES, DELEGATE_REASON_UNSPECIFIED]);
+const SAFE_ROUTE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}:(?:off|minimal|low|medium|high|xhigh|max)$/;
 
-function boundedText(value: string | undefined): string | undefined {
-  if (value === undefined) return undefined;
-  return value.length <= MAX_ERROR_LENGTH ? value : value.slice(0, MAX_ERROR_LENGTH);
+function boundedIdentifier(value: string | undefined, limit = MAX_ERROR_LENGTH): string | undefined {
+  if (value === undefined || !SAFE_IDENTIFIER.test(value)) return undefined;
+  return value.length <= limit ? value : value.slice(0, limit);
+}
+
+function boundedRoute(value: string | undefined): string | undefined {
+  return value !== undefined && SAFE_ROUTE.test(value) ? value : undefined;
+}
+
+function finiteNumber(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) ? value : undefined;
+}
+
+function fixedValue(value: string | undefined, allowed: ReadonlySet<string>): string | undefined {
+  return value !== undefined && allowed.has(value) ? value : undefined;
+}
+
+function isoTimestamp(value: string | undefined): string | undefined {
+  if (value === undefined || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return undefined;
+  return Number.isFinite(Date.parse(value)) ? value : undefined;
 }
 
 /** `${PI_CODING_AGENT_DIR:-~/.pi/agent}/logs/delegated-pi-loop` */
@@ -28,38 +57,55 @@ export function diagnosticsDirectory(): string {
  */
 export function failureDiagnostic(result: DelegateRunResult): Record<string, unknown> {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     writtenAt: new Date().toISOString(),
-    label: result.label,
-    role: result.role,
-    state: result.state,
-    delegateOutcome: result.progress.delegateOutcome,
-    terminalReason: result.progress.terminalReason,
-    reasonStatus: result.progress.reasonStatus,
+    label: boundedIdentifier(result.label, 80),
+    role: boundedIdentifier(result.role, 40),
+    state: fixedValue(result.state, DELEGATE_STATES),
+    delegateOutcome: fixedValue(result.progress.delegateOutcome, new Set(["completed", "blocked", "failed"])),
+    terminalReason: fixedValue(result.progress.terminalReason, TERMINAL_REASONS),
+    reasonStatus: fixedValue(result.progress.reasonStatus, new Set(["accepted", "missing", "rejected"])),
     blockedMisuseSuspected: result.progress.blockedMisuseSuspected,
-    startedAt: result.startedAt,
-    endedAt: result.endedAt,
-    elapsedSeconds: result.elapsedSeconds,
-    selectedRoute: result.selectedRoute,
-    phase: result.progress.phase,
-    lastEvent: result.progress.lastEvent,
-    lastEventDetail: result.progress.lastEventDetail,
-    lastEventAt: result.progress.lastEventAt,
-    idleSeconds: result.progress.idleSeconds,
-    toolExecutionCount: result.progress.toolExecutionCount,
-    idleWarningCount: result.progress.idleWarningCount,
+    startedAt: isoTimestamp(result.startedAt),
+    endedAt: isoTimestamp(result.endedAt),
+    elapsedSeconds: finiteNumber(result.elapsedSeconds),
+    selectedRoute: boundedRoute(result.selectedRoute),
+    deadlineCause: fixedValue(result.deadlineCause, DEADLINE_CAUSES),
+    workBudgetSeconds: finiteNumber(result.workBudgetSeconds),
+    cleanupFailureReason: fixedValue(result.cleanupFailureReason, CLEANUP_REASONS),
+    interruptionSource: fixedValue(result.interruptionSource, INTERRUPTION_SOURCES),
+    phase: boundedIdentifier(result.progress.phase, 80),
+    lastEvent: boundedIdentifier(result.progress.lastEvent, 80),
+    lastEventDetail: boundedIdentifier(result.progress.lastEventDetail, 80),
+    lastEventAt: isoTimestamp(result.progress.lastEventAt),
+    idleSeconds: finiteNumber(result.progress.idleSeconds),
+    toolExecutionCount: finiteNumber(result.progress.toolExecutionCount),
+    activeToolCount: finiteNumber(result.progress.activeToolCount),
+    activeToolName: boundedIdentifier(result.progress.activeToolName, 80),
+    activeToolElapsedSeconds: finiteNumber(result.progress.activeToolElapsedSeconds),
+    idleWarningCount: finiteNumber(result.progress.idleWarningCount),
     restartAfterWorkCount: result.progress.restartAfterWorkCount,
     recoveryAttempted: result.progress.reportNudgeCount === 1,
-    reportRecoveryReason: result.progress.reportRecoveryReason,
+    reportRecoveryReason: fixedValue(result.progress.reportRecoveryReason, new Set(["missing_report", "invalid_result"])),
     finalRound: result.progress.reportRound,
     providerFailureCategory: result.progress.providerFailureCategory,
     attempts: result.attempts.slice(0, MAX_ATTEMPTS).map((attempt) => ({
-      route: attempt.route,
-      state: attempt.state,
-      elapsedSeconds: attempt.elapsedSeconds,
+      route: boundedRoute(attempt.route),
+      state: fixedValue(attempt.state, DELEGATE_STATES),
+      elapsedSeconds: finiteNumber(attempt.elapsedSeconds),
+      deadlineCause: fixedValue(attempt.deadlineCause, DEADLINE_CAUSES),
+      cleanupFailureReason: fixedValue(attempt.cleanupFailureReason, CLEANUP_REASONS),
+      interruptionSource: fixedValue(attempt.interruptionSource, INTERRUPTION_SOURCES),
+      remainingWorkSecondsAtAttemptStart: finiteNumber(attempt.remainingWorkSecondsAtAttemptStart),
+      activeToolCount: finiteNumber(attempt.activeToolCount),
+      activeToolName: boundedIdentifier(attempt.activeToolName, 80),
+      activeToolElapsedSeconds: finiteNumber(attempt.activeToolElapsedSeconds),
       ...(attempt.restartAfterWork === undefined ? {} : { restartAfterWork: attempt.restartAfterWork }),
     })),
-    streamErrors: result.streamErrors.slice(0, MAX_STREAM_ERRORS).map(boundedText).filter(Boolean),
+    streamErrors: result.streamErrors
+      .slice(0, MAX_STREAM_ERRORS)
+      .map((error) => boundedIdentifier(error, MAX_ERROR_LENGTH))
+      .filter(Boolean),
   };
 }
 

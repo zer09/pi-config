@@ -48,6 +48,13 @@ const SESSION_ACTIVITY_EVENTS = new Set([
   "queue_update",
 ]);
 
+interface ActiveTool {
+  readonly key: string;
+  readonly name: string;
+  readonly startedMonotonic: number;
+  readonly sequence: number;
+}
+
 const MESSAGE_ACTIVITY_EVENTS = new Set([
   "start",
   "text_start",
@@ -222,6 +229,9 @@ export class PiRpcMonitor {
   private activityEventCountValue = 0;
   private warningCountValue = 0;
   private toolExecutionCountValue = 0;
+  private activeToolSequence = 0;
+  private readonly activeTools = new Map<string, ActiveTool>();
+  private lastQueueSignature: string | undefined;
   private reportRoundValue: ReportRound = 1;
   private readonly errorsValue: string[] = [];
   private readonly rounds: Record<ReportRound, RoundState> = { 1: emptyRound(), 2: emptyRound() };
@@ -266,8 +276,9 @@ export class PiRpcMonitor {
     this.recordActivity(`prompt-${round}_accepted`, round === 2 ? "recovering_report" : "provider");
   }
 
-  recordUiActivity(method: string): void {
-    this.recordActivity("extension_ui_request", this.phaseValue, method.slice(0, 80));
+  recordUiActivity(_method: string): void {
+    // UI requests show no work progress. They remain protocol-valid but do not
+    // reset the idle watchdog or replace the last meaningful activity.
   }
 
   addProtocolError(category: string): void {
@@ -334,7 +345,7 @@ export class PiRpcMonitor {
       const updateType = update.type;
       if (typeof updateType !== "string" || !MESSAGE_ACTIVITY_EVENTS.has(updateType)) return;
       if (updateType === "error") this.recordProviderFailure(state, categoryFromRecord(update) ?? "provider_unavailable");
-      if (updateType.endsWith("_delta") && !update.delta) return;
+      if (updateType.endsWith("_delta") && (typeof update.delta !== "string" || update.delta.length === 0)) return;
       let phase = updateType.startsWith("thinking_") ? "thinking" : "responding";
       if (updateType.startsWith("toolcall_")) phase = "tool_selection";
       this.recordActivity(updateType, phase);
@@ -342,8 +353,22 @@ export class PiRpcMonitor {
     }
 
     if (!CORE_ACTIVITY_EVENTS.has(eventType) && !SESSION_ACTIVITY_EVENTS.has(eventType)) return;
-    if (eventType === "bash_execution_update" && !event.delta) return;
-    if (eventType === "tool_execution_start") this.toolExecutionCountValue += 1;
+    if (eventType === "bash_execution_update" && (typeof event.delta !== "string" || event.delta.length === 0)) return;
+    if (eventType === "queue_update") {
+      const steeringCount = Array.isArray(event.steering) ? event.steering.length : 0;
+      const followUpCount = Array.isArray(event.followUp) ? event.followUp.length : 0;
+      const signature = `${steeringCount}:${followUpCount}`;
+      if (signature === this.lastQueueSignature) return;
+      this.lastQueueSignature = signature;
+    }
+    if (eventType === "tool_execution_start") {
+      this.toolExecutionCountValue += 1;
+      this.startTool(event);
+    } else if (eventType === "tool_execution_update") {
+      if (!this.updateTool(event)) return;
+    } else if (eventType === "tool_execution_end") {
+      if (!this.endTool(event)) return;
+    }
     if (eventType === "auto_retry_start") {
       const category = categoryFromRecord(event);
       if (category !== undefined) this.recordProviderFailure(state, category);
@@ -439,11 +464,83 @@ export class PiRpcMonitor {
       agentEndSeen: current.finalAgentEndSeen,
       agentSettledSeen: current.settledSeen,
       toolExecutionCount: this.toolExecutionCountValue,
+      ...this.activeToolFields(),
       routeUnavailableSeen: providerFailureCategory !== undefined,
       providerFailureCategory,
       reportRound: this.reportRoundValue,
       errors: [...this.errorsValue],
     };
+  }
+
+  private activeToolFields(): {
+    readonly activeToolCount: number;
+    readonly activeToolName?: string;
+    readonly activeToolElapsedSeconds?: number;
+  } {
+    const active = [...this.activeTools.values()].sort((left, right) => right.sequence - left.sequence)[0];
+    if (active === undefined) return { activeToolCount: 0 };
+    return {
+      activeToolCount: this.activeTools.size,
+      activeToolName: active.name,
+      activeToolElapsedSeconds: Math.round((this.monotonicNow() - active.startedMonotonic) / 100) / 10,
+    };
+  }
+
+  private toolKey(event: Record<string, unknown>): string | undefined {
+    return typeof event.toolCallId === "string" && event.toolCallId.length > 0
+      ? `id:${event.toolCallId}`
+      : undefined;
+  }
+
+  private toolName(event: Record<string, unknown>): string {
+    return typeof event.toolName === "string" && event.toolName.length > 0
+      ? event.toolName.slice(0, 80)
+      : "unknown";
+  }
+
+  private startTool(event: Record<string, unknown>): void {
+    const name = this.toolName(event);
+    const key = this.toolKey(event) ?? `anonymous:${this.activeToolSequence + 1}`;
+    if (this.activeTools.has(key)) {
+      this.addError("duplicate_tool_execution_start");
+      return;
+    }
+    this.activeToolSequence += 1;
+    const now = this.monotonicNow();
+    this.activeTools.set(key, {
+      key,
+      name,
+      startedMonotonic: now,
+      sequence: this.activeToolSequence,
+    });
+  }
+
+  private matchingTool(event: Record<string, unknown>): ActiveTool | undefined {
+    const key = this.toolKey(event);
+    if (key !== undefined) return this.activeTools.get(key);
+    const name = this.toolName(event);
+    return [...this.activeTools.values()]
+      .filter((tool) => name === "unknown" || tool.name === name)
+      .sort((left, right) => right.sequence - left.sequence)[0];
+  }
+
+  private updateTool(event: Record<string, unknown>): boolean {
+    const tool = this.matchingTool(event);
+    if (tool === undefined) {
+      this.addError("tool_execution_update_without_start");
+      return false;
+    }
+    return true;
+  }
+
+  private endTool(event: Record<string, unknown>): boolean {
+    const tool = this.matchingTool(event);
+    if (tool === undefined) {
+      this.addError("tool_execution_end_without_start");
+      return false;
+    }
+    this.activeTools.delete(tool.key);
+    return true;
   }
 
   private recordProviderFailure(state: RoundState, category: ProviderFailureCategory): void {

@@ -54,6 +54,7 @@ function completedResult(report: string): DelegateRunResult {
     elapsedSeconds: 612.4,
     streamErrors: [],
     progress: progress({ state: "completed", phase: "complete", lastEvent: "agent_settled" }),
+    workBudgetSeconds: 2700,
   };
 }
 
@@ -78,6 +79,7 @@ function failedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunRe
     elapsedSeconds: 612.4,
     streamErrors: ["Pi JSON stream ended with a partial line"],
     progress: progress({ restartAfterWorkCount: 1 }),
+    workBudgetSeconds: 2700,
     ...overrides,
   };
 }
@@ -135,7 +137,7 @@ test("failure Markdown is exact, sanitized, and acts without diagnostics", () =>
     "- elapsed: 612.4s",
     "- attempts: opencode-go/muse-spark-1.2-contributor:xhigh -> stalled (restart after work)",
     "",
-    "The delegate stopped emitting accepted activity and was terminated at the event-idle deadline.",
+    "The delegate had no meaningful Pi RPC activity for ten minutes and was terminated.",
   ].join("\n"));
 });
 
@@ -161,6 +163,38 @@ test("failure Markdown never exposes the report, output, or any paths", () => {
   assert.doesNotMatch(text, /DELEGATE_RESULT/);
   assert.doesNotMatch(text, /delegated-pi-solution-a-abc|report\.md|status\.json/);
   assert.doesNotMatch(text, /logs\/delegated-pi-loop/);
+});
+
+test("failure Markdown and ToolResult details reject seeded operational free text", () => {
+  const forbidden = "/home/gc/PRIVATE_PATH sk-SECRET_TOKEN SIGKILL pid=4242 raw-error tool-argument tool-result provider-body";
+  const result = failedResult({
+    selectedRoute: forbidden,
+    deadlineCause: forbidden as never,
+    cleanupFailureReason: forbidden as never,
+    interruptionSource: forbidden as never,
+    attempts: [{
+      route: forbidden,
+      state: "cleanup_failed",
+      elapsedSeconds: 1,
+      activeToolName: forbidden,
+      deadlineCause: forbidden as never,
+      cleanupFailureReason: forbidden as never,
+      interruptionSource: forbidden as never,
+    }],
+    progress: progress({
+      phase: forbidden,
+      lastEvent: forbidden,
+      lastEventDetail: forbidden,
+      lastEventAt: forbidden,
+      activeToolCount: 1,
+      activeToolName: forbidden,
+    }),
+  });
+  const toolResult = finalToolResult(result);
+  const content = JSON.stringify(toolResult);
+  for (const token of ["PRIVATE_PATH", "SECRET_TOKEN", "SIGKILL", "4242", "raw-error", "tool-argument", "tool-result", "provider-body"]) {
+    assert.ok(!content.includes(token), token);
+  }
 });
 
 test("failure Markdown shows only the accepted reason enum with a fixed summary", () => {

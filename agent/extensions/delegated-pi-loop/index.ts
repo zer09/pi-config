@@ -149,7 +149,7 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("session_shutdown", () => {
-    manager.abortAll();
+    manager.abortAll("session_shutdown");
   });
 
   // Native tool-result lifecycle: unsuccessful delegate_run results are marked
@@ -211,7 +211,7 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
           // oracle main-model skip likewise reads the parent model id.
           parentProvider: ctx.model?.provider,
           parentModelId: ctx.model?.id,
-          signal: runSignal,
+          signal: runSignal.signal,
           onProgress: (progress) => {
             manager.update(toolCallId, progress);
             onUpdate?.(partialResult(handle.id, progress));
@@ -223,6 +223,7 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
         // temporary supervision artifacts for every terminal outcome.
         return finalResult(handle.id, await finalizeDelegateRun(result));
       } finally {
+        runSignal.dispose();
         manager.finish(toolCallId);
       }
     },

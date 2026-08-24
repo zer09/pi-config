@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-24 — Make delegated deadlines provider-count independent
+
+- Replaced equal-share route allocation with one monotonic 45-minute productive-work deadline. Every sequential route receives the same absolute deadline and the actual remaining time; global `timed_out/work_deadline` is terminal, while a 15-second catalog preflight timeout can continue while work time remains.
+- Made meaningful accepted Pi RPC activity authoritative for the five-minute warning and ten-minute stall. Added active-tool tracking by call ID with bounded name, count, and elapsed time. Empty deltas, render ticks, unchanged queue heartbeats, raw stderr, and malformed output do not reset idle age.
+- Separated cleanup into a ten-second maximum with five seconds of SIGTERM grace, three seconds of SIGKILL disappearance verification, and two seconds for final cleanup. Added fixed `group_alive` and `close_unconfirmed` proof failures plus fixed interruption sources.
+- Upgraded new failure diagnostics to schema 5 with deadline, work-budget, interruption, cleanup, active-tool, and per-attempt liveness metadata. Historical schema 3 and 4 files are not migrated. Routing policy, provider/model order, role taxonomy, gates, concurrency, and override policy are unchanged.
+
 ## 2026-08-24 — Add permanent Solution E
 
 - Expanded the required solution-investigation gate from A/B/C/D to A/B/C/D/E. Added `solution-e` to the public role enum and complete-role validation while retaining the generic read-only `solution-*` child contract and existing concurrency and waiver semantics.

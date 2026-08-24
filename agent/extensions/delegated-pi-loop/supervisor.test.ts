@@ -98,6 +98,7 @@ async function run(script: string, overrides: Partial<Parameters<typeof supervis
   const attemptDir = path.join(built.root, "attempt");
   await createPrivateDirectory(attemptDir);
   const progress: DelegateProgress[] = [];
+  const timeoutMs = overrides.timeoutMs ?? 2000;
   const status = await supervisePi({
     label: "test",
     role: "review-a",
@@ -107,7 +108,10 @@ async function run(script: string, overrides: Partial<Parameters<typeof supervis
     promptPath: built.promptPath,
     route: ROUTE,
     piInvocation: built.invocation,
-    timeoutMs: 2000,
+    timeoutMs,
+    workDeadline: performance.now() + timeoutMs,
+    workBudgetSeconds: timeoutMs / 1000,
+    remainingWorkSecondsAtAttemptStart: timeoutMs / 1000,
     idleWarningMs: 100,
     idleTimeoutMs: 500,
     maxOutputBytes: 1024 * 1024,
@@ -321,11 +325,23 @@ setInterval(() => {}, 1000);
   assert.equal((input.match(/extension_ui_response/g) ?? []).length, 1);
 });
 
-test("cancellation during a round terminates the process group", async () => {
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), 100);
-  const { status } = await run(eventScript([[{ type: "agent_start" }]]), { signal: controller.signal, idleTimeoutMs: 1000 });
-  assert.equal(status.state, "interrupted");
+test("fixed interruption sources propagate and arbitrary reasons become unknown", async () => {
+  for (const [reason, expected] of [
+    ["delegate_stop", "delegate_stop"],
+    ["session_shutdown", "session_shutdown"],
+    ["tool_call_abort", "tool_call_abort"],
+    ["PRIVATE arbitrary reason", "unknown"],
+  ] as const) {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(reason), 50);
+    const { status } = await run(eventScript([[{ type: "agent_start" }]]), {
+      signal: controller.signal,
+      idleTimeoutMs: 1000,
+    });
+    assert.equal(status.state, "interrupted");
+    assert.equal(status.interruptionSource, expected);
+    assert.doesNotMatch(JSON.stringify(status), /PRIVATE/);
+  }
 });
 
 test("cancellation during recovery keeps one manager attempt and kills the child", async () => {
@@ -385,6 +401,59 @@ setInterval(() => {}, 1000);
   assert.equal(status.state, "timed_out");
   assert.equal(status.reportNudgeCount, 1);
   assert.ok(status.elapsedSeconds < 0.45, `deadline reset unexpectedly: ${status.elapsedSeconds}s`);
+});
+
+test("continued meaningful activity never extends the global work deadline", async () => {
+  for (const activity of ["thinking", "tool"] as const) {
+    const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  if (!buffer.includes("\\n")) return;
+  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
+  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+  ${activity === "tool" ? "process.stdout.write(JSON.stringify({ type: 'tool_execution_start', toolCallId: 'active', toolName: 'bash', args: {} }) + '\\n');" : ""}
+  setInterval(() => process.stdout.write(JSON.stringify(${activity === "tool"
+    ? "{ type: 'tool_execution_update', toolCallId: 'active', toolName: 'bash', partialResult: {} }"
+    : "{ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', delta: 'x' } }"}) + "\\n"), 30);
+});
+setInterval(() => {}, 1000);
+`;
+    const { status } = await run(script, {
+      timeoutMs: 250,
+      idleWarningMs: 80,
+      idleTimeoutMs: 120,
+      cleanupTimeoutMs: 1000,
+    });
+    assert.equal(status.state, "timed_out", activity);
+    assert.equal(status.deadlineCause, "work_deadline", activity);
+    assert.ok(status.activityEventCount >= 4, activity);
+    assert.ok(status.elapsedSeconds < 1.2, `activity extended work deadline for ${activity}: ${status.elapsedSeconds}`);
+    if (activity === "tool") {
+      assert.equal(status.activeToolCount, 1);
+      assert.equal(status.activeToolName, "bash");
+    }
+  }
+});
+
+test("a silent active tool reaches the normal idle deadline", async () => {
+  const events = [
+    { type: "agent_start" },
+    { type: "tool_execution_start", toolCallId: "silent", toolName: "ctx_batch_execute", args: {} },
+  ];
+  const { status, progress } = await run(eventScript([events]), {
+    timeoutMs: 1000,
+    idleWarningMs: 100,
+    idleTimeoutMs: 250,
+    cleanupTimeoutMs: 1000,
+  });
+  assert.equal(status.state, "stalled");
+  assert.equal(status.deadlineCause, "idle_deadline");
+  assert.equal(status.idleWarningCount, 1);
+  assert.equal(status.activeToolCount, 1);
+  assert.equal(status.activeToolName, "ctx_batch_execute");
+  assert.ok(progress.every((item) => item.idleWarningCount <= 1));
 });
 
 test("output bytes accumulate across the initial and recovery commands", async () => {
@@ -465,6 +534,9 @@ async function runSinkFailure(
       route: ROUTE,
       piInvocation: built.invocation,
       timeoutMs: 2500,
+      workDeadline: performance.now() + 2500,
+      workBudgetSeconds: 2.5,
+      remainingWorkSecondsAtAttemptStart: 2.5,
       idleWarningMs: 200,
       idleTimeoutMs: 2300,
       maxOutputBytes: 1024 * 1024,
@@ -560,12 +632,9 @@ test("partial trailing JSON fails a completed lifecycle closed", async () => {
   assert.ok(status.streamErrors.includes("rpc_partial_record"));
 });
 
-test("a SIGTERM-resistant group is force-killed inside the cleanup-inclusive deadline", { skip: process.platform !== "linux" }, async () => {
-  // The leader and its descendant both trap SIGTERM, so only the bounded
-  // escalation to SIGKILL can end the group. supervisePi receives an absolute
-  // cleanup-inclusive deadline: the soft supervision cutoff fires early
-  // enough that graceful-then-forced termination and group verification all
-  // fit inside it.
+test("a SIGTERM-resistant group uses a separate bounded cleanup deadline", { skip: process.platform !== "linux" }, async () => {
+  // The leader and descendant trap SIGTERM. Productive work stops at its own
+  // deadline, then the separate cleanup allowance proves the group dead.
   const script = `
 import { spawn } from "node:child_process";
 process.on("SIGTERM", () => {});
@@ -583,7 +652,6 @@ process.stdin.on("data", (chunk) => {
 });
 setInterval(() => {}, 1000);
 `;
-  const deadline = performance.now() + 1500;
   let attemptDir: string | undefined;
   try {
     const outcome = await run(script, {
@@ -591,15 +659,16 @@ setInterval(() => {}, 1000);
       graceMs: 250,
       idleWarningMs: 3000,
       idleTimeoutMs: 5000,
-      deadline,
+      cleanupTimeoutMs: 1000,
     });
     attemptDir = outcome.attemptDir;
     assert.equal(outcome.status.state, "timed_out");
     assert.ok(
       outcome.status.elapsedSeconds < 1.4,
-      `supervision plus termination must fit inside the deadline, got ${outcome.status.elapsedSeconds}s`,
+      `work plus separate cleanup must stay bounded, got ${outcome.status.elapsedSeconds}s`,
     );
-    assert.ok(outcome.status.elapsedSeconds >= 0.35, "the soft supervision cutoff must have run first");
+    assert.ok(outcome.status.elapsedSeconds >= 0.35, "the productive-work deadline must run first");
+    assert.equal(outcome.status.deadlineCause, "work_deadline");
     const stderr = await readFile(path.join(outcome.attemptDir, "stderr.log"), "utf8");
     const childPid = Number(/CHILD=(\d+)/.exec(stderr)?.[1]);
     const descendantPid = Number(/DESCENDANT=(\d+)/.exec(stderr)?.[1]);
@@ -654,20 +723,38 @@ function fakeClockProbes(options: {
 test("termination reports persistent liveness when the group survives SIGKILL", async () => {
   const signals: string[] = [];
   const { probes } = fakeClockProbes({ groupExists: () => true, signals });
-  const outcome = await terminateProcessGroupWith(200, undefined, probes);
+  const outcome = await terminateProcessGroupWith(200, 3200, probes);
   // The graceful window and the full verification floor both elapsed, the
   // group still exists, and no close proof can rescue the result.
   assert.deepEqual(outcome, { ok: false, reason: "group_alive" });
   assert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
 });
 
-test("termination clamps every wait to the absolute deadline with no verification floor", async () => {
+test("termination clamps every wait to the cleanup deadline", async () => {
   const signals: string[] = [];
   const { probes, clock } = fakeClockProbes({ groupExists: () => true, processIsRunning: () => true, signals });
   const outcome = await terminateProcessGroupWith(200, 50, probes);
   assert.deepEqual(outcome, { ok: false, reason: "group_alive" });
   assert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
-  assert.ok(clock() <= 50, `no wait may extend past the deadline, fake clock reached ${clock()}`);
+  assert.ok(clock() <= 50, `no wait may extend past the cleanup deadline, fake clock reached ${clock()}`);
+});
+
+test("termination succeeds when the group disappears hundreds of milliseconds after SIGKILL", async () => {
+  let clock = 0;
+  let killedAt: number | undefined;
+  const probes: TerminationProbes = {
+    now: () => clock,
+    delay: async (ms) => { clock += ms; },
+    processIsRunning: () => false,
+    groupExists: () => killedAt === undefined || clock - killedAt < 350,
+    signalGroup: (signal) => {
+      if (signal === "SIGKILL") killedAt = clock;
+    },
+    waitForClose: async () => true,
+  };
+  const outcome = await terminateProcessGroupWith(100, 3200, probes);
+  assert.deepEqual(outcome, { ok: true });
+  assert.ok(clock >= 450 && clock < 3200, `group proof should take hundreds of milliseconds, got ${clock}`);
 });
 
 test("termination reports an unconfirmed close when the leader never closes", async () => {
@@ -678,7 +765,7 @@ test("termination reports an unconfirmed close when the leader never closes", as
     waitForClose: async () => false,
     signals,
   });
-  const outcome = await terminateProcessGroupWith(200, undefined, probes);
+  const outcome = await terminateProcessGroupWith(200, 3200, probes);
   // The group is gone, but the bounded close wait timed out and the leader
   // was never provably gone, so the close proof stays negative.
   assert.deepEqual(outcome, { ok: false, reason: "close_unconfirmed" });
@@ -695,49 +782,11 @@ test("termination resolves positively only on close plus a final dead-group prob
     waitForClose: async () => closeSeen,
   });
   // The close event fired and the final group probe is false.
-  assert.deepEqual(await terminateProcessGroupWith(200, undefined, positive(true, false)), { ok: true });
+  assert.deepEqual(await terminateProcessGroupWith(200, 3200, positive(true, false)), { ok: true });
   // The close wait timed out but the leader's exit was recorded, so the leader is provably gone.
-  assert.deepEqual(await terminateProcessGroupWith(200, undefined, positive(false, false)), { ok: true });
+  assert.deepEqual(await terminateProcessGroupWith(200, 3200, positive(false, false)), { ok: true });
   // A group that died at entry still needs the leader's close or recorded exit.
-  assert.deepEqual(await terminateProcessGroupWith(200, undefined, positive(true, true)), { ok: true });
-});
-
-test("a share that cannot fit the mandatory reserve records a soft timeout without spawning", async () => {
-  const built = await fixture(eventScript([completed()]));
-  const attemptDir = path.join(built.root, "attempt");
-  await createPrivateDirectory(attemptDir);
-  const progress: DelegateProgress[] = [];
-  const status = await supervisePi({
-    label: "test",
-    role: "review-a",
-    attempt: 1,
-    cwd: built.root,
-    artifactDir: attemptDir,
-    promptPath: built.promptPath,
-    route: ROUTE,
-    piInvocation: built.invocation,
-    // The whole share is smaller than the mandatory forced-kill verification
-    // plus final cleanup reserve, so no child may spawn at all.
-    timeoutMs: 20,
-    deadline: performance.now() + 20,
-    idleWarningMs: 5000,
-    idleTimeoutMs: 9000,
-    maxOutputBytes: 1024 * 1024,
-    graceMs: 5000,
-    onProgress: (value) => progress.push(value),
-  });
-  assert.equal(status.state, "timed_out");
-  assert.equal(status.exitCode, null);
-  assert.equal(status.reportPresent, false);
-  assert.ok(status.elapsedSeconds < 0.05, `the no-spawn path must return immediately, got ${status.elapsedSeconds}s`);
-  // No child ever ran: the fixture leaves no args.json behind.
-  await assert.rejects(() => stat(path.join(built.root, "args.json")));
-  // Bounded sanitized cleanup still completed before returning.
-  const stderrStat = await stat(path.join(attemptDir, "stderr.log"));
-  assert.equal(stderrStat.mode & 0o777, 0o600);
-  const persisted = JSON.parse(await readFile(path.join(attemptDir, "status.json"), "utf8")) as { state: string };
-  assert.equal(persisted.state, "timed_out");
-  assert.equal(progress.at(-1)?.state, "timed_out");
+  assert.deepEqual(await terminateProcessGroupWith(200, 3200, positive(true, true)), { ok: true });
 });
 
 test("a cleanup failure after termination records the sanitized terminal cleanup_failed state", async () => {
@@ -756,8 +805,8 @@ test("a cleanup failure after termination records the sanitized terminal cleanup
     });
     assert.equal(status.state, "cleanup_failed");
     assert.equal(status.reportPresent, false);
-    // The persisted status is sanitized: no signal, pid, or failure reason detail.
-    assert.doesNotMatch(JSON.stringify(status), /SIGKILL|SIGTERM|group_alive|close_unconfirmed/i);
+    assert.equal(status.cleanupFailureReason, "group_alive");
+    assert.doesNotMatch(JSON.stringify(status), /SIGKILL|SIGTERM|pid/i);
     // Full cleanup still completed and the final progress carries the terminal state.
     const stderrStat = await stat(path.join(attemptDir, "stderr.log"));
     assert.equal(stderrStat.mode & 0o777, 0o600);
@@ -769,7 +818,39 @@ test("a cleanup failure after termination records the sanitized terminal cleanup
   }
 });
 
-test("a sub-100 ms share still enforces its deadline with one-shot precision", { skip: process.platform !== "linux" }, async () => {
+test("a missing leader close proof propagates close_unconfirmed", async () => {
+  const originalBuild = terminationProbes.build;
+  try {
+    terminationProbes.build = (child) => {
+      const real = originalBuild(child);
+      let probed = false;
+      return {
+        ...real,
+        groupExists: () => {
+          if (!probed) {
+            probed = true;
+            return true;
+          }
+          return false;
+        },
+        processIsRunning: () => true,
+        waitForClose: async () => false,
+      };
+    };
+    const { status } = await run(eventScript([[{ type: "agent_start" }]]), {
+      timeoutMs: 200,
+      idleWarningMs: 1000,
+      idleTimeoutMs: 2000,
+      cleanupTimeoutMs: 1000,
+    });
+    assert.equal(status.state, "cleanup_failed");
+    assert.equal(status.cleanupFailureReason, "close_unconfirmed");
+  } finally {
+    terminationProbes.build = originalBuild;
+  }
+});
+
+test("a sub-100 ms work deadline still uses one-shot precision", { skip: process.platform !== "linux" }, async () => {
   // A shell fixture is SIGTERM-resistant within milliseconds of spawn and
   // keeps a descendant in the same process group. The supervision share is
   // 95 ms; the 100 ms interval's first possible deadline check is far too
@@ -807,7 +888,10 @@ test("a sub-100 ms share still enforces its deadline with one-shot precision", {
       route: ROUTE,
       piInvocation: { command: scriptPath, prefixArgs: [] },
       timeoutMs: 95,
-      deadline,
+      workDeadline: deadline,
+      workBudgetSeconds: 0.095,
+      remainingWorkSecondsAtAttemptStart: 0.095,
+      cleanupTimeoutMs: 1500,
       idleWarningMs: 5000,
       idleTimeoutMs: 9000,
       maxOutputBytes: 1024 * 1024,
@@ -822,10 +906,10 @@ test("a sub-100 ms share still enforces its deadline with one-shot precision", {
     // stopped the route this early.
     assert.ok(wallMs >= 25, `the soft supervision cutoff must run before termination, wall ${wallMs.toFixed(1)}ms`);
     assert.ok(
-      wallMs < 150,
-      `the sub-100 ms share must complete its kill and cleanup inside the share plus tolerance, wall ${wallMs.toFixed(1)}ms`,
+      wallMs < 1600,
+      `work plus separate cleanup must stay bounded, wall ${wallMs.toFixed(1)}ms`,
     );
-    assert.ok(status.elapsedSeconds <= 0.1, `elapsed must stay at or under the share, got ${status.elapsedSeconds}s`);
+    assert.equal(status.deadlineCause, "work_deadline");
     const stderr = await readFile(path.join(attemptDir, "stderr.log"), "utf8");
     const childPid = Number(/CHILD=(\d+)/.exec(stderr)?.[1]);
     const descendantPid = Number(/DESCENDANT=(\d+)/.exec(stderr)?.[1]);

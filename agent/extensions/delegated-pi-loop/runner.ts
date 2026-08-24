@@ -9,17 +9,18 @@ import {
   readPrivateText,
   removeDirectory,
 } from "./artifacts.ts";
+import { interruptionSource } from "./manager.ts";
 import { buildDelegatePrompt, oracleGuard, roleLabel, routeKey } from "./routes.ts";
 import { loadRoutingConfig, oracleModelIds, selectRoutes } from "./routing.ts";
 import {
-  DEFAULT_GRACE_MS,
+  DEFAULT_CLEANUP_TIMEOUT_MS,
   DEFAULT_IDLE_TIMEOUT_MS,
   DEFAULT_IDLE_WARNING_MS,
   DEFAULT_MAX_OUTPUT_BYTES,
-  DEFAULT_TIMEOUT_MS,
+  DEFAULT_TERMINATION_GRACE_MS,
+  DEFAULT_WORK_TIMEOUT_MS,
   delegateEnvironment,
-  FORCED_KILL_VERIFY_RESERVE_MS,
-  MANDATORY_CLEANUP_RESERVE_MS,
+  FINAL_CLEANUP_ALLOWANCE_MS,
   resolvePiInvocation,
   supervisePi,
   terminateProcessGroup,
@@ -28,6 +29,8 @@ import {
 import type {
   AttemptStatus,
   ChainAttempt,
+  CleanupFailureReason,
+  DeadlineCause,
   DelegateOutcome,
   DelegateProgress,
   DelegateReasonStatus,
@@ -44,14 +47,14 @@ function roundedSeconds(milliseconds: number): number {
 }
 
 /**
- * Failure states that always continue to the next route, even after tools or
- * accepted report recovery. Completed runs, intentional BLOCKED/FAILED
- * markers, and cancellation are terminal and never fall back.
+ * Failure states eligible for fallback while productive-work time remains,
+ * even after tools or accepted report recovery. Global work timeout,
+ * completed runs, intentional BLOCKED/FAILED markers, cancellation, and
+ * cleanup proof failure are terminal.
  */
 const OPERATIONAL_FAILURE_STATES: ReadonlySet<string> = new Set([
   "provider_failed",
   "stalled",
-  "timed_out",
   "output_limit",
   "prompt_rejected",
   "invalid_result",
@@ -65,16 +68,25 @@ export function isOperationalFailureState(state: DelegateState | "catalog_unavai
   return OPERATIONAL_FAILURE_STATES.has(state);
 }
 
-/** Catalog preflight outcome: present, absent, stopped by its time budget, or failed cleanup. */
-export type CatalogOutcome = "available" | "unavailable" | "timed_out" | "cleanup_failed";
+/** Catalog preflight outcome with fixed privacy-safe stop metadata. */
+export interface CatalogResult {
+  readonly outcome: "available" | "unavailable" | "timed_out" | "cleanup_failed" | "interrupted";
+  readonly deadlineCause?: DeadlineCause;
+  readonly cleanupFailureReason?: CleanupFailureReason;
+}
 
 async function routeIsCatalogued(
   invocation: PiInvocation,
   route: PiRoute,
   cwd: string,
-  deadlineMs: number,
+  workDeadline: number,
+  catalogTimeoutMs: number,
   signal?: AbortSignal,
-): Promise<CatalogOutcome> {
+): Promise<CatalogResult> {
+  const catalogDeadline = Math.min(workDeadline, performance.now() + catalogTimeoutMs);
+  const catalogDeadlineCause: DeadlineCause = catalogDeadline === workDeadline
+    ? "work_deadline"
+    : "catalog_preflight";
   const args = [...invocation.prefixArgs, "--list-models", `${route.provider}/${route.model}`];
   const child = spawn(invocation.command, args, {
     cwd,
@@ -113,13 +125,12 @@ async function routeIsCatalogued(
   child.stdout?.on("data", onStdoutData);
   child.stderr?.on("data", onStderrData);
 
-  // Catalog termination is stored and awaited before this function
-  // returns, and terminateProcessGroup verifies process-group disappearance,
-  // so no catalog child or descendant survives into the next route. The
-  // stop timer and the graceful window both leave the forced-kill
-  // verification reserve inside the route share before its absolute
-  // deadline, so the verified kill never needs time the route no longer has.
+  // Catalog termination is stored and awaited before this function returns.
+  // Cleanup gets its own bounded allowance and proves group disappearance, so
+  // no catalog child or descendant survives into the next route.
   let stopped = false;
+  let stopOutcome: CatalogResult["outcome"] = "timed_out";
+  let deadlineCause: DeadlineCause | undefined;
   let termination: Promise<TerminationOutcome> | undefined;
   // Resolves as soon as the stop path starts termination. The wait below
   // races it against close, because a descendant that inherited the catalog
@@ -129,18 +140,20 @@ async function routeIsCatalogued(
   const terminationStarted = new Promise<void>((resolve) => {
     signalTerminationStarted = resolve;
   });
-  const sweepGraceMs = () =>
-    Math.max(0, Math.min(1000, deadlineMs - performance.now() - FORCED_KILL_VERIFY_RESERVE_MS));
   const stop = () => {
     if (stopped) return;
     stopped = true;
-    termination = terminateProcessGroup(child, sweepGraceMs(), deadlineMs);
+    if (signal?.aborted) stopOutcome = "interrupted";
+    else deadlineCause = catalogDeadlineCause;
+    const cleanupDeadline = performance.now() + DEFAULT_CLEANUP_TIMEOUT_MS;
+    termination = terminateProcessGroup(
+      child,
+      DEFAULT_TERMINATION_GRACE_MS,
+      cleanupDeadline - FINAL_CLEANUP_ALLOWANCE_MS,
+    );
     signalTerminationStarted();
   };
-  const timer = setTimeout(
-    stop,
-    Math.max(0, Math.min(15_000, deadlineMs - performance.now() - FORCED_KILL_VERIFY_RESERVE_MS)),
-  );
+  const timer = setTimeout(stop, Math.max(0, catalogDeadline - performance.now()));
   if (signal?.aborted) stop();
   else signal?.addEventListener("abort", stop, { once: true });
   try {
@@ -151,7 +164,12 @@ async function routeIsCatalogued(
     if (!stopped) {
       // Natural exit inside the budget: the group is still swept and its
       // disappearance verified before the outcome returns.
-      termination = terminateProcessGroup(child, sweepGraceMs(), deadlineMs);
+      const cleanupDeadline = performance.now() + DEFAULT_CLEANUP_TIMEOUT_MS;
+      termination = terminateProcessGroup(
+        child,
+        DEFAULT_TERMINATION_GRACE_MS,
+        cleanupDeadline - FINAL_CLEANUP_ALLOWANCE_MS,
+      );
     }
     const terminationOutcome = await termination!;
     // Stop consuming output before ending the decoder. A negative cleanup
@@ -160,17 +178,17 @@ async function routeIsCatalogued(
     stdout += stdoutDecoder.end();
     // A preflight group that cannot be proven dead is a bounded cleanup
     // failure: the caller fails the chain closed instead of risking overlap.
-    if (!terminationOutcome.ok) return "cleanup_failed";
-    // A stopped preflight never proves the route is absent: it hit its time
-    // budget (route share or the fixed preflight cap) or the abort signal the
-    // caller checks separately, so it stays distinct from unavailability.
-    if (stopped) return "timed_out";
-    if (spawnFailed || child.exitCode !== 0 || outputBytes > 1024 * 1024) return "unavailable";
+    if (!terminationOutcome.ok) {
+      return { outcome: "cleanup_failed", cleanupFailureReason: terminationOutcome.reason, deadlineCause };
+    }
+    if (stopped) return { outcome: stopOutcome, deadlineCause };
+    if (spawnFailed || child.exitCode !== 0 || outputBytes > 1024 * 1024) return { outcome: "unavailable" };
 
-    return stdout.split(/\r?\n/).some((line) => {
+    const available = stdout.split(/\r?\n/).some((line) => {
       const fields = line.trim().split(/\s+/);
       return fields.length >= 2 && fields[0] === route.provider && fields[1] === route.model;
-    }) ? "available" : "unavailable";
+    });
+    return { outcome: available ? "available" : "unavailable" };
   } finally {
     // The stop timer and the abort listener are cleared even when the
     // termination or outcome handling throws mid-settlement.
@@ -205,10 +223,18 @@ function progressFromStatus(status: AttemptStatus, attempt: number, restartAfter
     terminalReason: status.terminalReason,
     reasonStatus: status.reasonStatus,
     blockedMisuseSuspected: status.blockedMisuseSuspected,
+    deadlineCause: status.deadlineCause,
+    cleanupFailureReason: status.cleanupFailureReason,
+    interruptionSource: status.interruptionSource,
+    workBudgetSeconds: status.workBudgetSeconds,
+    remainingWorkSecondsAtAttemptStart: status.remainingWorkSecondsAtAttemptStart,
+    activeToolCount: status.activeToolCount,
+    activeToolName: status.activeToolName,
+    activeToolElapsedSeconds: status.activeToolElapsedSeconds,
   };
 }
 
-function initialProgress(label: string, options: RunOptions): DelegateProgress {
+function initialProgress(label: string, options: RunOptions, workBudgetSeconds: number): DelegateProgress {
   const now = new Date().toISOString();
   return {
     label,
@@ -226,6 +252,8 @@ function initialProgress(label: string, options: RunOptions): DelegateProgress {
     restartAfterWorkCount: 0,
     reportNudgeCount: 0,
     reportRound: 1,
+    workBudgetSeconds,
+    activeToolCount: 0,
   };
 }
 
@@ -241,12 +269,20 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
   const label = roleLabel(options.role);
   const started = performance.now();
   const startedAt = new Date().toISOString();
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_WORK_TIMEOUT_MS;
   const idleWarningMs = options.idleWarningMs ?? DEFAULT_IDLE_WARNING_MS;
   const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   const maxOutputBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
-  const graceMs = options.graceMs ?? DEFAULT_GRACE_MS;
-  if (timeoutMs <= 0 || timeoutMs > DEFAULT_TIMEOUT_MS) throw new Error("timeout must be between 1 ms and 45 minutes");
+  const graceMs = options.graceMs ?? DEFAULT_TERMINATION_GRACE_MS;
+  const cleanupTimeoutMs = options.cleanupTimeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS;
+  const catalogTimeoutMs = options.catalogTimeoutMs ?? 15_000;
+  if (timeoutMs <= 0 || timeoutMs > DEFAULT_WORK_TIMEOUT_MS) throw new Error("timeout must be between 1 ms and 45 minutes");
+  if (cleanupTimeoutMs <= 0 || cleanupTimeoutMs > DEFAULT_CLEANUP_TIMEOUT_MS) {
+    throw new Error("cleanup timeout must be between 1 ms and 10 seconds");
+  }
+  if (catalogTimeoutMs <= 0 || catalogTimeoutMs > 15_000) {
+    throw new Error("catalog timeout must be between 1 ms and 15 seconds");
+  }
   if (idleWarningMs <= 0 || idleTimeoutMs <= idleWarningMs || idleTimeoutMs > DEFAULT_IDLE_TIMEOUT_MS) {
     throw new Error("idle limits must be positive, ordered, and no longer than 10 minutes");
   }
@@ -273,42 +309,39 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
 
     const attempts: ChainAttempt[] = [];
     const piInvocation = options.piInvocation ?? resolvePiInvocation();
-    // One monotonic absolute deadline for the whole chain. Route attempts
-    // receive soft shares of it below, so time spent on one route always
-    // shrinks what every later route may still use.
-    const chainDeadline = started + timeoutMs;
+    // One monotonic productive-work deadline belongs to the whole delegate.
+    // Every provider receives this same absolute deadline.
+    const workDeadline = started + timeoutMs;
+    const workBudgetSeconds = roundedSeconds(timeoutMs);
     let selectedRoute: string | undefined;
     let report = "";
     let finalState: DelegateState = "routes_unavailable";
-    let finalProgress = initialProgress(label, options);
+    let finalProgress = initialProgress(label, options, workBudgetSeconds);
     let restartAfterWorkCount = 0;
     let terminalStreamErrors: readonly string[] = [];
     let delegateOutcome: DelegateOutcome | undefined;
     let terminalReason: DelegateTerminalReasonValue | undefined;
     let reasonStatus: DelegateReasonStatus | undefined;
     let blockedMisuseSuspected: boolean | undefined;
+    let deadlineCause: DeadlineCause | undefined;
+    let cleanupFailureReason: CleanupFailureReason | undefined;
+    let interruptionSourceValue: DelegateRunResult["interruptionSource"];
     options.onProgress?.(finalProgress);
 
     for (let index = 0; index < routes.length; index += 1) {
       if (options.signal?.aborted) {
         finalState = "interrupted";
+        interruptionSourceValue = interruptionSource(options.signal.reason);
         break;
       }
       const route = routes[index]!;
-      const remainingMs = chainDeadline - performance.now();
+      const remainingMs = workDeadline - performance.now();
       if (remainingMs <= 0) {
         finalState = "timed_out";
+        deadlineCause = "work_deadline";
         break;
       }
-
-      // Deterministic soft allocation: every remaining route, this one
-      // included, receives an equal share of the current cumulative
-      // remainder, so a hanging non-final route cannot consume the whole
-      // fallback budget. The share is an absolute soft deadline covering
-      // this route's catalog preflight, supervision, and cleanup/termination;
-      // because the final route is the only one remaining, its share is the
-      // full remainder.
-      const routeDeadline = performance.now() + remainingMs / (routes.length - index);
+      const remainingWorkSecondsAtAttemptStart = roundedSeconds(remainingMs);
 
       finalProgress = {
         ...finalProgress,
@@ -318,6 +351,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         lastEvent: "catalog_check",
         lastEventAt: new Date().toISOString(),
         elapsedSeconds: roundedSeconds(performance.now() - started),
+        remainingWorkSecondsAtAttemptStart,
       };
       options.onProgress?.(finalProgress);
       const catalogStarted = performance.now();
@@ -325,70 +359,72 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         piInvocation,
         route,
         options.cwd,
-        routeDeadline,
+        workDeadline,
+        catalogTimeoutMs,
         options.signal,
       );
-      if (options.signal?.aborted) {
-        finalState = "interrupted";
-        break;
-      }
-      if (catalog === "timed_out") {
-        // The preflight was stopped by its share (or the fixed preflight
-        // cap), not proven absent: record the route-budget timeout and let
-        // the next route use its reserved share while cumulative time
-        // remains.
+      if (catalog.outcome === "interrupted" || options.signal?.aborted) {
         attempts.push({
           route: routeKey(route),
-          state: "timed_out",
+          state: "interrupted",
           elapsedSeconds: roundedSeconds(performance.now() - catalogStarted),
+          interruptionSource: interruptionSource(options.signal?.reason),
+          remainingWorkSecondsAtAttemptStart,
         });
-        // The final route owns the full remainder, so its budget stop means
-        // the cumulative deadline is exhausted as soon as no supervision
-        // could still fit the mandatory cleanup reserve inside it.
-        if (index >= routes.length - 1 && chainDeadline - performance.now() <= MANDATORY_CLEANUP_RESERVE_MS) {
-          finalState = "timed_out";
-          break;
-        }
-        continue;
+        finalState = "interrupted";
+        interruptionSourceValue = interruptionSource(options.signal?.reason);
+        break;
       }
-      if (catalog === "cleanup_failed") {
-        // The preflight's process group could not be proven dead. No later
-        // route may start next to a possibly-live group, so the chain fails
-        // closed right here with the sanitized terminal state.
+      if (catalog.outcome === "cleanup_failed") {
+        cleanupFailureReason = catalog.cleanupFailureReason;
         attempts.push({
           route: routeKey(route),
           state: "cleanup_failed",
           elapsedSeconds: roundedSeconds(performance.now() - catalogStarted),
+          deadlineCause: catalog.deadlineCause,
+          cleanupFailureReason,
+          remainingWorkSecondsAtAttemptStart,
         });
         finalState = "cleanup_failed";
         break;
       }
-      if (catalog === "unavailable") {
-        attempts.push({
-          route: routeKey(route),
-          state: "catalog_unavailable",
-          elapsedSeconds: roundedSeconds(performance.now() - catalogStarted),
-        });
-        continue;
-      }
-
-      // Supervision runs on this route's remaining soft share, so catalog
-      // preflight time is deducted and the attempt's own termination and
-      // cleanup stay inside the reserved allocation. A non-positive share
-      // on the final route means the cumulative deadline is exhausted; on a
-      // non-final route it records a soft timeout and advances.
-      const superviseBudgetMs = routeDeadline - performance.now();
-      if (superviseBudgetMs <= 0) {
+      if (catalog.outcome === "timed_out") {
         attempts.push({
           route: routeKey(route),
           state: "timed_out",
           elapsedSeconds: roundedSeconds(performance.now() - catalogStarted),
+          deadlineCause: catalog.deadlineCause,
+          remainingWorkSecondsAtAttemptStart,
         });
-        if (index >= routes.length - 1) {
+        if (catalog.deadlineCause === "work_deadline" || workDeadline - performance.now() <= 0) {
           finalState = "timed_out";
+          deadlineCause = "work_deadline";
           break;
         }
+        // A fixed 15-second catalog preflight timeout may continue while the
+        // shared productive-work budget remains.
         continue;
+      }
+      if (workDeadline - performance.now() <= 0) {
+        finalState = "timed_out";
+        deadlineCause = "work_deadline";
+        break;
+      }
+      if (catalog.outcome === "unavailable") {
+        attempts.push({
+          route: routeKey(route),
+          state: "catalog_unavailable",
+          elapsedSeconds: roundedSeconds(performance.now() - catalogStarted),
+          remainingWorkSecondsAtAttemptStart,
+        });
+        continue;
+      }
+
+      const superviseBudgetMs = workDeadline - performance.now();
+      if (superviseBudgetMs <= 0) {
+        finalState = "timed_out";
+        deadlineCause = "work_deadline";
+        break;
       }
 
       const attemptDir = path.join(artifactDir, `attempt-${String(index + 1).padStart(2, "0")}`);
@@ -403,14 +439,14 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         restartAfterWorkCount,
         signal: options.signal,
         timeoutMs: superviseBudgetMs,
-        // The absolute route deadline bounds supervision, termination, and
-        // group cleanup together: supervisePi reserves the cleanup budget
-        // before route work, so the whole attempt fits inside its share.
-        deadline: routeDeadline,
+        workDeadline,
+        workBudgetSeconds,
+        remainingWorkSecondsAtAttemptStart,
         idleWarningMs,
         idleTimeoutMs,
         maxOutputBytes,
         graceMs,
+        cleanupTimeoutMs,
         onProgress: (progress: DelegateProgress) => {
           finalProgress = progress;
           options.onProgress?.(progress);
@@ -423,6 +459,13 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         route: routeKey(route),
         state: attemptStatus.state,
         elapsedSeconds: roundedSeconds(performance.now() - attemptStarted),
+        deadlineCause: attemptStatus.deadlineCause,
+        cleanupFailureReason: attemptStatus.cleanupFailureReason,
+        interruptionSource: attemptStatus.interruptionSource,
+        remainingWorkSecondsAtAttemptStart,
+        activeToolCount: attemptStatus.activeToolCount,
+        activeToolName: attemptStatus.activeToolName,
+        activeToolElapsedSeconds: attemptStatus.activeToolElapsedSeconds,
       });
 
       if (attemptStatus.state === "completed") {
@@ -434,6 +477,9 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         terminalReason = attemptStatus.terminalReason;
         reasonStatus = attemptStatus.reasonStatus;
         blockedMisuseSuspected = attemptStatus.blockedMisuseSuspected;
+        deadlineCause = attemptStatus.deadlineCause;
+        cleanupFailureReason = attemptStatus.cleanupFailureReason;
+        interruptionSourceValue = attemptStatus.interruptionSource;
         break;
       }
 
@@ -453,6 +499,15 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         terminalReason = attemptStatus.terminalReason;
         reasonStatus = attemptStatus.reasonStatus;
         blockedMisuseSuspected = attemptStatus.blockedMisuseSuspected;
+        deadlineCause = attemptStatus.deadlineCause;
+        cleanupFailureReason = attemptStatus.cleanupFailureReason;
+        interruptionSourceValue = attemptStatus.interruptionSource;
+        break;
+      }
+
+      if (workDeadline - performance.now() <= 0) {
+        finalState = "timed_out";
+        deadlineCause = "work_deadline";
         break;
       }
 
@@ -482,7 +537,15 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     // All outcome data travels in memory; no chain-level report.md or status.json
     // is written. The caller persists the failure diagnostic (if any), assembles
     // the tool result, and then removes the artifact directory.
-    finalProgress = { ...finalProgress, state: finalState, elapsedSeconds: elapsed };
+    finalProgress = {
+      ...finalProgress,
+      state: finalState,
+      elapsedSeconds: elapsed,
+      deadlineCause,
+      cleanupFailureReason,
+      interruptionSource: interruptionSourceValue,
+      workBudgetSeconds,
+    };
     options.onProgress?.(finalProgress);
 
     return {
@@ -502,6 +565,10 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       terminalReason,
       reasonStatus,
       blockedMisuseSuspected,
+      deadlineCause,
+      cleanupFailureReason,
+      interruptionSource: interruptionSourceValue,
+      workBudgetSeconds,
     };
   } catch (error) {
     // A throw before the successful return (for example a throwing

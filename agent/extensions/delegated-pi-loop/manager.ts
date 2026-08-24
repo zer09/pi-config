@@ -1,5 +1,5 @@
 import { roleIsExclusive } from "./routes.ts";
-import type { DelegateProgress, DelegateRole, DelegateState } from "./types.ts";
+import type { DelegateProgress, DelegateRole, DelegateState, InterruptionSource } from "./types.ts";
 
 interface ActiveRun {
   readonly delegateId: number;
@@ -112,7 +112,7 @@ export class DelegateManager {
     if (!run) return { status: "not_found" };
     const delegate = this.describe(run);
     if (run.controller.signal.aborted) return { status: "already_stopping", delegate };
-    run.controller.abort();
+    run.controller.abort("delegate_stop" satisfies InterruptionSource);
     return { status: "stopping", delegate: { ...delegate, state: "stopping" } };
   }
 
@@ -120,8 +120,8 @@ export class DelegateManager {
     this.active.delete(toolCallId);
   }
 
-  abortAll(): void {
-    for (const run of this.active.values()) run.controller.abort();
+  abortAll(source: InterruptionSource = "unknown"): void {
+    for (const run of this.active.values()) run.controller.abort(source);
     this.active.clear();
   }
 
@@ -142,7 +142,43 @@ export class DelegateManager {
   }
 }
 
-export function combinedSignal(first: AbortSignal | undefined, second: AbortSignal): AbortSignal {
-  if (!first) return second;
-  return AbortSignal.any([first, second]);
+export interface CombinedSignal {
+  readonly signal: AbortSignal;
+  dispose(): void;
+}
+
+/** Maps arbitrary AbortSignal reasons to the fixed privacy-safe enum. */
+export function interruptionSource(reason: unknown): InterruptionSource {
+  return reason === "delegate_stop"
+    || reason === "session_shutdown"
+    || reason === "tool_call_abort"
+    || reason === "unknown"
+    ? reason
+    : "unknown";
+}
+
+/**
+ * Combines the upstream tool-call signal and manager-owned stop signal.
+ * The first abort wins, and dispose removes both listeners on normal finish.
+ */
+export function combinedSignal(first: AbortSignal | undefined, second: AbortSignal): CombinedSignal {
+  const controller = new AbortController();
+  const abort = (source: InterruptionSource) => {
+    if (!controller.signal.aborted) controller.abort(source);
+  };
+  const firstAbort = () => abort("tool_call_abort");
+  const secondAbort = () => abort(interruptionSource(second.reason));
+  if (first?.aborted) firstAbort();
+  else first?.addEventListener("abort", firstAbort, { once: true });
+  if (!controller.signal.aborted) {
+    if (second.aborted) secondAbort();
+    else second.addEventListener("abort", secondAbort, { once: true });
+  }
+  return {
+    signal: controller.signal,
+    dispose() {
+      first?.removeEventListener("abort", firstAbort);
+      second.removeEventListener("abort", secondAbort);
+    },
+  };
 }

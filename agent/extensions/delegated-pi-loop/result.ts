@@ -1,14 +1,14 @@
 import { DELEGATE_TOOL_OUTPUT_LIMIT, removeDirectory, truncateUtf8 } from "./artifacts.ts";
 import { writeFailureDiagnosticQuietly } from "./diagnostics.ts";
-import type { DelegateRunResult, DelegateToolResultEvent, ToolResult } from "./types.ts";
+import type { ChainAttempt, DelegateProgress, DelegateRunResult, DelegateToolResultEvent, ToolResult } from "./types.ts";
 
 const HEADER_RESERVE_BYTES = 1024;
 const FIELD_LIMIT = 80;
 
 const STATE_SUMMARIES: Readonly<Record<string, string>> = {
-  routes_unavailable: "No route in the ordered chain could start the delegate before the shared deadline.",
-  stalled: "The delegate stopped emitting accepted activity and was terminated at the event-idle deadline.",
-  timed_out: "The delegate exceeded its shared wall deadline and was terminated.",
+  routes_unavailable: "No route in the ordered chain could complete the delegate while work time remained.",
+  stalled: "The delegate had no meaningful Pi RPC activity for ten minutes and was terminated.",
+  timed_out: "The delegate reached its fixed productive-work deadline and was terminated without fallback.",
   output_limit: "The delegate exceeded its output limit and was terminated.",
   blocked: "The delegate ended with DELEGATE_RESULT: BLOCKED.",
   delegate_failed: "The delegate ended with DELEGATE_RESULT: FAILED.",
@@ -44,8 +44,62 @@ const REASON_REJECTED_SUMMARY = "The terminal reason line was invalid and was di
 const TERMINAL_MARKER_PATTERN = /[ \t]*DELEGATE_RESULT:[ \t]*COMPLETED[ \t\r\n]*$/;
 
 function bounded(value: string | undefined, limit = FIELD_LIMIT): string | undefined {
-  if (value === undefined) return undefined;
+  if (value === undefined || !/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/.test(value)) return undefined;
   return value.length <= limit ? value : value.slice(0, limit);
+}
+
+function safeRoute(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  return /^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}:(?:off|minimal|low|medium|high|xhigh|max)$/.test(value)
+    ? value
+    : undefined;
+}
+
+function fixed(value: string | undefined, allowed: readonly string[]): string | undefined {
+  return value !== undefined && allowed.includes(value) ? value : undefined;
+}
+
+function safeTimestamp(value: string): string {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) && Number.isFinite(Date.parse(value))
+    ? value
+    : "unknown";
+}
+
+function sanitizedProgress(progress: DelegateProgress): DelegateProgress {
+  return {
+    ...progress,
+    route: safeRoute(progress.route),
+    phase: bounded(progress.phase) ?? "unknown",
+    lastEvent: bounded(progress.lastEvent) ?? "unknown",
+    lastEventDetail: bounded(progress.lastEventDetail),
+    lastEventAt: safeTimestamp(progress.lastEventAt),
+    activeToolName: bounded(progress.activeToolName),
+    deadlineCause: fixed(progress.deadlineCause, ["work_deadline", "idle_deadline", "catalog_preflight"]) as DelegateProgress["deadlineCause"],
+    cleanupFailureReason: fixed(progress.cleanupFailureReason, ["group_alive", "close_unconfirmed"]) as DelegateProgress["cleanupFailureReason"],
+    interruptionSource: fixed(progress.interruptionSource, ["delegate_stop", "session_shutdown", "tool_call_abort", "unknown"]) as DelegateProgress["interruptionSource"],
+  };
+}
+
+function sanitizedAttempts(attempts: readonly ChainAttempt[]): readonly ChainAttempt[] {
+  return attempts.map((attempt) => {
+    const activeToolName = bounded(attempt.activeToolName);
+    const deadlineCause = fixed(attempt.deadlineCause, ["work_deadline", "idle_deadline", "catalog_preflight"]) as ChainAttempt["deadlineCause"];
+    const cleanupFailureReason = fixed(attempt.cleanupFailureReason, ["group_alive", "close_unconfirmed"]) as ChainAttempt["cleanupFailureReason"];
+    const interruptionSource = fixed(attempt.interruptionSource, ["delegate_stop", "session_shutdown", "tool_call_abort", "unknown"]) as ChainAttempt["interruptionSource"];
+    return {
+      route: safeRoute(attempt.route) ?? "unknown/unknown:off",
+      state: attempt.state,
+      elapsedSeconds: attempt.elapsedSeconds,
+      ...(attempt.restartAfterWork === undefined ? {} : { restartAfterWork: attempt.restartAfterWork }),
+      ...(attempt.remainingWorkSecondsAtAttemptStart === undefined ? {} : { remainingWorkSecondsAtAttemptStart: attempt.remainingWorkSecondsAtAttemptStart }),
+      ...(attempt.activeToolCount === undefined ? {} : { activeToolCount: attempt.activeToolCount }),
+      ...(attempt.activeToolElapsedSeconds === undefined ? {} : { activeToolElapsedSeconds: attempt.activeToolElapsedSeconds }),
+      ...(activeToolName === undefined ? {} : { activeToolName }),
+      ...(deadlineCause === undefined ? {} : { deadlineCause }),
+      ...(cleanupFailureReason === undefined ? {} : { cleanupFailureReason }),
+      ...(interruptionSource === undefined ? {} : { interruptionSource }),
+    };
+  });
 }
 
 function safeSummary(state: string): string {
@@ -77,8 +131,8 @@ function attemptText(result: DelegateRunResult): string | undefined {
   if (result.attempts.length === 0) return undefined;
   return result.attempts
     .map((attempt) => attempt.restartAfterWork === true
-      ? `${attempt.route} -> ${attempt.state} (restart after work)`
-      : `${attempt.route} -> ${attempt.state}`)
+      ? `${safeRoute(attempt.route) ?? "unknown"} -> ${attempt.state} (restart after work)`
+      : `${safeRoute(attempt.route) ?? "unknown"} -> ${attempt.state}`)
     .join("; ");
 }
 
@@ -98,7 +152,7 @@ export function stripCompletedMarker(body: string): string {
 export function completedMarkdown(result: DelegateRunResult): string {
   const body = stripCompletedMarker(result.report.trim());
   const header = `## Delegate ${result.label} completed\n\n`
-    + `route: ${result.selectedRoute ?? "unknown"} · elapsed: ${result.elapsedSeconds.toFixed(1)}s`;
+    + `route: ${safeRoute(result.selectedRoute) ?? "unknown"} · elapsed: ${result.elapsedSeconds.toFixed(1)}s`;
   if (!body) return `${header}\n\n(No report body beyond the terminal marker.)`;
   const { text, truncatedBytes } = truncateUtf8(body, DELEGATE_TOOL_OUTPUT_LIMIT - HEADER_RESERVE_BYTES);
   const truncation = truncatedBytes > 0 ? `\n\n[Report truncated: ${truncatedBytes} bytes omitted.]` : "";
@@ -117,7 +171,8 @@ export function failureMarkdown(result: DelegateRunResult): string {
     `- state: ${result.state}`,
     `- role: ${result.role}`,
   ];
-  if (result.selectedRoute !== undefined) lines.push(`- route: ${result.selectedRoute}`);
+  const selectedRoute = safeRoute(result.selectedRoute);
+  if (selectedRoute !== undefined) lines.push(`- route: ${selectedRoute}`);
   if (result.progress.restartAfterWorkCount > 0) {
     lines.push(`- restarts after work: ${result.progress.restartAfterWorkCount}`);
   }
@@ -125,8 +180,22 @@ export function failureMarkdown(result: DelegateRunResult): string {
   const lastEvent = bounded(result.progress.lastEvent) ?? "unknown";
   const lastEventDetail = bounded(result.progress.lastEventDetail);
   lines.push(`- last event: ${lastEventDetail === undefined ? lastEvent : `${lastEvent} (${lastEventDetail})`}`);
-  lines.push(`- last event at: ${result.progress.lastEventAt}`);
+  lines.push(`- last event at: ${safeTimestamp(result.progress.lastEventAt)}`);
   lines.push(`- elapsed: ${result.elapsedSeconds.toFixed(1)}s`);
+  const deadlineCause = fixed(result.deadlineCause, ["work_deadline", "idle_deadline", "catalog_preflight"]);
+  const cleanupFailureReason = fixed(result.cleanupFailureReason, ["group_alive", "close_unconfirmed"]);
+  const interruption = fixed(result.interruptionSource, ["delegate_stop", "session_shutdown", "tool_call_abort", "unknown"]);
+  if (deadlineCause !== undefined) lines.push(`- deadline cause: ${deadlineCause}`);
+  if (cleanupFailureReason !== undefined) lines.push(`- cleanup failure: ${cleanupFailureReason}`);
+  if (interruption !== undefined) lines.push(`- interruption source: ${interruption}`);
+  if ((result.progress.activeToolCount ?? 0) > 0) {
+    lines.push(`- active tools: ${result.progress.activeToolCount}`);
+    const toolName = bounded(result.progress.activeToolName);
+    if (toolName !== undefined) lines.push(`- active tool: ${toolName}`);
+    if (result.progress.activeToolElapsedSeconds !== undefined) {
+      lines.push(`- active tool elapsed: ${result.progress.activeToolElapsedSeconds.toFixed(1)}s`);
+    }
+  }
   const attempts = attemptText(result);
   if (attempts !== undefined) lines.push(`- attempts: ${attempts}`);
   const reasonBullet = terminalReasonBullet(result.terminalReason, result.reasonStatus);
@@ -152,15 +221,22 @@ export function finalToolResult(result: DelegateRunResult, diagnosticPath?: stri
     details: {
       state: result.state,
       role: result.role,
-      selectedRoute: result.selectedRoute,
-      attempts: result.attempts,
+      selectedRoute: safeRoute(result.selectedRoute),
+      attempts: sanitizedAttempts(result.attempts),
       elapsedSeconds: result.elapsedSeconds,
-      progress: result.progress,
+      progress: sanitizedProgress(result.progress),
       restartAfterWorkCount: result.progress.restartAfterWorkCount,
       reportNudgeCount: result.progress.reportNudgeCount,
       reportRecoveryReason: result.progress.reportRecoveryReason,
       reportRound: result.progress.reportRound,
       providerFailureCategory: result.progress.providerFailureCategory,
+      deadlineCause: fixed(result.deadlineCause, ["work_deadline", "idle_deadline", "catalog_preflight"]),
+      workBudgetSeconds: result.workBudgetSeconds,
+      cleanupFailureReason: fixed(result.cleanupFailureReason, ["group_alive", "close_unconfirmed"]),
+      interruptionSource: fixed(result.interruptionSource, ["delegate_stop", "session_shutdown", "tool_call_abort", "unknown"]),
+      activeToolCount: result.progress.activeToolCount,
+      activeToolName: bounded(result.progress.activeToolName),
+      activeToolElapsedSeconds: result.progress.activeToolElapsedSeconds,
       delegateOutcome: result.delegateOutcome,
       terminalReason: result.terminalReason,
       reasonStatus: result.reasonStatus,

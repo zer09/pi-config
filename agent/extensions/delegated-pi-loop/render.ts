@@ -79,12 +79,15 @@ export function renderDelegateResult(
     const route = progress.route ?? "selecting route";
     const event = eventText(progress);
     const restarts = progress.restartAfterWorkCount > 0 ? `  restarts: ${progress.restartAfterWorkCount}` : "";
+    const activeTool = (progress.activeToolCount ?? 0) > 0
+      ? `  active tools: ${progress.activeToolCount}${progress.activeToolName ? ` (${progress.activeToolName})` : ""}${progress.activeToolElapsedSeconds === undefined ? "" : ` ${progress.activeToolElapsedSeconds.toFixed(1)}s`}`
+      : "";
     const heading = progress.reportRound === 2
       ? `⏳ ${id}${progress.label} · recovering report · round 2/2`
       : `⏳ ${id}${progress.label}`;
     text.setText([
       theme.fg("warning", heading) + theme.fg("muted", `  ${route}`),
-      theme.fg("muted", `phase: ${progress.phase}  state: ${progress.state}  attempt: ${progress.attempt}${restarts}`),
+      theme.fg("muted", `phase: ${progress.phase}  state: ${progress.state}  attempt: ${progress.attempt}${restarts}${activeTool}`),
       theme.fg("toolOutput", `last: ${event}`),
       theme.fg("dim", `at: ${ageText(progress.lastEventAt)}  elapsed: ${progress.elapsedSeconds.toFixed(1)}s`),
     ].join("\n"));

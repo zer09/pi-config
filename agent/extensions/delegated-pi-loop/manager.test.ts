@@ -146,6 +146,7 @@ test("stops only the selected delegate and retains it until cleanup finishes", (
   const stopped = manager.stop(first.id);
   assert.equal(stopped.status, "stopping");
   assert.equal(first.signal.aborted, true);
+  assert.equal(first.signal.reason, "delegate_stop");
   assert.equal(second.signal.aborted, false);
   assert.deepEqual(manager.listActive().map(({ id, state }) => ({ id, state })), [
     { id: 1, state: "stopping" },
@@ -246,18 +247,30 @@ test("list choice labels format elapsed time, rounds, and stopping state exactly
 test("abortAll aborts concurrent verification siblings", () => {
   const manager = new DelegateManager();
   const handles = ["v1", "v2", "v3", "v4"].map((id) => manager.begin(id, "verification"));
-  manager.abortAll();
-  for (const handle of handles) assert.equal(handle.signal.aborted, true);
+  manager.abortAll("session_shutdown");
+  for (const handle of handles) {
+    assert.equal(handle.signal.aborted, true);
+    assert.equal(handle.signal.reason, "session_shutdown");
+  }
   // The cleared manager accepts a fresh verification batch without reusing IDs.
   assert.equal(manager.begin("fresh", "verification").id, 5);
 });
 
-test("combinedSignal forwards aborts from either source", () => {
+test("combinedSignal records the first fixed interruption source and disposes listeners", () => {
   const first = new AbortController();
   const second = new AbortController();
-  const signal = combinedSignal(first.signal, second.signal);
-  assert.equal(signal.aborted, false);
-  second.abort();
-  assert.equal(signal.aborted, true);
-  assert.equal(combinedSignal(undefined, second.signal).aborted, true);
+  const combined = combinedSignal(first.signal, second.signal);
+  assert.equal(combined.signal.aborted, false);
+  second.abort("delegate_stop");
+  assert.equal(combined.signal.aborted, true);
+  assert.equal(combined.signal.reason, "delegate_stop");
+  first.abort("PRIVATE arbitrary reason");
+  assert.equal(combined.signal.reason, "delegate_stop", "first abort must win");
+  combined.dispose();
+
+  const upstream = new AbortController();
+  upstream.abort("PRIVATE arbitrary reason");
+  const toolAbort = combinedSignal(upstream.signal, new AbortController().signal);
+  assert.equal(toolAbort.signal.reason, "tool_call_abort");
+  toolAbort.dispose();
 });

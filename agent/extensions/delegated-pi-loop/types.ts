@@ -80,6 +80,19 @@ export type DelegateTerminalReasonValue = DelegateReasonCode | DelegateReasonUns
 
 export type DelegateOutcome = "completed" | "blocked" | "failed";
 
+/** Fixed cause codes for productive-work and idle deadline stops. */
+export type DeadlineCause = "work_deadline" | "idle_deadline" | "catalog_preflight";
+
+/** Fixed positive-proof failure from process-group cleanup. */
+export type CleanupFailureReason = "group_alive" | "close_unconfirmed";
+
+/** Fixed source of the first accepted interruption. */
+export type InterruptionSource =
+  | "delegate_stop"
+  | "session_shutdown"
+  | "tool_call_abort"
+  | "unknown";
+
 export type DelegateState =
   | "catalog_check"
   | "running"
@@ -135,6 +148,14 @@ export interface DelegateProgress {
   readonly reasonStatus?: DelegateReasonStatus;
   /** True only when outcome is BLOCKED with accepted reason finding_reported; never inferred from role. */
   readonly blockedMisuseSuspected?: boolean;
+  readonly deadlineCause?: DeadlineCause;
+  readonly cleanupFailureReason?: CleanupFailureReason;
+  readonly interruptionSource?: InterruptionSource;
+  readonly workBudgetSeconds?: number;
+  readonly remainingWorkSecondsAtAttemptStart?: number;
+  readonly activeToolCount?: number;
+  readonly activeToolName?: string;
+  readonly activeToolElapsedSeconds?: number;
 }
 
 export interface MonitorSnapshot {
@@ -157,6 +178,9 @@ export interface MonitorSnapshot {
   readonly agentEndSeen: boolean;
   readonly agentSettledSeen: boolean;
   readonly toolExecutionCount: number;
+  readonly activeToolCount: number;
+  readonly activeToolName?: string;
+  readonly activeToolElapsedSeconds?: number;
   readonly routeUnavailableSeen: boolean;
   readonly providerFailureCategory?: ProviderFailureCategory;
   readonly reportRound: 1 | 2;
@@ -174,6 +198,11 @@ export interface AttemptStatus {
   readonly terminalReason?: DelegateTerminalReasonValue;
   readonly reasonStatus?: DelegateReasonStatus;
   readonly blockedMisuseSuspected?: boolean;
+  readonly deadlineCause?: DeadlineCause;
+  readonly cleanupFailureReason?: CleanupFailureReason;
+  readonly interruptionSource?: InterruptionSource;
+  readonly workBudgetSeconds: number;
+  readonly remainingWorkSecondsAtAttemptStart: number;
   readonly startedAt: string;
   readonly endedAt: string;
   readonly elapsedSeconds: number;
@@ -196,6 +225,9 @@ export interface AttemptStatus {
   readonly agentEndSeen: boolean;
   readonly agentSettledSeen: boolean;
   readonly toolExecutionCount: number;
+  readonly activeToolCount: number;
+  readonly activeToolName?: string;
+  readonly activeToolElapsedSeconds?: number;
   readonly routeUnavailableSeen: boolean;
   readonly providerFailureCategory?: ProviderFailureCategory;
   readonly reportNudgeCount: 0 | 1;
@@ -209,6 +241,13 @@ export interface ChainAttempt {
   readonly route: string;
   readonly state: DelegateState | "catalog_unavailable";
   readonly elapsedSeconds: number;
+  readonly deadlineCause?: DeadlineCause;
+  readonly cleanupFailureReason?: CleanupFailureReason;
+  readonly interruptionSource?: InterruptionSource;
+  readonly remainingWorkSecondsAtAttemptStart?: number;
+  readonly activeToolCount?: number;
+  readonly activeToolName?: string;
+  readonly activeToolElapsedSeconds?: number;
   /** True when this attempt had executed tools or accepted recovery, so the next attempt received the restart note. */
   readonly restartAfterWork?: boolean;
 }
@@ -236,6 +275,10 @@ export interface DelegateRunResult {
   readonly terminalReason?: DelegateTerminalReasonValue;
   readonly reasonStatus?: DelegateReasonStatus;
   readonly blockedMisuseSuspected?: boolean;
+  readonly deadlineCause?: DeadlineCause;
+  readonly cleanupFailureReason?: CleanupFailureReason;
+  readonly interruptionSource?: InterruptionSource;
+  readonly workBudgetSeconds: number;
 }
 
 export interface DelegateToolParams {
@@ -351,7 +394,12 @@ export interface RunOptions {
   readonly idleWarningMs?: number;
   readonly idleTimeoutMs?: number;
   readonly maxOutputBytes?: number;
+  /** Internal test seam for the fixed five-second SIGTERM grace. */
   readonly graceMs?: number;
+  /** Internal test seam for the fixed ten-second cleanup allowance. */
+  readonly cleanupTimeoutMs?: number;
+  /** Internal test seam for the fixed 15-second catalog preflight cap. */
+  readonly catalogTimeoutMs?: number;
   readonly piInvocation?: PiInvocation;
   /** Optional pre-validated routing config; deterministic injection point so tests can exercise alternate profiles. */
   readonly routingConfig?: RoutingConfig;

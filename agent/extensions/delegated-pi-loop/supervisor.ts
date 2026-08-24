@@ -1,43 +1,39 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { createWriteStream, existsSync } from "node:fs";
+import { createWriteStream, existsSync, type WriteStream } from "node:fs";
 import { chmod, stat } from "node:fs/promises";
 import path from "node:path";
 import { atomicWriteJson, atomicWriteText, readPrivateText } from "./artifacts.ts";
+import { interruptionSource } from "./manager.ts";
 import { PiRpcMonitor } from "./monitor.ts";
 import { RECOVERY_PROMPT, RpcJsonlProtocol, type ProtocolRecord } from "./protocol.ts";
 import { routeKey } from "./routes.ts";
 import type {
   AttemptStatus,
+  CleanupFailureReason,
+  DeadlineCause,
   DelegateProgress,
   DelegateRole,
   DelegateState,
+  InterruptionSource,
   MonitorSnapshot,
   PiInvocation,
   PiRoute,
 } from "./types.ts";
 
-export const DEFAULT_TIMEOUT_MS = 45 * 60 * 1000;
-export const DEFAULT_GRACE_MS = 15 * 1000;
+export const DEFAULT_WORK_TIMEOUT_MS = 45 * 60 * 1000;
+export const DEFAULT_CLEANUP_TIMEOUT_MS = 10_000;
+export const DEFAULT_TERMINATION_GRACE_MS = 5_000;
+export const FORCED_KILL_VERIFY_MS = 3_000;
+export const FINAL_CLEANUP_ALLOWANCE_MS = 2_000;
 export const DEFAULT_IDLE_WARNING_MS = 5 * 60 * 1000;
 export const DEFAULT_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 export const DEFAULT_MAX_OUTPUT_BYTES = 50 * 1024 * 1024;
 const PROGRESS_INTERVAL_MS = 1_000;
 
-/** Floor reserved inside every absolute deadline for forced-kill verification. */
-export const FORCED_KILL_VERIFY_RESERVE_MS = 40;
-/** Tail reserved inside every absolute deadline for final stderr/status/progress cleanup. */
-export const FINAL_CLEANUP_RESERVE_MS = 20;
-/**
- * Mandatory tail every deadline-bounded attempt must be able to fit before
- * it spawns: forced-kill verification plus the final artifact cleanup. A
- * remaining share smaller than this never starts a child.
- */
-export const MANDATORY_CLEANUP_RESERVE_MS = FORCED_KILL_VERIFY_RESERVE_MS + FINAL_CLEANUP_RESERVE_MS;
-
 /** Bounded, sanitized outcome of one process-group termination attempt. */
 export type TerminationOutcome =
   | { readonly ok: true }
-  | { readonly ok: false; readonly reason: "group_alive" | "close_unconfirmed" };
+  | { readonly ok: false; readonly reason: CleanupFailureReason };
 
 /**
  * Probe surface over one child and its process group. Kept as one injectable
@@ -64,18 +60,17 @@ interface SuperviseBaseOptions {
   /** Chain-level count of advances after an attempt that had executed tools or accepted recovery. */
   readonly restartAfterWorkCount?: number;
   readonly signal?: AbortSignal;
+  /** Remaining productive-work budget at this attempt's start. */
   readonly timeoutMs: number;
+  /** One absolute productive-work deadline shared by every route. */
+  readonly workDeadline: number;
+  readonly workBudgetSeconds: number;
+  readonly remainingWorkSecondsAtAttemptStart: number;
   readonly idleWarningMs: number;
   readonly idleTimeoutMs: number;
   readonly maxOutputBytes: number;
   readonly graceMs: number;
-  /**
-   * Absolute cleanup-inclusive deadline on the performance.now() timeline:
-   * supervision, graceful/forced termination, and group cleanup all fit
-   * inside it. Undefined preserves standalone supervision, where the soft
-   * timeout plus the full configured grace stay unclamped.
-   */
-  readonly deadline?: number;
+  readonly cleanupTimeoutMs?: number;
   readonly onProgress?: (progress: DelegateProgress) => void;
 }
 
@@ -187,58 +182,34 @@ export const terminationProbes: { build: (child: ChildProcess) => TerminationPro
 };
 
 /**
- * Terminates one process group through injectable probes. Resolves ok only
- * with a positive proof: the leader's close event fired (or its exit was
- * otherwise recorded) and a final groupExists probe is false. Any group
- * liveness left after SIGKILL, or a close that stays unconfirmed, reports a
- * bounded cleanup failure the caller must fail closed on. With an absolute
- * deadline every wait is clamped to the time still available; there is no
- * verification floor that could extend past it.
+ * Terminates one process group inside the cleanup-only deadline. Success
+ * requires positive leader-close or recorded-exit proof plus a dead group.
  */
 export async function terminateProcessGroupWith(
   graceMs: number,
-  deadlineMs: number | undefined,
+  cleanupDeadline: number,
   probes: TerminationProbes,
 ): Promise<TerminationOutcome> {
-  const remainingMs = () =>
-    deadlineMs === undefined ? Number.POSITIVE_INFINITY : deadlineMs - probes.now();
-  // Absolute-deadline clamping: the graceful window never exceeds the time
-  // still available. When the configured grace cannot fit before the
-  // deadline, the effective grace is zero and termination escalates
-  // immediately to SIGKILL instead of waiting.
-  const effectiveGraceMs = Math.max(0, Math.min(graceMs, remainingMs()));
+  const remainingMs = () => Math.max(0, cleanupDeadline - probes.now());
   if (probes.groupExists()) {
-    if (effectiveGraceMs > 0) {
-      probes.signalGroup("SIGTERM");
-      const graceDeadline = probes.now() + effectiveGraceMs;
-      while (probes.groupExists() && probes.now() < graceDeadline) {
-        // Poll no further than the graceful boundary, so the reserved
-        // forced-kill window after it stays intact.
-        await probes.delay(Math.min(25, graceDeadline - probes.now()));
-      }
+    probes.signalGroup("SIGTERM");
+    const graceDeadline = Math.min(
+      cleanupDeadline,
+      probes.now() + Math.min(graceMs, DEFAULT_TERMINATION_GRACE_MS),
+    );
+    while (probes.groupExists() && probes.now() < graceDeadline) {
+      await probes.delay(Math.min(25, graceDeadline - probes.now()));
     }
     if (probes.groupExists()) {
       probes.signalGroup("SIGKILL");
-      // Bounded wait that verifies actual process-group disappearance, not
-      // just signal delivery. With an absolute deadline the window is
-      // clamped to the remaining time; without one it keeps the historical
-      // floor so standalone supervision never returns early on a wedged group.
-      const verifyMs = deadlineMs === undefined
-        ? Math.max(1000, graceMs)
-        : Math.max(0, Math.min(1000, remainingMs()));
-      const verifyDeadline = probes.now() + verifyMs;
+      const verifyDeadline = Math.min(cleanupDeadline, probes.now() + FORCED_KILL_VERIFY_MS);
       while (probes.groupExists() && probes.now() < verifyDeadline) {
-        await probes.delay(Math.min(10, verifyDeadline - probes.now()));
+        await probes.delay(Math.min(25, verifyDeadline - probes.now()));
       }
       if (probes.groupExists()) return { ok: false, reason: "group_alive" };
     }
   }
-  // Positive close proof: the close event fired inside a bounded wait, or
-  // the leader is otherwise provably gone because its exit was recorded.
-  const closeBudgetMs = deadlineMs === undefined
-    ? Math.max(1000, graceMs)
-    : Math.max(0, Math.min(1000, remainingMs()));
-  const closeSeen = await probes.waitForClose(closeBudgetMs);
+  const closeSeen = await probes.waitForClose(remainingMs());
   if (!closeSeen && probes.processIsRunning()) return { ok: false, reason: "close_unconfirmed" };
   if (probes.groupExists()) return { ok: false, reason: "group_alive" };
   return { ok: true };
@@ -247,11 +218,10 @@ export async function terminateProcessGroupWith(
 export async function terminateProcessGroup(
   child: ChildProcess,
   graceMs: number,
-  deadlineMs?: number,
+  cleanupDeadline = performance.now() + DEFAULT_CLEANUP_TIMEOUT_MS - FINAL_CLEANUP_ALLOWANCE_MS,
 ): Promise<TerminationOutcome> {
-  // Without a pid nothing was ever spawned, so there is nothing to prove.
   if (child.pid === undefined) return { ok: true };
-  return terminateProcessGroupWith(graceMs, deadlineMs, terminationProbes.build(child));
+  return terminateProcessGroupWith(graceMs, cleanupDeadline, terminationProbes.build(child));
 }
 
 function spawnDetached(command: string, args: readonly string[], options: {
@@ -275,6 +245,27 @@ async function fileSize(filePath: string): Promise<number> {
   }
 }
 
+async function finishWriteStream(stream: WriteStream, allowanceMs: number): Promise<void> {
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      stream.removeListener("finish", done);
+      stream.removeListener("error", done);
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      stream.destroy();
+      done();
+    }, Math.max(0, allowanceMs));
+    stream.once("finish", done);
+    stream.once("error", done);
+    stream.end();
+  });
+}
+
 function progressFromMonitor(
   options: SupervisePiOptions,
   state: DelegateState,
@@ -282,6 +273,11 @@ function progressFromMonitor(
   monitor: PiRpcMonitor,
   reportNudgeCount: 0 | 1,
   reportRecoveryReason: "missing_report" | "invalid_result" | undefined,
+  metadata: {
+    readonly deadlineCause?: DeadlineCause;
+    readonly cleanupFailureReason?: CleanupFailureReason;
+    readonly interruptionSource?: InterruptionSource;
+  } = {},
 ): DelegateProgress {
   const snapshot = monitor.snapshot();
   return {
@@ -308,44 +304,35 @@ function progressFromMonitor(
     terminalReason: snapshot.terminalReason,
     reasonStatus: snapshot.reasonStatus,
     blockedMisuseSuspected: snapshot.blockedMisuseSuspected,
+    workBudgetSeconds: options.workBudgetSeconds,
+    remainingWorkSecondsAtAttemptStart: options.remainingWorkSecondsAtAttemptStart,
+    activeToolCount: snapshot.activeToolCount,
+    activeToolName: snapshot.activeToolName,
+    activeToolElapsedSeconds: snapshot.activeToolElapsedSeconds,
+    deadlineCause: metadata.deadlineCause,
+    cleanupFailureReason: metadata.cleanupFailureReason,
+    interruptionSource: metadata.interruptionSource,
   };
 }
 
 export async function supervisePi(options: SupervisePiOptions): Promise<AttemptStatus> {
   const started = performance.now();
   const startedAt = isoNow();
-  // Cleanup-inclusive soft deadline: when an absolute deadline is given, a
-  // termination budget is reserved out of it before route work starts, so
-  // the supervision cutoff lands early enough that graceful or forced
-  // termination and group cleanup still finish inside the deadline. The
-  // reserve never drops below the mandatory tail, so even a sub-interval
-  // share keeps room for forced-kill verification and final cleanup.
-  const cleanupReserveMs = options.deadline === undefined
-    ? 0
-    : Math.max(
-      MANDATORY_CLEANUP_RESERVE_MS,
-      Math.min(options.graceMs, Math.max(0, Math.floor((options.deadline - started) / 2))),
-    );
-  const softDeadlineMs = Math.min(
-    started + options.timeoutMs,
-    (options.deadline ?? Number.POSITIVE_INFINITY) - cleanupReserveMs,
+  // Productive work uses the one absolute delegate deadline. Cleanup starts
+  // only after work ends and receives a separate bounded allowance.
+  const workDeadline = Math.min(started + options.timeoutMs, options.workDeadline);
+  const cleanupTimeoutMs = Math.min(
+    options.cleanupTimeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS,
+    DEFAULT_CLEANUP_TIMEOUT_MS,
   );
-  // Termination gets its own bounded tail of the absolute deadline: the
-  // final stderr/status/progress cleanup stays inside the route share, and
-  // the graceful window is clamped so forced kill and its verification still
-  // fit before the absolute deadline.
-  const terminationDeadline = options.deadline === undefined
-    ? undefined
-    : options.deadline - FINAL_CLEANUP_RESERVE_MS;
-  const terminationGraceMs = () => options.deadline === undefined
-    ? options.graceMs
-    : Math.max(
-      0,
-      Math.min(
-        options.graceMs,
-        terminationDeadline! - performance.now() - FORCED_KILL_VERIFY_RESERVE_MS,
-      ),
-    );
+  const terminationGraceMs = Math.min(options.graceMs, DEFAULT_TERMINATION_GRACE_MS);
+  const finalCleanupAllowanceMs = Math.min(
+    FINAL_CLEANUP_ALLOWANCE_MS,
+    Math.max(1, Math.floor(cleanupTimeoutMs / 5)),
+  );
+  const newCleanupDeadline = () => performance.now() + cleanupTimeoutMs;
+  const terminationDeadlineFor = (cleanupDeadline: number) =>
+    cleanupDeadline - finalCleanupAllowanceMs;
   const reportPath = path.join(options.artifactDir, "report.md");
   const stderrPath = path.join(options.artifactDir, "stderr.log");
   const statusPath = path.join(options.artifactDir, "status.json");
@@ -366,6 +353,10 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   let reportRecoveryAccepted = false;
   let progressSinkFailed = false;
   let progressSinkError: unknown;
+  let deadlineCause: DeadlineCause | undefined;
+  let cleanupFailureReason: CleanupFailureReason | undefined;
+  let interruptionSourceValue: InterruptionSource | undefined;
+  let cleanupDeadline: number | undefined;
 
   const buildStatus = (
     finalState: DelegateState,
@@ -383,6 +374,11 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     terminalReason: snapshot.terminalReason,
     reasonStatus: snapshot.reasonStatus,
     blockedMisuseSuspected: snapshot.blockedMisuseSuspected,
+    deadlineCause,
+    cleanupFailureReason,
+    interruptionSource: interruptionSourceValue,
+    workBudgetSeconds: options.workBudgetSeconds,
+    remainingWorkSecondsAtAttemptStart: options.remainingWorkSecondsAtAttemptStart,
     startedAt,
     endedAt: isoNow(),
     elapsedSeconds: elapsedSeconds(started),
@@ -405,6 +401,9 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     agentEndSeen: snapshot.agentEndSeen,
     agentSettledSeen: snapshot.agentSettledSeen,
     toolExecutionCount: snapshot.toolExecutionCount,
+    activeToolCount: snapshot.activeToolCount,
+    activeToolName: snapshot.activeToolName,
+    activeToolElapsedSeconds: snapshot.activeToolElapsedSeconds,
     routeUnavailableSeen: snapshot.routeUnavailableSeen,
     providerFailureCategory: snapshot.providerFailureCategory,
     reportNudgeCount,
@@ -413,37 +412,6 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     reportRecoveryAccepted,
     streamErrors: snapshot.errors,
   });
-
-  if (
-    options.deadline !== undefined
-    && options.deadline - performance.now() <= MANDATORY_CLEANUP_RESERVE_MS
-  ) {
-    // The remaining share cannot fit the mandatory forced-kill verification
-    // and final stderr/status/progress cleanup, so spawning could only end
-    // past the absolute deadline. Record the soft timeout without spawning;
-    // the runner advances to the next route because timed_out stays
-    // operational, and each later route rechecks its own remaining share.
-    stderrStream.end();
-    await new Promise<void>((resolve) => stderrStream.once("finish", resolve));
-    await chmod(stderrPath, 0o600);
-    const noSpawnStatus = buildStatus("timed_out", null, monitor.snapshot(), false);
-    await atomicWriteJson(statusPath, noSpawnStatus);
-    try {
-      options.onProgress?.(progressFromMonitor(
-        options,
-        "timed_out",
-        started,
-        monitor,
-        reportNudgeCount,
-        reportRecoveryReason,
-      ));
-    } catch (error) {
-      // No child exists, so there is nothing left to clean up: reject with
-      // the caller's original sink error after the artifacts above finished.
-      throw error;
-    }
-    return noSpawnStatus;
-  }
 
   const args = [
     ...options.piInvocation.prefixArgs,
@@ -476,6 +444,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
         monitor,
         reportNudgeCount,
         reportRecoveryReason,
+        { deadlineCause, cleanupFailureReason, interruptionSource: interruptionSourceValue },
       ));
     } catch (error) {
       // The caller-owned progress sink failed inside a supervisor-owned
@@ -495,9 +464,17 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     terminalRequested = true;
     state = nextState;
     completionCleanupPerformed = cleanup;
-    terminationPromise = terminateProcessGroup(child, terminationGraceMs(), terminationDeadline);
-    // The settlement wait races this against the close event, so a bounded
-    // termination outcome is consumed without any close wait first.
+    if (nextState === "timed_out") deadlineCause = "work_deadline";
+    else if (nextState === "stalled") deadlineCause = "idle_deadline";
+    else if (nextState === "interrupted") {
+      interruptionSourceValue = interruptionSource(options.signal?.reason);
+    }
+    cleanupDeadline = newCleanupDeadline();
+    terminationPromise = terminateProcessGroup(
+      child,
+      terminationGraceMs,
+      terminationDeadlineFor(cleanupDeadline),
+    );
     signalTerminationStarted();
   }
 
@@ -546,7 +523,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
       || !processIsRunning(child)
       || options.signal?.aborted
       || outputBytes > options.maxOutputBytes
-      || performance.now() >= softDeadlineMs
+      || performance.now() >= workDeadline
     ) {
       requestTermination(roundState);
       return;
@@ -614,6 +591,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   let spawnError: Error | undefined;
   const onChildError = (error: Error) => {
     spawnError = error;
+    requestTermination("spawn_failed");
   };
   const ignoreStdinError = () => {};
   const onStdoutData = (chunk: Buffer) => {
@@ -647,18 +625,12 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   if (options.signal?.aborted) abort();
   else options.signal?.addEventListener("abort", abort, { once: true });
 
-  // One-shot timer scheduled directly for the soft deadline: a share shorter
-  // than the interval is still enforced at its own deadline, not at the next
-  // 100 ms tick. The interval below only covers progress, idle, and output
-  // checks.
+  // One one-shot timer enforces the shared productive-work deadline. Meaningful
+  // activity resets idle age only and never reschedules this timer.
   const deadlineTimer = setTimeout(() => {
-    // Terminate while close is unconfirmed even if the leader no longer
-    // appears running: after the leader exits, inherited stdio can keep the
-    // close event blocked indefinitely, so liveness alone must not gate the
-    // soft deadline.
     if (terminalRequested || closed) return;
     requestTermination("timed_out");
-  }, Math.max(0, softDeadlineMs - performance.now()));
+  }, Math.max(0, workDeadline - performance.now()));
 
   const ticker = setInterval(() => {
     if (terminalRequested || !processIsRunning(child)) return;
@@ -681,16 +653,19 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     // consumed and mapped to cleanup_failed without an unbounded close wait;
     // a natural close keeps the sweep-only path below.
     await Promise.race([closePromise, terminationStarted]);
+    if (cleanupDeadline === undefined) cleanupDeadline = newCleanupDeadline();
     const cleanupOutcome = await (terminationPromise
-      ?? terminateProcessGroup(child, terminationGraceMs(), terminationDeadline));
+      ?? terminateProcessGroup(child, terminationGraceMs, terminationDeadlineFor(cleanupDeadline)));
     // A negative proof can leave a noisy child alive. Detach it before ending
     // stderr and settling artifacts so later output cannot reach closed state.
     removeChildListeners();
     options.signal?.removeEventListener("abort", abort);
     if (!terminalRequested || completionCleanupPerformed) protocol.finish(handleProtocolRecord);
     child.stdin?.end();
-    stderrStream.end();
-    await new Promise<void>((resolve) => stderrStream.once("finish", resolve));
+    const finalAllowance = cleanupDeadline === undefined
+      ? finalCleanupAllowanceMs
+      : Math.max(0, Math.min(finalCleanupAllowanceMs, cleanupDeadline - performance.now()));
+    await finishWriteStream(stderrStream, finalAllowance);
     await chmod(stderrPath, 0o600);
 
     if (progressSinkFailed) {
@@ -713,10 +688,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     }
     if (snapshot.errors.length > 0 && state === "completed") state = "invalid_stream";
     if (!cleanupOutcome.ok) {
-      // The positive cleanup proof failed: group liveness survived SIGKILL or
-      // the leader close stayed unconfirmed. Fail closed with the sanitized
-      // terminal state regardless of what the stream had classified; the
-      // runner treats it as terminal and never starts another route.
+      cleanupFailureReason = cleanupOutcome.reason;
       state = "cleanup_failed";
     }
 

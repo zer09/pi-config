@@ -145,14 +145,77 @@ test("a reason line paired with COMPLETED invalidates the terminal structure", (
   assert.equal(plain.reason, undefined);
 });
 
-test("empty deltas do not reset activity", () => {
+test("empty deltas and unchanged queue heartbeats do not reset activity", () => {
   const { monitor: instance, tick } = monitor();
   instance.acceptPrompt(1);
   consume(instance, 1, { type: "agent_start" });
-  const before = instance.snapshot();
+  for (const type of ["thinking_delta", "text_delta", "toolcall_delta"]) {
+    const before = instance.snapshot().lastActivityMonotonic;
+    tick();
+    consume(instance, 1, { type: "message_update", assistantMessageEvent: { type, delta: "" } });
+    assert.equal(instance.snapshot().lastActivityMonotonic, before, type);
+  }
+  let before = instance.snapshot().lastActivityMonotonic;
   tick();
-  consume(instance, 1, { type: "message_update", assistantMessageEvent: { type: "thinking_delta", delta: "" } });
-  assert.equal(instance.snapshot().lastActivityMonotonic, before.lastActivityMonotonic);
+  consume(instance, 1, { type: "bash_execution_update", delta: "" });
+  assert.equal(instance.snapshot().lastActivityMonotonic, before);
+
+  consume(instance, 1, { type: "queue_update", steering: [], followUp: [] });
+  before = instance.snapshot().lastActivityMonotonic;
+  tick();
+  consume(instance, 1, { type: "queue_update", steering: [], followUp: [] });
+  assert.equal(instance.snapshot().lastActivityMonotonic, before);
+
+  tick();
+  consume(instance, 1, { type: "message_update", assistantMessageEvent: { type: "thinking_delta", delta: "live" } });
+  assert.ok(instance.snapshot().lastActivityMonotonic > before);
+});
+
+test("meaningful lifecycle and nonempty delta events reset idle age", () => {
+  const { monitor: instance, tick } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  const events = [
+    { type: "turn_start" },
+    { type: "message_start" },
+    { type: "message_update", assistantMessageEvent: { type: "thinking_start" } },
+    { type: "message_update", assistantMessageEvent: { type: "thinking_delta", delta: "x" } },
+    { type: "message_update", assistantMessageEvent: { type: "thinking_end" } },
+    { type: "message_update", assistantMessageEvent: { type: "text_start" } },
+    { type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "x" } },
+    { type: "message_update", assistantMessageEvent: { type: "text_end" } },
+    { type: "message_update", assistantMessageEvent: { type: "toolcall_start" } },
+    { type: "message_update", assistantMessageEvent: { type: "toolcall_delta", delta: "{}" } },
+    { type: "message_update", assistantMessageEvent: { type: "toolcall_end" } },
+  ];
+  for (const event of events) {
+    const before = instance.snapshot().lastActivityMonotonic;
+    tick();
+    consume(instance, 1, event);
+    assert.ok(instance.snapshot().lastActivityMonotonic > before, JSON.stringify(event));
+  }
+});
+
+test("tracks multiple active tools by call id with bounded safe metadata", () => {
+  const { monitor: instance, tick } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  consume(instance, 1, { type: "tool_execution_start", toolCallId: "a", toolName: `${"x".repeat(100)}` });
+  tick();
+  consume(instance, 1, { type: "tool_execution_start", toolCallId: "b", toolName: "bash" });
+  tick();
+  consume(instance, 1, { type: "tool_execution_update", toolCallId: "a", toolName: `${"x".repeat(100)}` });
+  let snapshot = instance.snapshot();
+  assert.equal(snapshot.activeToolCount, 2);
+  assert.equal(snapshot.activeToolName, "bash");
+  assert.equal(snapshot.activeToolElapsedSeconds, 0.1);
+  assert.equal(snapshot.lastEvent, "tool_execution_update");
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "b", toolName: "bash" });
+  snapshot = instance.snapshot();
+  assert.equal(snapshot.activeToolCount, 1);
+  assert.equal(snapshot.activeToolName?.length, 80);
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "a", toolName: `${"x".repeat(100)}` });
+  assert.equal(instance.snapshot().activeToolCount, 0);
 });
 
 test("tracks retry lifecycle and provisional completed result through settlement", () => {

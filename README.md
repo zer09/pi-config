@@ -82,7 +82,7 @@ It defines:
 - preferred file-reading and file-editing behavior
 - Python tooling defaults around `uv`, `ruff`, and `ty`
 - tool routing for CodeGraph, Context Mode, GitHub CLI, direct shell, and native file tools
-- native delegated multi-provider Pi RPC orchestration with one same-session report recovery, config-driven routing with operational provider fallback, fresh role isolation, neutral review, live event status, and one shared-tree mutator at a time
+- native delegated multi-provider Pi RPC orchestration with one fixed 45-minute work deadline independent of provider count, meaningful-activity liveness, bounded positive-proof cleanup, one same-session report recovery, fresh role isolation, neutral review, live event status, and one shared-tree mutator at a time
 
 Project-local `AGENTS.md` or `CLAUDE.md` files may add more specific instructions. The most specific applicable instruction wins.
 
@@ -94,7 +94,7 @@ Local extensions live under `agent/extensions/`.
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `codegraph/`       | Native Pi CodeGraph tools for source exploration, symbol lookup, callers/callees, impact analysis, indexed file discovery, and graph status.          |
 | `context-mode/`    | Lean wrapper around upstream `context-mode`, exposing only `ctx_execute_file`, `ctx_batch_execute`, and `ctx_search` for large-output workflows.      |
-| `delegated-pi-loop/` | Native TypeScript `delegate_run` tool with persistent Pi RPC children, config-driven routing from an extension-owned `routing.json`, operational provider fallback with sanitized restart notes, one same-session report recovery, role isolation, and live last-event timestamps. Direct Claude CLI delegation is removed; Claude-named models remain available through normal Pi providers. |
+| `delegated-pi-loop/` | Native TypeScript `delegate_run` tool with persistent Pi RPC children, config-driven routing, a provider-count-independent 45-minute work deadline, meaningful-activity stall detection, sequential operational fallback, separate bounded cleanup, schema 5 safe diagnostics, one same-session report recovery, role isolation, and live last-event timestamps. Direct Claude CLI delegation is removed; Claude-named models remain available through normal Pi providers. |
 | `web-search/`      | Local Gemini + Exa grounded search extension exposing `web_search` and `fetch_contents`.                                                              |
 | `footer/`          | Custom compact Pi TUI footer with git state, cwd, extension status, prompt timer, token/context usage, model, thinking glyph, and Fastlane indicator. |
 | `fastlane/`        | Session toggle for eligible Codex Fast mode via `/fastlane`; publishes active state consumed by `footer`.                                             |

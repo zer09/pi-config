@@ -25,6 +25,9 @@ type Behavior =
   | "blocked"
   | "failed"
   | "hang"
+  | "thinking-active"
+  | "tool-active"
+  | "invalid-stream"
   | "custom";
 
 function enoent(error: NodeJS.ErrnoException): boolean {
@@ -229,6 +232,33 @@ if (args.includes("--list-models")) {
       emit({ id: command.id, type: "response", command: "prompt", success: true });
       emit({ type: "agent_start" });
       if (behavior === "hang") continue;
+      if (behavior === "invalid-stream") {
+        process.stdout.write("{malformed\\n");
+        continue;
+      }
+      if (behavior === "thinking-active" || behavior === "tool-active") {
+        let updates = 0;
+        if (behavior === "tool-active") {
+          emit({ type: "tool_execution_start", toolCallId: "active-1", toolName: "ctx_batch_execute", args: {} });
+        }
+        const timer = setInterval(() => {
+          updates += 1;
+          if (behavior === "thinking-active") {
+            emit({ type: "message_update", assistantMessageEvent: { type: "thinking_delta", delta: "x" } });
+          } else {
+            emit({ type: "tool_execution_update", toolCallId: "active-1", toolName: "ctx_batch_execute", partialResult: {} });
+          }
+          if (updates < 6) return;
+          clearInterval(timer);
+          if (behavior === "tool-active") {
+            emit({ type: "tool_execution_end", toolCallId: "active-1", toolName: "ctx_batch_execute", result: {}, isError: false });
+          }
+          emit({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Completed on " + route + ".\\n\\nDELEGATE_RESULT: COMPLETED" }] } });
+          emit({ type: "agent_end", willRetry: false });
+          emit({ type: "agent_settled" });
+        }, 40);
+        continue;
+      }
 
       if (behavior === "tool-unavailable") {
         emit({ type: "tool_execution_start", toolCallId: "1", toolName: "read", args: { path: "fixture" } });
@@ -564,7 +594,7 @@ setInterval(() => {}, 1000);
 
 test("classifies exactly the operational failure states as fallback-eligible", () => {
   for (const state of [
-    "provider_failed", "stalled", "timed_out", "output_limit", "prompt_rejected",
+    "provider_failed", "stalled", "output_limit", "prompt_rejected",
     "invalid_result", "invalid_stream", "missing_report", "child_failed", "spawn_failed",
   ]) {
     assert.equal(isOperationalFailureState(state as never), true, state);
@@ -572,7 +602,7 @@ test("classifies exactly the operational failure states as fallback-eligible", (
   // Completed runs, intentional delegate outcomes, interruption, catalog
   // skips, and unproven process-group cleanup never take the operational
   // fallback path.
-  for (const state of ["completed", "blocked", "delegate_failed", "interrupted", "catalog_unavailable", "cleanup_failed"]) {
+  for (const state of ["completed", "blocked", "delegate_failed", "timed_out", "interrupted", "catalog_unavailable", "cleanup_failed"]) {
     assert.equal(isOperationalFailureState(state as never), false, state);
   }
 });
@@ -916,7 +946,7 @@ test("raw reason values never reach statuses, Markdown, details, or diagnostics"
   const diagnosticPath = toolResult.details?.diagnosticPath;
   assert.equal(typeof diagnosticPath, "string");
   const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
-  assert.equal(diagnostic.schemaVersion, 4);
+  assert.equal(diagnostic.schemaVersion, 5);
   assert.equal(diagnostic.delegateOutcome, "blocked");
   assert.equal(diagnostic.terminalReason, "unspecified");
   assert.equal(diagnostic.reasonStatus, "rejected");
@@ -1115,6 +1145,25 @@ function singleRouteRoutingConfig() {
   });
 }
 
+function providerCountRoutingConfig(count: number) {
+  const providers = Array.from({ length: count }, (_, index) => `prov-${index + 1}`);
+  return validateRoutingConfig({
+    version: 1,
+    thinkingLevels: ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+    disabledProviders: [],
+    models: {
+      "model-x": {
+        providers: Object.fromEntries(providers.map((provider) => [provider, { thinking: ["high"], default: "high" }])),
+      },
+    },
+    profiles: {
+      counted: { overridePolicy: "rejected", tiers: [{ model: "model-x", thinking: "high", providers }] },
+    },
+    roles: Object.fromEntries(DELEGATE_ROLES.map((role) => [role, { profile: "counted" }])),
+    oracleSafety: { selfReviewModelIds: ["model-x"] },
+  });
+}
+
 test("catalog preflight time is deducted from the shared wall deadline", async () => {
   const fixture = await fakePi(
     ["prov-a/model-x"],
@@ -1135,7 +1184,8 @@ test("catalog preflight time is deducted from the shared wall deadline", async (
       // A single-route chain is exhausted after its supervised timeout, so the
       // chain outcome is the safe routes_unavailable; chain-level timed_out is
       // reserved for cumulative-deadline exhaustion.
-      assert.equal(result.state, "routes_unavailable");
+      assert.equal(result.state, "timed_out");
+      assert.equal(result.deadlineCause, "work_deadline");
       assert.equal(result.attempts.length, 1);
       assert.equal(result.attempts[0]?.state, "timed_out");
       assert.equal(result.attempts[0]?.route, "prov-a/model-x:high");
@@ -1152,75 +1202,166 @@ test("catalog preflight time is deducted from the shared wall deadline", async (
   );
 });
 
-test("a timed-out non-final route advances to complete within the cumulative deadline", async () => {
-  const fixture = await fakePi(
-    ["prov-a/model-x", "prov-a/model-y"],
-    { "prov-a/model-x": "hang", "prov-a/model-y": "complete" },
-  );
-  await runAndFinalize(
-    baseOptions(fixture, {
-      routingConfig: twoTierOracleRoutingConfig(),
-      timeoutMs: 2000,
-      idleWarningMs: 400,
-      idleTimeoutMs: 1900,
-    }),
-    async (result) => {
-      // The first route hangs. Its soft share is half of the current cumulative
-      // remainder (about 1000 ms), so it records timed_out while cumulative time
-      // remains and the second route still completes on its reserved share. The
-      // total stays inside the cumulative deadline plus scheduler and
-      // termination tolerance instead of one route spending the whole budget.
+test("one-route, nine-route, and added-provider configurations receive the same work budget", async () => {
+  const observed: number[] = [];
+  for (const count of [1, 9, 10]) {
+    const providers = Array.from({ length: count }, (_, index) => `prov-${index + 1}/model-x`);
+    const fixture = await fakePi(providers, Object.fromEntries(providers.map((route) => [route, "complete"])));
+    await runAndFinalize(baseOptions(fixture, {
+      routingConfig: providerCountRoutingConfig(count),
+      timeoutMs: 1000,
+      random: () => 0,
+    }), async (result) => {
       assert.equal(result.state, "completed");
-      assert.equal(result.selectedRoute, "prov-a/model-y:low");
-      assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out", "completed"]);
-      assert.equal(result.attempts[0]?.route, "prov-a/model-x:high");
-      assert.equal(result.attempts[0]?.restartAfterWork, undefined);
-      assert.ok(
-        result.attempts[0]!.elapsedSeconds >= 0.8,
-        `the hanging route must run until its soft share, got ${result.attempts[0]!.elapsedSeconds}`,
-      );
-      assert.ok(
-        result.attempts[0]!.elapsedSeconds < 1.6,
-        `the hanging route must not exceed its soft share plus termination tolerance, got ${result.attempts[0]!.elapsedSeconds}`,
-      );
-      assert.ok(
-        result.elapsedSeconds < 3.0,
-        `total must stay within the cumulative deadline plus tolerance, got ${result.elapsedSeconds}`,
-      );
-    },
-  );
+      assert.equal(result.workBudgetSeconds, 1);
+      observed.push(result.attempts[0]!.remainingWorkSecondsAtAttemptStart!);
+    });
+  }
+  assert.ok(Math.abs(observed[0]! - observed[1]!) <= 0.1, `provider count changed work time: ${observed}`);
+  assert.ok(Math.abs(observed[1]! - observed[2]!) <= 0.1, `adding a provider changed work time: ${observed}`);
 });
 
-test("a share that cannot fit the mandatory reserve records a soft timeout and advances", async () => {
-  // Route one's catalog preflight is delayed until its remaining supervision
-  // share is smaller than the mandatory forced-kill-plus-cleanup reserve, so
-  // supervisePi must record the soft timeout without spawning any child; the
-  // non-final route then advances and route two completes on its reserved
-  // share.
+test("meaningful thinking and tool activity continue beyond the old one-ninth boundary without fallback", async () => {
+  for (const behavior of ["thinking-active", "tool-active"] as const) {
+    const providers = Array.from({ length: 9 }, (_, index) => `prov-${index + 1}/model-x`);
+    const fixture = await fakePi(providers, {
+      "prov-1/model-x": behavior,
+      ...Object.fromEntries(providers.slice(1).map((route) => [route, "complete"])),
+    }, { supervisionLog: true });
+    await runAndFinalize(baseOptions(fixture, {
+      routingConfig: providerCountRoutingConfig(9),
+      timeoutMs: 1000,
+      idleWarningMs: 80,
+      idleTimeoutMs: 140,
+      random: () => 0,
+    }), async (result) => {
+      assert.equal(result.state, "completed", behavior);
+      assert.equal(result.selectedRoute, "prov-1/model-x:high", behavior);
+      assert.equal(result.attempts.length, 1, behavior);
+      assert.ok(result.elapsedSeconds > 0.2, `activity must pass the old one-ninth boundary: ${result.elapsedSeconds}`);
+      const spawned = await readFile(path.join(fixture.root, "supervision-routes.jsonl"), "utf8");
+      assert.deepEqual(spawned.trim().split("\n"), ["prov-1/model-x"]);
+    });
+  }
+});
+
+test("early provider failure gives fallback the actual remaining work time", async () => {
+  const fixture = await fakePi(
+    ["prov-a/model-x", "prov-a/model-y"],
+    { "prov-a/model-x": "unavailable", "prov-a/model-y": "complete" },
+  );
+  await runAndFinalize(baseOptions(fixture, {
+    routingConfig: twoTierOracleRoutingConfig(),
+    timeoutMs: 1200,
+  }), async (result) => {
+    assert.equal(result.state, "completed");
+    assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["provider_failed", "completed"]);
+    const fallbackRemaining = result.attempts[1]!.remainingWorkSecondsAtAttemptStart!;
+    assert.ok(fallbackRemaining > 0.8, `fallback received a route fraction instead of actual remainder: ${fallbackRemaining}`);
+    assert.ok(fallbackRemaining <= 1.2);
+  });
+});
+
+test("catalog preflight timeout continues with its fixed cause while work remains", async () => {
+  const fixture = await fakePi(
+    ["prov-a/model-x", "prov-a/model-y"],
+    { "prov-a/model-x": "complete", "prov-a/model-y": "complete" },
+    { catalogDelayMs: 500, catalogDelayRoute: "prov-a/model-x" },
+  );
+  await runAndFinalize(baseOptions(fixture, {
+    routingConfig: twoTierOracleRoutingConfig(),
+    timeoutMs: 1200,
+    catalogTimeoutMs: 100,
+  }), async (result) => {
+    assert.equal(result.state, "completed");
+    assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out", "completed"]);
+    assert.equal(result.attempts[0]?.deadlineCause, "catalog_preflight");
+    assert.ok(result.attempts[1]!.remainingWorkSecondsAtAttemptStart! > 0.8);
+  });
+});
+
+test("spawn failure and invalid stream fall back with actual remaining work", async () => {
+  for (const failure of ["spawn", "invalid_stream"] as const) {
+    const fixture = await fakePi(
+      ["prov-a/model-x", "prov-a/model-y"],
+      { "prov-a/model-x": failure === "invalid_stream" ? "invalid-stream" : "complete", "prov-a/model-y": "complete" },
+    );
+    let commandReads = 0;
+    const invocation = failure === "spawn"
+      ? {
+        get command() {
+          commandReads += 1;
+          return commandReads === 2 ? path.join(fixture.root, "missing-command") : fixture.invocation.command;
+        },
+        prefixArgs: fixture.invocation.prefixArgs,
+      }
+      : fixture.invocation;
+    await runAndFinalize(baseOptions(fixture, {
+      piInvocation: invocation,
+      routingConfig: twoTierOracleRoutingConfig(),
+      timeoutMs: 1200,
+    }), async (result) => {
+      assert.equal(result.state, "completed", failure);
+      assert.equal(result.attempts[0]?.state, failure === "spawn" ? "spawn_failed" : "invalid_stream");
+      assert.ok(result.attempts[1]!.remainingWorkSecondsAtAttemptStart! > 0.6, failure);
+    });
+  }
+});
+
+test("idle warning fires once and a ten-minute-equivalent stall falls back on actual remaining time", async () => {
   const fixture = await fakePi(
     ["prov-a/model-x", "prov-a/model-y"],
     { "prov-a/model-x": "hang", "prov-a/model-y": "complete" },
-    { catalogDelayMs: 220, catalogDelayRoute: "prov-a/model-x", supervisionLog: true },
   );
-  await runAndFinalize(
-    baseOptions(fixture, {
+  const updates: DelegateRunResult["progress"][] = [];
+  await runAndFinalize(baseOptions(fixture, {
+    routingConfig: twoTierOracleRoutingConfig(),
+    timeoutMs: 1200,
+    idleWarningMs: 100,
+    idleTimeoutMs: 300,
+    onProgress: (progress) => updates.push(progress),
+  }), async (result) => {
+    assert.equal(result.state, "completed");
+    assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["stalled", "completed"]);
+    assert.equal(result.attempts[0]?.deadlineCause, "idle_deadline");
+    assert.ok(result.attempts[1]!.remainingWorkSecondsAtAttemptStart! > 0.6);
+    const warnings = updates.filter((progress) => progress.route === "prov-a/model-x:high" && progress.idleWarningCount === 1);
+    assert.ok(warnings.length >= 1);
+    assert.ok(updates.every((progress) => progress.idleWarningCount <= 1));
+  });
+});
+
+test("fallback route starts only after positive leader and group death proof", { skip: process.platform !== "linux" }, async () => {
+  const fixture = await resistantPi({ supervisionHangRoute: "prov-a/model-x" });
+  const group = { leader: -1, descendant: -1 };
+  try {
+    const resultPromise = runDelegate(baseOptions(fixture, {
       routingConfig: twoTierOracleRoutingConfig(),
-      timeoutMs: 570,
-      idleWarningMs: 150,
-      idleTimeoutMs: 500,
-    }),
-    async (result) => {
+      timeoutMs: 2000,
+      idleWarningMs: 100,
+      idleTimeoutMs: 300,
+      graceMs: 100,
+      cleanupTimeoutMs: 1000,
+    }));
+    const recorded = await waitForFixtureGroup(fixture.root, "resistant-group.json");
+    group.leader = recorded.leader;
+    group.descendant = recorded.descendant;
+    safetyGroups.push({ ...group });
+    await settleAndFinalize(resultPromise, async (result) => {
       assert.equal(result.state, "completed");
-      assert.equal(result.selectedRoute, "prov-a/model-y:low");
-      assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out", "completed"]);
-      assert.equal(result.attempts[0]?.route, "prov-a/model-x:high");
-      // Exactly one supervised child ever spawned: route two's. Route one
-      // never started a child because its share could not fit the reserve.
-      const supervisionLog = await readFile(path.join(fixture.root, "supervision-routes.jsonl"), "utf8");
-      assert.deepEqual(supervisionLog.trim().split("\n"), ["prov-a/model-y"]);
-      assert.ok(result.elapsedSeconds < 0.9, `total must stay near the shared deadline, got ${result.elapsedSeconds}`);
-    },
-  );
+      assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["stalled", "completed"]);
+      const start = JSON.parse(await readFile(path.join(fixture.root, "route-two-start.json"), "utf8")) as Record<string, {
+        leaderGone: boolean;
+        descendantGone: boolean;
+      }>;
+      for (const phase of ["catalog", "supervision"]) {
+        assert.equal(start[phase]?.leaderGone, true, phase);
+        assert.equal(start[phase]?.descendantGone, true, phase);
+      }
+    });
+  } finally {
+    killOwned(group.leader, group.descendant);
+  }
 });
 
 test("a supervision cleanup failure fails the chain closed before route two starts", { skip: process.platform !== "linux" }, async () => {
@@ -1243,6 +1384,7 @@ test("a supervision cleanup failure fails the chain closed before route two star
       idleWarningMs: 400,
       idleTimeoutMs: 2800,
       graceMs: 300,
+      cleanupTimeoutMs: 2500,
     }));
     const recorded = await waitForFixtureGroup(fixture.root, "resistant-group.json");
     group.leader = recorded.leader;
@@ -1251,9 +1393,9 @@ test("a supervision cleanup failure fails the chain closed before route two star
     const toolResult = await settleAndFinalize(
       resultPromise,
       async (result, finalize) => {
-        // Route one ran to its soft share, resisted SIGTERM, was SIGKilled,
-        // and its group liveness stayed unproven: the chain fails closed with
-        // the sanitized terminal state and route two never starts.
+        // Route one reached its idle deadline, resisted SIGTERM, was SIGKilled,
+        // and its group liveness stayed unproven. The chain fails closed and
+        // route two never starts.
         assert.equal(result.state, "cleanup_failed");
         assert.equal(result.selectedRoute, "prov-a/model-x:high");
         assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["cleanup_failed"]);
@@ -1261,9 +1403,10 @@ test("a supervision cleanup failure fails the chain closed before route two star
         await assert.rejects(() => stat(path.join(fixture.root, "route-two-start.json")), enoent);
         const toolResult = await finalize();
         assert.match(toolResult.content[0]!.text, /## Delegate solution-a failed: cleanup_failed/);
-        // The model-visible failure stays sanitized: no signals, pids, or raw
-        // process details from the failed cleanup proof.
-        assert.doesNotMatch(toolResult.content[0]!.text, /SIGKILL|SIGTERM|pid|group_alive|close_unconfirmed/i);
+        // The model-visible failure includes only the fixed cleanup code, with
+        // no signals, pids, or raw process details.
+        assert.match(toolResult.content[0]!.text, /cleanup failure: group_alive/);
+        assert.doesNotMatch(toolResult.content[0]!.text, /SIGKILL|SIGTERM|pid/i);
         return toolResult;
       },
     );
@@ -1292,6 +1435,7 @@ test("supervision consumes bounded cleanup failure while inherited stdio keeps c
       idleWarningMs: 400,
       idleTimeoutMs: 1000,
       graceMs: 300,
+      cleanupTimeoutMs: 2500,
     }));
     const recorded = await waitForFixtureGroup(fixture.root, "inherited-group.json");
     group.leader = recorded.leader;
@@ -1305,7 +1449,7 @@ test("supervision consumes bounded cleanup failure while inherited stdio keeps c
       assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["cleanup_failed"]);
       await assert.rejects(() => stat(path.join(fixture.root, "route-two-start.json")), enoent);
     });
-    assert.ok(performance.now() - settledAt < 1200, "cleanup_failed must settle inside the bounded route share");
+    assert.ok(performance.now() - settledAt < 4000, "remaining work plus cleanup must stay bounded");
     assert.ok(await isGone(group.leader), "the inherited-stdio leader must already be gone");
     assert.equal(await isGone(group.descendant), false, "the inherited-stdio descendant must still be alive before safety cleanup");
   } finally {
@@ -1345,7 +1489,7 @@ test("catalog consumes bounded cleanup failure while inherited stdio keeps close
       assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["cleanup_failed"]);
       await assert.rejects(() => stat(path.join(fixture.root, "route-two-start.json")), enoent);
     });
-    assert.ok(performance.now() - settledAt < 1200, "catalog cleanup_failed must settle inside the bounded route share");
+    assert.ok(performance.now() - settledAt < 10_000, "catalog cleanup_failed must settle inside the ten-second cleanup allowance");
     assert.ok(await isGone(group.leader), "the catalog leader must already be gone");
     assert.equal(await isGone(group.descendant), false, "the inherited-stdio descendant must still be alive before safety cleanup");
   } finally {
@@ -1616,7 +1760,7 @@ test("the owned sandboxes are clean after success, rejection, and assertion fail
   await assertNoOwnedArtifacts("the owned artifact sandbox must be clean after an assertion failure");
 });
 
-test("a SIGTERM-resistant supervised route is killed inside its share before route two starts", { skip: process.platform !== "linux" }, async () => {
+test("global work timeout cleans a resistant route and never starts route two", { skip: process.platform !== "linux" }, async () => {
   const fixture = await resistantPi({ supervisionHangRoute: "prov-a/model-x" });
   const group = { leader: -1, descendant: -1 };
   try {
@@ -1636,37 +1780,18 @@ test("a SIGTERM-resistant supervised route is killed inside its share before rou
       async (result) => {
         assert.ok(Number.isSafeInteger(group.leader) && group.leader > 0);
         assert.ok(Number.isSafeInteger(group.descendant) && group.descendant > 0, "the resistant descendant must have started");
-        // Route one ran to its soft share, resisted SIGTERM, and was SIGKILLed
-        // inside the reserved cleanup budget; route two then received its
-        // reserved share and completed, all inside the cumulative deadline.
-        assert.equal(result.state, "completed");
-        assert.equal(result.selectedRoute, "prov-a/model-y:low");
-        assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out", "completed"]);
+        // The idle stall occurs just before the fixed work deadline. Cleanup
+        // consumes the remaining wall time, so no productive budget remains
+        // for route two and the global outcome is timed_out.
+        assert.equal(result.state, "timed_out");
+        assert.equal(result.deadlineCause, "work_deadline");
+        assert.equal(result.attempts.length, 1);
         assert.ok(
-          result.attempts[0]!.elapsedSeconds >= 0.8,
-          `the resistant route must run until its soft share, got ${result.attempts[0]!.elapsedSeconds}`,
+          result.attempts[0]?.state === "stalled" || result.attempts[0]?.state === "timed_out",
+          `route one must stop at idle or work deadline, got ${result.attempts[0]?.state}`,
         );
-        assert.ok(
-          result.attempts[0]!.elapsedSeconds < 1.9,
-          `the resistant route must stay inside its share plus the reserved termination budget, got ${result.attempts[0]!.elapsedSeconds}`,
-        );
-        // Ordering proof: route two's catalog and supervision children both
-        // observed route one's whole process group already dead at their own
-        // spawn time, so no two route process groups ever overlapped.
-        const start = JSON.parse(await readFile(path.join(fixture.root, "route-two-start.json"), "utf8")) as Record<string, {
-          leaderGone: boolean;
-          descendantGone: boolean;
-        }>;
-        for (const phase of ["catalog", "supervision"]) {
-          assert.ok(start[phase], `route two's ${phase} child must have recorded the group check`);
-          assert.equal(start[phase]!.leaderGone, true, `route one's leader must be dead before route two's ${phase} child starts`);
-          assert.equal(start[phase]!.descendantGone, true, `route one's descendant must be dead before route two's ${phase} child starts`);
-        }
-        assert.ok(
-          result.elapsedSeconds < 3.3,
-          `total must stay within the cumulative deadline plus scheduler tolerance, got ${result.elapsedSeconds}`,
-        );
-        assert.ok(result.elapsedSeconds >= 1.2, "route one must have consumed its soft share first");
+        await assert.rejects(() => stat(path.join(fixture.root, "route-two-start.json")), enoent);
+        assert.ok(result.elapsedSeconds >= 2.8);
         assert.ok(await isGone(group.leader), "the SIGTERM-resistant leader must be dead");
         assert.ok(await isGone(group.descendant), "the SIGTERM-resistant descendant must be dead");
       },
@@ -1676,7 +1801,7 @@ test("a SIGTERM-resistant supervised route is killed inside its share before rou
   }
 });
 
-test("a SIGTERM-resistant catalog preflight is killed at its share before route two starts", { skip: process.platform !== "linux" }, async () => {
+test("global work timeout during catalog cleanup never starts route two", { skip: process.platform !== "linux" }, async () => {
   const fixture = await resistantPi({ catalogHangRoute: "prov-a/model-x" });
   const group = { leader: -1, descendant: -1 };
   try {
@@ -1696,35 +1821,13 @@ test("a SIGTERM-resistant catalog preflight is killed at its share before route 
       async (result) => {
         assert.ok(Number.isSafeInteger(group.leader) && group.leader > 0);
         assert.ok(Number.isSafeInteger(group.descendant) && group.descendant > 0, "the resistant descendant must have started");
-        // The hanging catalog preflight is stopped at its soft share: the
-        // graceful window cannot fit before the route deadline, so termination
-        // escalates immediately to SIGKILL, the group's disappearance is
-        // verified, and only then does route two start and complete.
-        assert.equal(result.state, "completed");
-        assert.equal(result.selectedRoute, "prov-a/model-y:low");
-        assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out", "completed"]);
+        assert.equal(result.state, "timed_out");
+        assert.equal(result.deadlineCause, "work_deadline");
+        assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out"]);
         assert.equal(result.attempts[0]?.route, "prov-a/model-x:high");
-        assert.ok(
-          result.attempts[0]!.elapsedSeconds >= 1.3,
-          `the catalog preflight must run to its soft share, got ${result.attempts[0]!.elapsedSeconds}`,
-        );
-        assert.ok(
-          result.attempts[0]!.elapsedSeconds < 2.1,
-          `the catalog stop and verified group kill must stay near the share, got ${result.attempts[0]!.elapsedSeconds}`,
-        );
-        const start = JSON.parse(await readFile(path.join(fixture.root, "route-two-start.json"), "utf8")) as Record<string, {
-          leaderGone: boolean;
-          descendantGone: boolean;
-        }>;
-        for (const phase of ["catalog", "supervision"]) {
-          assert.ok(start[phase], `route two's ${phase} child must have recorded the group check`);
-          assert.equal(start[phase]!.leaderGone, true, `route one's leader must be dead before route two's ${phase} child starts`);
-          assert.equal(start[phase]!.descendantGone, true, `route one's descendant must be dead before route two's ${phase} child starts`);
-        }
-        assert.ok(
-          result.elapsedSeconds < 3.3,
-          `total must stay within the cumulative deadline plus scheduler tolerance, got ${result.elapsedSeconds}`,
-        );
+        assert.equal(result.attempts[0]?.deadlineCause, "work_deadline");
+        await assert.rejects(() => stat(path.join(fixture.root, "route-two-start.json")), enoent);
+        assert.ok(result.elapsedSeconds >= 3.0);
         assert.ok(await isGone(group.leader), "the SIGTERM-resistant leader must be dead");
         assert.ok(await isGone(group.descendant), "the SIGTERM-resistant descendant must be dead");
       },
