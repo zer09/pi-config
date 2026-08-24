@@ -2,6 +2,12 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-24 — Move delegated AgentRouter routes to Opus 4.8
+
+- Replaced every delegated `agentrouter/claude-opus-5:high` tier with `agentrouter/claude-opus-4-8:high`: Gate B's fallback, Gate C's final tier, and Solution F's primary.
+- Matched `agent/models.json`, where AgentRouter Opus 4.8 supports thinking levels through `high`, `xhigh`, and `max`, and confirmed the exact route through the no-inference Pi catalog.
+- Updated capability absence, exact route, fallback-chain, ADR, maintenance, and catalog expectations. The public role schema and model-visible guidance are unchanged, so this routing-only update adds no parent startup-context cost.
+
 ## 2026-08-24 — Move Gate C Ox Alpha to OpenRouter
 
 - Removed the remaining TokenReply capability and tier from delegated routing. Gate C now starts with `openrouter/stealth/ox-alpha:high` before Hy3 and AgentRouter Opus.

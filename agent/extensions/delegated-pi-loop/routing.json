@@ -105,7 +105,7 @@
         }
       }
     },
-    "claude-opus-5": {
+    "claude-opus-4-8": {
       "providers": {
         "agentrouter": {
           "thinking": ["high", "xhigh", "max"],
@@ -147,7 +147,7 @@
           "providers": ["opencode-go"]
         },
         {
-          "model": "claude-opus-5",
+          "model": "claude-opus-4-8",
           "thinking": "high",
           "providers": ["agentrouter"]
         }
@@ -162,7 +162,7 @@
         },
         { "model": "hy3", "thinking": "high", "providers": ["opencode-go"] },
         {
-          "model": "claude-opus-5",
+          "model": "claude-opus-4-8",
           "thinking": "high",
           "providers": ["agentrouter"]
         }
@@ -209,7 +209,7 @@
     "gate-f": {
       "tiers": [
         {
-          "model": "claude-opus-5",
+          "model": "claude-opus-4-8",
           "thinking": "high",
           "providers": ["agentrouter"]
         },

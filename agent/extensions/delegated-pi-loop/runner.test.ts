@@ -777,12 +777,12 @@ test("the restart note is private, sanitized, and never stacks across restarts",
   const catalog = [
     "openrouter/stealth/ox-alpha",
     "opencode-go/hy3",
-    "agentrouter/claude-opus-5",
+    "agentrouter/claude-opus-4-8",
   ];
   const behaviors: Record<string, Behavior> = {
     "openrouter/stealth/ox-alpha": "tool-unavailable",
     "opencode-go/hy3": "tool-unavailable",
-    "agentrouter/claude-opus-5": "complete",
+    "agentrouter/claude-opus-4-8": "complete",
   };
   const fixture = await fakePi(catalog, behaviors);
   await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result) => {

@@ -122,12 +122,13 @@ test("the shipped config pins delegate model thinking capabilities", () => {
   });
   assert.equal(config.models["ox-alpha"], undefined);
   assert.equal(config.models["claude-fable-5"], undefined);
-  // agentrouter/claude-opus-5 keeps high as its default while retaining the
-  // higher xhigh and max levels.
-  assert.deepEqual(config.models["claude-opus-5"]?.providers.agentrouter, {
+  // agentrouter/claude-opus-4-8 keeps high as its default while retaining
+  // the higher xhigh and max levels.
+  assert.deepEqual(config.models["claude-opus-4-8"]?.providers.agentrouter, {
     thinking: ["high", "xhigh", "max"],
     default: "high",
   });
+  assert.equal(config.models["claude-opus-5"], undefined);
   // Gate D runs gpt-5.5 at high across its full provider set; every
   // provider keeps its declared scale with high as the default.
   for (const provider of CODEX_PROVIDERS) {
@@ -393,12 +394,12 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
   ];
   const expectedB = [
     "opencode-go/deepseek-v4-flash:max",
-    "agentrouter/claude-opus-5:high",
+    "agentrouter/claude-opus-4-8:high",
   ];
   const expectedC = [
     "openrouter/stealth/ox-alpha:high",
     "opencode-go/hy3:high",
-    "agentrouter/claude-opus-5:high",
+    "agentrouter/claude-opus-4-8:high",
   ];
   // Solution and review pairs share one profile and produce identical
   // chains. Every A/B/C tier allowlists exactly one provider after the
@@ -420,7 +421,7 @@ test("gate D, solution E/F, review E, and the oracle select their configured cha
   const config = loadRoutingConfig();
   const canonicalD = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.5:high`);
   const canonicalOracle = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.6-sol:high`);
-  const expectedF = ["agentrouter/claude-opus-5:high", "zai/glm-5.3:max"];
+  const expectedF = ["agentrouter/claude-opus-4-8:high", "zai/glm-5.3:max"];
   const expectedG = ["zai/glm-5.3:max", ...canonicalOracle];
 
   // An eligible parent provider becomes the primary without a random draw.
@@ -635,7 +636,7 @@ test("the parent provider is preferred inside a multi-provider tier", () => {
     selectRoutes(config, "solution-b", undefined, { parentProvider: "seekai", random: () => 0.99 }).map(routeKey),
     [
       "opencode-go/deepseek-v4-flash:max",
-      "agentrouter/claude-opus-5:high",
+      "agentrouter/claude-opus-4-8:high",
     ],
   );
   // An unrelated parent provider does not disturb the stable order.
@@ -797,8 +798,8 @@ test("provider plus model overrides are exact after capability validation", () =
     /provider "seekai" has no capability record for model "glm-5\.3"/,
   );
   assert.throws(
-    () => selectRoutes(config, "implementation", { provider: "gorouter", model: "claude-opus-5", thinking: "high", reason: "invalid" }),
-    /provider "gorouter" has no capability record for model "claude-opus-5"/,
+    () => selectRoutes(config, "implementation", { provider: "gorouter", model: "claude-opus-4-8", thinking: "high", reason: "invalid" }),
+    /provider "gorouter" has no capability record for model "claude-opus-4-8"/,
   );
   assert.throws(
     () => selectRoutes(config, "implementation", { model: "unknown-model", reason: "invalid" }),
@@ -810,7 +811,7 @@ test("exclusion overrides filter providers inside every tier", () => {
   const config = loadRoutingConfig();
   assert.deepEqual(
     selectRoutes(config, "solution-b", { excludeProviders: ["opencode-go"], reason: "opencode-go is down" }).map(routeKey),
-    ["agentrouter/claude-opus-5:high"],
+    ["agentrouter/claude-opus-4-8:high"],
   );
   assert.deepEqual(
     selectRoutes(config, "solution-d", { excludeProviders: ["openai-codex", "openai-codex-zahlo", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-cgpt3", "openai-codex-cgpt4", "openai-codex-cgpt6", "openai-codex-cgpt7"], reason: "only cgpt5" }).map(routeKey),
