@@ -6,6 +6,7 @@ export const DELEGATE_ROLES = [
   "solution-b",
   "solution-c",
   "solution-d",
+  "solution-e",
   "oracle",
   "implementation",
   "review-a",

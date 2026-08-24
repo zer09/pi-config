@@ -80,6 +80,8 @@ Delegated terminal-reason update: 2026-08-24 (added the typed `DELEGATE_REASON` 
 
 Delegated solution-waiver update: 2026-08-24 (added the user-authorized one-shot gate-scoped solution-investigator waiver with the at-least-one-completed-report rule to the strict four-investigator solution gate guidance; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated fifth-solution update: 2026-08-24 (expanded the required solution gate to A/B/C/D/E and added the `solution-e` role; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -685,6 +687,21 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | **Tool total** | **1,405** | **1,651** | **+246** | Before provider-specific framing |
 
 The directly attributed model-visible increase is +481 local tokens: +235 global instructions and +246 tool guidelines for the three new solution-waiver rules (the explicit named-role user waiver with completed-reports-plus-parent-verified-evidence synthesis, the one-shot gate-scoped recording with the at-least-one-completed-report prohibition on waiving the entire evidence set and oracle preservation, and no inference from generic continue/commit/skip-retry requests). The strict four-investigator default, the reviewer-waiver policy, the oracle, role schemas, routing, and runtime behavior are unchanged. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-24 delegated fifth-solution attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are commit `ac439b6`, re-measured with the same serialization as the prior tables. The `gate-e` route profile stays in `routing.json` and is not model-visible.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 3,509 | 3,510 | +1 | Always loaded through the context-file block |
+| `delegate_run` description | 82 | 82 | 0 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 1,284 | 1,287 | +3 | Included while the tool is active |
+| `delegate_run` parameter schema | 272 | 280 | +8 | Serialized as an active provider tool schema |
+| **Tool total** | **1,651** | **1,662** | **+11** | Before provider-specific framing |
+
+The directly attributed model-visible increase is +12 local tokens: +1 global instruction for the five-investigator policy, +3 tool-guideline tokens naming Solution E and the five-completion rule, and +8 parameter-schema tokens for the `solution-e` enum value and updated role description. The dedicated Solution E route and shared selector behavior remain executable configuration and code outside parent startup context. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

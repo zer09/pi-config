@@ -54,7 +54,7 @@ test("registration guidelines encode the automatic delegation policy without pro
   // Solution delegates gather evidence and propose options; the parent stays
   // the sole author and owner of the final plan or research deliverable.
   assert.match(guidelines, /Solution delegates may gather evidence and propose options, but the parent verifies the evidence, synthesizes conclusions, and remains sole author and owner of the final plan or research deliverable/);
-  // Solution-gate waiver: the strict all-four default stands before synthesis,
+  // Solution-gate waiver: the strict all-five default stands before synthesis,
   // and only the user may explicitly waive named failed solution roles for
   // the one current solution gate. The waiver continues synthesis from
   // completed reports plus parent-verified repository evidence, requires at
@@ -63,7 +63,8 @@ test("registration guidelines encode the automatic delegation policy without pro
   // stays one-shot and gate-scoped, preserves the advisory oracle and the
   // downstream implementation/review/verification/remediation rules, and is
   // never inferred from generic continue/commit/skip-retry requests.
-  assert.match(guidelines, /all four must complete before synthesis/);
+  assert.match(guidelines, /solution-a, solution-b, solution-c, solution-d, and solution-e concurrently/);
+  assert.match(guidelines, /all five must complete before synthesis/);
   assert.match(guidelines, /the gate stays blocked by default; only the user may explicitly waive the named failed solution roles for that one current solution gate/);
   assert.match(guidelines, /continue synthesis using only the completed solution reports plus parent-verified repository evidence/);
   assert.match(guidelines, /At least one solution delegate must have completed: the user cannot waive the entire evidence set and synthesize from zero completed investigator reports/);

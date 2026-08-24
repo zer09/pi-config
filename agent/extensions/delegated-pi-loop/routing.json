@@ -188,6 +188,25 @@
         }
       ]
     },
+    "gate-e": {
+      "tiers": [
+        {
+          "model": "gpt-5.6-sol",
+          "thinking": "high",
+          "providers": [
+            "openai-codex",
+            "openai-codex-zahlo",
+            "openai-codex-cgpt1",
+            "openai-codex-cgpt2",
+            "openai-codex-cgpt3",
+            "openai-codex-cgpt4",
+            "openai-codex-cgpt5",
+            "openai-codex-cgpt6",
+            "openai-codex-cgpt7"
+          ]
+        }
+      ]
+    },
     "oracle": {
       "overridePolicy": "rejected",
       "tiers": [
@@ -229,6 +248,7 @@
     "solution-b": { "profile": "gate-b" },
     "solution-c": { "profile": "gate-c" },
     "solution-d": { "profile": "gate-d" },
+    "solution-e": { "profile": "gate-e" },
     "review-a": { "profile": "gate-a" },
     "review-b": { "profile": "gate-b" },
     "review-c": { "profile": "gate-c" },

@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-24 — Add permanent Solution E
+
+- Expanded the required solution-investigation gate from A/B/C/D to A/B/C/D/E. Added `solution-e` to the public role enum and complete-role validation while retaining the generic read-only `solution-*` child contract and existing concurrency and waiver semantics.
+- Added the dedicated `gate-e` profile: `gpt-5.6-sol:high` across the same nine Codex providers through CGPT7 as the Oracle, selected through the shared inherited-parent-or-random-primary routing algorithm with normal solution overrides.
+- Updated model-visible orchestration guidance, global policy, role/routing/manager/index tests, ADRs 0007-0009, maintenance guidance, and context-cost attribution. The four-member A/B/C/D review gate is unchanged.
+- Validation: extension suite (177 tests), strict TypeScript with unused-symbol checks, semantic Solution E profile/role/provider assertions, `git diff --check`, and local `o200k_base` attribution (+12 model-visible tokens). No paid live delegate smoke was run.
+
 ## 2026-08-24 — Remove Tabitoken and GoRouter from delegated routing
 
 - Removed the `claude-opus-5-thinking` capability record and every Tabitoken and GoRouter tier from `routing.json`; neither provider remains anywhere in the delegated routing policy.

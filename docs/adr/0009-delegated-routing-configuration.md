@@ -42,6 +42,8 @@ Also on 2026-08-24, `openai-codex-cgpt7` joined both Codex alias pools with capa
 
 Later on 2026-08-24, the user removed Tabitoken and GoRouter from delegated routing. The shared `claude-opus-5-thinking` capability record and all six A/B/C tiers that referenced those providers were deleted rather than disabled. Gate A now has two tiers, Gate B has two tiers, and Gate C has three tiers; global provider and model configuration remains outside this routing-policy decision.
 
+Also on 2026-08-24, the user added permanent Solution E to the required investigation gate. Its dedicated `gate-e` profile runs `gpt-5.6-sol:high` across the same nine Codex providers through CGPT7 as the Oracle, but keeps the normal solution override policy. Solution E uses the generic read-only `solution-*` role contract and the shared selector; no role-specific child prompt or selection branch exists.
+
 On 2026-08-23 the user added the fifth implementation reviewer `review-e`, mapped to a dedicated single-tier `gate-e` profile, then reverted the persistent fifth reviewer later the same day: the default review gate is four-member A/B/C/D again, `review-e` and `gate-e` are gone, and the role taxonomy stays fixed and fail-closed because roles define permission and concurrency classes. A temporary extra reviewer for one gate needs no dedicated role or profile: it reuses an existing non-exclusive review role with a distinct prompt, the `DelegateManager` already admits duplicate non-exclusive review roles, and an optional reason-required one-run `routingOverride` pins it to a distinct route such as `openai-codex-cgpt5/gpt-5.6-sol` at thinking `high` without changing role permissions or concurrency.
 
 The routine `backend` tool parameter is removed from the model-visible schema, guidance, and all internal and public metadata. Its replacement is an optional exceptional `routingOverride` with `provider`, `model`, `thinking`, `excludeProviders`, and a mandatory non-empty `reason`:
@@ -69,8 +71,8 @@ Everything else from ADR 0008 is preserved: the cumulative wall deadline, cancel
 
 - Route changes are now JSON edits validated by a strict loader instead of TypeScript edits inside selector logic.
 - An invalid or missing `routing.json` disables delegation entirely rather than silently falling back to stale compiled routes.
-- Gate D and the Oracle select primaries from nine eligible Codex providers through `openai-codex-cgpt7`.
-- The implementation review gate runs four concurrent reviewers. A temporary extra reviewer reuses an existing non-exclusive review role and, when it needs a distinct route, an exact one-run `routingOverride` with no provider fallback.
+- Gate D, Solution E, and the Oracle select primaries from nine eligible Codex providers through `openai-codex-cgpt7`.
+- The solution-investigation gate runs five concurrent investigators A/B/C/D/E; the implementation review gate remains four concurrent reviewers A/B/C/D. A temporary extra reviewer reuses an existing non-exclusive review role and, when it needs a distinct route, an exact one-run `routingOverride` with no provider fallback.
 - A provider failure after tool execution no longer discards the delegation; the chain advances with an explicit restart note, and the safe exhausted-chain outcome still bounds the worst case.
 - A hanging route can no longer starve the fallback chain: it is cut off at its soft share and the remaining routes keep their reserved time, with `timed_out` attempt records distinguishing budget stops from catalog absence. Cleanup is part of the budget: termination is clamped to the route's absolute deadline with immediate SIGKILL escalation when the grace cannot fit, and a stopped route's process group is verified dead before the next route starts.
 - The `zai` backend value disappears from the public schema; an explicit user or project request for that route becomes a `routingOverride` with `provider`/`model` fields.

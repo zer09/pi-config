@@ -67,6 +67,7 @@ function syntheticConfig(overrides: {
       "solution-b": { profile: "two-tier" },
       "solution-c": { profile: "two-tier" },
       "solution-d": { profile: "two-tier" },
+      "solution-e": { profile: "two-tier" },
       "review-a": { profile: "two-tier" },
       "review-b": { profile: "two-tier" },
       "review-c": { profile: "two-tier" },
@@ -209,7 +210,7 @@ test("config validation rejects structural violations", () => {
       name: "extra role mapping",
       mutate: (document) => {
         const roles = document.roles as Record<string, unknown>;
-        roles["solution-e"] = { profile: "two-tier" };
+        roles["solution-f"] = { profile: "two-tier" };
       },
       pattern: /roles must map exactly every delegate role/,
     },
@@ -415,7 +416,7 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
   );
 });
 
-test("gate D and the oracle include every configured Codex alias with inherited or random primaries", () => {
+test("gate D, solution E, and the oracle include every configured Codex alias with inherited or random primaries", () => {
   const config = loadRoutingConfig();
   const canonicalD = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.5:high`);
   const canonicalOracle = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.6-sol:high`);
@@ -431,6 +432,10 @@ test("gate D and the oracle include every configured Codex alias with inherited 
       },
     }).map(routeKey),
     ["openai-codex-cgpt4/gpt-5.5:high", ...canonicalD.filter((key) => key !== "openai-codex-cgpt4/gpt-5.5:high")],
+  );
+  assert.deepEqual(
+    selectRoutes(config, "solution-e", undefined, { parentProvider: "openai-codex-cgpt6" }).map(routeKey),
+    ["openai-codex-cgpt6/gpt-5.6-sol:high", ...canonicalOracle.filter((key) => key !== "openai-codex-cgpt6/gpt-5.6-sol:high")],
   );
   assert.deepEqual(
     selectRoutes(config, "oracle", undefined, { parentProvider: "openai-codex-cgpt5" }).map(routeKey),
@@ -471,7 +476,11 @@ test("gate D and the oracle include every configured Codex alias with inherited 
   );
 
   // Cursor and every non-Codex provider stay excluded from the whole chain.
-  for (const routes of [selectRoutes(config, "solution-d", undefined, { random: () => 0 }), oracleRoutes]) {
+  for (const routes of [
+    selectRoutes(config, "solution-d", undefined, { random: () => 0 }),
+    selectRoutes(config, "solution-e", undefined, { random: () => 0 }),
+    oracleRoutes,
+  ]) {
     assert.equal(routes.length, CODEX_PROVIDERS.length);
     for (const route of routes) {
       assert.ok((CODEX_PROVIDERS as readonly string[]).includes(route.provider));
@@ -488,11 +497,12 @@ test("implementation and remediation use Fable before the GLM fallback while ver
   assert.deepEqual([...oracleModelIds(config)], ["gpt-5.6-sol"]);
 });
 
-test("the shipped config keeps exactly four review roles and no dedicated fifth-reviewer profile", () => {
+test("the shipped config keeps exactly four review roles while Solution E owns gate-e", () => {
   const config = loadRoutingConfig();
   const reviews = DELEGATE_ROLES.filter((role) => role.startsWith("review-"));
   assert.deepEqual(reviews, ["review-a", "review-b", "review-c", "review-d"]);
-  // Review pairs share the solution profiles; no gate-e-style profile exists.
+  // Reviews A-D still share their matching solution profiles. The new gate-e
+  // profile belongs only to Solution E and does not reintroduce review-e.
   for (const [role, profile] of [
     ["review-a", "gate-a"],
     ["review-b", "gate-b"],
@@ -501,7 +511,8 @@ test("the shipped config keeps exactly four review roles and no dedicated fifth-
   ] as const) {
     assert.equal(config.roles[role].profile, profile);
   }
-  assert.equal("gate-e" in config.profiles, false);
+  assert.equal(config.roles["solution-e"].profile, "gate-e");
+  assert.equal("gate-e" in config.profiles, true);
 });
 
 test("a temporary extra reviewer pins one exact route through a reason-required one-run override", () => {
@@ -749,6 +760,10 @@ test("provider-only overrides pin and filter the configured tiers", () => {
   assert.deepEqual(
     selectRoutes(config, "solution-d", { provider: "openai-codex-cgpt4", reason: "user requested cgpt4" }).map(routeKey),
     ["openai-codex-cgpt4/gpt-5.5:high"],
+  );
+  assert.deepEqual(
+    selectRoutes(config, "solution-e", { provider: "openai-codex-cgpt7", reason: "user requested cgpt7" }).map(routeKey),
+    ["openai-codex-cgpt7/gpt-5.6-sol:high"],
   );
   // A provider that cannot serve any configured tier is a bounded error.
   assert.throws(

@@ -23,6 +23,7 @@ test("routeKey keeps the Pi-only provider/model:thinking format", () => {
 test("classifies role permissions and sequential roles", () => {
   assert.equal(roleIsReadOnly("solution-a"), true);
   assert.equal(roleIsReadOnly("solution-d"), true);
+  assert.equal(roleIsReadOnly("solution-e"), true);
   assert.equal(roleIsReadOnly("review-c"), true);
   assert.equal(roleIsReadOnly("review-d"), true);
   assert.equal(roleIsReadOnly("verification"), true);
@@ -43,8 +44,10 @@ test("exposes the oracle role in the model-visible role enum", () => {
   assert.equal(DELEGATE_ROLES.filter((role) => role === "oracle").length, 1);
 });
 
-test("exposes the four review roles in the model-visible role enum", () => {
+test("exposes five solution roles and four review roles in the model-visible role enum", () => {
+  const solutions = DELEGATE_ROLES.filter((role) => role.startsWith("solution-"));
   const reviews = DELEGATE_ROLES.filter((role) => role.startsWith("review-"));
+  assert.deepEqual(solutions, ["solution-a", "solution-b", "solution-c", "solution-d", "solution-e"]);
   assert.deepEqual(reviews, ["review-a", "review-b", "review-c", "review-d"]);
 });
 
