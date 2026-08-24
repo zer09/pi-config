@@ -2,6 +2,12 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-24 — Add CGPT7 to delegated Codex routing
+
+- Added `openai-codex-cgpt7` capability records exactly matching CGPT6 for `gpt-5.5` and `gpt-5.6-sol`, then appended CGPT7 to Gate D and Oracle provider pools. Both pools now contain nine Codex providers through CGPT7.
+- Added only `openai-codex-cgpt7/gpt-5.5` and `openai-codex-cgpt7/gpt-5.6-sol` to `enabledModels`. Preserved the existing CGPT7 alias name and the user's provider, model, thinking, theme, and transport settings.
+- Updated exact-chain, capability, provider-pool, exclusion, ADR, and maintenance catalog expectations. Validation uses the extension suite, strict TypeScript, semantic route assertions, no-inference CGPT7 catalog checks, and `git diff --check`.
+
 ## 2026-08-24 — Add TokenReply delegates and the CGPT6 routing alias
 
 - Added `tokenreply/ox-alpha:xhigh` as the first Gate C tier, ahead of the preserved `opencode-go/hy3:high` route and existing Opus-high fallbacks.

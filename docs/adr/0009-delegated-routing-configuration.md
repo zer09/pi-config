@@ -38,6 +38,8 @@ On 2026-08-24, the user removed the SeekAI provider from the routing config enti
 
 Later on 2026-08-24, TokenReply joined two role profiles without changing the shared selector: `ox-alpha:xhigh` became Gate C's first tier ahead of Hy3, and non-thinking `claude-fable-5:off` became the implementation/remediation primary ahead of the retained `zai/glm-5.3:max` fallback. `openai-codex-cgpt6` joined both Codex alias pools, expanding Gate D and the Oracle to eight providers. Every tier in A/B/C remains single-provider and deterministic.
 
+Also on 2026-08-24, `openai-codex-cgpt7` joined both Codex alias pools with capability records matching CGPT6 for `gpt-5.5` and `gpt-5.6-sol`. Gate D and the Oracle now each select from nine Codex providers through CGPT7. Catalog validation uses no-inference `pi --list-models openai-codex-cgpt7/gpt-5.5` and `pi --list-models openai-codex-cgpt7/gpt-5.6-sol` commands.
+
 On 2026-08-23 the user added the fifth implementation reviewer `review-e`, mapped to a dedicated single-tier `gate-e` profile, then reverted the persistent fifth reviewer later the same day: the default review gate is four-member A/B/C/D again, `review-e` and `gate-e` are gone, and the role taxonomy stays fixed and fail-closed because roles define permission and concurrency classes. A temporary extra reviewer for one gate needs no dedicated role or profile: it reuses an existing non-exclusive review role with a distinct prompt, the `DelegateManager` already admits duplicate non-exclusive review roles, and an optional reason-required one-run `routingOverride` pins it to a distinct route such as `openai-codex-cgpt5/gpt-5.6-sol` at thinking `high` without changing role permissions or concurrency.
 
 The routine `backend` tool parameter is removed from the model-visible schema, guidance, and all internal and public metadata. Its replacement is an optional exceptional `routingOverride` with `provider`, `model`, `thinking`, `excludeProviders`, and a mandatory non-empty `reason`:
@@ -65,7 +67,7 @@ Everything else from ADR 0008 is preserved: the cumulative wall deadline, cancel
 
 - Route changes are now JSON edits validated by a strict loader instead of TypeScript edits inside selector logic.
 - An invalid or missing `routing.json` disables delegation entirely rather than silently falling back to stale compiled routes.
-- Gate D and the Oracle select primaries from seven eligible Codex alias providers instead of five.
+- Gate D and the Oracle select primaries from nine eligible Codex providers through `openai-codex-cgpt7`.
 - The implementation review gate runs four concurrent reviewers. A temporary extra reviewer reuses an existing non-exclusive review role and, when it needs a distinct route, an exact one-run `routingOverride` with no provider fallback.
 - A provider failure after tool execution no longer discards the delegation; the chain advances with an explicit restart note, and the safe exhausted-chain outcome still bounds the worst case.
 - A hanging route can no longer starve the fallback chain: it is cut off at its soft share and the remaining routes keep their reserved time, with `timed_out` attempt records distinguishing budget stops from catalog absence. Cleanup is part of the budget: termination is clamped to the route's absolute deadline with immediate SIGKILL escalation when the grace cannot fit, and a stopped route's process group is verified dead before the next route starts.
@@ -86,5 +88,5 @@ Everything else from ADR 0008 is preserved: the cumulative wall deadline, cancel
 1. Run the extension suite, including config validation, selector, override, Oracle, fallback, restart-note, exhaustion, cleanup, deadline, privacy, and backend-removal regressions.
 2. Run strict TypeScript with unused-symbol checks against installed Pi declarations.
 3. Load Pi with `--list-models` to validate extension startup without paid inference.
-4. Confirm every configured route in Pi's live catalog, including the new `openai-codex-cgpt4` and `openai-codex-cgpt5` routes.
+4. Confirm every configured route in Pi's live catalog, including `openai-codex-cgpt7/gpt-5.5` and `openai-codex-cgpt7/gpt-5.6-sol`, using no-inference `pi --list-models` commands.
 5. Confirm the failure diagnostics, tool results, and rewritten prompts contain no provider errors, raw output, tool payloads, reports, paths, or credentials.

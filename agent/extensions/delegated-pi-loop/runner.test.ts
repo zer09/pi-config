@@ -952,7 +952,7 @@ test("D draws one random primary per invocation and records the ordered chain", 
       parentProvider: "cursor",
       random: () => {
         randomCalls += 1;
-        return 0.45; // floor(0.45 * 7) = 3 -> openai-codex-cgpt2 primary
+        return 0.4; // floor(0.4 * 9) = 3 -> openai-codex-cgpt2 primary
       },
     }),
     async (result, finalize) => {
@@ -1006,7 +1006,7 @@ test("oracle records its fallback chain", async () => {
       parentProvider: "cursor",
       random: () => {
         randomCalls += 1;
-        return 0.45; // floor(0.45 * 7) = 3 -> openai-codex-cgpt2 primary
+        return 0.4; // floor(0.4 * 9) = 3 -> openai-codex-cgpt2 primary
       },
     }),
     async (result, finalize) => {

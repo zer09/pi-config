@@ -24,6 +24,7 @@ const CODEX_PROVIDERS = [
   "openai-codex-cgpt4",
   "openai-codex-cgpt5",
   "openai-codex-cgpt6",
+  "openai-codex-cgpt7",
 ] as const;
 
 function syntheticConfig(overrides: {
@@ -457,7 +458,7 @@ test("gate D and the oracle include every configured Codex alias with inherited 
     parentProvider: "cursor",
     random: () => {
       draws += 1;
-      return 0.4; // floor(0.4 * 8) = 3 -> openai-codex-cgpt2
+      return 0.4; // floor(0.4 * 9) = 3 -> openai-codex-cgpt2
     },
   });
   assert.equal(draws, 1);
@@ -476,10 +477,10 @@ test("gate D and the oracle include every configured Codex alias with inherited 
     },
   });
   assert.equal(oracleDraws, 1);
-  assert.equal(routeKey(oracleRoutes[0]!), "openai-codex-cgpt6/gpt-5.6-sol:high");
+  assert.equal(routeKey(oracleRoutes[0]!), "openai-codex-cgpt7/gpt-5.6-sol:high");
   assert.deepEqual(
     oracleRoutes.slice(1).map(routeKey),
-    canonicalOracle.filter((key) => key !== "openai-codex-cgpt6/gpt-5.6-sol:high"),
+    canonicalOracle.filter((key) => key !== "openai-codex-cgpt7/gpt-5.6-sol:high"),
   );
 
   // Cursor and every non-Codex provider stay excluded from the whole chain.
@@ -813,7 +814,7 @@ test("exclusion overrides filter providers inside every tier", () => {
     ],
   );
   assert.deepEqual(
-    selectRoutes(config, "solution-d", { excludeProviders: ["openai-codex", "openai-codex-zahlo", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-cgpt3", "openai-codex-cgpt4", "openai-codex-cgpt6"], reason: "only cgpt5" }).map(routeKey),
+    selectRoutes(config, "solution-d", { excludeProviders: ["openai-codex", "openai-codex-zahlo", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-cgpt3", "openai-codex-cgpt4", "openai-codex-cgpt6", "openai-codex-cgpt7"], reason: "only cgpt5" }).map(routeKey),
     ["openai-codex-cgpt5/gpt-5.5:high"],
   );
   // Excluding every eligible provider is a bounded error, not an empty run.

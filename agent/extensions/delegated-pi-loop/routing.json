@@ -58,6 +58,10 @@
         "openai-codex-cgpt6": {
           "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
+        },
+        "openai-codex-cgpt7": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
         }
       }
     },
@@ -92,6 +96,10 @@
           "default": "high"
         },
         "openai-codex-cgpt6": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "openai-codex-cgpt7": {
           "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
           "default": "high"
         }
@@ -213,7 +221,8 @@
             "openai-codex-cgpt3",
             "openai-codex-cgpt4",
             "openai-codex-cgpt5",
-            "openai-codex-cgpt6"
+            "openai-codex-cgpt6",
+            "openai-codex-cgpt7"
           ]
         }
       ]
@@ -232,7 +241,8 @@
             "openai-codex-cgpt3",
             "openai-codex-cgpt4",
             "openai-codex-cgpt5",
-            "openai-codex-cgpt6"
+            "openai-codex-cgpt6",
+            "openai-codex-cgpt7"
           ]
         }
       ]

@@ -87,6 +87,24 @@
         }
       ]
     },
+    "seekai": {
+      "baseUrl": "https://seekai.cc",
+      "api": "anthropic-messages",
+      "apiKey": "$SEEKAI_API_KEY",
+      "compat": {
+        "supportsLongCacheRetention": false
+      },
+      "models": [
+        {
+          "id": "claude-fable-5",
+          "name": "Claude Fable 5",
+          "reasoning": false,
+          "input": ["text", "image"],
+          "contextWindow": 1000000,
+          "maxTokens": 128000
+        }
+      ]
+    },
     "gorouter": {
       "baseUrl": "https://gorouter.app",
       "api": "anthropic-messages",
