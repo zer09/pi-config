@@ -385,9 +385,7 @@ export interface RunOptions {
   readonly signal?: AbortSignal;
   /** Optional exceptional routing override from an explicit user or project operational request. */
   readonly routingOverride?: RoutingOverride;
-  /** Parent session's currently selected provider, from native extension context. */
-  readonly parentProvider?: string;
-  /** Parent session's currently selected model id, from native extension context. */
+  /** Parent session's currently selected model id, from native extension context; drives Oracle self-review prevention. */
   readonly parentModelId?: string;
   /** Deterministic injection point for random primary selection inside multi-provider tiers. */
   readonly random?: () => number;

@@ -94,10 +94,10 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 - `routing.json` is the single authority for model, provider, and thinking policy. It is not coupled to `agent/settings.json`, enabled models, `models.json`, or `models-store.json`.
 - The strict loader fails closed on a missing or invalid config before any artifact or child process; there is no compiled-route fallback.
 - The config encodes model capability records (provider-specific supported thinking levels and a default), reusable profiles of ordered model tiers with optional provider allowlists, a complete mapping for every `DelegateRole`, disabled providers, a per-profile override policy, and Oracle safety tied to the configured Oracle model id.
-- One shared selector serves every role: per tier it derives eligible providers from capabilities, intersects allowlists, disabled providers, and override exclusions, prefers the parent's selected provider when eligible, otherwise draws one random primary, appends the remaining providers in stable config order, and concatenates the tiers.
-- Gate A runs Muse Spark then AgentRouter Sol; Gate B runs DeepSeek then `agentrouter/claude-opus-4-8:high`; Gate C runs `openrouter/stealth/ox-alpha:high`, Hy3, then `agentrouter/claude-opus-4-8:high`. TokenReply, Tabitoken, and GoRouter have no capability or tier entries in delegated routing. Every A/B/C tier allowlists exactly one provider and is deterministic without a random draw. Gate D runs `gpt-5.5` at thinking `high`; Solution E and the Oracle each run `gpt-5.6-sol` at thinking `high` on the nine eligible OpenAI Codex providers `openai-codex`, `openai-codex-zahlo`, and `openai-codex-cgpt1` through `openai-codex-cgpt7`; Cursor stays excluded. Solution F (`gate-f`) runs `agentrouter/claude-opus-4-8:high` then `zai/glm-5.3:max`; Review E (`gate-g`) runs `zai/glm-5.3:max` then the same nine-provider `gpt-5.6-sol:high` chain. Inside those multi-provider chains the primary is the eligible parent provider, otherwise exactly one random draw, and the remaining providers follow in stable config order.
+- One shared selector serves every role: per tier it derives eligible providers from capabilities, intersects allowlists, disabled providers, and override exclusions, draws one random primary for a multi-provider tier (single-provider tiers stay deterministic and consume no draw), appends the remaining providers in stable config order, and concatenates the tiers. No parent-provider preference exists; only the parent model id feeds Oracle self-review prevention.
+- Gate A runs Muse Spark alone; Gate B runs DeepSeek alone; Gate C runs `openrouter/stealth/ox-alpha:high` then Hy3. AgentRouter, TokenReply, Tabitoken, and GoRouter have no capability or tier entries in delegated routing. Every A/B/C/F tier allowlists exactly one provider and is deterministic without a random draw. Gate D runs `gpt-5.5` at thinking `high`; Solution E and the Oracle each run `gpt-5.6-sol` at thinking `high` on the nine eligible OpenAI Codex providers `openai-codex`, `openai-codex-zahlo`, and `openai-codex-cgpt1` through `openai-codex-cgpt7`; Cursor stays excluded. Solution F (`gate-f`) runs `zai/glm-5.3:max` only; Review E (`gate-g`) runs `zai/glm-5.3:max` then the same nine-provider `gpt-5.6-sol:high` chain. Inside those multi-provider chains the primary is exactly one random draw and the remaining providers follow in stable config order.
 - A temporary sixth reviewer needs no dedicated role or profile: it reuses an existing non-exclusive review role with a distinct prompt, and an optional reason-required one-run `routingOverride` such as `openai-codex-cgpt5/gpt-5.6-sol` at thinking `high` pins its distinct route for that run without changing role permissions or concurrency.
-- Implementation and remediation use only `zai/glm-5.3:max`; the removed `tokenreply/claude-fable-5` capability and tier must not return. Verification remains `openai-codex/gpt-5.6-sol:high`.
+- Implementation and remediation use only `zai/glm-5.3:max`; the removed `tokenreply/claude-fable-5` capability and tier must not return. Verification remains `openai-codex/gpt-5.6-sol:high`. The removed `agentrouter` capabilities and the `claude-opus-4-8` capability record must not return to delegated routing.
 - The public tool schema has no routine backend parameter. The optional exceptional `routingOverride` carries `provider`, `model`, `thinking`, `excludeProviders`, and a mandatory non-empty `reason`; empty or no-op overrides are rejected, the Oracle rejects every override, and an override never changes role permissions or concurrency.
 - Guidance states routing is automatic and an override is valid only for an explicit user or project operational request; no default route matrix is model-visible.
 
@@ -145,8 +145,6 @@ pi --list-models opencode-go/muse-spark-1.2-contributor
 pi --list-models opencode-go/deepseek-v4-flash
 pi --list-models openrouter/stealth/ox-alpha
 pi --list-models opencode-go/hy3
-pi --list-models agentrouter/gpt-5.6-sol
-pi --list-models agentrouter/claude-opus-4-8
 pi --list-models zai/glm-5.3
 pi --list-models openai-codex/gpt-5.6-sol
 pi --list-models openai-codex-zahlo/gpt-5.6-sol
@@ -183,7 +181,7 @@ Also verify:
 - UI requests cannot block the child;
 - cancellation and natural completion remove descendants;
 - direct Claude route, backend, runner, supervisor, permission, plain-protocol, and fixture scans are empty;
-- Pi-served Claude routes keep their encoded tier order, with primary rotation only inside Gate D's and the Oracle's Codex alias tiers;
+- delegated routing contains no AgentRouter capability or tier and no Claude-model route; the encoded chains keep their tier order, with primary rotation only inside the Codex alias tiers;
 - unrelated dirty files remain untouched;
 - `git diff --check` passes;
 - the active model-visible context surfaces are recounted locally;

@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-25 — Remove provider inheritance and AgentRouter from delegated routing
+
+- Removed `parentProvider` end to end from delegated route selection: `RouteSelectionOptions`, the internal route selection, `RunOptions`, the `runDelegate` invocation in `index.ts`, and the `selectRoutes` invocation in `runner.ts`. Multi-provider tiers now always choose their primary with exactly one draw from the injectable random source; single-provider tiers stay deterministic and consume no draw; the stable fallback order is unchanged, and `parentModelId` still drives Oracle self-review prevention.
+- Removed every AgentRouter occurrence from `routing.json`: the `claude-opus-4-8` capability record, the `agentrouter` capability on `gpt-5.6-sol`, and every tier referencing the provider. Gate A now runs `opencode-go/muse-spark-1.2-contributor:xhigh` alone, Gate B runs `opencode-go/deepseek-v4-flash:max` alone, Gate C runs `openrouter/stealth/ox-alpha:high` then `opencode-go/hy3:high`, and Solution F runs `zai/glm-5.3:max` only. `agent/models.json` and `agent/settings.json` are unchanged; global AgentRouter availability stays out of scope.
+- Updated routing and runner regressions: an eligible former parent can no longer suppress the draw (including through a smuggled extra option), every multi-provider tier consumes exactly one draw, single-provider tiers consume none, the stable fallback order remains, and the shipped-config test asserts the absence of `agentrouter` and `claude-opus-4-8` in delegated routing. The public role schema, tool guidance, routing config version, and model-visible surfaces are unchanged, so this update adds no parent startup-context cost.
+- Validation: extension suite (189 tests), strict TypeScript with unused-symbol checks via the established temporary config, `git diff --check`, and the no-inference Pi catalog/config load check. No paid inference or live delegate smoke was run.
+
 ## 2026-08-24 — Move delegated AgentRouter routes to Opus 4.8
 
 - Replaced every delegated `agentrouter/claude-opus-5:high` tier with `agentrouter/claude-opus-4-8:high`: Gate B's fallback, Gate C's final tier, and Solution F's primary.

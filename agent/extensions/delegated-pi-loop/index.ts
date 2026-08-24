@@ -206,10 +206,9 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
           routingOverride,
           prompt: params.prompt,
           cwd,
-          // Roles inherit the parent's selected provider through native
-          // extension context, never by inspecting the environment; the
-          // oracle main-model skip likewise reads the parent model id.
-          parentProvider: ctx.model?.provider,
+          // The oracle main-model skip reads the parent model id through
+          // native extension context, never by inspecting the environment;
+          // delegate providers come from routing.json alone.
           parentModelId: ctx.model?.id,
           signal: runSignal.signal,
           onProgress: (progress) => {

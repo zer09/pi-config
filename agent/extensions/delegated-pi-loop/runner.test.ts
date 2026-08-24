@@ -615,19 +615,20 @@ test("classifies exactly the operational failure states as fallback-eligible", (
 
 test("skips an uncatalogued primary and completes on a fresh fallback route", async () => {
   const fixture = await fakePi(
-    ["agentrouter/gpt-5.6-sol"],
-    { "agentrouter/gpt-5.6-sol": "complete" },
+    ["opencode-go/hy3"],
+    { "opencode-go/hy3": "complete" },
   );
   const updates: string[] = [];
   const toolResult = await runAndFinalize(
     baseOptions(fixture, {
+      role: "solution-c",
       onProgress: (progress) => updates.push(`${progress.lastEvent}@${progress.lastEventAt}`),
     }),
     async (result, finalize) => {
       assert.equal(result.state, "completed");
-      assert.equal(result.selectedRoute, "agentrouter/gpt-5.6-sol:high");
+      assert.equal(result.selectedRoute, "opencode-go/hy3:high");
       assert.equal(result.attempts[0]?.state, "catalog_unavailable");
-      assert.match(result.report, /Completed on agentrouter\/gpt-5\.6-sol/);
+      assert.match(result.report, /Completed on opencode-go\/hy3/);
       assert.ok(updates.some((update) => update.startsWith("agent_settled@")));
       assert.match(result.startedAt, /^\d{4}-\d{2}-\d{2}T/);
       assert.match(result.endedAt, /^\d{4}-\d{2}-\d{2}T/);
@@ -645,22 +646,22 @@ test("skips an uncatalogued primary and completes on a fresh fallback route", as
       return toolResult;
     },
   );
-  assert.match(toolResult.content[0]!.text, /## Delegate solution-a completed/);
+  assert.match(toolResult.content[0]!.text, /## Delegate solution-c completed/);
   assert.equal("diagnosticPath" in (toolResult.details ?? {}), false);
-  assert.doesNotMatch(JSON.stringify(toolResult), /delegated-pi-solution-a/);
+  assert.doesNotMatch(JSON.stringify(toolResult), /delegated-pi-solution-c/);
 });
 
 test("falls back after pre-tool provider unavailability", async () => {
   const fixture = await fakePi(
-    ["opencode-go/muse-spark-1.2-contributor", "agentrouter/gpt-5.6-sol"],
+    ["openrouter/stealth/ox-alpha", "opencode-go/hy3"],
     {
-      "opencode-go/muse-spark-1.2-contributor": "unavailable",
-      "agentrouter/gpt-5.6-sol": "complete",
+      "openrouter/stealth/ox-alpha": "unavailable",
+      "opencode-go/hy3": "complete",
     },
   );
-  await runAndFinalize(baseOptions(fixture), async (result) => {
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result) => {
     assert.equal(result.state, "completed");
-    assert.equal(result.selectedRoute, "agentrouter/gpt-5.6-sol:high");
+    assert.equal(result.selectedRoute, "opencode-go/hy3:high");
     assert.equal(result.attempts[0]?.state, "provider_failed");
     assert.equal(result.attempts[0]?.restartAfterWork, undefined);
     assert.equal(result.progress.restartAfterWorkCount, 0);
@@ -669,13 +670,13 @@ test("falls back after pre-tool provider unavailability", async () => {
 
 test("credit exhaustion before tools advances without consuming report recovery", async () => {
   const fixture = await fakePi(
-    ["opencode-go/muse-spark-1.2-contributor", "agentrouter/gpt-5.6-sol"],
+    ["openrouter/stealth/ox-alpha", "opencode-go/hy3"],
     {
-      "opencode-go/muse-spark-1.2-contributor": "credit",
-      "agentrouter/gpt-5.6-sol": "complete",
+      "openrouter/stealth/ox-alpha": "credit",
+      "opencode-go/hy3": "complete",
     },
   );
-  await runAndFinalize(baseOptions(fixture), async (result) => {
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result) => {
     assert.equal(result.state, "completed");
     assert.equal(result.attempts[0]?.state, "provider_failed");
     assert.equal(result.progress.reportNudgeCount, 0);
@@ -684,12 +685,12 @@ test("credit exhaustion before tools advances without consuming report recovery"
 
 test("an exhausted operational chain ends as routes_unavailable", async () => {
   const catalog = [
-    "opencode-go/muse-spark-1.2-contributor",
-    "agentrouter/gpt-5.6-sol",
+    "openrouter/stealth/ox-alpha",
+    "opencode-go/hy3",
   ];
   const behaviors = Object.fromEntries(catalog.map((route) => [route, "credit"])) as Record<string, Behavior>;
   const fixture = await fakePi(catalog, behaviors);
-  const toolResult = await runAndFinalize(baseOptions(fixture), async (result, finalize) => {
+  const toolResult = await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result, finalize) => {
     assert.equal(result.state, "routes_unavailable");
     assert.equal(result.attempts.length, 2);
     assert.ok(result.attempts.every((attempt) => attempt.state === "provider_failed"));
@@ -702,7 +703,7 @@ test("an exhausted operational chain ends as routes_unavailable", async () => {
     const toolResult = await finalize();
     const created = (await readdir(diagnosticsDirectory)).filter((entry) => !before.includes(entry));
     assert.equal(created.length, 1, "exactly one routes_unavailable diagnostic must be written");
-    assert.match(created[0]!, /^failure-solution-a-/);
+    assert.match(created[0]!, /^failure-solution-c-/);
     const diagnosticPath = toolResult.details?.diagnosticPath;
     assert.equal(typeof diagnosticPath, "string");
     assert.ok((diagnosticPath as string).startsWith(diagnosticsDirectory + path.sep));
@@ -713,10 +714,9 @@ test("an exhausted operational chain ends as routes_unavailable", async () => {
 
 test("one route attempt can recover in the same session without fallback", async () => {
   const fixture = await fakePi(
-    ["opencode-go/muse-spark-1.2-contributor", "agentrouter/gpt-5.6-sol"],
+    ["opencode-go/muse-spark-1.2-contributor"],
     {
       "opencode-go/muse-spark-1.2-contributor": "missing-recover",
-      "agentrouter/gpt-5.6-sol": "complete",
     },
   );
   await runAndFinalize(baseOptions(fixture), async (result) => {
@@ -730,21 +730,21 @@ test("one route attempt can recover in the same session without fallback", async
 
 test("operational failure after accepted report recovery falls back with the restart note", async () => {
   const fixture = await fakePi(
-    ["opencode-go/muse-spark-1.2-contributor", "agentrouter/gpt-5.6-sol"],
+    ["openrouter/stealth/ox-alpha", "opencode-go/hy3"],
     {
-      "opencode-go/muse-spark-1.2-contributor": "missing-provider",
-      "agentrouter/gpt-5.6-sol": "complete",
+      "openrouter/stealth/ox-alpha": "missing-provider",
+      "opencode-go/hy3": "complete",
     },
   );
-  await runAndFinalize(baseOptions(fixture), async (result) => {
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result) => {
     assert.equal(result.state, "completed");
-    assert.equal(result.selectedRoute, "agentrouter/gpt-5.6-sol:high");
+    assert.equal(result.selectedRoute, "opencode-go/hy3:high");
     assert.equal(result.attempts.length, 2);
     assert.equal(result.attempts[0]?.state, "provider_failed");
     // Recovery was accepted on the first route, so the restart note was applied.
     assert.equal(result.attempts[0]?.restartAfterWork, true);
     assert.equal(result.progress.restartAfterWorkCount, 1);
-    assert.match(result.report, /Completed on agentrouter\/gpt-5\.6-sol/);
+    assert.match(result.report, /Completed on opencode-go\/hy3/);
     const prompt = await readFile(path.join(result.artifactDir, "prompt.md"), "utf8");
     assert.equal(prompt.split(RESTART_AFTER_WORK_NOTE).length - 1, 1);
   });
@@ -752,20 +752,20 @@ test("operational failure after accepted report recovery falls back with the res
 
 test("operational failure after tool execution falls back with the restart note", async () => {
   const fixture = await fakePi(
-    ["opencode-go/muse-spark-1.2-contributor", "agentrouter/gpt-5.6-sol"],
+    ["openrouter/stealth/ox-alpha", "opencode-go/hy3"],
     {
-      "opencode-go/muse-spark-1.2-contributor": "tool-unavailable",
-      "agentrouter/gpt-5.6-sol": "complete",
+      "openrouter/stealth/ox-alpha": "tool-unavailable",
+      "opencode-go/hy3": "complete",
     },
   );
-  await runAndFinalize(baseOptions(fixture), async (result) => {
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result) => {
     assert.equal(result.state, "completed");
-    assert.equal(result.selectedRoute, "agentrouter/gpt-5.6-sol:high");
+    assert.equal(result.selectedRoute, "opencode-go/hy3:high");
     assert.equal(result.attempts.length, 2);
     assert.equal(result.attempts[0]?.state, "provider_failed");
     assert.equal(result.attempts[0]?.restartAfterWork, true);
     assert.equal(result.progress.restartAfterWorkCount, 1);
-    assert.match(result.report, /Completed on agentrouter\/gpt-5\.6-sol/);
+    assert.match(result.report, /Completed on opencode-go\/hy3/);
     // Failure data returns in memory: no chain-level status.json exists and the
     // temporary artifacts survive until execute-level finalization.
     await stat(result.artifactDir);
@@ -777,23 +777,20 @@ test("the restart note is private, sanitized, and never stacks across restarts",
   const catalog = [
     "openrouter/stealth/ox-alpha",
     "opencode-go/hy3",
-    "agentrouter/claude-opus-4-8",
   ];
   const behaviors: Record<string, Behavior> = {
     "openrouter/stealth/ox-alpha": "tool-unavailable",
-    "opencode-go/hy3": "tool-unavailable",
-    "agentrouter/claude-opus-4-8": "complete",
+    "opencode-go/hy3": "complete",
   };
   const fixture = await fakePi(catalog, behaviors);
   await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result) => {
     assert.equal(result.state, "completed");
-    assert.equal(result.attempts.length, 3);
+    assert.equal(result.attempts.length, 2);
     assert.equal(result.attempts[0]?.restartAfterWork, true);
-    assert.equal(result.attempts[1]?.restartAfterWork, true);
-    assert.equal(result.attempts[2]?.restartAfterWork, undefined);
-    assert.equal(result.progress.restartAfterWorkCount, 2);
+    assert.equal(result.attempts[1]?.restartAfterWork, undefined);
+    assert.equal(result.progress.restartAfterWorkCount, 1);
     const prompt = await readFile(path.join(result.artifactDir, "prompt.md"), "utf8");
-    // Two advances happened, but the note is rebuilt from the original
+    // One advance happened, but the note is rebuilt from the original
     // assignment and appears exactly once.
     assert.equal(prompt.split(RESTART_AFTER_WORK_NOTE).length - 1, 1);
     // The rewritten private prompt never carries provider errors, raw output,
@@ -811,10 +808,9 @@ test("the restart note is private, sanitized, and never stacks across restarts",
 test("intentional BLOCKED and FAILED delegate outcomes stay terminal without fallback", async () => {
   for (const [behavior, expectedState] of [["blocked", "blocked"], ["failed", "delegate_failed"]] as const) {
     const fixture = await fakePi(
-      ["opencode-go/muse-spark-1.2-contributor", "agentrouter/gpt-5.6-sol"],
+      ["opencode-go/muse-spark-1.2-contributor"],
       {
         "opencode-go/muse-spark-1.2-contributor": behavior,
-        "agentrouter/gpt-5.6-sol": "complete",
       },
     );
     await runAndFinalize(baseOptions(fixture), async (result) => {
@@ -840,10 +836,9 @@ test("accepted reason codes propagate typed through result, progress, details, a
   ] as const;
   for (const [reportText, expectedState, outcome, reason, misuse] of cases) {
     const fixture = await fakePi(
-      ["opencode-go/muse-spark-1.2-contributor", "agentrouter/gpt-5.6-sol"],
+      ["opencode-go/muse-spark-1.2-contributor"],
       {
         "opencode-go/muse-spark-1.2-contributor": "custom",
-        "agentrouter/gpt-5.6-sol": "complete",
       },
       { reportText },
     );
@@ -879,10 +874,9 @@ test("missing or rejected reasons never change BLOCKED and FAILED terminality or
   ] as const;
   for (const [reportText, expectedState, reasonStatus] of cases) {
     const fixture = await fakePi(
-      ["opencode-go/muse-spark-1.2-contributor", "agentrouter/gpt-5.6-sol"],
+      ["opencode-go/muse-spark-1.2-contributor"],
       {
         "opencode-go/muse-spark-1.2-contributor": "custom",
-        "agentrouter/gpt-5.6-sol": "complete",
       },
       { reportText },
     );
@@ -982,8 +976,7 @@ test("D draws one random primary per invocation and records the ordered chain", 
   const toolResult = await runAndFinalize(
     baseOptions(fixture, {
       role: "solution-d",
-      // cursor is ineligible, so the injected draw must pick the primary.
-      parentProvider: "cursor",
+      // The injected draw picks the primary; no provider preference exists.
       random: () => {
         randomCalls += 1;
         return 0.4; // floor(0.4 * 9) = 3 -> openai-codex-cgpt2 primary
@@ -1006,22 +999,35 @@ test("D draws one random primary per invocation and records the ordered chain", 
   assert.match(toolResult.content[0]!.text, /## Delegate solution-d completed/);
 });
 
-test("D inherits the parent's eligible provider as its primary", async () => {
+test("an eligible former parent provider no longer pins the primary", async () => {
   const fixture = await fakePi(
     ["openai-codex-cgpt4/gpt-5.5"],
     { "openai-codex-cgpt4/gpt-5.5": "complete" },
   );
+  let randomCalls = 0;
   await runAndFinalize(
     baseOptions(fixture, {
       role: "review-d",
       prompt: "Review only.",
-      parentProvider: "openai-codex-cgpt4",
-      random: () => 0.99,
+      // openai-codex-cgpt4 is eligible for the tier, but no parent-provider
+      // preference exists: the draw alone picks the primary, so the pinned
+      // zero draw makes openai-codex the primary and cgpt4 is reached only
+      // through the stable fallback order.
+      random: () => {
+        randomCalls += 1;
+        return 0;
+      },
     }),
     async (result) => {
+      assert.equal(randomCalls, 1);
       assert.equal(result.state, "completed");
       assert.equal(result.selectedRoute, "openai-codex-cgpt4/gpt-5.5:high");
-      assert.equal(result.attempts.length, 1);
+      assert.equal(result.attempts[0]?.route, "openai-codex/gpt-5.5:high");
+      assert.equal(result.attempts[0]?.state, "catalog_unavailable");
+      // The chain reaches cgpt4 sixth: the drawn primary plus four skipped
+      // uncatalogued fallbacks come first, proving no parent-preference shortcut.
+      assert.equal(result.attempts.length, 6);
+      assert.equal(result.attempts[5]?.route, "openai-codex-cgpt4/gpt-5.5:high");
       assert.match(result.report, /Completed on openai-codex-cgpt4\/gpt-5\.5/);
     },
   );
@@ -1037,7 +1043,6 @@ test("oracle records its fallback chain", async () => {
     baseOptions(fixture, {
       role: "oracle",
       prompt: "Review the draft contract without editing it.",
-      parentProvider: "cursor",
       random: () => {
         randomCalls += 1;
         return 0.4; // floor(0.4 * 9) = 3 -> openai-codex-cgpt2 primary
@@ -1070,9 +1075,10 @@ test("a main-Sol parent is rejected before any oracle child spawns on any provid
   const base = baseOptions(fixture, {
     role: "oracle",
     prompt: "Review only.",
-    // The skip fires even though the serving parent provider is oracle-eligible:
-    // detection reads the parent model id only.
-    parentProvider: "openai-codex",
+    // The skip fires even when the parent provider would be oracle-eligible:
+    // detection reads the parent model id only, and delegate provider
+    // selection never reads the parent provider at all.
+    random: () => 0,
   });
   await assert.rejects(
     () => runDelegate({ ...base, parentModelId: "gpt-5.6-sol" }),
@@ -1540,7 +1546,6 @@ test("an oracle routing override is rejected before any child spawns", async () 
     () => runDelegate(baseOptions(fixture, {
       role: "oracle",
       prompt: "Review only.",
-      parentProvider: "zai",
       routingOverride: { provider: "zai", model: "glm-5.3", reason: "explicit user request" },
     })),
     /routingOverride is not allowed for the oracle role/,
@@ -1859,6 +1864,9 @@ test("runtime sources contain no tree-fingerprint capture, read-only-mutation st
       "captureTreeFingerprint", "fingerprintsEqual", "hashUntrackedFiles",
       "fingerprintBefore", "fingerprintAfter",
       "DelegateBackend", "DELEGATE_BACKENDS",
+      // The removed parent-provider option must stay absent from runtime
+      // sources; the key is assembled so this scan file carries no literal.
+      ["parent", "Provider"].join(""),
     ]) {
       assert.ok(!source.includes(forbidden), `${file} must not contain "${forbidden}"`);
     }

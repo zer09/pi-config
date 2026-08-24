@@ -23,10 +23,6 @@
     },
     "gpt-5.6-sol": {
       "providers": {
-        "agentrouter": {
-          "thinking": ["off", "low", "medium", "high", "xhigh", "max"],
-          "default": "high"
-        },
         "openai-codex": {
           "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
@@ -105,14 +101,6 @@
         }
       }
     },
-    "claude-opus-4-8": {
-      "providers": {
-        "agentrouter": {
-          "thinking": ["high", "xhigh", "max"],
-          "default": "high"
-        }
-      }
-    },
     "stealth/ox-alpha": {
       "providers": {
         "openrouter": { "thinking": ["low", "high", "max"], "default": "high" }
@@ -131,11 +119,6 @@
           "model": "muse-spark-1.2-contributor",
           "thinking": "xhigh",
           "providers": ["opencode-go"]
-        },
-        {
-          "model": "gpt-5.6-sol",
-          "thinking": "high",
-          "providers": ["agentrouter"]
         }
       ]
     },
@@ -145,11 +128,6 @@
           "model": "deepseek-v4-flash",
           "thinking": "max",
           "providers": ["opencode-go"]
-        },
-        {
-          "model": "claude-opus-4-8",
-          "thinking": "high",
-          "providers": ["agentrouter"]
         }
       ]
     },
@@ -160,12 +138,7 @@
           "thinking": "high",
           "providers": ["openrouter"]
         },
-        { "model": "hy3", "thinking": "high", "providers": ["opencode-go"] },
-        {
-          "model": "claude-opus-4-8",
-          "thinking": "high",
-          "providers": ["agentrouter"]
-        }
+        { "model": "hy3", "thinking": "high", "providers": ["opencode-go"] }
       ]
     },
     "gate-d": {
@@ -208,11 +181,6 @@
     },
     "gate-f": {
       "tiers": [
-        {
-          "model": "claude-opus-4-8",
-          "thinking": "high",
-          "providers": ["agentrouter"]
-        },
         { "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }
       ]
     },

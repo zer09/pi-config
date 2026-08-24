@@ -292,7 +292,6 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
   // completes before any private artifact exists, so a rejected config or
   // override leaves no artifact directory behind.
   const routes = selectRoutes(routing, options.role, options.routingOverride, {
-    parentProvider: options.parentProvider,
     random: options.random,
   });
 

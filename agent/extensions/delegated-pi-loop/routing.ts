@@ -51,8 +51,6 @@ export interface RoutingConfig {
 }
 
 export interface RouteSelectionOptions {
-  /** Parent session's currently selected provider from native extension context. */
-  readonly parentProvider?: string;
   /** Injected randomness so tests pin random primaries without flakiness. */
   readonly random?: () => number;
 }
@@ -293,15 +291,14 @@ function eligibleProviders(
   });
 }
 
-function randomPrimary(eligible: readonly string[], options: RouteSelectionOptions): string {
+function randomPrimary(eligible: readonly string[], random?: () => number): string {
   // Clamp keeps a misbehaving random source inside the eligible set.
-  const value = options.random?.() ?? Math.random();
+  const value = random?.() ?? Math.random();
   const index = Math.max(0, Math.min(eligible.length - 1, Math.floor(value * eligible.length)));
   return eligible[index]!;
 }
 
 interface RouteSelection {
-  readonly parentProvider?: string;
   readonly random?: () => number;
   readonly pinnedProvider?: string;
   readonly excluded: ReadonlySet<string>;
@@ -315,13 +312,9 @@ interface ProviderEntry {
 function poolRoutes(model: string, entries: readonly ProviderEntry[], selection: RouteSelection): PiRoute[] {
   if (entries.length === 0) return [];
   const providers = entries.map((entry) => entry.provider);
-  // Prefer the parent's selected provider when it can serve this pool;
-  // single-provider pools stay deterministic without consuming a draw.
-  const primary = selection.parentProvider !== undefined && providers.includes(selection.parentProvider)
-    ? selection.parentProvider
-    : providers.length === 1
-      ? providers[0]!
-      : randomPrimary(providers, selection);
+  // One random primary spreads load across providers; single-provider
+  // pools stay deterministic without consuming a draw.
+  const primary = providers.length === 1 ? providers[0]! : randomPrimary(providers, selection.random);
   const thinkingOf = new Map(entries.map((entry) => [entry.provider, entry.thinking] as const));
   return [
     primary,
@@ -341,7 +334,7 @@ function tierRoutes(config: RoutingConfig, tier: RoutingTier, selection: RouteSe
 function modelPoolRoutes(config: RoutingConfig, model: string, selection: RouteSelection): PiRoute[] {
   // A model-only override treats every capable provider as one logical
   // pool: disabled and excluded providers drop out first, then the shared
-  // parent/single/random primary selection orders one chain in which each
+  // single/random primary selection orders one chain in which each
   // provider runs at its own configured default thinking level.
   const capability = config.models[model]!.providers;
   const entries = Object.keys(capability)
@@ -432,9 +425,10 @@ export function oracleModelIds(config: RoutingConfig): ReadonlySet<string> {
 /**
  * One shared selector for every role: per tier, derive eligible providers from
  * capabilities, intersect allowlists, disabled providers, and override
- * exclusions, prefer the parent's selected provider when eligible, otherwise
- * draw one random primary, then append the remaining providers in stable
- * config order and concatenate the tiers.
+ * exclusions, draw one random primary for a multi-provider tier
+ * (single-provider tiers stay deterministic and consume no draw), then
+ * append the remaining providers in stable config order and concatenate
+ * the tiers.
  */
 export function selectRoutes(
   config: RoutingConfig,
@@ -449,7 +443,6 @@ export function selectRoutes(
   }
   const profile = config.profiles[config.roles[role].profile]!;
   const selection: RouteSelection = {
-    parentProvider: options.parentProvider,
     random: options.random,
     pinnedProvider: override?.provider,
     excluded: new Set(override?.excludeProviders ?? []),

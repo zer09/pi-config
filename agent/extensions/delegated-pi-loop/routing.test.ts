@@ -109,9 +109,11 @@ test("the shipped routing config contains no removed provider occurrence", async
   // Regression: removed providers disappear from the routing policy entirely,
   // rather than remaining as disabled capability or profile entries.
   const text = await readFile(new URL("./routing.json", import.meta.url), "utf8");
-  for (const provider of ["seekai", "tabitoken", "gorouter", "tokenreply"]) {
+  for (const provider of ["seekai", "tabitoken", "gorouter", "tokenreply", "agentrouter"]) {
     assert.equal(text.includes(provider), false, provider);
   }
+  // The removed AgentRouter Opus 4.8 model record is gone with its provider.
+  assert.equal(text.includes("claude-opus-4-8"), false);
 });
 
 test("the shipped config pins delegate model thinking capabilities", () => {
@@ -122,12 +124,10 @@ test("the shipped config pins delegate model thinking capabilities", () => {
   });
   assert.equal(config.models["ox-alpha"], undefined);
   assert.equal(config.models["claude-fable-5"], undefined);
-  // agentrouter/claude-opus-4-8 keeps high as its default while retaining
-  // the higher xhigh and max levels.
-  assert.deepEqual(config.models["claude-opus-4-8"]?.providers.agentrouter, {
-    thinking: ["high", "xhigh", "max"],
-    default: "high",
-  });
+  // AgentRouter is fully removed from delegated routing: neither its former
+  // Opus 4.8 capability record nor any agentrouter provider capability remains.
+  assert.equal(config.models["claude-opus-4-8"], undefined);
+  assert.equal(config.models["gpt-5.6-sol"]?.providers.agentrouter, undefined);
   assert.equal(config.models["claude-opus-5"], undefined);
   // Gate D runs gpt-5.5 at high across its full provider set; every
   // provider keeps its declared scale with high as the default.
@@ -390,67 +390,47 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
   const keys = (role: DelegateRole) => selectRoutes(config, role).map(routeKey);
   const expectedA = [
     "opencode-go/muse-spark-1.2-contributor:xhigh",
-    "agentrouter/gpt-5.6-sol:high",
   ];
   const expectedB = [
     "opencode-go/deepseek-v4-flash:max",
-    "agentrouter/claude-opus-4-8:high",
   ];
   const expectedC = [
     "openrouter/stealth/ox-alpha:high",
     "opencode-go/hy3:high",
-    "agentrouter/claude-opus-4-8:high",
   ];
   // Solution and review pairs share one profile and produce identical
   // chains. Every A/B/C tier allowlists exactly one provider after the
-  // seekai removal, so the chains are deterministic without a random draw.
+  // AgentRouter removal, so the chains are deterministic without a random draw.
   assert.deepEqual(keys("solution-a"), expectedA);
   assert.deepEqual(keys("review-a"), expectedA);
   assert.deepEqual(keys("solution-b"), expectedB);
   assert.deepEqual(keys("review-b"), expectedB);
   assert.deepEqual(keys("solution-c"), expectedC);
   assert.deepEqual(keys("review-c"), expectedC);
-  // Single-provider tiers stay deterministic without parent preference or a draw.
-  assert.deepEqual(
-    selectRoutes(config, "solution-a", undefined, { parentProvider: "gorouter", random: () => 0.99 }).map(routeKey),
-    expectedA,
-  );
+  // Single-provider tiers stay deterministic and consume no random draw,
+  // even when one is injected.
+  let draws = 0;
+  const counting = () => {
+    draws += 1;
+    return 0.99;
+  };
+  assert.deepEqual(selectRoutes(config, "solution-a", undefined, { random: counting }).map(routeKey), expectedA);
+  assert.deepEqual(selectRoutes(config, "solution-b", undefined, { random: counting }).map(routeKey), expectedB);
+  assert.deepEqual(selectRoutes(config, "solution-c", undefined, { random: counting }).map(routeKey), expectedC);
+  assert.equal(draws, 0);
 });
 
 test("gate D, solution E/F, review E, and the oracle select their configured chains", () => {
   const config = loadRoutingConfig();
   const canonicalD = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.5:high`);
   const canonicalOracle = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.6-sol:high`);
-  const expectedF = ["agentrouter/claude-opus-4-8:high", "zai/glm-5.3:max"];
+  const expectedF = ["zai/glm-5.3:max"];
   const expectedG = ["zai/glm-5.3:max", ...canonicalOracle];
 
-  // An eligible parent provider becomes the primary without a random draw.
-  let randomCalls = 0;
-  assert.deepEqual(
-    selectRoutes(config, "solution-d", undefined, {
-      parentProvider: "openai-codex-cgpt4",
-      random: () => {
-        randomCalls += 1;
-        return 0.99;
-      },
-    }).map(routeKey),
-    ["openai-codex-cgpt4/gpt-5.5:high", ...canonicalD.filter((key) => key !== "openai-codex-cgpt4/gpt-5.5:high")],
-  );
-  assert.deepEqual(
-    selectRoutes(config, "solution-e", undefined, { parentProvider: "openai-codex-cgpt6" }).map(routeKey),
-    ["openai-codex-cgpt6/gpt-5.6-sol:high", ...canonicalOracle.filter((key) => key !== "openai-codex-cgpt6/gpt-5.6-sol:high")],
-  );
-  assert.deepEqual(
-    selectRoutes(config, "oracle", undefined, { parentProvider: "openai-codex-cgpt5" }).map(routeKey),
-    ["openai-codex-cgpt5/gpt-5.6-sol:high", ...canonicalOracle.filter((key) => key !== "openai-codex-cgpt5/gpt-5.6-sol:high")],
-  );
-  assert.equal(randomCalls, 0);
-
-  // An ineligible parent falls back to exactly one random draw per tier, and
-  // the remaining providers follow in stable config order.
+  // Every multi-provider tier consumes exactly one random draw: no eligible
+  // provider can suppress it, so the primary always follows the draw.
   let draws = 0;
   const dRoutes = selectRoutes(config, "solution-d", undefined, {
-    parentProvider: "cursor",
     random: () => {
       draws += 1;
       return 0.4; // floor(0.4 * 9) = 3 -> openai-codex-cgpt2
@@ -463,9 +443,21 @@ test("gate D, solution E/F, review E, and the oracle select their configured cha
     canonicalD.filter((key) => key !== "openai-codex-cgpt2/gpt-5.5:high"),
   );
 
+  // Solution E pins its primary with the same single draw on the same pool.
+  let eDraws = 0;
+  assert.deepEqual(
+    selectRoutes(config, "solution-e", undefined, {
+      random: () => {
+        eDraws += 1;
+        return 0; // floor(0 * 9) = 0 -> openai-codex primary
+      },
+    }).map(routeKey),
+    canonicalOracle,
+  );
+  assert.equal(eDraws, 1);
+
   let oracleDraws = 0;
   const oracleRoutes = selectRoutes(config, "oracle", undefined, {
-    parentProvider: "zai",
     random: () => {
       oracleDraws += 1;
       return 0.99; // clamps to the last provider
@@ -478,13 +470,31 @@ test("gate D, solution E/F, review E, and the oracle select their configured cha
     canonicalOracle.filter((key) => key !== "openai-codex-cgpt7/gpt-5.6-sol:high"),
   );
 
-  assert.deepEqual(selectRoutes(config, "solution-f").map(routeKey), expectedF);
-  // Gate G's multi-provider Codex tier draws its primary; pin the draw so the
-  // chain is exactly the stable config order.
+  // Gate F's single GLM tier is deterministic and consumes no draw; Gate G's
+  // one multi-provider Codex tier consumes exactly one draw, so the pinned
+  // zero draw reproduces the stable config order.
+  let fDraws = 0;
   assert.deepEqual(
-    selectRoutes(config, "review-e", undefined, { random: () => 0 }).map(routeKey),
+    selectRoutes(config, "solution-f", undefined, {
+      random: () => {
+        fDraws += 1;
+        return 0.99;
+      },
+    }).map(routeKey),
+    expectedF,
+  );
+  assert.equal(fDraws, 0);
+  let gDraws = 0;
+  assert.deepEqual(
+    selectRoutes(config, "review-e", undefined, {
+      random: () => {
+        gDraws += 1;
+        return 0;
+      },
+    }).map(routeKey),
     expectedG,
   );
+  assert.equal(gDraws, 1);
 
   // Cursor and every non-Codex provider stay excluded from the Gate D,
   // Solution E, Review E, and Oracle Codex chains.
@@ -546,8 +556,11 @@ test("a temporary extra reviewer pins one exact route through a reason-required 
   );
   assert.equal(roleIsReadOnly("review-a"), true);
   assert.equal(roleIsExclusive("review-a"), false);
-  // Without the override the reused role keeps its normal profile chain.
-  assert.ok(selectRoutes(config, "review-a", undefined, { random: () => 0 }).length > 1);
+  // Without the override the reused role keeps its normal single-tier chain.
+  assert.deepEqual(
+    selectRoutes(config, "review-a", undefined, { random: () => 0 }).map(routeKey),
+    ["opencode-go/muse-spark-1.2-contributor:xhigh"],
+  );
 });
 
 test("every role selects a non-empty chain of Pi routes", () => {
@@ -619,43 +632,73 @@ test("selected routes never carry whitespace-only provider or model ids", () => 
   );
 });
 
-test("the parent provider is preferred inside a multi-provider tier", () => {
+test("no provider preference exists: the random primary keeps the stable fallback order", () => {
   const config = loadRoutingConfig();
-  // Gate D still groups one model across several providers: an eligible
-  // parent provider becomes that tier's primary without touching the stable
-  // order of the remaining providers.
+  // Gate D still groups one model across several providers. Nothing can
+  // promote a specific provider to primary: the draw alone picks it, and the
+  // remaining providers keep their stable config order as the fallback.
   const canonicalD = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.5:high`);
+  let draws = 0;
+  const routes = selectRoutes(config, "solution-d", undefined, {
+    random: () => {
+      draws += 1;
+      return 0; // floor(0 * 9) = 0 -> openai-codex primary
+    },
+  });
+  assert.equal(draws, 1);
+  assert.deepEqual(routes.map(routeKey), canonicalD);
+
+  // Regression: the removed former parent-provider option can no longer
+  // suppress the draw. The key is built dynamically so this regression file
+  // carries no literal occurrence of the removed identifier.
+  const formerParentKey = ["parent", "Provider"].join("");
+  let smuggledDraws = 0;
+  const formerParentOptions = {
+    [formerParentKey]: "openai-codex-cgpt4",
+    random: () => {
+      smuggledDraws += 1;
+      return 0;
+    },
+  } as never;
   assert.deepEqual(
-    selectRoutes(config, "solution-d", undefined, { parentProvider: "openai-codex-cgpt1" }).map(routeKey),
-    ["openai-codex-cgpt1/gpt-5.5:high", ...canonicalD.filter((key) => key !== "openai-codex-cgpt1/gpt-5.5:high")],
+    selectRoutes(config, "solution-d", undefined, formerParentOptions).map(routeKey),
+    canonicalD,
   );
-  // Gate B's deepseek-v4-flash pool lost seekai and is single-provider now:
-  // even a seekai parent cannot promote the removed provider back into a
-  // route, and the chain stays deterministic without a draw.
+  assert.equal(smuggledDraws, 1);
+
+  // Gate B's deepseek-v4-flash tier is single-provider after the AgentRouter
+  // removal: the chain stays deterministic without a draw, and no removed
+  // agentrouter route can reappear as a fallback.
+  let bDraws = 0;
   assert.deepEqual(
-    selectRoutes(config, "solution-b", undefined, { parentProvider: "seekai", random: () => 0.99 }).map(routeKey),
-    [
-      "opencode-go/deepseek-v4-flash:max",
-      "agentrouter/claude-opus-4-8:high",
-    ],
+    selectRoutes(config, "solution-b", undefined, {
+      random: () => {
+        bDraws += 1;
+        return 0.99;
+      },
+    }).map(routeKey),
+    ["opencode-go/deepseek-v4-flash:max"],
   );
-  // An unrelated parent provider does not disturb the stable order.
-  assert.deepEqual(
-    selectRoutes(config, "review-d", undefined, { parentProvider: "zai", random: () => 0 }).map(routeKey).slice(0, 2),
-    ["openai-codex/gpt-5.5:high", "openai-codex-zahlo/gpt-5.5:high"],
-  );
+  assert.equal(bDraws, 0);
 });
 
 test("tiers concatenate in configured order with per-tier primaries", () => {
   const config = syntheticConfig({});
-  // First tier prefers the parent provider; the second single-provider tier
-  // stays deterministic, and the concatenation keeps tier order.
+  // Both tiers of the two-tier profile are single-provider: the chain stays
+  // deterministic without a draw and keeps the configured tier order.
+  let tierDraws = 0;
   assert.deepEqual(
-    selectRoutes(config, "solution-a", undefined, { parentProvider: "prov-a" }).map(routeKey),
+    selectRoutes(config, "solution-a", undefined, {
+      random: () => {
+        tierDraws += 1;
+        return 0.9;
+      },
+    }).map(routeKey),
     ["prov-a/model-x:max", "prov-a/model-y:low"],
   );
-  // Without parent preference the pinned profile's two-provider tier draws
-  // exactly once, then keeps the remaining provider in stable config order.
+  assert.equal(tierDraws, 0);
+  // The pinned profile's two-provider tier draws exactly once, then keeps
+  // the remaining provider in stable config order.
   let draws = 0;
   const routes = selectRoutes(config, "oracle", undefined, {
     random: () => {
@@ -690,35 +733,32 @@ test("model-only overrides treat every capable provider as one pool at its defau
 
   const synthetic = syntheticConfig({});
   const override = { model: "model-x", reason: "user requested model-x" } as const;
-  // An eligible parent provider becomes the pool primary without a draw.
-  let parentDraws = 0;
-  assert.deepEqual(
-    selectRoutes(synthetic, "solution-a", override, {
-      parentProvider: "prov-b",
-      random: () => {
-        parentDraws += 1;
-        return 0;
-      },
-    }).map(routeKey),
-    ["prov-b/model-x:high", "prov-a/model-x:max"],
-  );
-  assert.equal(parentDraws, 0);
-
-  // An ineligible parent leaves exactly one random draw; the primary rotates
-  // while the remainder keeps stable config order and each provider keeps
-  // its own configured default thinking level.
+  // The pool consumes exactly one draw; the primary follows it.
   let draws = 0;
   assert.deepEqual(
     selectRoutes(synthetic, "solution-a", override, {
-      parentProvider: "cursor",
       random: () => {
         draws += 1;
+        return 0; // floor(0 * 2) = 0 -> prov-a primary
+      },
+    }).map(routeKey),
+    ["prov-a/model-x:max", "prov-b/model-x:high"],
+  );
+  assert.equal(draws, 1);
+
+  // The primary rotates with the draw while the remainder keeps stable config
+  // order and each provider keeps its own configured default thinking level.
+  let rotationDraws = 0;
+  assert.deepEqual(
+    selectRoutes(synthetic, "solution-a", override, {
+      random: () => {
+        rotationDraws += 1;
         return 0.9; // floor(0.9 * 2) = 1 -> prov-b primary
       },
     }).map(routeKey),
     ["prov-b/model-x:high", "prov-a/model-x:max"],
   );
-  assert.equal(draws, 1);
+  assert.equal(rotationDraws, 1);
 
   // A third capable provider keeps the stable remainder order visible.
   const threeProviders = syntheticConfig({
@@ -736,7 +776,6 @@ test("model-only overrides treat every capable provider as one pool at its defau
   let orderDraws = 0;
   assert.deepEqual(
     selectRoutes(threeProviders, "solution-a", override, {
-      parentProvider: "cursor",
       random: () => {
         orderDraws += 1;
         return 0.5; // floor(0.5 * 3) = 1 -> prov-b primary
@@ -746,12 +785,24 @@ test("model-only overrides treat every capable provider as one pool at its defau
   );
   assert.equal(orderDraws, 1);
 
-  // Exclusions filter the pool before selection; an excluded eligible parent
-  // never becomes the primary.
+  // Exclusions filter the pool before selection; a single remaining provider
+  // consumes no draw.
+  let exclusionDraws = 0;
   assert.deepEqual(
-    selectRoutes(synthetic, "solution-a", { model: "model-x", excludeProviders: ["prov-a"], reason: "avoid prov-a" }, { parentProvider: "prov-a" }).map(routeKey),
+    selectRoutes(
+      synthetic,
+      "solution-a",
+      { model: "model-x", excludeProviders: ["prov-a"], reason: "avoid prov-a" },
+      {
+        random: () => {
+          exclusionDraws += 1;
+          return 0.9;
+        },
+      },
+    ).map(routeKey),
     ["prov-b/model-x:high"],
   );
+  assert.equal(exclusionDraws, 0);
 });
 
 test("provider-only overrides pin and filter the configured tiers", () => {
@@ -789,8 +840,8 @@ test("provider plus model overrides are exact after capability validation", () =
   );
   // Without an explicit thinking level the provider's configured default applies.
   assert.deepEqual(
-    selectRoutes(config, "implementation", { provider: "agentrouter", model: "gpt-5.6-sol", reason: "user requested sol on agentrouter" }).map(routeKey),
-    ["agentrouter/gpt-5.6-sol:high"],
+    selectRoutes(config, "implementation", { provider: "openrouter", model: "stealth/ox-alpha", reason: "user requested ox alpha on openrouter" }).map(routeKey),
+    ["openrouter/stealth/ox-alpha:high"],
   );
   // Capability violations fail closed.
   assert.throws(
@@ -798,8 +849,8 @@ test("provider plus model overrides are exact after capability validation", () =
     /provider "seekai" has no capability record for model "glm-5\.3"/,
   );
   assert.throws(
-    () => selectRoutes(config, "implementation", { provider: "gorouter", model: "claude-opus-4-8", thinking: "high", reason: "invalid" }),
-    /provider "gorouter" has no capability record for model "claude-opus-4-8"/,
+    () => selectRoutes(config, "implementation", { provider: "gorouter", model: "stealth/ox-alpha", thinking: "high", reason: "invalid" }),
+    /provider "gorouter" has no capability record for model "stealth\/ox-alpha"/,
   );
   assert.throws(
     () => selectRoutes(config, "implementation", { model: "unknown-model", reason: "invalid" }),
@@ -809,9 +860,11 @@ test("provider plus model overrides are exact after capability validation", () =
 
 test("exclusion overrides filter providers inside every tier", () => {
   const config = loadRoutingConfig();
-  assert.deepEqual(
-    selectRoutes(config, "solution-b", { excludeProviders: ["opencode-go"], reason: "opencode-go is down" }).map(routeKey),
-    ["agentrouter/claude-opus-4-8:high"],
+  // Gate B's only tier is the single-provider deepseek pool: excluding its
+  // provider leaves no eligible route, not an empty run.
+  assert.throws(
+    () => selectRoutes(config, "solution-b", { excludeProviders: ["opencode-go"], reason: "opencode-go is down" }),
+    /routing produced no eligible route/,
   );
   assert.deepEqual(
     selectRoutes(config, "solution-d", { excludeProviders: ["openai-codex", "openai-codex-zahlo", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-cgpt3", "openai-codex-cgpt4", "openai-codex-cgpt6", "openai-codex-cgpt7"], reason: "only cgpt5" }).map(routeKey),
