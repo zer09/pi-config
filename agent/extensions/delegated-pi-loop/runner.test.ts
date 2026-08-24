@@ -202,7 +202,9 @@ if (args.includes("--list-models")) {
   const route = args[args.indexOf("--list-models") + 1];
   const respond = () => {
     if (catalog.includes(route)) {
-      const [provider, model] = route.split("/", 2);
+      const separator = route.indexOf("/");
+      const provider = route.slice(0, separator);
+      const model = route.slice(separator + 1);
       console.log("provider model context max-out thinking images");
       console.log(provider + " " + model + " 272K 128K yes yes");
     }
@@ -442,7 +444,9 @@ if (args.includes("--list-models")) {
     setInterval(() => {}, 1000);
   } else {
     record("catalog");
-    const [provider, model] = route.split("/", 2);
+    const separator = route.indexOf("/");
+    const provider = route.slice(0, separator);
+    const model = route.slice(separator + 1);
     console.log("provider model context max-out thinking images");
     console.log(provider + " " + model + " 272K 128K yes yes");
     process.exit(0);
@@ -545,7 +549,9 @@ if (args.includes("--list-models")) {
     setInterval(() => {}, 1000);
   } else {
     record("catalog");
-    const [provider, model] = route.split("/", 2);
+    const separator = route.indexOf("/");
+    const provider = route.slice(0, separator);
+    const model = route.slice(separator + 1);
     console.log("provider model context max-out thinking images");
     console.log(provider + " " + model + " 272K 128K yes yes");
     process.exit(0);
@@ -769,12 +775,12 @@ test("operational failure after tool execution falls back with the restart note"
 
 test("the restart note is private, sanitized, and never stacks across restarts", async () => {
   const catalog = [
-    "tokenreply/ox-alpha",
+    "openrouter/stealth/ox-alpha",
     "opencode-go/hy3",
     "agentrouter/claude-opus-5",
   ];
   const behaviors: Record<string, Behavior> = {
-    "tokenreply/ox-alpha": "tool-unavailable",
+    "openrouter/stealth/ox-alpha": "tool-unavailable",
     "opencode-go/hy3": "tool-unavailable",
     "agentrouter/claude-opus-5": "complete",
   };

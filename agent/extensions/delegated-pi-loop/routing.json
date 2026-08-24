@@ -113,9 +113,9 @@
         }
       }
     },
-    "ox-alpha": {
+    "stealth/ox-alpha": {
       "providers": {
-        "tokenreply": { "thinking": ["xhigh"], "default": "xhigh" }
+        "openrouter": { "thinking": ["low", "high", "max"], "default": "high" }
       }
     },
     "glm-5.3": {
@@ -156,9 +156,9 @@
     "gate-c": {
       "tiers": [
         {
-          "model": "ox-alpha",
-          "thinking": "xhigh",
-          "providers": ["tokenreply"]
+          "model": "stealth/ox-alpha",
+          "thinking": "high",
+          "providers": ["openrouter"]
         },
         { "model": "hy3", "thinking": "high", "providers": ["opencode-go"] },
         {

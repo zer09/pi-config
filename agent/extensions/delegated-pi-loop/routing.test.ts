@@ -109,17 +109,18 @@ test("the shipped routing config contains no removed provider occurrence", async
   // Regression: removed providers disappear from the routing policy entirely,
   // rather than remaining as disabled capability or profile entries.
   const text = await readFile(new URL("./routing.json", import.meta.url), "utf8");
-  for (const provider of ["seekai", "tabitoken", "gorouter"]) {
+  for (const provider of ["seekai", "tabitoken", "gorouter", "tokenreply"]) {
     assert.equal(text.includes(provider), false, provider);
   }
 });
 
 test("the shipped config pins delegate model thinking capabilities", () => {
   const config = loadRoutingConfig();
-  assert.deepEqual(config.models["ox-alpha"]?.providers.tokenreply, {
-    thinking: ["xhigh"],
-    default: "xhigh",
+  assert.deepEqual(config.models["stealth/ox-alpha"]?.providers.openrouter, {
+    thinking: ["low", "high", "max"],
+    default: "high",
   });
+  assert.equal(config.models["ox-alpha"], undefined);
   assert.equal(config.models["claude-fable-5"], undefined);
   // agentrouter/claude-opus-5 keeps high as its default while retaining the
   // higher xhigh and max levels.
@@ -395,7 +396,7 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
     "agentrouter/claude-opus-5:high",
   ];
   const expectedC = [
-    "tokenreply/ox-alpha:xhigh",
+    "openrouter/stealth/ox-alpha:high",
     "opencode-go/hy3:high",
     "agentrouter/claude-opus-5:high",
   ];

@@ -2,6 +2,12 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-24 — Move Gate C Ox Alpha to OpenRouter
+
+- Removed the remaining TokenReply capability and tier from delegated routing. Gate C now starts with `openrouter/stealth/ox-alpha:high` before Hy3 and AgentRouter Opus.
+- Matched `agent/models.json`: OpenRouter's exact model id is `stealth/ox-alpha`, with supported thinking levels `low`, `high`, and `max`; delegated routing uses `high` and records it as the default.
+- Updated exact route, removed-provider, fallback-chain, ADR, maintenance, and no-inference catalog expectations. The public role schema and model-visible guidance are unchanged, so this route-only update adds no parent startup-context cost.
+
 ## 2026-08-24 — Remove TokenReply Fable from implementation routing
 
 - Removed the `tokenreply/claude-fable-5` capability record and implementation-profile tier because the route no longer has sufficient credit. TokenReply remains configured for Gate C's `ox-alpha:xhigh` route.
