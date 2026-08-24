@@ -650,14 +650,12 @@ test("an exhausted operational chain ends as routes_unavailable", async () => {
   const catalog = [
     "opencode-go/muse-spark-1.2-contributor",
     "agentrouter/gpt-5.6-sol",
-    "tabitoken/claude-opus-5-thinking",
-    "gorouter/claude-opus-5-thinking",
   ];
   const behaviors = Object.fromEntries(catalog.map((route) => [route, "credit"])) as Record<string, Behavior>;
   const fixture = await fakePi(catalog, behaviors);
   const toolResult = await runAndFinalize(baseOptions(fixture), async (result, finalize) => {
     assert.equal(result.state, "routes_unavailable");
-    assert.equal(result.attempts.length, 4);
+    assert.equal(result.attempts.length, 2);
     assert.ok(result.attempts.every((attempt) => attempt.state === "provider_failed"));
     assert.equal(result.report, "");
     // The routes_unavailable failure diagnostic is persisted under the owned
@@ -741,17 +739,17 @@ test("operational failure after tool execution falls back with the restart note"
 
 test("the restart note is private, sanitized, and never stacks across restarts", async () => {
   const catalog = [
-    "opencode-go/muse-spark-1.2-contributor",
-    "agentrouter/gpt-5.6-sol",
-    "tabitoken/claude-opus-5-thinking",
+    "tokenreply/ox-alpha",
+    "opencode-go/hy3",
+    "agentrouter/claude-opus-5",
   ];
   const behaviors: Record<string, Behavior> = {
-    "opencode-go/muse-spark-1.2-contributor": "tool-unavailable",
-    "agentrouter/gpt-5.6-sol": "tool-unavailable",
-    "tabitoken/claude-opus-5-thinking": "complete",
+    "tokenreply/ox-alpha": "tool-unavailable",
+    "opencode-go/hy3": "tool-unavailable",
+    "agentrouter/claude-opus-5": "complete",
   };
   const fixture = await fakePi(catalog, behaviors);
-  await runAndFinalize(baseOptions(fixture), async (result) => {
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result) => {
     assert.equal(result.state, "completed");
     assert.equal(result.attempts.length, 3);
     assert.equal(result.attempts[0]?.restartAfterWork, true);

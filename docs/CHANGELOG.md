@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-24 — Remove Tabitoken and GoRouter from delegated routing
+
+- Removed the `claude-opus-5-thinking` capability record and every Tabitoken and GoRouter tier from `routing.json`; neither provider remains anywhere in the delegated routing policy.
+- Gate A now contains Muse Spark then AgentRouter Sol, Gate B contains DeepSeek then AgentRouter Opus, and Gate C contains Ox Alpha, Hy3, then AgentRouter Opus. Gate D, Oracle, implementation, remediation, and verification are unchanged.
+- Updated exact-chain, removed-provider, exhausted-chain, restart-after-work, capability, exclusion, ADR, and maintenance catalog expectations. No global provider or model configuration was removed.
+- Validation: extension suite (177 tests), strict TypeScript with unused-symbol checks, semantic removed-provider and route-chain assertions, and `git diff --check`.
+
 ## 2026-08-24 — Add CGPT7 to delegated Codex routing
 
 - Added `openai-codex-cgpt7` capability records exactly matching CGPT6 for `gpt-5.5` and `gpt-5.6-sol`, then appended CGPT7 to Gate D and Oracle provider pools. Both pools now contain nine Codex providers through CGPT7.

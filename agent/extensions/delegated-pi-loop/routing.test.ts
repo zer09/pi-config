@@ -102,11 +102,13 @@ test("the shipped routing config loads and fails closed on invalid files", async
   assert.throws(() => readRoutingConfigFile(empty), /routing config invalid: document must be a JSON object/);
 });
 
-test("the shipped routing config contains no seekai occurrence", async () => {
-  // Regression: the seekai provider was removed from the routing policy
-  // entirely (not disabled), so it must not reappear anywhere in the file.
+test("the shipped routing config contains no removed provider occurrence", async () => {
+  // Regression: removed providers disappear from the routing policy entirely,
+  // rather than remaining as disabled capability or profile entries.
   const text = await readFile(new URL("./routing.json", import.meta.url), "utf8");
-  assert.equal(text.includes("seekai"), false);
+  for (const provider of ["seekai", "tabitoken", "gorouter"]) {
+    assert.equal(text.includes(provider), false, provider);
+  }
 });
 
 test("the shipped config pins delegate model thinking capabilities", () => {
@@ -119,19 +121,10 @@ test("the shipped config pins delegate model thinking capabilities", () => {
     thinking: ["off"],
     default: "off",
   });
-  // agentrouter/claude-opus-5 gained high support with high as its default
-  // while keeping the higher xhigh and max levels; tabitoken and gorouter
-  // keep their declared levels with high already the default.
+  // agentrouter/claude-opus-5 keeps high as its default while retaining the
+  // higher xhigh and max levels.
   assert.deepEqual(config.models["claude-opus-5"]?.providers.agentrouter, {
     thinking: ["high", "xhigh", "max"],
-    default: "high",
-  });
-  assert.deepEqual(config.models["claude-opus-5-thinking"]?.providers.tabitoken, {
-    thinking: ["low", "medium", "high", "xhigh", "max"],
-    default: "high",
-  });
-  assert.deepEqual(config.models["claude-opus-5-thinking"]?.providers.gorouter, {
-    thinking: ["low", "medium", "high"],
     default: "high",
   });
   // Gate D runs gpt-5.5 at high across its full provider set; every
@@ -396,21 +389,15 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
   const expectedA = [
     "opencode-go/muse-spark-1.2-contributor:xhigh",
     "agentrouter/gpt-5.6-sol:high",
-    "tabitoken/claude-opus-5-thinking:high",
-    "gorouter/claude-opus-5-thinking:high",
   ];
   const expectedB = [
     "opencode-go/deepseek-v4-flash:max",
     "agentrouter/claude-opus-5:high",
-    "tabitoken/claude-opus-5-thinking:high",
-    "gorouter/claude-opus-5-thinking:high",
   ];
   const expectedC = [
     "tokenreply/ox-alpha:xhigh",
     "opencode-go/hy3:high",
     "agentrouter/claude-opus-5:high",
-    "tabitoken/claude-opus-5-thinking:high",
-    "gorouter/claude-opus-5-thinking:high",
   ];
   // Solution and review pairs share one profile and produce identical
   // chains. Every A/B/C tier allowlists exactly one provider after the
@@ -635,8 +622,6 @@ test("the parent provider is preferred inside a multi-provider tier", () => {
     [
       "opencode-go/deepseek-v4-flash:max",
       "agentrouter/claude-opus-5:high",
-      "tabitoken/claude-opus-5-thinking:high",
-      "gorouter/claude-opus-5-thinking:high",
     ],
   );
   // An unrelated parent provider does not disturb the stable order.
@@ -794,8 +779,8 @@ test("provider plus model overrides are exact after capability validation", () =
     /provider "seekai" has no capability record for model "glm-5\.3"/,
   );
   assert.throws(
-    () => selectRoutes(config, "implementation", { provider: "gorouter", model: "claude-opus-5-thinking", thinking: "max", reason: "invalid" }),
-    /does not support model "claude-opus-5-thinking" at thinking "max"/,
+    () => selectRoutes(config, "implementation", { provider: "gorouter", model: "claude-opus-5", thinking: "high", reason: "invalid" }),
+    /provider "gorouter" has no capability record for model "claude-opus-5"/,
   );
   assert.throws(
     () => selectRoutes(config, "implementation", { model: "unknown-model", reason: "invalid" }),
@@ -807,11 +792,7 @@ test("exclusion overrides filter providers inside every tier", () => {
   const config = loadRoutingConfig();
   assert.deepEqual(
     selectRoutes(config, "solution-b", { excludeProviders: ["opencode-go"], reason: "opencode-go is down" }).map(routeKey),
-    [
-      "agentrouter/claude-opus-5:high",
-      "tabitoken/claude-opus-5-thinking:high",
-      "gorouter/claude-opus-5-thinking:high",
-    ],
+    ["agentrouter/claude-opus-5:high"],
   );
   assert.deepEqual(
     selectRoutes(config, "solution-d", { excludeProviders: ["openai-codex", "openai-codex-zahlo", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-cgpt3", "openai-codex-cgpt4", "openai-codex-cgpt6", "openai-codex-cgpt7"], reason: "only cgpt5" }).map(routeKey),
