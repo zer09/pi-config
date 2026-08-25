@@ -722,6 +722,42 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 
 The directly attributed model-visible increase is +16 local tokens: +2 global instructions renaming the required gates to six investigators A/B/C/D/E/F and five reviewers A/B/C/D/E, +6 tool-guideline tokens naming Solution F and Review E with the six-completion and five-completion rules and the five-reviewer remediation gate, and +8 parameter-schema tokens for the `solution-f` and `review-e` enum values and the role description that now names the six-member solution and five-member review gates. The `gate-f` and `gate-g` chains, the `solution-f`/`review-e` role-profile ownership, and the shared selector behavior live in `routing.json` and executable TypeScript and are not model-visible at parent startup. Provider-reported input remains the authority and was not rerun.
 
+## 2026-08-25 delegated lean child-resources attribution
+
+Measured locally without inference: a temporary probe extension registered one command, read `pi.getAllTools()`/`pi.getActiveTools()`, `pi.getCommands()`, and `ctx.getSystemPromptOptions()` inside real Pi RPC processes started with the production child resource arguments (plus the probe), wrote tool names, skill names, provenance, and aggregates to a private temporary JSON file, and returned without any LLM turn. Token counts use local `tiktoken` `o200k_base` over the serialized tool definitions, the selected-skill catalog text, and the child system prompt. The probe directory was deleted after measurement.
+
+Parent-side delta (local `tiktoken`):
+
+| Surface | Before | After | Delta |
+|---|---:|---:|---:|
+| `delegate_run` parameter schema | 288 | 444 | +156 |
+| `delegate_run` prompt guidelines | 1,293 | 1,330 | +37 |
+| Raw `agent/AGENTS.md` | 3,512 | 3,554 | +42 |
+
+The schema delta is the optional `availableSkills` array with its 20-name enum and progressive-disclosure description. This is an intentional one-time parent tradeoff: the parent already carries the complete skill catalog and needs the exact machine-visible delegated allowlist.
+
+Child structural configurations (no inference, real Pi RPC):
+
+| Child configuration | Active tools | Tool-definition bytes | Tool-definition tokens | Skill catalog entries | Skill description chars | Skill catalog tokens | System prompt chars | System prompt tokens |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Inherited discovery (previous children) | 56 (38 `browser_*`) | 54,001 | 11,835 | 34 | 9,865 | 2,149 | 56,208 | 12,233 |
+| Lean runtime, no selected skills | 17 | 19,506 | 4,125 | 0 | 0 | 0 | 25,835 | 5,247 |
+| Lean runtime + `uv` | 17 | 19,506 | 4,125 | 1 | 132 | 29 | 26,471 | 5,391 |
+| Lean runtime + `uv`, `ruff`, `ty` | 17 | 19,506 | 4,125 | 3 | 426 | 92 | 27,041 | 5,538 |
+| Lean runtime + complete allowed set (20) | 17 | 19,506 | 4,125 | 20 | 5,218 | 1,120 | 34,688 | 7,331 |
+
+Probe confirmations for every lean configuration:
+
+- no `browser_*` tool appears; `pi-browser-harness` and every other excluded or unselected skill is absent from the child skill catalog;
+- no `delegate_run` tool appears (the `delegated-pi-loop` child branch registers no tool);
+- the three model-visible extension families register: 8 `codegraph_*` tools, `ctx_execute_file`/`ctx_batch_execute`/`ctx_search`, and `web_search`/`fetch_contents`;
+- the four built-in tools (`read`, `bash`, `edit`, `write`) remain active;
+- context files remain present for runtime probes (the global `AGENTS.md` context-file block);
+- no selected skill body is automatically expanded into the system prompt (progressive disclosure preserved);
+- prompt-template commands (`/ts-split-scope`, `/ts-split-module`, `/codex-review`, `/codegraph-upgrade`) are absent; theme discovery is disabled by the same `--no-themes` flag rather than probe-observable.
+
+Qualitative result confirmed: removing `pi-browser-harness` provides the largest tool-schema reduction (38 schemas, about 7,700 local definition tokens), removing unrelated skill descriptions provides a smaller per-child reduction that compounds across the many fresh delegates, and selected full skill bodies consume context only when a delegate actually loads them. Provider calibration was not rerun; provider-reported input remains the authority.
+
 ## Provider-calibrated baseline probes
 
 These real probes used fixed prompt `hi` and read the provider usage from `message_end` / session usage.

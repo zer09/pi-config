@@ -4,9 +4,10 @@ Purpose: maintain the native TypeScript `delegate_run` extension that runs in th
 
 ## Classification and authority
 
-- Extension classification: **keep it**. Process supervision, fallback cutoffs, report recovery, and shared-tree safety are executable behavior.
-- Source of truth: this Pi config, ADR 0007, ADR 0008, ADR 0009, and installed Pi RPC/extension documentation.
+- Extension classification: **keep it**. Process supervision, fallback cutoffs, report recovery, shared-tree safety, and delegated child resource isolation are executable behavior.
+- Source of truth: this Pi config, ADR 0007, ADR 0008, ADR 0009, ADR 0010, and installed Pi RPC/extension documentation.
 - Route authority: `agent/extensions/delegated-pi-loop/routing.json`, strictly validated by `routing.ts` at load time and checked against Pi's live model catalog.
+- Child resource authority: `agent/extensions/delegated-pi-loop/resources.json`, strictly validated by `resources.ts` at parent-extension startup and rechecked at argument construction before every spawn.
 - Direct Claude Code authority: none. The extension has no direct Claude CLI backend and must not inspect, invoke, install, uninstall, or modify the user's Claude CLI.
 - Claude-named models served through ordinary Pi providers remain supported. Their provider/model route order is independent from the removed direct CLI integration.
 
@@ -22,6 +23,8 @@ Purpose: maintain the native TypeScript `delegate_run` extension that runs in th
 | `agent/extensions/delegated-pi-loop/runner.ts` | Catalog preflight, operational route fallback, restart-note application, route attempts, and shared deadline. |
 | `agent/extensions/delegated-pi-loop/routing.json` | Extension-owned versioned routing policy: capabilities, profiles, tiers, role mapping, disabled providers, override policy, Oracle safety. |
 | `agent/extensions/delegated-pi-loop/routing.ts` | Strict routing config loader/validator and the one shared route selector. |
+| `agent/extensions/delegated-pi-loop/resources.json` | Extension-owned versioned delegated child resource policy: catalog and runtime extension allowlists plus the allowed and excluded skill sets. |
+| `agent/extensions/delegated-pi-loop/resources.ts` | Strict resource-policy loader/validator, skill-candidate resolution, and the catalog/runtime child argument builders. |
 | `agent/extensions/delegated-pi-loop/routes.ts` | Role classification, role prompts, the fixed restart note, and the terminal marker contract. |
 | `agent/extensions/delegated-pi-loop/result.ts` | Model-visible Markdown, terminal-marker stripping, error marking, and final cleanup. |
 | `agent/extensions/delegated-pi-loop/diagnostics.ts` | Bounded private failure diagnostics. |
@@ -39,12 +42,32 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 
 1. The extension executes in the parent Pi process and registers `delegate_run`.
 2. The parent remains the sole orchestrator and receives only a validated final report.
-3. Each route attempt starts one separate ephemeral Pi process with `--mode rpc --no-session --approve` and a piped stdin.
+3. Each route attempt starts one separate ephemeral Pi process with the fixed child resource arguments followed by `--mode rpc --no-session --approve` and a piped stdin.
 4. One route attempt uses one persistent child session for the initial task and, when eligible, one report-recovery prompt.
 5. `PI_DELEGATED_CHILD=1` suppresses recursive `delegate_run` registration.
 6. `PI_DELEGATE_PARENT_PID` lets the child watchdog terminate its process group if the parent disappears.
 7. Numeric delegate IDs and manager slots remain active through both report rounds and cleanup.
 8. `session_shutdown`, Escape, and `/delegate:stop <id>` cancel either round and remove the full process group.
+
+### Delegated child resource boundary
+
+1. Every delegated child disables discovery with `--no-extensions`, `--no-skills`, `--no-prompt-templates`, and `--no-themes`; the runtime child keeps context-file discovery enabled, the catalog preflight additionally passes `--no-context-files`.
+2. The runtime child explicitly loads exactly five extension entry files in policy order: `delegated-pi-loop/index.ts` (watchdog and recursive-tool suppression only), `openai-codex-aliases/index.ts` (provider aliases only), `web-search/index.ts`, `context-mode/src/index.ts`, and `codegraph/index.ts`. Only `web-search`, `context-mode`, and `codegraph` add model-visible child tools; the runtime probe shows 4 built-ins plus 13 extension tools and nothing else.
+3. The catalog preflight loads exactly the `openai-codex-aliases` entry file and never loads `delegated-pi-loop`, `web-search`, `context-mode`, `codegraph`, any skill, context files, or presentation resources.
+4. `resources.json` is the single authority for these allowlists. It is strictly validated by `resources.ts` when the parent extension instance starts, and a missing or invalid policy fails closed before `delegate_run` registration with no broad-discovery fallback. `/reload` re-reads it with the rest of the extension runtime.
+5. Validation enforces version `1`, an exact document shape, unique non-blank relative paths only, regular-file entry files, per-skill regular `SKILL.md` files, canonical containment under the `agent/extensions` and `agent/skills` roots (symlink resolution may not escape either root, including a symlinked `SKILL.md`), no allowed/excluded skill overlap, repeated keys rejected in every object scope through object-scope-correct duplicate-aware parsing (`JSON.parse` alone silently keeps the last duplicate; a flat textual scan misses nested container keys and risks false positives inside string values), and exact canonical profile identity and order: catalog must resolve to exactly `openai-codex-aliases/index.ts`, and runtime to exactly `delegated-pi-loop/index.ts`, `openai-codex-aliases/index.ts`, `web-search/index.ts`, `context-mode/src/index.ts`, and `codegraph/index.ts` in that order; extra contained entries, reordered entries, and alternate same-directory entry files all fail closed after canonical resolution.
+6. Argument construction and every catalog or runtime spawn re-verify canonical identity, containment, and regular-file/directory/`SKILL.md` invariants for each approved extension entry and selected skill, immediately before the child command line exists and including every fallback attempt; a vanished or symlink-swapped approved path fails the run before private artifact creation or child spawn (each per-spawn recheck closes the open attempt cleanly) while the immutable argument arrays stay byte-for-byte identical across attempts.
+7. One immutable resource selection covers the whole delegate invocation: every route attempt, catalog preflight, and report-recovery round reuses byte-for-byte identical resource arguments, and provider fallback never changes the child's extensions or candidate skills.
+8. Installing a new skill or extension does not make it delegate-available: it requires an explicit `resources.json` update. The excluded skill names implement the requested patterns (`crit*`, `developing-*`, `directus*`, `grill-with-docs`, `improve-codebase-arch*`, `intent-layer`, `nlm-skill`, `pi-browser-harness`, `session-handoff`, `skill-creator`) against the current inventory; the runtime stays allowlist-based and fails closed.
+
+### Skill candidate selection
+
+1. `delegate_run.availableSkills` is optional and orchestrator-selected. The parameter enum is built from the validated policy's allowed names in policy order, and the progressive-disclosure description sits on the array property, not the item enum.
+2. The field means "make these approved skills discoverable to this delegate". Pi's two-stage progressive disclosure stays authoritative: the child sees only selected skills' catalog names and descriptions, and a full `SKILL.md` body loads only when the delegate decides its task needs it.
+3. Omitted or empty `availableSkills` means no skills are discoverable in the child.
+4. Selection resolves before manager admission, private artifact creation, or any child spawn. A defined non-array `availableSkills` value fails with the exact bounded error `availableSkills must be an array of skill names` before a length is read or an entry is iterated; unknown, excluded, blank, and non-string names fail closed with the name only; no policy filesystem path is exposed.
+5. Duplicate requested names collapse and selected paths are emitted in policy order, not caller order, for deterministic child prompts. There is no arbitrary maximum count; selecting the complete allowed set is valid.
+6. The extension never reads, appends, or copies selected skill content, never forces `/skill:name` expansion, never passes skill text through `--append-system-prompt`, and never instructs a blanket read of selected skills.
 
 ### RPC and report recovery
 
@@ -138,37 +161,43 @@ Validate extension loading without inference:
 pi --list-models zai/glm-5.3
 ```
 
-Verify each route with `pi --list-models`, including all Pi-served Claude model routes:
+Verify each route with the lean catalog resource profile, which loads only the alias extension and disables every discovery flag:
 
 ```bash
-pi --list-models opencode-go/muse-spark-1.2-contributor
-pi --list-models opencode-go/deepseek-v4-flash
-pi --list-models openrouter/stealth/ox-alpha
-pi --list-models opencode-go/hy3
-pi --list-models zai/glm-5.3
-pi --list-models openai-codex/gpt-5.6-sol
-pi --list-models openai-codex-zahlo/gpt-5.6-sol
-pi --list-models openai-codex-cgpt1/gpt-5.6-sol
-pi --list-models openai-codex-cgpt2/gpt-5.6-sol
-pi --list-models openai-codex-cgpt3/gpt-5.6-sol
-pi --list-models openai-codex-cgpt4/gpt-5.6-sol
-pi --list-models openai-codex-cgpt5/gpt-5.6-sol
-pi --list-models openai-codex-cgpt6/gpt-5.6-sol
-pi --list-models openai-codex-cgpt7/gpt-5.6-sol
-pi --list-models openai-codex/gpt-5.5
-pi --list-models openai-codex-zahlo/gpt-5.5
-pi --list-models openai-codex-cgpt1/gpt-5.5
-pi --list-models openai-codex-cgpt2/gpt-5.5
-pi --list-models openai-codex-cgpt3/gpt-5.5
-pi --list-models openai-codex-cgpt4/gpt-5.5
-pi --list-models openai-codex-cgpt5/gpt-5.5
-pi --list-models openai-codex-cgpt6/gpt-5.5
-pi --list-models openai-codex-cgpt7/gpt-5.5
+LEAN="--no-extensions -e ~/.pi/agent/extensions/openai-codex-aliases/index.ts --no-skills --no-prompt-templates --no-themes --no-context-files"
+pi $LEAN --list-models opencode-go/muse-spark-1.2-contributor
+pi $LEAN --list-models opencode-go/deepseek-v4-flash
+pi $LEAN --list-models openrouter/stealth/ox-alpha
+pi $LEAN --list-models opencode-go/hy3
+pi $LEAN --list-models zai/glm-5.3
+pi $LEAN --list-models openai-codex/gpt-5.6-sol
+pi $LEAN --list-models openai-codex-zahlo/gpt-5.6-sol
+pi $LEAN --list-models openai-codex-cgpt1/gpt-5.6-sol
+pi $LEAN --list-models openai-codex-cgpt2/gpt-5.6-sol
+pi $LEAN --list-models openai-codex-cgpt3/gpt-5.6-sol
+pi $LEAN --list-models openai-codex-cgpt4/gpt-5.6-sol
+pi $LEAN --list-models openai-codex-cgpt5/gpt-5.6-sol
+pi $LEAN --list-models openai-codex-cgpt6/gpt-5.6-sol
+pi $LEAN --list-models openai-codex-cgpt7/gpt-5.6-sol
+pi $LEAN --list-models openai-codex/gpt-5.5
+pi $LEAN --list-models openai-codex-zahlo/gpt-5.5
+pi $LEAN --list-models openai-codex-cgpt1/gpt-5.5
+pi $LEAN --list-models openai-codex-cgpt2/gpt-5.5
+pi $LEAN --list-models openai-codex-cgpt3/gpt-5.5
+pi $LEAN --list-models openai-codex-cgpt4/gpt-5.5
+pi $LEAN --list-models openai-codex-cgpt5/gpt-5.5
+pi $LEAN --list-models openai-codex-cgpt6/gpt-5.5
+pi $LEAN --list-models openai-codex-cgpt7/gpt-5.5
 ```
 
 Also verify:
 
 - `routing.json` passes the strict validator and a missing or invalid file fails closed with no compiled-route fallback;
+- `resources.json` passes the strict validator, the shipped policy inventory matches the pinned allowed and excluded sets, and a missing, invalid, escaping, overlapping, or profile-violating policy fails closed before `delegate_run` registration with no broad-discovery fallback; the catalog and runtime lists must resolve to the exact canonical entry files in the exact canonical order (extra contained entries such as a listed `footer` extension, reordered fixed entries, and alternate same-directory entry files all fail closed); repeated keys are rejected in every object scope, including the nested `extensions.catalog`, `extensions.runtime`, `skills.allowed`, and `skills.excluded` containers, while key-like text inside string values stays accepted;
+- post-validation symlink swaps of an approved extension entry or selected skill directory fail closed at argument construction and again immediately before every catalog or runtime spawn, including fallback attempts; a post-selection selected-skill directory or `SKILL.md` invalidation additionally fails the catalog pre-spawn verifier itself, so no catalog or runtime child command line exists, while an invalidated unselected skill does not fail it; and a defined non-array `availableSkills` value fails with the exact bounded error before manager admission, artifact creation, or spawn;
+- catalog preflight argv carries the isolation flags plus only the alias `-e` entry and no `--skill` argument; runtime argv carries exactly the five fixed `-e` entries, selected `--skill` paths in policy order, and no `--no-context-files`; every fallback attempt receives byte-for-byte identical resource arguments;
+- `availableSkills` accepts the complete allowed set with no count limit, rejects unknown, excluded, blank, and non-string names before manager admission, artifact creation, or spawn, and never reads or appends selected skill content;
+- no-inference real-Pi resource probes with the production child resource arguments show only intended tools and skills, no `browser_*` tool, no `delegate_run`, context files present for runtime probes, and no prompt-template commands; paid provider calibration is rerun only under separate authorization;
 - fake clean missing reports receive one same-session recovery prompt;
 - fake credit-depleted routes fall back before tools without a recovery prompt;
 - operational failures after tools or accepted recovery fall back with the fixed sanitized restart note, which never stacks and never leaks provider errors, raw output, tool payloads, reports, paths, or credentials;

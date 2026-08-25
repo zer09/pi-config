@@ -12,6 +12,7 @@ import {
 import { interruptionSource } from "./manager.ts";
 import { buildDelegatePrompt, oracleGuard, roleLabel, routeKey } from "./routes.ts";
 import { loadRoutingConfig, oracleModelIds, selectRoutes } from "./routing.ts";
+import { buildDelegateResourceSelection, loadDelegateResources } from "./resources.ts";
 import {
   DEFAULT_CLEANUP_TIMEOUT_MS,
   DEFAULT_IDLE_TIMEOUT_MS,
@@ -77,6 +78,8 @@ export interface CatalogResult {
 
 async function routeIsCatalogued(
   invocation: PiInvocation,
+  catalogResourceArgs: readonly string[],
+  verifyCatalog: () => void,
   route: PiRoute,
   cwd: string,
   workDeadline: number,
@@ -87,7 +90,23 @@ async function routeIsCatalogued(
   const catalogDeadlineCause: DeadlineCause = catalogDeadline === workDeadline
     ? "work_deadline"
     : "catalog_preflight";
-  const args = [...invocation.prefixArgs, "--list-models", `${route.provider}/${route.model}`];
+  // The lean catalog profile disables every discovery flag and explicitly
+  // loads only the approved catalog extension entries (the provider alias
+  // extension), so catalog preflights never load model-tool extensions,
+  // skills, context files, or presentation resources.
+  const args = [
+    ...invocation.prefixArgs,
+    ...catalogResourceArgs,
+    "--list-models",
+    `${route.provider}/${route.model}`,
+  ];
+  // Fail-closed boundary recheck immediately before this catalog spawn:
+  // every approved catalog entry is re-resolved to its validated canonical
+  // regular file inside the extensions root, and every selected skill is
+  // re-verified as a precondition even though the alias-only catalog argv
+  // never receives a `--skill` path, so a post-validation swap of either
+  // fails closed before the catalog child command line exists.
+  verifyCatalog();
   const child = spawn(invocation.command, args, {
     cwd,
     env: delegateEnvironment(),
@@ -295,6 +314,15 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     random: options.random,
   });
 
+  // The child resource selection is built (and its extension and skill
+  // paths fully re-verified) exactly once for the whole invocation, before
+  // any private artifact exists. Every route attempt, catalog preflight,
+  // and report-recovery round reuses these exact argument arrays, so the
+  // child resource profile never changes during provider fallback; each
+  // spawn first re-runs the selection's fail-closed verification closures.
+  const resourceSelection = options.resourceSelection
+    ?? buildDelegateResourceSelection(options.resourcePolicy ?? loadDelegateResources());
+
   // Private temporary supervision directory. Ownership transfers to the
   // caller only when this function returns a DelegateRunResult: the caller
   // then persists the failure diagnostic, assembles the tool result, and
@@ -356,6 +384,8 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       const catalogStarted = performance.now();
       const catalog = await routeIsCatalogued(
         piInvocation,
+        resourceSelection.catalogArgs,
+        resourceSelection.verifyCatalogSpawn,
         route,
         options.cwd,
         workDeadline,
@@ -452,7 +482,13 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         },
       };
       const attemptStarted = performance.now();
-      const attemptStatus = await supervisePi({ ...common, route, piInvocation });
+      const attemptStatus = await supervisePi({
+        ...common,
+        route,
+        piInvocation,
+        runtimeResourceArgs: resourceSelection.runtimeArgs,
+        verifyRuntimeResources: resourceSelection.verifyRuntimeSpawn,
+      });
       terminalStreamErrors = attemptStatus.streamErrors;
       attempts.push({
         route: routeKey(route),

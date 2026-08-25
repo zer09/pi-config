@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { after, test } from "node:test";
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { RESTART_AFTER_WORK_NOTE } from "./routes.ts";
+import { buildDelegateResourceSelection, readResourcesFile } from "./resources.ts";
 import { validateRoutingConfig } from "./routing.ts";
 import { finalizeDelegateRun } from "./result.ts";
 import { isOperationalFailureState, runDelegate } from "./runner.ts";
@@ -174,6 +175,7 @@ async function fakePi(
     catalogDelayRoute?: string;
     spawnMarker?: boolean;
     supervisionLog?: boolean;
+    argvLog?: boolean;
     reportText?: string;
     recoveryReportText?: string;
   } = {},
@@ -197,6 +199,8 @@ const catalogDelayMs = ${options.catalogDelayMs ?? 0};
 const catalogDelayRoute = ${JSON.stringify(options.catalogDelayRoute ?? null)};
 const spawnMarkerPath = ${JSON.stringify(spawnMarkerPath ?? null)};
 const supervisionLog = ${options.supervisionLog === true};
+const argvLog = ${options.argvLog === true};
+if (argvLog) appendFileSync("argv.jsonl", JSON.stringify(process.argv.slice(1)) + "\\n");
 if (spawnMarkerPath) writeFileSync(spawnMarkerPath, String(process.pid));
 if (args.includes("--list-models")) {
   const route = args[args.indexOf("--list-models") + 1];
@@ -1846,6 +1850,246 @@ test("global work timeout during catalog cleanup never starts route two", { skip
   } finally {
     killOwned(group.leader, group.descendant);
   }
+});
+
+/**
+ * A fixture resource policy that mirrors the production layout inside one
+ * temporary root, so the runner can exercise alternate resource profiles.
+ */
+async function fixtureResourcePolicy(): Promise<{
+  readonly policyDir: string;
+  readonly extensionsRoot: string;
+  readonly skillsRoot: string;
+  readonly root: string;
+}> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "delegate-runner-resources-"));
+  fixtureRoots.push(root);
+  const extensionsRoot = path.join(root, "agent", "extensions");
+  const policyDir = path.join(extensionsRoot, "delegated-pi-loop");
+  const skillsRoot = path.join(root, "agent", "skills");
+  for (const dir of [
+    policyDir,
+    path.join(extensionsRoot, "openai-codex-aliases"),
+    path.join(extensionsRoot, "web-search"),
+    path.join(extensionsRoot, "context-mode", "src"),
+    path.join(extensionsRoot, "codegraph"),
+    path.join(skillsRoot, "alpha"),
+  ]) {
+    await mkdir(dir, { recursive: true });
+  }
+  for (const file of [
+    path.join(policyDir, "index.ts"),
+    path.join(extensionsRoot, "openai-codex-aliases", "index.ts"),
+    path.join(extensionsRoot, "web-search", "index.ts"),
+    path.join(extensionsRoot, "context-mode", "src", "index.ts"),
+    path.join(extensionsRoot, "codegraph", "index.ts"),
+  ]) {
+    await writeFile(file, "");
+  }
+  await writeFile(path.join(skillsRoot, "alpha", "SKILL.md"), "# alpha\n");
+  await writeFile(path.join(policyDir, "resources.json"), `${JSON.stringify({
+    version: 1,
+    extensions: {
+      catalog: ["../openai-codex-aliases/index.ts"],
+      runtime: [
+        "./index.ts",
+        "../openai-codex-aliases/index.ts",
+        "../web-search/index.ts",
+        "../context-mode/src/index.ts",
+        "../codegraph/index.ts",
+      ],
+    },
+    skills: {
+      allowed: { alpha: "../../skills/alpha" },
+      excluded: ["delta"],
+    },
+  }, null, 2)}\n`);
+  return { policyDir, extensionsRoot, skillsRoot, root };
+}
+
+async function argvLogLines(root: string): Promise<string[][]> {
+  const text = await readFile(path.join(root, "argv.jsonl"), "utf8");
+  return text.trim().split("\n").filter((line) => line.length > 0).map((line) => JSON.parse(line) as string[]);
+}
+
+/** The resource-argument slice of one runtime argv line, from --no-extensions up to --mode. */
+function runtimeResourceSlice(argv: readonly string[]): string[] {
+  const start = argv.indexOf("--no-extensions");
+  const end = argv.indexOf("--mode");
+  assert.ok(start >= 0 && end > start, "runtime argv must contain the resource block before --mode");
+  return argv.slice(start, end);
+}
+
+test("catalog preflight uses the lean catalog resource profile", async () => {
+  const fixture = await fakePi(
+    ["openrouter/stealth/ox-alpha", "opencode-go/hy3"],
+    {
+      "openrouter/stealth/ox-alpha": "credit",
+      "opencode-go/hy3": "complete",
+    },
+    { argvLog: true },
+  );
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async () => {});
+  const catalogArgv = (await argvLogLines(fixture.root)).filter((argv) => argv.includes("--list-models"));
+  assert.ok(catalogArgv.length >= 1, "at least one catalog preflight must have run");
+  for (const argv of catalogArgv) {
+    // Invocation prefix arguments come first.
+    assert.equal(argv[0], fixture.invocation.prefixArgs[0]);
+    for (const flag of ["--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files"]) {
+      assert.equal(argv.filter((arg) => arg === flag).length, 1, flag);
+    }
+    // The only explicit extension is the alias provider extension.
+    const entries = argv.filter((_, index) => argv[index - 1] === "-e");
+    assert.equal(entries.length, 1);
+    assert.ok(entries[0]!.endsWith(path.join("agent", "extensions", "openai-codex-aliases", "index.ts")), entries[0]);
+    // No skills and no model-tool or delegated-loop extensions reach catalog preflight.
+    assert.ok(!argv.includes("--skill"));
+    for (const forbidden of ["web-search", "context-mode", "codegraph", "delegated-pi-loop"]) {
+      assert.ok(!argv.some((arg) => arg.includes(forbidden)), `catalog must not load ${forbidden}`);
+    }
+    // The route request follows the resource arguments.
+    assert.equal(argv[argv.indexOf("--list-models") - 1], entries[0]);
+  }
+});
+
+test("every fallback attempt receives byte-for-byte identical runtime resource arguments", async () => {
+  const fixture = await fakePi(
+    ["openrouter/stealth/ox-alpha", "opencode-go/hy3"],
+    {
+      "openrouter/stealth/ox-alpha": "credit",
+      "opencode-go/hy3": "complete",
+    },
+    { argvLog: true },
+  );
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result) => {
+    assert.equal(result.attempts.length, 2);
+  });
+  const runtimeArgv = (await argvLogLines(fixture.root)).filter((argv) => !argv.includes("--list-models"));
+  assert.equal(runtimeArgv.length, 2, "two supervision attempts must have spawned");
+  const first = runtimeResourceSlice(runtimeArgv[0]!);
+  for (const argv of runtimeArgv) {
+    assert.deepEqual(runtimeResourceSlice(argv), first);
+  }
+  // The default policy loads the five fixed runtime entries exactly once each.
+  const entries = first.filter((_, index) => first[index - 1] === "-e");
+  assert.equal(entries.length, 5);
+  assert.equal(new Set(entries).size, 5);
+  assert.ok(!first.includes("--no-context-files"), "runtime children keep context files enabled");
+  // Provider, model, and thinking arguments remain unchanged after --mode rpc.
+  const argv = runtimeArgv[0]!;
+  const modeIndex = argv.indexOf("--mode");
+  assert.deepEqual(argv.slice(modeIndex), [
+    "--mode", "rpc", "--no-session", "--approve",
+    "--provider", "openrouter", "--model", "stealth/ox-alpha", "--thinking", "high",
+  ]);
+});
+
+test("a vanished approved extension entry fails the run before artifact creation and spawn", async () => {
+  const { policyDir, extensionsRoot } = await fixtureResourcePolicy();
+  const resourcePolicy = readResourcesFile(path.join(policyDir, "resources.json"));
+  const fixture = await fakePi(
+    ["opencode-go/muse-spark-1.2-contributor"],
+    { "opencode-go/muse-spark-1.2-contributor": "complete" },
+    { spawnMarker: true },
+  );
+  assert.ok(fixture.spawnMarkerPath, "the spawn marker path must be set");
+  // The previously validated web-search entry file disappears before spawn.
+  await rm(path.join(extensionsRoot, "web-search", "index.ts"));
+  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { resourcePolicy })));
+  await assert.rejects(() => stat(fixture.spawnMarkerPath!), enoent);
+});
+
+test("a post-selection catalog-entry symlink swap fails the run before any spawn", { skip: process.platform === "win32" }, async () => {
+  const { policyDir, extensionsRoot, root } = await fixtureResourcePolicy();
+  const resourceSelection = buildDelegateResourceSelection(
+    readResourcesFile(path.join(policyDir, "resources.json")),
+    ["alpha"],
+  );
+  const fixture = await fakePi(
+    ["opencode-go/muse-spark-1.2-contributor"],
+    { "opencode-go/muse-spark-1.2-contributor": "complete" },
+    { spawnMarker: true },
+  );
+  // Swap the alias entry (catalog and runtime) with an outside-root symlink
+  // after the immutable selection was built: the per-spawn re-verification
+  // must fail closed, so neither a catalog preflight nor a runtime child
+  // ever starts.
+  const outside = path.join(root, "outside-alias.ts");
+  await writeFile(outside, "");
+  await rm(path.join(extensionsRoot, "openai-codex-aliases", "index.ts"));
+  await symlink(outside, path.join(extensionsRoot, "openai-codex-aliases", "index.ts"));
+  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { resourceSelection })));
+  await assert.rejects(() => stat(fixture.spawnMarkerPath!), enoent);
+});
+
+test("a post-selection runtime-entry symlink swap fails before the runtime spawn", { skip: process.platform === "win32" }, async () => {
+  const { policyDir, extensionsRoot, root } = await fixtureResourcePolicy();
+  const resourceSelection = buildDelegateResourceSelection(
+    readResourcesFile(path.join(policyDir, "resources.json")),
+    ["alpha"],
+  );
+  const fixture = await fakePi(
+    ["opencode-go/muse-spark-1.2-contributor"],
+    { "opencode-go/muse-spark-1.2-contributor": "complete" },
+    { argvLog: true },
+  );
+  // Swap a runtime-only entry after selection: catalog preflights may still
+  // run, but no runtime child may spawn with the swapped profile.
+  const outside = path.join(root, "outside-runtime.ts");
+  await writeFile(outside, "");
+  await rm(path.join(extensionsRoot, "web-search", "index.ts"));
+  await symlink(outside, path.join(extensionsRoot, "web-search", "index.ts"));
+  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { resourceSelection })));
+  const logged = await argvLogLines(fixture.root);
+  assert.ok(logged.length >= 1, "at least the catalog preflight must have run");
+  for (const argv of logged) {
+    assert.ok(argv.includes("--list-models"), "no runtime child may spawn after the swap");
+  }
+});
+
+test("a post-selection selected-skill symlink swap fails before any spawn", { skip: process.platform === "win32" }, async () => {
+  const { policyDir, skillsRoot, root } = await fixtureResourcePolicy();
+  const resourceSelection = buildDelegateResourceSelection(
+    readResourcesFile(path.join(policyDir, "resources.json")),
+    ["alpha"],
+  );
+  const fixture = await fakePi(
+    ["opencode-go/muse-spark-1.2-contributor"],
+    { "opencode-go/muse-spark-1.2-contributor": "complete" },
+    { argvLog: true, spawnMarker: true },
+  );
+  // Replace the selected alpha skill directory with an outside-root symlink
+  // after selection: the catalog pre-spawn verifier checks the selection's
+  // skills as a fail-closed precondition (the catalog argv stays alias-only),
+  // so neither a catalog preflight nor a runtime child may spawn.
+  const outsideDir = path.join(root, "outside-skill");
+  await mkdir(outsideDir);
+  await writeFile(path.join(outsideDir, "SKILL.md"), "# outside\n");
+  await rm(path.join(skillsRoot, "alpha"), { recursive: true });
+  await symlink(outsideDir, path.join(skillsRoot, "alpha"));
+  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { resourceSelection })));
+  await assert.rejects(() => stat(fixture.spawnMarkerPath!), enoent);
+  await assert.rejects(() => stat(path.join(fixture.root, "argv.jsonl")), enoent);
+});
+
+test("a post-selection selected-skill SKILL.md removal fails before any spawn", async () => {
+  const { policyDir, skillsRoot } = await fixtureResourcePolicy();
+  const resourceSelection = buildDelegateResourceSelection(
+    readResourcesFile(path.join(policyDir, "resources.json")),
+    ["alpha"],
+  );
+  const fixture = await fakePi(
+    ["opencode-go/muse-spark-1.2-contributor"],
+    { "opencode-go/muse-spark-1.2-contributor": "complete" },
+    { argvLog: true, spawnMarker: true },
+  );
+  // Remove the selected alpha SKILL.md after selection: the catalog
+  // pre-spawn verifier must fail closed before the first catalog spawn, so
+  // no catalog or runtime child command line exists.
+  await rm(path.join(skillsRoot, "alpha", "SKILL.md"));
+  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { resourceSelection })));
+  await assert.rejects(() => stat(fixture.spawnMarkerPath!), enoent);
+  await assert.rejects(() => stat(path.join(fixture.root, "argv.jsonl")), enoent);
 });
 
 test("runtime sources contain no tree-fingerprint capture, read-only-mutation state, or backend schema", async () => {

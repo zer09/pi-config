@@ -15,6 +15,13 @@ import type { DelegateProgress, PiRoute } from "./types.ts";
 
 const ROUTE: PiRoute = { kind: "pi", provider: "fake", model: "model", thinking: "high" };
 
+/**
+ * Minimal fixed runtime resource fixture so default runs stay valid; the
+ * production arrays come from `resources.ts` and the ordering tests below
+ * pass their own explicit arrays.
+ */
+const RUNTIME_RESOURCE_ARGS: readonly string[] = ["--no-extensions", "--no-skills"];
+
 /** Unique fixture roots; removed by exact path after all tests. */
 const fixtureRoots: string[] = [];
 
@@ -108,6 +115,8 @@ async function run(script: string, overrides: Partial<Parameters<typeof supervis
     promptPath: built.promptPath,
     route: ROUTE,
     piInvocation: built.invocation,
+    runtimeResourceArgs: RUNTIME_RESOURCE_ARGS,
+    verifyRuntimeResources: () => {},
     timeoutMs,
     workDeadline: performance.now() + timeoutMs,
     workBudgetSeconds: timeoutMs / 1000,
@@ -121,6 +130,143 @@ async function run(script: string, overrides: Partial<Parameters<typeof supervis
   });
   return { status, progress, attemptDir, root: built.root };
 }
+
+test("runtime child argv follows the fixed resource-argument ordering", async () => {
+  const extensions = ["/x/delegated-pi-loop/index.ts", "/x/openai-codex-aliases/index.ts", "/x/web-search/index.ts", "/x/context-mode/src/index.ts", "/x/codegraph/index.ts"];
+  const resourceArgs = [
+    "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes",
+    ...extensions.flatMap((entry) => ["-e", entry]),
+    "--skill", "/x/skills/uv",
+    "--skill", "/x/skills/ruff",
+  ];
+  const { root } = await run(eventScript([completed()]), { runtimeResourceArgs: resourceArgs });
+  // The fixture records argv after the interpreter and the script prefix
+  // argument, so the recorded argv starts with the resource arguments.
+  const args = JSON.parse(await readFile(path.join(root, "args.json"), "utf8")) as string[];
+  assert.deepEqual(args, [
+    ...resourceArgs,
+    "--mode", "rpc",
+    "--no-session",
+    "--approve",
+    "--provider", "fake",
+    "--model", "model",
+    "--thinking", "high",
+  ]);
+  for (const flag of ["--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--mode", "--no-session", "--approve"]) {
+    assert.equal(args.filter((arg) => arg === flag).length, 1, flag);
+  }
+  for (const entry of extensions) {
+    assert.equal(args.filter((arg) => arg === entry).length, 1, entry);
+  }
+  // Selected skills appear exactly once, in policy order, after the fixed
+  // extension entries and before the mode/provider arguments.
+  const skillArgs = args.filter((_, index) => args[index - 1] === "--skill");
+  assert.deepEqual(skillArgs, ["/x/skills/uv", "/x/skills/ruff"]);
+  assert.ok(args.indexOf("--skill") > args.lastIndexOf("-e") + 1);
+  assert.ok(args.indexOf("--skill") < args.indexOf("--mode"));
+  assert.ok(!args.includes("--no-context-files"), "runtime children keep context-file discovery enabled");
+});
+
+test("omitted skills produce no --skill arguments in the runtime child", async () => {
+  const resourceArgs = ["--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "-e", "/x/web-search/index.ts"];
+  const { root } = await run(eventScript([completed()]), { runtimeResourceArgs: resourceArgs });
+  const args = JSON.parse(await readFile(path.join(root, "args.json"), "utf8")) as string[];
+  assert.ok(!args.includes("--skill"));
+});
+
+test("report recovery stays in the same child with no second resource resolution", async () => {
+  const script = `
+import { appendFileSync, writeFileSync } from "node:fs";
+writeFileSync("spawns.jsonl", JSON.stringify({ pid: process.pid, args: process.argv.slice(2) }) + "\\n");
+let buffer = "";
+let round = 0;
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  while (buffer.includes("\\n")) {
+    const index = buffer.indexOf("\\n");
+    const line = buffer.slice(0, index);
+    buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type !== "prompt") continue;
+    round += 1;
+    appendFileSync("commands.jsonl", JSON.stringify({ pid: process.pid, command }) + "\\n");
+    process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+    if (round === 1) {
+      process.stdout.write(JSON.stringify({ type: "agent_end", willRetry: false }) + "\\n");
+      process.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\\n");
+    } else {
+      process.stdout.write(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Recovered.\\n\\nDELEGATE_RESULT: COMPLETED" }] } }) + "\\n");
+      process.stdout.write(JSON.stringify({ type: "agent_end", willRetry: false }) + "\\n");
+      process.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\\n");
+    }
+  }
+});
+setInterval(() => {}, 1000);
+`;
+  const resourceArgs = ["--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "-e", "/x/web-search/index.ts", "--skill", "/x/skills/ty"];
+  const { status, root } = await run(script, { runtimeResourceArgs: resourceArgs });
+  assert.equal(status.state, "completed");
+  assert.equal(status.reportRound, 2);
+  const spawns = (await readFile(path.join(root, "spawns.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+  assert.equal(spawns.length, 1, "recovery must not spawn a second child");
+  assert.ok(spawns[0].args.includes("--skill"));
+  const commands = (await readFile(path.join(root, "commands.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+  assert.equal(commands.length, 2);
+  assert.equal(commands[0].pid, commands[1].pid);
+  assert.equal(spawns[0].pid, commands[0].pid);
+});
+
+test("the supervisor keeps shell spawning disabled for resource arguments", async () => {
+  const source = await readFile(new URL("./supervisor.ts", import.meta.url), "utf8");
+  assert.match(source, /shell: false/);
+  assert.match(source, /\.\.\.options\.runtimeResourceArgs,/);
+});
+
+test("a failed pre-spawn resource verification rejects before any child spawns", async () => {
+  // A post-validation symlink swap is surfaced by the resources module as
+  // this exact bounded error; supervisePi must run the verification
+  // immediately before spawn and propagate it without starting a child.
+  const built = await fixture(eventScript([completed()]));
+  const attemptDir = path.join(built.root, "attempt");
+  await createPrivateDirectory(attemptDir);
+  const verification = new Error(
+    "delegated-pi-loop resource policy invalid: an approved extension entry no longer resolves to its validated canonical path",
+  );
+  const timeoutMs = 2000;
+  await assert.rejects(
+    supervisePi({
+      label: "test",
+      role: "review-a",
+      attempt: 1,
+      cwd: built.root,
+      artifactDir: attemptDir,
+      promptPath: built.promptPath,
+      route: ROUTE,
+      piInvocation: built.invocation,
+      runtimeResourceArgs: RUNTIME_RESOURCE_ARGS,
+      verifyRuntimeResources: () => {
+        throw verification;
+      },
+      timeoutMs,
+      workDeadline: performance.now() + timeoutMs,
+      workBudgetSeconds: timeoutMs / 1000,
+      remainingWorkSecondsAtAttemptStart: timeoutMs / 1000,
+      idleWarningMs: 100,
+      idleTimeoutMs: 500,
+      maxOutputBytes: 1024 * 1024,
+      graceMs: 100,
+    }),
+    (error: unknown) => error === verification,
+  );
+  // The fixture script writes args.json as its first action, so its absence
+  // proves no child process ever spawned.
+  await assert.rejects(
+    () => stat(path.join(built.root, "args.json")),
+    (error: unknown) => (error as NodeJS.ErrnoException).code === "ENOENT",
+  );
+});
 
 test("uses Pi RPC arguments and one prompt for normal success", async () => {
   const events = [
@@ -533,6 +679,8 @@ async function runSinkFailure(
       promptPath: built.promptPath,
       route: ROUTE,
       piInvocation: built.invocation,
+      runtimeResourceArgs: RUNTIME_RESOURCE_ARGS,
+      verifyRuntimeResources: () => {},
       timeoutMs: 2500,
       workDeadline: performance.now() + 2500,
       workBudgetSeconds: 2.5,
@@ -887,6 +1035,8 @@ test("a sub-100 ms work deadline still uses one-shot precision", { skip: process
       promptPath,
       route: ROUTE,
       piInvocation: { command: scriptPath, prefixArgs: [] },
+      runtimeResourceArgs: RUNTIME_RESOURCE_ARGS,
+      verifyRuntimeResources: () => {},
       timeoutMs: 95,
       workDeadline: deadline,
       workBudgetSeconds: 0.095,

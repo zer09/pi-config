@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. Current-policy note (2026-08-25): alias-provider catalog preflight depends on the lean catalog resource profile from ADR 0010 — preflight runs with all discovery disabled and loads only the `openai-codex-aliases` entry file from the extension-owned `resources.json`. Resource policy stays in `resources.json`; it deliberately does not move into `routing.json`.
 
 ## Context
 

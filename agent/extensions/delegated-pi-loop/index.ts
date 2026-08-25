@@ -4,6 +4,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { activeDelegateLabel, combinedSignal, DelegateManager } from "./manager.ts";
 import { renderDelegateCall, renderDelegateResult } from "./render.ts";
+import { allowedDelegateSkillNames, buildDelegateResourceSelection, loadDelegateResources } from "./resources.ts";
 import { delegateToolResultPatch, finalizeDelegateRun } from "./result.ts";
 import { runDelegate } from "./runner.ts";
 import { DELEGATE_ROLES } from "./types.ts";
@@ -39,19 +40,27 @@ const RoutingOverrideParameters = Type.Object({
   }),
 });
 
-const DelegateParameters = Type.Object({
-  role: StringEnum(DELEGATE_ROLES, {
-    description: "Assigned isolated role. Use solution A/B/C/D/E/F and review A/B/C/D/E concurrently for their required gates.",
-  }),
-  prompt: Type.String({
-    minLength: 1,
-    description: "Complete neutral role assignment, governing documents, scope, success checks, and prohibitions.",
-  }),
-  routingOverride: Type.Optional(RoutingOverrideParameters),
-  cwd: Type.Optional(Type.String({
-    description: "Delegate working directory. Relative paths resolve from the parent Pi working directory.",
-  })),
-});
+function delegateParameters(allowedSkillNames: readonly string[]) {
+  return Type.Object({
+    role: StringEnum(DELEGATE_ROLES, {
+      description: "Assigned isolated role. Use solution A/B/C/D/E/F and review A/B/C/D/E concurrently for their required gates.",
+    }),
+    prompt: Type.String({
+      minLength: 1,
+      description: "Complete neutral role assignment, governing documents, scope, success checks, and prohibitions.",
+    }),
+    routingOverride: Type.Optional(RoutingOverrideParameters),
+    cwd: Type.Optional(Type.String({
+      description: "Delegate working directory. Relative paths resolve from the parent Pi working directory.",
+    })),
+    availableSkills: Type.Optional(Type.Array(
+      StringEnum(allowedSkillNames),
+      {
+        description: "Pre-approved skills to make discoverable to this delegate. The delegate loads full skill instructions only when its task requires them.",
+      },
+    )),
+  });
+}
 
 function partialResult(delegateId: number, progress: DelegateProgress): ToolResult {
   return {
@@ -71,8 +80,11 @@ function finalResult(delegateId: number, result: ToolResult): ToolResult {
 }
 
 export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
-  // Child delegates inherit all parent extensions. Suppress the tool in children
-  // and let the child kill its own process group if the parent disappears.
+  // Delegated children load this extension explicitly from the resource
+  // policy for the parent watchdog and recursion suppression only. The
+  // child branch below stays minimal and must never parse the parent
+  // resource policy. It suppresses the tool in children and lets the child
+  // kill its own process group if the parent disappears.
   if (process.env.PI_DELEGATED_CHILD === "1") {
     let watchdog: NodeJS.Timeout | undefined;
     pi.on("session_start", () => {
@@ -98,6 +110,14 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
     });
     return;
   }
+
+  // Parent-only: load and strictly validate the delegated child resource
+  // policy before any tool, command, or handler is registered. A missing or
+  // invalid policy fails closed here with a bounded startup error; there is
+  // no broad-discovery fallback. `/reload` re-runs this load with the rest
+  // of the extension runtime.
+  const delegateResources = loadDelegateResources();
+  const DelegateParameters = delegateParameters(allowedDelegateSkillNames(delegateResources));
 
   const manager = new DelegateManager();
 
@@ -189,6 +209,7 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
       "Delegate routing, including model, thinking, and provider fallback after operational failures, is automatic from the extension-owned routing configuration; pass routingOverride only when the user or project explicitly requests an operational route change for that one run, never for the oracle role, and know that routingOverride never changes role permissions or concurrency.",
       "Treat every delegate_run state other than completed as a failed delegation reported as a tool error with sanitized status fields, and do not retry outside the tool's bounded operational route fallback without user-authorized diagnosis.",
       "Do not stage, commit, push, deploy, or mutate hosted services because a delegate completed; those transitions require separate explicit authorization.",
+      "Use availableSkills to make only task-relevant pre-approved skills discoverable to a delegate; selection does not force full skill loading, and the delegate decides which selected skills it actually needs.",
     ],
     parameters: DelegateParameters as unknown as Record<string, unknown>,
 
@@ -197,6 +218,11 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
       const routingOverride = params.routingOverride as RoutingOverride | undefined;
       const candidateCwd = params.cwd ? path.resolve(ctx.cwd, params.cwd) : ctx.cwd;
       const cwd = await realpath(candidateCwd);
+      // Resolve the complete child resource selection before manager
+      // admission, private artifact creation, or any child spawn. An
+      // unsupported skill name fails here with only that name; the exact
+      // arrays built here then cover every attempt and recovery round.
+      const resourceSelection = buildDelegateResourceSelection(delegateResources, params.availableSkills);
       const handle = manager.begin(toolCallId, role);
       const runSignal = combinedSignal(signal, handle.signal);
 
@@ -206,6 +232,7 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
           routingOverride,
           prompt: params.prompt,
           cwd,
+          resourceSelection,
           // The oracle main-model skip reads the parent model id through
           // native extension context, never by inspecting the environment;
           // delegate providers come from routing.json alone.

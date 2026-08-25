@@ -77,6 +77,22 @@ interface SuperviseBaseOptions {
 export interface SupervisePiOptions extends SuperviseBaseOptions {
   readonly route: PiRoute;
   readonly piInvocation: PiInvocation;
+  /**
+   * Prebuilt immutable runtime resource arguments from `resources.ts`. They
+   * are appended after the invocation prefix and before the mode/provider
+   * arguments, and stay identical across every attempt and recovery round of
+   * one delegate invocation.
+   */
+  readonly runtimeResourceArgs: readonly string[];
+  /**
+   * Fail-closed pre-spawn re-verification from `resources.ts`. Runs
+   * immediately before the child command line is spawned, once per route
+   * attempt including fallbacks, and re-resolves canonical identity,
+   * containment, and file-type invariants for every approved runtime
+   * extension entry and selected skill, so a post-validation symlink swap
+   * fails the attempt before any child process exists.
+   */
+  readonly verifyRuntimeResources: () => void;
 }
 
 function isoNow(): string {
@@ -415,6 +431,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
 
   const args = [
     ...options.piInvocation.prefixArgs,
+    ...options.runtimeResourceArgs,
     "--mode",
     "rpc",
     "--no-session",
@@ -426,6 +443,18 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     "--thinking",
     options.route.thinking,
   ];
+  // Fail-closed boundary recheck immediately before this spawn: canonical
+  // identity, containment, and file-type invariants are re-resolved for
+  // every approved runtime extension entry and selected skill, so a
+  // post-validation symlink swap can never reach a child command line. The
+  // stderr stream is the only resource open at this point; close it before
+  // rethrowing so the rejected attempt leaks no file handle.
+  try {
+    options.verifyRuntimeResources();
+  } catch (error) {
+    stderrStream.close();
+    throw error;
+  }
   const child = spawnDetached(options.piInvocation.command, args, {
     cwd: options.cwd,
     env: delegateEnvironment(),

@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "extensions": {
+    "catalog": [
+      "../openai-codex-aliases/index.ts"
+    ],
+    "runtime": [
+      "./index.ts",
+      "../openai-codex-aliases/index.ts",
+      "../web-search/index.ts",
+      "../context-mode/src/index.ts",
+      "../codegraph/index.ts"
+    ]
+  },
+  "skills": {
+    "allowed": {
+      "figma": "../../skills/figma",
+      "figma-create-design-system-rules": "../../skills/figma-create-design-system-rules",
+      "figma-implement-design": "../../skills/figma-implement-design",
+      "firebase-ai-logic-basics": "../../skills/firebase-ai-logic-basics",
+      "firebase-app-hosting-basics": "../../skills/firebase-app-hosting-basics",
+      "firebase-auth-basics": "../../skills/firebase-auth-basics",
+      "firebase-basics": "../../skills/firebase-basics",
+      "firebase-data-connect": "../../skills/firebase-data-connect",
+      "firebase-firestore": "../../skills/firebase-firestore",
+      "firebase-hosting-basics": "../../skills/firebase-hosting-basics",
+      "firebase-security-rules-auditor": "../../skills/firebase-security-rules-auditor",
+      "gh-cli": "../../skills/gh-cli",
+      "linear-cli": "../../skills/linear-cli",
+      "mysql": "../../skills/mysql",
+      "notion": "../../skills/notion",
+      "postgres": "../../skills/postgres",
+      "pp-posthog": "../../skills/pp-posthog",
+      "ruff": "../../skills/ruff",
+      "ty": "../../skills/ty",
+      "uv": "../../skills/uv"
+    },
+    "excluded": [
+      "crit",
+      "crit-cli",
+      "developing-genkit-dart",
+      "developing-genkit-go",
+      "developing-genkit-js",
+      "developing-genkit-python",
+      "directus-browser",
+      "grill-with-docs",
+      "improve-codebase-architecture",
+      "intent-layer",
+      "nlm-skill",
+      "pi-browser-harness",
+      "session-handoff",
+      "skill-creator"
+    ]
+  }
+}

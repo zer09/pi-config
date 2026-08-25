@@ -288,6 +288,8 @@ export interface DelegateToolParams {
   readonly prompt: string;
   readonly routingOverride?: RoutingOverride;
   readonly cwd?: string;
+  /** Orchestrator-selected pre-approved skill names made discoverable to this delegated child. */
+  readonly availableSkills?: readonly string[];
 }
 
 export interface ToolResult {
@@ -403,9 +405,72 @@ export interface RunOptions {
   readonly piInvocation?: PiInvocation;
   /** Optional pre-validated routing config; deterministic injection point so tests can exercise alternate profiles. */
   readonly routingConfig?: RoutingConfig;
+  /**
+   * Prebuilt immutable child resource selection from `resources.ts`; covers
+   * every attempt and recovery round of this invocation.
+   */
+  readonly resourceSelection?: DelegateResourceSelection;
+  /**
+   * Optional pre-validated resource policy; deterministic injection point so
+   * tests can exercise alternate profiles. Used only when no prebuilt
+   * selection is provided; the selection is then built (and its paths
+   * rechecked) before any private artifact exists.
+   */
+  readonly resourcePolicy?: ResolvedDelegateResources;
 }
 
 export interface PiInvocation {
   readonly command: string;
   readonly prefixArgs: readonly string[];
+}
+
+/**
+ * Canonical containment roots every resolved resource-policy path must
+ * stay inside. Derived from the policy file location by `resources.ts`;
+ * owned by the resource policy, never by routing.
+ */
+export interface ContainmentRoots {
+  /** Canonical `agent/extensions` root derived from the policy file location. */
+  readonly extensionsRoot: string;
+  /** Canonical `agent/skills` root derived from the policy file location. */
+  readonly skillsRoot: string;
+  /** Canonical directory containing the policy file (an extension directory). */
+  readonly policyDir: string;
+}
+
+/**
+ * Immutable, strictly validated delegated child resource policy resolved
+ * from `resources.json`. Extension paths are canonical absolute entry files;
+ * skill paths are canonical absolute directories containing a regular
+ * `SKILL.md`. `roots` carries the canonical containment roots so every
+ * pre-spawn re-verification can recheck containment without re-deriving the
+ * policy location. Owned by `resources.ts`; routing-policy concepts stay
+ * in `routing.ts`.
+ */
+export interface ResolvedDelegateResources {
+  readonly catalogExtensions: readonly string[];
+  readonly runtimeExtensions: readonly string[];
+  readonly allowedSkills: ReadonlyMap<string, string>;
+  readonly excludedSkills: ReadonlySet<string>;
+  readonly roots: ContainmentRoots;
+}
+
+/**
+ * One immutable prebuilt child resource argument set for a complete
+ * delegate invocation. The runner reuses these exact arrays for every
+ * sequential route attempt, catalog preflight, and report-recovery round,
+ * so the child resource profile never changes during provider fallback.
+ * The verification closures re-resolve canonical identity, containment,
+ * and regular-file/directory/`SKILL.md` invariants immediately before every
+ * catalog or runtime spawn, including fallback attempts, so a
+ * post-validation symlink swap of an approved extension entry or selected
+ * skill fails closed before any child command line exists.
+ */
+export interface DelegateResourceSelection {
+  readonly catalogArgs: readonly string[];
+  readonly runtimeArgs: readonly string[];
+  /** Fail-closed re-verification of the catalog extension entries and every selected skill, run immediately before each catalog preflight spawn; the catalog argv itself stays alias-only. */
+  readonly verifyCatalogSpawn: () => void;
+  /** Fail-closed re-verification of the runtime extension entries and every selected skill, run immediately before each runtime child spawn. */
+  readonly verifyRuntimeSpawn: () => void;
 }

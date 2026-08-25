@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. The hardcoded route maps, backend values, and pre-tool-only fallback cutoff this ADR preserved were superseded on 2026-08-23 by the extension-owned routing configuration in ADR 0009; every other supervision, recovery, privacy, and concurrency decision below stands.
+Accepted. The hardcoded route maps, backend values, and pre-tool-only fallback cutoff this ADR preserved were superseded on 2026-08-23 by the extension-owned routing configuration in ADR 0009. On 2026-08-25, ADR 0010 superseded this ADR's inherited extension and skill discovery for delegated children: children now load only the strict extension allowlist and orchestrator-selected skill candidates from the extension-owned resource policy, so the statement that read-only delegates receive the normal extension set no longer holds (they still receive Pi's normal built-in tool set). Every other supervision, recovery, privacy, and concurrency decision below stands.
 
 ## Context
 
@@ -44,7 +44,7 @@ Preserve ADR 0007's route maps, structured terminal markers, 45-minute wall dead
 
 The parent is the sole author of plan and research deliverables, including repository artifacts. Solution delegates may gather evidence and propose options, but implementation and remediation delegates must not research, formulate, draft, save, or revise these deliverables. Pure planning or research work does not run an implementation delegate, implementation review gate, or remediation. This exception is based on the artifact's purpose rather than its `.md` extension: implementation documentation such as README updates, ADRs, changelogs, policy files, and documentation accompanying code still follows implementation delegation.
 
-Global pre/post Git tree fingerprints and the `read_only_mutation` state were removed on 2026-08-22. Shared monorepo worktrees are modified concurrently by unrelated agents, so a before/after fingerprint cannot attribute the actor and incorrectly invalidated otherwise completed read-only reports. Read-only roles stay enforced through their role contracts and the existing Pi role classification. Residual risk: Pi-based read-only delegates still receive the normal tool set and extensions and can misuse writable tools; without fingerprinting the extension does not automatically detect such mutation.
+Global pre/post Git tree fingerprints and the `read_only_mutation` state were removed on 2026-08-22. Shared monorepo worktrees are modified concurrently by unrelated agents, so a before/after fingerprint cannot attribute the actor and incorrectly invalidated otherwise completed read-only reports. Read-only roles stay enforced through their role contracts and the existing Pi role classification. Residual risk: Pi-based read-only delegates still receive the normal tool set and extensions and can misuse writable tools; without fingerprinting the extension does not automatically detect such mutation. (Superseded in part on 2026-08-25: delegated children no longer inherit extensions or skills, but the built-in tool set, including writable tools, still reaches read-only delegates.)
 
 Set `PI_DELEGATED_CHILD=1` for child Pi. The extension does not register `delegate_run` in a delegated child, which makes recursive delegation unavailable even if a prompt ignores the prohibition. A child-side parent watchdog terminates the child process group if the parent disappears. The parent extension aborts active groups during `session_shutdown`, and the supervisor cleans descendants after natural leader exit.
 
