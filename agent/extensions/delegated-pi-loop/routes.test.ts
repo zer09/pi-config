@@ -3,12 +3,8 @@ import test from "node:test";
 import {
   RESTART_AFTER_WORK_NOTE,
   buildDelegatePrompt,
-  oracleGuard,
-  roleIsExclusive,
-  roleIsReadOnly,
-  roleLabel,
-  routeKey,
-} from "./routes.ts";
+} from "./instructions.ts";
+import { oracleGuard, roleIsExclusive, roleIsReadOnly, roleLabel, routeKey } from "./routes.ts";
 import { loadRoutingConfig, roleIds } from "./routing.ts";
 import type { ResolvedRole } from "./routing.ts";
 

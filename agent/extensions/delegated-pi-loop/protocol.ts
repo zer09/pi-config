@@ -1,22 +1,8 @@
 import { StringDecoder } from "node:string_decoder";
 import type { ProviderFailureCategory } from "./types.ts";
 
-export const RECOVERY_PROMPT = `Your previous response did not satisfy the required final-report protocol.
-
-Do not repeat the assigned task, investigation, tool calls, edits, or other work.
-Return one complete, self-contained final report using only the evidence already
-available in this session.
-
-Follow the original terminal-result instructions exactly. Include exactly one
-valid DELEGATE_RESULT line as the final non-whitespace line, and do not quote or
-discuss that marker elsewhere. If the result is BLOCKED or FAILED, put exactly
-one DELEGATE_REASON line directly above the marker with one exact allowed code
-and no prose, paths, or details: BLOCKED allows evidence_inaccessible,
-user_decision_required, assignment_conflict, policy_restriction,
-budget_exhausted, external_dependency, finding_reported; FAILED allows
-execution_failure, verification_failure, internal_inconsistency,
-policy_violation. COMPLETED takes no reason line; reviews with findings must
-use COMPLETED.`;
+// The round-2 recovery prompt text itself lives in instructions.ts; this
+// module owns only the RPC framing and correlation state.
 
 export const PROMPT_IDS = { 1: "prompt-1", 2: "prompt-2" } as const;
 const DEFAULT_MAX_LINE_BYTES = 8 * 1024 * 1024;

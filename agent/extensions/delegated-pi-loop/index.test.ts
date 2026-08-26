@@ -7,7 +7,10 @@ import test from "node:test";
 import { pathToFileURL } from "node:url";
 
 test("registration guidelines encode the automatic delegation policy without provider route details", async () => {
-  const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
+  // The complete parent delegation workflow lives in the canonical
+  // instruction module and reaches the parent only through the active
+  // delegate_run tool's promptGuidelines.
+  const source = await readFile(new URL("./instructions.ts", import.meta.url), "utf8");
   const guidelinesStart = source.indexOf("export function delegateRunPromptGuidelines(");
   assert.ok(guidelinesStart >= 0, "delegateRunPromptGuidelines builder not found");
   const guidelines = source.slice(guidelinesStart, source.indexOf("\n}\n", guidelinesStart));
@@ -142,8 +145,9 @@ test("registers the optional orchestrator-selected availableSkills parameter", a
   const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
   // The parameter is optional, built from the validated policy allowlist with
   // StringEnum for provider compatibility, and the progressive-disclosure
-  // description sits on the array property, not on the item enum.
-  assert.match(source, /availableSkills: Type\.Optional\(Type\.Array\(\s*\n\s*StringEnum\(allowedSkillNames\),\s*\n\s*\{\s*\n\s*description: "Pre-approved skills to make discoverable to this delegate\. The delegate loads full skill instructions only when its task requires them\.",\s*\n\s*\},\s*\n\s*\)\),/);
+  // description sits on the array property, not on the item enum. The
+  // description text itself is centralized in instructions.ts.
+  assert.match(source, /availableSkills: Type\.Optional\(Type\.Array\(\s*\n\s*StringEnum\(allowedSkillNames\),\s*\n\s*\{\s*\n\s*description: DELEGATE_RUN_PARAMETER_DESCRIPTIONS\.availableSkills,\s*\n\s*\},\s*\n\s*\)\),/);
   // No arbitrary item-count maximum and no forced minimum.
   assert.ok(!source.includes("maxItems"), "availableSkills must not set an item maximum");
   assert.ok(!/availableSkills[\s\S]{0,200}minItems/.test(source), "availableSkills must not require an item minimum");
@@ -240,6 +244,18 @@ test("the registered availableSkills schema carries the description on the array
       registrations.map((registration) => registration.name),
       ["delegate_run", "delegate_model_catalog"],
     );
+    // The parent receives the complete centralized delegation workflow
+    // exactly once, through the active delegate_run promptGuidelines.
+    const { delegateRunPromptGuidelines, MODEL_CATALOG_PROMPT_GUIDELINES } = await import("./instructions.ts");
+    const { loadRoutingSnapshot, roleIdsInFamily } = await import("./routing.ts");
+    const snapshot = loadRoutingSnapshot();
+    assert.deepEqual(
+      registrations[0]?.promptGuidelines,
+      [...delegateRunPromptGuidelines(roleIdsInFamily(snapshot, "solution"), roleIdsInFamily(snapshot, "review"))],
+      "delegate_run must register the canonical guidelines exactly once",
+    );
+    assert.equal(registrations[0]?.promptGuidelines?.length, 24);
+    assert.deepEqual(registrations[1]?.promptGuidelines, [...MODEL_CATALOG_PROMPT_GUIDELINES]);
     // JSON round-trip mirrors the serialization providers receive: plain
     // JSON Schema keys survive and symbol markers do not.
     const parameters = JSON.parse(JSON.stringify(registrations[0]?.parameters)) as {
@@ -285,7 +301,7 @@ test("the registered availableSkills schema carries the description on the array
     const { roleIds } = await import("./routing.ts");
     const role = parameters.properties.role;
     assert.ok(role?.enum, "the role property must carry the generated enum");
-    assert.deepEqual(role.enum, [...roleIds((await import("./routing.ts")).loadRoutingSnapshot())]);
+    assert.deepEqual(role.enum, [...roleIds(snapshot)]);
     assert.match(
       role.description ?? "",
       /Use the configured solution roles \(solution-a, solution-b, solution-c, solution-d, solution-e, solution-f\) and review roles \(review-a, review-b, review-c, review-d, review-e\)/,
@@ -301,7 +317,6 @@ test("the registered availableSkills schema carries the description on the array
         enum?: string[];
       }>;
     };
-    const { loadRoutingSnapshot } = await import("./routing.ts");
     assert.deepEqual(catalogParameters.required, ["query"]);
     assert.equal(catalogParameters.properties.query?.type, "string");
     assert.equal(catalogParameters.properties.provider?.type, "string");
@@ -334,6 +349,24 @@ test("the registered availableSkills schema carries the description on the array
     for (const routeDetail of ["gpt-5.5", "gpt-5.6", "codex", "glm-", "zai"]) {
       assert.ok(!catalogGuidelines.includes(routeDetail), `catalog guidance must not contain ${routeDetail}`);
     }
+    // Child mode registers neither tool: the early child branch returns
+    // before any parent-only registration, so children receive none of the
+    // parent tool guidelines.
+    const childRegistrations: { name: string }[] = [];
+    const fakeChildPi = {
+      on: () => {},
+      registerCommand: () => {},
+      registerTool: (config: { name: string }) => childRegistrations.push(config),
+    };
+    const savedChildFlag2 = process.env.PI_DELEGATED_CHILD;
+    process.env.PI_DELEGATED_CHILD = "1";
+    try {
+      (extension.default as (pi: unknown) => void)(fakeChildPi);
+    } finally {
+      if (savedChildFlag2 === undefined) delete process.env.PI_DELEGATED_CHILD;
+      else process.env.PI_DELEGATED_CHILD = savedChildFlag2;
+    }
+    assert.deepEqual(childRegistrations, [], "child mode must register neither delegate_run nor delegate_model_catalog");
   } finally {
     rmSync(hooksDir, { recursive: true, force: true });
   }
@@ -341,28 +374,42 @@ test("the registered availableSkills schema carries the description on the array
 
 test("the model catalog guidance stays concise and keeps overrides exceptional", async () => {
   const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
-  const registrationStart = source.indexOf('name: "delegate_model_catalog"');
+  const instructions = await readFile(new URL("./instructions.ts", import.meta.url), "utf8");
+  // index.ts wires the centralized metadata; the concise guidance text
+  // itself lives only in instructions.ts.
+  const registrationStart = source.indexOf(`name: DELEGATE_MODEL_CATALOG_TOOL.name`);
   assert.ok(registrationStart >= 0, "delegate_model_catalog registration not found");
   const registration = source.slice(registrationStart, source.indexOf("});", registrationStart));
-  assert.match(registration, /promptSnippet: "Look up configured delegate models, providers, and thinking levels before an exceptional routing override"/);
-  assert.match(registration, /only when an explicit user or project operational request names a partial or unknown model for a one-run routing substitution/);
-  assert.match(registration, /choose only a returned model, provider, and supported thinking-level combination/);
-  assert.match(registration, /never invokes pi --list-models/);
-  assert.match(registration, /never for the oracle role/);
+  assert.match(registration, /promptSnippet: DELEGATE_MODEL_CATALOG_TOOL\.promptSnippet/);
+  assert.match(registration, /promptGuidelines: MODEL_CATALOG_PROMPT_GUIDELINES/);
+  assert.match(instructions, /only when an explicit user or project operational request names a partial or unknown model for a one-run routing substitution/);
+  assert.match(instructions, /choose only a returned model, provider, and supported thinking-level combination/);
+  assert.match(instructions, /never invokes pi --list-models/);
+  assert.match(instructions, /never for the oracle role/);
   // The catalog is never appended to the delegate_run schema or guidance.
   const delegateRunRegistration = source.slice(
-    source.indexOf('name: "delegate_run"'),
+    source.indexOf(`name: DELEGATE_RUN_TOOL.name`),
     registrationStart,
   );
   assert.ok(!delegateRunRegistration.includes("delegate_model_catalog"));
-  // No model/provider/thinking combination is enumerated in either schema.
+  // The catalog receives only its own concise guidelines, never the parent
+  // delegation workflow.
+  const catalogGuidelines = instructions.slice(
+    instructions.indexOf("export const MODEL_CATALOG_PROMPT_GUIDELINES"),
+    instructions.indexOf("export const DELEGATE_RUN_PARAMETER_DESCRIPTIONS"),
+  );
+  for (const workflow of ["waive", "solution gate", "review gate", "implementation delegate", "availableSkills", "oracle review of the draft solution contract"]) {
+    assert.ok(!catalogGuidelines.includes(workflow), `catalog guidance must stay workflow-free (found ${workflow})`);
+  }
+  // No model/provider/thinking combination is enumerated in either module.
   for (const forbidden of ["gpt-5.5", "gpt-5.6-sol", "glm-5.3", "openai-codex", "zai", "opencode-go"]) {
     assert.ok(!source.includes(forbidden), `index.ts must not enumerate concrete models or providers (found ${forbidden})`);
+    assert.ok(!instructions.includes(forbidden), `instructions.ts must not enumerate concrete models or providers (found ${forbidden})`);
   }
 });
 
 test("count-aware guidance regenerates for a resized routing snapshot", async () => {
-  const { delegateRunPromptGuidelines } = await import("./index.ts");
+  const { delegateRunPromptGuidelines } = await import("./instructions.ts");
   const guidelines = delegateRunPromptGuidelines(
     ["solution-a", "solution-b", "solution-c"],
     ["review-a", "review-b"],
@@ -379,8 +426,8 @@ test("count-aware guidance regenerates for a resized routing snapshot", async ()
 });
 
 test("availableSkills guidance states the concise progressive-disclosure semantics", async () => {
-  const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
-  // The availableSkills line lives in the delegate_run guidelines builder.
+  const source = await readFile(new URL("./instructions.ts", import.meta.url), "utf8");
+  // The availableSkills line lives in the canonical guidelines builder.
   const guidelinesStart = source.indexOf("export function delegateRunPromptGuidelines(");
   assert.ok(guidelinesStart >= 0, "delegateRunPromptGuidelines builder not found");
   const guidelines = source.slice(guidelinesStart, source.indexOf("\n}\n", guidelinesStart));
@@ -437,11 +484,12 @@ test("a non-array runtime availableSkills value fails the exact bounded error be
 
 test("no forced skill loading appears in model-visible guidance or child prompts", async () => {
   const index = await readFile(new URL("./index.ts", import.meta.url), "utf8");
+  const instructions = await readFile(new URL("./instructions.ts", import.meta.url), "utf8");
   const routes = await readFile(new URL("./routes.ts", import.meta.url), "utf8");
   const runner = await readFile(new URL("./runner.ts", import.meta.url), "utf8");
   // Nothing appends skill bodies, forces /skill:name expansion, or instructs a
   // blanket read of every selected SKILL.md.
-  for (const source of [index, routes, runner]) {
+  for (const source of [index, instructions, routes, runner]) {
     assert.doesNotMatch(source, /--append-system-prompt/);
     assert.doesNotMatch(source, /\/skill:/);
     assert.doesNotMatch(source, /readFile[^(]*\([^)]*SKILL\.md/);
@@ -475,7 +523,7 @@ test("the fixed child extension profile excludes package, presentation, and proj
 });
 
 test("public schema and runtime contain no direct Claude CLI backend", async () => {
-  const files = ["index.ts", "routing.ts", "routes.ts", "runner.ts", "supervisor.ts", "types.ts"];
+  const files = ["index.ts", "instructions.ts", "routing.ts", "routes.ts", "runner.ts", "supervisor.ts", "types.ts"];
   const forbidden = [
     "ClaudeRoute", "CLAUDE_ROUTE", "superviseClaude", "spawn(\"claude\"", "--print",
     "--no-session-persistence", "permission-mode", "allowedTools", "disallowedTools",

@@ -88,6 +88,8 @@ Delegated routing version-2 and model-catalog update: 2026-08-25 (replaced the c
 
 Delegated provider-inheritance and AgentRouter removal update: 2026-08-25 (removed the parent-provider primary preference from delegated route selection and removed every AgentRouter tier plus the `claude-opus-4-8` capability from `routing.json`; zero model-visible startup-context delta because the public role schema, tool guidance, and global instructions are unchanged; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated instruction-centralization update: 2026-08-26 (moved every model-visible delegation instruction into the canonical `instructions.ts` module, made the parent workflow tool-scoped through the active `delegate_run` prompt guidelines alone, and removed the detailed `## Delegated work` section from `agent/AGENTS.md`; `agent/AGENTS.md` drops 1,064 local tokens for every parent and every delegated child while the tool metadata, schema, and guidelines stay byte-identical; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -759,6 +761,21 @@ Probe confirmations for every lean configuration:
 - prompt-template commands (`/ts-split-scope`, `/ts-split-module`, `/codex-review`, `/codegraph-upgrade`) are absent; theme discovery is disabled by the same `--no-themes` flag rather than probe-observable.
 
 Qualitative result confirmed: removing `pi-browser-harness` provides the largest tool-schema reduction (38 schemas, about 7,700 local definition tokens), removing unrelated skill descriptions provides a smaller per-child reduction that compounds across the many fresh delegates, and selected full skill bodies consume context only when a delegate actually loads them. Provider calibration was not rerun; provider-reported input remains the authority.
+
+## 2026-08-26 delegated instruction-centralization attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration or full extension/tool inventory rerun was performed. Before values are the `HEAD` revision re-measured with the same serialization as the prior tables (`agent/AGENTS.md` re-measures as 3,571, above the older recorded baselines, because the global file grew through later unrelated sections). Tool values are byte-identical before and after, verified by suite equality checks plus a 144-combination prompt byte-parity check against the previous builders, so the deltas below come entirely from the removed global section.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| Raw `agent/AGENTS.md` | 3,571 | 2,507 | -1,064 | Always loaded through the context-file block |
+| `delegate_run` description | 82 | 82 | 0 | Active custom-tool metadata |
+| `delegate_run` prompt snippet | 13 | 13 | 0 | Included while the tool is active |
+| `delegate_run` prompt guidelines | 1,330 | 1,330 | 0 | Included while the tool is active |
+| `delegate_model_catalog` prompt guidelines | 86 | 86 | 0 | Included while the tool is active |
+| **Tool total** | **1,511** | **1,511** | **0** | Before provider-specific framing |
+
+The directly attributed model-visible reduction is -1,064 local tokens per session: the removed `## Delegated work` section of `agent/AGENTS.md`. The parent still receives the complete delegation workflow exactly once, through the active `delegate_run` prompt guidelines (unchanged bytes, 24 lines), and `delegate_model_catalog` keeps only its concise lookup guidance. Delegated children keep context-file discovery enabled, so each child also saves the same 1,064 tokens of parent orchestration policy it previously loaded but had to ignore. Sessions that never activate `delegate_run` now carry no delegation policy at all. The new `instructions.ts`, `docsync.ts`, and `render-instructions-doc.ts` files are executable TypeScript and documentation tooling, not model-visible context. Provider-reported input remains the authority and was not rerun.
 
 ## Provider-calibrated baseline probes
 

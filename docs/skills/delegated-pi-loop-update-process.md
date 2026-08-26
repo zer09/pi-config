@@ -1,11 +1,11 @@
 # Delegated Pi extension update process
 
-Purpose: maintain the native TypeScript `delegate_run` extension that runs in the parent Pi process and supervises fresh ephemeral Pi RPC children. The extension owns role routing, strict RPC JSONL, one same-session report recovery, provider-failure classification, bounded subprocess lifecycle, private event parsing, targeted cancellation, result validation, diagnostics, and cleanup. A second read-only tool, `delegate_model_catalog`, searches the validated routing models catalog before an explicitly requested one-run routing substitution.
+Purpose: maintain the native TypeScript `delegate_run` extension that runs in the parent Pi process and supervises fresh ephemeral Pi RPC children. The extension owns role routing, strict RPC JSONL, one same-session report recovery, provider-failure classification, bounded subprocess lifecycle, private event parsing, targeted cancellation, result validation, diagnostics, cleanup, and every model-visible delegation instruction through one canonical module. A second read-only tool, `delegate_model_catalog`, searches the validated routing models catalog before an explicitly requested one-run routing substitution.
 
 ## Classification and authority
 
 - Extension classification: **keep it**. Process supervision, fallback cutoffs, report recovery, shared-tree safety, and delegated child resource isolation are executable behavior.
-- Source of truth: this Pi config, ADR 0007, ADR 0008, ADR 0009, ADR 0010, and installed Pi RPC/extension documentation.
+- Source of truth: this Pi config, ADR 0007 through ADR 0011, and installed Pi RPC/extension documentation.
 - Route authority: `agent/extensions/delegated-pi-loop/routing.json`, strictly validated by `routing.ts` at load time and checked against Pi's live model catalog.
 - Child resource authority: `agent/extensions/delegated-pi-loop/resources.json`, strictly validated by `resources.ts` at parent-extension startup and rechecked at argument construction before every spawn.
 - Direct Claude Code authority: none. The extension has no direct Claude CLI backend and must not inspect, invoke, install, uninstall, or modify the user's Claude CLI.
@@ -15,8 +15,10 @@ Purpose: maintain the native TypeScript `delegate_run` extension that runs in th
 
 | Path | Responsibility |
 |---|---|
-| `agent/AGENTS.md` | Compact trigger and orchestration policy. |
-| `agent/extensions/delegated-pi-loop/index.ts` | Tool registration from one validated routing snapshot, model-visible schema/guidance, commands, child recursion suppression, and execute finalization. |
+| `agent/extensions/delegated-pi-loop/instructions.ts` | Canonical model-visible delegation instructions and builders: parent tool metadata and parameter descriptions, the parent workflow guidelines, the child role-family contracts, the base child assignment prompt with terminal-result contract and generic recursion prohibition, the fixed restart note, and the report-recovery prompt. |
+| `agent/extensions/delegated-pi-loop/index.ts` | Tool registration from one validated routing snapshot and the canonical instruction module, commands, child recursion suppression, and execute finalization. |
+| `agent/extensions/delegated-pi-loop/docsync.ts` | Documentation synchronization: renders the marked model-visible sections of `docs/delegated-pi-loop-agent-instructions.md` from the canonical exports and the routing snapshot, extracts them for checking, and rewrites them in place. |
+| `agent/extensions/delegated-pi-loop/render-instructions-doc.ts` | CLI entry (`npm run render:instructions-doc`) that regenerates the marked reference-document sections. No external dependencies. |
 | `agent/extensions/delegated-pi-loop/catalog.ts` | Read-only delegate model catalog search over the validated routing models catalog: query, provider, thinking, and limit filters with bounded deterministic output. |
 | `agent/extensions/delegated-pi-loop/protocol.ts` | Strict LF-framed RPC JSONL, prompt correlation, UI cancellation, and bounded provider-failure categories. |
 | `agent/extensions/delegated-pi-loop/monitor.ts` | Two-round Pi lifecycle validation, report extraction, activity, and structured provider-failure evidence. |
@@ -26,7 +28,7 @@ Purpose: maintain the native TypeScript `delegate_run` extension that runs in th
 | `agent/extensions/delegated-pi-loop/routing.ts` | Strict routing config loader/validator, the normalized role registry, the one shared route selector, and the registration snapshot loader. |
 | `agent/extensions/delegated-pi-loop/resources.json` | Extension-owned versioned delegated child resource policy: catalog and runtime extension allowlists plus the allowed and excluded skill sets. |
 | `agent/extensions/delegated-pi-loop/resources.ts` | Strict resource-policy loader/validator, skill-candidate resolution, and the catalog/runtime child argument builders. |
-| `agent/extensions/delegated-pi-loop/routes.ts` | Role classification, role prompts, the fixed restart note, and the terminal marker contract. |
+| `agent/extensions/delegated-pi-loop/routes.ts` | Role classification (read-only and exclusive families), role labels, route keys, and the pre-spawn oracle guard. Prompt and contract text lives in `instructions.ts`. |
 | `agent/extensions/delegated-pi-loop/result.ts` | Model-visible Markdown, terminal-marker stripping, error marking, and final cleanup. |
 | `agent/extensions/delegated-pi-loop/diagnostics.ts` | Bounded private failure diagnostics. |
 | `agent/extensions/delegated-pi-loop/manager.ts` | Concurrency, numeric IDs, active summaries, and targeted cancellation. |
@@ -38,6 +40,15 @@ Purpose: maintain the native TypeScript `delegate_run` extension that runs in th
 The retired runtime skill and the removed direct Claude CLI backend must not be restored without a new explicit decision.
 
 ## Runtime contract
+
+### Instruction ownership and tool scoping
+
+1. Every model-visible delegation instruction lives in `instructions.ts`: parent tool metadata and parameter descriptions, the complete parent workflow guidelines, the child role-family contracts, the base child assignment prompt with its attempt budget, generic recursion prohibition, and terminal-result contract, the fixed restart note, and the report-recovery prompt. Runtime modules import this text or these builders; they own no instruction text of their own.
+2. The parent receives the complete delegation workflow exactly once, through the active `delegate_run` tool's `promptGuidelines`. `delegate_model_catalog` receives only its own concise lookup guidance and never the delegation workflow. Tool-scoped prompt content is absent when the tool is inactive.
+3. The delegated-child branch registers neither tool and returns before routing or resource loading, so children receive none of the parent tool guidelines. The child prompt carries one short generic recursion prohibition that never names or explains `delegate_run`.
+4. `agent/AGENTS.md` carries no delegation policy. The former detailed `## Delegated work` section was removed with instruction centralization (ADR 0011); do not reintroduce delegation policy there, because every delegated child loads `AGENTS.md` as a context file and must not pay for parent orchestration policy.
+5. The semantic role-family policy stays in the machine-policy modules: families and the normalized registry derive from `routing.ts`, and the instruction builders consume those types. An unknown runtime family value fails closed at the `roleFamilyContract` boundary.
+6. The marked model-visible sections of `docs/delegated-pi-loop-agent-instructions.md` are generated from the canonical exports by `docsync.ts`. After any instruction change, run `npm run render:instructions-doc`; `docsync.test.ts` fails when the checked-in content drifts. The surrounding runtime explanation stays manually authored, and the marker mechanism must stay a fixed named-section renderer, not a general-purpose Markdown template language.
 
 ### Parent and child boundaries
 
@@ -143,9 +154,9 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 
 1. Read installed Pi `docs/rpc.md`, `docs/extensions.md`, `docs/json.md`, `docs/environment-variables.md`, and `docs/tui.md` completely.
 2. Read ADR 0007, ADR 0008, ADR 0009, this document, and every owned source file.
-3. Preserve `routing.json` route intent, role contracts, manager IDs, cancellation, cleanup, deadlines, privacy, diagnostics, and recursive suppression.
+3. Preserve `routing.json` route intent, role contracts (`instructions.ts`), manager IDs, cancellation, cleanup, deadlines, privacy, diagnostics, and recursive suppression.
 4. Update tests with behavior changes.
-5. Update `agent/AGENTS.md`, root `README.md`, ADR current-policy text, changelog, and context-cost accounting when the public tool contract changes.
+5. Update root `README.md`, ADR current-policy text, changelog, and context-cost accounting when the public tool contract changes; regenerate the reference document's generated sections with `npm run render:instructions-doc`. Never re-add delegation policy to `agent/AGENTS.md`.
 6. Do not run paid model inference without explicit authorization.
 
 ## Required checks
@@ -158,6 +169,13 @@ npm test
 ```
 
 Run strict TypeScript with `strict`, `noUnusedLocals`, and `noUnusedParameters` against the installed Pi declarations.
+
+Regenerate the instruction reference document after any instruction change and confirm it is current:
+
+```bash
+cd ~/.pi/agent/extensions/delegated-pi-loop
+npm run render:instructions-doc
+```
 
 Validate extension loading without inference:
 
@@ -196,6 +214,8 @@ pi $LEAN --list-models openai-codex-cgpt7/gpt-5.5
 
 Also verify:
 
+- the complete parent delegation workflow reaches the model only through the active `delegate_run` promptGuidelines; `delegate_model_catalog` keeps only its concise lookup guidance; the delegated-child branch registers neither tool and returns before routing or resource loading; the child prompt keeps exactly one generic recursion prohibition that never names `delegate_run`;
+- `agent/AGENTS.md` stays free of delegation policy and duplicated workflow wording, every role family receives its centralized contract from `instructions.ts`, unknown families fail closed at the contract boundary, and the checked-in instruction document's generated sections match the canonical exports for the shipped routing snapshot (covered by `instructions.test.ts` and `docsync.test.ts`);
 - `routing.json` passes the strict validator and a missing or invalid file fails closed with no compiled-route fallback; a version-1 document is rejected with the migration error; assignment validation rejects empty, oversized (beyond 26 per indexed family), malformed, blank, or unknown-profile entries, non-string singleton assignments, missing or extra family keys, and an oracle profile without the rejected override policy; duplicate profiles inside and across the solution/review arrays stay valid;
 - the normalized role registry derives ordered role ids with zero-based slots, the `delegate_run` role enum and count-aware guidance regenerate from the snapshot, unknown role ids fail closed at the registry boundary before admission, artifacts, or spawn, and `delegate_model_catalog` query, provider, thinking, and limit filters, zero-match bounding, truncation flags, and disabled-provider exclusion behave as specified;
 - `resources.json` passes the strict validator, the shipped policy inventory matches the pinned allowed and excluded sets, and a missing, invalid, escaping, overlapping, or profile-violating policy fails closed before `delegate_run` registration with no broad-discovery fallback; the catalog and runtime lists must resolve to the exact canonical entry files in the exact canonical order (extra contained entries such as a listed `footer` extension, reordered fixed entries, and alternate same-directory entry files all fail closed); repeated keys are rejected in every object scope, including the nested `extensions.catalog`, `extensions.runtime`, `skills.allowed`, and `skills.excluded` containers, while key-like text inside string values stays accepted;

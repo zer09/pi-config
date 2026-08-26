@@ -10,7 +10,8 @@ import {
   removeDirectory,
 } from "./artifacts.ts";
 import { interruptionSource } from "./manager.ts";
-import { buildDelegatePrompt, oracleGuard, roleLabel, routeKey } from "./routes.ts";
+import { buildDelegatePrompt } from "./instructions.ts";
+import { oracleGuard, roleLabel, routeKey } from "./routes.ts";
 import { loadRoutingConfig, oracleModelIds, requireRole, selectRoutes } from "./routing.ts";
 import { buildDelegateResourceSelection, loadDelegateResources } from "./resources.ts";
 import {

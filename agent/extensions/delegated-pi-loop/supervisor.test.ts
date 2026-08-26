@@ -4,7 +4,7 @@ import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os";
 import path from "node:path";
 import { createPrivateDirectory } from "./artifacts.ts";
-import { RECOVERY_PROMPT } from "./protocol.ts";
+import { REPORT_RECOVERY_PROMPT } from "./instructions.ts";
 import {
   supervisePi,
   terminateProcessGroupWith,
@@ -308,7 +308,7 @@ test("one persistent child PID handles exact initial and recovery prompts", asyn
   assert.equal(commands[0].pid, commands[1].pid);
   assert.deepEqual(commands.map((item) => item.command.id), ["prompt-1", "prompt-2"]);
   assert.equal(commands[0].command.message, "ORIGINAL PRIVATE TASK");
-  assert.equal(commands[1].command.message, RECOVERY_PROMPT);
+  assert.equal(commands[1].command.message, REPORT_RECOVERY_PROMPT);
   const report = await readFile(path.join(attemptDir, "report.md"), "utf8");
   assert.match(report, /^Recovered report/m);
   assert.doesNotMatch(report, /first invalid/);

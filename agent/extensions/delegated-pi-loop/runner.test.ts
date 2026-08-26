@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { RESTART_AFTER_WORK_NOTE } from "./routes.ts";
+import { RESTART_AFTER_WORK_NOTE } from "./instructions.ts";
 import { buildDelegateResourceSelection, readResourcesFile } from "./resources.ts";
 import { validateRoutingConfig } from "./routing.ts";
 import { finalizeDelegateRun } from "./result.ts";

@@ -4,8 +4,9 @@ import { chmod, stat } from "node:fs/promises";
 import path from "node:path";
 import { atomicWriteJson, atomicWriteText, readPrivateText } from "./artifacts.ts";
 import { interruptionSource } from "./manager.ts";
+import { REPORT_RECOVERY_PROMPT } from "./instructions.ts";
 import { PiRpcMonitor } from "./monitor.ts";
-import { RECOVERY_PROMPT, RpcJsonlProtocol, type ProtocolRecord } from "./protocol.ts";
+import { RpcJsonlProtocol, type ProtocolRecord } from "./protocol.ts";
 import { routeKey } from "./routes.ts";
 import type {
   AttemptStatus,
@@ -562,7 +563,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     monitor.beginRecovery();
     let command: string;
     try {
-      command = protocol.beginPrompt(2, RECOVERY_PROMPT);
+      command = protocol.beginPrompt(2, REPORT_RECOVERY_PROMPT);
     } catch {
       requestTermination("invalid_stream");
       return;

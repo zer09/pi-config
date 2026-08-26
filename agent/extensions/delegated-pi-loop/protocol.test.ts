@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { REPORT_RECOVERY_PROMPT } from "./instructions.ts";
 import {
   classifyProviderFailure,
-  RECOVERY_PROMPT,
   RpcJsonlProtocol,
   serializePromptCommand,
   type ProtocolRecord,
@@ -20,8 +20,8 @@ test("serializes exact prompt-1 and prompt-2 LF commands", () => {
     '{"id":"prompt-1","type":"prompt","message":"task"}\n',
   );
   assert.equal(
-    serializePromptCommand(2, RECOVERY_PROMPT),
-    `${JSON.stringify({ id: "prompt-2", type: "prompt", message: RECOVERY_PROMPT })}\n`,
+    serializePromptCommand(2, REPORT_RECOVERY_PROMPT),
+    `${JSON.stringify({ id: "prompt-2", type: "prompt", message: REPORT_RECOVERY_PROMPT })}\n`,
   );
 });
 
@@ -144,12 +144,12 @@ test("classifies credit, quota, billing, usage, auth, rate, and availability fai
 });
 
 test("the recovery prompt requires the reason line with exact allowed codes for non-completed results", () => {
-  assert.match(RECOVERY_PROMPT, /one DELEGATE_REASON line directly above the marker with one exact allowed code/);
-  assert.match(RECOVERY_PROMPT, /no prose, paths, or details/);
-  assert.match(RECOVERY_PROMPT, /BLOCKED allows evidence_inaccessible,/);
-  assert.match(RECOVERY_PROMPT, /FAILED allows\s+execution_failure, verification_failure, internal_inconsistency,/);
-  assert.match(RECOVERY_PROMPT, /COMPLETED takes no reason line; reviews with findings must\s+use COMPLETED/);
+  assert.match(REPORT_RECOVERY_PROMPT, /one DELEGATE_REASON line directly above the marker with one exact allowed code/);
+  assert.match(REPORT_RECOVERY_PROMPT, /no prose, paths, or details/);
+  assert.match(REPORT_RECOVERY_PROMPT, /BLOCKED allows evidence_inaccessible,/);
+  assert.match(REPORT_RECOVERY_PROMPT, /FAILED allows\s+execution_failure, verification_failure, internal_inconsistency,/);
+  assert.match(REPORT_RECOVERY_PROMPT, /COMPLETED takes no reason line; reviews with findings must\s+use COMPLETED/);
   // The recovery prompt stays marker-protocol focused: it never carries raw
   // output, provider text, or paths.
-  assert.doesNotMatch(RECOVERY_PROMPT, /http|\/home\/|token=/i);
+  assert.doesNotMatch(REPORT_RECOVERY_PROMPT, /http|\/home\/|token=/i);
 });
