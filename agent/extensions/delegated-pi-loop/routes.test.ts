@@ -9,7 +9,15 @@ import {
   roleLabel,
   routeKey,
 } from "./routes.ts";
-import { DELEGATE_ROLES } from "./types.ts";
+import { loadRoutingConfig, roleIds } from "./routing.ts";
+import type { ResolvedRole } from "./routing.ts";
+
+/** Test fixture: build a registry-style resolved role from a known role id. */
+function role(id: string): ResolvedRole {
+  const family = id.replace(/-[a-z]$/, "") as ResolvedRole["family"];
+  const slot = /-[a-z]$/.test(id) ? id.charCodeAt(id.length - 1) - "a".charCodeAt(0) : undefined;
+  return slot === undefined ? { id, family, profile: `${family}-profile` } : { id, family, profile: `${family}-profile`, slot };
+}
 
 const ORACLE_MODEL = "gpt-5.6-sol";
 
@@ -21,75 +29,101 @@ test("routeKey keeps the Pi-only provider/model:thinking format", () => {
 });
 
 test("classifies role permissions and sequential roles", () => {
-  assert.equal(roleIsReadOnly("solution-a"), true);
-  assert.equal(roleIsReadOnly("solution-d"), true);
-  assert.equal(roleIsReadOnly("solution-e"), true);
-  assert.equal(roleIsReadOnly("solution-f"), true);
-  assert.equal(roleIsReadOnly("review-c"), true);
-  assert.equal(roleIsReadOnly("review-d"), true);
-  assert.equal(roleIsReadOnly("review-e"), true);
-  assert.equal(roleIsReadOnly("verification"), true);
-  assert.equal(roleIsReadOnly("oracle"), true);
-  assert.equal(roleIsReadOnly("implementation"), false);
+  assert.equal(roleIsReadOnly(role("solution-a")), true);
+  assert.equal(roleIsReadOnly(role("solution-d")), true);
+  assert.equal(roleIsReadOnly(role("solution-e")), true);
+  assert.equal(roleIsReadOnly(role("solution-f")), true);
+  assert.equal(roleIsReadOnly(role("review-c")), true);
+  assert.equal(roleIsReadOnly(role("review-d")), true);
+  assert.equal(roleIsReadOnly(role("review-e")), true);
+  assert.equal(roleIsReadOnly(role("verification")), true);
+  assert.equal(roleIsReadOnly(role("oracle")), true);
+  assert.equal(roleIsReadOnly(role("implementation")), false);
   // Verification is read-only but not exclusive: DelegateManager owns its
   // bounded verification-only overlap rule with the four-delegate cap.
-  assert.equal(roleIsExclusive("verification"), false);
-  assert.equal(roleIsExclusive("remediation"), true);
-  assert.equal(roleIsExclusive("implementation"), true);
-  assert.equal(roleIsExclusive("oracle"), true);
-  assert.equal(roleIsExclusive("review-a"), false);
-  assert.equal(roleIsExclusive("review-d"), false);
-  assert.equal(roleIsExclusive("review-e"), false);
+  assert.equal(roleIsExclusive(role("verification")), false);
+  assert.equal(roleIsExclusive(role("remediation")), true);
+  assert.equal(roleIsExclusive(role("implementation")), true);
+  assert.equal(roleIsExclusive(role("oracle")), true);
+  assert.equal(roleIsExclusive(role("review-a")), false);
+  assert.equal(roleIsExclusive(role("review-d")), false);
+  assert.equal(roleIsExclusive(role("review-e")), false);
 });
 
-test("exposes the oracle role in the model-visible role enum", () => {
-  assert.ok(DELEGATE_ROLES.includes("oracle"));
-  assert.equal(DELEGATE_ROLES.filter((role) => role === "oracle").length, 1);
+test("exposes the oracle role in the derived model-visible role registry", () => {
+  const registry = loadRoutingConfig().roles;
+  assert.ok(registry.has("oracle"));
+  assert.equal([...registry.keys()].filter((id) => id === "oracle").length, 1);
+  assert.equal(registry.get("oracle")!.family, "oracle");
+  assert.equal(registry.get("oracle")!.slot, undefined);
 });
 
-test("exposes six solution roles and five review roles in the model-visible role enum", () => {
-  const solutions = DELEGATE_ROLES.filter((role) => role.startsWith("solution-"));
-  const reviews = DELEGATE_ROLES.filter((role) => role.startsWith("review-"));
+test("the shipped snapshot derives six solution roles and five review roles in canonical order", () => {
+  const ids = roleIds(loadRoutingConfig());
+  const solutions = ids.filter((id) => id.startsWith("solution-"));
+  const reviews = ids.filter((id) => id.startsWith("review-"));
   assert.deepEqual(solutions, ["solution-a", "solution-b", "solution-c", "solution-d", "solution-e", "solution-f"]);
   assert.deepEqual(reviews, ["review-a", "review-b", "review-c", "review-d", "review-e"]);
+  // Singleton families keep their fixed ids and stay present exactly once.
+  assert.deepEqual(
+    ids.filter((id) => ["implementation", "remediation", "verification", "oracle"].includes(id)),
+    ["implementation", "remediation", "verification", "oracle"],
+  );
 });
 
 test("role labels carry the plain role without a backend suffix", () => {
-  assert.equal(roleLabel("solution-a"), "solution-a");
-  assert.equal(roleLabel("oracle"), "oracle");
-  assert.equal(roleLabel("implementation"), "implementation");
+  assert.equal(roleLabel(role("solution-a")), "solution-a");
+  assert.equal(roleLabel(role("oracle")), "oracle");
+  assert.equal(roleLabel(role("implementation")), "implementation");
 });
 
 test("main-Sol skip detection is exact, model-id based, and covers every configured oracle model", () => {
   const models = new Set([ORACLE_MODEL]);
   // Exact model id triggers the skip regardless of the serving provider.
-  assert.match(oracleGuard("oracle", ORACLE_MODEL, models)?.message ?? "", /Skip the oracle role/);
+  assert.match(oracleGuard(role("oracle"), ORACLE_MODEL, models)?.message ?? "", /Skip the oracle role/);
   assert.match(
-    oracleGuard("oracle", ORACLE_MODEL, models)?.message ?? "",
+    oracleGuard(role("oracle"), ORACLE_MODEL, models)?.message ?? "",
     /gpt-5\.6-sol.*finalize the solution contract directly/,
   );
   // Lookalike and sibling model ids never trigger the skip.
-  assert.equal(oracleGuard("oracle", "gpt-5.6-sol-latest", models), undefined);
-  assert.equal(oracleGuard("oracle", "gpt-5.5", models), undefined);
-  assert.equal(oracleGuard("oracle", undefined, models), undefined);
-  assert.equal(oracleGuard("oracle", "claude-opus-5", models), undefined);
+  assert.equal(oracleGuard(role("oracle"), "gpt-5.6-sol-latest", models), undefined);
+  assert.equal(oracleGuard(role("oracle"), "gpt-5.5", models), undefined);
+  assert.equal(oracleGuard(role("oracle"), undefined, models), undefined);
+  assert.equal(oracleGuard(role("oracle"), "claude-opus-5", models), undefined);
   // The guard only constrains the oracle role.
-  assert.equal(oracleGuard("verification", ORACLE_MODEL, models), undefined);
+  assert.equal(oracleGuard(role("verification"), ORACLE_MODEL, models), undefined);
   // A differently configured oracle model set changes the skip target.
   const alternates = new Set(["gpt-5.5"]);
-  assert.equal(oracleGuard("oracle", "gpt-5.5", alternates) instanceof Error, true);
-  assert.equal(oracleGuard("oracle", ORACLE_MODEL, alternates), undefined);
+  assert.equal(oracleGuard(role("oracle"), "gpt-5.5", alternates) instanceof Error, true);
+  assert.equal(oracleGuard(role("oracle"), ORACLE_MODEL, alternates), undefined);
   // Multi-tier oracle profiles: a parent matching any configured oracle
   // model is rejected, not only the first tier's model.
   const twoTier = new Set(["model-x", "model-y"]);
-  assert.match(oracleGuard("oracle", "model-y", twoTier)?.message ?? "", /parent session already runs model-y/);
-  assert.match(oracleGuard("oracle", "model-x", twoTier)?.message ?? "", /parent session already runs model-x/);
-  assert.equal(oracleGuard("oracle", "model-z", twoTier), undefined);
-  assert.equal(oracleGuard("oracle", undefined, twoTier), undefined);
+  assert.match(oracleGuard(role("oracle"), "model-y", twoTier)?.message ?? "", /parent session already runs model-y/);
+  assert.match(oracleGuard(role("oracle"), "model-x", twoTier)?.message ?? "", /parent session already runs model-x/);
+  assert.equal(oracleGuard(role("oracle"), "model-z", twoTier), undefined);
+  assert.equal(oracleGuard(role("oracle"), undefined, twoTier), undefined);
+});
+
+test("role contracts are family-owned for every family including derived high slots", () => {
+  const solutionZ = role("solution-z");
+  const reviewZ = role("review-z");
+  // Derived high-slot roles keep their family contract without prefix logic.
+  assert.match(buildDelegatePrompt(solutionZ, "/tmp/project", "Investigate."), /independent read-only solution investigation/);
+  assert.match(buildDelegatePrompt(reviewZ, "/tmp/project", "Review."), /independent read-only implementation review/);
+  assert.match(buildDelegatePrompt(role("verification"), "/tmp/project", "Verify."), /read-only finding verification/);
+  assert.match(buildDelegatePrompt(role("remediation"), "/tmp/project", "Fix."), /focused remediation contract/);
+  assert.match(buildDelegatePrompt(role("implementation"), "/tmp/project", "Implement."), /assigned solution contract/);
+  // The task header carries the exact derived id.
+  assert.match(buildDelegatePrompt(solutionZ, "/tmp/project", "Investigate."), /# Task: solution-z/);
+  // Classification follows the family, never the id text.
+  assert.equal(roleIsReadOnly(solutionZ), true);
+  assert.equal(roleIsExclusive(reviewZ), false);
+  assert.equal(roleIsExclusive(role("remediation")), true);
 });
 
 test("builds the oracle role contract with verdict and evidence requirements", () => {
-  const prompt = buildDelegatePrompt("oracle", "/tmp/project", "Review the draft contract.");
+  const prompt = buildDelegatePrompt(role("oracle"), "/tmp/project", "Review the draft contract.");
   assert.match(prompt, /read-only advisory solution oracle/);
   assert.match(prompt, /Do not edit files, mutate Git, write to hosted services, implement, or start delegates/);
   assert.match(prompt, /exactly one verdict, VALID or REVISE/);
@@ -103,7 +137,7 @@ test("builds the oracle role contract with verdict and evidence requirements", (
 });
 
 test("builds a non-recursive prompt with terminal contract", () => {
-  const prompt = buildDelegatePrompt("review-a", "/tmp/project", "Review the candidate.");
+  const prompt = buildDelegatePrompt(role("review-a"), "/tmp/project", "Review the candidate.");
   assert.match(prompt, /Do not spawn or orchestrate another Pi instance/);
   assert.match(prompt, /independent read-only implementation review/i);
   assert.match(prompt, /DELEGATE_RESULT: COMPLETED/);
@@ -111,7 +145,7 @@ test("builds a non-recursive prompt with terminal contract", () => {
 });
 
 test("terminal instructions require one exact reason code for BLOCKED and FAILED", () => {
-  const prompt = buildDelegatePrompt("implementation", "/tmp/project", "Implement the contract.");
+  const prompt = buildDelegatePrompt(role("implementation"), "/tmp/project", "Implement the contract.");
   // The reason line sits directly above the marker, exactly once, code only.
   assert.match(prompt, /A BLOCKED or FAILED result must carry exactly one reason line directly above the marker/);
   assert.match(prompt, /DELEGATE_REASON: <code>/);
@@ -149,14 +183,14 @@ test("the restart note is fixed, sanitized, and appended at most once", () => {
   assert.match(RESTART_AFTER_WORK_NOTE, /inspect the existing work before acting/);
   assert.match(RESTART_AFTER_WORK_NOTE, /do not repeat an irreversible operation/);
 
-  const plain = buildDelegatePrompt("review-a", "/tmp/project", "Review the candidate.");
-  const restarted = buildDelegatePrompt("review-a", "/tmp/project", "Review the candidate.", {
+  const plain = buildDelegatePrompt(role("review-a"), "/tmp/project", "Review the candidate.");
+  const restarted = buildDelegatePrompt(role("review-a"), "/tmp/project", "Review the candidate.", {
     restartAfterWork: true,
   });
   assert.equal(restarted.split(RESTART_AFTER_WORK_NOTE).length - 1, 1);
   assert.ok(restarted.length > plain.length);
   // Regenerating from the same original assignment never stacks the note.
-  const restartedTwice = buildDelegatePrompt("review-a", "/tmp/project", "Review the candidate.", {
+  const restartedTwice = buildDelegatePrompt(role("review-a"), "/tmp/project", "Review the candidate.", {
     restartAfterWork: true,
   });
   assert.equal(restartedTwice, restarted);

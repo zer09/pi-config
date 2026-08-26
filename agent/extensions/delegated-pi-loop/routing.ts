@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { DELEGATE_ROLES, THINKING_LEVELS } from "./types.ts";
+import { THINKING_LEVELS } from "./types.ts";
 import type { DelegateRole, PiRoute, RoutingOverride, ThinkingLevel } from "./types.ts";
 
 /**
@@ -9,9 +9,49 @@ import type { DelegateRole, PiRoute, RoutingOverride, ThinkingLevel } from "./ty
  * It is deliberately not coupled to `agent/settings.json`, enabled models,
  * `models.json`, or `models-store.json`: a missing or invalid file fails
  * closed with no compiled-route fallback.
+ *
+ * Version 2 replaced the concrete per-role mapping with family assignments:
+ * ordered `solution`/`review` profile arrays derive indexed role ids
+ * (`solution-a`..`solution-z`, `review-a`..`review-z`, capped at 26 per
+ * family) and the four singleton families carry exactly one profile each.
+ * The normalized role registry below is the only role authority for
+ * validation, selection, classification, contracts, and tool schemas.
  */
 
-export const ROUTING_CONFIG_VERSION = 1;
+export const ROUTING_CONFIG_VERSION = 2;
+
+/** The six supported semantic role families; role count per family is policy, not code. */
+export const ROLE_FAMILIES = [
+  "solution",
+  "review",
+  "implementation",
+  "remediation",
+  "verification",
+  "oracle",
+] as const;
+
+export type RoleFamily = (typeof ROLE_FAMILIES)[number];
+
+/** Families whose assignment is an ordered array of profiles deriving lettered role ids. */
+export const INDEXED_ROLE_FAMILIES = ["solution", "review"] as const;
+
+/** Families whose assignment is exactly one profile string; they stay singleton. */
+export const SINGLETON_ROLE_FAMILIES = ["implementation", "remediation", "verification", "oracle"] as const;
+
+/** Indexed families derive at most `family-a`..`family-z` role ids. */
+export const MAX_INDEXED_FAMILY_ROLES = 26;
+
+/**
+ * One normalized resolved role from the routing snapshot. `slot` is the
+ * zero-based position inside an indexed family assignment; singleton roles
+ * carry no slot and use the family name as their id.
+ */
+export interface ResolvedRole {
+  readonly id: string;
+  readonly family: RoleFamily;
+  readonly profile: string;
+  readonly slot?: number;
+}
 
 export interface ProviderCapability {
   readonly thinking: readonly ThinkingLevel[];
@@ -35,10 +75,13 @@ export interface RoutingProfile {
   readonly tiers: readonly RoutingTier[];
 }
 
-export interface OracleSafety {
-  /** Every model reachable through the Oracle profile's tiers; a parent running any member skips the oracle. */
-  readonly selfReviewModelIds: readonly string[];
-}
+/**
+ * Validated normalized role registry: derived role id to resolved role, in
+ * canonical order (indexed solution slots, indexed review slots, then the
+ * four singleton families). Built only by `validateRoutingConfig` and used
+ * for every runtime role decision so unknown ids can never fall through.
+ */
+export type RoleRegistry = ReadonlyMap<string, ResolvedRole>;
 
 export interface RoutingConfig {
   readonly version: number;
@@ -46,8 +89,7 @@ export interface RoutingConfig {
   readonly disabledProviders: readonly string[];
   readonly models: Readonly<Record<string, ModelCapability>>;
   readonly profiles: Readonly<Record<string, RoutingProfile>>;
-  readonly roles: Readonly<Record<DelegateRole, { readonly profile: string }>>;
-  readonly oracleSafety: OracleSafety;
+  readonly roles: RoleRegistry;
 }
 
 export interface RouteSelectionOptions {
@@ -174,11 +216,71 @@ function parseProfile(value: unknown, name: string, config: {
   return { overridePolicy, tiers };
 }
 
+const ROLE_LETTERS = "abcdefghijklmnopqrstuvwxyz";
+
+/**
+ * Validates the version-2 family assignments and derives the normalized role
+ * registry. Indexed families are ordered non-empty arrays capped at 26 that
+ * may repeat a profile inside and across families; singleton families must be
+ * exactly one profile string. Role ids derive from the family and slot, never
+ * from prefix parsing at runtime.
+ */
+function parseAssignments(value: unknown, profiles: Readonly<Record<string, RoutingProfile>>): RoleRegistry {
+  if (!isRecord(value)) fail("assignments must be an object");
+  exactKeys(value, [...ROLE_FAMILIES], "assignments");
+  for (const family of ROLE_FAMILIES) {
+    // exactKeys catches extra keys only; every family key must also exist.
+    if (value[family] === undefined) fail(`assignments.${family} is required`);
+  }
+  const roles = new Map<string, ResolvedRole>();
+  for (const family of INDEXED_ROLE_FAMILIES) {
+    const assignment = value[family];
+    if (!Array.isArray(assignment) || assignment.length === 0) {
+      fail(`assignments.${family} must be a non-empty ordered array of profile names`);
+    }
+    if (assignment.length > MAX_INDEXED_FAMILY_ROLES) {
+      fail(
+        `assignments.${family} lists ${assignment.length} profiles, but indexed families support at most ${MAX_INDEXED_FAMILY_ROLES} roles (${family}-a..${family}-z)`,
+      );
+    }
+    assignment.forEach((profile, slot) => {
+      if (!nonBlankString(profile)) {
+        fail(`assignments.${family}[${slot}] must be a non-empty, non-whitespace-only profile name`);
+      }
+      if (profiles[profile] === undefined) {
+        fail(`assignments.${family}[${slot}] references unknown profile "${profile}"`);
+      }
+      const id = `${family}-${ROLE_LETTERS[slot]!}`;
+      roles.set(id, { id, family, profile, slot });
+    });
+  }
+  for (const family of SINGLETON_ROLE_FAMILIES) {
+    const profile = value[family];
+    if (typeof profile !== "string" || !nonBlankString(profile)) {
+      fail(`assignments.${family} must be exactly one non-empty, non-whitespace-only profile name string`);
+    }
+    if (profiles[profile] === undefined) {
+      fail(`assignments.${family} references unknown profile "${profile}"`);
+    }
+    roles.set(family, { id: family, family, profile });
+  }
+  return roles;
+}
+
 /** Strictly validates and normalizes one parsed routing config document. */
 export function validateRoutingConfig(value: unknown): RoutingConfig {
   if (!isRecord(value)) fail("document must be a JSON object");
-  exactKeys(value, ["version", "thinkingLevels", "disabledProviders", "models", "profiles", "roles", "oracleSafety"], "document");
-  if (value.version !== ROUTING_CONFIG_VERSION) fail(`version must be exactly ${ROUTING_CONFIG_VERSION}`);
+  // The version gate runs before the key check so a version-1 document gets
+  // one clear migration error instead of a confusing unknown-key failure.
+  if (value.version !== ROUTING_CONFIG_VERSION) {
+    if (value.version === 1) {
+      fail(
+        "version 1 was removed: migrate the concrete v1 roles mapping and oracleSafety.selfReviewModelIds into the version 2 assignments object; the oracle self-review set now derives from the assigned oracle profile",
+      );
+    }
+    fail(`version must be exactly ${ROUTING_CONFIG_VERSION}`);
+  }
+  exactKeys(value, ["version", "thinkingLevels", "disabledProviders", "models", "profiles", "assignments"], "document");
   const thinkingLevels = parseThinkingLevels(value.thinkingLevels);
   const scale = [...thinkingLevels];
   const disabledProviders = value.disabledProviders === undefined
@@ -211,54 +313,15 @@ export function validateRoutingConfig(value: unknown): RoutingConfig {
     profiles[name] = parseProfile(profileValue, name, { scale, models });
   }
 
-  if (!isRecord(value.roles)) fail("roles must be an object");
-  const roleNames = Object.keys(value.roles).sort();
-  const expectedRoles = [...DELEGATE_ROLES].sort();
-  if (roleNames.length !== expectedRoles.length || roleNames.some((role, index) => role !== expectedRoles[index])) {
-    fail("roles must map exactly every delegate role and no extra role");
-  }
-  const roles = {} as Record<DelegateRole, { readonly profile: string }>;
-  for (const role of DELEGATE_ROLES) {
-    const roleValue = value.roles[role];
-    if (!isRecord(roleValue)) fail(`roles.${role} must be an object`);
-    exactKeys(roleValue, ["profile"], `roles.${role}`);
-    if (!nonBlankString(roleValue.profile)) fail(`roles.${role}.profile must not be empty or whitespace-only`);
-    if (profiles[roleValue.profile] === undefined) {
-      fail(`roles.${role}.profile "${String(roleValue.profile)}" is not a configured profile`);
-    }
-    roles[role] = { profile: roleValue.profile };
-  }
+  const roles = parseAssignments(value.assignments, profiles);
 
-  if (!isRecord(value.oracleSafety)) fail("oracleSafety must be an object");
-  exactKeys(value.oracleSafety, ["selfReviewModelIds"], "oracleSafety");
-  const selfReviewModelIds = uniqueStrings(
-    value.oracleSafety.selfReviewModelIds,
-    "oracleSafety.selfReviewModelIds",
-    { identifiers: true },
-  );
-  const oracleProfile = profiles[roles.oracle.profile]!;
   // The oracle invariant must be explicit: a missing policy defaults to
   // "allowed", and an allowed policy would let the oracle role be rerouted.
+  const oracleRole = roles.get("oracle")!;
+  const oracleProfile = profiles[oracleRole.profile]!;
   if (oracleProfile.overridePolicy !== "rejected") {
-    fail(`profiles.${roles.oracle.profile}.overridePolicy must be "rejected" for the oracle role`);
+    fail(`profiles.${oracleRole.profile}.overridePolicy must be "rejected" for the oracle role`);
   }
-  // The self-review set must cover every model reachable through the
-  // configured Oracle profile, not only the first tier: a parent running
-  // any tier model must skip the oracle instead of reviewing its own work.
-  const oracleTierModels = [...new Set(oracleProfile.tiers.map((tier) => tier.model))].sort();
-  const declaredModels = [...selfReviewModelIds].sort();
-  if (
-    oracleTierModels.length !== declaredModels.length
-    || oracleTierModels.some((model, index) => model !== declaredModels[index])
-  ) {
-    fail(
-      `oracleSafety.selfReviewModelIds must be exactly every model in the oracle profile's tiers: ${
-        oracleTierModels.map((model) => `"${model}"`).join(", ")
-      }`,
-    );
-  }
-
-  const oracleSafety: OracleSafety = { selfReviewModelIds };
 
   // A disabled provider must never silently empty a configured tier: disabling
   // a provider that a tier depends on requires updating that tier explicitly.
@@ -271,7 +334,7 @@ export function validateRoutingConfig(value: unknown): RoutingConfig {
     });
   }
 
-  return { version: value.version, thinkingLevels, disabledProviders, models, profiles, roles, oracleSafety };
+  return { version: value.version, thinkingLevels, disabledProviders, models, profiles, roles };
 }
 
 function eligibleProviders(
@@ -343,8 +406,18 @@ function modelPoolRoutes(config: RoutingConfig, model: string, selection: RouteS
   return poolRoutes(model, entries, selection);
 }
 
-function validateOverrideShape(override: RoutingOverride): void {
-  if (override.reason.trim().length === 0) {
+/**
+ * Validates an untrusted runtime override as `unknown` and narrows it to the
+ * safe `RoutingOverride` shape. Runs before any field read or exclusion Set
+ * construction: Pi tool_call handlers can mutate validated input after
+ * schema validation, and direct callers can bypass the tool schema entirely.
+ * Every message is fixed and bounded; malformed values are never echoed.
+ */
+function validateOverrideShape(override: unknown): RoutingOverride {
+  if (!isRecord(override)) {
+    throw new Error("routingOverride must be an object");
+  }
+  if (!nonBlankString(override.reason)) {
     throw new Error("routingOverride requires a non-empty reason");
   }
   const operative = override.provider !== undefined
@@ -359,27 +432,29 @@ function validateOverrideShape(override: RoutingOverride): void {
   }
   for (const field of ["provider", "model", "thinking"] as const) {
     const value = override[field];
-    if (value !== undefined && value.trim().length === 0) {
+    if (value !== undefined && !nonBlankString(value)) {
       throw new Error(`routingOverride.${field} must be a non-empty string`);
     }
   }
   if (override.excludeProviders !== undefined) {
-    if (override.excludeProviders.length === 0) {
+    if (!Array.isArray(override.excludeProviders) || override.excludeProviders.length === 0) {
       throw new Error("routingOverride.excludeProviders must be a non-empty array");
     }
     for (const provider of override.excludeProviders) {
-      if (provider.trim().length === 0) throw new Error("routingOverride.excludeProviders entries must be non-empty");
+      if (!nonBlankString(provider)) {
+        throw new Error("routingOverride.excludeProviders entries must be non-empty");
+      }
     }
   }
+  return override as unknown as RoutingOverride;
 }
 
 type OverrideSelection =
   | { readonly kind: "tiers"; readonly tiers: readonly RoutingTier[] }
   | { readonly kind: "model-pool"; readonly model: string };
 
-/** Resolves an override into its selection, enforcing capability and policy checks. */
+/** Resolves an already-validated override into its selection, enforcing capability and policy checks. */
 function overrideSelection(config: RoutingConfig, profile: RoutingProfile, override: RoutingOverride): OverrideSelection {
-  validateOverrideShape(override);
   if (profile.overridePolicy === "rejected") {
     throw new Error("routingOverride is not allowed for this role's routing profile");
   }
@@ -417,9 +492,36 @@ function overrideSelection(config: RoutingConfig, profile: RoutingProfile, overr
   return { kind: "tiers", tiers: profile.tiers };
 }
 
-/** Every model reachable through the configured Oracle profile, for main-model self-review prevention. */
+/** Every model reachable through the assigned Oracle profile, for main-model self-review prevention. */
 export function oracleModelIds(config: RoutingConfig): ReadonlySet<string> {
-  return new Set(config.oracleSafety.selfReviewModelIds);
+  const oracleProfile = config.profiles[requireRole(config, "oracle").profile]!;
+  // Every tier counts: a parent running any tier model must skip the
+  // oracle instead of reviewing its own work.
+  return new Set(oracleProfile.tiers.map((tier) => tier.model));
+}
+
+/**
+ * Resolves one role id against the normalized registry, or throws a bounded
+ * error. Every runtime consumer (route selection, prompts, classification,
+ * concurrency, oracle checks) resolves through this, so an unknown role can
+ * never fall through to a default or implementation contract.
+ */
+export function requireRole(config: RoutingConfig, role: string): ResolvedRole {
+  const resolved = config.roles.get(role);
+  if (resolved === undefined) {
+    throw new Error(`unknown delegate role "${role}": roles derive from the routing snapshot assignments`);
+  }
+  return resolved;
+}
+
+/** All derived role ids in canonical registry order. */
+export function roleIds(config: RoutingConfig): readonly string[] {
+  return [...config.roles.keys()];
+}
+
+/** Role ids of one family in canonical slot order; singleton families yield their one id. */
+export function roleIdsInFamily(config: RoutingConfig, family: RoleFamily): readonly string[] {
+  return [...config.roles.values()].filter((role) => role.family === family).map((role) => role.id);
 }
 
 /**
@@ -436,22 +538,29 @@ export function selectRoutes(
   override?: RoutingOverride,
   options: RouteSelectionOptions = {},
 ): readonly PiRoute[] {
-  // Defense in depth: the oracle role rejects every override by role, so not
-  // even a mutated in-memory profile policy can reroute the oracle.
-  if (role === "oracle" && override !== undefined) {
+  // Registry-owned role validation: an unknown id fails closed here.
+  const resolved = requireRole(config, role);
+  // Defense in depth: the oracle role rejects every override by family, so not
+  // even a mutated in-memory profile policy can reroute the oracle. This fires
+  // before shape validation so every malformed oracle override still gets the
+  // oracle-specific rejection.
+  if (resolved.family === "oracle" && override !== undefined) {
     throw new Error("routingOverride is not allowed for the oracle role");
   }
-  const profile = config.profiles[config.roles[role].profile]!;
+  const profile = config.profiles[resolved.profile]!;
+  // The override is validated and narrowed once, before the exclusion Set is
+  // built: a string excludeProviders must never become character exclusions.
+  const validatedOverride = override === undefined ? undefined : validateOverrideShape(override);
   const selection: RouteSelection = {
     random: options.random,
-    pinnedProvider: override?.provider,
-    excluded: new Set(override?.excludeProviders ?? []),
+    pinnedProvider: validatedOverride?.provider,
+    excluded: new Set(validatedOverride?.excludeProviders ?? []),
   };
   let routes: PiRoute[];
-  if (override === undefined) {
+  if (validatedOverride === undefined) {
     routes = profile.tiers.flatMap((tier) => tierRoutes(config, tier, selection));
   } else {
-    const selected = overrideSelection(config, profile, override);
+    const selected = overrideSelection(config, profile, validatedOverride);
     routes = selected.kind === "model-pool"
       ? modelPoolRoutes(config, selected.model, selection)
       : selected.tiers.flatMap((tier) => tierRoutes(config, tier, selection));
@@ -497,4 +606,15 @@ let cachedConfig: RoutingConfig | undefined;
 export function loadRoutingConfig(): RoutingConfig {
   if (cachedConfig === undefined) cachedConfig = readRoutingConfigFile(defaultConfigPath);
   return cachedConfig;
+}
+
+/**
+ * Loads one fresh validated snapshot for extension registration. `/reload`
+ * and restart re-run the extension factory, so the delegate_run role enum,
+ * count-aware guidance, and the model catalog always track the current
+ * `routing.json`; the same instance flows into every execution through
+ * `RunOptions.routingConfig`, so registration and runtime never drift.
+ */
+export function loadRoutingSnapshot(): RoutingConfig {
+  return readRoutingConfigFile(defaultConfigPath);
 }

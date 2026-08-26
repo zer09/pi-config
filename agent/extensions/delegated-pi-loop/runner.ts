@@ -11,7 +11,7 @@ import {
 } from "./artifacts.ts";
 import { interruptionSource } from "./manager.ts";
 import { buildDelegatePrompt, oracleGuard, roleLabel, routeKey } from "./routes.ts";
-import { loadRoutingConfig, oracleModelIds, selectRoutes } from "./routing.ts";
+import { loadRoutingConfig, oracleModelIds, requireRole, selectRoutes } from "./routing.ts";
 import { buildDelegateResourceSelection, loadDelegateResources } from "./resources.ts";
 import {
   DEFAULT_CLEANUP_TIMEOUT_MS,
@@ -280,12 +280,15 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
   // The routing config is the single authority for model, provider, and
   // thinking policy; a missing or invalid config fails closed right here.
   const routing = options.routingConfig ?? loadRoutingConfig();
+  // Registry-owned runtime role validation: an unknown role id fails closed
+  // here before guards, artifacts, or any child process exists.
+  const role = requireRole(routing, options.role);
   // Defensive oracle gates run before any artifact or child process exists,
   // so a parent running any configured Oracle model never spawns a
   // self-reviewing oracle.
-  const guard = oracleGuard(options.role, options.parentModelId, oracleModelIds(routing));
+  const guard = oracleGuard(role, options.parentModelId, oracleModelIds(routing));
   if (guard) throw guard;
-  const label = roleLabel(options.role);
+  const label = roleLabel(role);
   const started = performance.now();
   const startedAt = new Date().toISOString();
   const timeoutMs = options.timeoutMs ?? DEFAULT_WORK_TIMEOUT_MS;
@@ -330,7 +333,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
   const artifactDir = await createArtifactDir(label);
   try {
     const promptPath = path.join(artifactDir, "prompt.md");
-    const prompt = buildDelegatePrompt(options.role, options.cwd, options.prompt);
+    const prompt = buildDelegatePrompt(role, options.cwd, options.prompt);
     await atomicWriteText(promptPath, prompt);
     await chmod(promptPath, 0o600);
 
@@ -561,7 +564,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         attempts[attempts.length - 1] = { ...attempts[attempts.length - 1]!, restartAfterWork: true };
         await atomicWriteText(
           promptPath,
-          buildDelegatePrompt(options.role, options.cwd, options.prompt, { restartAfterWork: true }),
+          buildDelegatePrompt(role, options.cwd, options.prompt, { restartAfterWork: true }),
         );
         await chmod(promptPath, 0o600);
       }

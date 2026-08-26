@@ -5,14 +5,18 @@ import path from "node:path";
 import test from "node:test";
 import {
   loadRoutingConfig,
+  loadRoutingSnapshot,
   oracleModelIds,
   readRoutingConfigFile,
+  requireRole,
+  roleIds,
+  roleIdsInFamily,
   selectRoutes,
   validateRoutingConfig,
+  type ResolvedRole,
   type RoutingConfig,
 } from "./routing.ts";
-import { routeKey, roleIsExclusive, roleIsReadOnly } from "./routes.ts";
-import { DELEGATE_ROLES } from "./types.ts";
+import { roleIsExclusive, roleIsReadOnly, routeKey } from "./routes.ts";
 import type { DelegateRole } from "./types.ts";
 
 const CODEX_PROVIDERS = [
@@ -31,7 +35,7 @@ function syntheticConfig(overrides: {
   mutate?: (document: Record<string, unknown>) => void;
 }): RoutingConfig {
   const document: Record<string, unknown> = {
-    version: 1,
+    version: 2,
     thinkingLevels: ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
     disabledProviders: [],
     models: {
@@ -62,24 +66,14 @@ function syntheticConfig(overrides: {
         tiers: [{ model: "model-x", thinking: "high" }],
       },
     },
-    roles: {
-      "solution-a": { profile: "two-tier" },
-      "solution-b": { profile: "two-tier" },
-      "solution-c": { profile: "two-tier" },
-      "solution-d": { profile: "two-tier" },
-      "solution-e": { profile: "two-tier" },
-      "solution-f": { profile: "two-tier" },
-      "review-a": { profile: "two-tier" },
-      "review-b": { profile: "two-tier" },
-      "review-c": { profile: "two-tier" },
-      "review-d": { profile: "two-tier" },
-      "review-e": { profile: "two-tier" },
-      oracle: { profile: "pinned" },
-      implementation: { profile: "two-tier" },
-      remediation: { profile: "two-tier" },
-      verification: { profile: "two-tier" },
+    assignments: {
+      solution: ["two-tier", "two-tier", "two-tier", "two-tier", "two-tier", "two-tier"],
+      review: ["two-tier", "two-tier", "two-tier", "two-tier", "two-tier"],
+      implementation: "two-tier",
+      remediation: "two-tier",
+      verification: "two-tier",
+      oracle: "pinned",
     },
-    oracleSafety: { selfReviewModelIds: ["model-x"] },
   };
   overrides.mutate?.(document);
   return validateRoutingConfig(document);
@@ -87,7 +81,7 @@ function syntheticConfig(overrides: {
 
 test("the shipped routing config loads and fails closed on invalid files", async () => {
   const config = loadRoutingConfig();
-  assert.equal(config.version, 1);
+  assert.equal(config.version, 2);
   assert.deepEqual(config.disabledProviders, []);
   // The cached loader returns the same validated instance.
   assert.equal(loadRoutingConfig(), config);
@@ -103,6 +97,15 @@ test("the shipped routing config loads and fails closed on invalid files", async
   const empty = path.join(root, "not-an-object.json");
   await writeFile(empty, "[]");
   assert.throws(() => readRoutingConfigFile(empty), /routing config invalid: document must be a JSON object/);
+});
+
+test("the registration snapshot re-reads routing.json and derives the same roles", () => {
+  const snapshot = loadRoutingSnapshot();
+  assert.equal(snapshot.version, 2);
+  // A fresh read, not the process cache: registration reload picks up edits.
+  assert.notEqual(snapshot, loadRoutingConfig());
+  assert.deepEqual(roleIds(snapshot), roleIds(loadRoutingConfig()));
+  assert.deepEqual([...snapshot.roles.keys()], [...loadRoutingConfig().roles.keys()]);
 });
 
 test("the shipped routing config contains no removed provider occurrence", async () => {
@@ -145,9 +148,9 @@ test("config validation rejects structural violations", () => {
     {
       name: "wrong version",
       mutate: (document) => {
-        document.version = 2;
+        document.version = 3;
       },
-      pattern: /version must be exactly 1/,
+      pattern: /version must be exactly 2/,
     },
     {
       name: "unknown top-level key",
@@ -200,57 +203,107 @@ test("config validation rejects structural violations", () => {
       pattern: /allowlists provider "prov-ghost" without a capability record/,
     },
     {
-      name: "missing role mapping",
+      name: "assignments not an object",
       mutate: (document) => {
-        const roles = document.roles as Record<string, unknown>;
-        delete roles.verification;
+        document.assignments = [];
       },
-      pattern: /roles must map exactly every delegate role/,
+      pattern: /assignments must be an object/,
     },
     {
-      name: "extra role mapping",
+      name: "assignments missing a family key",
       mutate: (document) => {
-        const roles = document.roles as Record<string, unknown>;
-        roles["unknown-role"] = { profile: "two-tier" };
+        const assignments = document.assignments as Record<string, unknown>;
+        delete assignments.oracle;
       },
-      pattern: /roles must map exactly every delegate role/,
+      pattern: /assignments\.oracle is required/,
     },
     {
-      name: "role referencing unknown profile",
+      name: "assignments extra family key",
       mutate: (document) => {
-        const roles = document.roles as Record<string, unknown>;
-        roles.verification = { profile: "ghost" };
+        const assignments = document.assignments as Record<string, unknown>;
+        assignments.extra = "two-tier";
       },
-      pattern: /is not a configured profile/,
+      pattern: /assignments has unknown key "extra"/,
     },
     {
-      name: "oracle safety model set mismatch",
+      name: "solution assignment not an array",
       mutate: (document) => {
-        document.oracleSafety = { selfReviewModelIds: ["model-y"] };
+        const assignments = document.assignments as Record<string, unknown>;
+        assignments.solution = "two-tier";
       },
-      pattern: /selfReviewModelIds must be exactly every model in the oracle profile's tiers: "model-x"/,
+      pattern: /assignments\.solution must be a non-empty ordered array of profile names/,
     },
     {
-      name: "oracle safety model set missing a tier model",
+      name: "empty solution assignment",
       mutate: (document) => {
-        const profiles = document.profiles as Record<string, Record<string, unknown>>;
-        (profiles.pinned!.tiers as Array<Record<string, unknown>>).push({ model: "model-y", thinking: "low", providers: ["prov-a"] });
+        const assignments = document.assignments as Record<string, unknown>;
+        assignments.solution = [];
       },
-      pattern: /selfReviewModelIds must be exactly every model in the oracle profile's tiers: "model-x", "model-y"/,
+      pattern: /assignments\.solution must be a non-empty ordered array of profile names/,
     },
     {
-      name: "oracle safety model set with an extra model",
+      name: "oversized indexed family",
       mutate: (document) => {
-        document.oracleSafety = { selfReviewModelIds: ["model-x", "model-y"] };
+        const assignments = document.assignments as Record<string, unknown>;
+        assignments.solution = Array.from({ length: 27 }, () => "two-tier");
       },
-      pattern: /selfReviewModelIds must be exactly every model in the oracle profile's tiers: "model-x"/,
+      pattern: /assignments\.solution lists 27 profiles, but indexed families support at most 26 roles \(solution-a\.\.solution-z\)/,
     },
     {
-      name: "whitespace-only oracle safety model entry",
+      name: "blank indexed profile entry",
       mutate: (document) => {
-        document.oracleSafety = { selfReviewModelIds: ["model-x", "  "] };
+        const assignments = document.assignments as Record<string, unknown>;
+        assignments.solution = ["two-tier", "  "];
       },
-      pattern: /oracleSafety\.selfReviewModelIds entries must be non-empty, non-whitespace-only strings/,
+      pattern: /assignments\.solution\[1\] must be a non-empty, non-whitespace-only profile name/,
+    },
+    {
+      name: "non-string indexed profile entry",
+      mutate: (document) => {
+        const assignments = document.assignments as Record<string, unknown>;
+        assignments.review = ["two-tier", 7];
+      },
+      pattern: /assignments\.review\[1\] must be a non-empty, non-whitespace-only profile name/,
+    },
+    {
+      name: "indexed entry referencing unknown profile",
+      mutate: (document) => {
+        const assignments = document.assignments as Record<string, unknown>;
+        assignments.solution = ["two-tier", "ghost"];
+      },
+      pattern: /assignments\.solution\[1\] references unknown profile "ghost"/,
+    },
+    {
+      name: "singleton assignment as an array",
+      mutate: (document) => {
+        const assignments = document.assignments as Record<string, unknown>;
+        assignments.implementation = ["two-tier"];
+      },
+      pattern: /assignments\.implementation must be exactly one non-empty, non-whitespace-only profile name string/,
+    },
+    {
+      name: "singleton assignment as an object",
+      mutate: (document) => {
+        const assignments = document.assignments as Record<string, unknown>;
+        assignments.remediation = { profile: "two-tier" };
+      },
+      pattern: /assignments\.remediation must be exactly one non-empty, non-whitespace-only profile name string/,
+    },
+    {
+      name: "whitespace-only singleton assignment",
+      mutate: (document) => {
+        const assignments = document.assignments as Record<string, unknown>;
+        assignments.verification = " ";
+      },
+      pattern: /assignments\.verification must be exactly one non-empty, non-whitespace-only profile name string/,
+    },
+    {
+      name: "singleton referencing unknown profile",
+      mutate: (document) => {
+        const assignments = document.assignments as Record<string, unknown>;
+        assignments.oracle = "ghost";
+      },
+      pattern: /assignments\.oracle references unknown profile "ghost"/,
     },
     {
       name: "disabled provider emptying a tier",
@@ -354,14 +407,6 @@ test("config validation rejects structural violations", () => {
       pattern: /profiles keys must not be empty or whitespace-only/,
     },
     {
-      name: "whitespace-only role profile reference",
-      mutate: (document) => {
-        const roles = document.roles as Record<string, unknown>;
-        roles.oracle = { profile: "  " };
-      },
-      pattern: /roles\.oracle\.profile must not be empty or whitespace-only/,
-    },
-    {
       name: "oracle profile policy omitted",
       mutate: (document) => {
         const profiles = document.profiles as Record<string, Record<string, unknown>>;
@@ -383,6 +428,120 @@ test("config validation rejects structural violations", () => {
   }
   // The unmutated synthetic config validates.
   syntheticConfig({});
+});
+
+test("a version-1 document is rejected with one clear migration error, not dual-schema support", () => {
+  const v1Document = {
+    version: 1,
+    thinkingLevels: ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+    disabledProviders: [],
+    models: { "model-x": { providers: { "prov-a": { thinking: ["high"], default: "high" } } } },
+    profiles: { solo: { overridePolicy: "rejected", tiers: [{ model: "model-x", thinking: "high" }] } },
+    roles: { "solution-a": { profile: "solo" }, oracle: { profile: "solo" } },
+    oracleSafety: { selfReviewModelIds: ["model-x"] },
+  };
+  assert.throws(
+    () => validateRoutingConfig(v1Document),
+    /version 1 was removed: migrate the concrete v1 roles mapping and oracleSafety\.selfReviewModelIds into the version 2 assignments object/,
+  );
+  // The version gate fires before the key check, so the error names the
+  // migration rather than complaining about unknown v1 keys.
+  try {
+    validateRoutingConfig(v1Document);
+    assert.fail("must throw");
+  } catch (error) {
+    assert.equal((error as Error).message.includes("unknown key"), false);
+  }
+});
+
+test("assignments derive ordered zero-based slots and canonical role ids", () => {
+  const config = syntheticConfig({
+    mutate: (document) => {
+      const assignments = document.assignments as Record<string, unknown>;
+      assignments.solution = ["two-tier", "all", "pinned", "all"];
+      assignments.review = ["all", "pinned"];
+    },
+  });
+  const solution = roleIdsInFamily(config, "solution");
+  const review = roleIdsInFamily(config, "review");
+  assert.deepEqual(solution, ["solution-a", "solution-b", "solution-c", "solution-d"]);
+  assert.deepEqual(review, ["review-a", "review-b"]);
+  assert.deepEqual(
+    config.roles.get("solution-a"),
+    { id: "solution-a", family: "solution", profile: "two-tier", slot: 0 },
+  );
+  assert.deepEqual(
+    config.roles.get("solution-d"),
+    { id: "solution-d", family: "solution", profile: "all", slot: 3 },
+  );
+  assert.deepEqual(
+    config.roles.get("review-b"),
+    { id: "review-b", family: "review", profile: "pinned", slot: 1 },
+  );
+  // Singleton families keep their fixed ids, no slot.
+  assert.deepEqual(config.roles.get("oracle"), { id: "oracle", family: "oracle", profile: "pinned" });
+  assert.deepEqual(config.roles.get("implementation"), { id: "implementation", family: "implementation", profile: "two-tier" });
+  // Canonical registry order: solution slots, review slots, then singletons.
+  assert.deepEqual(roleIds(config), [
+    ...solution,
+    ...review,
+    "implementation",
+    "remediation",
+    "verification",
+    "oracle",
+  ]);
+});
+
+test("an indexed family of exactly 26 profiles derives through the z slot", () => {
+  const config = syntheticConfig({
+    mutate: (document) => {
+      const assignments = document.assignments as Record<string, unknown>;
+      assignments.solution = Array.from({ length: 26 }, () => "two-tier");
+    },
+  });
+  const solution = roleIdsInFamily(config, "solution");
+  assert.equal(solution.length, 26);
+  assert.equal(solution[0], "solution-a");
+  assert.equal(solution[25], "solution-z");
+  assert.equal(config.roles.get("solution-z")!.slot, 25);
+});
+
+test("a profile may repeat inside and across indexed assignment arrays", () => {
+  const config = syntheticConfig({
+    mutate: (document) => {
+      const assignments = document.assignments as Record<string, unknown>;
+      assignments.solution = ["two-tier", "two-tier"];
+      assignments.review = ["two-tier", "two-tier"];
+    },
+  });
+  // Duplicate profiles are intentional: distinct role ids share one profile.
+  assert.equal(config.roles.get("solution-a")!.profile, "two-tier");
+  assert.equal(config.roles.get("solution-b")!.profile, "two-tier");
+  assert.equal(config.roles.get("review-a")!.profile, "two-tier");
+  // Reused profiles produce identical chains.
+  assert.deepEqual(
+    selectRoutes(config, "solution-a").map(routeKey),
+    selectRoutes(config, "solution-b").map(routeKey),
+  );
+  assert.deepEqual(
+    selectRoutes(config, "review-b").map(routeKey),
+    selectRoutes(config, "solution-a").map(routeKey),
+  );
+});
+
+test("unknown roles fail closed at the registry boundary", () => {
+  const config = loadRoutingConfig();
+  assert.throws(() => requireRole(config, "solution-z"), /unknown delegate role "solution-z"/);
+  assert.throws(() => requireRole(config, "review-f"), /unknown delegate role "review-f"/);
+  assert.throws(() => requireRole(config, "ghost"), /unknown delegate role "ghost"/);
+  // Route selection performs the same registry validation.
+  assert.throws(
+    () => selectRoutes(config, "solution-impl" as DelegateRole),
+    /unknown delegate role "solution-impl"/,
+  );
+  // A lookalike id never resolves: registry lookup is exact.
+  assert.equal(config.roles.has("solution-a "), false);
+  assert.equal(config.roles.has("Solution-A"), false);
 });
 
 test("selectRoutes preserves the ordered tier chains for the shipped gate profiles", () => {
@@ -519,14 +678,20 @@ test("implementation and remediation use only GLM while verification stays pinne
   assert.deepEqual([...oracleModelIds(config)], ["gpt-5.6-sol"]);
 });
 
-test("the shipped config assigns solution-f to gate-f and review-e to gate-g", () => {
+test("the shipped assignments map solution-f to gate-f and review-e to gate-g", () => {
   const config = loadRoutingConfig();
-  const reviews = DELEGATE_ROLES.filter((role) => role.startsWith("review-"));
+  const reviews = roleIdsInFamily(config, "review");
   assert.deepEqual(reviews, ["review-a", "review-b", "review-c", "review-d", "review-e"]);
-  assert.equal(config.roles["solution-f"].profile, "gate-f");
-  assert.equal(config.roles["review-e"].profile, "gate-g");
+  assert.equal(config.roles.get("solution-f")!.profile, "gate-f");
+  assert.equal(config.roles.get("review-e")!.profile, "gate-g");
   assert.equal("gate-f" in config.profiles, true);
   assert.equal("gate-g" in config.profiles, true);
+  // Every shipped role id resolves through the registry.
+  for (const id of roleIds(config)) {
+    const resolved: ResolvedRole = requireRole(config, id);
+    assert.equal(resolved.id, id);
+    assert.ok(config.profiles[resolved.profile] !== undefined);
+  }
 });
 
 test("a temporary extra reviewer pins one exact route through a reason-required one-run override", () => {
@@ -554,8 +719,9 @@ test("a temporary extra reviewer pins one exact route through a reason-required 
     }),
     /requires a non-empty reason/,
   );
-  assert.equal(roleIsReadOnly("review-a"), true);
-  assert.equal(roleIsExclusive("review-a"), false);
+  const reviewA = requireRole(config, "review-a");
+  assert.equal(roleIsReadOnly(reviewA), true);
+  assert.equal(roleIsExclusive(reviewA), false);
   // Without the override the reused role keeps its normal single-tier chain.
   assert.deepEqual(
     selectRoutes(config, "review-a", undefined, { random: () => 0 }).map(routeKey),
@@ -563,11 +729,11 @@ test("a temporary extra reviewer pins one exact route through a reason-required 
   );
 });
 
-test("every role selects a non-empty chain of Pi routes", () => {
+test("every configured role selects a non-empty chain of Pi routes", () => {
   const config = loadRoutingConfig();
-  for (const role of DELEGATE_ROLES) {
-    const routes = selectRoutes(config, role);
-    assert.ok(routes.length > 0, `${role} must select at least one route`);
+  for (const id of roleIds(config)) {
+    const routes = selectRoutes(config, id);
+    assert.ok(routes.length > 0, `${id} must select at least one route`);
     for (const route of routes) {
       assert.equal(route.kind, "pi");
       assert.ok(route.provider.length > 0);
@@ -577,20 +743,18 @@ test("every role selects a non-empty chain of Pi routes", () => {
   }
 });
 
-test("the oracle self-review set covers every model across the oracle profile's tiers", () => {
-  const twoTier = (order: readonly string[]) => syntheticConfig({
+test("the oracle self-review set derives from every tier of the assigned oracle profile", () => {
+  const twoTier = syntheticConfig({
     mutate: (document) => {
       const profiles = document.profiles as Record<string, Record<string, unknown>>;
       (profiles.pinned!.tiers as Array<Record<string, unknown>>).push({ model: "model-y", thinking: "low", providers: ["prov-a"] });
-      document.oracleSafety = { selfReviewModelIds: order };
     },
   });
-  // Both tier models are guarded members regardless of declaration order.
-  for (const config of [twoTier(["model-x", "model-y"]), twoTier(["model-y", "model-x"])]) {
-    assert.deepEqual([...oracleModelIds(config)].sort(), ["model-x", "model-y"]);
-    assert.equal(oracleModelIds(config).has("model-y"), true);
-    assert.equal(oracleModelIds(config).has("model-x"), true);
-  }
+  // Both tier models are guarded members; there is no separate declared set
+  // that could drift from the assigned profile.
+  assert.deepEqual([...oracleModelIds(twoTier)].sort(), ["model-x", "model-y"]);
+  assert.equal(oracleModelIds(twoTier).has("model-y"), true);
+  assert.equal(oracleModelIds(twoTier).has("model-x"), true);
   // A duplicate tier model still yields the unique model set.
   const duplicated = syntheticConfig({
     mutate: (document) => {
@@ -599,14 +763,25 @@ test("the oracle self-review set covers every model across the oracle profile's 
     },
   });
   assert.deepEqual([...oracleModelIds(duplicated)], ["model-x"]);
+  // Reassigning the oracle family to a different profile changes the derived
+  // set with it; the new profile must keep the rejected override policy.
+  const reassigned = syntheticConfig({
+    mutate: (document) => {
+      const profiles = document.profiles as Record<string, Record<string, unknown>>;
+      profiles["two-tier"]!.overridePolicy = "rejected";
+      const assignments = document.assignments as Record<string, unknown>;
+      assignments.oracle = "two-tier";
+    },
+  });
+  assert.deepEqual([...oracleModelIds(reassigned)].sort(), ["model-x", "model-y"]);
 });
 
 test("selected routes never carry whitespace-only provider or model ids", () => {
   const config = loadRoutingConfig();
-  for (const role of DELEGATE_ROLES) {
-    for (const route of selectRoutes(config, role, undefined, { random: () => 0 })) {
-      assert.ok(route.provider.trim().length > 0, `${role} must not select a whitespace-only provider id`);
-      assert.ok(route.model.trim().length > 0, `${role} must not select a whitespace-only model id`);
+  for (const id of roleIds(config)) {
+    for (const route of selectRoutes(config, id, undefined, { random: () => 0 })) {
+      assert.ok(route.provider.trim().length > 0, `${id} must not select a whitespace-only provider id`);
+      assert.ok(route.model.trim().length > 0, `${id} must not select a whitespace-only model id`);
     }
   }
   // Defense in depth: even an in-memory config mutation that smuggles a
@@ -624,7 +799,7 @@ test("selected routes never carry whitespace-only provider or model ids", () => 
         },
       },
     },
-    roles: { ...base.roles, "solution-a": { profile: "all" } },
+    roles: new Map(base.roles).set("solution-a", { id: "solution-a", family: "solution", profile: "all", slot: 0 }),
   };
   assert.throws(
     () => selectRoutes(smuggled, "solution-a", undefined, { random: () => 0 }),
@@ -716,8 +891,8 @@ test("disabled providers drop out of multi-provider tiers", () => {
       // The "all" profile uses model-x at high on both providers, so
       // disabling prov-b leaves prov-a eligible.
       document.disabledProviders = ["prov-b"];
-      const roles = document.roles as Record<string, unknown>;
-      roles["solution-a"] = { profile: "all" };
+      const assignments = document.assignments as Record<string, unknown>;
+      assignments.solution = ["all"];
     },
   });
   assert.deepEqual(selectRoutes(config, "solution-a").map(routeKey), ["prov-a/model-x:high"]);
@@ -902,6 +1077,61 @@ test("invalid or no-op overrides are rejected", () => {
   );
 });
 
+test("malformed runtime overrides fail validation before any field read", () => {
+  const config = loadRoutingConfig();
+  // Pi tool_call handlers can mutate validated input and direct callers can
+  // bypass the schema, so the selector revalidates the override as unknown.
+  // Every case must fail with a bounded routingOverride error, never with a
+  // raw TypeError and never by returning routes.
+  const cases: Array<{ name: string; override: unknown }> = [
+    { name: "null override", override: null },
+    { name: "missing reason", override: { provider: "zai" } },
+    { name: "numeric reason", override: { provider: "zai", reason: 7 } },
+    { name: "numeric provider", override: { provider: 7, reason: "x" } },
+    { name: "numeric model", override: { model: 7, reason: "x" } },
+    { name: "numeric thinking", override: { model: "glm-5.3", thinking: 7, reason: "x" } },
+    { name: "excludeProviders as a string", override: { excludeProviders: "zai", reason: "x" } },
+    { name: "excludeProviders containing a non-string", override: { excludeProviders: ["zai", 7], reason: "x" } },
+  ];
+  for (const item of cases) {
+    let thrown: unknown;
+    let returned = false;
+    try {
+      selectRoutes(config, "implementation", item.override as never);
+      returned = true;
+    } catch (error) {
+      thrown = error;
+    }
+    assert.equal(returned, false, item.name);
+    assert.ok(thrown instanceof Error, item.name);
+    // A raw TypeError would mean an unvalidated field was read.
+    assert.equal(thrown instanceof TypeError, false, item.name);
+    assert.match(thrown.message, /^routingOverride/, item.name);
+    // The malformed value never leaks into the bounded message.
+    assert.equal(thrown.message.includes("7"), false, item.name);
+  }
+  // Regression: a string excludeProviders used to become a per-character
+  // exclusion set and returned the provider it meant to exclude.
+  assert.throws(
+    () => selectRoutes(config, "implementation", { excludeProviders: "zai", reason: "x" } as never),
+    /routingOverride.excludeProviders must be a non-empty array/,
+  );
+});
+
+test("a malformed oracle override still receives the oracle-specific rejection first", () => {
+  const config = loadRoutingConfig();
+  // The family-based rejection fires before shape validation, so even
+  // malformed oracle overrides never reach field reads or a shape error.
+  assert.throws(
+    () => selectRoutes(config, "oracle", null as never),
+    /routingOverride is not allowed for the oracle role/,
+  );
+  assert.throws(
+    () => selectRoutes(config, "oracle", { excludeProviders: "openai-codex" } as never),
+    /routingOverride is not allowed for the oracle role/,
+  );
+});
+
 test("the oracle role rejects every override even when the profile policy is mutated", () => {
   const config = loadRoutingConfig();
   assert.throws(
@@ -914,7 +1144,7 @@ test("the oracle role rejects every override even when the profile policy is mut
   );
   // Defense in depth: simulate an in-memory mutation that flips the oracle
   // profile policy to "allowed". Validation would reject this config, but
-  // the selector still rejects the override by role alone.
+  // the selector still rejects the override by family alone.
   const base = syntheticConfig({});
   const mutated: RoutingConfig = {
     ...base,
@@ -929,10 +1159,10 @@ test("the oracle role rejects every override even when the profile policy is mut
   );
   // Non-oracle roles keep override support through the same mutated config,
   // and overrides never change role classification: permissions and
-  // concurrency stay a function of the role.
+  // concurrency stay a function of the resolved role.
   assert.ok(selectRoutes(mutated, "implementation", { model: "model-x", reason: "explicit request" }, { random: () => 0 }).length > 0);
-  assert.equal(roleIsReadOnly("implementation"), false);
-  assert.equal(roleIsExclusive("implementation"), true);
-  assert.equal(roleIsReadOnly("verification"), true);
-  assert.equal(roleIsExclusive("oracle"), true);
+  assert.equal(roleIsReadOnly(requireRole(mutated, "implementation")), false);
+  assert.equal(roleIsExclusive(requireRole(mutated, "implementation")), true);
+  assert.equal(roleIsReadOnly(requireRole(mutated, "verification")), true);
+  assert.equal(roleIsExclusive(requireRole(mutated, "oracle")), true);
 });

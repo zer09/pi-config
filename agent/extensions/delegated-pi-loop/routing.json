@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "thinkingLevels": ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
   "disabledProviders": [],
   "models": {
@@ -239,24 +239,25 @@
       ]
     }
   },
-  "roles": {
-    "solution-a": { "profile": "gate-a" },
-    "solution-b": { "profile": "gate-b" },
-    "solution-c": { "profile": "gate-c" },
-    "solution-d": { "profile": "gate-d" },
-    "solution-e": { "profile": "gate-e" },
-    "solution-f": { "profile": "gate-f" },
-    "review-a": { "profile": "gate-a" },
-    "review-b": { "profile": "gate-b" },
-    "review-c": { "profile": "gate-c" },
-    "review-d": { "profile": "gate-d" },
-    "review-e": { "profile": "gate-g" },
-    "oracle": { "profile": "oracle" },
-    "implementation": { "profile": "implementation" },
-    "remediation": { "profile": "implementation" },
-    "verification": { "profile": "verification" }
-  },
-  "oracleSafety": {
-    "selfReviewModelIds": ["gpt-5.6-sol"]
+  "assignments": {
+    "solution": [
+      "gate-a",
+      "gate-b",
+      "gate-c",
+      "gate-d",
+      "gate-e",
+      "gate-f"
+    ],
+    "review": [
+      "gate-a",
+      "gate-b",
+      "gate-c",
+      "gate-d",
+      "gate-g"
+    ],
+    "implementation": "implementation",
+    "remediation": "implementation",
+    "verification": "verification",
+    "oracle": "oracle"
   }
 }

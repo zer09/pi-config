@@ -8,9 +8,9 @@ import { pathToFileURL } from "node:url";
 
 test("registration guidelines encode the automatic delegation policy without provider route details", async () => {
   const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
-  const guidelinesStart = source.indexOf("promptGuidelines: [");
-  assert.ok(guidelinesStart >= 0, "promptGuidelines array not found");
-  const guidelines = source.slice(guidelinesStart, source.indexOf("parameters:", guidelinesStart));
+  const guidelinesStart = source.indexOf("export function delegateRunPromptGuidelines(");
+  assert.ok(guidelinesStart >= 0, "delegateRunPromptGuidelines builder not found");
+  const guidelines = source.slice(guidelinesStart, source.indexOf("\n}\n", guidelinesStart));
 
   // Delegation is automatic for repository implementation changes unless the
   // user opts out. Only trivial edits and parent-authored plan or research
@@ -38,14 +38,14 @@ test("registration guidelines encode the automatic delegation policy without pro
   assert.match(guidelines, /small task with an accepted plan or an obvious established pattern skips the solution-investigation gate and the oracle role and still runs exactly one implementation delegate/);
   // The parent inspects the implementation diff and evidence before the review gate.
   assert.match(guidelines, /implementation delegate's diff and evidence/);
-  assert.match(guidelines, /review-a, review-b, review-c, review-d, and review-e concurrently/);
+  assert.match(guidelines, /call delegate_run for \$\{joinRoleIds\(reviewRoleIds\)\} concurrently with the same neutral review scope/);
+  assert.match(guidelines, /all \$\{countWord\(reviewRoleIds\.length\)\} must complete\./);
   // Reviewer-gate waiver: the strict all-five default stands, and only the
   // user may explicitly waive named failed reviewer roles for the one
   // current gate. The waiver continues with completed reports, records the
   // waived roles, never relabels failures as passes, stays one-shot and
   // gate-scoped, keeps findings from completed reviewers, and is never
   // inferred from generic continue/commit/skip-retry requests.
-  assert.match(guidelines, /all five must complete/);
   assert.match(guidelines, /the gate stays blocked by default; only the user may explicitly waive the named failed reviewer roles for that one current gate/);
   assert.match(guidelines, /continue with the completed review reports instead of retrying or stopping solely because the waived reviewers failed/);
   assert.match(guidelines, /A reviewer waiver is one-shot and gate-scoped/);
@@ -67,8 +67,8 @@ test("registration guidelines encode the automatic delegation policy without pro
   // stays one-shot and gate-scoped, preserves the advisory oracle and the
   // downstream implementation/review/verification/remediation rules, and is
   // never inferred from generic continue/commit/skip-retry requests.
-  assert.match(guidelines, /solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently/);
-  assert.match(guidelines, /all six must complete before synthesis/);
+  assert.match(guidelines, /call delegate_run for \$\{joinRoleIds\(solutionRoleIds\)\} concurrently with the same neutral assignment/);
+  assert.match(guidelines, /all \$\{countWord\(solutionRoleIds\.length\)\} must complete before synthesis/);
   assert.match(guidelines, /the gate stays blocked by default; only the user may explicitly waive the named failed solution roles for that one current solution gate/);
   assert.match(guidelines, /continue synthesis using only the completed solution reports plus parent-verified repository evidence/);
   assert.match(guidelines, /At least one solution delegate must have completed: the user cannot waive the entire evidence set and synthesize from zero completed investigator reports/);
@@ -106,7 +106,7 @@ test("registration guidelines encode the automatic delegation policy without pro
   assert.match(guidelines, /wait for every verification in the current batch before remediation/);
   assert.match(guidelines, /non-completed verification leaves its finding unresolved without erasing completed sibling reports/);
   assert.match(guidelines, /Send only verification-confirmed findings to one focused remediation role/);
-  assert.match(guidelines, /fresh five-reviewer gate until no blocking findings remain/);
+  assert.match(guidelines, /fresh \$\{countWord\(reviewRoleIds\.length\)\}-reviewer gate until no blocking findings remain/);
   // Routing is automatic and config-driven; routingOverride is the only
   // exceptional escape hatch and is invalid for the oracle role.
   assert.match(guidelines, /Delegate routing, including model, thinking, and provider fallback after operational failures, is automatic from the extension-owned routing configuration/);
@@ -148,7 +148,7 @@ test("registers the optional orchestrator-selected availableSkills parameter", a
   assert.ok(!source.includes("maxItems"), "availableSkills must not set an item maximum");
   assert.ok(!/availableSkills[\s\S]{0,200}minItems/.test(source), "availableSkills must not require an item minimum");
   // The enum is built from the validated policy's allowed names in policy order.
-  assert.match(source, /delegateParameters\(allowedDelegateSkillNames\(delegateResources\)\)/);
+  assert.match(source, /delegateParameters\(allowedDelegateSkillNames\(delegateResources\), routingSnapshot\)/);
   // The public type carries the optional field.
   const types = await readFile(new URL("./types.ts", import.meta.url), "utf8");
   assert.match(types, /readonly availableSkills\?: readonly string\[\];/);
@@ -224,19 +224,22 @@ test("the registered availableSkills schema carries the description on the array
     // delegated child.
     const savedChildFlag = process.env.PI_DELEGATED_CHILD;
     delete process.env.PI_DELEGATED_CHILD;
-    const registrations: { name: string; parameters: unknown }[] = [];
+    const registrations: { name: string; parameters: unknown; promptGuidelines?: readonly string[] }[] = [];
     const fakePi = {
       on: () => {},
       registerCommand: () => {},
-      registerTool: (config: { name: string; parameters: unknown }) => registrations.push(config),
+      registerTool: (config: { name: string; parameters: unknown; promptGuidelines?: readonly string[] }) => registrations.push(config),
     };
     try {
       (extension.default as (pi: unknown) => void)(fakePi);
     } finally {
       if (savedChildFlag !== undefined) process.env.PI_DELEGATED_CHILD = savedChildFlag;
     }
-    assert.equal(registrations.length, 1, "the parent branch registers exactly one tool");
-    assert.equal(registrations[0]?.name, "delegate_run");
+    assert.equal(registrations.length, 2, "the parent branch registers delegate_run and delegate_model_catalog");
+    assert.deepEqual(
+      registrations.map((registration) => registration.name),
+      ["delegate_run", "delegate_model_catalog"],
+    );
     // JSON round-trip mirrors the serialization providers receive: plain
     // JSON Schema keys survive and symbol markers do not.
     const parameters = JSON.parse(JSON.stringify(registrations[0]?.parameters)) as {
@@ -246,7 +249,7 @@ test("the registered availableSkills schema carries the description on the array
         description?: string;
         minItems?: number;
         maxItems?: number;
-        items?: { enum?: string[]; description?: string; minItems?: number; maxItems?: number };
+        items?: { enum?: string[]; description?: string; minItems?: number; maxItems?: number }; enum?: string[];
       }>;
     };
     const availableSkills = parameters.properties.availableSkills;
@@ -277,15 +280,110 @@ test("the registered availableSkills schema carries the description on the array
       false,
       "availableSkills must stay optional",
     );
+    // The role enum is generated from the same validated routing snapshot
+    // the runner consumes: derived ids in canonical registry order.
+    const { roleIds } = await import("./routing.ts");
+    const role = parameters.properties.role;
+    assert.ok(role?.enum, "the role property must carry the generated enum");
+    assert.deepEqual(role.enum, [...roleIds((await import("./routing.ts")).loadRoutingSnapshot())]);
+    assert.match(
+      role.description ?? "",
+      /Use the configured solution roles \(solution-a, solution-b, solution-c, solution-d, solution-e, solution-f\) and review roles \(review-a, review-b, review-c, review-d, review-e\)/,
+    );
+    // The model catalog schema comes from the same snapshot's thinking scale.
+    const catalogParameters = JSON.parse(JSON.stringify(registrations[1]?.parameters)) as {
+      required?: string[];
+      properties: Record<string, {
+        type?: string;
+        description?: string;
+        minimum?: number;
+        maximum?: number;
+        enum?: string[];
+      }>;
+    };
+    const { loadRoutingSnapshot } = await import("./routing.ts");
+    assert.deepEqual(catalogParameters.required, ["query"]);
+    assert.equal(catalogParameters.properties.query?.type, "string");
+    assert.equal(catalogParameters.properties.provider?.type, "string");
+    assert.deepEqual(
+      catalogParameters.properties.thinking?.enum,
+      [...loadRoutingSnapshot().thinkingLevels],
+    );
+    assert.equal(catalogParameters.properties.limit?.type, "integer");
+    assert.equal(catalogParameters.properties.limit?.minimum, 1);
+    assert.equal(catalogParameters.properties.limit?.maximum, 20);
+    assert.equal(catalogParameters.required?.includes("limit"), false);
+    // The count-aware guidelines resolve against the shipped snapshot: the
+    // generated text names every configured solution and review role and
+    // carries the matching count words, so gate resizing regenerates them.
+    const delegateRunGuidelines = (registrations[0]?.promptGuidelines ?? []).join("\n");
+    assert.match(delegateRunGuidelines, /solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently/);
+    assert.match(delegateRunGuidelines, /all six must complete before synthesis/);
+    assert.match(delegateRunGuidelines, /review-a, review-b, review-c, review-d, and review-e concurrently/);
+    assert.match(delegateRunGuidelines, /all five must complete\./);
+    assert.match(delegateRunGuidelines, /fresh five-reviewer gate until no blocking findings remain/);
+    // No concrete route detail leaks into the generated guidance.
+    const loweredGuidelines = delegateRunGuidelines.toLowerCase();
+    for (const routeDetail of ["gpt-5.5", "gpt-5.6", "codex", "glm-", "zai", "opencode-go", "openrouter"]) {
+      assert.ok(!loweredGuidelines.includes(routeDetail), `generated guidance must not contain ${routeDetail}`);
+    }
+    // The catalog guidance stays concise and does not enumerate combinations.
+    const catalogGuidelines = (registrations[1]?.promptGuidelines ?? []).join("\n");
+    assert.match(catalogGuidelines, /partial or unknown model/);
+    assert.match(catalogGuidelines, /choose only a returned model, provider, and supported thinking-level combination/);
+    for (const routeDetail of ["gpt-5.5", "gpt-5.6", "codex", "glm-", "zai"]) {
+      assert.ok(!catalogGuidelines.includes(routeDetail), `catalog guidance must not contain ${routeDetail}`);
+    }
   } finally {
     rmSync(hooksDir, { recursive: true, force: true });
   }
 });
 
+test("the model catalog guidance stays concise and keeps overrides exceptional", async () => {
+  const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
+  const registrationStart = source.indexOf('name: "delegate_model_catalog"');
+  assert.ok(registrationStart >= 0, "delegate_model_catalog registration not found");
+  const registration = source.slice(registrationStart, source.indexOf("});", registrationStart));
+  assert.match(registration, /promptSnippet: "Look up configured delegate models, providers, and thinking levels before an exceptional routing override"/);
+  assert.match(registration, /only when an explicit user or project operational request names a partial or unknown model for a one-run routing substitution/);
+  assert.match(registration, /choose only a returned model, provider, and supported thinking-level combination/);
+  assert.match(registration, /never invokes pi --list-models/);
+  assert.match(registration, /never for the oracle role/);
+  // The catalog is never appended to the delegate_run schema or guidance.
+  const delegateRunRegistration = source.slice(
+    source.indexOf('name: "delegate_run"'),
+    registrationStart,
+  );
+  assert.ok(!delegateRunRegistration.includes("delegate_model_catalog"));
+  // No model/provider/thinking combination is enumerated in either schema.
+  for (const forbidden of ["gpt-5.5", "gpt-5.6-sol", "glm-5.3", "openai-codex", "zai", "opencode-go"]) {
+    assert.ok(!source.includes(forbidden), `index.ts must not enumerate concrete models or providers (found ${forbidden})`);
+  }
+});
+
+test("count-aware guidance regenerates for a resized routing snapshot", async () => {
+  const { delegateRunPromptGuidelines } = await import("./index.ts");
+  const guidelines = delegateRunPromptGuidelines(
+    ["solution-a", "solution-b", "solution-c"],
+    ["review-a", "review-b"],
+  ).join("\n");
+  assert.match(guidelines, /call delegate_run for solution-a, solution-b, and solution-c concurrently with the same neutral assignment/);
+  assert.match(guidelines, /all three must complete before synthesis/);
+  assert.match(guidelines, /call delegate_run for review-a and review-b concurrently with the same neutral review scope/);
+  assert.match(guidelines, /all two must complete\./);
+  assert.match(guidelines, /fresh two-reviewer gate until no blocking findings remain/);
+  // Single-role gates still read naturally.
+  const single = delegateRunPromptGuidelines(["solution-a"], ["review-a"]).join("\n");
+  assert.match(single, /call delegate_run for solution-a concurrently with the same neutral assignment/);
+  assert.match(single, /all one must complete before synthesis/);
+});
+
 test("availableSkills guidance states the concise progressive-disclosure semantics", async () => {
   const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
-  const guidelinesStart = source.indexOf("promptGuidelines: [");
-  const guidelines = source.slice(guidelinesStart, source.indexOf("parameters:", guidelinesStart));
+  // The availableSkills line lives in the delegate_run guidelines builder.
+  const guidelinesStart = source.indexOf("export function delegateRunPromptGuidelines(");
+  assert.ok(guidelinesStart >= 0, "delegateRunPromptGuidelines builder not found");
+  const guidelines = source.slice(guidelinesStart, source.indexOf("\n}\n", guidelinesStart));
   assert.match(guidelines, /Use availableSkills to make only task-relevant pre-approved skills discoverable to a delegate; selection does not force full skill loading, and the delegate decides which selected skills it actually needs\./);
   // No blanket forced-read instruction and no skill-name inventory in guidance.
   assert.doesNotMatch(guidelines, /read every selected skill/i);
@@ -389,7 +487,11 @@ test("public schema and runtime contain no direct Claude CLI backend", async () 
     for (const value of forbidden) assert.ok(!source.includes(value), `${file} must not contain ${value}`);
   }
   const index = await readFile(new URL("./index.ts", import.meta.url), "utf8");
-  assert.match(index, /StringEnum\(DELEGATE_ROLES/);
+  assert.match(index, /StringEnum\(roleIds\(routing\)/);
+  // The role enum derives from the validated routing snapshot, not a
+  // compile-time union: registration and runtime share one registry.
+  assert.match(index, /const routingSnapshot = loadRoutingSnapshot\(\)/);
+  assert.match(index, /role: params\.role,\n\s+routingConfig: routingSnapshot,/);
 });
 
 test("registers targeted delegate list and stop commands without a BTW control path", async () => {

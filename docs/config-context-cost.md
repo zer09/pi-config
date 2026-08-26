@@ -84,6 +84,8 @@ Delegated fifth-solution update: 2026-08-24 (expanded the required solution gate
 
 Delegated six-investigator five-reviewer expansion: 2026-08-24 (added permanent `solution-f` on `gate-f` and permanent `review-e` on `gate-g`, expanding the required solution gate to A/B/C/D/E/F and the review gate to A/B/C/D/E; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated routing version-2 and model-catalog update: 2026-08-25 (replaced the concrete v1 role mapping with version-2 family assignments deriving the role registry, generated the `delegate_run` role enum and count-aware guidance from the snapshot, derived the oracle self-review set from the oracle profile tiers, and added the read-only `delegate_model_catalog` tool with concise prompt metadata; adds one small tool schema and two short guidelines to startup context while keeping `agent/AGENTS.md` gate wording count-free; provider calibration and the full extension/tool inventory were not rerun)
+
 Delegated provider-inheritance and AgentRouter removal update: 2026-08-25 (removed the parent-provider primary preference from delegated route selection and removed every AgentRouter tier plus the `claude-opus-4-8` capability from `routing.json`; zero model-visible startup-context delta because the public role schema, tool guidance, and global instructions are unchanged; provider calibration and the full extension/tool inventory were not rerun)
 
 CWD measured: `/home/gc/.pi`

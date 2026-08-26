@@ -1,27 +1,16 @@
 import type { Component } from "@earendil-works/pi-tui";
 import type { RoutingConfig } from "./routing.ts";
 
-export const DELEGATE_ROLES = [
-  "solution-a",
-  "solution-b",
-  "solution-c",
-  "solution-d",
-  "solution-e",
-  "solution-f",
-  "oracle",
-  "implementation",
-  "review-a",
-  "review-b",
-  "review-c",
-  "review-d",
-  "review-e",
-  "verification",
-  "remediation",
-] as const;
-
 export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
-export type DelegateRole = (typeof DELEGATE_ROLES)[number];
+/**
+ * Delegate role id, for example "solution-a" or "oracle". The concrete set
+ * is no longer a compile-time union: it derives from the validated routing
+ * snapshot (the ordered solution/review assignment arrays plus the four
+ * singleton families), and every runtime decision resolves the id through
+ * the normalized role registry in `routing.ts` instead of prefix inference.
+ */
+export type DelegateRole = string;
 export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 
 /**
@@ -403,7 +392,7 @@ export interface RunOptions {
   /** Internal test seam for the fixed 15-second catalog preflight cap. */
   readonly catalogTimeoutMs?: number;
   readonly piInvocation?: PiInvocation;
-  /** Optional pre-validated routing config; deterministic injection point so tests can exercise alternate profiles. */
+  /** Optional pre-validated routing config: the registration snapshot injected by the tool, or a deterministic test seam for alternate assignments. */
   readonly routingConfig?: RoutingConfig;
   /**
    * Prebuilt immutable child resource selection from `resources.ts`; covers

@@ -11,7 +11,6 @@ import { validateRoutingConfig } from "./routing.ts";
 import { finalizeDelegateRun } from "./result.ts";
 import { isOperationalFailureState, runDelegate } from "./runner.ts";
 import { terminationProbes } from "./supervisor.ts";
-import { DELEGATE_ROLES } from "./types.ts";
 import type { DelegateRunResult, RunOptions, ToolResult } from "./types.ts";
 
 const execFileAsync = promisify(execFile);
@@ -328,7 +327,7 @@ function baseOptions(
  */
 function twoTierOracleRoutingConfig() {
   return validateRoutingConfig({
-    version: 1,
+    version: 2,
     thinkingLevels: ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
     disabledProviders: [],
     models: {
@@ -344,9 +343,23 @@ function twoTierOracleRoutingConfig() {
         ],
       },
     },
-    roles: Object.fromEntries(DELEGATE_ROLES.map((role) => [role, { profile: "two-tier-oracle" }])),
-    oracleSafety: { selfReviewModelIds: ["model-x", "model-y"] },
+    assignments: uniformAssignments("two-tier-oracle"),
   });
+}
+
+/**
+ * Version-2 assignments mapping every derived role to one shared profile,
+ * mirroring the shipped gate shape (six solution slots, five review slots).
+ */
+function uniformAssignments(profile: string) {
+  return {
+    solution: Array.from({ length: 6 }, () => profile),
+    review: Array.from({ length: 5 }, () => profile),
+    implementation: profile,
+    remediation: profile,
+    verification: profile,
+    oracle: profile,
+  };
 }
 
 async function isGone(pid: number): Promise<boolean> {
@@ -1144,7 +1157,7 @@ test("a parent matching the second oracle tier model is rejected before artifact
  */
 function singleRouteRoutingConfig() {
   return validateRoutingConfig({
-    version: 1,
+    version: 2,
     thinkingLevels: ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
     disabledProviders: [],
     models: {
@@ -1156,15 +1169,14 @@ function singleRouteRoutingConfig() {
         tiers: [{ model: "model-x", thinking: "high", providers: ["prov-a"] }],
       },
     },
-    roles: Object.fromEntries(DELEGATE_ROLES.map((role) => [role, { profile: "solo" }])),
-    oracleSafety: { selfReviewModelIds: ["model-x"] },
+    assignments: uniformAssignments("solo"),
   });
 }
 
 function providerCountRoutingConfig(count: number) {
   const providers = Array.from({ length: count }, (_, index) => `prov-${index + 1}`);
   return validateRoutingConfig({
-    version: 1,
+    version: 2,
     thinkingLevels: ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
     disabledProviders: [],
     models: {
@@ -1175,8 +1187,7 @@ function providerCountRoutingConfig(count: number) {
     profiles: {
       counted: { overridePolicy: "rejected", tiers: [{ model: "model-x", thinking: "high", providers }] },
     },
-    roles: Object.fromEntries(DELEGATE_ROLES.map((role) => [role, { profile: "counted" }])),
-    oracleSafety: { selfReviewModelIds: ["model-x"] },
+    assignments: uniformAssignments("counted"),
   });
 }
 

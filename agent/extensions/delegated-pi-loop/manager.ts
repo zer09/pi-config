@@ -1,9 +1,10 @@
 import { roleIsExclusive } from "./routes.ts";
-import type { DelegateProgress, DelegateRole, DelegateState, InterruptionSource } from "./types.ts";
+import type { ResolvedRole } from "./routing.ts";
+import type { DelegateProgress, DelegateState, InterruptionSource } from "./types.ts";
 
 interface ActiveRun {
   readonly delegateId: number;
-  readonly role: DelegateRole;
+  readonly role: ResolvedRole;
   readonly controller: AbortController;
   readonly startedAt: number;
   progress?: DelegateProgress;
@@ -16,7 +17,7 @@ export interface DelegateHandle {
 
 export interface ActiveDelegate {
   readonly id: number;
-  readonly role: DelegateRole;
+  readonly role: string;
   readonly state: DelegateState | "starting" | "stopping";
   /** Route key ("provider/model:thinking") or an explicit placeholder before the first progress event. */
   readonly route: string;
@@ -50,14 +51,16 @@ export class DelegateManager {
   private readonly active = new Map<string, ActiveRun>();
   private nextDelegateId = 1;
 
-  begin(toolCallId: string, role: DelegateRole): DelegateHandle {
+  begin(toolCallId: string, role: ResolvedRole): DelegateHandle {
+    // Admission requires a registry-resolved role, so classification is
+    // family-owned and an unknown role can never reach the manager.
     const activeRoles = [...this.active.values()].map((run) => run.role);
 
     // Verification overlaps only sibling verifications: it never starts next
     // to a solution, review, implementation, remediation, or oracle role, and
     // those roles likewise never start next to an active verification.
-    if (role === "verification") {
-      if (activeRoles.some((active) => active !== "verification")) {
+    if (role.family === "verification") {
+      if (activeRoles.some((active) => active.family !== "verification")) {
         throw new Error("A verification delegate may overlap only other verification delegates");
       }
       if (activeRoles.length >= VERIFICATION_CONCURRENCY_CAP) {
@@ -75,7 +78,7 @@ export class DelegateManager {
       if (activeRoles.some(roleIsExclusive)) {
         throw new Error("An implementation, remediation, or oracle delegate must run sequentially against every active delegate");
       }
-      if (activeRoles.some((active) => active === "verification")) {
+      if (activeRoles.some((active) => active.family === "verification")) {
         throw new Error("A verification delegate may overlap only other verification delegates");
       }
     }
@@ -130,7 +133,7 @@ export class DelegateManager {
       ?? Math.round((performance.now() - run.startedAt) / 100) / 10;
     return {
       id: run.delegateId,
-      role: run.role,
+      role: run.role.id,
       state: run.controller.signal.aborted ? "stopping" : (run.progress?.state ?? "starting"),
       // A delegate that has not reported progress yet is still selecting its
       // route and sits in the monitor's initial phase at report round 1.
