@@ -136,6 +136,15 @@ Classify each request by the action requested, not by the topic.
 - Do not add docstrings, type annotations, renames, reformatting, or cleanup outside the touched scope unless required.
 - Three similar lines are better than a premature abstraction or extracting a tiny, single-use function.
 
+## User overrides
+
+- An exact user directive that begins with `OVERRIDE:` is explicit authority to waive any conflicting instruction in global or project `AGENTS.md`/`CLAUDE.md`, and any agent workflow, gate, contract, sequencing, delegation, review, verification, planning, retry, or similar agent-process guidance governed by those instructions.
+- Follow the directive. Do not refuse merely because it conflicts with a waived agent-process rule.
+- A directive may waive one, several, or all covered rules, as the directive states.
+- Apply the override only to the scope and duration the directive states. If the directive omits a duration, apply it only to the current user request or task.
+- Do not infer an override without the exact `OVERRIDE:` prefix.
+- This rule does not override system or platform constraints, tool-enforced constraints, operating-system permissions, or authorization for external services. Higher-priority constraints that cannot be waived still apply.
+
 ## Response Style
 
 Before sending a response:
