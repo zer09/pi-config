@@ -117,14 +117,15 @@ test("the shipped routing config contains no removed provider occurrence", async
   }
   // The removed AgentRouter Opus 4.8 model record is gone with its provider.
   assert.equal(text.includes("claude-opus-4-8"), false);
+  // The removed Ox Alpha model records are gone from delegated routing too.
+  assert.equal(text.includes("ox-alpha"), false);
 });
 
 test("the shipped config pins delegate model thinking capabilities", () => {
   const config = loadRoutingConfig();
-  assert.deepEqual(config.models["stealth/ox-alpha"]?.providers.openrouter, {
-    thinking: ["low", "high", "max"],
-    default: "high",
-  });
+  // Ox Alpha is fully removed from delegated routing: neither the former
+  // OpenRouter capability record nor any other ox model record remains.
+  assert.equal(config.models["stealth/ox-alpha"], undefined);
   assert.equal(config.models["ox-alpha"], undefined);
   assert.equal(config.models["claude-fable-5"], undefined);
   // AgentRouter is fully removed from delegated routing: neither its former
@@ -554,7 +555,6 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
     "opencode-go/deepseek-v4-flash:max",
   ];
   const expectedC = [
-    "openrouter/stealth/ox-alpha:high",
     "opencode-go/hy3:high",
   ];
   // Solution and review pairs share one profile and produce identical
@@ -1015,8 +1015,8 @@ test("provider plus model overrides are exact after capability validation", () =
   );
   // Without an explicit thinking level the provider's configured default applies.
   assert.deepEqual(
-    selectRoutes(config, "implementation", { provider: "openrouter", model: "stealth/ox-alpha", reason: "user requested ox alpha on openrouter" }).map(routeKey),
-    ["openrouter/stealth/ox-alpha:high"],
+    selectRoutes(config, "implementation", { provider: "opencode-go", model: "hy3", reason: "user requested hy3 on opencode go" }).map(routeKey),
+    ["opencode-go/hy3:high"],
   );
   // Capability violations fail closed.
   assert.throws(
@@ -1024,8 +1024,8 @@ test("provider plus model overrides are exact after capability validation", () =
     /provider "seekai" has no capability record for model "glm-5\.3"/,
   );
   assert.throws(
-    () => selectRoutes(config, "implementation", { provider: "gorouter", model: "stealth/ox-alpha", thinking: "high", reason: "invalid" }),
-    /provider "gorouter" has no capability record for model "stealth\/ox-alpha"/,
+    () => selectRoutes(config, "implementation", { provider: "gorouter", model: "hy3", thinking: "high", reason: "invalid" }),
+    /provider "gorouter" has no capability record for model "hy3"/,
   );
   assert.throws(
     () => selectRoutes(config, "implementation", { model: "unknown-model", reason: "invalid" }),

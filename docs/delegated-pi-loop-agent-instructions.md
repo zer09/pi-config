@@ -408,7 +408,7 @@ The file is schema version 2: profiles of ordered model tiers plus an `assignmen
 |---|---|
 | `solution-a`, `review-a` | `opencode-go/muse-spark-1.2-contributor:xhigh` |
 | `solution-b`, `review-b` | `opencode-go/deepseek-v4-flash:max` |
-| `solution-c`, `review-c` | `openrouter/stealth/ox-alpha:high`, then `opencode-go/hy3:high` |
+| `solution-c`, `review-c` | `opencode-go/hy3:high` |
 | `solution-d`, `review-d` | `gpt-5.5:high` through the configured OpenAI Codex provider pool |
 | `solution-e` | `gpt-5.6-sol:high` through the OpenAI Codex provider pool |
 | `solution-f` | `zai/glm-5.3:max` |

@@ -101,11 +101,6 @@
         }
       }
     },
-    "stealth/ox-alpha": {
-      "providers": {
-        "openrouter": { "thinking": ["low", "high", "max"], "default": "high" }
-      }
-    },
     "glm-5.3": {
       "providers": {
         "zai": { "thinking": ["low", "high", "max"], "default": "max" }
@@ -133,11 +128,6 @@
     },
     "gate-c": {
       "tiers": [
-        {
-          "model": "stealth/ox-alpha",
-          "thinking": "high",
-          "providers": ["openrouter"]
-        },
         { "model": "hy3", "thinking": "high", "providers": ["opencode-go"] }
       ]
     },

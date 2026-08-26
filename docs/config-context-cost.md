@@ -90,6 +90,8 @@ Delegated provider-inheritance and AgentRouter removal update: 2026-08-25 (remov
 
 Delegated instruction-centralization update: 2026-08-26 (moved every model-visible delegation instruction into the canonical `instructions.ts` module, made the parent workflow tool-scoped through the active `delegate_run` prompt guidelines alone, and removed the detailed `## Delegated work` section from `agent/AGENTS.md`; `agent/AGENTS.md` drops 1,064 local tokens for every parent and every delegated child while the tool metadata, schema, and guidelines stay byte-identical; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated C-route Ox Alpha removal update: 2026-08-27 (removed the `stealth/ox-alpha` capability record and Gate C tier from `routing.json` together with the global OpenRouter override, the TokenReply `ox-alpha` model entry, and the `openrouter/stealth/ox-alpha` enabled model because every provider dropped the model; zero model-visible startup-context delta because the public role schema, tool guidance, and global instructions are unchanged; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`

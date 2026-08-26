@@ -362,6 +362,34 @@ function uniformAssignments(profile: string) {
   };
 }
 
+/**
+ * A validated config whose every role maps to one shared two-tier profile
+ * with exactly one provider per tier, so the generic operational-fallback
+ * tests get a deterministic two-route chain without depending on a shipped
+ * multi-provider pool's random primary draw.
+ */
+function twoTierRoutingConfig() {
+  return validateRoutingConfig({
+    version: 2,
+    thinkingLevels: ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+    disabledProviders: [],
+    models: {
+      "model-x": { providers: { "prov-a": { thinking: ["low", "high", "max"], default: "high" } } },
+      "model-y": { providers: { "prov-b": { thinking: ["low", "high", "max"], default: "high" } } },
+    },
+    profiles: {
+      "two-tier": {
+        overridePolicy: "rejected",
+        tiers: [
+          { model: "model-x", thinking: "high", providers: ["prov-a"] },
+          { model: "model-y", thinking: "high", providers: ["prov-b"] },
+        ],
+      },
+    },
+    assignments: uniformAssignments("two-tier"),
+  });
+}
+
 async function isGone(pid: number): Promise<boolean> {
   try {
     process.kill(pid, 0);
@@ -632,20 +660,21 @@ test("classifies exactly the operational failure states as fallback-eligible", (
 
 test("skips an uncatalogued primary and completes on a fresh fallback route", async () => {
   const fixture = await fakePi(
-    ["opencode-go/hy3"],
-    { "opencode-go/hy3": "complete" },
+    ["prov-b/model-y"],
+    { "prov-b/model-y": "complete" },
   );
   const updates: string[] = [];
   const toolResult = await runAndFinalize(
     baseOptions(fixture, {
       role: "solution-c",
+      routingConfig: twoTierRoutingConfig(),
       onProgress: (progress) => updates.push(`${progress.lastEvent}@${progress.lastEventAt}`),
     }),
     async (result, finalize) => {
       assert.equal(result.state, "completed");
-      assert.equal(result.selectedRoute, "opencode-go/hy3:high");
+      assert.equal(result.selectedRoute, "prov-b/model-y:high");
       assert.equal(result.attempts[0]?.state, "catalog_unavailable");
-      assert.match(result.report, /Completed on opencode-go\/hy3/);
+      assert.match(result.report, /Completed on prov-b\/model-y/);
       assert.ok(updates.some((update) => update.startsWith("agent_settled@")));
       assert.match(result.startedAt, /^\d{4}-\d{2}-\d{2}T/);
       assert.match(result.endedAt, /^\d{4}-\d{2}-\d{2}T/);
@@ -670,15 +699,15 @@ test("skips an uncatalogued primary and completes on a fresh fallback route", as
 
 test("falls back after pre-tool provider unavailability", async () => {
   const fixture = await fakePi(
-    ["openrouter/stealth/ox-alpha", "opencode-go/hy3"],
+    ["prov-a/model-x", "prov-b/model-y"],
     {
-      "openrouter/stealth/ox-alpha": "unavailable",
-      "opencode-go/hy3": "complete",
+      "prov-a/model-x": "unavailable",
+      "prov-b/model-y": "complete",
     },
   );
-  await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result) => {
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c", routingConfig: twoTierRoutingConfig() }), async (result) => {
     assert.equal(result.state, "completed");
-    assert.equal(result.selectedRoute, "opencode-go/hy3:high");
+    assert.equal(result.selectedRoute, "prov-b/model-y:high");
     assert.equal(result.attempts[0]?.state, "provider_failed");
     assert.equal(result.attempts[0]?.restartAfterWork, undefined);
     assert.equal(result.progress.restartAfterWorkCount, 0);
@@ -687,13 +716,13 @@ test("falls back after pre-tool provider unavailability", async () => {
 
 test("credit exhaustion before tools advances without consuming report recovery", async () => {
   const fixture = await fakePi(
-    ["openrouter/stealth/ox-alpha", "opencode-go/hy3"],
+    ["prov-a/model-x", "prov-b/model-y"],
     {
-      "openrouter/stealth/ox-alpha": "credit",
-      "opencode-go/hy3": "complete",
+      "prov-a/model-x": "credit",
+      "prov-b/model-y": "complete",
     },
   );
-  await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result) => {
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c", routingConfig: twoTierRoutingConfig() }), async (result) => {
     assert.equal(result.state, "completed");
     assert.equal(result.attempts[0]?.state, "provider_failed");
     assert.equal(result.progress.reportNudgeCount, 0);
@@ -702,12 +731,12 @@ test("credit exhaustion before tools advances without consuming report recovery"
 
 test("an exhausted operational chain ends as routes_unavailable", async () => {
   const catalog = [
-    "openrouter/stealth/ox-alpha",
-    "opencode-go/hy3",
+    "prov-a/model-x",
+    "prov-b/model-y",
   ];
   const behaviors = Object.fromEntries(catalog.map((route) => [route, "credit"])) as Record<string, Behavior>;
   const fixture = await fakePi(catalog, behaviors);
-  const toolResult = await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result, finalize) => {
+  const toolResult = await runAndFinalize(baseOptions(fixture, { role: "solution-c", routingConfig: twoTierRoutingConfig() }), async (result, finalize) => {
     assert.equal(result.state, "routes_unavailable");
     assert.equal(result.attempts.length, 2);
     assert.ok(result.attempts.every((attempt) => attempt.state === "provider_failed"));
@@ -747,21 +776,21 @@ test("one route attempt can recover in the same session without fallback", async
 
 test("operational failure after accepted report recovery falls back with the restart note", async () => {
   const fixture = await fakePi(
-    ["openrouter/stealth/ox-alpha", "opencode-go/hy3"],
+    ["prov-a/model-x", "prov-b/model-y"],
     {
-      "openrouter/stealth/ox-alpha": "missing-provider",
-      "opencode-go/hy3": "complete",
+      "prov-a/model-x": "missing-provider",
+      "prov-b/model-y": "complete",
     },
   );
-  await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result) => {
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c", routingConfig: twoTierRoutingConfig() }), async (result) => {
     assert.equal(result.state, "completed");
-    assert.equal(result.selectedRoute, "opencode-go/hy3:high");
+    assert.equal(result.selectedRoute, "prov-b/model-y:high");
     assert.equal(result.attempts.length, 2);
     assert.equal(result.attempts[0]?.state, "provider_failed");
     // Recovery was accepted on the first route, so the restart note was applied.
     assert.equal(result.attempts[0]?.restartAfterWork, true);
     assert.equal(result.progress.restartAfterWorkCount, 1);
-    assert.match(result.report, /Completed on opencode-go\/hy3/);
+    assert.match(result.report, /Completed on prov-b\/model-y/);
     const prompt = await readFile(path.join(result.artifactDir, "prompt.md"), "utf8");
     assert.equal(prompt.split(RESTART_AFTER_WORK_NOTE).length - 1, 1);
   });
@@ -769,20 +798,20 @@ test("operational failure after accepted report recovery falls back with the res
 
 test("operational failure after tool execution falls back with the restart note", async () => {
   const fixture = await fakePi(
-    ["openrouter/stealth/ox-alpha", "opencode-go/hy3"],
+    ["prov-a/model-x", "prov-b/model-y"],
     {
-      "openrouter/stealth/ox-alpha": "tool-unavailable",
-      "opencode-go/hy3": "complete",
+      "prov-a/model-x": "tool-unavailable",
+      "prov-b/model-y": "complete",
     },
   );
-  await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result) => {
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c", routingConfig: twoTierRoutingConfig() }), async (result) => {
     assert.equal(result.state, "completed");
-    assert.equal(result.selectedRoute, "opencode-go/hy3:high");
+    assert.equal(result.selectedRoute, "prov-b/model-y:high");
     assert.equal(result.attempts.length, 2);
     assert.equal(result.attempts[0]?.state, "provider_failed");
     assert.equal(result.attempts[0]?.restartAfterWork, true);
     assert.equal(result.progress.restartAfterWorkCount, 1);
-    assert.match(result.report, /Completed on opencode-go\/hy3/);
+    assert.match(result.report, /Completed on prov-b\/model-y/);
     // Failure data returns in memory: no chain-level status.json exists and the
     // temporary artifacts survive until execute-level finalization.
     await stat(result.artifactDir);
@@ -792,15 +821,15 @@ test("operational failure after tool execution falls back with the restart note"
 
 test("the restart note is private, sanitized, and never stacks across restarts", async () => {
   const catalog = [
-    "openrouter/stealth/ox-alpha",
-    "opencode-go/hy3",
+    "prov-a/model-x",
+    "prov-b/model-y",
   ];
   const behaviors: Record<string, Behavior> = {
-    "openrouter/stealth/ox-alpha": "tool-unavailable",
-    "opencode-go/hy3": "complete",
+    "prov-a/model-x": "tool-unavailable",
+    "prov-b/model-y": "complete",
   };
   const fixture = await fakePi(catalog, behaviors);
-  await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result) => {
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c", routingConfig: twoTierRoutingConfig() }), async (result) => {
     assert.equal(result.state, "completed");
     assert.equal(result.attempts.length, 2);
     assert.equal(result.attempts[0]?.restartAfterWork, true);
@@ -1933,14 +1962,14 @@ function runtimeResourceSlice(argv: readonly string[]): string[] {
 
 test("catalog preflight uses the lean catalog resource profile", async () => {
   const fixture = await fakePi(
-    ["openrouter/stealth/ox-alpha", "opencode-go/hy3"],
+    ["prov-a/model-x", "prov-b/model-y"],
     {
-      "openrouter/stealth/ox-alpha": "credit",
-      "opencode-go/hy3": "complete",
+      "prov-a/model-x": "credit",
+      "prov-b/model-y": "complete",
     },
     { argvLog: true },
   );
-  await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async () => {});
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c", routingConfig: twoTierRoutingConfig() }), async () => {});
   const catalogArgv = (await argvLogLines(fixture.root)).filter((argv) => argv.includes("--list-models"));
   assert.ok(catalogArgv.length >= 1, "at least one catalog preflight must have run");
   for (const argv of catalogArgv) {
@@ -1965,14 +1994,14 @@ test("catalog preflight uses the lean catalog resource profile", async () => {
 
 test("every fallback attempt receives byte-for-byte identical runtime resource arguments", async () => {
   const fixture = await fakePi(
-    ["openrouter/stealth/ox-alpha", "opencode-go/hy3"],
+    ["prov-a/model-x", "prov-b/model-y"],
     {
-      "openrouter/stealth/ox-alpha": "credit",
-      "opencode-go/hy3": "complete",
+      "prov-a/model-x": "credit",
+      "prov-b/model-y": "complete",
     },
     { argvLog: true },
   );
-  await runAndFinalize(baseOptions(fixture, { role: "solution-c" }), async (result) => {
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c", routingConfig: twoTierRoutingConfig() }), async (result) => {
     assert.equal(result.attempts.length, 2);
   });
   const runtimeArgv = (await argvLogLines(fixture.root)).filter((argv) => !argv.includes("--list-models"));
@@ -1991,7 +2020,7 @@ test("every fallback attempt receives byte-for-byte identical runtime resource a
   const modeIndex = argv.indexOf("--mode");
   assert.deepEqual(argv.slice(modeIndex), [
     "--mode", "rpc", "--no-session", "--approve",
-    "--provider", "openrouter", "--model", "stealth/ox-alpha", "--thinking", "high",
+    "--provider", "prov-a", "--model", "model-x", "--thinking", "high",
   ]);
 });
 
