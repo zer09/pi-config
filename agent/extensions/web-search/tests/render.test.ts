@@ -93,6 +93,21 @@ describe("web_search result details rendering", () => {
     ).toBe("provider=gemini-exa-grounding attempts=2 fallbackFrom=parallel sources=9 supports=9 responseId=wse_abc");
   });
 
+  it("renders provider=none when answerProvider is explicitly null", () => {
+    expect(
+      detailsLine("web_search", {
+        responseId: "wse_abc",
+        answerProvider: null,
+        attemptCount: 1,
+        primaryStatus: 503,
+        primaryFirstFailureCode: null,
+        primaryFinalFailureCode: "http_503",
+        sourceCount: null,
+        supportCount: null,
+      }),
+    ).toBe("provider=none attempts=1 primaryError=http_503 responseId=wse_abc");
+  });
+
   it("does not fabricate zeros for minimal details", () => {
     expect(detailsLine("web_search", { responseId: "wse_abc" })).toBe(
       "provider=gemini-parallel-grounding attempts=1 responseId=wse_abc",

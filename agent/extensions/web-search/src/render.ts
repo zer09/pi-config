@@ -81,7 +81,9 @@ function resultDetailsSummary(toolName: WebSearchToolName, result: ToolResult): 
   const details = asRecord(result.details);
   if (toolName === "web_search") {
     const responseId = asString(details.responseId) ?? "unknown";
-    const provider = asString(details.answerProvider) ?? "gemini-parallel-grounding";
+    // detailsForSearch emits answerProvider: null when no provider answered at
+    // all; only an absent field means legacy details that still imply Parallel.
+    const provider = details.answerProvider === null ? "none" : asString(details.answerProvider) ?? "gemini-parallel-grounding";
     const attempts = asNumber(details.attemptCount) ?? 1;
     const fallbackFrom = asString(details.fallbackFrom);
     const finalStatus = asNumber(details.primaryStatus);
