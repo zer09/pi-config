@@ -80,13 +80,15 @@ function resultForRequest(
  * Entries carry the `exa_contents` provider and its per-item status so cache
  * and tool details can identify the original provider.
  *
- * @param params - Raw response data, requested normalized URLs, character budget, TTL, and optional timestamp.
+ * @param params - Raw response data, requested normalized URLs, character budget, the effective provider freshness allowance in hours, TTL, and optional timestamp.
  * @returns Parsed content cache entries in the same order as the requested URLs.
  */
 export function parseExaContentsResults(params: {
   data: unknown;
   requestedUrls: string[];
   requestedMaxCharacters: number;
+  /** Effective maxAgeHours the /contents request was made under. */
+  providerMaxAgeHours: number;
   ttlMs: number;
   now?: number;
 }): ContentCacheEntry[] {
@@ -113,6 +115,9 @@ export function parseExaContentsResults(params: {
       fetchedAt: now,
       expiresAt: now + params.ttlMs,
       requestedMaxCharacters: params.requestedMaxCharacters,
+      // The effective allowance this Exa request was made under, so the
+      // conservative combined-age cache check stays accurate for later calls.
+      providerMaxAgeHours: params.providerMaxAgeHours,
       title: asString(result?.title),
       text: asString(result?.text) ?? asString(result?.markdown) ?? "",
       provider: "exa_contents" as const,

@@ -186,13 +186,16 @@ async function runWithConcurrency<T, R>(items: T[], limit: number, worker: (item
   return results;
 }
 
-function entryFromScrape(miss: { normalizedUrl: string }, markdown: string, title: string | undefined, statusCode: number | undefined, warning: string | undefined, maxCharacters: number, ttlMs: number, now: number): ContentCacheEntry {
+function entryFromScrape(miss: { normalizedUrl: string }, markdown: string, title: string | undefined, statusCode: number | undefined, warning: string | undefined, maxCharacters: number, providerMaxAgeHours: number, ttlMs: number, now: number): ContentCacheEntry {
   return {
     url: miss.normalizedUrl,
     normalizedUrl: miss.normalizedUrl,
     fetchedAt: now,
     expiresAt: now + ttlMs,
     requestedMaxCharacters: maxCharacters,
+    // The effective allowance this Firecrawl request was made under, so the
+    // conservative combined-age cache check stays accurate for later calls.
+    providerMaxAgeHours,
     title,
     text: markdown,
     provider: "firecrawl_scrape",
@@ -304,6 +307,7 @@ export async function fetchContentsEntries(params: {
             attempt.normalized!.statusCode,
             attempt.normalized!.warning,
             maxCharacters,
+            maxAgeHours,
             config.contentCacheTtlMs,
             Date.now(),
           );
@@ -347,6 +351,7 @@ export async function fetchContentsEntries(params: {
               data: raw.rawResponse!.bodyJson,
               requestedUrls: exaMisses.map((miss) => miss.normalizedUrl),
               requestedMaxCharacters: maxCharacters,
+              providerMaxAgeHours: maxAgeHours,
               ttlMs: config.contentCacheTtlMs,
             });
           } catch (error) {

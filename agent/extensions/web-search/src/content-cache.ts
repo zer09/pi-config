@@ -127,7 +127,7 @@ export function isCacheableContentEntry(entry: ContentCacheEntry): boolean {
  * @param requestedMaxCharacters - Current requested maximum Markdown characters per URL.
  * @param maxAgeHours - Current requested maximum content age in hours.
  * @param now - Current timestamp in milliseconds.
- * @returns True when the entry is cacheable, fresh enough, and was fetched with at least the requested character budget.
+ * @returns True when the entry is cacheable, was fetched with at least the requested character budget, and its conservative combined age fits the current freshness budget.
  */
 export function isContentCacheEntryUsable(
   entry: ContentCacheEntry,
@@ -138,8 +138,17 @@ export function isContentCacheEntryUsable(
   if (!isCacheableContentEntry(entry)) return false;
   if (!Number.isFinite(entry.requestedMaxCharacters) || entry.requestedMaxCharacters <= 0) return false;
   if (entry.requestedMaxCharacters < requestedMaxCharacters) return false;
-  // Freshness is per call: the entry must be strictly younger than maxAgeHours.
-  return now - entry.fetchedAt < maxAgeHours * MS_PER_HOUR;
+  // Legacy entries carry no recorded provider allowance: the content age at
+  // fetch time is unknown, so they are never usable as cache hits.
+  if (typeof entry.providerMaxAgeHours !== "number" || !Number.isFinite(entry.providerMaxAgeHours) || entry.providerMaxAgeHours < 0) {
+    return false;
+  }
+  // The provider may have served content already `providerMaxAgeHours` old at
+  // fetch time, so the conservative combined age (local age plus that
+  // allowance) must fit the current request's budget. A future `fetchedAt`
+  // (clock skew) floors the local age at zero.
+  const localAgeMs = Math.max(0, now - entry.fetchedAt);
+  return localAgeMs + entry.providerMaxAgeHours * MS_PER_HOUR < maxAgeHours * MS_PER_HOUR;
 }
 
 /**

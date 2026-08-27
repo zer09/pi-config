@@ -235,6 +235,7 @@ describe("fetch_contents diagnostic records", () => {
         fetchedAt: now - 1000,
         expiresAt: now + 100_000,
         requestedMaxCharacters: 12000,
+        providerMaxAgeHours: 1,
         title: "Cached",
         text: "cached body",
         provider: "exa_contents",

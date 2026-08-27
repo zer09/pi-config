@@ -389,6 +389,13 @@ export type ContentCacheEntry = {
   fetchedAt: number;
   expiresAt: number;
   requestedMaxCharacters: number;
+  /**
+   * Freshness allowance in hours the provider request was made under, when
+   * known. The provider may serve content already this old at fetch time, so
+   * cache usability adds it to the local fetch age (conservative combined
+   * age). Legacy entries without this field are never usable cache hits.
+   */
+  providerMaxAgeHours?: number;
   title?: string;
   text: string;
   provider?: ContentProvider;

@@ -87,9 +87,9 @@ A requested URL receives Exa Contents content only from the result carrying the 
 
 - Raw provider exchanges are stored under `<cacheDir>/responses/` for one month, keyed by response ID.
 - Content is cached under `<cacheDir>/contents/` by normalized-URL SHA-256 for one month of physical retention.
-- Freshness is separate from retention: an entry is usable only when its fetch age satisfies the current `maxAgeHours`. Stale entries stay on disk but are not used for the current request, and unrelated cache files are never deleted as a migration step.
+- Freshness is separate from retention: an entry is usable only when its conservative combined age fits the current `maxAgeHours`. Entries record the effective `providerMaxAgeHours` allowance they were fetched under, and usability requires `local fetch age + providerMaxAgeHours < maxAgeHours`, because the provider may serve content already that old at fetch time. A locally fresh entry fetched under a 720h allowance therefore cannot satisfy a later 1h request, and a stricter prior allowance stays reusable by a looser later request only while the combined budget fits. Stale entries stay on disk but are not used for the current request, and unrelated cache files are never deleted as a migration step.
 - `maxAgeHours: 0` skips local cache reads for satisfaction and forwards `maxAge: 0` (Firecrawl) and `maxAgeHours: 0` (Exa).
-- Cache entries record their original provider (`firecrawl_scrape` or `exa_contents`); legacy entries without provider metadata remain readable.
+- Cache entries record their original provider (`firecrawl_scrape` or `exa_contents`) and its effective freshness allowance. Legacy entries without provider metadata or a valid `providerMaxAgeHours` remain readable in storage but are never usable cache hits: they cause a provider refetch instead of failing the request.
 - Only non-empty successful content is cached. Duplicate input URLs are fetched once and reproduced in output order; partial success is returned.
 
 ## Diagnostic records

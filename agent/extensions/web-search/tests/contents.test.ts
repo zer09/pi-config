@@ -106,6 +106,9 @@ describe("fetch_contents provider routing", () => {
       fetchedAt: now - 1000,
       expiresAt: now + 100_000,
       requestedMaxCharacters: 12000,
+      // Fetched under a strict 1h provider allowance: 1000ms + 1h < the
+      // default 24h request budget, so the entry stays a cache hit.
+      providerMaxAgeHours: 1,
       title: "Cached",
       text: "cached body",
       provider: "exa_contents",
@@ -144,6 +147,33 @@ describe("fetch_contents provider routing", () => {
     expect(entries[0].fromCache).toBe(false);
     // Neither the stale entry nor the unrelated cache file was deleted.
     expect(await readFile(unrelatedPath, "utf8")).toContain("keep me");
+  });
+
+  it("rejects a 720h-provider-allowance cache entry for a 1h request and refetches", async () => {
+    const now = Date.now();
+    const url = "https://example.com/a";
+    await writeCache(url, {
+      url,
+      normalizedUrl: url,
+      fetchedAt: now - 1000,
+      expiresAt: now + 100_000,
+      requestedMaxCharacters: 12000,
+      // Even a locally fresh entry may hold content already 720h old at the
+      // provider, so a 1h request must refetch from the provider.
+      providerMaxAgeHours: 720,
+      text: "possibly ancient body",
+    });
+    install([jsonResponse(scrapeSuccess())]);
+
+    const entries = await fetchContentsEntries({ rawUris: [url], rawMaxAgeHours: 1, config: config() });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe(FIRECRAWL_SCRAPE_URL);
+    expect(calls[0]!.body.maxAge).toBe(1 * HOUR_MS);
+    expect(entries[0].text).toContain("Body text.");
+    expect(entries[0].fromCache).toBe(false);
+    // The refetched entry records the effective 1h provider allowance.
+    expect(await readCachedEntry(url)).toMatchObject({ providerMaxAgeHours: 1, provider: "firecrawl_scrape" });
   });
 
   it("bypasses the local cache and provider caches for maxAgeHours 0", async () => {
@@ -431,7 +461,35 @@ describe("fetch_contents provider routing", () => {
     expect(maxInFlight).toBeGreaterThan(1);
   });
 
-  it("reads legacy Exa cache entries without provider metadata", async () => {
+  it("persists the effective provider allowance on Firecrawl-created cache entries", async () => {
+    install([jsonResponse(scrapeSuccess()), jsonResponse(scrapeSuccess())]);
+    await fetchContentsEntries({ rawUris: ["https://example.com/a"], rawMaxAgeHours: 7, config: config() });
+
+    expect(calls[0]!.body.maxAge).toBe(7 * HOUR_MS);
+    const cached = await readCachedEntry("https://example.com/a");
+    expect(cached?.provider).toBe("firecrawl_scrape");
+    expect(cached?.providerMaxAgeHours).toBe(7);
+
+    // A stricter prior allowance is reusable by a looser later request while
+    // the combined budget fits: 7h allowance plus milliseconds fits 8h.
+    const entries = await fetchContentsEntries({ rawUris: ["https://example.com/a"], rawMaxAgeHours: 8, config: config() });
+    expect(calls).toHaveLength(1);
+    expect(entries[0].fromCache).toBe(true);
+    expect(entries[0].text).toContain("Body text.");
+  });
+
+  it("persists the effective provider allowance on Exa-created cache entries", async () => {
+    install([jsonResponse({ success: false }, 500), jsonResponse(exaContentsSuccess(["https://example.com/a"]))]);
+    await fetchContentsEntries({ rawUris: ["https://example.com/a"], rawMaxAgeHours: 5, config: config() });
+
+    expect(calls[1]!.url).toBe(EXA_CONTENTS_URL);
+    expect(calls[1]!.body.maxAgeHours).toBe(5);
+    const cached = await readCachedEntry("https://example.com/a");
+    expect(cached?.provider).toBe("exa_contents");
+    expect(cached?.providerMaxAgeHours).toBe(5);
+  });
+
+  it("reads legacy Exa cache entries without provider metadata but refetches them", async () => {
     const now = Date.now();
     const url = "https://example.com/legacy";
     await writeCache(url, {
@@ -445,12 +503,17 @@ describe("fetch_contents provider routing", () => {
       exaStatus: { status: "success" },
       rawResult: { url, text: "legacy body" },
     });
-    install([]);
+    install([jsonResponse(scrapeSuccess("# Fresh"))]);
 
     const entries = await fetchContentsEntries({ rawUris: [url], config: config() });
 
-    expect(calls).toHaveLength(0);
-    expect(entries[0].text).toBe("legacy body");
+    // The legacy record stays readable, but its unknown provider allowance
+    // makes it unusable as a cache hit: the provider is called instead and
+    // the request succeeds with fresh content.
+    expect(calls).toHaveLength(1);
+    expect(entries[0].text).toBe("# Fresh");
+    expect(entries[0].fromCache).toBe(false);
+    expect(await readCachedEntry(url)).toMatchObject({ text: "# Fresh", providerMaxAgeHours: 24 });
   });
 
   it("enforces per-URL and total output bounds", async () => {
