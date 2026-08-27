@@ -6,123 +6,54 @@ import path from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 
-test("registration guidelines encode the automatic delegation policy without provider route details", async () => {
-  // The complete parent delegation workflow lives in the canonical
-  // instruction module and reaches the parent only through the active
-  // delegate_run tool's promptGuidelines.
-  const source = await readFile(new URL("./instructions.ts", import.meta.url), "utf8");
-  const guidelinesStart = source.indexOf("export function delegateRunPromptGuidelines(");
-  assert.ok(guidelinesStart >= 0, "delegateRunPromptGuidelines builder not found");
-  const guidelines = source.slice(guidelinesStart, source.indexOf("\n}\n", guidelinesStart));
+test("registration guidelines encode the compact automatic delegation policy without route details", async () => {
+  const { delegateRunPromptGuidelines } = await import("./instructions.ts");
+  const { loadRoutingSnapshot, roleIdsInFamily } = await import("./routing.ts");
+  const snapshot = loadRoutingSnapshot();
+  const lines = delegateRunPromptGuidelines(
+    roleIdsInFamily(snapshot, "solution"),
+    roleIdsInFamily(snapshot, "review"),
+  );
+  assert.equal(lines.length, 15);
+  assert.ok(lines.every((line) => line.startsWith("delegate_run ")));
+  const guidelines = lines.join("\n");
 
-  // Delegation is automatic for repository implementation changes unless the
-  // user opts out. Only trivial edits and parent-authored plan or research
-  // deliverables bypass implementation delegation.
-  assert.match(guidelines, /automatically for repository implementation changes unless the user explicitly opts out/);
-  assert.match(guidelines, /The parent may directly make only a truly trivial edit with no behavior change or create and revise the plan and research deliverables defined below/);
-  assert.match(guidelines, /the parent never manually implements a non-trivial or small implementation task/);
-  // The parent owns planning and research deliverables: it authors them
-  // directly, artifact writes are an explicit exception to automatic
-  // delegation, and no implementation or remediation delegate may author,
-  // research, or revise them. Plan/research artifacts are classified by
-  // purpose, and a pure planning or research request runs no implementation
-  // delegate, review gate, or remediation.
-  assert.match(guidelines, /The parent owns planning and research deliverables: directly formulate, draft, edit, and save every plan, design note, investigation report, and research note, including repository artifacts such as PLAN\.md/);
-  assert.match(guidelines, /Those artifact writes are an explicit exception to automatic delegation even when they change repository files/);
-  assert.match(guidelines, /plan and research artifacts are distinguished by purpose, not only by file extension or location/);
-  assert.match(guidelines, /Never call an implementation or remediation delegate to research, explore, formulate, draft, edit, save, or revise a plan or research deliverable/);
-  assert.match(guidelines, /An implementation delegate executes only a parent-finalized implementation contract that changes product code, configuration, operational behavior, or implementation documentation/);
-  assert.match(guidelines, /implementation documentation such as README updates, ADRs, changelogs, policy files, and documentation accompanying code/);
-  assert.match(guidelines, /a remediation delegate corrects only verification-confirmed findings in such implementation work/);
-  assert.match(guidelines, /A pure planning or research request runs no implementation delegate, implementation review gate, or remediation/);
-  assert.match(guidelines, /if the user later approves implementation, that later request follows the existing implementation delegation and review workflow/);
-  // Small tasks skip only the solution-investigation gate and the oracle, and
-  // still delegate implementation.
-  assert.match(guidelines, /small task with an accepted plan or an obvious established pattern skips the solution-investigation gate and the oracle role and still runs exactly one implementation delegate/);
-  // The parent inspects the implementation diff and evidence before the review gate.
-  assert.match(guidelines, /implementation delegate's diff and evidence/);
-  assert.match(guidelines, /call delegate_run for \$\{joinRoleIds\(reviewRoleIds\)\} concurrently with the same neutral review scope/);
-  assert.match(guidelines, /all \$\{countWord\(reviewRoleIds\.length\)\} must complete\./);
-  // Reviewer-gate waiver: the strict all-five default stands, and only the
-  // user may explicitly waive named failed reviewer roles for the one
-  // current gate. The waiver continues with completed reports, records the
-  // waived roles, never relabels failures as passes, stays one-shot and
-  // gate-scoped, keeps findings from completed reviewers, and is never
-  // inferred from generic continue/commit/skip-retry requests.
-  assert.match(guidelines, /the gate stays blocked by default; only the user may explicitly waive the named failed reviewer roles for that one current gate/);
-  assert.match(guidelines, /continue with the completed review reports instead of retrying or stopping solely because the waived reviewers failed/);
-  assert.match(guidelines, /A reviewer waiver is one-shot and gate-scoped/);
-  assert.match(guidelines, /it changes no later gates, role schema, routing, or concurrency/);
-  assert.match(guidelines, /state which reviewers were waived and that the gate completed under user waiver/);
-  assert.match(guidelines, /never label a waived failure as a reviewer pass/);
-  assert.match(guidelines, /does not dismiss findings from completed reviewers/);
-  assert.match(guidelines, /Do not infer a reviewer waiver from a generic request to continue, commit, or skip retries/);
-  assert.match(guidelines, /C may be waived for this gate, authorizes only that named waiver/);
-  // Solution delegates gather evidence and propose options; the parent stays
-  // the sole author and owner of the final plan or research deliverable.
-  assert.match(guidelines, /Solution delegates may gather evidence and propose options, but the parent verifies the evidence, synthesizes conclusions, and remains sole author and owner of the final plan or research deliverable/);
-  // Solution-gate waiver: the strict all-six default stands before synthesis,
-  // and only the user may explicitly waive named failed solution roles for
-  // the one current solution gate. The waiver continues synthesis from
-  // completed reports plus parent-verified repository evidence, requires at
-  // least one completed investigator (zero completed reports cannot be waived
-  // into a synthesis), records the waived roles without relabeling failures,
-  // stays one-shot and gate-scoped, preserves the advisory oracle and the
-  // downstream implementation/review/verification/remediation rules, and is
-  // never inferred from generic continue/commit/skip-retry requests.
-  assert.match(guidelines, /call delegate_run for \$\{joinRoleIds\(solutionRoleIds\)\} concurrently with the same neutral assignment/);
-  assert.match(guidelines, /all \$\{countWord\(solutionRoleIds\.length\)\} must complete before synthesis/);
-  assert.match(guidelines, /the gate stays blocked by default; only the user may explicitly waive the named failed solution roles for that one current solution gate/);
-  assert.match(guidelines, /continue synthesis using only the completed solution reports plus parent-verified repository evidence/);
-  assert.match(guidelines, /At least one solution delegate must have completed: the user cannot waive the entire evidence set and synthesize from zero completed investigator reports/);
-  assert.match(guidelines, /A solution waiver is one-shot and gate-scoped/);
-  assert.match(guidelines, /it changes no later solution gates, role schema, routing, or concurrency/);
-  assert.match(guidelines, /state which solution roles were waived and that the solution gate proceeded under user waiver/);
-  assert.match(guidelines, /never label a waived failure as completed or passed/);
-  assert.match(guidelines, /does not fabricate or dismiss evidence, resolve uncertainties, authorize implementation, replace parent evidence verification/);
-  assert.match(guidelines, /skip the advisory oracle when otherwise required/);
-  assert.match(guidelines, /weaken implementation, review, verification, or remediation rules/);
-  assert.match(guidelines, /Do not infer a solution waiver from a generic request to continue, commit, or skip retries/);
-  assert.match(guidelines, /solution C may be waived for this gate, authorizes only that named waiver/);
-  // Oracle policy: one fresh read-only oracle after a required solution gate,
-  // the configured-Oracle-model set skip condition, advisory-only authority
-  // that never authors or saves the final plan, and the neutral oracle prompt
-  // contents.
-  assert.match(guidelines, /After a required solution gate, call delegate_run for exactly one fresh read-only oracle review of the draft solution contract/);
-  assert.match(guidelines, /only when the parent session's current model is not one of the configured Oracle profile models; when it is, skip the oracle and finalize the solution contract directly/);
-  assert.match(guidelines, /Give the oracle role the neutral problem, governing documents, verified evidence, the draft solution contract, constraints, and unresolved uncertainties; do not give it raw investigator reports or the parent's synthesis rationale/);
-  assert.match(guidelines, /Treat the oracle as advisory, not the final authority: the oracle critiques the parent draft but never authors or saves the final plan/);
-  assert.match(guidelines, /Verify its VALID or REVISE analysis like any other evidence/);
-  assert.match(guidelines, /run no automatic oracle loop; a non-completed oracle run blocks implementation/);
-  assert.doesNotMatch(guidelines, /Claude Code|backend=claude/);
-  assert.match(guidelines, /only one implementation, remediation, or oracle role at a time/);
-  // Blocking findings get fresh verification, only verification-confirmed findings
-  // reach one focused remediation role, and fresh gates repeat until none remain.
-  // Independent verifications run in bounded four-way batches, duplicates are
-  // consolidated first, dependent findings stay sequential, and the parent waits
-  // for the whole batch before remediation.
-  assert.match(guidelines, /consolidate exact duplicate findings first/);
-  assert.match(guidelines, /give each verification exactly one finding without sibling verification reports/);
-  assert.match(guidelines, /overlap verification only with other verification delegates/);
-  assert.match(guidelines, /Run independent finding verifications concurrently in batches of at most four/);
-  assert.match(guidelines, /keep dependent findings sequential/);
-  assert.match(guidelines, /wait for every verification in the current batch before remediation/);
-  assert.match(guidelines, /non-completed verification leaves its finding unresolved without erasing completed sibling reports/);
-  assert.match(guidelines, /Send only verification-confirmed findings to one focused remediation role/);
-  assert.match(guidelines, /fresh \$\{countWord\(reviewRoleIds\.length\)\}-reviewer gate until no blocking findings remain/);
-  // Routing is automatic and config-driven; routingOverride is the only
-  // exceptional escape hatch and is invalid for the oracle role.
-  assert.match(guidelines, /Delegate routing, including model, thinking, and provider fallback after operational failures, is automatic from the extension-owned routing configuration/);
-  assert.match(guidelines, /pass routingOverride only when the user or project explicitly requests an operational route change for that one run, never for the oracle role/);
-  assert.match(guidelines, /routingOverride never changes role permissions or concurrency/);
-  assert.match(guidelines, /do not retry outside the tool's bounded operational route fallback without user-authorized diagnosis/);
-  // Git transitions and hosted writes never ride on a completed delegate.
-  assert.match(guidelines, /require separate explicit authorization/);
+  assert.match(guidelines, /Use for repository implementation unless the user explicitly opts out/);
+  assert.match(guidelines, /Parent may directly make only trivial no-behavior edits/);
+  assert.match(guidelines, /Parent directly owns all planning and research deliverables/);
+  assert.match(guidelines, /Pure planning or research runs no implementation, review, or remediation/);
+  assert.match(guidelines, /Never use implementation or remediation for research or plans/);
+  assert.match(guidelines, /exactly one implementation/);
 
-  // Role routes live in routing.json; model-visible guidelines stay route-free.
-  // The oracle skip condition references the configured Oracle models as a
-  // set, so no concrete model id may appear in the guidelines at all. Compare
-  // lowercased text so mixed-case reintroductions still fail.
+  assert.match(guidelines, /solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently/);
+  assert.match(guidelines, /review-a, review-b, review-c, review-d, and review-e concurrently/);
+  assert.match(guidelines, /wait for every role/);
+  assert.match(guidelines, /follow the user's next instruction/);
+  assert.match(guidelines, /continue, resume, or retry requires no special syntax/);
+  assert.doesNotMatch(guidelines, /OVERRIDE:/);
+  assert.match(guidelines, /at least one completed report/);
+  assert.match(guidelines, /Findings from completed reviews remain binding/);
+
+  assert.match(guidelines, /one fresh read-only oracle unless the parent model is in the configured Oracle model set/);
+  assert.match(guidelines, /exclude raw solution reports and parent synthesis rationale/);
+  assert.match(guidelines, /Oracle is advisory and returns VALID or REVISE/);
+  assert.match(guidelines, /never loops automatically/);
+  assert.match(guidelines, /non-completed oracle stops automatic advancement/);
+  assert.match(guidelines, /only one implementation, remediation, or oracle at a time/);
+
+  assert.match(guidelines, /Give each fresh verification exactly one finding and no sibling reports/);
+  assert.match(guidelines, /batches of at most four/);
+  assert.match(guidelines, /dependent findings sequentially/);
+  assert.match(guidelines, /without erasing completed siblings/);
+  assert.match(guidelines, /only verification-confirmed findings/);
+  assert.match(guidelines, /repeat the full review gate until no blocking findings remain/);
+
+  assert.match(guidelines, /Routing and operational fallback are automatic/);
+  assert.match(guidelines, /never override oracle or change permissions or concurrency/);
+  assert.match(guidelines, /Do not retry automatically beyond bounded fallback/);
+  assert.match(guidelines, /separate explicit authorization/);
+  assert.match(guidelines, /Selection exposes skills but never forces full loading/);
+
   const lowered = guidelines.toLowerCase();
   for (const routeDetail of ["gpt-5.5", "gpt-5.6", "codex", "cursor", "ox-alpha", "hy3", "opus", "deepseek", "muse-spark", "glm-", "backend", "z.ai", "zai"]) {
     assert.ok(!lowered.includes(routeDetail), `route detail "${routeDetail}" must not appear in prompt guidelines`);
@@ -254,7 +185,7 @@ test("the registered availableSkills schema carries the description on the array
       [...delegateRunPromptGuidelines(roleIdsInFamily(snapshot, "solution"), roleIdsInFamily(snapshot, "review"))],
       "delegate_run must register the canonical guidelines exactly once",
     );
-    assert.equal(registrations[0]?.promptGuidelines?.length, 24);
+    assert.equal(registrations[0]?.promptGuidelines?.length, 15);
     assert.deepEqual(registrations[1]?.promptGuidelines, [...MODEL_CATALOG_PROMPT_GUIDELINES]);
     // JSON round-trip mirrors the serialization providers receive: plain
     // JSON Schema keys survive and symbol markers do not.
@@ -273,7 +204,7 @@ test("the registered availableSkills schema carries the description on the array
     assert.equal(availableSkills.type, "array");
     assert.equal(
       availableSkills.description,
-      "Pre-approved skills to make discoverable to this delegate. The delegate loads full skill instructions only when its task requires them.",
+      "Approved skills visible to the child; full instructions load only if needed.",
       "the array property must carry the exact progressive-disclosure description",
     );
     assert.equal(
@@ -302,9 +233,9 @@ test("the registered availableSkills schema carries the description on the array
     const role = parameters.properties.role;
     assert.ok(role?.enum, "the role property must carry the generated enum");
     assert.deepEqual(role.enum, [...roleIds(snapshot)]);
-    assert.match(
-      role.description ?? "",
-      /Use the configured solution roles \(solution-a, solution-b, solution-c, solution-d, solution-e, solution-f\) and review roles \(review-a, review-b, review-c, review-d, review-e\)/,
+    assert.equal(
+      role.description,
+      "Choose one configured role. Gate members and sequencing are listed in delegate_run guidelines.",
     );
     // The model catalog schema comes from the same snapshot's thinking scale.
     const catalogParameters = JSON.parse(JSON.stringify(registrations[1]?.parameters)) as {
@@ -328,15 +259,13 @@ test("the registered availableSkills schema carries the description on the array
     assert.equal(catalogParameters.properties.limit?.minimum, 1);
     assert.equal(catalogParameters.properties.limit?.maximum, 20);
     assert.equal(catalogParameters.required?.includes("limit"), false);
-    // The count-aware guidelines resolve against the shipped snapshot: the
-    // generated text names every configured solution and review role and
-    // carries the matching count words, so gate resizing regenerates them.
+    // The dynamic guidelines resolve against the shipped snapshot and name
+    // every configured solution and review role without redundant count words.
     const delegateRunGuidelines = (registrations[0]?.promptGuidelines ?? []).join("\n");
     assert.match(delegateRunGuidelines, /solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently/);
-    assert.match(delegateRunGuidelines, /all six must complete before synthesis/);
     assert.match(delegateRunGuidelines, /review-a, review-b, review-c, review-d, and review-e concurrently/);
-    assert.match(delegateRunGuidelines, /all five must complete\./);
-    assert.match(delegateRunGuidelines, /fresh five-reviewer gate until no blocking findings remain/);
+    assert.match(delegateRunGuidelines, /wait for every role/);
+    assert.match(delegateRunGuidelines, /repeat the full review gate until no blocking findings remain/);
     // No concrete route detail leaks into the generated guidance.
     const loweredGuidelines = delegateRunGuidelines.toLowerCase();
     for (const routeDetail of ["gpt-5.5", "gpt-5.6", "codex", "glm-", "zai", "opencode-go", "openrouter"]) {
@@ -345,7 +274,7 @@ test("the registered availableSkills schema carries the description on the array
     // The catalog guidance stays concise and does not enumerate combinations.
     const catalogGuidelines = (registrations[1]?.promptGuidelines ?? []).join("\n");
     assert.match(catalogGuidelines, /partial or unknown model/);
-    assert.match(catalogGuidelines, /choose only a returned model, provider, and supported thinking-level combination/);
+    assert.match(catalogGuidelines, /choose only a returned compatible combination/);
     for (const routeDetail of ["gpt-5.5", "gpt-5.6", "codex", "glm-", "zai"]) {
       assert.ok(!catalogGuidelines.includes(routeDetail), `catalog guidance must not contain ${routeDetail}`);
     }
@@ -382,10 +311,10 @@ test("the model catalog guidance stays concise and keeps overrides exceptional",
   const registration = source.slice(registrationStart, source.indexOf("});", registrationStart));
   assert.match(registration, /promptSnippet: DELEGATE_MODEL_CATALOG_TOOL\.promptSnippet/);
   assert.match(registration, /promptGuidelines: MODEL_CATALOG_PROMPT_GUIDELINES/);
-  assert.match(instructions, /only when an explicit user or project operational request names a partial or unknown model for a one-run routing substitution/);
-  assert.match(instructions, /choose only a returned model, provider, and supported thinking-level combination/);
-  assert.match(instructions, /never invokes pi --list-models/);
-  assert.match(instructions, /never for the oracle role/);
+  assert.match(instructions, /Use only to resolve a partial or unknown model in an explicit user or project request for a one-run operational override/);
+  assert.match(instructions, /choose only a returned compatible combination/);
+  assert.match(instructions, /Lookup changes nothing/);
+  assert.match(instructions, /never allowed for oracle/);
   // The catalog is never appended to the delegate_run schema or guidance.
   const delegateRunRegistration = source.slice(
     source.indexOf(`name: DELEGATE_RUN_TOOL.name`),
@@ -408,21 +337,19 @@ test("the model catalog guidance stays concise and keeps overrides exceptional",
   }
 });
 
-test("count-aware guidance regenerates for a resized routing snapshot", async () => {
+test("dynamic guidance regenerates naturally for a resized routing snapshot", async () => {
   const { delegateRunPromptGuidelines } = await import("./instructions.ts");
   const guidelines = delegateRunPromptGuidelines(
     ["solution-a", "solution-b", "solution-c"],
     ["review-a", "review-b"],
   ).join("\n");
-  assert.match(guidelines, /call delegate_run for solution-a, solution-b, and solution-c concurrently with the same neutral assignment/);
-  assert.match(guidelines, /all three must complete before synthesis/);
-  assert.match(guidelines, /call delegate_run for review-a and review-b concurrently with the same neutral review scope/);
-  assert.match(guidelines, /all two must complete\./);
-  assert.match(guidelines, /fresh two-reviewer gate until no blocking findings remain/);
+  assert.match(guidelines, /run solution-a, solution-b, and solution-c concurrently with the same neutral assignment and wait for every role/);
+  assert.match(guidelines, /run review-a and review-b concurrently with the same neutral scope; wait for every role/);
+  assert.doesNotMatch(guidelines, /all three|all two|reviewer gate/);
   // Single-role gates still read naturally.
   const single = delegateRunPromptGuidelines(["solution-a"], ["review-a"]).join("\n");
-  assert.match(single, /call delegate_run for solution-a concurrently with the same neutral assignment/);
-  assert.match(single, /all one must complete before synthesis/);
+  assert.match(single, /run solution-a concurrently with the same neutral assignment and wait for every role/);
+  assert.match(single, /run review-a concurrently with the same neutral scope; wait for every role/);
 });
 
 test("availableSkills guidance states the concise progressive-disclosure semantics", async () => {
@@ -431,7 +358,7 @@ test("availableSkills guidance states the concise progressive-disclosure semanti
   const guidelinesStart = source.indexOf("export function delegateRunPromptGuidelines(");
   assert.ok(guidelinesStart >= 0, "delegateRunPromptGuidelines builder not found");
   const guidelines = source.slice(guidelinesStart, source.indexOf("\n}\n", guidelinesStart));
-  assert.match(guidelines, /Use availableSkills to make only task-relevant pre-approved skills discoverable to a delegate; selection does not force full skill loading, and the delegate decides which selected skills it actually needs\./);
+  assert.match(guidelines, /Pass only task-relevant pre-approved availableSkills\. Selection exposes skills but never forces full loading\./);
   // No blanket forced-read instruction and no skill-name inventory in guidance.
   assert.doesNotMatch(guidelines, /read every selected skill/i);
   assert.doesNotMatch(guidelines, /\/skill:/);

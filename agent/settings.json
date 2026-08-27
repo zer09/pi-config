@@ -25,7 +25,8 @@
     "openai-codex-cgpt7/gpt-5.6-sol",
     "opencode-go/deepseek-v4-pro",
     "zai/glm-5.3",
-    "agentrouter/claude-opus-5"
+    "agentrouter/claude-opus-5",
+    "zai/glm-5.3-flash"
   ],
   "defaultProvider": "openai-codex-cgpt6",
   "defaultModel": "gpt-5.6-sol",

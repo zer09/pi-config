@@ -117,17 +117,22 @@ test("the shipped routing config contains no removed provider occurrence", async
   }
   // The removed AgentRouter Opus 4.8 model record is gone with its provider.
   assert.equal(text.includes("claude-opus-4-8"), false);
-  // The removed Ox Alpha model records are gone from delegated routing too.
+  // The obsolete Ox Alpha alias ids stay out of delegated routing: Ox Alpha
+  // now runs under its official GLM-5.3-Flash model id, not an alias.
   assert.equal(text.includes("ox-alpha"), false);
 });
 
 test("the shipped config pins delegate model thinking capabilities", () => {
   const config = loadRoutingConfig();
-  // Ox Alpha is fully removed from delegated routing: neither the former
-  // OpenRouter capability record nor any other ox model record remains.
+  // The obsolete Ox Alpha alias ids are gone from delegated routing; the
+  // official GLM-5.3-Flash capability carries the restored Ox Alpha role.
   assert.equal(config.models["stealth/ox-alpha"], undefined);
   assert.equal(config.models["ox-alpha"], undefined);
   assert.equal(config.models["claude-fable-5"], undefined);
+  assert.deepEqual(config.models["glm-5.3-flash"]?.providers.zai, {
+    thinking: ["low", "high", "max"],
+    default: "max",
+  });
   // AgentRouter is fully removed from delegated routing: neither its former
   // Opus 4.8 capability record nor any agentrouter provider capability remains.
   assert.equal(config.models["claude-opus-4-8"], undefined);
@@ -555,11 +560,13 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
     "opencode-go/deepseek-v4-flash:max",
   ];
   const expectedC = [
+    "zai/glm-5.3-flash:high",
     "opencode-go/hy3:high",
   ];
   // Solution and review pairs share one profile and produce identical
   // chains. Every A/B/C tier allowlists exactly one provider after the
-  // AgentRouter removal, so the chains are deterministic without a random draw.
+  // AgentRouter removal, so the chains are deterministic without a random
+  // draw; Gate C's restored GLM-5.3-Flash tier keeps its first-tier slot.
   assert.deepEqual(keys("solution-a"), expectedA);
   assert.deepEqual(keys("review-a"), expectedA);
   assert.deepEqual(keys("solution-b"), expectedB);
@@ -1015,8 +1022,8 @@ test("provider plus model overrides are exact after capability validation", () =
   );
   // Without an explicit thinking level the provider's configured default applies.
   assert.deepEqual(
-    selectRoutes(config, "implementation", { provider: "opencode-go", model: "hy3", reason: "user requested hy3 on opencode go" }).map(routeKey),
-    ["opencode-go/hy3:high"],
+    selectRoutes(config, "implementation", { provider: "zai", model: "glm-5.3-flash", reason: "user requested glm-5.3 flash on zai" }).map(routeKey),
+    ["zai/glm-5.3-flash:max"],
   );
   // Capability violations fail closed.
   assert.throws(
@@ -1024,8 +1031,8 @@ test("provider plus model overrides are exact after capability validation", () =
     /provider "seekai" has no capability record for model "glm-5\.3"/,
   );
   assert.throws(
-    () => selectRoutes(config, "implementation", { provider: "gorouter", model: "hy3", thinking: "high", reason: "invalid" }),
-    /provider "gorouter" has no capability record for model "hy3"/,
+    () => selectRoutes(config, "implementation", { provider: "gorouter", model: "glm-5.3-flash", thinking: "high", reason: "invalid" }),
+    /provider "gorouter" has no capability record for model "glm-5\.3-flash"/,
   );
   assert.throws(
     () => selectRoutes(config, "implementation", { model: "unknown-model", reason: "invalid" }),

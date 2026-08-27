@@ -105,6 +105,11 @@
       "providers": {
         "zai": { "thinking": ["low", "high", "max"], "default": "max" }
       }
+    },
+    "glm-5.3-flash": {
+      "providers": {
+        "zai": { "thinking": ["low", "high", "max"], "default": "max" }
+      }
     }
   },
   "profiles": {
@@ -128,6 +133,7 @@
     },
     "gate-c": {
       "tiers": [
+        { "model": "glm-5.3-flash", "thinking": "high", "providers": ["zai"] },
         { "model": "hy3", "thinking": "high", "providers": ["opencode-go"] }
       ]
     },

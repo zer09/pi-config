@@ -93,6 +93,7 @@ Delegated instruction-centralization update: 2026-08-26 (moved every model-visib
 Delegated C-route Ox Alpha removal update: 2026-08-27 (removed the `stealth/ox-alpha` capability record and Gate C tier from `routing.json` together with the global OpenRouter override, the TokenReply `ox-alpha` model entry, and the `openrouter/stealth/ox-alpha` enabled model because every provider dropped the model; zero model-visible startup-context delta because the public role schema, tool guidance, and global instructions are unchanged; provider calibration and the full extension/tool inventory were not rerun)
 
 Web-search provider-routing update: 2026-08-27 (added the `web_code_search` tool, removed the `web_search` mode parameter, added `depth` and `maxAgeHours`, and rewrote all three web-search tool descriptions and guidelines; local `o200k_base` attribution below; provider calibration and the full extension/tool inventory were not rerun)
+Delegated C-route GLM-5.3-Flash restoration update: 2026-08-27 (Z.AI officially revealed Ox Alpha as GLM-5.3-Flash, so Gate C's first tier is restored as `zai/glm-5.3-flash:high` ahead of the retained Hy3 fallback, with the matching `glm-5.3-flash` capability in `routing.json` and the `zai/glm-5.3-flash` enabled model; zero model-visible startup-context delta because the public role schema, tool guidance, and global instructions are unchanged; provider calibration and the full extension/tool inventory were not rerun)
 
 CWD measured: `/home/gc/.pi`
 
@@ -780,6 +781,52 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 | **Tool total** | **1,511** | **1,511** | **0** | Before provider-specific framing |
 
 The directly attributed model-visible reduction is -1,064 local tokens per session: the removed `## Delegated work` section of `agent/AGENTS.md`. The parent still receives the complete delegation workflow exactly once, through the active `delegate_run` prompt guidelines (unchanged bytes, 24 lines), and `delegate_model_catalog` keeps only its concise lookup guidance. Delegated children keep context-file discovery enabled, so each child also saves the same 1,064 tokens of parent orchestration policy it previously loaded but had to ignore. Sessions that never activate `delegate_run` now carry no delegation policy at all. The new `instructions.ts`, `docsync.ts`, and `render-instructions-doc.ts` files are executable TypeScript and documentation tooling, not model-visible context. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-27 delegated instruction-efficiency attribution
+
+ADR 0012 intentionally optimizes the canonical wording that ADR 0011 preserved byte-for-byte. Counts use local `tiktoken` `o200k_base` over exact exported strings. The parent instruction-text total includes descriptions, snippets, generated shipped-role guidelines, role/parameter descriptions, and catalog guidance; it excludes unchanged JSON-schema punctuation and enum values. Child samples use role id `<family>-probe`, cwd `/work`, and assignment `TASK`, so actual assignments add unchanged variable cost. No provider calibration or paid inference was run.
+
+| Parent surface | Before | After | Delta |
+|---|---:|---:|---:|
+| `delegate_run` description | 82 | 41 | -41 |
+| `delegate_run` prompt snippet | 13 | 6 | -7 |
+| `delegate_run` workflow guidelines | 1,330 | 773 | -557 |
+| Generated role description | 53 | 16 | -37 |
+| Catalog description | 53 | 35 | -18 |
+| Catalog prompt snippet | 16 | 5 | -11 |
+| Catalog guidelines | 86 | 58 | -28 |
+| Run, override, and catalog parameter-description text | 142 | 118 | -24 |
+| **Instruction-text total** | **1,775** | **1,052** | **-723 (-41%)** |
+
+Every flat parent guideline now names `delegate_run`; catalog guidelines name `delegate_model_catalog`. The shipped solution/review ids remain generated from the routing snapshot, but redundant count words and the duplicated role list in the role description are gone. Failed-gate permission now references the general exact-prefix `OVERRIDE:` mechanism in `agent/AGENTS.md` instead of carrying separate solution/reviewer waiver grammars.
+
+| Normalized child prompt | Before | After | Delta |
+|---|---:|---:|---:|
+| Solution | 571 | 388 | -183 |
+| Review | 571 | 391 | -180 |
+| Oracle | 603 | 411 | -192 |
+| Verification | 584 | 407 | -177 |
+| Remediation | 553 | 382 | -171 |
+| Implementation | 550 | 378 | -172 |
+| Shared child blocks before family contract | 460 | 296 | -164 |
+| Restart note | 49 | 33 | -16 |
+| Same-session recovery prompt | 191 | 82 | -109 |
+
+The child prompt now presents the assignment before attempt and terminal details. Its attempt rule remains semantic (two materially equivalent attempts, repeat only with new evidence) and contains no wall-clock instruction; the supervisor still owns the programmatic five-minute warning, ten-minute idle termination, and 45-minute productive-work deadline. The terminal reason lists are generated from the same closed enums used by the parser. Recovery still sends one programmatic `prompt-2` message to the same child session, but refers to the original final protocol instead of repeating every reason code.
+
+A complex six-solution, oracle, implementation, and five-review workflow saves about 3,085 aggregate local instruction/prompt tokens across its separate parent and child contexts before assignment-body changes. Provider framing, caching, and billing can differ; provider-reported input remains authoritative.
+
+## 2026-08-27 user-controlled override attribution
+
+ADR 0013 removes `OVERRIDE:` from delegated workflow policy and keeps it only as a user-controlled instruction-precedence mechanism. Counts use local `tiktoken` `o200k_base` over the exact raw `agent/AGENTS.md` file and the generated shipped-role guidelines joined with newlines. No provider calibration or paid inference was run.
+
+| Surface | Before | After | Delta |
+|---|---:|---:|---:|
+| Raw `agent/AGENTS.md` | 2,701 | 2,792 | +91 |
+| `delegate_run` workflow guidelines | 773 | 790 | +17 |
+| **Directly changed model-visible text** | **3,474** | **3,582** | **+108** |
+
+The global increase states that agents must never request or require override syntax and records the actual platform boundary. The tool-guideline change replaces failed-gate override grammar with ordinary user-directed continuation, current-tree inspection after non-completed mutation, and bounded automatic retry behavior. Tool descriptions, snippets, parameter schemas, child prompts, restart text, recovery prompts, routing, and runtime behavior are unchanged. Provider-reported input remains authoritative.
 
 ## Provider-calibrated baseline probes
 

@@ -1,10 +1,10 @@
-# ADR 0012: Route web-search providers behind three agent-selected tools
+# ADR 0014: Route web-search providers behind three agent-selected tools
 
 ## Status
 
-Accepted (2026-08-27). Live provider compatibility has not been smoke-tested; see the Consequences section.
+Accepted (2026-08-27). An authorized isolated live-provider smoke matrix later passed 9/9; see the Consequences section.
 
-Note on numbering: the handoff that authorized this change referenced ADR 0010, but `0010-delegated-child-resource-isolation.md` and `0011-delegated-instruction-centralization.md` already existed in this repository when implementation started, so this decision takes the next free number.
+Note on numbering: the handoff that authorized this change referenced ADR 0010. ADRs 0010 and 0011 already existed when implementation started, so the branch initially used 0012. The merge with `master` added ADRs 0012 and 0013 independently, so this decision uses the next free number, 0014.
 
 ## Context
 
@@ -45,5 +45,5 @@ Stored raw requests and responses pass deep redaction covering `GOOGLE_CLOUD_API
 
 - The agent now expresses research intent explicitly (web answer, developer sources, implementation examples, URL content), and both web tools may be used in one task.
 - Tool metadata grows by a measured 463 local `o200k_base` tokens at startup (see `docs/config-context-cost.md`); no provider-calibrated numbers are claimed.
-- Parallel, Firecrawl Developer, Firecrawl Scrape, and Exa Code compatibility is implemented from official request documentation and verified only against mocked HTTP. No live provider compatibility is claimed without a separate user-authorized smoke test.
+- Parallel, Firecrawl Developer, Firecrawl Scrape, Exa Code, and Exa Contents compatibility is implemented from official request documentation and deterministic mocked HTTP. A separate user-authorized 9/9 live smoke matrix passed on 2026-08-27 using an isolated temporary cache; no live call is part of the automated test suite.
 - The Gemini OAuth/project-location endpoint migration remains open and is now the main known transport follow-up.

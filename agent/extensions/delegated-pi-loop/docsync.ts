@@ -22,7 +22,7 @@ import { ROLE_FAMILIES, roleIdsInFamily, type RoutingConfig } from "./routing.ts
  *
  * Every marked section in that document is rendered from the canonical
  * exports of `instructions.ts` (plus the shipped routing snapshot for the
- * count-aware parts), so the checked-in reference can never silently drift
+ * dynamic role lists), so the checked-in reference can never silently drift
  * from the prompts and guidelines Pi actually sends. `render-instructions-doc.ts`
  * regenerates the marked regions in place; `docsync.test.ts` fails when the
  * checked-in content diverges. This is deliberately not a general-purpose
@@ -79,7 +79,7 @@ function renderSection(id: InstructionDocSectionId, routing: RoutingConfig): str
       ]);
     case "delegate-run-parameters":
       return definitionList([
-        ["`role`", delegateRunRoleDescription(solutionRoleIds, reviewRoleIds)],
+        ["`role`", delegateRunRoleDescription()],
         ["`prompt`", DELEGATE_RUN_PARAMETER_DESCRIPTIONS.prompt],
         ["`cwd`", DELEGATE_RUN_PARAMETER_DESCRIPTIONS.cwd],
         ["`availableSkills`", DELEGATE_RUN_PARAMETER_DESCRIPTIONS.availableSkills],
@@ -119,7 +119,7 @@ function renderSection(id: InstructionDocSectionId, routing: RoutingConfig): str
       // the canonical builder instead of a hand-maintained copy.
       return fenced(composeDelegatePrompt({
         taskHeading: "# Task: <role>",
-        cwdSentence: 'You are a fresh delegated CLI agent working directly in "<cwd>".',
+        cwdSentence: 'Fresh delegated CLI agent working directly in "<cwd>".',
         roleContractText: "<role-specific contract>",
         assignedTask: "<parent-supplied prompt>",
         restartNote: undefined,

@@ -105,11 +105,11 @@ test("role contracts are family-owned for every family including derived high sl
   const solutionZ = role("solution-z");
   const reviewZ = role("review-z");
   // Derived high-slot roles keep their family contract without prefix logic.
-  assert.match(buildDelegatePrompt(solutionZ, "/tmp/project", "Investigate."), /independent read-only solution investigation/);
-  assert.match(buildDelegatePrompt(reviewZ, "/tmp/project", "Review."), /independent read-only implementation review/);
-  assert.match(buildDelegatePrompt(role("verification"), "/tmp/project", "Verify."), /read-only finding verification/);
+  assert.match(buildDelegatePrompt(solutionZ, "/tmp/project", "Investigate."), /independent read-only solution investigation/i);
+  assert.match(buildDelegatePrompt(reviewZ, "/tmp/project", "Review."), /independent neutral read-only implementation review/i);
+  assert.match(buildDelegatePrompt(role("verification"), "/tmp/project", "Verify."), /read-only verification of one supplied finding/i);
   assert.match(buildDelegatePrompt(role("remediation"), "/tmp/project", "Fix."), /focused remediation contract/);
-  assert.match(buildDelegatePrompt(role("implementation"), "/tmp/project", "Implement."), /assigned solution contract/);
+  assert.match(buildDelegatePrompt(role("implementation"), "/tmp/project", "Implement."), /assigned contract/);
   // The task header carries the exact derived id.
   assert.match(buildDelegatePrompt(solutionZ, "/tmp/project", "Investigate."), /# Task: solution-z/);
   // Classification follows the family, never the id text.
@@ -120,12 +120,12 @@ test("role contracts are family-owned for every family including derived high sl
 
 test("builds the oracle role contract with verdict and evidence requirements", () => {
   const prompt = buildDelegatePrompt(role("oracle"), "/tmp/project", "Review the draft contract.");
-  assert.match(prompt, /read-only advisory solution oracle/);
-  assert.match(prompt, /Do not edit files, mutate Git, write to hosted services, implement, or start delegates/);
+  assert.match(prompt, /read-only advisory solution oracle/i);
+  assert.match(prompt, /Do not edit, implement, delegate, or change Git or hosted state/);
   assert.match(prompt, /exactly one verdict, VALID or REVISE/);
   assert.match(prompt, /correctness analysis, missing invariants and risks/);
   assert.match(prompt, /exact path:line evidence/);
-  assert.match(prompt, /advisory, not the final authority/);
+  assert.match(prompt, /Parent verifies claims and owns the final contract/);
   assert.match(prompt, /DELEGATE_RESULT: COMPLETED/);
   assert.match(prompt, /Review the draft contract\./);
   // Without the restart flag the fixed restart note stays absent.
@@ -134,8 +134,8 @@ test("builds the oracle role contract with verdict and evidence requirements", (
 
 test("builds a non-recursive prompt with terminal contract", () => {
   const prompt = buildDelegatePrompt(role("review-a"), "/tmp/project", "Review the candidate.");
-  assert.match(prompt, /Do not spawn or orchestrate another Pi instance/);
-  assert.match(prompt, /independent read-only implementation review/i);
+  assert.match(prompt, /Do not start or orchestrate another agent process or subagent/);
+  assert.match(prompt, /independent neutral read-only implementation review/i);
   assert.match(prompt, /DELEGATE_RESULT: COMPLETED/);
   assert.match(prompt, /Review the candidate\./);
 });
@@ -143,11 +143,11 @@ test("builds a non-recursive prompt with terminal contract", () => {
 test("terminal instructions require one exact reason code for BLOCKED and FAILED", () => {
   const prompt = buildDelegatePrompt(role("implementation"), "/tmp/project", "Implement the contract.");
   // The reason line sits directly above the marker, exactly once, code only.
-  assert.match(prompt, /A BLOCKED or FAILED result must carry exactly one reason line directly above the marker/);
-  assert.match(prompt, /DELEGATE_REASON: <code>/);
-  assert.match(prompt, /Use only the exact code on the reason line: no prose, paths, or details/);
-  assert.match(prompt, /The reason line must sit directly above the marker and appear exactly once/);
-  // Every closed code is listed with its concise meaning.
+  assert.match(prompt, /DELEGATE_REASON: <blocked-code>\nDELEGATE_RESULT: BLOCKED/);
+  assert.match(prompt, /DELEGATE_REASON: <failed-code>\nDELEGATE_RESULT: FAILED/);
+  assert.match(prompt, /Use one matching code with no prose, path, or details/);
+  assert.match(prompt, /DELEGATE_REASON appears once directly above it/);
+  // Every closed code is generated from the runtime enum.
   for (const code of [
     "evidence_inaccessible", "user_decision_required", "assignment_conflict",
     "policy_restriction", "budget_exhausted", "external_dependency", "finding_reported",
@@ -156,12 +156,11 @@ test("terminal instructions require one exact reason code for BLOCKED and FAILED
     assert.ok(prompt.includes(code), `terminal contract must list ${code}`);
   }
   // Reviews with findings must use COMPLETED, never BLOCKED.
-  assert.match(prompt, /Reviews with findings must use COMPLETED, never BLOCKED with finding_reported/);
-  assert.match(prompt, /finding_reported \(a finding was reported; reviews with findings must use COMPLETED instead\)/);
+  assert.match(prompt, /reviews with findings use COMPLETED/);
   // COMPLETED carries no reason line and the marker rules are unchanged.
-  assert.match(prompt, /COMPLETED carries no reason line/);
-  assert.match(prompt, /The marker must be the final non-whitespace line and must not appear earlier/);
-  assert.match(prompt, /After BLOCKED or FAILED, do not start another attempt or unrelated task/);
+  assert.match(prompt, /COMPLETED has no reason/);
+  assert.match(prompt, /DELEGATE_RESULT appears once as the final nonblank line/);
+  assert.match(prompt, /After BLOCKED or FAILED, stop/);
 });
 
 test("the restart note is fixed, sanitized, and appended at most once", () => {
@@ -174,10 +173,10 @@ test("the restart note is fixed, sanitized, and appended at most once", () => {
     }
     assert.ok(!RESTART_AFTER_WORK_NOTE.toLowerCase().includes(forbidden.toLowerCase()));
   }
-  assert.match(RESTART_AFTER_WORK_NOTE, /may already have changed the working tree/);
-  assert.match(RESTART_AFTER_WORK_NOTE, /current state of the working tree as authoritative/);
-  assert.match(RESTART_AFTER_WORK_NOTE, /inspect the existing work before acting/);
-  assert.match(RESTART_AFTER_WORK_NOTE, /do not repeat an irreversible operation/);
+  assert.match(RESTART_AFTER_WORK_NOTE, /may have changed the tree/);
+  assert.match(RESTART_AFTER_WORK_NOTE, /treat it as authoritative/);
+  assert.match(RESTART_AFTER_WORK_NOTE, /Inspect current work first/);
+  assert.match(RESTART_AFTER_WORK_NOTE, /do not repeat irreversible actions/);
 
   const plain = buildDelegatePrompt(role("review-a"), "/tmp/project", "Review the candidate.");
   const restarted = buildDelegatePrompt(role("review-a"), "/tmp/project", "Review the candidate.", {
@@ -191,5 +190,5 @@ test("the restart note is fixed, sanitized, and appended at most once", () => {
   });
   assert.equal(restartedTwice, restarted);
   // The assigned task itself stays intact in the restarted prompt.
-  assert.match(restarted, /## Assigned task\n\nReview the candidate\./);
+  assert.match(restarted, /## Assignment\n\nReview the candidate\./);
 });

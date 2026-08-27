@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-08-26). Extends ADR 0007 through ADR 0010: every supervision, routing, privacy, resource-isolation, and concurrency decision stands; only the ownership and delivery of model-visible instruction text changes.
+Accepted (2026-08-26). Extends ADR 0007 through ADR 0010: every supervision, routing, privacy, resource-isolation, and concurrency decision stands; only the ownership and delivery of model-visible instruction text changes. ADR 0012 later shortens the canonical wording while retaining this ownership and delivery architecture.
 
 ## Context
 
@@ -40,4 +40,4 @@ The model-visible sections of `docs/delegated-pi-loop-agent-instructions.md` are
 - Editing any delegation instruction is now a single edit in `instructions.ts` plus one regeneration command; the checked-in reference document cannot silently drift.
 - Every parent session saves the duplicated `AGENTS.md` delegation section (measured locally with `tiktoken` `o200k_base`: `agent/AGENTS.md` drops from 3,571 to 2,507 tokens), and every delegated child saves the same section from its context-file block. The tool metadata, schema, and guidelines are byte-identical, so the active-tool surface is unchanged.
 - A session that never activates `delegate_run` no longer carries any delegation policy at all.
-- Rendered prompt semantics are preserved exactly: the refactor was verified by a 144-combination byte-parity check of `buildDelegatePrompt` against the previous implementation, a byte-exact check of the recovery prompt, and the full extension suite.
+- At the time of this centralization, rendered prompt semantics were preserved exactly: the refactor was verified by a 144-combination byte-parity check of `buildDelegatePrompt` against the previous implementation, a byte-exact check of the recovery prompt, and the full extension suite. ADR 0012 intentionally supersedes those bytes.

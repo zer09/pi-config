@@ -36,11 +36,10 @@ test("applying the rendered sections is idempotent", async () => {
   const updated = applyInstructionDocSections(markdown, rendered);
   assert.equal(updated, markdown, "the checked-in document must already be regenerated");
   // A drifted section is repaired by apply and detected again by extract.
-  const beginMarker = `<!-- pi-delegated-instructions:begin:restart-note -->`;
   const drifted = markdown.replace(
-    beginMarker,
-    beginMarker,
-  ).replace("Restart note: a previous route attempt", "Restart note: a tampered route attempt");
+    "Restart: a prior route attempt",
+    "Restart: a tampered route attempt",
+  );
   const repaired = applyInstructionDocSections(drifted, rendered);
   assert.notEqual(repaired, drifted);
   assert.equal(
