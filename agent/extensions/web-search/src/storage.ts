@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { redactSecrets, type SecretForRedaction } from "./redact.js";
-import type { ContentCacheEntry, StoredSearchResponse } from "./types.js";
+import type { ContentCacheEntry, StoredSearchResponse, StoredToolRecord } from "./types.js";
 
 const SAFE_RESPONSE_ID = /^[A-Za-z0-9._-]+$/;
 const CLEANUP_WRITE_INTERVAL = 25;
@@ -78,7 +78,7 @@ async function cleanupExpiredFiles(dir: string, now = Date.now()): Promise<void>
 
 export async function writeStoredResponse(
   cacheDir: string,
-  record: StoredSearchResponse,
+  record: StoredToolRecord,
   secrets: SecretForRedaction[],
 ): Promise<void> {
   await atomicWriteJson(responsePath(cacheDir, record.responseId), record, secrets);
@@ -86,7 +86,7 @@ export async function writeStoredResponse(
   if (shouldRunCleanup(dir)) await cleanupExpiredFiles(dir);
 }
 
-export async function readStoredResponse(cacheDir: string, responseId: string): Promise<StoredSearchResponse> {
+export async function readStoredToolRecord(cacheDir: string, responseId: string): Promise<StoredToolRecord> {
   const path = responsePath(cacheDir, responseId);
   let text: string;
   try {
@@ -98,12 +98,27 @@ export async function readStoredResponse(cacheDir: string, responseId: string): 
     throw error;
   }
 
-  const record = JSON.parse(text) as StoredSearchResponse;
+  const record = JSON.parse(text) as StoredToolRecord;
   if (typeof record.expiresAt === "number" && record.expiresAt <= Date.now()) {
     await unlink(path).catch(() => undefined);
     throw new Error(`Stored response ${responseId} was not found or has expired.`);
   }
   return record;
+}
+
+/**
+ * Reads one stored web_search record.
+ *
+ * Kept for legacy raw-response consumers; records written by the other tools
+ * are read through {@link readStoredToolRecord}.
+ */
+export async function readStoredResponse(cacheDir: string, responseId: string): Promise<StoredSearchResponse> {
+  const record = await readStoredToolRecord(cacheDir, responseId);
+  // Legacy records written before the tool discriminator stay readable.
+  if (record.tool !== undefined && record.tool !== "web_search") {
+    throw new Error(`Stored response ${responseId} is not a web_search record.`);
+  }
+  return record as StoredSearchResponse;
 }
 
 export async function writeContentCacheEntry(

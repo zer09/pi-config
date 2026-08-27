@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { formatGeminiExaMarkdown } from "../src/gemini-exa-markdown.js";
-import type { NormalizedGeminiExaResponse } from "../src/types.js";
+import { formatGeminiGroundingMarkdown } from "../src/gemini-grounding-markdown.js";
+import type { NormalizedGeminiGroundingResponse } from "../src/types.js";
 
-function normalizedResponse(overrides: Partial<NormalizedGeminiExaResponse>): NormalizedGeminiExaResponse {
+function normalizedResponse(overrides: Partial<NormalizedGeminiGroundingResponse>): NormalizedGeminiGroundingResponse {
   return {
     answer: "",
     cleanSuccess: true,
@@ -14,10 +14,10 @@ function normalizedResponse(overrides: Partial<NormalizedGeminiExaResponse>): No
   };
 }
 
-describe("Gemini+Exa Markdown renderer edge cases", () => {
+describe("Gemini grounding Markdown renderer edge cases", () => {
   it("coalesces duplicate same-position citations into one sorted marker", () => {
     const answer = "Shared claim.";
-    const output = formatGeminiExaMarkdown(
+    const output = formatGeminiGroundingMarkdown(
       normalizedResponse({
         answer,
         supports: [
@@ -31,7 +31,7 @@ describe("Gemini+Exa Markdown renderer edge cases", () => {
   });
 
   it("does not add leading whitespace for a citation inserted at index zero", () => {
-    const output = formatGeminiExaMarkdown(
+    const output = formatGeminiGroundingMarkdown(
       normalizedResponse({
         answer: "Bounds.",
         supports: [{ text: "", endIndex: 0, groundingChunkIndices: [0] }],
