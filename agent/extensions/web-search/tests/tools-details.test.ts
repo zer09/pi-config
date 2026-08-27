@@ -1,21 +1,22 @@
 import "./pi-tui-mock.js";
 import { describe, expect, it } from "bun:test";
 import type {
-  FallbackAttempt,
-  NormalizedGeminiExaResponse,
-  PrimaryAttempt,
+  CodeSearchAttempt,
+  GroundingAttempt,
+  NormalizedGeminiGroundingResponse,
+  NormalizedFirecrawlDeveloperSearch,
   RawHttpRequest,
   RawHttpResponse,
   StoredSearchResponse,
 } from "../src/types.js";
 
 // Imported dynamically so the pi-tui stub is registered before tools.ts loads render.ts.
-const { buildStoredRecord, detailsForSearch } = await import("../src/tools.js");
+const { buildStoredRecord, buildStoredCodeSearchRecord, detailsForSearch, detailsForCodeSearch } = await import("../src/tools.js");
 
 const EXA_EMPTY_QUERY_MESSAGE =
   'Exa AI API returned bad request error. Please check your request. {"requestId":"abc","error":"Invalid request body | Validation error: Too small: expected string to have >=1 characters at \\"query\\"","tag":"INVALID_REQUEST_BODY"}';
 
-const cleanNormalized: NormalizedGeminiExaResponse = {
+const cleanNormalized: NormalizedGeminiGroundingResponse = {
   answer: "Grounded answer.",
   finishReason: "STOP",
   cleanSuccess: true,
@@ -24,7 +25,7 @@ const cleanNormalized: NormalizedGeminiExaResponse = {
     { groundingId: 1, title: "Blog", url: "https://example.com/blog" },
   ],
   supports: [{ text: "Grounded answer.", groundingChunkIndices: [0] }],
-  webSearchQueries: ["exa grounding", "gemini 3.5 flash"],
+  webSearchQueries: ["parallel grounding", "gemini 3.5 flash"],
   googleResponseId: "google-response-1",
 };
 
@@ -41,9 +42,14 @@ function rawResponse(status: number, bodyJson?: unknown): RawHttpResponse {
   return { status, statusText: "", headers: {}, bodyText: JSON.stringify(bodyJson ?? {}), bodyJson };
 }
 
-function attempt(response: RawHttpResponse, normalized?: NormalizedGeminiExaResponse): PrimaryAttempt {
+function groundingAttempt(
+  partner: "parallel" | "exa",
+  response: RawHttpResponse,
+  normalized?: NormalizedGeminiGroundingResponse,
+): GroundingAttempt {
   return {
-    provider: "gemini-exa-grounding",
+    provider: partner === "parallel" ? "gemini-parallel-grounding" : "gemini-exa-grounding",
+    partner,
     model: "gemini-3.5-flash",
     requestStartedAt: "2026-07-30T00:00:00.000Z",
     elapsedMs: 1200,
@@ -52,160 +58,241 @@ function attempt(response: RawHttpResponse, normalized?: NormalizedGeminiExaResp
   };
 }
 
-function emptyQueryAttempt(): PrimaryAttempt {
-  return attempt(rawResponse(400, { error: { code: 400, message: EXA_EMPTY_QUERY_MESSAGE, status: "INVALID_ARGUMENT" } }));
+function emptyQueryAttempt(): GroundingAttempt {
+  return groundingAttempt(
+    "exa",
+    rawResponse(400, { error: { code: 400, message: EXA_EMPTY_QUERY_MESSAGE, status: "INVALID_ARGUMENT" } }),
+  );
 }
 
-function cleanAttempt(): PrimaryAttempt {
-  return attempt(rawResponse(200, {}), cleanNormalized);
+function cleanParallelAttempt(): GroundingAttempt {
+  return groundingAttempt("parallel", rawResponse(200, {}), cleanNormalized);
 }
 
-function fallbackAttempt(provider: "exa_search" | "code_search", resultCount?: number): FallbackAttempt {
+function cleanExaAttempt(): GroundingAttempt {
+  return groundingAttempt("exa", rawResponse(200, {}), cleanNormalized);
+}
+
+function firecrawlAttempt(normalized: NormalizedFirecrawlDeveloperSearch): CodeSearchAttempt {
   return {
-    used: true,
-    provider,
-    reason: "Gemini native Exa grounding sent Exa an empty search query.",
+    provider: "firecrawl-developer",
+    requestStartedAt: "2026-07-30T00:00:00.000Z",
+    elapsedMs: 900,
+    rawResponse: rawResponse(200, {}),
+    normalized,
+  };
+}
+
+function exaCodeAttempt(resultsCount?: number): CodeSearchAttempt {
+  return {
+    provider: "exa-code",
     requestStartedAt: "2026-07-30T00:00:01.000Z",
-    elapsedMs: 1800,
-    answer: "Fallback answer",
-    resultCount,
+    elapsedMs: 800,
+    rawResponse: rawResponse(200, {}),
+    normalized: { response: "code context", resultsCount, requestId: "req-1" },
   };
 }
 
-function record(params: {
-  attempts: PrimaryAttempt[];
-  fallback?: FallbackAttempt | null;
-  includeAttemptHistory?: boolean;
-}): StoredSearchResponse {
-  const primary = params.attempts[params.attempts.length - 1]!;
-  return {
-    responseId: "wse_test_0123456789abcdef",
-    createdAt: 0,
-    expiresAt: Number.MAX_SAFE_INTEGER,
-    provider: "gemini-exa-grounding",
-    model: primary.model,
-    query: "Does gemini-3.5-flash support Exa grounding?",
-    response: primary.rawResponse,
-    primary,
-    primaryAttempts: params.includeAttemptHistory === false ? undefined : params.attempts,
-    normalized: primary.normalized ?? null,
-    fallback: params.fallback ?? null,
-    googleResponseId: primary.normalized?.googleResponseId,
-  };
-}
+const common = { responseId: "wse_test_0123456789abcdef", now: 1_000, ttlMs: 60_000, query: "q" };
 
-describe("stored record construction", () => {
-  const common = { responseId: "wse_test_0123456789abcdef", now: 1_000, ttlMs: 60_000, query: "q" };
+describe("stored web_search record construction", () => {
+  it("omits attempt history for an ordinary single attempt and mirrors legacy fields", () => {
+    const built = buildStoredRecord({
+      ...common,
+      depth: "standard",
+      parallelAttempts: [cleanParallelAttempt()],
+      exaAttempts: [],
+      selected: cleanParallelAttempt(),
+    });
 
-  it("omits attempt history for an ordinary single attempt", () => {
-    const built = buildStoredRecord({ ...common, primaryAttempts: [cleanAttempt()], fallback: null });
-
+    expect(built.schemaVersion).toBe(2);
+    expect(built.tool).toBe("web_search");
+    expect(built.depth).toBe("standard");
+    expect(built.selectedProvider).toBe("gemini-parallel-grounding");
+    expect(built.attempts).toHaveLength(1);
     expect(built.primaryAttempts).toBeUndefined();
     expect(JSON.parse(JSON.stringify(built))).not.toHaveProperty("primaryAttempts");
-    expect(detailsForSearch(built).primaryAttemptCount).toBe(1);
+    expect(built.provider).toBe("gemini-parallel-grounding");
+    expect(built.normalized?.cleanSuccess).toBe(true);
+    expect(built.googleResponseId).toBe("google-response-1");
+    expect(detailsForSearch(built).attemptCount).toBe(1);
   });
 
-  it("stores both attempts chronologically after a retry", () => {
-    // Each attempt carries a distinct request/response so final-attempt mirroring
-    // cannot pass by both values being undefined.
+  it("stores Parallel and Exa attempts chronologically", () => {
+    const parallel = { ...cleanParallelAttempt(), normalized: undefined, rawResponse: rawResponse(503, { error: { message: "upstream" } }) };
     const first = { ...emptyQueryAttempt(), rawRequest: rawRequest("first") };
-    const final = { ...cleanAttempt(), rawRequest: rawRequest("final") };
-    const built = buildStoredRecord({ ...common, primaryAttempts: [first, final], fallback: null });
+    const final = { ...cleanExaAttempt(), rawRequest: rawRequest("final") };
+    const built = buildStoredRecord({
+      ...common,
+      depth: "deep",
+      parallelAttempts: [parallel],
+      exaAttempts: [first, final],
+      selected: final,
+    });
 
-    expect(built.primaryAttempts).toEqual([first, final]);
-    expect(built.primary).toBe(final);
+    expect(built.attempts).toEqual([parallel, first, final]);
+    expect(built.attempts.map((attempt) => attempt.provider)).toEqual([
+      "gemini-parallel-grounding",
+      "gemini-exa-grounding",
+      "gemini-exa-grounding",
+    ]);
+    expect(built.fallback).toBe(final);
     expect(built.request).toBe(final.rawRequest);
     expect(built.request?.body).toEqual({ attempt: "final" });
-    expect(built.request).not.toBe(first.rawRequest);
-    expect(built.response).toBe(final.rawResponse);
     expect(built.response?.status).toBe(200);
     expect(built.normalized).toBe(final.normalized);
-    expect(built.normalized?.cleanSuccess).toBe(true);
-    expect(built.googleResponseId).toBe(final.normalized?.googleResponseId);
-    expect(built.googleResponseId).toBe("google-response-1");
-    expect(detailsForSearch(built).primaryAttemptCount).toBe(2);
+    expect(detailsForSearch(built).attemptCount).toBe(3);
   });
 });
 
 describe("web_search details contract", () => {
-  it("reports Gemini as the answer provider for a clean primary", () => {
-    const details = detailsForSearch(record({ attempts: [cleanAttempt()] }));
+  it("reports the Parallel provider for a clean primary", () => {
+    const built = buildStoredRecord({
+      ...common,
+      depth: "standard",
+      parallelAttempts: [cleanParallelAttempt()],
+      exaAttempts: [],
+      selected: cleanParallelAttempt(),
+    });
+    const details = detailsForSearch(built);
 
-    expect(details.answerProvider).toBe("gemini-exa-grounding");
-    expect(details.primaryAttemptCount).toBe(1);
+    expect(details.answerProvider).toBe("gemini-parallel-grounding");
+    expect(details.depth).toBe("standard");
+    expect(details.attemptCount).toBe(1);
     expect(details.sourceCount).toBe(2);
     expect(details.supportCount).toBe(1);
     expect(details.queryCount).toBe(2);
     expect(details.primaryFirstFailureCode).toBeNull();
     expect(details.primaryFinalFailureCode).toBeNull();
-    expect(details.primaryFinalStatus).toBe(200);
+    expect(details.primaryStatus).toBe(200);
     expect(details.fallbackUsed).toBe(false);
-    expect(details.fallbackResultCount).toBeNull();
+    expect(details.fallbackFrom).toBeNull();
   });
 
-  it("preserves the first failure code when the retry succeeds", () => {
-    const details = detailsForSearch(record({ attempts: [emptyQueryAttempt(), cleanAttempt()] }));
+  it("reports the Exa fallback answer with its own grounding counts", () => {
+    const parallel = groundingAttempt("parallel", rawResponse(429, { error: { message: "quota" } }));
+    const built = buildStoredRecord({
+      ...common,
+      depth: "standard",
+      parallelAttempts: [parallel],
+      exaAttempts: [cleanExaAttempt()],
+      selected: cleanExaAttempt(),
+    });
+    const details = detailsForSearch(built);
 
     expect(details.answerProvider).toBe("gemini-exa-grounding");
-    expect(details.primaryAttemptCount).toBe(2);
-    expect(details.primaryFirstFailureCode).toBe("EXA_EMPTY_QUERY");
-    expect(details.primaryFinalFailureCode).toBeNull();
-    expect(details.primaryFinalStatus).toBe(200);
+    expect(details.fallbackUsed).toBe(true);
+    expect(details.fallbackFrom).toBe("parallel");
+    expect(details.fallbackReason).toContain("Gemini+Parallel returned HTTP 429");
     expect(details.sourceCount).toBe(2);
+    expect(details.attemptProviders).toEqual(["gemini-parallel-grounding", "gemini-exa-grounding"]);
   });
 
-  it("describes the fallback provider and suppresses Gemini counts", () => {
-    const details = detailsForSearch(
-      record({ attempts: [emptyQueryAttempt()], fallback: fallbackAttempt("code_search", 10) }),
-    );
+  it("suppresses grounding counts and provider labels when both partners fail", () => {
+    const parallel = groundingAttempt("parallel", rawResponse(500, { error: { message: "boom" } }));
+    const built = buildStoredRecord({
+      ...common,
+      depth: "deep",
+      parallelAttempts: [parallel],
+      exaAttempts: [emptyQueryAttempt()],
+      selected: undefined,
+    });
+    const details = detailsForSearch(built);
 
-    expect(details.answerProvider).toBe("code_search");
-    expect(details.primaryAttemptCount).toBe(1);
-    expect(details.primaryFinalStatus).toBe(400);
-    expect(details.primaryFinalFailureCode).toBe("EXA_EMPTY_QUERY");
-    expect(details.fallbackResultCount).toBe(10);
+    expect(details.answerProvider).toBeNull();
+    expect(details.selectedProvider).toBe("none");
     expect(details.sourceCount).toBeNull();
     expect(details.supportCount).toBeNull();
     expect(details.queryCount).toBeNull();
-  });
-
-  it("reports both attempts when the retry also failed", () => {
-    const details = detailsForSearch(
-      record({
-        attempts: [emptyQueryAttempt(), emptyQueryAttempt()],
-        fallback: fallbackAttempt("exa_search", 5),
-      }),
-    );
-
-    expect(details.answerProvider).toBe("exa_search");
-    expect(details.primaryAttemptCount).toBe(2);
-    expect(details.primaryFirstFailureCode).toBe("EXA_EMPTY_QUERY");
-    expect(details.primaryFinalFailureCode).toBe("EXA_EMPTY_QUERY");
-    expect(details.fallbackResultCount).toBe(5);
-  });
-
-  it("treats a stored record without attempt history as a single attempt", () => {
-    const details = detailsForSearch(
-      record({ attempts: [cleanAttempt()], includeAttemptHistory: false }),
-    );
-
-    expect(details.primaryAttemptCount).toBe(1);
+    expect(details.primaryStatus).toBe(500);
     expect(details.primaryFirstFailureCode).toBeNull();
+    expect(details.primaryFinalFailureCode).toBeNull();
+  });
+
+  it("tolerates legacy records without schema, attempts, or depth fields", () => {
+    const legacy = {
+      responseId: "wse_legacy_0123456789abcdef",
+      createdAt: 0,
+      expiresAt: Number.MAX_SAFE_INTEGER,
+      provider: "gemini-exa-grounding",
+      model: "gemini-3.5-flash",
+      query: "legacy query",
+      primary: cleanExaAttempt(),
+      normalized: cleanNormalized,
+      fallback: null,
+      googleResponseId: "google-response-1",
+    } as unknown as StoredSearchResponse;
+
+    const details = detailsForSearch(legacy);
+
+    expect(details.attemptCount).toBe(1);
+    expect(details.depth).toBe("standard");
+    expect(details.answerProvider).toBe("gemini-exa-grounding");
     expect(details.sourceCount).toBe(2);
   });
+});
 
-  it("keeps the first failure visible when the retry failed differently", () => {
-    const details = detailsForSearch(
-      record({
-        attempts: [emptyQueryAttempt(), attempt(rawResponse(429, { error: { code: 429, message: "Quota exceeded." } }))],
-        fallback: fallbackAttempt("exa_search"),
-      }),
-    );
+describe("web_code_search stored record and details", () => {
+  const codeCommon = { ...common, focus: "developer_sources" as const };
 
-    expect(details.primaryAttemptCount).toBe(2);
-    expect(details.primaryFirstFailureCode).toBe("EXA_EMPTY_QUERY");
-    expect(details.primaryFinalFailureCode).toBeNull();
-    expect(details.primaryFinalStatus).toBe(429);
-    expect(details.fallbackResultCount).toBeNull();
+  it("records the schema version, focus, selected provider, and attempts", () => {
+    const primary = firecrawlAttempt({ success: true, artifacts: [], resultCount: 0 });
+    const fallback = exaCodeAttempt(15);
+    const built = buildStoredCodeSearchRecord({
+      ...codeCommon,
+      attempts: [primary, fallback],
+      selected: fallback,
+      degraded: true,
+    });
+
+    expect(built.schemaVersion).toBe(2);
+    expect(built.tool).toBe("web_code_search");
+    expect(built.focus).toBe("developer_sources");
+    expect(built.selectedProvider).toBe("exa-code");
+    expect(built.degraded).toBe(true);
+
+    const details = detailsForCodeSearch(built);
+    expect(details.answerProvider).toBe("exa-code");
+    expect(details.fallbackUsed).toBe(true);
+    expect(details.fallbackFrom).toBe("firecrawl-developer");
+    expect(details.degraded).toBe(true);
+    expect(details.resultCount).toBe(15);
+    expect(details.requestId).toBe("req-1");
+  });
+
+  it("reports coverage and reranked for a selected Firecrawl result", () => {
+    const primary = firecrawlAttempt({
+      success: true,
+      artifacts: [{ id: "doc:a", type: "doc", url: "https://a", passages: ["p"] }],
+      coverage: { doc: "ok" },
+      reranked: true,
+      resultCount: 1,
+    });
+    const built = buildStoredCodeSearchRecord({
+      ...codeCommon,
+      attempts: [primary],
+      selected: primary,
+      degraded: false,
+    });
+
+    const details = detailsForCodeSearch(built);
+    expect(details.fallbackUsed).toBe(false);
+    expect(details.resultCount).toBe(1);
+    expect(details.coverage).toEqual({ doc: "ok" });
+    expect(details.reranked).toBe(true);
+  });
+
+  it("reports a null provider and zero fallback when nothing succeeded", () => {
+    const built = buildStoredCodeSearchRecord({
+      ...codeCommon,
+      attempts: [firecrawlAttempt({ success: false, artifacts: [], resultCount: 0 })],
+      selected: undefined,
+      degraded: false,
+    });
+
+    const details = detailsForCodeSearch(built);
+    expect(details.answerProvider).toBeNull();
+    expect(details.fallbackUsed).toBe(false);
+    expect(details.resultCount).toBeNull();
   });
 });

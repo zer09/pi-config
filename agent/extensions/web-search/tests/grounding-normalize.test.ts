@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { readFile } from "node:fs/promises";
-import { extractBenchmarkResponseJson, normalizeGeminiExaResponse } from "../src/normalize.js";
+import { extractBenchmarkResponseJson, normalizeGeminiGroundingResponse } from "../src/grounding-normalize.js";
 import { formatCleanGeminiSuccess } from "../src/format.js";
-import type { NormalizedGeminiExaResponse } from "../src/types.js";
+import type { NormalizedGeminiGroundingResponse } from "../src/types.js";
 
 const CODE_FIXTURE = new URL("./fixtures/gemini-exa-code-sample-response.json", import.meta.url);
 const GLOBAL_ENDPOINT_FIXTURE = new URL("./fixtures/gemini-exa-code-sample-global-endpoint-response.json", import.meta.url);
@@ -12,10 +12,34 @@ async function loadFixture(path: URL): Promise<unknown> {
   return JSON.parse(await readFile(path, "utf8"));
 }
 
-describe("Gemini+Exa response normalizer", () => {
+describe("Gemini grounding response normalizer", () => {
+  it("normalizes equivalent Parallel and Exa grounding metadata identically", () => {
+    // Gemini returns the same generateContent shape for both partners; only
+    // the request tool payload differs.
+    const groundingMetadata = {
+      webSearchQueries: ["parallel vs exa grounding"],
+      groundingChunks: [{ web: { title: "Docs", uri: "https://example.com/docs", domain: "example.com" } }],
+      groundingSupports: [{ segment: { text: "Same shape.", endIndex: 10 }, groundingChunkIndices: [0] }],
+    };
+    const bodyFor = (tool: unknown) => ({
+      responseId: "google-response-1",
+      candidates: [{ finishReason: "STOP", content: { parts: [{ text: "Same shape." }] }, groundingMetadata }],
+      tools: [tool],
+    });
+
+    const parallel = normalizeGeminiGroundingResponse(bodyFor({ parallelAiSearch: { customConfigs: { mode: "basic" } } }));
+    const exa = normalizeGeminiGroundingResponse(bodyFor({ exaAiSearch: { api_key: "k", customConfigs: { type: "fast" } } }));
+
+    expect(parallel).toEqual(exa);
+    expect(parallel.cleanSuccess).toBe(true);
+    expect(parallel.sources).toEqual([
+      { groundingId: 0, title: "Docs", url: "https://example.com/docs", domain: "example.com" },
+    ]);
+    expect(parallel.supports[0].groundingChunkIndices).toEqual([0]);
+  });
   it("parses the coding benchmark answer, sources, supports, and queries", async () => {
     const fixture = await loadFixture(CODE_FIXTURE);
-    const normalized = normalizeGeminiExaResponse(extractBenchmarkResponseJson(fixture));
+    const normalized = normalizeGeminiGroundingResponse(extractBenchmarkResponseJson(fixture));
 
     expect(normalized.cleanSuccess).toBe(true);
     expect(normalized.finishReason).toBe("STOP");
@@ -44,7 +68,7 @@ describe("Gemini+Exa response normalizer", () => {
 
   it("parses the non-code benchmark with the same response shape", async () => {
     const fixture = await loadFixture(NONCODE_FIXTURE);
-    const normalized = normalizeGeminiExaResponse(extractBenchmarkResponseJson(fixture));
+    const normalized = normalizeGeminiGroundingResponse(extractBenchmarkResponseJson(fixture));
 
     expect(normalized.cleanSuccess).toBe(true);
     expect(normalized.finishReason).toBe("STOP");
@@ -57,7 +81,7 @@ describe("Gemini+Exa response normalizer", () => {
 
   it("formats clean output with inline citations and a Sources section", async () => {
     const fixture = await loadFixture(NONCODE_FIXTURE);
-    const normalized = normalizeGeminiExaResponse(extractBenchmarkResponseJson(fixture));
+    const normalized = normalizeGeminiGroundingResponse(extractBenchmarkResponseJson(fixture));
     const output = formatCleanGeminiSuccess(normalized, "wse_test");
 
     expect(output).toContain("ensuring freshness and factual accuracy [0, 1, 2].");
@@ -73,7 +97,7 @@ describe("Gemini+Exa response normalizer", () => {
 
   it("formats multipart answers with citations after later text parts", async () => {
     const fixture = await loadFixture(GLOBAL_ENDPOINT_FIXTURE);
-    const normalized = normalizeGeminiExaResponse(extractBenchmarkResponseJson(fixture));
+    const normalized = normalizeGeminiGroundingResponse(extractBenchmarkResponseJson(fixture));
     const output = formatCleanGeminiSuccess(normalized, "wse_test");
 
     expect(output).toContain("process.env.GOOGLE_CLOUD_API_KEY` [2, 3].");
@@ -84,7 +108,7 @@ describe("Gemini+Exa response normalizer", () => {
   });
 
   it("keeps a Sources section when no sources are returned", () => {
-    const normalized: NormalizedGeminiExaResponse = {
+    const normalized: NormalizedGeminiGroundingResponse = {
       answer: "Citation but no source.",
       cleanSuccess: true,
       finishReason: "STOP",
@@ -105,7 +129,7 @@ describe("Gemini+Exa response normalizer", () => {
   });
 
   it("does not render a dangling dash for sources without URLs", () => {
-    const normalized: NormalizedGeminiExaResponse = {
+    const normalized: NormalizedGeminiGroundingResponse = {
       answer: "Title-only source.",
       cleanSuccess: true,
       finishReason: "STOP",

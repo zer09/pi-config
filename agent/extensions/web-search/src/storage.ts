@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { redactSecrets, type SecretForRedaction } from "./redact.js";
-import type { ContentCacheEntry, StoredSearchResponse } from "./types.js";
+import type { ContentCacheEntry, StoredSearchResponse, StoredToolRecord } from "./types.js";
 
 const SAFE_RESPONSE_ID = /^[A-Za-z0-9._-]+$/;
 const CLEANUP_WRITE_INTERVAL = 25;
@@ -78,7 +78,7 @@ async function cleanupExpiredFiles(dir: string, now = Date.now()): Promise<void>
 
 export async function writeStoredResponse(
   cacheDir: string,
-  record: StoredSearchResponse,
+  record: StoredToolRecord,
   secrets: SecretForRedaction[],
 ): Promise<void> {
   await atomicWriteJson(responsePath(cacheDir, record.responseId), record, secrets);

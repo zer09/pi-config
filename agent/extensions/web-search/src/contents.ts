@@ -1,13 +1,23 @@
 /**
  * fetch_contents orchestration facade.
  *
- * Validates tool input, normalizes URLs, checks the disk cache, calls Exa
- * /contents for cache misses, and returns formatted content entries. Cache
- * policy and response parsing live in focused helper modules.
+ * Validates tool input, normalizes URLs, checks disk-cache freshness, calls
+ * Firecrawl /v2/scrape with bounded concurrency for cache misses, batches the
+ * Firecrawl-failed URLs into one Exa /contents fallback call, and returns
+ * formatted content entries in the original input order. Cache policy and
+ * response parsing live in focused helper modules.
  */
-import { createFailedContentEntry, dedupeContentMisses, formatContentCacheEntryForTool, isCacheableContentEntry, isContentCacheEntryUsable } from "./content-cache.js";
+import {
+  createFailedContentEntry,
+  dedupeContentMisses,
+  formatContentCacheEntryForTool,
+  isCacheableContentEntry,
+  isContentCacheEntryUsable,
+  MS_PER_HOUR,
+} from "./content-cache.js";
 import { parseExaContentsResults } from "./content-parser.js";
 import { callExaContents } from "./exa-contents.js";
+import { callFirecrawlScrape, isUsableFirecrawlScrape } from "./firecrawl-scrape.js";
 import { loadConfig, readConfiguredEnv } from "./config.js";
 import { cacheKeyForUrl, normalizeUrl } from "./url.js";
 import { readContentCacheEntry, writeContentCacheEntry } from "./storage.js";
@@ -16,6 +26,7 @@ import type { FormattedContentEntry } from "./format.js";
 import type { SecretForRedaction } from "./redact.js";
 
 export const DEFAULT_CONTENT_MAX_CHARACTERS = 12_000;
+export const MAX_CONTENT_AGE_HOURS = 720;
 
 type ContentCacheMiss = { index: number; normalizedUrl: string; cacheKey: string };
 
@@ -32,38 +43,91 @@ function optionalMaxCharacters(value: unknown): number {
   return value as number;
 }
 
+function optionalMaxAgeHours(value: unknown, fallback: number): number {
+  if (value === undefined || value === null) return fallback;
+  if (!Number.isInteger(value) || (value as number) < 0 || (value as number) > MAX_CONTENT_AGE_HOURS) {
+    throw new Error(`maxAgeHours must be an integer between 0 and ${MAX_CONTENT_AGE_HOURS}`);
+  }
+  return value as number;
+}
+
+async function runWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await worker(items[index]!);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
+function entryFromScrape(miss: { normalizedUrl: string }, markdown: string, title: string | undefined, statusCode: number | undefined, warning: string | undefined, maxCharacters: number, ttlMs: number, now: number): ContentCacheEntry {
+  return {
+    url: miss.normalizedUrl,
+    normalizedUrl: miss.normalizedUrl,
+    fetchedAt: now,
+    expiresAt: now + ttlMs,
+    requestedMaxCharacters: maxCharacters,
+    title,
+    text: markdown,
+    provider: "firecrawl_scrape",
+    providerStatus: { success: true, statusCode, warning },
+  };
+}
+
 /**
- * Fetches Markdown content entries for explicit URLs, using disk cache when valid.
+ * Fetches Markdown content entries for explicit URLs.
  *
- * @param params - Raw tool parameters plus optional injected config, Exa key, redaction secrets, and abort signal.
+ * Routing per unique normalized URL: usable local disk cache, then Firecrawl
+ * POST /v2/scrape, then Exa POST /contents only for URLs whose Firecrawl
+ * attempt failed. Input order and duplicate URLs are preserved and partial
+ * success is returned.
+ *
+ * @param params - Raw tool parameters plus optional injected config, provider keys, redaction secrets, and abort signal.
  * @returns Formatted content entries in the same order as the requested URIs.
- * @throws Error when input validation fails, configuration is missing, URL normalization fails, or uncached Exa /contents retrieval fails.
+ * @throws Error when input validation fails or URL normalization fails.
  */
 export async function fetchContentsEntries(params: {
   rawUris: unknown;
   rawMaxCharacters?: unknown;
+  rawMaxAgeHours?: unknown;
   signal?: AbortSignal;
   config?: SearchConfig;
   exaApiKey?: string;
+  firecrawlApiKey?: string;
   secrets?: SecretForRedaction[];
 }): Promise<FormattedContentEntry[]> {
   const config = params.config ?? (await loadConfig());
   const exaApiKey = params.exaApiKey ?? readConfiguredEnv(config.exaApiKeyEnv);
-  if (!exaApiKey) throw new Error(`Missing required environment variable ${config.exaApiKeyEnv}`);
+  const firecrawlApiKey = params.firecrawlApiKey ?? readConfiguredEnv(config.firecrawlApiKeyEnv);
+  const secrets =
+    params.secrets ??
+    [
+      { label: config.googleCloudApiKeyEnv, value: readConfiguredEnv(config.googleCloudApiKeyEnv) },
+      { label: config.parallelApiKeyEnv, value: readConfiguredEnv(config.parallelApiKeyEnv) },
+      { label: config.exaApiKeyEnv, value: exaApiKey },
+      { label: config.firecrawlApiKeyEnv, value: firecrawlApiKey },
+    ].filter((secret) => secret.value !== undefined);
 
-  const secrets = params.secrets ?? [{ label: config.exaApiKeyEnv, value: exaApiKey }];
   const maxCharacters = optionalMaxCharacters(params.rawMaxCharacters);
+  const maxAgeHours = optionalMaxAgeHours(params.rawMaxAgeHours, config.contents.defaultMaxAgeHours);
   const inputUris = assertStringArray(params.rawUris, "uris");
+  const now = Date.now();
 
   const normalizedRequests = inputUris.map((uri) => normalizeUrl(uri));
   const entries: Array<FormattedContentEntry | undefined> = new Array(normalizedRequests.length);
   const misses: ContentCacheMiss[] = [];
 
   for (let index = 0; index < normalizedRequests.length; index += 1) {
-    const normalizedUrl = normalizedRequests[index];
+    const normalizedUrl = normalizedRequests[index]!;
     const cacheKey = cacheKeyForUrl(normalizedUrl);
-    const cached = await readContentCacheEntry(config.cacheDir, cacheKey);
-    if (cached && isContentCacheEntryUsable(cached, maxCharacters)) {
+    // maxAgeHours 0 bypasses the local cache entirely: no read for satisfaction.
+    const cached = maxAgeHours > 0 ? await readContentCacheEntry(config.cacheDir, cacheKey) : null;
+    if (cached && isContentCacheEntryUsable(cached, maxCharacters, maxAgeHours, now)) {
       entries[index] = formatContentCacheEntryForTool(cached, true, maxCharacters);
     } else {
       misses.push({ index, normalizedUrl, cacheKey });
@@ -72,28 +136,86 @@ export async function fetchContentsEntries(params: {
 
   if (misses.length > 0) {
     const uniqueMisses = dedupeContentMisses(misses);
-    let parsed: ContentCacheEntry[];
-    try {
-      const response = await callExaContents({
-        urls: uniqueMisses.map((miss) => miss.normalizedUrl),
-        maxCharacters,
-        exaApiKey,
-        signal: params.signal,
-      });
-      parsed = parseExaContentsResults({
-        data: response.rawResponse.bodyJson,
-        requestedUrls: uniqueMisses.map((miss) => miss.normalizedUrl),
-        requestedMaxCharacters: maxCharacters,
-        ttlMs: config.contentCacheTtlMs,
-      });
-    } catch (error) {
-      if (!entries.some(Boolean)) throw error;
-      parsed = uniqueMisses.map((miss) => createFailedContentEntry(miss.normalizedUrl, maxCharacters, error));
+    const scraped: Array<ContentCacheEntry | undefined> = await runWithConcurrency(
+      uniqueMisses,
+      config.contents.concurrency,
+      async (miss) => {
+        const attempt = await callFirecrawlScrape({
+          url: miss.normalizedUrl,
+          maxAgeMs: maxAgeHours * MS_PER_HOUR,
+          timeoutMs: config.contents.scrapeTimeoutMs,
+          firecrawlApiKey,
+          signal: params.signal,
+        });
+        if (isUsableFirecrawlScrape(attempt)) {
+          return entryFromScrape(
+            miss,
+            attempt.normalized!.markdown,
+            attempt.normalized!.title,
+            attempt.normalized!.statusCode,
+            attempt.normalized!.warning,
+            maxCharacters,
+            config.contentCacheTtlMs,
+            Date.now(),
+          );
+        }
+        return undefined;
+      },
+    );
+
+    // Only the Firecrawl-failed URLs move on to the Exa Contents fallback.
+    const exaMisses: typeof uniqueMisses = [];
+    for (let index = 0; index < uniqueMisses.length; index += 1) {
+      if (scraped[index] === undefined) exaMisses.push(uniqueMisses[index]!);
     }
 
-    for (let missIndex = 0; missIndex < uniqueMisses.length; missIndex += 1) {
-      const missGroup = uniqueMisses[missIndex];
-      const entry = parsed[missIndex];
+    let exaEntries: Array<ContentCacheEntry | undefined> = [];
+    if (exaMisses.length > 0 && !params.signal?.aborted) {
+      if (!exaApiKey) {
+        exaEntries = exaMisses.map((miss) => createFailedContentEntry(miss.normalizedUrl, maxCharacters, "exa_contents"));
+      } else {
+        let parsed: ContentCacheEntry[];
+        try {
+          const response = await callExaContents({
+            urls: exaMisses.map((miss) => miss.normalizedUrl),
+            maxCharacters,
+            maxAgeHours,
+            exaApiKey,
+            signal: params.signal,
+          });
+          parsed = parseExaContentsResults({
+            data: response.rawResponse.bodyJson,
+            requestedUrls: exaMisses.map((miss) => miss.normalizedUrl),
+            requestedMaxCharacters: maxCharacters,
+            ttlMs: config.contentCacheTtlMs,
+          });
+        } catch {
+          // Raw provider error text stays out of the entry: failed entries render
+          // only the bounded generic failure status in model-visible output.
+          parsed = exaMisses.map((miss) => createFailedContentEntry(miss.normalizedUrl, maxCharacters, "exa_contents"));
+        }
+        exaEntries = parsed.map((entry) => (isCacheableContentEntry(entry) ? entry : undefined));
+        // Entries both providers failed to fill become structured failures.
+        exaEntries = exaEntries.map((entry, index) =>
+          entry ??
+          createFailedContentEntry(
+            exaMisses[index]!.normalizedUrl,
+            maxCharacters,
+            "exa_contents",
+          ),
+        );
+      }
+    }
+
+    const resolved: Array<ContentCacheEntry | undefined> = scraped.map((entry, index) => {
+      if (entry) return entry;
+      const exaIndex = exaMisses.indexOf(uniqueMisses[index]!);
+      return exaIndex >= 0 ? exaEntries[exaIndex] : undefined;
+    });
+
+    for (let index = 0; index < uniqueMisses.length; index += 1) {
+      const missGroup = uniqueMisses[index]!;
+      const entry = resolved[index] ?? createFailedContentEntry(missGroup.normalizedUrl, maxCharacters);
       if (isCacheableContentEntry(entry)) {
         await writeContentCacheEntry(config.cacheDir, missGroup.cacheKey, entry, secrets);
       }

@@ -3,7 +3,7 @@ import { stripTerminalControlSequences } from "./terminal-sanitize.js";
 import { asFiniteNumber as asNumber, asNonEmptyString as asString, asRecordOrEmpty as asRecord } from "./value-guards.js";
 import type { ToolResult } from "./types.js";
 
-type WebSearchToolName = "web_search" | "fetch_contents";
+type WebSearchToolName = "web_search" | "web_code_search" | "fetch_contents";
 type RenderTheme = {
   fg?: (name: string, value: string) => string;
   bold?: (value: string) => string;
@@ -15,6 +15,7 @@ const COLLAPSED_RESULT_LINES = 20;
 const MAX_CALL_SUMMARY_CHARS = 480;
 const TOOL_LABELS: Record<WebSearchToolName, string> = {
   web_search: "Web Search",
+  web_code_search: "Web Code Search",
   fetch_contents: "Fetch Contents",
 };
 
@@ -54,13 +55,24 @@ function formatCallSummary(toolName: WebSearchToolName, args: unknown): string {
   const record = asRecord(args);
   if (toolName === "web_search") {
     const query = asString(record.query);
-    const mode = asString(record.mode);
-    return truncate([query ? `query=${JSON.stringify(query)}` : "", mode ? `mode=${mode}` : ""].filter(Boolean).join(" "), MAX_CALL_SUMMARY_CHARS);
+    const depth = asString(record.depth);
+    return truncate([query ? `query=${JSON.stringify(query)}` : "", depth ? `depth=${depth}` : ""].filter(Boolean).join(" "), MAX_CALL_SUMMARY_CHARS);
+  }
+
+  if (toolName === "web_code_search") {
+    const query = asString(record.query);
+    const focus = asString(record.focus);
+    return truncate([query ? `query=${JSON.stringify(query)}` : "", focus ? `focus=${focus}` : ""].filter(Boolean).join(" "), MAX_CALL_SUMMARY_CHARS);
   }
 
   const urls = Array.isArray(record.uris) ? record.uris.length : undefined;
   const maxCharacters = asNumber(record.maxCharacters);
-  return [urls !== undefined ? `urls=${urls}` : "", maxCharacters !== undefined ? `maxChars=${maxCharacters}` : ""]
+  const maxAgeHours = asNumber(record.maxAgeHours);
+  return [
+    urls !== undefined ? `urls=${urls}` : "",
+    maxCharacters !== undefined ? `maxChars=${maxCharacters}` : "",
+    maxAgeHours !== undefined ? `maxAgeHours=${maxAgeHours}` : "",
+  ]
     .filter(Boolean)
     .join(" ");
 }
@@ -69,10 +81,10 @@ function resultDetailsSummary(toolName: WebSearchToolName, result: ToolResult): 
   const details = asRecord(result.details);
   if (toolName === "web_search") {
     const responseId = asString(details.responseId) ?? "unknown";
-    const fallbackProvider = details.fallbackUsed ? asString(details.fallbackProvider) ?? "unknown" : undefined;
-    const provider = asString(details.answerProvider) ?? fallbackProvider ?? "gemini-exa-grounding";
-    const attempts = asNumber(details.primaryAttemptCount) ?? 1;
-    const finalStatus = asNumber(details.primaryFinalStatus);
+    const provider = asString(details.answerProvider) ?? "gemini-parallel-grounding";
+    const attempts = asNumber(details.attemptCount) ?? 1;
+    const fallbackFrom = asString(details.fallbackFrom);
+    const finalStatus = asNumber(details.primaryStatus);
     // A 2xx primary can still need fallback (non-STOP finish, empty answer), so
     // an HTTP label is only meaningful for a failing status.
     const httpError = finalStatus !== undefined && (finalStatus < 200 || finalStatus >= 300) ? `HTTP_${finalStatus}` : undefined;
@@ -82,22 +94,39 @@ function resultDetailsSummary(toolName: WebSearchToolName, result: ToolResult): 
     const firstError = asString(details.primaryFirstFailureCode);
     const sourceCount = asNumber(details.sourceCount);
     const supportCount = asNumber(details.supportCount);
-    const resultCount = asNumber(details.fallbackResultCount);
     // Show the first failure only when a later attempt exists and it says
     // something the final primary error label does not already say.
     const showFirstError = firstError !== undefined && attempts > 1 && firstError !== primaryError;
-    const providerFields = fallbackProvider
-      ? [
-          resultCount !== undefined ? `results=${resultCount}` : "",
-          primaryError ? `primaryError=${primaryError}` : "",
-          nonStopFinishReason ? `finishReason=${nonStopFinishReason}` : "",
-        ]
-      : [sourceCount !== undefined ? `sources=${sourceCount}` : "", supportCount !== undefined ? `supports=${supportCount}` : ""];
     return [
       `provider=${provider}`,
       `attempts=${attempts}`,
+      fallbackFrom ? `fallbackFrom=${fallbackFrom}` : "",
       showFirstError ? `firstError=${firstError}` : "",
-      ...providerFields,
+      sourceCount !== undefined ? `sources=${sourceCount}` : "",
+      supportCount !== undefined ? `supports=${supportCount}` : "",
+      !fallbackFrom && primaryError ? `primaryError=${primaryError}` : "",
+      !fallbackFrom && nonStopFinishReason ? `finishReason=${nonStopFinishReason}` : "",
+      `responseId=${responseId}`,
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  if (toolName === "web_code_search") {
+    const responseId = asString(details.responseId) ?? "unknown";
+    const provider = asString(details.answerProvider) ?? "unknown";
+    const focus = asString(details.focus);
+    const attempts = asNumber(details.attemptCount) ?? 1;
+    const fallbackFrom = asString(details.fallbackFrom);
+    const degraded = details.degraded === true;
+    const resultCount = asNumber(details.resultCount);
+    return [
+      `provider=${provider}`,
+      focus ? `focus=${focus}` : "",
+      `attempts=${attempts}`,
+      fallbackFrom ? `fallbackFrom=${fallbackFrom}` : "",
+      degraded ? "degraded=true" : "",
+      resultCount !== undefined ? `results=${resultCount}` : "",
       `responseId=${responseId}`,
     ]
       .filter(Boolean)

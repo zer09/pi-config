@@ -1,5 +1,9 @@
-export type WebSearchMode = "auto" | "web" | "code";
-export type FallbackRoute = "exa_search" | "code_search";
+export type WebSearchDepth = "standard" | "deep";
+export type CodeSearchFocus = "developer_sources" | "implementation_examples";
+export type GroundingPartner = "parallel" | "exa";
+export type ParallelGroundingMode = "basic" | "advanced";
+export type CodeSearchProvider = "firecrawl-developer" | "exa-code";
+export type ContentProvider = "firecrawl_scrape" | "exa_contents";
 
 export type JsonSchema = Record<string, unknown>;
 
@@ -57,13 +61,36 @@ export type ExtensionContextLike = {
   signal?: AbortSignal;
 };
 
-export type SearchConfig = {
-  googleCloudApiKeyEnv: string;
-  exaApiKeyEnv: string;
-  model: string;
-  searchType: string;
+/** Budget for the Gemini + Exa grounding fallback attempt. */
+export type ExaGroundingBudget = {
+  type: "fast";
   numResults: number;
   maxHighlightCharacters: number;
+};
+
+/** Token budget for the Exa Code client; `"dynamic"` or an integer 50..100000. */
+export type ExaCodeTokens = "dynamic" | number;
+
+export type SearchConfig = {
+  googleCloudApiKeyEnv: string;
+  parallelApiKeyEnv: string;
+  exaApiKeyEnv: string;
+  firecrawlApiKeyEnv: string;
+  model: string;
+  webSearch: {
+    defaultDepth: WebSearchDepth;
+    parallel: { standardMode: ParallelGroundingMode; deepMode: ParallelGroundingMode };
+    exa: { standard: ExaGroundingBudget; deep: ExaGroundingBudget };
+  };
+  codeSearch: {
+    firecrawl: { k: number; passages: number };
+    exaCode: { tokensNum: ExaCodeTokens };
+  };
+  contents: {
+    defaultMaxAgeHours: number;
+    concurrency: number;
+    scrapeTimeoutMs: number;
+  };
   cacheDir: string;
   rawResponseTtlMs: number;
   contentCacheTtlMs: number;
@@ -83,7 +110,7 @@ export type GroundingSupport = {
   endIndex?: number;
 };
 
-export type NormalizedGeminiExaResponse = {
+export type NormalizedGeminiGroundingResponse = {
   answer: string;
   finishReason?: string;
   cleanSuccess: boolean;
@@ -111,53 +138,124 @@ export type RawHttpResponse = {
   bodyJson?: unknown;
 };
 
-export type PrimaryAttempt = {
-  provider: "gemini-exa-grounding";
+/** One Gemini grounding attempt through a specific search partner. */
+export type GroundingAttempt = {
+  provider: "gemini-parallel-grounding" | "gemini-exa-grounding";
+  partner: GroundingPartner;
   model: string;
   requestStartedAt: string;
   elapsedMs: number;
   rawRequest?: RawHttpRequest;
   rawResponse?: RawHttpResponse;
-  normalized?: NormalizedGeminiExaResponse;
+  normalized?: NormalizedGeminiGroundingResponse;
   error?: string;
 };
 
 /** Provider failure classes recognized exactly enough to act on. */
 export type PrimaryFailureCode = "EXA_EMPTY_QUERY";
 
-/** Chronological primary attempts; there is always at least one. */
-export type PrimaryAttempts = [PrimaryAttempt, ...PrimaryAttempt[]];
-
-export type FallbackAttempt = {
-  used: true;
-  provider: FallbackRoute;
-  reason: string;
+/** One developer/code search attempt through one provider. */
+export type CodeSearchAttempt = {
+  provider: CodeSearchProvider;
   requestStartedAt: string;
   elapsedMs: number;
   rawRequest?: RawHttpRequest;
   rawResponse?: RawHttpResponse;
-  answer: string;
-  costDollars?: unknown;
-  resultCount?: number;
+  normalized?: NormalizedCodeSearchResult;
   error?: string;
 };
 
+export type FirecrawlDeveloperArtifact = {
+  id?: string;
+  type?: string;
+  url?: string;
+  title?: string;
+  passages: string[];
+};
+
+export type NormalizedFirecrawlDeveloperSearch = {
+  success: boolean;
+  artifacts: FirecrawlDeveloperArtifact[];
+  coverage?: Record<string, unknown>;
+  reranked?: boolean;
+  resultCount: number;
+};
+
+export type NormalizedExaCodeSearch = {
+  response: string;
+  resultsCount?: number;
+  requestId?: string;
+  costDollars?: unknown;
+  searchTime?: number;
+  outputTokens?: number;
+};
+
+export type NormalizedCodeSearchResult = NormalizedFirecrawlDeveloperSearch | NormalizedExaCodeSearch;
+
+export type NormalizedFirecrawlScrape = {
+  markdown: string;
+  title?: string;
+  sourceUrl?: string;
+  statusCode?: number;
+  warning?: string;
+};
+
+/** One per-URL content fetch attempt through one provider. */
+export type ContentFetchAttempt = {
+  provider: ContentProvider;
+  url: string;
+  requestStartedAt: string;
+  elapsedMs: number;
+  rawRequest?: RawHttpRequest;
+  rawResponse?: RawHttpResponse;
+  normalized?: NormalizedFirecrawlScrape;
+  error?: string;
+};
+
+/**
+ * Stored record for the web_search tool.
+ *
+ * New fields (schemaVersion, tool, depth, selectedProvider, attempts) are
+ * written on every store. The legacy mirrored fields keep describing the final
+ * attempt so pre-existing raw-response consumers stay correct.
+ */
 export type StoredSearchResponse = {
+  schemaVersion: number;
   responseId: string;
   createdAt: number;
   expiresAt: number;
-  provider: "gemini-exa-grounding";
-  model: string;
+  tool: "web_search";
+  depth: WebSearchDepth;
+  selectedProvider: "gemini-parallel-grounding" | "gemini-exa-grounding" | "none";
   query: string;
+  model: string;
+  attempts: GroundingAttempt[];
+  provider: string;
   request?: RawHttpRequest;
   response?: RawHttpResponse;
-  primary: PrimaryAttempt;
+  primary: GroundingAttempt;
   /** Present only after a retry; when absent, treat history as `[primary]`. */
-  primaryAttempts?: PrimaryAttempt[];
-  normalized?: NormalizedGeminiExaResponse | null;
-  fallback: FallbackAttempt | null;
+  primaryAttempts?: GroundingAttempt[];
+  normalized?: NormalizedGeminiGroundingResponse | null;
+  fallback: GroundingAttempt | null;
   googleResponseId?: string;
 };
+
+/** Stored record for the web_code_search tool. */
+export type StoredCodeSearchResponse = {
+  schemaVersion: number;
+  responseId: string;
+  createdAt: number;
+  expiresAt: number;
+  tool: "web_code_search";
+  focus: CodeSearchFocus;
+  selectedProvider: CodeSearchProvider | "none";
+  query: string;
+  attempts: CodeSearchAttempt[];
+  degraded: boolean;
+};
+
+export type StoredToolRecord = StoredSearchResponse | StoredCodeSearchResponse;
 
 export type ContentCacheEntry = {
   url: string;
@@ -167,6 +265,9 @@ export type ContentCacheEntry = {
   requestedMaxCharacters: number;
   title?: string;
   text: string;
+  provider?: ContentProvider;
+  providerStatus?: unknown;
+  /** Legacy field from records written before provider metadata existed. */
   exaStatus?: unknown;
   rawResult?: unknown;
 };

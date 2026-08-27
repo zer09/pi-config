@@ -1,8 +1,10 @@
 /**
  * Direct Exa /contents client.
  *
- * Exports the low-level content fetch call used by fetch_contents after cache
- * misses have been normalized and deduplicated.
+ * Exports the per-URL batch content fetch used by fetch_contents for URLs
+ * whose Firecrawl Scrape attempt failed. Deprecated `context` and
+ * `livecrawl` fields are not used; freshness is controlled with
+ * `maxAgeHours`.
  */
 import { postJson } from "./http.js";
 import type { RawHttpRequest, RawHttpResponse } from "./types.js";
@@ -10,13 +12,14 @@ import type { RawHttpRequest, RawHttpResponse } from "./types.js";
 /**
  * Calls Exa /contents for normalized URLs and captures the raw HTTP response.
  *
- * @param params - Normalized URLs, maximum characters per URL, Exa API key, and optional abort signal.
+ * @param params - Normalized URLs, maximum characters per URL, maximum cache age in hours, Exa API key, and optional abort signal.
  * @returns The captured raw request and response for the Exa /contents call.
  * @throws Error when Exa /contents fails before a response or returns a non-2xx HTTP status.
  */
 export async function callExaContents(params: {
   urls: string[];
   maxCharacters: number;
+  maxAgeHours: number;
   exaApiKey: string;
   signal?: AbortSignal;
 }): Promise<{ rawRequest: RawHttpRequest; rawResponse: RawHttpResponse }> {
@@ -31,6 +34,7 @@ export async function callExaContents(params: {
       text: {
         maxCharacters: params.maxCharacters,
       },
+      maxAgeHours: params.maxAgeHours,
     },
     signal: params.signal,
   });
