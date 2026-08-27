@@ -53,11 +53,9 @@ const RoutingOverrideParameters = Type.Object({
 });
 
 function delegateParameters(allowedSkillNames: readonly string[], routing: RoutingConfig): unknown {
-  const solutionIds = roleIdsInFamily(routing, "solution");
-  const reviewIds = roleIdsInFamily(routing, "review");
   return Type.Object({
     role: StringEnum(roleIds(routing), {
-      description: delegateRunRoleDescription(solutionIds, reviewIds),
+      description: delegateRunRoleDescription(),
     }),
     prompt: Type.String({
       minLength: 1,
@@ -158,7 +156,7 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
   // of the extension runtime.
   const delegateResources = loadDelegateResources();
   // One validated routing snapshot backs both tools: the delegate_run role
-  // enum, the count-aware guidance, and the model catalog derive from it,
+  // enum, the dynamic role guidance, and the model catalog derive from it,
   // and the same instance flows into every execution so registration and
   // runtime never drift. Routing changes take effect after extension reload
   // or restart, which re-runs this factory and re-reads routing.json.

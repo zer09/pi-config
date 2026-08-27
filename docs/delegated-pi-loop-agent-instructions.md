@@ -20,7 +20,7 @@ Runtime code separately enforces routing, concurrency, isolation, deadlines, rep
 
 ## Generated-section synchronization
 
-Every section marked with `<!-- pi-delegated-instructions:begin:... -->` / `<!-- pi-delegated-instructions:end:... -->` comments below is rendered mechanically from the canonical exports in `instructions.ts` (plus the shipped routing snapshot for the count-aware parts) by `agent/extensions/delegated-pi-loop/docsync.ts`. Regenerate them after any instruction change:
+Every section marked with `<!-- pi-delegated-instructions:begin:... -->` / `<!-- pi-delegated-instructions:end:... -->` comments below is rendered mechanically from the canonical exports in `instructions.ts` (plus the shipped routing snapshot for the routing-derived role lists) by `agent/extensions/delegated-pi-loop/docsync.ts`. Regenerate them after any instruction change:
 
 ```bash
 cd ~/.pi/agent/extensions/delegated-pi-loop
@@ -43,25 +43,25 @@ Because the policy is tool-scoped, tool-scoped prompt content is absent when `de
 <!-- pi-delegated-instructions:begin:delegate-run-tool -->
 - **Name:** `delegate_run`
 - **Label:** Delegate Run
-- **Description:** Run one fresh bounded Pi RPC delegate in an isolated role. Routing, including model, thinking, and provider fallback after operational failures, is automatic from the extension-owned routing configuration. Streams the last sanitized child event and its UTC receipt time. A completed run returns the delegate's Markdown report; any other state returns a compact sanitized failure status and is marked as a tool error. The parent remains the sole orchestrator.
-- **Prompt snippet:** Run one fresh bounded delegate with role-specific routing and live event status
+- **Description:** Run one fresh bounded isolated Pi delegate for one role. Routing and operational fallback are automatic. Returns a completed Markdown report; every other terminal state is a sanitized tool error. The parent remains sole orchestrator.
+- **Prompt snippet:** Run one fresh isolated delegated role
 <!-- pi-delegated-instructions:end:delegate-run-tool -->
 
 ### Tool arguments
 
 <!-- pi-delegated-instructions:begin:delegate-run-parameters -->
-- **`role`:** Assigned isolated role. Use the configured solution roles (solution-a, solution-b, solution-c, solution-d, solution-e, solution-f) and review roles (review-a, review-b, review-c, review-d, review-e) concurrently for their required gates.
-- **`prompt`:** Complete neutral role assignment, governing documents, scope, success checks, and prohibitions.
-- **`cwd`:** Delegate working directory. Relative paths resolve from the parent Pi working directory.
-- **`availableSkills`:** Pre-approved skills to make discoverable to this delegate. The delegate loads full skill instructions only when its task requires them.
-- **`routingOverride.provider`:** Pin or filter providers for this one run.
-- **`routingOverride.model`:** Run this configured model for this one run.
-- **`routingOverride.thinking`:** Thinking level for the overridden model.
-- **`routingOverride.excludeProviders`:** Providers to exclude for this one run.
-- **`routingOverride.reason`:** Mandatory non-empty justification for this exceptional routing change.
+- **`role`:** Choose one configured role. Gate members and sequencing are listed in delegate_run guidelines.
+- **`prompt`:** Self-contained neutral assignment: goal, governing documents and relevant evidence, scope, success checks, prohibitions, and required report.
+- **`cwd`:** Delegate cwd; relative paths resolve from parent cwd.
+- **`availableSkills`:** Approved skills visible to the child; full instructions load only if needed.
+- **`routingOverride.provider`:** Restrict this run to one provider.
+- **`routingOverride.model`:** Use this configured model for this run.
+- **`routingOverride.thinking`:** Thinking level for the model; requires model.
+- **`routingOverride.excludeProviders`:** Exclude these providers from this run.
+- **`routingOverride.reason`:** Why this explicit one-run override is required.
 <!-- pi-delegated-instructions:end:delegate-run-parameters -->
 
-Available roles are no longer a compile-time list: they derive from the version-2 `assignments` object in `agent/extensions/delegated-pi-loop/routing.json`. The ordered `solution` and `review` arrays derive lettered role ids (`solution-a`..`solution-z`, `review-a`..`review-z`, zero-based slots, at most 26 per family); `implementation`, `remediation`, `verification`, and `oracle` are singleton assignments of exactly one profile each. The role enum and the count-aware guidance are generated from the same validated snapshot at registration, and runtime validation resolves every role through the normalized registry, so resizing a gate is a `routing.json` edit alone.
+Available roles are no longer a compile-time list: they derive from the version-2 `assignments` object in `agent/extensions/delegated-pi-loop/routing.json`. The ordered `solution` and `review` arrays derive lettered role ids (`solution-a`..`solution-z`, `review-a`..`review-z`, zero-based slots, at most 26 per family); `implementation`, `remediation`, `verification`, and `oracle` are singleton assignments of exactly one profile each. The role enum and dynamic guidance are generated from the same validated snapshot at registration, and runtime validation resolves every role through the normalized registry, so resizing a gate is a `routing.json` edit alone.
 
 The current shipped snapshot derives:
 
@@ -83,61 +83,43 @@ The current shipped snapshot derives:
 
 ## 2. Complete parent-facing workflow instructions
 
-These instructions are injected by `delegate_run` through `promptGuidelines`, generated by `delegateRunPromptGuidelines` in `instructions.ts`. The solution-gate and review-gate lines are count-aware: they name and count the roles configured in the current routing snapshot, so the six-investigator and five-reviewer wording below reflects the shipped snapshot and regenerates automatically when `routing.json` changes.
+These instructions are injected by `delegate_run` through `promptGuidelines`, generated by `delegateRunPromptGuidelines` in `instructions.ts`. Every flat Pi guideline names its tool. The solution and review lines list the roles from the current routing snapshot and regenerate automatically when `routing.json` changes.
 
 <!-- pi-delegated-instructions:begin:delegate-run-guidelines -->
-1. Use delegate_run automatically for repository implementation changes unless the user explicitly opts out. The parent may directly make only a truly trivial edit with no behavior change or create and revise the plan and research deliverables defined below; the parent never manually implements a non-trivial or small implementation task.
+1. delegate_run [Ownership]: Use for repository implementation unless the user explicitly opts out. Parent may directly make only trivial no-behavior edits. Parent directly owns all planning and research deliverables, including repository artifacts classified by purpose. Pure planning or research runs no implementation, review, or remediation; later approval starts this workflow.
 
-2. The parent owns planning and research deliverables: directly formulate, draft, edit, and save every plan, design note, investigation report, and research note, including repository artifacts such as PLAN.md. Those artifact writes are an explicit exception to automatic delegation even when they change repository files, and plan and research artifacts are distinguished by purpose, not only by file extension or location.
+2. delegate_run [Role scope]: Never use implementation or remediation for research or plans. Implementation executes one parent-finalized contract for code, configuration, operational behavior, or accompanying docs. Remediation executes only verification-confirmed fixes.
 
-3. Never call an implementation or remediation delegate to research, explore, formulate, draft, edit, save, or revise a plan or research deliverable. An implementation delegate executes only a parent-finalized implementation contract that changes product code, configuration, operational behavior, or implementation documentation such as README updates, ADRs, changelogs, policy files, and documentation accompanying code; a remediation delegate corrects only verification-confirmed findings in such implementation work.
+3. delegate_run [Fast path]: If an accepted solution contract exists, skip solution and oracle. For a small task with an accepted plan or obvious established pattern, parent finalizes the contract, skips solution and oracle, and runs exactly one implementation.
 
-4. A pure planning or research request runs no implementation delegate, implementation review gate, or remediation; if the user later approves implementation, that later request follows the existing implementation delegation and review workflow.
+4. delegate_run [Investigation]: If root cause, architecture, or approach needs investigation, run solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently with the same neutral assignment and wait for every role. They gather evidence and options; parent verifies, synthesizes, and solely authors the final deliverable and contract.
 
-5. A small task with an accepted plan or an obvious established pattern skips the solution-investigation gate and the oracle role and still runs exactly one implementation delegate.
+5. delegate_run [Gate failure]: Any required non-completed solution or review role blocks its gate. Continue only under an applicable OVERRIDE: directive naming the failed role(s) and current gate. Record the override and never label failures completed or passed; generic continue, commit, or skip-retry wording waives nothing.
 
-6. When no accepted solution contract exists and the root cause, architecture, or approach requires investigation, call delegate_run for solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently with the same neutral assignment; all six must complete before synthesis. Solution delegates may gather evidence and propose options, but the parent verifies the evidence, synthesizes conclusions, and remains sole author and owner of the final plan or research deliverable.
+6. delegate_run [Partial evidence]: Without a broader OVERRIDE:, solution synthesis requires at least one completed report and uses only completed reports plus parent-verified repository evidence. Findings from completed reviews remain binding and follow verification and remediation unless an OVERRIDE: explicitly waives them.
 
-7. When one or more solution investigators of a solution gate fail operationally or end non-completed, the gate stays blocked by default; only the user may explicitly waive the named failed solution roles for that one current solution gate, and after that explicit waiver continue synthesis using only the completed solution reports plus parent-verified repository evidence instead of retrying or stopping solely because the waived investigators failed.
+7. delegate_run [Oracle]: After a required solution gate, parent verifies evidence and drafts the contract, then runs one fresh read-only oracle unless the parent model is in the configured Oracle model set. Give only the neutral problem, governing documents, verified evidence, draft contract, constraints, and unresolved uncertainties; exclude raw solution reports and parent synthesis rationale.
 
-8. At least one solution delegate must have completed: the user cannot waive the entire evidence set and synthesize from zero completed investigator reports. A solution waiver is one-shot and gate-scoped: it changes no later solution gates, role schema, routing, or concurrency; state which solution roles were waived and that the solution gate proceeded under user waiver, and never label a waived failure as completed or passed. A waiver does not fabricate or dismiss evidence, resolve uncertainties, authorize implementation, replace parent evidence verification, skip the advisory oracle when otherwise required, or weaken implementation, review, verification, or remediation rules.
+8. delegate_run [Oracle decision]: Oracle is advisory and returns VALID or REVISE; it never authors or saves the final plan. Parent verifies its claims, revises if warranted, finalizes the contract, and never loops automatically. A non-completed oracle blocks implementation.
 
-9. Do not infer a solution waiver from a generic request to continue, commit, or skip retries; precise user wording that names the failed solution role for the current gate, such as solution C may be waived for this gate, authorizes only that named waiver.
+9. delegate_run [Execution]: After finalizing the contract, run exactly one implementation delegate. Run only one implementation, remediation, or oracle at a time, and do not edit the working tree while it runs.
 
-10. After a required solution gate, call delegate_run for exactly one fresh read-only oracle review of the draft solution contract, and only when the parent session's current model is not one of the configured Oracle profile models; when it is, skip the oracle and finalize the solution contract directly.
+10. delegate_run [Review]: Inspect the implementation diff and evidence, then run review-a, review-b, review-c, review-d, and review-e concurrently with the same neutral scope; wait for every role unless an applicable OVERRIDE: says otherwise.
 
-11. Give the oracle role the neutral problem, governing documents, verified evidence, the draft solution contract, constraints, and unresolved uncertainties; do not give it raw investigator reports or the parent's synthesis rationale.
+11. delegate_run [Findings]: Consolidate exact duplicate blocking findings. Give each fresh verification exactly one finding and no sibling reports. Run independent verifications in batches of at most four, dependent findings sequentially, and overlap only verification with verification. Wait for the full batch; a non-completed verification leaves that finding unresolved without erasing completed siblings.
 
-12. Treat the oracle as advisory, not the final authority: the oracle critiques the parent draft but never authors or saves the final plan. Verify its VALID or REVISE analysis like any other evidence, revise the draft contract when warranted, finalize it, and run no automatic oracle loop; a non-completed oracle run blocks implementation.
+12. delegate_run [Remediation]: Send only verification-confirmed findings to one focused remediation, then repeat the full review gate until no blocking findings remain.
 
-13. The parent Pi agent must verify investigator evidence and finalize the solution contract before calling delegate_run for implementation.
+13. delegate_run [Routing]: Routing and operational fallback are automatic. Use delegate_model_catalog and routingOverride only for an explicit user or project one-run operational route request; never override oracle or change permissions or concurrency.
 
-14. Call delegate_run for only one implementation, remediation, or oracle role at a time, and do not edit the working tree while that delegate runs.
+14. delegate_run [Failure and authority]: Treat every non-completed state as a failed tool-error delegation; do not retry beyond bounded fallback without user-authorized diagnosis. Delegate completion never authorizes staging, committing, pushing, deploying, or hosted-service mutation; each requires separate explicit authorization.
 
-15. After inspecting the implementation delegate's diff and evidence, call delegate_run for review-a, review-b, review-c, review-d, and review-e concurrently with the same neutral review scope; all five must complete.
-
-16. When one or more reviewers of a review gate fail operationally or end non-completed, the gate stays blocked by default; only the user may explicitly waive the named failed reviewer roles for that one current gate, and after that explicit waiver continue with the completed review reports instead of retrying or stopping solely because the waived reviewers failed.
-
-17. A reviewer waiver is one-shot and gate-scoped: it changes no later gates, role schema, routing, or concurrency; state which reviewers were waived and that the gate completed under user waiver, and never label a waived failure as a reviewer pass. A waiver does not dismiss findings from completed reviewers or waive finding verification, remediation, or other safety rules.
-
-18. Do not infer a reviewer waiver from a generic request to continue, commit, or skip retries; precise user wording that names the failed reviewer for the current gate, such as C may be waived for this gate, authorizes only that named waiver.
-
-19. Process blocking review findings through fresh delegate_run verification roles: consolidate exact duplicate findings first, give each verification exactly one finding without sibling verification reports, and overlap verification only with other verification delegates.
-
-20. Run independent finding verifications concurrently in batches of at most four and keep dependent findings sequential; wait for every verification in the current batch before remediation, because a non-completed verification leaves its finding unresolved without erasing completed sibling reports. Send only verification-confirmed findings to one focused remediation role, then run a fresh five-reviewer gate until no blocking findings remain.
-
-21. Delegate routing, including model, thinking, and provider fallback after operational failures, is automatic from the extension-owned routing configuration; pass routingOverride only when the user or project explicitly requests an operational route change for that one run, never for the oracle role, and know that routingOverride never changes role permissions or concurrency.
-
-22. Treat every delegate_run state other than completed as a failed delegation reported as a tool error with sanitized status fields, and do not retry outside the tool's bounded operational route fallback without user-authorized diagnosis.
-
-23. Do not stage, commit, push, deploy, or mutate hosted services because a delegate completed; those transitions require separate explicit authorization.
-
-24. Use availableSkills to make only task-relevant pre-approved skills discoverable to a delegate; selection does not force full skill loading, and the delegate decides which selected skills it actually needs.
+15. delegate_run [Skills]: Pass only task-relevant pre-approved availableSkills. Selection exposes skills but never forces full loading.
 <!-- pi-delegated-instructions:end:delegate-run-guidelines -->
 
 ### Removed `AGENTS.md` duplication
 
-The parent previously also received a condensed copy of this workflow through the `## Delegated work` section of `agent/AGENTS.md`. That section is gone: the parent receives the delegation workflow exactly once through the active tool's guidelines, and `agent/AGENTS.md` no longer restates trigger rules, gate sizes, waiver semantics, oracle behavior, review behavior, verification batching, routing-override policy, `availableSkills` semantics, or authorization boundaries for delegation.
+The parent previously also received a condensed copy of this workflow through the `## Delegated work` section of `agent/AGENTS.md`. That section is gone: the parent receives delegation-specific workflow rules exactly once through the active tool's guidelines. `agent/AGENTS.md` retains only the general `OVERRIDE:` mechanism used by all agent workflows; it does not restate delegation triggers, gate sizes, oracle behavior, review behavior, verification batching, routing policy, skills, or authorization boundaries.
 
 ## 3. Decision flow for the parent
 
@@ -165,7 +147,7 @@ The parent may:
 ### Complex or uncertain implementation
 
 1. Run all configured solution roles concurrently with the same neutral assignment.
-2. Wait for every configured solution role.
+2. Wait for every configured solution role. A failure blocks the gate unless an applicable `OVERRIDE:` directive says otherwise.
 3. Verify their cited evidence.
 4. Synthesize a draft solution contract.
 5. Run one oracle unless the parent model is an oracle-profile model.
@@ -192,43 +174,46 @@ The common template (generated below) carries the one short generic recursion pr
 ```text
 # Task: <role>
 
-You are a fresh delegated CLI agent working directly in "<cwd>".
+Fresh delegated CLI agent working directly in "<cwd>".
 
-Execute this assigned role yourself. Do not spawn or orchestrate another Pi instance, Claude Code session, or subagent.
-Read all required context and project instructions before acting. More-specific project instructions win.
-The working tree may contain user-owned changes. Do not reset, clean, stash, overwrite, or revert them.
-Do not stage, commit, push, or mutate hosted services unless the assigned task explicitly authorizes that exact action.
-Never expose credentials, tokens, cookies, or private keys in your report.
+Do this role yourself. Do not start or orchestrate another agent process or subagent.
+Follow applicable project instructions; more specific wins.
+Preserve user changes; never reset, clean, stash, overwrite, or revert.
+Do not stage, commit, push, deploy, or write hosted services unless this assignment explicitly authorizes that action.
+Never expose credentials, tokens, cookies, or private keys.
 
-## Role contract
+## Role
 
 <role-specific contract>
 
-## Attempt budget
-
-Allow at most two materially equivalent attempts for each required proof or gate. Stop after ten minutes without new evidence on one requirement. Do not repeat an action without new evidence. If a required result remains unavailable, stop unrelated work and report BLOCKED.
-
-## Assigned task
+## Assignment
 
 <parent-supplied prompt>
 
-## Terminal result
+## Attempt limits
 
-End your final response with exactly one of these lines:
+For each required proof or gate, make at most two materially equivalent attempts. Repeat only when new evidence justifies it. If a required result remains unavailable, stop unrelated work and report BLOCKED.
+
+## Final protocol
+
+End with exactly one form and no text after it:
 
 DELEGATE_RESULT: COMPLETED
+
+or
+
+DELEGATE_REASON: <blocked-code>
 DELEGATE_RESULT: BLOCKED
+
+or
+
+DELEGATE_REASON: <failed-code>
 DELEGATE_RESULT: FAILED
 
-A BLOCKED or FAILED result must carry exactly one reason line directly above the marker, containing one exact code and nothing else:
+BLOCKED codes: evidence_inaccessible, user_decision_required, assignment_conflict, policy_restriction, budget_exhausted, external_dependency, finding_reported.
+FAILED codes: execution_failure, verification_failure, internal_inconsistency, policy_violation.
 
-DELEGATE_REASON: <code>
-
-Allowed BLOCKED codes: evidence_inaccessible (required evidence could not be accessed), user_decision_required (a user decision is required first), assignment_conflict (the assignment conflicts with itself or project rules), policy_restriction (a policy rule prevents the assigned work), budget_exhausted (the attempt budget ran out), external_dependency (an external dependency is unavailable), finding_reported (a finding was reported; reviews with findings must use COMPLETED instead).
-Allowed FAILED codes: execution_failure (execution of the assigned work failed), verification_failure (a required verification failed), internal_inconsistency (the result contradicts itself), policy_violation (a policy rule was violated during execution).
-Use only the exact code on the reason line: no prose, paths, or details. COMPLETED carries no reason line. Reviews with findings must use COMPLETED, never BLOCKED with finding_reported.
-
-The marker must be the final non-whitespace line and must not appear earlier. The reason line must sit directly above the marker and appear exactly once. COMPLETED means this assigned role finished; a review may report required fixes and still use COMPLETED. After BLOCKED or FAILED, do not start another attempt or unrelated task.
+Use one matching code with no prose, path, or details. DELEGATE_RESULT appears once as the final nonblank line; DELEGATE_REASON appears once directly above it. COMPLETED has no reason. COMPLETED means this role finished even when a review found defects; reviews with findings use COMPLETED. After BLOCKED or FAILED, stop.
 
 ```
 <!-- pi-delegated-instructions:end:child-prompt-template -->
@@ -241,50 +226,49 @@ Generated from `roleFamilyContract` in `instructions.ts`, typed over the routing
 ### solution
 
 ```text
-This is an independent read-only solution investigation. Do not edit files, mutate Git, or write to hosted services.
-Report these sections: Problem interpretation; Root cause and relevant execution flow; Recommended solution; Alternatives and tradeoffs; Validation plan; Uncertainties and limits.
-Support every material claim with exact path:line evidence. Distinguish observed facts from assumptions.
+Independent read-only solution investigation. Do not edit files or change Git or hosted state.
+Report: problem interpretation; root cause and execution flow; recommended solution; alternatives and tradeoffs; validation plan; uncertainties and limits.
+Support each material claim with exact path:line evidence. Separate facts from assumptions.
 ```
 
 ### review
 
 ```text
-This is an independent read-only implementation review. Do not edit files, mutate Git, or write to hosted services.
-Remain neutral. Do not infer expected findings. Report a verdict, structured findings, gate evidence, and deferred scope or limits.
-Each finding must include severity, location, evidence, reproduction or interleaving, impact, required contract, and suggested validation.
+Independent neutral read-only implementation review. Do not edit files or change Git or hosted state; do not infer expected findings.
+Report: verdict; structured findings; gate evidence; deferred scope and limits.
+Each finding: severity; location; evidence; reproduction or interleaving; impact; required contract; suggested validation.
 ```
 
 ### implementation
 
 ```text
-Implement only the assigned solution contract. Preserve user-owned changes and stated invariants.
-Do not perform independent approval, unrelated cleanup, Git transitions, hosted-service writes, or recursive delegation.
-Report changed paths, implementation summary, exact checks and results, and remaining risks.
+Implement only the assigned contract; preserve user-owned changes and stated invariants.
+Do not independently approve, perform unrelated cleanup, make Git or hosted transitions, or delegate.
+Report: changed paths; implementation summary; exact checks and results; remaining risks.
 ```
 
 ### remediation
 
 ```text
-Implement only the focused remediation contract. Add the failing regression first or alongside the smallest correct fix.
-Do not perform broad review, unrelated cleanup, Git transitions, hosted-service writes, or recursive delegation.
-Report changed paths, implementation summary, exact checks and results, and remaining risks.
+Implement only the focused remediation contract. Add the failing regression before or with the smallest correct fix.
+Do not broaden review, perform unrelated cleanup, make Git or hosted transitions, or delegate.
+Report: changed paths; implementation summary; exact checks and results; remaining risks.
 ```
 
 ### verification
 
 ```text
-This is read-only finding verification. Do not edit files, fix the defect, broaden the review, mutate Git, or write to hosted services.
-Classify the supplied finding as REPRODUCED, PARTIALLY REPRODUCED, NOT REPRODUCED, ALREADY FIXED, DUPLICATE, or ARCHITECTURE AMBIGUITY.
+Read-only verification of one supplied finding. Do not edit, fix, broaden review, or change Git or hosted state.
+Classify: REPRODUCED, PARTIALLY REPRODUCED, NOT REPRODUCED, ALREADY FIXED, DUPLICATE, or ARCHITECTURE AMBIGUITY.
 Report evidence, the exact remediation contract when applicable, and limits.
 ```
 
 ### oracle
 
 ```text
-This is the read-only advisory solution oracle. Do not edit files, mutate Git, write to hosted services, implement, or start delegates.
-Review the supplied draft solution contract against the neutral problem, governing documents, and verified evidence.
-Report exactly one verdict, VALID or REVISE, with correctness analysis, missing invariants and risks, better alternatives where material, exact path:line evidence, validation changes, and limits.
-The verdict is advisory, not the final authority: the parent verifies oracle claims and owns the final contract.
+Read-only advisory solution oracle. Do not edit, implement, delegate, or change Git or hosted state.
+Review the draft contract against the neutral problem, governing documents, and verified evidence.
+Report exactly one verdict, VALID or REVISE, plus correctness analysis, missing invariants and risks, material alternatives, exact path:line evidence, validation changes, and limits. Parent verifies claims and owns the final contract.
 ```
 <!-- pi-delegated-instructions:end:role-family-contracts -->
 
@@ -300,7 +284,7 @@ If one route fails operationally after executing tools or accepting report recov
 
 <!-- pi-delegated-instructions:begin:restart-note -->
 ```text
-Restart note: a previous route attempt for this same assignment may already have changed the working tree. Treat the current state of the working tree as authoritative: inspect the existing work before acting, build on it, and do not repeat an irreversible operation.
+Restart: a prior route attempt may have changed the tree. Inspect current work first; treat it as authoritative, continue from it, and do not repeat irreversible actions.
 ```
 <!-- pi-delegated-instructions:end:restart-note -->
 
@@ -312,22 +296,11 @@ If round 1 settles without a report or has an invalid terminal marker, the exten
 
 <!-- pi-delegated-instructions:begin:report-recovery-prompt -->
 ```text
-Your previous response did not satisfy the required final-report protocol.
+The previous response lacked a valid final report.
 
-Do not repeat the assigned task, investigation, tool calls, edits, or other work.
-Return one complete, self-contained final report using only the evidence already
-available in this session.
+Do not repeat work or call tools. Using only existing session evidence, return one complete self-contained report.
 
-Follow the original terminal-result instructions exactly. Include exactly one
-valid DELEGATE_RESULT line as the final non-whitespace line, and do not quote or
-discuss that marker elsewhere. If the result is BLOCKED or FAILED, put exactly
-one DELEGATE_REASON line directly above the marker with one exact allowed code
-and no prose, paths, or details: BLOCKED allows evidence_inaccessible,
-user_decision_required, assignment_conflict, policy_restriction,
-budget_exhausted, external_dependency, finding_reported; FAILED allows
-execution_failure, verification_failure, internal_inconsistency,
-policy_violation. COMPLETED takes no reason line; reviews with findings must
-use COMPLETED.
+Follow the original Final protocol. Include exactly one DELEGATE_RESULT line as the final nonblank line; for BLOCKED or FAILED, put one valid DELEGATE_REASON line directly above it; COMPLETED has none. Do not quote or discuss either marker.
 ```
 <!-- pi-delegated-instructions:end:report-recovery-prompt -->
 
@@ -428,18 +401,18 @@ Before an explicitly requested one-run routing substitution, the parent can call
 <!-- pi-delegated-instructions:begin:model-catalog-tool -->
 - **Name:** `delegate_model_catalog`
 - **Label:** Delegate Model Catalog
-- **Description:** Search the validated delegate routing model catalog (models, compatible providers, supported thinking levels, defaults) before an explicitly requested one-run routing substitution. Read-only lookup bounded by a limit of 20; it never invokes pi --list-models and never runs a delegate.
-- **Prompt snippet:** Look up configured delegate models, providers, and thinking levels before an exceptional routing override
-- **`query`:** Case-insensitive substring of a configured delegate model id.
-- **`provider`:** Exact configured provider id to filter routes.
-- **`thinking`:** Configured thinking level; keeps only routes that support it.
-- **`limit`:** Maximum matches to return; default 10, at most 20.
+- **Description:** Search configured delegate routes for an explicitly requested one-run override. Returns compatible model, provider, and thinking combinations; read-only, maximum 20, and never runs a delegate.
+- **Prompt snippet:** Resolve one exceptional delegate route
+- **`query`:** Case-insensitive configured model-id substring.
+- **`provider`:** Exact provider-id filter.
+- **`thinking`:** Thinking-level filter.
+- **`limit`:** Maximum matches: default 10, maximum 20.
 
 Guidelines:
 
-1. Before delegate_run, call delegate_model_catalog only when an explicit user or project operational request names a partial or unknown model for a one-run routing substitution; choose only a returned model, provider, and supported thinking-level combination.
+1. delegate_model_catalog: Use only to resolve a partial or unknown model in an explicit user or project request for a one-run operational override; choose only a returned compatible combination.
 
-2. Keep routing overrides exceptional: allowed only for an explicit user or project operational request, never for the oracle role, and never as a routine substitute for the automatic config-driven routing; delegate_model_catalog itself changes nothing.
+2. delegate_model_catalog: Lookup changes nothing. Automatic routing remains default; routingOverride stays exceptional and is never allowed for oracle.
 <!-- pi-delegated-instructions:end:model-catalog-tool -->
 
 Each returned match carries the model and only its compatible configured routes (provider, supported thinking levels, default thinking); filters that remove every route omit the model, disabled providers never appear, and a zero-match result never dumps the catalog. Truncation is flagged when `totalMatches` exceeds the returned matches. The tool never invokes `pi --list-models`, never runs a delegate, and never enumerates combinations in the `delegate_run` schema; routing overrides stay exceptional and are never valid for the oracle role.

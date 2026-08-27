@@ -781,6 +781,40 @@ This change was measured locally with `tiktoken` `o200k_base`; no paid provider 
 
 The directly attributed model-visible reduction is -1,064 local tokens per session: the removed `## Delegated work` section of `agent/AGENTS.md`. The parent still receives the complete delegation workflow exactly once, through the active `delegate_run` prompt guidelines (unchanged bytes, 24 lines), and `delegate_model_catalog` keeps only its concise lookup guidance. Delegated children keep context-file discovery enabled, so each child also saves the same 1,064 tokens of parent orchestration policy it previously loaded but had to ignore. Sessions that never activate `delegate_run` now carry no delegation policy at all. The new `instructions.ts`, `docsync.ts`, and `render-instructions-doc.ts` files are executable TypeScript and documentation tooling, not model-visible context. Provider-reported input remains the authority and was not rerun.
 
+## 2026-08-27 delegated instruction-efficiency attribution
+
+ADR 0012 intentionally optimizes the canonical wording that ADR 0011 preserved byte-for-byte. Counts use local `tiktoken` `o200k_base` over exact exported strings. The parent instruction-text total includes descriptions, snippets, generated shipped-role guidelines, role/parameter descriptions, and catalog guidance; it excludes unchanged JSON-schema punctuation and enum values. Child samples use role id `<family>-probe`, cwd `/work`, and assignment `TASK`, so actual assignments add unchanged variable cost. No provider calibration or paid inference was run.
+
+| Parent surface | Before | After | Delta |
+|---|---:|---:|---:|
+| `delegate_run` description | 82 | 41 | -41 |
+| `delegate_run` prompt snippet | 13 | 6 | -7 |
+| `delegate_run` workflow guidelines | 1,330 | 773 | -557 |
+| Generated role description | 53 | 16 | -37 |
+| Catalog description | 53 | 35 | -18 |
+| Catalog prompt snippet | 16 | 5 | -11 |
+| Catalog guidelines | 86 | 58 | -28 |
+| Run, override, and catalog parameter-description text | 142 | 118 | -24 |
+| **Instruction-text total** | **1,775** | **1,052** | **-723 (-41%)** |
+
+Every flat parent guideline now names `delegate_run`; catalog guidelines name `delegate_model_catalog`. The shipped solution/review ids remain generated from the routing snapshot, but redundant count words and the duplicated role list in the role description are gone. Failed-gate permission now references the general exact-prefix `OVERRIDE:` mechanism in `agent/AGENTS.md` instead of carrying separate solution/reviewer waiver grammars.
+
+| Normalized child prompt | Before | After | Delta |
+|---|---:|---:|---:|
+| Solution | 571 | 388 | -183 |
+| Review | 571 | 391 | -180 |
+| Oracle | 603 | 411 | -192 |
+| Verification | 584 | 407 | -177 |
+| Remediation | 553 | 382 | -171 |
+| Implementation | 550 | 378 | -172 |
+| Shared child blocks before family contract | 460 | 296 | -164 |
+| Restart note | 49 | 33 | -16 |
+| Same-session recovery prompt | 191 | 82 | -109 |
+
+The child prompt now presents the assignment before attempt and terminal details. Its attempt rule remains semantic (two materially equivalent attempts, repeat only with new evidence) and contains no wall-clock instruction; the supervisor still owns the programmatic five-minute warning, ten-minute idle termination, and 45-minute productive-work deadline. The terminal reason lists are generated from the same closed enums used by the parser. Recovery still sends one programmatic `prompt-2` message to the same child session, but refers to the original final protocol instead of repeating every reason code.
+
+A complex six-solution, oracle, implementation, and five-review workflow saves about 3,085 aggregate local instruction/prompt tokens across its separate parent and child contexts before assignment-body changes. Provider framing, caching, and billing can differ; provider-reported input remains authoritative.
+
 ## Provider-calibrated baseline probes
 
 These real probes used fixed prompt `hi` and read the provider usage from `message_end` / session usage.

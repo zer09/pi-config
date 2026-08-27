@@ -611,7 +611,7 @@ export function loadRoutingConfig(): RoutingConfig {
 /**
  * Loads one fresh validated snapshot for extension registration. `/reload`
  * and restart re-run the extension factory, so the delegate_run role enum,
- * count-aware guidance, and the model catalog always track the current
+ * dynamic role guidance, and the model catalog always track the current
  * `routing.json`; the same instance flows into every execution through
  * `RunOptions.routingConfig`, so registration and runtime never drift.
  */

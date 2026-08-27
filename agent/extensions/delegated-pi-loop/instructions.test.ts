@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
+  CHILD_ATTEMPT_BUDGET,
   CHILD_RECURSION_PROHIBITION,
+  CHILD_TERMINAL_RESULT_INSTRUCTIONS,
+  MODEL_CATALOG_PROMPT_GUIDELINES,
   REPORT_RECOVERY_PROMPT,
   RESTART_AFTER_WORK_NOTE,
   buildDelegatePrompt,
@@ -11,6 +14,7 @@ import {
   roleFamilyContract,
 } from "./instructions.ts";
 import { ROLE_FAMILIES, loadRoutingSnapshot, roleIdsInFamily, type ResolvedRole, type RoleFamily } from "./routing.ts";
+import { BLOCKED_REASON_CODES, FAILED_REASON_CODES } from "./types.ts";
 
 /** Test fixture: build a registry-style resolved role for one family. */
 function familyRole(family: RoleFamily, id: string = family): ResolvedRole {
@@ -24,8 +28,8 @@ test("prompt and instruction text is single-sourced in the canonical module", as
   const supervisor = await readFile(new URL("./supervisor.ts", import.meta.url), "utf8");
   // Enforcement modules keep no instruction text of their own.
   assert.ok(!routes.includes("Restart note:"), "routes.ts must not carry the restart note");
-  assert.ok(!routes.includes("## Role contract"), "routes.ts must not carry the child prompt template");
-  assert.ok(!protocol.includes("Your previous response did not satisfy"), "protocol.ts must not carry the recovery prompt");
+  assert.ok(!routes.includes("## Final protocol"), "routes.ts must not carry the child prompt template");
+  assert.ok(!protocol.includes("The previous response lacked a valid final report"), "protocol.ts must not carry the recovery prompt");
   // The runtime consumes the centralized builders and text directly.
   assert.match(runner, /import \{ buildDelegatePrompt \} from "\.\/instructions\.ts";/);
   assert.match(supervisor, /import \{ REPORT_RECOVERY_PROMPT \} from "\.\/instructions\.ts";/);
@@ -35,7 +39,7 @@ test("prompt and instruction text is single-sourced in the canonical module", as
 test("the restart note stays byte-exact and generic", () => {
   assert.equal(
     RESTART_AFTER_WORK_NOTE,
-    "Restart note: a previous route attempt for this same assignment may already have changed the working tree. Treat the current state of the working tree as authoritative: inspect the existing work before acting, build on it, and do not repeat an irreversible operation.",
+    "Restart: a prior route attempt may have changed the tree. Inspect current work first; treat it as authoritative, continue from it, and do not repeat irreversible actions.",
   );
   assert.ok(!RESTART_AFTER_WORK_NOTE.includes("://"));
 });
@@ -43,37 +47,44 @@ test("the restart note stays byte-exact and generic", () => {
 test("the report-recovery prompt stays byte-exact and marker-focused", () => {
   assert.equal(
     REPORT_RECOVERY_PROMPT,
-    `Your previous response did not satisfy the required final-report protocol.
+    `The previous response lacked a valid final report.
 
-Do not repeat the assigned task, investigation, tool calls, edits, or other work.
-Return one complete, self-contained final report using only the evidence already
-available in this session.
+Do not repeat work or call tools. Using only existing session evidence, return one complete self-contained report.
 
-Follow the original terminal-result instructions exactly. Include exactly one
-valid DELEGATE_RESULT line as the final non-whitespace line, and do not quote or
-discuss that marker elsewhere. If the result is BLOCKED or FAILED, put exactly
-one DELEGATE_REASON line directly above the marker with one exact allowed code
-and no prose, paths, or details: BLOCKED allows evidence_inaccessible,
-user_decision_required, assignment_conflict, policy_restriction,
-budget_exhausted, external_dependency, finding_reported; FAILED allows
-execution_failure, verification_failure, internal_inconsistency,
-policy_violation. COMPLETED takes no reason line; reviews with findings must
-use COMPLETED.`,
+Follow the original Final protocol. Include exactly one DELEGATE_RESULT line as the final nonblank line; for BLOCKED or FAILED, put one valid DELEGATE_REASON line directly above it; COMPLETED has none. Do not quote or discuss either marker.`,
   );
+  assert.doesNotMatch(REPORT_RECOVERY_PROMPT, /evidence_inaccessible|execution_failure/);
 });
 
 test("the base child prompt embeds the generic recursion prohibition verbatim", () => {
   assert.equal(
     CHILD_RECURSION_PROHIBITION,
-    "Execute this assigned role yourself. Do not spawn or orchestrate another Pi instance, Claude Code session, or subagent.",
+    "Do this role yourself. Do not start or orchestrate another agent process or subagent.",
   );
   // The prohibition names no parent tool: it must not mention or explain
   // delegate_run, so parent orchestration policy stays out of child context.
   assert.ok(!CHILD_RECURSION_PROHIBITION.includes("delegate_run"));
   for (const family of ROLE_FAMILIES) {
     const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
-    assert.match(prompt, /Do not spawn or orchestrate another Pi instance, Claude Code session, or subagent\./);
+    assert.match(prompt, /Do not start or orchestrate another agent process or subagent\./);
   }
+});
+
+test("the child owns semantic attempt limits while the supervisor owns time", () => {
+  assert.match(CHILD_ATTEMPT_BUDGET, /at most two materially equivalent attempts/);
+  assert.match(CHILD_ATTEMPT_BUDGET, /Repeat only when new evidence justifies it/);
+  assert.match(CHILD_ATTEMPT_BUDGET, /report BLOCKED/);
+  assert.doesNotMatch(CHILD_ATTEMPT_BUDGET, /minute|hour|clock|time/i);
+});
+
+test("terminal instructions derive every closed reason code and keep three exact forms", () => {
+  for (const code of [...BLOCKED_REASON_CODES, ...FAILED_REASON_CODES]) {
+    assert.ok(CHILD_TERMINAL_RESULT_INSTRUCTIONS.includes(code), `terminal instructions must list ${code}`);
+  }
+  assert.match(CHILD_TERMINAL_RESULT_INSTRUCTIONS, /DELEGATE_REASON: <blocked-code>\nDELEGATE_RESULT: BLOCKED/);
+  assert.match(CHILD_TERMINAL_RESULT_INSTRUCTIONS, /DELEGATE_REASON: <failed-code>\nDELEGATE_RESULT: FAILED/);
+  assert.match(CHILD_TERMINAL_RESULT_INSTRUCTIONS, /DELEGATE_RESULT appears once as the final nonblank line/);
+  assert.match(CHILD_TERMINAL_RESULT_INSTRUCTIONS, /reviews with findings use COMPLETED/);
 });
 
 test("child prompts carry no parent workflow, waiver, or gate instruction beyond the role contract", () => {
@@ -131,7 +142,7 @@ test("an unknown role family stays fail-closed at the contract boundary", () => 
     assignedTask: "Work.",
     restartNote: undefined,
   });
-  assert.match(smuggled, /## Role contract\n\ncontract/);
+  assert.match(smuggled, /## Role\n\ncontract/);
 });
 
 test("agent/AGENTS.md no longer duplicates the parent delegation workflow", async () => {
@@ -150,6 +161,11 @@ test("agent/AGENTS.md no longer duplicates the parent delegation workflow", asyn
   ]) {
     assert.ok(!agents.includes(forbidden), `agent/AGENTS.md must not duplicate delegation policy (found "${forbidden}")`);
   }
+  // The compact failed-gate rules deliberately reuse the one general process
+  // override mechanism instead of carrying a second waiver grammar.
+  assert.match(agents, /## User overrides/);
+  assert.match(agents, /begins with `OVERRIDE:`/);
+  assert.match(agents, /Do not infer an override without the exact `OVERRIDE:` prefix/);
 });
 
 test("no model or provider catalog enumeration enters permanent prompt content", async () => {
@@ -173,13 +189,20 @@ test("no model or provider catalog enumeration enters permanent prompt content",
   }
 });
 
-test("the parent guidelines stay count-aware over the shipped snapshot", () => {
+test("the parent guidelines stay dynamic, compact, and tool-attributed", () => {
   const snapshot = loadRoutingSnapshot();
   const guidelines = delegateRunPromptGuidelines(
     roleIdsInFamily(snapshot, "solution"),
     roleIdsInFamily(snapshot, "review"),
   );
-  assert.equal(guidelines.length, 24);
-  assert.match(guidelines.join("\n"), /solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently/);
-  assert.match(guidelines.join("\n"), /review-a, review-b, review-c, review-d, and review-e concurrently/);
+  assert.equal(guidelines.length, 15);
+  assert.ok(guidelines.every((line) => line.startsWith("delegate_run ")));
+  const text = guidelines.join("\n");
+  assert.match(text, /solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently/);
+  assert.match(text, /review-a, review-b, review-c, review-d, and review-e concurrently/);
+  assert.match(text, /wait for every role/);
+  assert.match(text, /applicable OVERRIDE: directive naming the failed role\(s\) and current gate/);
+  assert.match(text, /at least one completed report/);
+  assert.ok(text.length < 7_000, "the compact parent workflow must stay within its character budget");
+  assert.ok(MODEL_CATALOG_PROMPT_GUIDELINES.every((line) => line.startsWith("delegate_model_catalog:")));
 });
