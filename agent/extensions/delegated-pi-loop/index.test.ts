@@ -28,8 +28,9 @@ test("registration guidelines encode the compact automatic delegation policy wit
   assert.match(guidelines, /solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently/);
   assert.match(guidelines, /review-a, review-b, review-c, review-d, and review-e concurrently/);
   assert.match(guidelines, /wait for every role/);
-  assert.match(guidelines, /applicable OVERRIDE: directive naming the failed role\(s\) and current gate/);
-  assert.match(guidelines, /generic continue, commit, or skip-retry wording waives nothing/);
+  assert.match(guidelines, /follow the user's next instruction/);
+  assert.match(guidelines, /continue, resume, or retry requires no special syntax/);
+  assert.doesNotMatch(guidelines, /OVERRIDE:/);
   assert.match(guidelines, /at least one completed report/);
   assert.match(guidelines, /Findings from completed reviews remain binding/);
 
@@ -37,7 +38,7 @@ test("registration guidelines encode the compact automatic delegation policy wit
   assert.match(guidelines, /exclude raw solution reports and parent synthesis rationale/);
   assert.match(guidelines, /Oracle is advisory and returns VALID or REVISE/);
   assert.match(guidelines, /never loops automatically/);
-  assert.match(guidelines, /non-completed oracle blocks implementation/);
+  assert.match(guidelines, /non-completed oracle stops automatic advancement/);
   assert.match(guidelines, /only one implementation, remediation, or oracle at a time/);
 
   assert.match(guidelines, /Give each fresh verification exactly one finding and no sibling reports/);
@@ -49,7 +50,7 @@ test("registration guidelines encode the compact automatic delegation policy wit
 
   assert.match(guidelines, /Routing and operational fallback are automatic/);
   assert.match(guidelines, /never override oracle or change permissions or concurrency/);
-  assert.match(guidelines, /do not retry beyond bounded fallback without user-authorized diagnosis/);
+  assert.match(guidelines, /Do not retry automatically beyond bounded fallback/);
   assert.match(guidelines, /separate explicit authorization/);
   assert.match(guidelines, /Selection exposes skills but never forces full loading/);
 

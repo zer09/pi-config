@@ -2,6 +2,12 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-27 — Decouple user overrides from delegated workflow
+
+- Restored `OVERRIDE:` to its intended purpose as a user-controlled instruction-precedence mechanism. `agent/AGENTS.md` now prohibits agents, delegates, tools, and workflows from requesting, requiring, or suggesting override syntax, while preserving the factual boundary around actual platform system/developer instructions, tool enforcement, operating-system permissions, and third-party access controls.
+- Removed every `OVERRIDE:` reference from the canonical `delegate_run` workflow guidelines. Non-completed roles now stop automatic advancement, remain accurately reported, and cause the parent to follow the user's ordinary next instruction. Continue, resume, or retry needs no special syntax; a non-completed mutating role requires current-tree inspection before user-directed continuation.
+- Added ADR 0013, marked the affected ADR 0007/0012 current-policy text as superseded, updated README and the maintenance contract, regenerated the instruction reference, updated policy regressions, and recorded the model-visible context delta. Runtime routing, deadlines, fallback, cleanup, diagnostics, role isolation, terminal parsing, child prompts, and report recovery are unchanged.
+
 ## 2026-08-27 — Make delegated instructions compact and machine-timed
 
 - Rewrote the canonical model-visible text in `agent/extensions/delegated-pi-loop/instructions.ts` as a compact labeled decision flow. Parent workflow guidelines drop from 24 prose lines to 15 tool-attributed lines; every flat guideline now names `delegate_run`, both catalog guidelines name `delegate_model_catalog`, dynamic role lists remain routing-derived, redundant English count words are removed, and schema/tool descriptions retain only model decisions rather than UI or transport mechanics.

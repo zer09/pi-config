@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for role isolation and safety policy. The Local Skill and Python supervisor mechanism is superseded by ADR 0008. ADR 0009 additionally supersedes the following parts of this ADR:
+Accepted for role isolation and safety policy. The Local Skill and Python supervisor mechanism is superseded by ADR 0008. ADR 0013 supersedes every current-policy statement below that makes `OVERRIDE:` a required delegated gate or continuation mechanism; those statements remain historical provenance. ADR 0009 additionally supersedes the following parts of this ADR:
 
 - **Route maps and provider counts.** Every route map, member chain, eligible-provider set, and provider count in the Decision section, including the A/B/C/D backup maps and the five-provider Codex alias sets for D and the Oracle, is superseded by the extension-owned `routing.json`; the current authority, including the current provider counts, is ADR 0009. The maps below remain factual provenance of the route intent that configuration encodes.
 - **Public backend schema and terminology.** The routine `backend` tool parameter, its public values `default` and `zai`, and every `backend=zai` and `backend=claude` selection rule are removed; the exceptional `routingOverride` replaces them.

@@ -94,17 +94,17 @@ These instructions are injected by `delegate_run` through `promptGuidelines`, ge
 
 4. delegate_run [Investigation]: If root cause, architecture, or approach needs investigation, run solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently with the same neutral assignment and wait for every role. They gather evidence and options; parent verifies, synthesizes, and solely authors the final deliverable and contract.
 
-5. delegate_run [Gate failure]: Any required non-completed solution or review role blocks its gate. Continue only under an applicable OVERRIDE: directive naming the failed role(s) and current gate. Record the override and never label failures completed or passed; generic continue, commit, or skip-retry wording waives nothing.
+5. delegate_run [Gate failure]: Any required non-completed solution or review role leaves automatic gate advancement incomplete. Report the failed role(s), preserve completed evidence, and follow the user's next instruction. Never label failures completed or passed.
 
-6. delegate_run [Partial evidence]: Without a broader OVERRIDE:, solution synthesis requires at least one completed report and uses only completed reports plus parent-verified repository evidence. Findings from completed reviews remain binding and follow verification and remediation unless an OVERRIDE: explicitly waives them.
+6. delegate_run [Partial evidence]: If the user directs continuation from a partial solution gate, require at least one completed report and synthesize only from completed reports plus parent-verified repository evidence. Findings from completed reviews remain binding unless the user explicitly directs otherwise.
 
 7. delegate_run [Oracle]: After a required solution gate, parent verifies evidence and drafts the contract, then runs one fresh read-only oracle unless the parent model is in the configured Oracle model set. Give only the neutral problem, governing documents, verified evidence, draft contract, constraints, and unresolved uncertainties; exclude raw solution reports and parent synthesis rationale.
 
-8. delegate_run [Oracle decision]: Oracle is advisory and returns VALID or REVISE; it never authors or saves the final plan. Parent verifies its claims, revises if warranted, finalizes the contract, and never loops automatically. A non-completed oracle blocks implementation.
+8. delegate_run [Oracle decision]: Oracle is advisory and returns VALID or REVISE; it never authors or saves the final plan. Parent verifies its claims, revises if warranted, finalizes the contract, and never loops automatically. A non-completed oracle stops automatic advancement; report it and follow the user's next instruction.
 
-9. delegate_run [Execution]: After finalizing the contract, run exactly one implementation delegate. Run only one implementation, remediation, or oracle at a time, and do not edit the working tree while it runs.
+9. delegate_run [Execution]: After finalizing the contract, run one implementation delegate. Run only one implementation, remediation, or oracle at a time, and do not edit the working tree while it runs. After a non-completed implementation, inspect the current tree before any user-directed continuation.
 
-10. delegate_run [Review]: Inspect the implementation diff and evidence, then run review-a, review-b, review-c, review-d, and review-e concurrently with the same neutral scope; wait for every role unless an applicable OVERRIDE: says otherwise.
+10. delegate_run [Review]: Inspect the implementation diff and evidence, then run review-a, review-b, review-c, review-d, and review-e concurrently with the same neutral scope; wait for every role before automatic advancement.
 
 11. delegate_run [Findings]: Consolidate exact duplicate blocking findings. Give each fresh verification exactly one finding and no sibling reports. Run independent verifications in batches of at most four, dependent findings sequentially, and overlap only verification with verification. Wait for the full batch; a non-completed verification leaves that finding unresolved without erasing completed siblings.
 
@@ -112,14 +112,14 @@ These instructions are injected by `delegate_run` through `promptGuidelines`, ge
 
 13. delegate_run [Routing]: Routing and operational fallback are automatic. Use delegate_model_catalog and routingOverride only for an explicit user or project one-run operational route request; never override oracle or change permissions or concurrency.
 
-14. delegate_run [Failure and authority]: Treat every non-completed state as a failed tool-error delegation; do not retry beyond bounded fallback without user-authorized diagnosis. Delegate completion never authorizes staging, committing, pushing, deploying, or hosted-service mutation; each requires separate explicit authorization.
+14. delegate_run [Failure and authority]: Treat every non-completed state as a failed tool-error delegation and report it. Do not retry automatically beyond bounded fallback. Follow the user's ordinary next instruction; continue, resume, or retry requires no special syntax. Delegate completion never authorizes staging, committing, pushing, deploying, or hosted-service mutation; each requires separate explicit authorization.
 
 15. delegate_run [Skills]: Pass only task-relevant pre-approved availableSkills. Selection exposes skills but never forces full loading.
 <!-- pi-delegated-instructions:end:delegate-run-guidelines -->
 
 ### Removed `AGENTS.md` duplication
 
-The parent previously also received a condensed copy of this workflow through the `## Delegated work` section of `agent/AGENTS.md`. That section is gone: the parent receives delegation-specific workflow rules exactly once through the active tool's guidelines. `agent/AGENTS.md` retains only the general `OVERRIDE:` mechanism used by all agent workflows; it does not restate delegation triggers, gate sizes, oracle behavior, review behavior, verification batching, routing policy, skills, or authorization boundaries.
+The parent previously also received a condensed copy of this workflow through the `## Delegated work` section of `agent/AGENTS.md`. That section is gone: the parent receives delegation-specific workflow rules exactly once through the active tool's guidelines. `agent/AGENTS.md` retains only the general user-controlled instruction-precedence mechanism; delegated workflows never request or require its syntax. It does not restate delegation triggers, gate sizes, oracle behavior, review behavior, verification batching, routing policy, skills, or authorization boundaries.
 
 ## 3. Decision flow for the parent
 
@@ -147,8 +147,8 @@ The parent may:
 ### Complex or uncertain implementation
 
 1. Run all configured solution roles concurrently with the same neutral assignment.
-2. Wait for every configured solution role. A failure blocks the gate unless an applicable `OVERRIDE:` directive says otherwise.
-3. Verify their cited evidence.
+2. Wait for every configured solution role before automatic advancement. If a role fails, report it and follow the user's ordinary next instruction without requesting special syntax.
+3. Verify the cited evidence from completed roles.
 4. Synthesize a draft solution contract.
 5. Run one oracle unless the parent model is an oracle-profile model.
 6. Verify the oracle's claims.

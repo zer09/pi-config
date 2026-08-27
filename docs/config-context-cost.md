@@ -815,6 +815,18 @@ The child prompt now presents the assignment before attempt and terminal details
 
 A complex six-solution, oracle, implementation, and five-review workflow saves about 3,085 aggregate local instruction/prompt tokens across its separate parent and child contexts before assignment-body changes. Provider framing, caching, and billing can differ; provider-reported input remains authoritative.
 
+## 2026-08-27 user-controlled override attribution
+
+ADR 0013 removes `OVERRIDE:` from delegated workflow policy and keeps it only as a user-controlled instruction-precedence mechanism. Counts use local `tiktoken` `o200k_base` over the exact raw `agent/AGENTS.md` file and the generated shipped-role guidelines joined with newlines. No provider calibration or paid inference was run.
+
+| Surface | Before | After | Delta |
+|---|---:|---:|---:|
+| Raw `agent/AGENTS.md` | 2,701 | 2,792 | +91 |
+| `delegate_run` workflow guidelines | 773 | 790 | +17 |
+| **Directly changed model-visible text** | **3,474** | **3,582** | **+108** |
+
+The global increase states that agents must never request or require override syntax and records the actual platform boundary. The tool-guideline change replaces failed-gate override grammar with ordinary user-directed continuation, current-tree inspection after non-completed mutation, and bounded automatic retry behavior. Tool descriptions, snippets, parameter schemas, child prompts, restart text, recovery prompts, routing, and runtime behavior are unchanged. Provider-reported input remains authoritative.
+
 ## Provider-calibrated baseline probes
 
 These real probes used fixed prompt `hi` and read the provider usage from `message_end` / session usage.

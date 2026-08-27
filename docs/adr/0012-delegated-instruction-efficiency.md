@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-08-27). Extends ADR 0007 and ADR 0011. Routing, role permissions, concurrency, subprocess supervision, RPC framing, report parsing, fallback, cleanup, diagnostics, and resource isolation are unchanged.
+Accepted (2026-08-27). Extends ADR 0007 and ADR 0011. ADR 0013 supersedes this ADR's use of the general `OVERRIDE:` mechanism as delegated failed-gate permission; the historical rationale below remains unchanged. Routing, role permissions, concurrency, subprocess supervision, RPC framing, report parsing, fallback, cleanup, diagnostics, and resource isolation are unchanged.
 
 ## Context
 
