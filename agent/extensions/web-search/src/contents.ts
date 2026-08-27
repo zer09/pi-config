@@ -21,7 +21,13 @@ import { callFirecrawlScrape, isUsableFirecrawlScrape } from "./firecrawl-scrape
 import { loadConfig, readConfiguredEnv } from "./config.js";
 import { cacheKeyForUrl, normalizeUrl } from "./url.js";
 import { readContentCacheEntry, writeContentCacheEntry } from "./storage.js";
-import type { ContentCacheEntry, SearchConfig } from "./types.js";
+import type {
+  ContentCacheEntry,
+  ContentFetchAttempt,
+  FetchContentsAttempt,
+  FetchContentsDiagnostics,
+  SearchConfig,
+} from "./types.js";
 import type { FormattedContentEntry } from "./format.js";
 import type { SecretForRedaction } from "./redact.js";
 
@@ -29,6 +35,76 @@ export const DEFAULT_CONTENT_MAX_CHARACTERS = 12_000;
 export const MAX_CONTENT_AGE_HOURS = 720;
 
 type ContentCacheMiss = { index: number; normalizedUrl: string; cacheKey: string };
+type UniqueContentMiss = ReturnType<typeof dedupeContentMisses>[number];
+
+/** Purely validated and normalized fetch_contents input; no I/O happens here. */
+export type ParsedFetchContentsInput = {
+  uris: string[];
+  normalizedUrls: string[];
+  maxCharacters: number;
+  maxAgeHours: number;
+};
+
+/**
+ * Validates tool input and normalizes URLs without touching cache, provider,
+ * or cache-write state, so callers can classify these failures as invalid
+ * input separately from later operational failures.
+ */
+export function parseFetchContentsInput(params: {
+  rawUris: unknown;
+  rawMaxCharacters?: unknown;
+  rawMaxAgeHours?: unknown;
+  defaultMaxAgeHours: number;
+}): ParsedFetchContentsInput {
+  const maxCharacters = optionalMaxCharacters(params.rawMaxCharacters);
+  const maxAgeHours = optionalMaxAgeHours(params.rawMaxAgeHours, params.defaultMaxAgeHours);
+  const inputUris = assertStringArray(params.rawUris, "uris");
+  return { uris: inputUris, normalizedUrls: inputUris.map((uri) => normalizeUrl(uri)), maxCharacters, maxAgeHours };
+}
+
+/** Converts one Firecrawl Scrape attempt into the stored-record attempt shape. */
+function fetchAttemptFromScrape(attempt: ContentFetchAttempt, usable: boolean, aborted: boolean): FetchContentsAttempt {
+  const status = attempt.error
+    ? aborted
+      ? "aborted"
+      : "transport_error"
+    : attempt.rawResponse && (attempt.rawResponse.status < 200 || attempt.rawResponse.status >= 300)
+      ? "http_error"
+      : usable
+        ? "success"
+        : "unusable_response";
+  return {
+    provider: "firecrawl_scrape",
+    urls: [attempt.url],
+    requestStartedAt: attempt.requestStartedAt,
+    elapsedMs: attempt.elapsedMs,
+    rawRequest: attempt.rawRequest,
+    rawResponse: attempt.rawResponse,
+    // Only safe lengths and statuses: the raw response body already holds
+    // the provider's copy of the Markdown.
+    normalized: attempt.normalized
+      ? {
+          success: usable,
+          statusCode: attempt.normalized.statusCode,
+          markdownCharacters: attempt.normalized.markdown.length,
+        }
+      : undefined,
+    status,
+    error: attempt.error,
+  };
+}
+
+function makeSkippedExaAttempt(misses: UniqueContentMiss[], reason: string, dispatchOrdinal: number): FetchContentsAttempt & { dispatchOrdinal: number } {
+  return {
+    provider: "exa_contents",
+    urls: misses.map((miss) => miss.normalizedUrl),
+    requestStartedAt: new Date().toISOString(),
+    elapsedMs: 0,
+    status: "skipped",
+    skippedReason: reason,
+    dispatchOrdinal,
+  };
+}
 
 function assertStringArray(value: unknown, field: string): string[] {
   if (!Array.isArray(value) || value.length === 0 || value.some((item) => typeof item !== "string" || item.trim().length === 0)) {
@@ -87,7 +163,7 @@ function entryFromScrape(miss: { normalizedUrl: string }, markdown: string, titl
  * attempt failed. Input order and duplicate URLs are preserved and partial
  * success is returned.
  *
- * @param params - Raw tool parameters plus optional injected config, provider keys, redaction secrets, and abort signal.
+ * @param params - Raw tool parameters plus optional injected config, provider keys, redaction secrets, abort signal, and diagnostics sink.
  * @returns Formatted content entries in the same order as the requested URIs.
  * @throws Error when input validation fails or URL normalization fails.
  */
@@ -97,11 +173,15 @@ export async function fetchContentsEntries(params: {
   rawMaxAgeHours?: unknown;
   signal?: AbortSignal;
   config?: SearchConfig;
+  /** Pre-validated input from {@link parseFetchContentsInput}; skips re-parsing when supplied. */
+  input?: ParsedFetchContentsInput;
   exaApiKey?: string;
   firecrawlApiKey?: string;
   secrets?: SecretForRedaction[];
+  diagnostics?: FetchContentsDiagnostics;
 }): Promise<FormattedContentEntry[]> {
   const config = params.config ?? (await loadConfig());
+  const diagnostics = params.diagnostics;
   const exaApiKey = params.exaApiKey ?? readConfiguredEnv(config.exaApiKeyEnv);
   const firecrawlApiKey = params.firecrawlApiKey ?? readConfiguredEnv(config.firecrawlApiKeyEnv);
   const secrets =
@@ -113,12 +193,19 @@ export async function fetchContentsEntries(params: {
       { label: config.firecrawlApiKeyEnv, value: firecrawlApiKey },
     ].filter((secret) => secret.value !== undefined);
 
-  const maxCharacters = optionalMaxCharacters(params.rawMaxCharacters);
-  const maxAgeHours = optionalMaxAgeHours(params.rawMaxAgeHours, config.contents.defaultMaxAgeHours);
-  const inputUris = assertStringArray(params.rawUris, "uris");
+  const input =
+    params.input ??
+    parseFetchContentsInput({
+      rawUris: params.rawUris,
+      rawMaxCharacters: params.rawMaxCharacters,
+      rawMaxAgeHours: params.rawMaxAgeHours,
+      defaultMaxAgeHours: config.contents.defaultMaxAgeHours,
+    });
+  const maxCharacters = input.maxCharacters;
+  const maxAgeHours = input.maxAgeHours;
   const now = Date.now();
 
-  const normalizedRequests = inputUris.map((uri) => normalizeUrl(uri));
+  const normalizedRequests = input.normalizedUrls;
   const entries: Array<FormattedContentEntry | undefined> = new Array(normalizedRequests.length);
   const misses: ContentCacheMiss[] = [];
 
@@ -136,10 +223,20 @@ export async function fetchContentsEntries(params: {
 
   if (misses.length > 0) {
     const uniqueMisses = dedupeContentMisses(misses);
+    // Assigned synchronously before each attempt starts: the strictly
+    // increasing ordinal is the canonical stored order even when concurrent
+    // attempts complete out of dispatch order or share a timestamp.
+    let dispatchOrdinal = 0;
+    const nextDispatchOrdinal = (): number => {
+      const ordinal = dispatchOrdinal;
+      dispatchOrdinal += 1;
+      return ordinal;
+    };
     const scraped: Array<ContentCacheEntry | undefined> = await runWithConcurrency(
       uniqueMisses,
       config.contents.concurrency,
       async (miss) => {
+        const ordinal = nextDispatchOrdinal();
         const attempt = await callFirecrawlScrape({
           url: miss.normalizedUrl,
           maxAgeMs: maxAgeHours * MS_PER_HOUR,
@@ -147,7 +244,11 @@ export async function fetchContentsEntries(params: {
           firecrawlApiKey,
           signal: params.signal,
         });
-        if (isUsableFirecrawlScrape(attempt)) {
+        const usable = isUsableFirecrawlScrape(attempt);
+        // The attempt is recorded whether it succeeded or failed so stored
+        // diagnostics keep the Firecrawl failure context.
+        diagnostics?.attempts.push({ ...fetchAttemptFromScrape(attempt, usable, params.signal?.aborted === true), dispatchOrdinal: ordinal });
+        if (usable) {
           return entryFromScrape(
             miss,
             attempt.normalized!.markdown,
@@ -172,24 +273,71 @@ export async function fetchContentsEntries(params: {
     let exaEntries: Array<ContentCacheEntry | undefined> = [];
     if (exaMisses.length > 0 && !params.signal?.aborted) {
       if (!exaApiKey) {
+        diagnostics?.attempts.push(
+          makeSkippedExaAttempt(exaMisses, `Missing required environment variable ${config.exaApiKeyEnv}`, nextDispatchOrdinal()),
+        );
         exaEntries = exaMisses.map((miss) => createFailedContentEntry(miss.normalizedUrl, maxCharacters, "exa_contents"));
       } else {
-        let parsed: ContentCacheEntry[];
-        try {
-          const response = await callExaContents({
-            urls: exaMisses.map((miss) => miss.normalizedUrl),
-            maxCharacters,
-            maxAgeHours,
-            exaApiKey,
-            signal: params.signal,
-          });
-          parsed = parseExaContentsResults({
-            data: response.rawResponse.bodyJson,
-            requestedUrls: exaMisses.map((miss) => miss.normalizedUrl),
-            requestedMaxCharacters: maxCharacters,
-            ttlMs: config.contentCacheTtlMs,
-          });
-        } catch {
+        const exaOrdinal = nextDispatchOrdinal();
+        // The captured exchange is kept even for HTTP/transport failures so
+        // the raw Exa failure context reaches the diagnostic record instead
+        // of being discarded by an exception.
+        const raw = await callExaContents({
+          urls: exaMisses.map((miss) => miss.normalizedUrl),
+          maxCharacters,
+          maxAgeHours,
+          exaApiKey,
+          signal: params.signal,
+        });
+        const status = raw.rawResponse?.status;
+        const httpOk = !raw.error && typeof status === "number" && status >= 200 && status < 300;
+        let parsed: ContentCacheEntry[] | null = null;
+        let parseError: string | undefined;
+        if (httpOk) {
+          try {
+            parsed = parseExaContentsResults({
+              data: raw.rawResponse!.bodyJson,
+              requestedUrls: exaMisses.map((miss) => miss.normalizedUrl),
+              requestedMaxCharacters: maxCharacters,
+              ttlMs: config.contentCacheTtlMs,
+            });
+          } catch (error) {
+            parseError = error instanceof Error ? error.message : String(error);
+          }
+        }
+        // The same usability predicate as returned/cacheable entries decides
+        // per-URL and batch success: a 2xx batch whose results are all empty
+        // or failure-status is unusable, while one usable URL keeps the batch
+        // attempt successful and the failed URLs become generic failures.
+        const perUrl = parsed
+          ? parsed.map((entry, index) => ({
+              url: exaMisses[index]!.normalizedUrl,
+              ok: isCacheableContentEntry(entry),
+              textCharacters: entry.text.length,
+            }))
+          : undefined;
+        const anyUsable = perUrl !== undefined && perUrl.some((entry) => entry.ok);
+        diagnostics?.attempts.push({
+          provider: "exa_contents",
+          urls: exaMisses.map((miss) => miss.normalizedUrl),
+          requestStartedAt: raw.requestStartedAt,
+          elapsedMs: raw.elapsedMs,
+          rawRequest: raw.rawRequest,
+          rawResponse: raw.rawResponse,
+          dispatchOrdinal: exaOrdinal,
+          normalized: perUrl ? { success: anyUsable, perUrl } : undefined,
+          status: raw.error
+            ? params.signal?.aborted === true
+              ? "aborted"
+              : "transport_error"
+            : httpOk
+              ? anyUsable
+                ? "success"
+                : "unusable_response"
+              : "http_error",
+          error: raw.error ?? parseError,
+        });
+        if (!parsed) {
           // Raw provider error text stays out of the entry: failed entries render
           // only the bounded generic failure status in model-visible output.
           parsed = exaMisses.map((miss) => createFailedContentEntry(miss.normalizedUrl, maxCharacters, "exa_contents"));
@@ -205,6 +353,8 @@ export async function fetchContentsEntries(params: {
           ),
         );
       }
+    } else if (exaMisses.length > 0) {
+      diagnostics?.attempts.push(makeSkippedExaAttempt(exaMisses, "aborted before Exa Contents fallback", nextDispatchOrdinal()));
     }
 
     const resolved: Array<ContentCacheEntry | undefined> = scraped.map((entry, index) => {

@@ -10,7 +10,24 @@ import {
   isGroundingFallbackAllowed,
   isUsableGroundingAttempt,
 } from "./grounding-failure.js";
-import { fetchContentsEntries } from "./contents.js";
+import { fetchContentsEntries, parseFetchContentsInput } from "./contents.js";
+import {
+  appendDiagnosticSuffix,
+  boundCodeSearchAttemptForStorage,
+  boundGroundingAttemptForStorage,
+  buildStoredFetchContentsRecord,
+  codeFailureCategory,
+  fetchFailureCategory,
+  groundingFailureCategory,
+  markPreflight,
+  preflightSettingsFrom,
+  preflightStep,
+  PREFLIGHT_CATEGORY,
+  PreflightFailure,
+  uniqueFailureCategories,
+  writeDiagnosticRecordSafely,
+  writePreflightDiagnostic,
+} from "./diagnostics.js";
 import {
   formatCleanGeminiSuccess,
   formatCodeSearchResult,
@@ -18,6 +35,7 @@ import {
   formatFetchedContents,
   formatWebSearchUnavailable,
 } from "./format.js";
+import type { FormattedContentEntry } from "./format.js";
 import { loadConfig, readConfiguredEnv } from "./config.js";
 import {
   createWebSearchCallRenderer,
@@ -28,15 +46,18 @@ import {
   webCodeSearchSchema,
   webSearchSchema,
 } from "./schemas.js";
-import { generateResponseId, writeStoredResponse } from "./storage.js";
+import { generateResponseId } from "./storage.js";
 import { providerForContentEntry } from "./content-cache.js";
+import { DEFAULT_CONTENT_MAX_CHARACTERS, MAX_CONTENT_AGE_HOURS } from "./contents.js";
 import type {
   CodeSearchAttempt,
   CodeSearchFocus,
   ExtensionContextLike,
+  FetchContentsDiagnostics,
   GroundingAttempt,
   SearchConfig,
   StoredCodeSearchResponse,
+  StoredFetchResult,
   StoredSearchResponse,
   ToolRegistration,
   ToolResult,
@@ -127,9 +148,17 @@ export function buildStoredRecord(params: {
   parallelAttempts: [GroundingAttempt, ...GroundingAttempt[]];
   exaAttempts: GroundingAttempt[];
   selected: GroundingAttempt | undefined;
+  secrets: SecretForRedaction[];
 }): StoredSearchResponse {
-  const primary = params.parallelAttempts[params.parallelAttempts.length - 1]!;
-  const fallback = params.exaAttempts.length > 0 ? params.exaAttempts[params.exaAttempts.length - 1]! : null;
+  // Every stored attempt and every legacy mirror derives from these bounded
+  // copies so raw unbounded values cannot re-enter the record.
+  const parallelAttempts = params.parallelAttempts.map((attempt) => boundGroundingAttemptForStorage(attempt, params.secrets));
+  const exaAttempts = params.exaAttempts.map((attempt) => boundGroundingAttemptForStorage(attempt, params.secrets));
+  const rawAttempts = [...params.parallelAttempts, ...params.exaAttempts];
+  const boundedAttempts = [...parallelAttempts, ...exaAttempts];
+  const selected = params.selected === undefined ? undefined : boundedAttempts[rawAttempts.indexOf(params.selected)];
+  const primary = parallelAttempts[parallelAttempts.length - 1]!;
+  const fallback = exaAttempts.length > 0 ? exaAttempts[exaAttempts.length - 1]! : null;
   // Legacy top-level fields keep describing the final selected attempt so
   // existing raw-response consumers stay correct while history is preserved.
   return {
@@ -139,20 +168,20 @@ export function buildStoredRecord(params: {
     expiresAt: params.now + params.ttlMs,
     tool: "web_search",
     depth: params.depth,
-    selectedProvider: params.selected?.provider ?? "none",
+    selectedProvider: selected?.provider ?? "none",
     query: params.query,
     model: primary.model,
-    attempts: [...params.parallelAttempts, ...params.exaAttempts],
-    provider: params.selected?.provider ?? primary.provider,
-    request: params.selected?.rawRequest ?? primary.rawRequest,
-    response: params.selected?.rawResponse ?? primary.rawResponse,
+    attempts: boundedAttempts,
+    provider: selected?.provider ?? primary.provider,
+    request: selected?.rawRequest ?? primary.rawRequest,
+    response: selected?.rawResponse ?? primary.rawResponse,
     primary,
     // `primary` already is the only Parallel attempt, so history is stored only
     // when a retry actually produced a second attempt.
-    primaryAttempts: params.parallelAttempts.length > 1 ? params.parallelAttempts : undefined,
-    normalized: params.selected?.normalized ?? null,
+    primaryAttempts: parallelAttempts.length > 1 ? parallelAttempts : undefined,
+    normalized: selected?.normalized ?? null,
     fallback,
-    googleResponseId: params.selected?.normalized?.googleResponseId,
+    googleResponseId: selected?.normalized?.googleResponseId,
   };
 }
 
@@ -163,6 +192,7 @@ function attemptsForRecord(record: StoredSearchResponse): GroundingAttempt[] {
 
 export function detailsForSearch(
   record: StoredSearchResponse,
+  elapsedMs?: number,
 ): Record<string, unknown> {
   const attempts = attemptsForRecord(record);
   const primaryAttempts = record.primaryAttempts?.length ? record.primaryAttempts : [record.primary];
@@ -184,12 +214,14 @@ export function detailsForSearch(
     primaryFinalFailureCode: classifyPrimaryFailure(primaryFinal) ?? null,
     attemptCount: attempts.length,
     attemptProviders: attempts.map((attempt) => attempt.provider),
+    failureCategories: uniqueFailureCategories(attempts.map((attempt) => groundingFailureCategory(attempt))),
     fallbackUsed,
     fallbackFrom: fallbackUsed ? "parallel" : null,
     fallbackReason: fallbackUsed ? fallbackReasonFromGrounding(primaryFinal) : null,
     sourceCount: geminiAnswered ? record.normalized?.sources.length ?? null : null,
     supportCount: geminiAnswered ? record.normalized?.supports.length ?? null : null,
     queryCount: geminiAnswered ? record.normalized?.webSearchQueries.length ?? null : null,
+    ...(elapsedMs !== undefined ? { elapsedMs } : {}),
   };
 }
 
@@ -203,7 +235,12 @@ export function buildStoredCodeSearchRecord(params: {
   attempts: CodeSearchAttempt[];
   selected: CodeSearchAttempt | undefined;
   degraded: boolean;
+  secrets: SecretForRedaction[];
 }): StoredCodeSearchResponse {
+  // Storage normalization happens here, before record construction, so no
+  // unbounded raw value can reach persistence.
+  const attempts = params.attempts.map((attempt) => boundCodeSearchAttemptForStorage(attempt, params.secrets));
+  const selected = params.selected === undefined ? undefined : attempts[params.attempts.indexOf(params.selected)];
   return {
     schemaVersion: 2,
     responseId: params.responseId,
@@ -211,9 +248,9 @@ export function buildStoredCodeSearchRecord(params: {
     expiresAt: params.now + params.ttlMs,
     tool: "web_code_search",
     focus: params.focus,
-    selectedProvider: params.selected?.provider ?? "none",
+    selectedProvider: selected?.provider ?? "none",
     query: params.query,
-    attempts: params.attempts,
+    attempts,
     degraded: params.degraded,
   };
 }
@@ -227,6 +264,7 @@ function codeSearchResultCount(attempt: CodeSearchAttempt | undefined): number |
 
 export function detailsForCodeSearch(
   record: StoredCodeSearchResponse,
+  elapsedMs?: number,
 ): Record<string, unknown> {
   const attempts = record.attempts?.length ? record.attempts : [];
   const selected = attempts.find((attempt) => attempt.provider === record.selectedProvider);
@@ -239,10 +277,12 @@ export function detailsForCodeSearch(
     selectedProvider: record.selectedProvider === "none" ? null : record.selectedProvider,
     attemptCount: attempts.length,
     attemptProviders: attempts.map((attempt) => attempt.provider),
+    failureCategories: uniqueFailureCategories(attempts.map((attempt) => codeFailureCategory(attempt))),
     fallbackUsed,
     fallbackFrom: fallbackUsed ? attempts[0]?.provider ?? null : null,
     degraded: record.degraded,
     resultCount: codeSearchResultCount(selected),
+    ...(elapsedMs !== undefined ? { elapsedMs } : {}),
   };
   if (normalized && "artifacts" in normalized) {
     details.coverage = normalized.coverage ?? null;
@@ -254,21 +294,70 @@ export function detailsForCodeSearch(
   return details;
 }
 
+/** Safe request metadata for a fetch_contents preflight record; never stores URI values. */
+function safeFetchRequestMetadata(rawParams: unknown): Record<string, unknown> {
+  if (!rawParams || typeof rawParams !== "object" || Array.isArray(rawParams)) return {};
+  const params = rawParams as Record<string, unknown>;
+  const metadata: Record<string, unknown> = {};
+  if (Array.isArray(params.uris)) metadata.urlCount = params.uris.length;
+  const maxCharacters = params.maxCharacters;
+  if (typeof maxCharacters === "number" && Number.isInteger(maxCharacters) && maxCharacters > 0) {
+    metadata.maxCharacters = maxCharacters;
+  }
+  const maxAgeHours = params.maxAgeHours;
+  if (typeof maxAgeHours === "number" && Number.isInteger(maxAgeHours) && maxAgeHours >= 0 && maxAgeHours <= MAX_CONTENT_AGE_HOURS) {
+    metadata.maxAgeHours = maxAgeHours;
+  }
+  return metadata;
+}
+
+/** Providers that produced non-empty content, in first-result order. */
+function resultProviders(entries: FormattedContentEntry[]): string[] {
+  const providers: string[] = [];
+  for (const entry of entries) {
+    if (entry.text.trim().length === 0) continue;
+    const provider = providerForContentEntry(entry);
+    if (provider && !providers.includes(provider)) providers.push(provider);
+  }
+  return providers;
+}
+
+/** Safe per-URL result metadata for the stored fetch_contents record. */
+function storedFetchResults(entries: FormattedContentEntry[]): StoredFetchResult[] {
+  return entries.map((entry) => ({
+    normalizedUrl: entry.normalizedUrl,
+    provider: providerForContentEntry(entry) ?? null,
+    fromCache: entry.fromCache,
+    status: entry.statusLabel ?? null,
+  }));
+}
+
 export async function executeWebSearch(
   rawParams: unknown,
   signal?: AbortSignal,
   options?: ExecuteOptions,
 ): Promise<ToolResult> {
-  const params = asParams(rawParams);
-  const query = assertQuery(params.query);
-  const config = options?.config ?? (await loadConfig());
-  const depth = assertDepth(params.depth, config.webSearch.defaultDepth);
+  // Generated at execution start so preflight failures are diagnosable too.
+  const responseId = generateResponseId();
+  const startedAt = Date.now();
+  let config: SearchConfig | undefined;
+  try {
+    const params = preflightStep(PREFLIGHT_CATEGORY.invalidInput, () => asParams(rawParams));
+    // Config resolves before field validation so invalid-input records can
+    // use the configured cache directory instead of the default fallback.
+    config = await markPreflight(PREFLIGHT_CATEGORY.configLoadFailure, async () => options?.config ?? loadConfig());
+    const query = preflightStep(PREFLIGHT_CATEGORY.invalidInput, () => assertQuery(params.query));
+    const depth = preflightStep(PREFLIGHT_CATEGORY.invalidInput, () => assertDepth(params.depth, config!.webSearch.defaultDepth));
 
-  // Both grounding partners share the Google transport, so a missing Google
-  // credential is terminal for web_search: no Exa grounding attempt is made.
-  const googleCloudApiKey = readConfiguredEnv(config.googleCloudApiKeyEnv);
-  if (!googleCloudApiKey)
-    throw new Error(`Missing required environment variable ${config.googleCloudApiKeyEnv}`);
+    // Both grounding partners share the Google transport, so a missing Google
+    // credential is terminal for web_search: no Exa grounding attempt is made.
+    const googleCloudApiKey = readConfiguredEnv(config.googleCloudApiKeyEnv);
+    if (!googleCloudApiKey) {
+      throw new PreflightFailure(
+        PREFLIGHT_CATEGORY.missingCredentials,
+        new Error(`Missing required environment variable ${config.googleCloudApiKeyEnv}`),
+      );
+    }
 
   const parallelApiKey = readConfiguredEnv(config.parallelApiKeyEnv);
   const exaApiKey = readConfiguredEnv(config.exaApiKeyEnv);
@@ -321,7 +410,6 @@ export async function executeWebSearch(
     }
   }
 
-  const responseId = generateResponseId();
   const record = buildStoredRecord({
     responseId,
     now: Date.now(),
@@ -331,8 +419,11 @@ export async function executeWebSearch(
     parallelAttempts,
     exaAttempts,
     selected,
+    secrets,
   });
-  await writeStoredResponse(config.cacheDir, record, secrets);
+  // Best-effort: a failed diagnostic write must not mask a usable answer or
+  // an unavailable-provider outcome the providers already produced.
+  await writeDiagnosticRecordSafely(config.cacheDir, record, secrets);
 
   if (selected?.normalized) {
     return {
@@ -342,14 +433,37 @@ export async function executeWebSearch(
           text: formatCleanGeminiSuccess(selected.normalized, responseId),
         },
       ],
-      details: detailsForSearch(record),
+      details: detailsForSearch(record, Date.now() - startedAt),
     };
   }
 
   return {
     content: [{ type: "text", text: formatWebSearchUnavailable() }],
-    details: detailsForSearch(record),
+    details: detailsForSearch(record, Date.now() - startedAt),
   };
+  } catch (error) {
+    if (error instanceof PreflightFailure) {
+      // The record keeps only safe metadata; a failed write must not mask
+      // the original tool error.
+      await writePreflightDiagnostic({
+        tool: "web_search",
+        category: error.category,
+        error: error.causeError,
+        responseId,
+        settings: preflightSettingsFrom(config),
+        metadata: safeQueryMetadata(rawParams),
+      });
+      throw appendDiagnosticSuffix(error.causeError, responseId);
+    }
+    throw error;
+  }
+}
+
+/** Safe query metadata for search-tool preflight records; stores nothing when the query was not a valid string. */
+function safeQueryMetadata(rawParams: unknown): Record<string, unknown> | undefined {
+  if (!rawParams || typeof rawParams !== "object" || Array.isArray(rawParams)) return undefined;
+  const query = (rawParams as Record<string, unknown>).query;
+  return typeof query === "string" && query.trim().length > 0 ? { query: query.trim() } : undefined;
 }
 
 export async function executeWebCodeSearch(
@@ -357,16 +471,25 @@ export async function executeWebCodeSearch(
   signal?: AbortSignal,
   options?: ExecuteOptions,
 ): Promise<ToolResult> {
-  const params = asParams(rawParams);
-  const query = assertQuery(params.query);
-  const focus = assertFocus(params.focus);
-  const config = options?.config ?? (await loadConfig());
+  // Generated at execution start so preflight failures are diagnosable too.
+  const responseId = generateResponseId();
+  const startedAt = Date.now();
+  let config: SearchConfig | undefined;
+  try {
+    const params = preflightStep(PREFLIGHT_CATEGORY.invalidInput, () => asParams(rawParams));
+    // Config resolves before field validation so invalid-input records can
+    // use the configured cache directory instead of the default fallback.
+    config = await markPreflight(PREFLIGHT_CATEGORY.configLoadFailure, async () => options?.config ?? loadConfig());
+    const query = preflightStep(PREFLIGHT_CATEGORY.invalidInput, () => assertQuery(params.query));
+    const focus = preflightStep(PREFLIGHT_CATEGORY.invalidInput, () => assertFocus(params.focus));
+    // Immutable alias so closures below keep the narrowed type.
+    const cfg: SearchConfig = config;
 
-  const exaApiKey = readConfiguredEnv(config.exaApiKeyEnv);
-  const firecrawlApiKey = readConfiguredEnv(config.firecrawlApiKeyEnv);
-  const secrets = buildSecrets(config, {
-    google: readConfiguredEnv(config.googleCloudApiKeyEnv),
-    parallel: readConfiguredEnv(config.parallelApiKeyEnv),
+  const exaApiKey = readConfiguredEnv(cfg.exaApiKeyEnv);
+  const firecrawlApiKey = readConfiguredEnv(cfg.firecrawlApiKeyEnv);
+  const secrets = buildSecrets(cfg, {
+    google: readConfiguredEnv(cfg.googleCloudApiKeyEnv),
+    parallel: readConfiguredEnv(cfg.parallelApiKeyEnv),
     exa: exaApiKey,
     firecrawl: firecrawlApiKey,
   });
@@ -374,8 +497,8 @@ export async function executeWebCodeSearch(
   const firecrawlCall = (types?: string[]) =>
     callFirecrawlDeveloperSearch({
       query,
-      k: config.codeSearch.firecrawl.k,
-      passages: config.codeSearch.firecrawl.passages,
+      k: cfg.codeSearch.firecrawl.k,
+      passages: cfg.codeSearch.firecrawl.passages,
       types,
       firecrawlApiKey,
       signal,
@@ -385,11 +508,11 @@ export async function executeWebCodeSearch(
       ? callExaCodeSearch({
           query,
           exaApiKey,
-          tokensNum: config.codeSearch.exaCode.tokensNum,
+          tokensNum: cfg.codeSearch.exaCode.tokensNum,
           signal,
         })
       : Promise.resolve(
-          makeSkippedCodeAttempt("exa-code", `Missing required environment variable ${config.exaApiKeyEnv}`),
+          makeSkippedCodeAttempt("exa-code", `Missing required environment variable ${cfg.exaApiKeyEnv}`),
         );
 
   const attempts: CodeSearchAttempt[] = [];
@@ -422,30 +545,46 @@ export async function executeWebCodeSearch(
     }
   }
 
-  const responseId = generateResponseId();
   const record = buildStoredCodeSearchRecord({
     responseId,
     now: Date.now(),
-    ttlMs: config.rawResponseTtlMs,
+    ttlMs: cfg.rawResponseTtlMs,
     query,
     focus,
     attempts,
     selected,
     degraded,
+    secrets,
   });
-  await writeStoredResponse(config.cacheDir, record, secrets);
+  // Best-effort: a failed diagnostic write must not mask a usable result or
+  // an unavailable-provider outcome the providers already produced.
+  await writeDiagnosticRecordSafely(cfg.cacheDir, record, secrets);
 
   if (selected?.normalized) {
     return {
       content: [{ type: "text", text: formatCodeSearchResult(query, selected.normalized) }],
-      details: detailsForCodeSearch(record),
+      details: detailsForCodeSearch(record, Date.now() - startedAt),
     };
   }
 
   return {
     content: [{ type: "text", text: formatCodeSearchUnavailable() }],
-    details: detailsForCodeSearch(record),
+    details: detailsForCodeSearch(record, Date.now() - startedAt),
   };
+  } catch (error) {
+    if (error instanceof PreflightFailure) {
+      await writePreflightDiagnostic({
+        tool: "web_code_search",
+        category: error.category,
+        error: error.causeError,
+        responseId,
+        settings: preflightSettingsFrom(config),
+        metadata: safeQueryMetadata(rawParams),
+      });
+      throw appendDiagnosticSuffix(error.causeError, responseId);
+    }
+    throw error;
+  }
 }
 
 export async function executeFetchContents(
@@ -453,30 +592,98 @@ export async function executeFetchContents(
   signal?: AbortSignal,
   options?: ExecuteOptions,
 ): Promise<ToolResult> {
-  const params = asParams(rawParams);
-  const config = options?.config ?? (await loadConfig());
-  const entries = await fetchContentsEntries({
-    rawUris: params.uris,
-    rawMaxCharacters: params.maxCharacters,
-    rawMaxAgeHours: params.maxAgeHours,
-    signal,
-    config,
-  });
+  // Generated at execution start so preflight failures are diagnosable too.
+  const responseId = generateResponseId();
+  const startedAt = Date.now();
+  let config: SearchConfig | undefined;
+  try {
+    const params = preflightStep(PREFLIGHT_CATEGORY.invalidInput, () => asParams(rawParams));
+    config = await markPreflight(PREFLIGHT_CATEGORY.configLoadFailure, async () => options?.config ?? loadConfig());
+    // Only pure input validation and URL normalization count as invalid
+    // input: this step does no cache, provider, or cache-write work, so
+    // operational failures later in the orchestration are rethrown unchanged
+    // instead of being mislabeled invalid_input.
+    const defaultMaxAgeHours = config.contents.defaultMaxAgeHours;
+    const input = preflightStep(PREFLIGHT_CATEGORY.invalidInput, () =>
+      parseFetchContentsInput({
+        rawUris: params.uris,
+        rawMaxCharacters: params.maxCharacters,
+        rawMaxAgeHours: params.maxAgeHours,
+        defaultMaxAgeHours,
+      }),
+    );
 
-  return {
-    content: [{ type: "text", text: formatFetchedContents(entries) }],
-    details: {
-      results: entries.map((entry) => ({
-        url: entry.url,
-        normalizedUrl: entry.normalizedUrl,
-        title: entry.title,
-        fromCache: entry.fromCache,
-        provider: providerForContentEntry(entry) ?? null,
-        status: entry.statusLabel ?? null,
-        characterCount: entry.text.length,
-      })),
-    },
-  };
+    const diagnostics: FetchContentsDiagnostics = { attempts: [] };
+    const entries = await fetchContentsEntries({
+      rawUris: params.uris,
+      rawMaxCharacters: params.maxCharacters,
+      rawMaxAgeHours: params.maxAgeHours,
+      signal,
+      config,
+      input,
+      diagnostics,
+    });
+
+    const secrets = buildSecrets(config, {
+      google: readConfiguredEnv(config.googleCloudApiKeyEnv),
+      parallel: readConfiguredEnv(config.parallelApiKeyEnv),
+      exa: readConfiguredEnv(config.exaApiKeyEnv),
+      firecrawl: readConfiguredEnv(config.firecrawlApiKeyEnv),
+    });
+    const record = buildStoredFetchContentsRecord({
+      responseId,
+      now: Date.now(),
+      ttlMs: config.rawResponseTtlMs,
+      request: {
+        urlCount: Array.isArray(params.uris) ? params.uris.length : null,
+        uniqueUrlCount: new Set(entries.map((entry) => entry.normalizedUrl)).size,
+        maxCharacters:
+          typeof params.maxCharacters === "number" ? params.maxCharacters : DEFAULT_CONTENT_MAX_CHARACTERS,
+        maxAgeHours: typeof params.maxAgeHours === "number" ? params.maxAgeHours : config.contents.defaultMaxAgeHours,
+      },
+      results: storedFetchResults(entries),
+      attempts: diagnostics.attempts,
+      secrets,
+    });
+    // Best-effort: a failed diagnostic write must not fail a fetch that
+    // already produced entries.
+    await writeDiagnosticRecordSafely(config.cacheDir, record, secrets);
+
+    return {
+      content: [{ type: "text", text: formatFetchedContents(entries) }],
+      details: {
+        responseId,
+        results: entries.map((entry) => ({
+          url: entry.url,
+          normalizedUrl: entry.normalizedUrl,
+          title: entry.title,
+          fromCache: entry.fromCache,
+          provider: providerForContentEntry(entry) ?? null,
+          status: entry.statusLabel ?? null,
+          characterCount: entry.text.length,
+        })),
+        providers: resultProviders(entries),
+        // Canonical dispatch order comes from the stored record's attempts.
+        attemptCount: record.attempts.length,
+        attemptProviders: record.attempts.map((attempt) => attempt.provider),
+        failureCategories: uniqueFailureCategories(record.attempts.map((attempt) => fetchFailureCategory(attempt))),
+        elapsedMs: Date.now() - startedAt,
+      },
+    };
+  } catch (error) {
+    if (error instanceof PreflightFailure) {
+      await writePreflightDiagnostic({
+        tool: "fetch_contents",
+        category: error.category,
+        error: error.causeError,
+        responseId,
+        settings: preflightSettingsFrom(config),
+        metadata: safeFetchRequestMetadata(rawParams),
+      });
+      throw appendDiagnosticSuffix(error.causeError, responseId);
+    }
+    throw error;
+  }
 }
 
 export function createToolRegistrations(): ToolRegistration[] {

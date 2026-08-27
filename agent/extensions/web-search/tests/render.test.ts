@@ -180,6 +180,36 @@ describe("web_code_search result details rendering", () => {
       }),
     ).toBe("provider=exa-code focus=implementation_examples attempts=1 responseId=wse_abc");
   });
+
+  it("renders provider=none with attempt diagnostics when every provider failed", () => {
+    expect(
+      detailsLine("web_code_search", {
+        responseId: "wse_abc",
+        focus: "developer_sources",
+        answerProvider: null,
+        selectedProvider: null,
+        attemptCount: 2,
+        attemptProviders: ["firecrawl-developer", "exa-code"],
+        failureCategories: ["http_502", "empty_response"],
+        fallbackUsed: false,
+        fallbackFrom: null,
+        degraded: false,
+        resultCount: null,
+        elapsedMs: 1500,
+      }),
+    ).toBe(
+      "provider=none focus=developer_sources attempts=2 providers=firecrawl-developer,exa-code failures=http_502,empty_response elapsed=1500ms responseId=wse_abc",
+    );
+  });
+
+  it("keeps provider=unknown for legacy details without answerProvider", () => {
+    expect(
+      detailsLine("web_code_search", {
+        responseId: "wse_legacy",
+        focus: "developer_sources",
+      }),
+    ).toBe("provider=unknown focus=developer_sources attempts=1 responseId=wse_legacy");
+  });
 });
 
 describe("fetch_contents result details rendering", () => {

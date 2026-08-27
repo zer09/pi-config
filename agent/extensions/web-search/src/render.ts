@@ -77,6 +77,23 @@ function formatCallSummary(toolName: WebSearchToolName, args: unknown): string {
     .join(" ");
 }
 
+function stringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+/** Extra safe summary parts shared by all three tools; each part renders only when its detail field exists. */
+function attemptSummaryParts(details: ReturnType<typeof asRecord>): string[] {
+  const parts: string[] = [];
+  const providers = stringArray(details.attemptProviders);
+  if (providers) parts.push(`providers=${providers.join(",")}`);
+  const failures = stringArray(details.failureCategories);
+  if (failures && failures.length > 0) parts.push(`failures=${failures.join(",")}`);
+  const elapsed = asNumber(details.elapsedMs);
+  if (elapsed !== undefined) parts.push(`elapsed=${Math.max(0, Math.round(elapsed))}ms`);
+  return parts;
+}
+
 function resultDetailsSummary(toolName: WebSearchToolName, result: ToolResult): string {
   const details = asRecord(result.details);
   if (toolName === "web_search") {
@@ -99,15 +116,19 @@ function resultDetailsSummary(toolName: WebSearchToolName, result: ToolResult): 
     // Show the first failure only when a later attempt exists and it says
     // something the final primary error label does not already say.
     const showFirstError = firstError !== undefined && attempts > 1 && firstError !== primaryError;
+    const [providers, failures, elapsed] = attemptSummaryParts(details);
     return [
       `provider=${provider}`,
       `attempts=${attempts}`,
+      providers,
+      failures,
       fallbackFrom ? `fallbackFrom=${fallbackFrom}` : "",
       showFirstError ? `firstError=${firstError}` : "",
       sourceCount !== undefined ? `sources=${sourceCount}` : "",
       supportCount !== undefined ? `supports=${supportCount}` : "",
       !fallbackFrom && primaryError ? `primaryError=${primaryError}` : "",
       !fallbackFrom && nonStopFinishReason ? `finishReason=${nonStopFinishReason}` : "",
+      elapsed,
       `responseId=${responseId}`,
     ]
       .filter(Boolean)
@@ -116,19 +137,25 @@ function resultDetailsSummary(toolName: WebSearchToolName, result: ToolResult): 
 
   if (toolName === "web_code_search") {
     const responseId = asString(details.responseId) ?? "unknown";
-    const provider = asString(details.answerProvider) ?? "unknown";
+    // detailsForCodeSearch emits answerProvider: null when no provider
+    // answered; only an absent or malformed field means legacy details.
+    const provider = details.answerProvider === null ? "none" : asString(details.answerProvider) ?? "unknown";
     const focus = asString(details.focus);
     const attempts = asNumber(details.attemptCount) ?? 1;
     const fallbackFrom = asString(details.fallbackFrom);
     const degraded = details.degraded === true;
     const resultCount = asNumber(details.resultCount);
+    const [providers, failures, elapsed] = attemptSummaryParts(details);
     return [
       `provider=${provider}`,
       focus ? `focus=${focus}` : "",
       `attempts=${attempts}`,
+      providers,
+      failures,
       fallbackFrom ? `fallbackFrom=${fallbackFrom}` : "",
       degraded ? "degraded=true" : "",
       resultCount !== undefined ? `results=${resultCount}` : "",
+      elapsed,
       `responseId=${responseId}`,
     ]
       .filter(Boolean)
@@ -138,7 +165,19 @@ function resultDetailsSummary(toolName: WebSearchToolName, result: ToolResult): 
   const results = Array.isArray(details.results) ? details.results : [];
   const cacheHits = results.filter((item) => asRecord(item).fromCache === true).length;
   const chars = results.reduce((sum, item) => sum + (asNumber(asRecord(item).characterCount) ?? 0), 0);
-  return `${results.length} URLs, cache hits ${cacheHits}/${results.length}, chars=${chars}`;
+  const parts = [`${results.length} URLs, cache hits ${cacheHits}/${results.length}, chars=${chars}`];
+  // Providers that produced content, or an explicit none: legacy details
+  // without the field render the original summary unchanged.
+  const providers = stringArray(details.providers);
+  if (providers !== undefined) parts.push(`provider=${providers.join("|") || "none"}`);
+  const [, failures, elapsed] = attemptSummaryParts(details);
+  const attempts = asNumber(details.attemptCount);
+  if (attempts !== undefined) parts.push(`attempts=${attempts}`);
+  if (failures) parts.push(failures);
+  if (elapsed) parts.push(elapsed);
+  const responseId = asString(details.responseId);
+  if (responseId) parts.push(`responseId=${responseId}`);
+  return parts.join(" ");
 }
 
 export function createWebSearchCallRenderer(toolName: WebSearchToolName) {

@@ -255,7 +255,108 @@ export type StoredCodeSearchResponse = {
   degraded: boolean;
 };
 
-export type StoredToolRecord = StoredSearchResponse | StoredCodeSearchResponse;
+/** Status classes recorded for one fetch_contents provider attempt. */
+export type FetchAttemptStatus =
+  | "success"
+  | "http_error"
+  | "transport_error"
+  | "unusable_response"
+  | "aborted"
+  | "skipped";
+
+/** Safe normalized result metadata kept for one fetch_contents provider attempt. */
+export type NormalizedFetchAttempt = {
+  success: boolean;
+  statusCode?: number;
+  markdownCharacters?: number;
+  perUrl?: Array<{ url: string; ok: boolean; textCharacters: number }>;
+  /** Total per-URL entries before the retention cap (stored form only). */
+  perUrlTotal?: number;
+  /** Per-URL entries omitted from storage by the retention cap. */
+  perUrlOmitted?: number;
+};
+
+/** One chronological provider attempt recorded by a fetch_contents call. */
+export type FetchContentsAttempt = {
+  provider: ContentProvider;
+  urls: string[];
+  /** Total URLs on this attempt before the per-attempt retention cap (stored form only). */
+  urlsTotal?: number;
+  /** URLs omitted from storage by the per-attempt retention cap. */
+  urlsOmitted?: number;
+  requestStartedAt: string;
+  elapsedMs: number;
+  rawRequest?: RawHttpRequest;
+  rawResponse?: RawHttpResponse;
+  normalized?: NormalizedFetchAttempt;
+  status: FetchAttemptStatus;
+  error?: string;
+  skippedReason?: string;
+};
+
+/**
+ * Mutable sink filled by the fetch_contents orchestrator during execution.
+ *
+ * `dispatchOrdinal` is internal bookkeeping: assigned synchronously before
+ * each attempt starts, used as the canonical storage order, and stripped
+ * before the record persists.
+ */
+export type FetchContentsDiagnostics = {
+  attempts: Array<FetchContentsAttempt & { dispatchOrdinal?: number }>;
+};
+
+/** Per-URL safe result metadata for the fetch_contents stored record. */
+export type StoredFetchResult = {
+  normalizedUrl: string;
+  provider: ContentProvider | null;
+  fromCache: boolean;
+  status: string | null;
+};
+
+/** Stored record for the fetch_contents tool. */
+export type StoredFetchContentsResponse = {
+  schemaVersion: number;
+  responseId: string;
+  createdAt: number;
+  expiresAt: number;
+  tool: "fetch_contents";
+  request: {
+    urlCount: number | null;
+    uniqueUrlCount: number | null;
+    maxCharacters: number | null;
+    maxAgeHours: number | null;
+  };
+  results: StoredFetchResult[];
+  /** Total per-URL results before the retention cap. */
+  resultsTotal: number;
+  /** Results omitted from storage by the retention cap. */
+  resultsOmitted: number;
+  attempts: FetchContentsAttempt[];
+  /** Total attempts before the retention cap. */
+  attemptsTotal: number;
+  /** Attempts omitted from storage by the retention cap. */
+  attemptsOmitted: number;
+};
+
+/** Safe diagnostic record persisted for a local preflight failure. */
+export type StoredPreflightRecord = {
+  schemaVersion: number;
+  responseId: string;
+  createdAt: number;
+  expiresAt: number;
+  tool: "web_search" | "web_code_search" | "fetch_contents";
+  phase: "preflight";
+  category: string;
+  error: string;
+  metadata?: Record<string, unknown>;
+  attempts: [];
+};
+
+export type StoredToolRecord =
+  | StoredSearchResponse
+  | StoredCodeSearchResponse
+  | StoredFetchContentsResponse
+  | StoredPreflightRecord;
 
 export type ContentCacheEntry = {
   url: string;

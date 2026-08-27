@@ -8,8 +8,20 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { expect } from "bun:test";
 import { DEFAULT_CONFIG } from "../src/config.js";
 import type { SearchConfig } from "../src/types.js";
+
+/**
+ * Asserts that no partial prefix (4 or more characters) of the secret value
+ * survives in the text. Bounding a string before redacting it would leave
+ * exactly such fragments when a secret crosses a truncation cutoff.
+ */
+export function expectNoSecretFragments(text: string, secret: string): void {
+  for (let length = secret.length - 1; length >= 4; length -= 1) {
+    expect(text).not.toContain(secret.slice(0, length));
+  }
+}
 
 export type FetchCall = { url: string; body: any; headers: Record<string, string> };
 
