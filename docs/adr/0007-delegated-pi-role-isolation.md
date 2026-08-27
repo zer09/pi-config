@@ -8,6 +8,7 @@ Accepted for role isolation and safety policy. The Local Skill and Python superv
 - **Public backend schema and terminology.** The routine `backend` tool parameter, its public values `default` and `zai`, and every `backend=zai` and `backend=claude` selection rule are removed; the exceptional `routingOverride` replaces them.
 - **Pre-tool-only fallback cutoff.** The guarded wrapper's rule that fallback stops permanently at the first tool execution or terminal delegate result is superseded by ADR 0009's operational-failure rule with the fixed sanitized restart note.
 - **Dependent normative sections.** Decision, Consequences, and Validation statements that depend on the superseded mechanisms, including backup-only backend status, per-map primary guarantees for grouped tiers such as Gate B's OpenCode Go primary, the pre-tool advancement rule, and the backend-schema checks, no longer state current policy.
+- **Total wall deadline.** Every statement that an active delegate or loop always reaches a shared 45-minute wall or productive-work deadline is superseded by ADR 0013: total elapsed time never terminates a delegate, the five-minute activity warning and ten-minute activity-idle termination remain, and the 45-minute value is now a renewable maximum gap between novel structural checkpoints. The bounded-cleanup, interruption, process-proof, and report-recovery statements of the native-extension era remain current except where ADR 0013 narrows them.
 
 The dated Context history, including every incident narrative, remains factual provenance and is unchanged.
 

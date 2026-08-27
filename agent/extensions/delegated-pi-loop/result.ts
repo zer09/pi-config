@@ -1,14 +1,15 @@
 import { DELEGATE_TOOL_OUTPUT_LIMIT, removeDirectory, truncateUtf8 } from "./artifacts.ts";
 import { writeFailureDiagnosticQuietly } from "./diagnostics.ts";
+import { PROVIDER_FAILURE_CATEGORIES } from "./types.ts";
 import type { ChainAttempt, DelegateProgress, DelegateRunResult, DelegateToolResultEvent, ToolResult } from "./types.ts";
 
 const HEADER_RESERVE_BYTES = 1024;
 const FIELD_LIMIT = 80;
 
 const STATE_SUMMARIES: Readonly<Record<string, string>> = {
-  routes_unavailable: "No route in the ordered chain could complete the delegate while work time remained.",
-  stalled: "The delegate had no meaningful Pi RPC activity for ten minutes and was terminated.",
-  timed_out: "The delegate reached its fixed productive-work deadline and was terminated without fallback.",
+  routes_unavailable: "No route in the ordered chain could complete the delegate.",
+  stalled: "The delegate stopped producing required liveness evidence and was terminated.",
+  timed_out: "The catalog preflight child exceeded its fixed 15-second cap and was terminated.",
   output_limit: "The delegate exceeded its output limit and was terminated.",
   blocked: "The delegate ended with DELEGATE_RESULT: BLOCKED.",
   delegate_failed: "The delegate ended with DELEGATE_RESULT: FAILED.",
@@ -23,6 +24,24 @@ const STATE_SUMMARIES: Readonly<Record<string, string>> = {
   interrupted: "The delegate was cancelled before completion.",
 };
 const FALLBACK_SUMMARY = "The delegate did not reach a terminal supervision state.";
+
+/** Fixed cause-aware summaries for liveness stalls; never report text. */
+const STALL_CAUSE_SUMMARIES: Readonly<Record<string, string>> = {
+  rpc_silent: "No valid RPC record arrived from the child within the activity-idle interval.",
+  activity_idle: "The child kept communicating but produced no accepted task activity within the activity-idle interval.",
+  active_tool_idle: "An executing tool produced no novel update within the activity-idle interval.",
+  progress_stagnation: "The delegate produced no novel completed structural checkpoint within the renewable progress lease.",
+  repeated_cycle: "The delegate repeated already-seen structural checkpoints without novel progress until the progress lease expired.",
+  report_recovery_idle: "The report-recovery round went silent within its fixed five-minute idle lease.",
+};
+const STALL_CAUSE_CODES = [
+  "rpc_silent",
+  "activity_idle",
+  "active_tool_idle",
+  "progress_stagnation",
+  "repeated_cycle",
+  "report_recovery_idle",
+] as const;
 
 /** Fixed actionable summaries for accepted terminal reason codes; never report text. */
 const REASON_SUMMARIES: Readonly<Record<string, string>> = {
@@ -59,6 +78,11 @@ function fixed(value: string | undefined, allowed: readonly string[]): string | 
   return value !== undefined && allowed.includes(value) ? value : undefined;
 }
 
+/** Finite numbers only: a malformed internal non-finite value fails closed by omission. */
+function finite(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) ? value : undefined;
+}
+
 function safeTimestamp(value: string): string {
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) && Number.isFinite(Date.parse(value))
     ? value
@@ -74,28 +98,57 @@ function sanitizedProgress(progress: DelegateProgress): DelegateProgress {
     lastEventDetail: bounded(progress.lastEventDetail),
     lastEventAt: safeTimestamp(progress.lastEventAt),
     activeToolName: bounded(progress.activeToolName),
-    deadlineCause: fixed(progress.deadlineCause, ["work_deadline", "idle_deadline", "catalog_preflight"]) as DelegateProgress["deadlineCause"],
+    deadlineCause: fixed(progress.deadlineCause, ["idle_deadline", "catalog_preflight"]) as DelegateProgress["deadlineCause"],
+    stallCause: fixed(progress.stallCause, STALL_CAUSE_CODES) as DelegateProgress["stallCause"],
+    leaseWarning: fixed(progress.leaseWarning, ["activity", "progress"]) as DelegateProgress["leaseWarning"],
     cleanupFailureReason: fixed(progress.cleanupFailureReason, ["group_alive", "close_unconfirmed"]) as DelegateProgress["cleanupFailureReason"],
     interruptionSource: fixed(progress.interruptionSource, ["delegate_stop", "session_shutdown", "tool_call_abort", "unknown"]) as DelegateProgress["interruptionSource"],
+    // The provider category is a fixed enum on every model-visible surface;
+    // an invalid value fails closed by omission, never by passthrough.
+    providerFailureCategory: fixed(progress.providerFailureCategory, PROVIDER_FAILURE_CATEGORIES) as DelegateProgress["providerFailureCategory"],
   };
 }
 
 function sanitizedAttempts(attempts: readonly ChainAttempt[]): readonly ChainAttempt[] {
   return attempts.map((attempt) => {
     const activeToolName = bounded(attempt.activeToolName);
-    const deadlineCause = fixed(attempt.deadlineCause, ["work_deadline", "idle_deadline", "catalog_preflight"]) as ChainAttempt["deadlineCause"];
+    const deadlineCause = fixed(attempt.deadlineCause, ["idle_deadline", "catalog_preflight"]) as ChainAttempt["deadlineCause"];
+    const stallCause = fixed(attempt.stallCause, STALL_CAUSE_CODES) as ChainAttempt["stallCause"];
     const cleanupFailureReason = fixed(attempt.cleanupFailureReason, ["group_alive", "close_unconfirmed"]) as ChainAttempt["cleanupFailureReason"];
     const interruptionSource = fixed(attempt.interruptionSource, ["delegate_stop", "session_shutdown", "tool_call_abort", "unknown"]) as ChainAttempt["interruptionSource"];
+    // Supervised liveness evidence survives fallback: every §13.2 field that
+    // settled finite on the attempt travels on; unavailable, catalog-only,
+    // or non-finite values stay omitted instead of being fabricated.
+    const supervised = {
+      rpcIdleSeconds: finite(attempt.rpcIdleSeconds),
+      activityIdleSeconds: finite(attempt.activityIdleSeconds),
+      progressIdleSeconds: finite(attempt.progressIdleSeconds),
+      activityEventCount: finite(attempt.activityEventCount),
+      structuralProgressCount: finite(attempt.structuralProgressCount),
+      duplicateCheckpointCount: finite(attempt.duplicateCheckpointCount),
+      activityWarningCount: finite(attempt.activityWarningCount),
+      progressWarningCount: finite(attempt.progressWarningCount),
+      activeToolIdleSeconds: finite(attempt.activeToolIdleSeconds),
+    };
     return {
       route: safeRoute(attempt.route) ?? "unknown/unknown:off",
       state: attempt.state,
       elapsedSeconds: attempt.elapsedSeconds,
       ...(attempt.restartAfterWork === undefined ? {} : { restartAfterWork: attempt.restartAfterWork }),
-      ...(attempt.remainingWorkSecondsAtAttemptStart === undefined ? {} : { remainingWorkSecondsAtAttemptStart: attempt.remainingWorkSecondsAtAttemptStart }),
+      ...(supervised.rpcIdleSeconds === undefined ? {} : { rpcIdleSeconds: supervised.rpcIdleSeconds }),
+      ...(supervised.activityIdleSeconds === undefined ? {} : { activityIdleSeconds: supervised.activityIdleSeconds }),
+      ...(supervised.progressIdleSeconds === undefined ? {} : { progressIdleSeconds: supervised.progressIdleSeconds }),
+      ...(supervised.activityEventCount === undefined ? {} : { activityEventCount: supervised.activityEventCount }),
+      ...(supervised.structuralProgressCount === undefined ? {} : { structuralProgressCount: supervised.structuralProgressCount }),
+      ...(supervised.duplicateCheckpointCount === undefined ? {} : { duplicateCheckpointCount: supervised.duplicateCheckpointCount }),
+      ...(supervised.activityWarningCount === undefined ? {} : { activityWarningCount: supervised.activityWarningCount }),
+      ...(supervised.progressWarningCount === undefined ? {} : { progressWarningCount: supervised.progressWarningCount }),
       ...(attempt.activeToolCount === undefined ? {} : { activeToolCount: attempt.activeToolCount }),
       ...(attempt.activeToolElapsedSeconds === undefined ? {} : { activeToolElapsedSeconds: attempt.activeToolElapsedSeconds }),
+      ...(supervised.activeToolIdleSeconds === undefined ? {} : { activeToolIdleSeconds: supervised.activeToolIdleSeconds }),
       ...(activeToolName === undefined ? {} : { activeToolName }),
       ...(deadlineCause === undefined ? {} : { deadlineCause }),
+      ...(stallCause === undefined ? {} : { stallCause }),
       ...(cleanupFailureReason === undefined ? {} : { cleanupFailureReason }),
       ...(interruptionSource === undefined ? {} : { interruptionSource }),
     };
@@ -182,10 +235,12 @@ export function failureMarkdown(result: DelegateRunResult): string {
   lines.push(`- last event: ${lastEventDetail === undefined ? lastEvent : `${lastEvent} (${lastEventDetail})`}`);
   lines.push(`- last event at: ${safeTimestamp(result.progress.lastEventAt)}`);
   lines.push(`- elapsed: ${result.elapsedSeconds.toFixed(1)}s`);
-  const deadlineCause = fixed(result.deadlineCause, ["work_deadline", "idle_deadline", "catalog_preflight"]);
+  const deadlineCause = fixed(result.deadlineCause, ["idle_deadline", "catalog_preflight"]);
+  const stallCause = fixed(result.stallCause ?? result.progress.stallCause, STALL_CAUSE_CODES);
   const cleanupFailureReason = fixed(result.cleanupFailureReason, ["group_alive", "close_unconfirmed"]);
   const interruption = fixed(result.interruptionSource, ["delegate_stop", "session_shutdown", "tool_call_abort", "unknown"]);
   if (deadlineCause !== undefined) lines.push(`- deadline cause: ${deadlineCause}`);
+  if (stallCause !== undefined) lines.push(`- stall cause: ${stallCause}`);
   if (cleanupFailureReason !== undefined) lines.push(`- cleanup failure: ${cleanupFailureReason}`);
   if (interruption !== undefined) lines.push(`- interruption source: ${interruption}`);
   if ((result.progress.activeToolCount ?? 0) > 0) {
@@ -200,9 +255,11 @@ export function failureMarkdown(result: DelegateRunResult): string {
   if (attempts !== undefined) lines.push(`- attempts: ${attempts}`);
   const reasonBullet = terminalReasonBullet(result.terminalReason, result.reasonStatus);
   if (reasonBullet !== undefined) lines.push(reasonBullet);
+  const stallSummary = stallCause === undefined ? undefined : STALL_CAUSE_SUMMARIES[stallCause];
   const summary = safeSummary(result.state);
   const reasonSummary = terminalReasonSummary(result.terminalReason, result.reasonStatus);
-  lines.push("", reasonSummary === undefined ? summary : `${summary}\n${reasonSummary}`);
+  const summaryText = reasonSummary === undefined ? summary : `${summary}\n${reasonSummary}`;
+  lines.push("", stallSummary === undefined ? summaryText : `${summaryText}\n${stallSummary}`);
   return lines.join("\n");
 }
 
@@ -229,9 +286,10 @@ export function finalToolResult(result: DelegateRunResult, diagnosticPath?: stri
       reportNudgeCount: result.progress.reportNudgeCount,
       reportRecoveryReason: result.progress.reportRecoveryReason,
       reportRound: result.progress.reportRound,
-      providerFailureCategory: result.progress.providerFailureCategory,
-      deadlineCause: fixed(result.deadlineCause, ["work_deadline", "idle_deadline", "catalog_preflight"]),
-      workBudgetSeconds: result.workBudgetSeconds,
+      // Fixed enum only: invalid provider categories are omitted, not passed through.
+      providerFailureCategory: fixed(result.progress.providerFailureCategory, PROVIDER_FAILURE_CATEGORIES),
+      deadlineCause: fixed(result.deadlineCause, ["idle_deadline", "catalog_preflight"]),
+      stallCause: fixed(result.stallCause ?? result.progress.stallCause, STALL_CAUSE_CODES),
       cleanupFailureReason: fixed(result.cleanupFailureReason, ["group_alive", "close_unconfirmed"]),
       interruptionSource: fixed(result.interruptionSource, ["delegate_stop", "session_shutdown", "tool_call_abort", "unknown"]),
       activeToolCount: result.progress.activeToolCount,

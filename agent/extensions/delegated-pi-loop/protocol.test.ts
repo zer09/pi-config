@@ -63,6 +63,86 @@ test("buffers lifecycle events until the prompt response is accepted", () => {
   assert.deepEqual(records.map((record) => record.kind), ["prompt_accepted", "event", "event"]);
 });
 
+test("tool-call ids at the fixed cap stay valid with opaque characters preserved", () => {
+  // Exactly 200 code units, including a surrogate pair, a NUL, and accented
+  // letters: the id is opaque, there is no character allowlist, and the
+  // full id survives to the emitted event after prompt acceptance.
+  const opaqueId = "😀\u0000éz".repeat(40);
+  assert.equal(opaqueId.length, 200);
+  for (const type of ["tool_execution_start", "tool_execution_update", "tool_execution_end"]) {
+    const protocol = new RpcJsonlProtocol();
+    protocol.beginPrompt(1, "task");
+    const records = feed(protocol, [Buffer.from(
+      `{"id":"prompt-1","type":"response","command":"prompt","success":true}\n`
+        + `${JSON.stringify({ type, toolCallId: opaqueId, toolName: "bash" })}\n`,
+    )]);
+    assert.deepEqual(records.map((record) => record.kind), ["prompt_accepted", "event"], type);
+    const event = records[1];
+    if (event?.kind === "event") assert.equal(event.event.toolCallId, opaqueId, type);
+  }
+  // Missing and empty ids stay anonymous-correlatable passthrough events.
+  const anonymous = new RpcJsonlProtocol();
+  anonymous.beginPrompt(1, "task");
+  const anonymousRecords = feed(anonymous, [Buffer.from(
+    '{"id":"prompt-1","type":"response","command":"prompt","success":true}\n'
+      + '{"type":"tool_execution_start","toolName":"bash"}\n'
+      + '{"type":"tool_execution_update","toolCallId":"","toolName":"bash"}\n',
+  )]);
+  assert.deepEqual(anonymousRecords.map((record) => record.kind), ["prompt_accepted", "event", "event"]);
+});
+
+test("an oversized tool-call id is one fixed protocol error before buffering or emission", () => {
+  const oversized = "x".repeat(201);
+  for (const type of ["tool_execution_start", "tool_execution_update", "tool_execution_end"]) {
+    // The oversized event arrives while the prompt response is still pending,
+    // so the bound must fire before the event is buffered for round 1.
+    const protocol = new RpcJsonlProtocol();
+    protocol.beginPrompt(1, "task");
+    const records = feed(protocol, [Buffer.from(
+      `${JSON.stringify({ type, toolCallId: oversized, toolName: "bash" })}\n`
+        + '{"id":"prompt-1","type":"response","command":"prompt","success":true}\n',
+    )]);
+    assert.deepEqual(records, [{ kind: "protocol_error", category: "tool_call_id_too_long" }], type);
+    // The failed protocol never emits the buffered prompt acceptance either.
+    const after: ProtocolRecord[] = [];
+    protocol.finish((record) => after.push(record));
+    assert.deepEqual(after, [], type);
+  }
+});
+
+test("a pre-prompt oversized tool-call id still reports only the fixed category", () => {
+  // No prompt was ever sent: the id bound fires before the
+  // event_without_prompt correlation check, so the category stays fixed.
+  const protocol = new RpcJsonlProtocol();
+  const records = feed(protocol, [Buffer.from(
+    `${JSON.stringify({ type: "tool_execution_end", toolCallId: "y".repeat(201) })}\n`,
+  )]);
+  assert.deepEqual(records, [{ kind: "protocol_error", category: "tool_call_id_too_long" }]);
+});
+
+test("an oversized update or end is never emitted and so cannot reach the monitor", () => {
+  // A valid id-backed start and a valid anonymous start are accepted first;
+  // the oversized update and end produce only the fixed protocol error and
+  // no event record, so nothing downstream can match or remove either tool.
+  const protocol = new RpcJsonlProtocol();
+  protocol.beginPrompt(1, "task");
+  const records = feed(protocol, [Buffer.from(
+    '{"id":"prompt-1","type":"response","command":"prompt","success":true}\n'
+      + '{"type":"agent_start"}\n'
+      + '{"type":"tool_execution_start","toolCallId":"valid","toolName":"bash"}\n'
+      + '{"type":"tool_execution_start","toolName":"read"}\n'
+      + `${JSON.stringify({ type: "tool_execution_update", toolCallId: "valid" + "x".repeat(201) })}\n`,
+  )]);
+  assert.deepEqual(records.at(-1), { kind: "protocol_error", category: "tool_call_id_too_long" });
+  const emitted = records.filter((record) => record.kind === "event");
+  assert.equal(emitted.length, 3);
+  const after: ProtocolRecord[] = [];
+  protocol.feed(Buffer.from(
+    `${JSON.stringify({ type: "tool_execution_end", toolCallId: "z".repeat(300) })}\n`,
+  ), (record) => after.push(record));
+  assert.deepEqual(after, []);
+});
+
 test("classifies rejected prompt commands without retaining raw errors", () => {
   const protocol = new RpcJsonlProtocol();
   protocol.beginPrompt(1, "SECRET_PROMPT");
@@ -127,6 +207,69 @@ test("cancels blocking extension UI and ignores fire-and-forget requests", () =>
     line: '{"type":"extension_ui_response","id":"dialog-1","cancelled":true}\n',
   });
   assert.doesNotMatch(JSON.stringify(records), /PRIVATE/);
+});
+
+test("valid dialogs emit ui_activity then a cancellation ui_response for all four methods", () => {
+  for (const method of ["select", "confirm", "input", "editor"]) {
+    const protocol = new RpcJsonlProtocol();
+    protocol.beginPrompt(1, "task");
+    const records = feed(protocol, [Buffer.from(
+      `{"type":"extension_ui_request","id":"dialog-1","method":"${method}"}\n`,
+    )]);
+    assert.deepEqual(records, [
+      { kind: "ui_activity", method },
+      {
+        kind: "ui_response",
+        method,
+        line: '{"type":"extension_ui_response","id":"dialog-1","cancelled":true}\n',
+      },
+    ], method);
+  }
+});
+
+test("malformed dialog ids and methods emit only protocol_error and never ui_activity", () => {
+  const cases: ReadonlyArray<[string, string]> = [
+    ["missing dialog id", '{"type":"extension_ui_request","method":"confirm"}'],
+    ["empty dialog id", '{"type":"extension_ui_request","id":"","method":"select"}'],
+    ["non-string dialog id", '{"type":"extension_ui_request","id":7,"method":"input"}'],
+    ["oversized dialog id", `{"type":"extension_ui_request","id":"${"x".repeat(201)}","method":"editor"}`],
+    ["missing method", '{"type":"extension_ui_request","id":"dialog-1"}'],
+    ["empty method", '{"type":"extension_ui_request","id":"dialog-1","method":""}'],
+    ["non-string method", '{"type":"extension_ui_request","id":"dialog-1","method":5}'],
+    ["oversized method", `{"type":"extension_ui_request","id":"dialog-1","method":"${"m".repeat(81)}"}`],
+  ];
+  for (const [label, line] of cases) {
+    const protocol = new RpcJsonlProtocol();
+    protocol.beginPrompt(1, "task");
+    const records = feed(protocol, [Buffer.from(`${line}\n`)]);
+    assert.deepEqual(records, [{ kind: "protocol_error", category: "malformed_ui_request" }], label);
+  }
+});
+
+test("a repeated dialog id is a duplicate protocol error without a second ui_activity", () => {
+  const protocol = new RpcJsonlProtocol();
+  protocol.beginPrompt(1, "task");
+  const records = feed(protocol, [Buffer.from(
+    '{"type":"extension_ui_request","id":"dialog-1","method":"confirm"}\n'
+      + '{"type":"extension_ui_request","id":"dialog-1","method":"select"}\n',
+  )]);
+  assert.deepEqual(records.map((record) => record.kind), ["ui_activity", "ui_response", "protocol_error"]);
+  assert.deepEqual(records.at(-1), { kind: "protocol_error", category: "duplicate_ui_request" });
+});
+
+test("notify and accepted fire-and-forget methods emit exactly one ui_activity", () => {
+  const protocol = new RpcJsonlProtocol();
+  protocol.beginPrompt(1, "task");
+  const records = feed(protocol, [Buffer.from(
+    '{"type":"extension_ui_request","id":"note-1","method":"notify"}\n'
+      + '{"type":"extension_ui_request","method":"setStatus"}\n'
+      + '{"type":"extension_ui_request","id":"x","method":"customWidgetUpdate"}\n',
+  )]);
+  assert.deepEqual(records, [
+    { kind: "ui_activity", method: "notify" },
+    { kind: "ui_activity", method: "setStatus" },
+    { kind: "ui_activity", method: "customWidgetUpdate" },
+  ]);
 });
 
 test("classifies credit, quota, billing, usage, auth, rate, and availability failures", () => {

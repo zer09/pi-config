@@ -7,12 +7,17 @@ import type { ProviderFailureCategory } from "./types.ts";
 export const PROMPT_IDS = { 1: "prompt-1", 2: "prompt-2" } as const;
 const DEFAULT_MAX_LINE_BYTES = 8 * 1024 * 1024;
 const DIALOG_METHODS = new Set(["select", "confirm", "input", "editor"]);
-const FIRE_AND_FORGET_METHODS = new Set([
-  "notify",
-  "setStatus",
-  "setWidget",
-  "setTitle",
-  "set_editor_text",
+/** Fixed cap on one UI request method string; a longer method is malformed. */
+const MAX_UI_METHOD_LENGTH = 80;
+/** Fixed cap on one dialog id string; a longer id is malformed. */
+const MAX_UI_DIALOG_ID_LENGTH = 200;
+/** Fixed cap on one tool-call id string in code units; a longer id is malformed. */
+const MAX_TOOL_CALL_ID_LENGTH = 200;
+/** The three tool execution lifecycle event types that may carry a toolCallId. */
+const TOOL_EXECUTION_EVENT_TYPES = new Set([
+  "tool_execution_start",
+  "tool_execution_update",
+  "tool_execution_end",
 ]);
 
 export type ReportRound = 1 | 2;
@@ -33,11 +38,6 @@ interface PendingPrompt {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function boundedMethod(value: unknown): string {
-  if (typeof value !== "string" || value.length === 0) return "invalid";
-  return value.slice(0, 80);
 }
 
 export function serializePromptCommand(round: ReportRound, message: string): string {
@@ -122,6 +122,18 @@ export class RpcJsonlProtocol {
       this.protocolError("malformed_record", emit);
       return;
     }
+    // The tool-call id bound runs before prompt buffering and event emission,
+    // so an oversized id can never renew RPC health or reach the monitor.
+    // A present nonempty id longer than 200 code units is one fixed protocol
+    // error; missing, empty, and non-string ids keep anonymous correlation,
+    // and id characters stay opaque with no allowlist.
+    if (TOOL_EXECUTION_EVENT_TYPES.has(value.type)) {
+      const toolCallId = value.toolCallId;
+      if (typeof toolCallId === "string" && toolCallId.length > MAX_TOOL_CALL_ID_LENGTH) {
+        this.protocolError("tool_call_id_too_long", emit);
+        return;
+      }
+    }
     if (value.type === "response") {
       this.consumeResponse(value, emit);
       return;
@@ -173,11 +185,17 @@ export class RpcJsonlProtocol {
   }
 
   private consumeUiRequest(value: Record<string, unknown>, emit: (record: ProtocolRecord) => void): void {
-    const method = boundedMethod(value.method);
-    emit({ kind: "ui_activity", method });
+    // Shape and duplicate validation runs before any ui_activity emission:
+    // a malformed or oversized method or dialog id can never surface as
+    // accepted UI activity on its way to the terminal protocol error.
+    const method = value.method;
+    if (typeof method !== "string" || method.length === 0 || method.length > MAX_UI_METHOD_LENGTH) {
+      this.protocolError("malformed_ui_request", emit);
+      return;
+    }
     if (DIALOG_METHODS.has(method)) {
       const id = value.id;
-      if (typeof id !== "string" || id.length === 0 || id.length > 200) {
+      if (typeof id !== "string" || id.length === 0 || id.length > MAX_UI_DIALOG_ID_LENGTH) {
         this.protocolError("malformed_ui_request", emit);
         return;
       }
@@ -186,13 +204,13 @@ export class RpcJsonlProtocol {
         return;
       }
       this.cancelledUiIds.add(id);
+      emit({ kind: "ui_activity", method });
       emit({ kind: "ui_response", method, line: serializeUiCancellation(id) });
       return;
     }
     // Unknown methods are consumed like fire-and-forget UI updates. Never invent
     // a reply for a method that is not one of the four blocking dialogs.
-    if (FIRE_AND_FORGET_METHODS.has(method) || method !== "invalid") return;
-    this.protocolError("malformed_ui_request", emit);
+    emit({ kind: "ui_activity", method });
   }
 
   private protocolError(category: string, emit: (record: ProtocolRecord) => void): void {

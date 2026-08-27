@@ -27,14 +27,26 @@ export interface RoutingOverride {
   readonly reason: string;
 }
 export type DelegateProtocol = "pi-rpc";
-export type ProviderFailureCategory =
-  | "credits_exhausted"
-  | "quota_exhausted"
-  | "billing_limit"
-  | "usage_limit"
-  | "authentication"
-  | "rate_limit"
-  | "provider_unavailable";
+
+/**
+ * The one exact runtime allowlist of provider-failure categories. Every
+ * diagnostic, sanitized-progress, ToolResult, and rendered surface must
+ * fail closed by omitting any category value not in this list.
+ */
+export const PROVIDER_FAILURE_CATEGORIES = [
+  "credits_exhausted",
+  "quota_exhausted",
+  "billing_limit",
+  "usage_limit",
+  "authentication",
+  "rate_limit",
+  "provider_unavailable",
+] as const;
+
+export type ProviderFailureCategory = (typeof PROVIDER_FAILURE_CATEGORIES)[number];
+
+/** Runtime membership check shared by every fail-closed category surface. */
+export const PROVIDER_FAILURE_CATEGORY_SET: ReadonlySet<string> = new Set(PROVIDER_FAILURE_CATEGORIES);
 
 /** Closed terminal reason enum for BLOCKED delegate outcomes. */
 export const BLOCKED_REASON_CODES = [
@@ -71,8 +83,17 @@ export type DelegateTerminalReasonValue = DelegateReasonCode | DelegateReasonUns
 
 export type DelegateOutcome = "completed" | "blocked" | "failed";
 
-/** Fixed cause codes for productive-work and idle deadline stops. */
-export type DeadlineCause = "work_deadline" | "idle_deadline" | "catalog_preflight";
+/** Fixed cause codes for the remaining bounded deadline stops. */
+export type DeadlineCause = "idle_deadline" | "catalog_preflight";
+
+/** Fixed mechanism codes for a liveness stall. */
+export type StallCause =
+  | "rpc_silent"
+  | "activity_idle"
+  | "active_tool_idle"
+  | "progress_stagnation"
+  | "repeated_cycle"
+  | "report_recovery_idle";
 
 /** Fixed positive-proof failure from process-group cleanup. */
 export type CleanupFailureReason = "group_alive" | "close_unconfirmed";
@@ -124,10 +145,12 @@ export interface DelegateProgress {
   readonly lastEvent: string;
   readonly lastEventDetail?: string;
   readonly lastEventAt: string;
-  readonly idleSeconds: number;
+  /** Accepted-activity idle age; total elapsed time never terminates a run. */
+  readonly activityIdleSeconds: number;
   readonly elapsedSeconds: number;
   readonly toolExecutionCount: number;
-  readonly idleWarningCount: number;
+  readonly activityWarningCount: number;
+  readonly progressWarningCount: number;
   /** How many times the chain advanced after an attempt that had executed tools or accepted report recovery. */
   readonly restartAfterWorkCount: number;
   readonly reportNudgeCount: 0 | 1;
@@ -140,13 +163,20 @@ export interface DelegateProgress {
   /** True only when outcome is BLOCKED with accepted reason finding_reported; never inferred from role. */
   readonly blockedMisuseSuspected?: boolean;
   readonly deadlineCause?: DeadlineCause;
+  readonly stallCause?: StallCause;
   readonly cleanupFailureReason?: CleanupFailureReason;
   readonly interruptionSource?: InterruptionSource;
-  readonly workBudgetSeconds?: number;
-  readonly remainingWorkSecondsAtAttemptStart?: number;
+  /** Fixed bounded lease-warning label; one label at most is active at a time. */
+  readonly leaseWarning?: "activity" | "progress";
+  readonly rpcIdleSeconds?: number;
+  readonly progressIdleSeconds?: number;
+  readonly activityEventCount: number;
+  readonly structuralProgressCount: number;
+  readonly duplicateCheckpointCount: number;
   readonly activeToolCount?: number;
   readonly activeToolName?: string;
   readonly activeToolElapsedSeconds?: number;
+  readonly activeToolIdleSeconds?: number;
 }
 
 export interface MonitorSnapshot {
@@ -154,9 +184,16 @@ export interface MonitorSnapshot {
   readonly lastEvent: string;
   readonly lastEventDetail?: string;
   readonly lastEventAt: string;
+  readonly lastValidRpcMonotonic: number;
   readonly lastActivityMonotonic: number;
+  readonly lastStructuralProgressMonotonic: number;
   readonly activityEventCount: number;
-  readonly warningCount: number;
+  readonly structuralProgressCount: number;
+  readonly duplicateCheckpointCount: number;
+  /** Duplicate checkpoints observed since the last novel checkpoint; drives the repeated-cycle cause. */
+  readonly duplicateCheckpointsSinceNovel: number;
+  readonly activityWarningCount: number;
+  readonly progressWarningCount: number;
   readonly finalReport?: string;
   readonly outcome?: "completed" | "blocked" | "failed";
   readonly terminalReason?: DelegateTerminalReasonValue;
@@ -172,6 +209,8 @@ export interface MonitorSnapshot {
   readonly activeToolCount: number;
   readonly activeToolName?: string;
   readonly activeToolElapsedSeconds?: number;
+  readonly activeToolIdleSeconds?: number;
+  readonly activeToolLastNovelUpdateMonotonic?: number;
   readonly routeUnavailableSeen: boolean;
   readonly providerFailureCategory?: ProviderFailureCategory;
   readonly reportRound: 1 | 2;
@@ -190,10 +229,9 @@ export interface AttemptStatus {
   readonly reasonStatus?: DelegateReasonStatus;
   readonly blockedMisuseSuspected?: boolean;
   readonly deadlineCause?: DeadlineCause;
+  readonly stallCause?: StallCause;
   readonly cleanupFailureReason?: CleanupFailureReason;
   readonly interruptionSource?: InterruptionSource;
-  readonly workBudgetSeconds: number;
-  readonly remainingWorkSecondsAtAttemptStart: number;
   readonly startedAt: string;
   readonly endedAt: string;
   readonly elapsedSeconds: number;
@@ -204,12 +242,17 @@ export interface AttemptStatus {
   readonly reportPath: string;
   readonly stderrPath: string;
   readonly activityEventCount: number;
+  readonly structuralProgressCount: number;
+  readonly duplicateCheckpointCount: number;
   readonly lastEvent: string;
   readonly lastEventDetail?: string;
   readonly lastEventAt: string;
   readonly phase: string;
-  readonly idleSeconds: number;
-  readonly idleWarningCount: number;
+  readonly activityIdleSeconds: number;
+  readonly rpcIdleSeconds: number;
+  readonly progressIdleSeconds: number;
+  readonly activityWarningCount: number;
+  readonly progressWarningCount: number;
   readonly sessionSeen: boolean;
   readonly agentStartCount: number;
   readonly agentEndCount: number;
@@ -219,6 +262,7 @@ export interface AttemptStatus {
   readonly activeToolCount: number;
   readonly activeToolName?: string;
   readonly activeToolElapsedSeconds?: number;
+  readonly activeToolIdleSeconds?: number;
   readonly routeUnavailableSeen: boolean;
   readonly providerFailureCategory?: ProviderFailureCategory;
   readonly reportNudgeCount: 0 | 1;
@@ -233,12 +277,28 @@ export interface ChainAttempt {
   readonly state: DelegateState | "catalog_unavailable";
   readonly elapsedSeconds: number;
   readonly deadlineCause?: DeadlineCause;
+  readonly stallCause?: StallCause;
+  /**
+   * Supervised liveness evidence settled at attempt end (plan §13.2):
+   * every field that has a value at settlement travels on the attempt, so
+   * prior-route liveness evidence survives fallback. Catalog-only attempts
+   * omit these fields entirely.
+   */
+  readonly rpcIdleSeconds?: number;
+  readonly activityIdleSeconds?: number;
+  readonly progressIdleSeconds?: number;
+  readonly activityEventCount?: number;
+  readonly structuralProgressCount?: number;
+  readonly duplicateCheckpointCount?: number;
+  readonly activityWarningCount?: number;
+  readonly progressWarningCount?: number;
   readonly cleanupFailureReason?: CleanupFailureReason;
   readonly interruptionSource?: InterruptionSource;
-  readonly remainingWorkSecondsAtAttemptStart?: number;
   readonly activeToolCount?: number;
   readonly activeToolName?: string;
   readonly activeToolElapsedSeconds?: number;
+  /** Idle age of the stalest active tool's last novel update at attempt end; absent when no tool was active. */
+  readonly activeToolIdleSeconds?: number;
   /** True when this attempt had executed tools or accepted recovery, so the next attempt received the restart note. */
   readonly restartAfterWork?: boolean;
 }
@@ -267,9 +327,9 @@ export interface DelegateRunResult {
   readonly reasonStatus?: DelegateReasonStatus;
   readonly blockedMisuseSuspected?: boolean;
   readonly deadlineCause?: DeadlineCause;
+  readonly stallCause?: StallCause;
   readonly cleanupFailureReason?: CleanupFailureReason;
   readonly interruptionSource?: InterruptionSource;
-  readonly workBudgetSeconds: number;
 }
 
 export interface DelegateToolParams {
@@ -381,9 +441,16 @@ export interface RunOptions {
   /** Deterministic injection point for random primary selection inside multi-provider tiers. */
   readonly random?: () => number;
   readonly onProgress?: (progress: DelegateProgress) => void;
-  readonly timeoutMs?: number;
-  readonly idleWarningMs?: number;
-  readonly idleTimeoutMs?: number;
+  /** Internal test seam for the five-minute accepted-activity warning. */
+  readonly activityWarningMs?: number;
+  /** Internal test seam for the ten-minute accepted-activity idle lease. */
+  readonly activityIdleMs?: number;
+  /** Internal test seam for the thirty-minute structural-progress warning. */
+  readonly progressWarningMs?: number;
+  /** Internal test seam for the renewable 45-minute structural-progress lease. */
+  readonly progressStallMs?: number;
+  /** Internal test seam for the five-minute report-recovery idle lease. */
+  readonly reportRecoveryIdleMs?: number;
   readonly maxOutputBytes?: number;
   /** Internal test seam for the fixed five-second SIGTERM grace. */
   readonly graceMs?: number;

@@ -105,7 +105,6 @@ async function run(script: string, overrides: Partial<Parameters<typeof supervis
   const attemptDir = path.join(built.root, "attempt");
   await createPrivateDirectory(attemptDir);
   const progress: DelegateProgress[] = [];
-  const timeoutMs = overrides.timeoutMs ?? 2000;
   const status = await supervisePi({
     label: "test",
     role: "review-a",
@@ -117,12 +116,11 @@ async function run(script: string, overrides: Partial<Parameters<typeof supervis
     piInvocation: built.invocation,
     runtimeResourceArgs: RUNTIME_RESOURCE_ARGS,
     verifyRuntimeResources: () => {},
-    timeoutMs,
-    workDeadline: performance.now() + timeoutMs,
-    workBudgetSeconds: timeoutMs / 1000,
-    remainingWorkSecondsAtAttemptStart: timeoutMs / 1000,
-    idleWarningMs: 100,
-    idleTimeoutMs: 500,
+    activityWarningMs: 100,
+    activityIdleMs: 500,
+    progressWarningMs: 900,
+    progressStallMs: 4000,
+    reportRecoveryIdleMs: 400,
     maxOutputBytes: 1024 * 1024,
     graceMs: 100,
     onProgress: (value) => progress.push(value),
@@ -234,7 +232,6 @@ test("a failed pre-spawn resource verification rejects before any child spawns",
   const verification = new Error(
     "delegated-pi-loop resource policy invalid: an approved extension entry no longer resolves to its validated canonical path",
   );
-  const timeoutMs = 2000;
   await assert.rejects(
     supervisePi({
       label: "test",
@@ -249,12 +246,11 @@ test("a failed pre-spawn resource verification rejects before any child spawns",
       verifyRuntimeResources: () => {
         throw verification;
       },
-      timeoutMs,
-      workDeadline: performance.now() + timeoutMs,
-      workBudgetSeconds: timeoutMs / 1000,
-      remainingWorkSecondsAtAttemptStart: timeoutMs / 1000,
-      idleWarningMs: 100,
-      idleTimeoutMs: 500,
+      activityWarningMs: 100,
+      activityIdleMs: 500,
+      progressWarningMs: 900,
+      progressStallMs: 4000,
+      reportRecoveryIdleMs: 400,
       maxOutputBytes: 1024 * 1024,
       graceMs: 100,
     }),
@@ -482,7 +478,7 @@ test("fixed interruption sources propagate and arbitrary reasons become unknown"
     setTimeout(() => controller.abort(reason), 50);
     const { status } = await run(eventScript([[{ type: "agent_start" }]]), {
       signal: controller.signal,
-      idleTimeoutMs: 1000,
+      activityIdleMs: 1000,
     });
     assert.equal(status.state, "interrupted");
     assert.equal(status.interruptionSource, expected);
@@ -495,7 +491,7 @@ test("cancellation during recovery keeps one manager attempt and kills the child
   setTimeout(() => controller.abort(), 150);
   const { status } = await run(eventScript([missing(), [{ type: "agent_start" }]]), {
     signal: controller.signal,
-    idleTimeoutMs: 1000,
+    activityIdleMs: 1000,
   });
   assert.equal(status.state, "interrupted");
   assert.equal(status.reportNudgeCount, 1);
@@ -525,7 +521,7 @@ process.stdin.on("data", (chunk) => {
   assert.notEqual(status.state, "routes_unavailable");
 });
 
-test("the wall deadline does not reset for recovery", async () => {
+test("a silent recovery round reaches its own bounded report_recovery_idle lease", async () => {
   const script = `
 let buffer = ""; let round = 0;
 process.stdin.on("data", (chunk) => {
@@ -538,19 +534,120 @@ process.stdin.on("data", (chunk) => {
     if (round === 1) setTimeout(() => {
       process.stdout.write(JSON.stringify({ type: "agent_end", willRetry: false }) + "\\n");
       process.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\\n");
-    }, 150);
+    }, 100);
   }
 });
 setInterval(() => {}, 1000);
 `;
-  const { status } = await run(script, { timeoutMs: 300, idleWarningMs: 200, idleTimeoutMs: 1000 });
-  assert.equal(status.state, "timed_out");
+  const { status } = await run(script, {
+    activityWarningMs: 150,
+    activityIdleMs: 5000,
+    progressWarningMs: 4000,
+    progressStallMs: 9000,
+    reportRecoveryIdleMs: 350,
+  });
+  assert.equal(status.state, "stalled");
+  assert.equal(status.stallCause, "report_recovery_idle");
+  assert.equal(status.deadlineCause, "idle_deadline");
   assert.equal(status.reportNudgeCount, 1);
-  assert.ok(status.elapsedSeconds < 0.45, `deadline reset unexpectedly: ${status.elapsedSeconds}s`);
+  assert.equal(status.reportRound, 2);
+  assert.ok(status.elapsedSeconds < 1.2, `recovery lease must stay bounded, got ${status.elapsedSeconds}s`);
 });
 
-test("continued meaningful activity never extends the global work deadline", async () => {
-  for (const activity of ["thinking", "tool"] as const) {
+test("entry_appended-only traffic stalls on activity_idle while RPC health stays fresh", async () => {
+  // The child accepts the prompt, then streams only entry_appended records
+  // carrying seeded payloads. Every framed record renews supervisor-level
+  // RPC health, but the ignored session-log events renew no activity, so the
+  // activity lease expires first and the progress lease is never reached.
+  const script = `
+let buffer = "";
+let appended = 0;
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  while (buffer.includes("\\n")) {
+    const index = buffer.indexOf("\\n");
+    const line = buffer.slice(0, index);
+    buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type !== "prompt") continue;
+    process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+    setInterval(() => {
+      appended += 1;
+      process.stdout.write(JSON.stringify({ type: "entry_appended", entry: { content: "SECRET-ENTRY-" + appended, path: "/home/gc/SECRET-PATH-9f2a" } }) + "\\n");
+    }, 60);
+  }
+});
+setInterval(() => {}, 1000);
+`;
+  const { status, progress } = await run(script);
+  assert.equal(status.state, "stalled");
+  assert.equal(status.stallCause, "activity_idle");
+  assert.equal(status.deadlineCause, "idle_deadline");
+  assert.equal(status.activityEventCount, 2, "only the response-accepted pair counts as activity");
+  // RPC health kept renewing on the framed records while the activity lease
+  // expired, so the stall is the accepted-activity family, never rpc_silent.
+  assert.ok(status.activityIdleSeconds >= 0.5, `activity lease must expire, got ${status.activityIdleSeconds}s`);
+  assert.ok(status.rpcIdleSeconds < 0.5, `rpc health must stay fresh, got ${status.rpcIdleSeconds}s`);
+  assert.ok(status.rpcIdleSeconds < status.activityIdleSeconds);
+  const surfaces = JSON.stringify(status) + JSON.stringify(progress);
+  assert.doesNotMatch(surfaces, /SECRET|ENTRY|home\/gc/);
+});
+
+test("recovery-round entry_appended traffic cannot renew the report lease", async () => {
+  // Round 1 settles with a missing report, then the recovery round streams
+  // only entry_appended records: they stay RPC-valid, but the reporting
+  // phase's own short activity lease expires as report_recovery_idle.
+  const script = `
+let buffer = ""; let round = 0;
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  while (buffer.includes("\\n")) {
+    const index = buffer.indexOf("\\n");
+    const line = buffer.slice(0, index);
+    buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type !== "prompt") continue;
+    round += 1;
+    process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+    if (round === 1) {
+      process.stdout.write(JSON.stringify({ type: "agent_end", willRetry: false }) + "\\n");
+      process.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\\n");
+    } else {
+      let appended = 0;
+      setInterval(() => {
+        appended += 1;
+        process.stdout.write(JSON.stringify({ type: "entry_appended", entry: { content: "SECRET-RECOVERY-" + appended } }) + "\\n");
+      }, 60);
+    }
+  }
+});
+setInterval(() => {}, 1000);
+`;
+  const { status, progress } = await run(script, {
+    activityWarningMs: 150,
+    activityIdleMs: 5000,
+    progressWarningMs: 4000,
+    progressStallMs: 9000,
+    reportRecoveryIdleMs: 400,
+  });
+  assert.equal(status.state, "stalled");
+  assert.equal(status.stallCause, "report_recovery_idle");
+  assert.equal(status.deadlineCause, "idle_deadline");
+  assert.equal(status.reportNudgeCount, 1);
+  assert.equal(status.reportRound, 2);
+  assert.ok(status.activityIdleSeconds >= 0.4, `report lease must expire, got ${status.activityIdleSeconds}s`);
+  assert.ok(status.rpcIdleSeconds < 0.5, `rpc health must stay fresh, got ${status.rpcIdleSeconds}s`);
+  assert.ok(status.elapsedSeconds < 1.5, `recovery lease must stay bounded, got ${status.elapsedSeconds}s`);
+  const surfaces = JSON.stringify(status) + JSON.stringify(progress);
+  assert.doesNotMatch(surfaces, /SECRET|RECOVERY/);
+});
+
+test("endless model deltas keep activity fresh but stagnate structural progress", async () => {
+  for (const activity of ["thinking", "text", "toolcall", "tool-changing"] as const) {
     const script = `
 let buffer = "";
 process.stdin.on("data", (chunk) => {
@@ -559,27 +656,144 @@ process.stdin.on("data", (chunk) => {
   const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
   process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
   process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
-  ${activity === "tool" ? "process.stdout.write(JSON.stringify({ type: 'tool_execution_start', toolCallId: 'active', toolName: 'bash', args: {} }) + '\\n');" : ""}
-  setInterval(() => process.stdout.write(JSON.stringify(${activity === "tool"
-    ? "{ type: 'tool_execution_update', toolCallId: 'active', toolName: 'bash', partialResult: {} }"
-    : "{ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', delta: 'x' } }"}) + "\\n"), 30);
+  ${activity === "tool-changing" ? "process.stdout.write(JSON.stringify({ type: 'tool_execution_start', toolCallId: 'active', toolName: 'bash', args: {} }) + '\\n');" : ""}
+  let updates = 0;
+  setInterval(() => {
+    updates += 1;
+    if (${activity === "thinking"}) process.stdout.write(JSON.stringify({ type: "message_update", assistantMessageEvent: { type: "thinking_delta", delta: "x" + updates } }) + "\\n");
+    else if (${activity === "text"}) process.stdout.write(JSON.stringify({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "x" + updates } }) + "\\n");
+    else if (${activity === "toolcall"}) process.stdout.write(JSON.stringify({ type: "message_update", assistantMessageEvent: { type: "toolcall_delta", delta: "{}" + updates } }) + "\\n");
+    else process.stdout.write(JSON.stringify({ type: "tool_execution_update", toolCallId: "active", toolName: "bash", partialResult: { n: updates } }) + "\\n");
+  }, 30);
 });
 setInterval(() => {}, 1000);
 `;
-    const { status } = await run(script, {
-      timeoutMs: 250,
-      idleWarningMs: 80,
-      idleTimeoutMs: 120,
+    const { status, progress } = await run(script, {
+      activityWarningMs: 80,
+      activityIdleMs: 3000,
+      progressWarningMs: 250,
+      progressStallMs: 450,
       cleanupTimeoutMs: 1000,
     });
-    assert.equal(status.state, "timed_out", activity);
-    assert.equal(status.deadlineCause, "work_deadline", activity);
+    assert.equal(status.state, "stalled", activity);
+    assert.equal(status.stallCause, "progress_stagnation", activity);
+    assert.equal(status.deadlineCause, "idle_deadline", activity);
+    assert.equal(status.duplicateCheckpointCount, 0, activity);
     assert.ok(status.activityEventCount >= 4, activity);
-    assert.ok(status.elapsedSeconds < 1.2, `activity extended work deadline for ${activity}: ${status.elapsedSeconds}`);
-    if (activity === "tool") {
+    assert.ok(status.elapsedSeconds < 1.4, `activity must not extend the progress lease for ${activity}: ${status.elapsedSeconds}s`);
+    assert.equal(status.progressWarningCount, 1, activity);
+    assert.ok(progress.every((item) => item.progressWarningCount <= 1), activity);
+    if (activity === "tool-changing") {
       assert.equal(status.activeToolCount, 1);
       assert.equal(status.activeToolName, "bash");
     }
+  }
+});
+
+test("identical accumulated tool updates renew neither activity nor tool liveness", async () => {
+  const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  if (!buffer.includes("\\n")) return;
+  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
+  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolCallId: "active", toolName: "ctx_batch_execute", args: {} }) + "\\n");
+  setInterval(() => process.stdout.write(JSON.stringify({ type: "tool_execution_update", toolCallId: "active", toolName: "ctx_batch_execute", partialResult: {} }) + "\\n"), 30);
+});
+setInterval(() => {}, 1000);
+`;
+  const { status } = await run(script, {
+    activityWarningMs: 100,
+    activityIdleMs: 400,
+    progressWarningMs: 3000,
+    progressStallMs: 6000,
+    cleanupTimeoutMs: 1000,
+  });
+  assert.equal(status.state, "stalled");
+  assert.equal(status.stallCause, "active_tool_idle");
+  assert.equal(status.activeToolCount, 1);
+});
+
+test("novel structural checkpoints renew the progress lease across multiple former deadlines", async () => {
+  // One novel authoritative message per 150 ms renews the lease every time;
+  // the 400 ms lease equivalent is crossed several times and the attempt
+  // still completes. No total runtime ceiling exists.
+  const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  if (!buffer.includes("\\n")) return;
+  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
+  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+  let count = 0;
+  const timer = setInterval(() => {
+    count += 1;
+    process.stdout.write(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "step " + count }] } }) + "\\n");
+    if (count >= 12) {
+      clearInterval(timer);
+      process.stdout.write(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Final report\\n\\nDELEGATE_RESULT: COMPLETED" }] } }) + "\\n");
+      process.stdout.write(JSON.stringify({ type: "agent_end", willRetry: false }) + "\\n");
+      process.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\\n");
+    }
+  }, 150);
+});
+setInterval(() => {}, 1000);
+`;
+  const { status } = await run(script, {
+    activityWarningMs: 300,
+    activityIdleMs: 1200,
+    progressWarningMs: 260,
+    progressStallMs: 400,
+    cleanupTimeoutMs: 1000,
+  });
+  assert.equal(status.state, "completed");
+  assert.equal(status.stallCause, undefined);
+  assert.equal(status.deadlineCause, undefined);
+  assert.ok(status.elapsedSeconds >= 1.5, `several lease equivalents must elapse, got ${status.elapsedSeconds}s`);
+  assert.ok(status.structuralProgressCount >= 13);
+});
+
+
+test("exact repeated checkpoint cycles stall as repeated_cycle and never renew progress", async () => {
+  for (const cycle of ["identical", "alternating"] as const) {
+    const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  if (!buffer.includes("\\n")) return;
+  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
+  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+  let count = 0;
+  setInterval(() => {
+    count += 1;
+    const text = ${cycle === "identical"} ? "the same checkpoint" : (count % 2 === 0 ? "alpha checkpoint" : "beta checkpoint");
+    process.stdout.write(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text }] } }) + "\\n");
+  }, 30);
+});
+setInterval(() => {}, 1000);
+`;
+    const { status, progress } = await run(script, {
+      activityWarningMs: 80,
+      activityIdleMs: 3000,
+      progressWarningMs: 250,
+      progressStallMs: 450,
+      cleanupTimeoutMs: 1000,
+    });
+    assert.equal(status.state, "stalled", cycle);
+    assert.equal(status.stallCause, "repeated_cycle", cycle);
+    assert.equal(status.deadlineCause, "idle_deadline", cycle);
+    assert.ok(status.duplicateCheckpointCount >= 2, cycle);
+    assert.ok(status.activityEventCount >= 4, cycle);
+    assert.equal(status.progressWarningCount, 1, cycle);
+    assert.ok(status.elapsedSeconds < 1.4, `${cycle} cycle must not renew the lease: ${status.elapsedSeconds}s`);
+    // The identical checkpoint payload and no digest material ever reach a
+    // progress surface.
+    assert.doesNotMatch(JSON.stringify(progress), /checkpoint|alpha|beta/);
+    assert.doesNotMatch(JSON.stringify(progress), /[0-9a-f]{64}/);
   }
 });
 
@@ -589,17 +803,238 @@ test("a silent active tool reaches the normal idle deadline", async () => {
     { type: "tool_execution_start", toolCallId: "silent", toolName: "ctx_batch_execute", args: {} },
   ];
   const { status, progress } = await run(eventScript([events]), {
-    timeoutMs: 1000,
-    idleWarningMs: 100,
-    idleTimeoutMs: 250,
+    activityWarningMs: 100,
+    activityIdleMs: 250,
+    progressWarningMs: 3000,
+    progressStallMs: 6000,
     cleanupTimeoutMs: 1000,
   });
   assert.equal(status.state, "stalled");
+  assert.equal(status.stallCause, "active_tool_idle");
   assert.equal(status.deadlineCause, "idle_deadline");
-  assert.equal(status.idleWarningCount, 1);
+  assert.equal(status.activityWarningCount, 1);
   assert.equal(status.activeToolCount, 1);
   assert.equal(status.activeToolName, "ctx_batch_execute");
-  assert.ok(progress.every((item) => item.idleWarningCount <= 1));
+  // Per-attempt tool idle telemetry: the exhausted lease age travels on the
+  // final status and on every live progress callback that saw the tool.
+  assert.ok(status.activeToolIdleSeconds !== undefined && status.activeToolIdleSeconds >= 0.2);
+  assert.ok(progress.every((item) => item.activeToolIdleSeconds === undefined || Number.isFinite(item.activeToolIdleSeconds)));
+  const withTool = progress.filter((item) => (item.activeToolCount ?? 0) > 0);
+  assert.ok(withTool.length > 0);
+  assert.ok(withTool.every((item) => item.activeToolIdleSeconds !== undefined));
+  assert.ok(progress.every((item) => item.activityWarningCount <= 1));
+});
+
+test("a newer updating tool cannot mask an older silent tool", async () => {
+  // Two tools stay active: the older one never updates, the newer one
+  // produces a novel accumulated update every 30 ms. The stalest-tool
+  // watchdog must stall on the older silent tool and name it.
+  const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  if (!buffer.includes("\\n")) return;
+  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
+  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolCallId: "old", toolName: "read", args: {} }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolCallId: "new", toolName: "bash", args: {} }) + "\\n");
+  let updates = 0;
+  setInterval(() => {
+    updates += 1;
+    process.stdout.write(JSON.stringify({ type: "tool_execution_update", toolCallId: "new", toolName: "bash", partialResult: { n: updates } }) + "\\n");
+  }, 30);
+});
+setInterval(() => {}, 1000);
+`;
+  const { status, progress } = await run(script, {
+    activityWarningMs: 100,
+    activityIdleMs: 400,
+    progressWarningMs: 3000,
+    progressStallMs: 6000,
+    cleanupTimeoutMs: 1000,
+  });
+  assert.equal(status.state, "stalled");
+  assert.equal(status.stallCause, "active_tool_idle");
+  assert.equal(status.activeToolCount, 2);
+  assert.equal(status.activeToolName, "read");
+  // The newer tool kept renewing accepted activity until the stall: its
+  // update was the last accepted event, so the stall is tool-idle-driven
+  // and not an activity clock expiry.
+  assert.equal(status.lastEvent, "tool_execution_update");
+  const lastToolProgress = progress.filter((item) => (item.activeToolCount ?? 0) > 0).at(-1);
+  assert.equal(lastToolProgress?.activeToolName, "read");
+});
+
+test("anonymous unallowlisted tool updates and ends invalidate the stream without touching the active tool", async () => {
+  for (const poison of [
+    { type: "tool_execution_update", toolName: "/home/gc/SECRET-fake-tool", partialResult: { n: 1 } },
+    { type: "tool_execution_end", toolName: "sk-SECRET-KEY", result: { ok: true } },
+  ] as const) {
+    const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  if (!buffer.includes("\\n")) return;
+  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
+  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolName: "ctx_batch_execute", args: {} }) + "\\n");
+  setInterval(() => process.stdout.write(JSON.stringify(${JSON.stringify(poison)}) + "\\n"), 30);
+});
+setInterval(() => {}, 1000);
+`;
+    const { status } = await run(script, {
+      activityWarningMs: 100,
+      activityIdleMs: 400,
+      progressWarningMs: 3000,
+      progressStallMs: 6000,
+      cleanupTimeoutMs: 1000,
+    });
+    // The anonymous unallowlisted name maps to the literal unknown bucket,
+    // which matches no allowlisted active tool: the first poisoned event is
+    // a fixed unmatched-event stream error and the tool stays active.
+    assert.equal(status.state, "invalid_stream", poison.type);
+    const expectedError = poison.type === "tool_execution_update"
+      ? "tool_execution_update_without_start"
+      : "tool_execution_end_without_start";
+    assert.ok(status.streamErrors.includes(expectedError), poison.type);
+    assert.equal(status.activeToolCount, 1, poison.type);
+    assert.equal(status.activeToolName, "ctx_batch_execute", poison.type);
+    assert.equal(status.lastEvent, "tool_execution_start", poison.type);
+    assert.doesNotMatch(JSON.stringify(status), /SECRET/);
+  }
+});
+
+test("a no-ID same-name update or end never matches an ID-backed active tool", async () => {
+  for (const poison of [
+    { type: "tool_execution_update", toolName: "ctx_batch_execute", partialResult: { n: 1 } },
+    { type: "tool_execution_end", toolName: "ctx_batch_execute", result: { ok: true } },
+  ] as const) {
+    const script = `
+let buffer = "";
+let updates = 0;
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  if (!buffer.includes("\\n")) return;
+  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
+  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolCallId: "call-1", toolName: "ctx_batch_execute", args: {} }) + "\\n");
+  setInterval(() => {
+    updates += 1;
+    const event = { ...${JSON.stringify(poison)} };
+    if (event.type === "tool_execution_update") event.partialResult = { n: updates };
+    process.stdout.write(JSON.stringify(event) + "\\n");
+  }, 30);
+});
+setInterval(() => {}, 1000);
+`;
+    const { status } = await run(script, {
+      activityWarningMs: 100,
+      activityIdleMs: 400,
+      progressWarningMs: 3000,
+      progressStallMs: 6000,
+      cleanupTimeoutMs: 1000,
+    });
+    // The active tool exists only under its id: key, so the no-ID event has
+    // no eligible anonymous candidate even though the sanitized name is
+    // identical: it follows the unmatched-event error path and the ID-backed
+    // tool stays active with its counters and clocks untouched.
+    assert.equal(status.state, "invalid_stream", poison.type);
+    const expectedError = poison.type === "tool_execution_update"
+      ? "tool_execution_update_without_start"
+      : "tool_execution_end_without_start";
+    assert.ok(status.streamErrors.includes(expectedError), poison.type);
+    assert.equal(status.activeToolCount, 1, poison.type);
+    assert.equal(status.activeToolName, "ctx_batch_execute", poison.type);
+    assert.equal(status.toolExecutionCount, 1, poison.type);
+    assert.equal(status.lastEvent, "tool_execution_start", poison.type);
+  }
+});
+
+test("varying duplicate multiplicity stalls as repeated_cycle instead of renewing indefinitely", async () => {
+  const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  if (!buffer.includes("\\n")) return;
+  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
+  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+  let cycle = 0;
+  setInterval(() => {
+    cycle += 1;
+    const copies = cycle;
+    process.stdout.write(JSON.stringify({ type: "turn_start" }) + "\\n");
+    for (let index = 0; index < copies; index += 1) {
+      process.stdout.write(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "the same checkpoint" }] } }) + "\\n");
+    }
+    process.stdout.write(JSON.stringify({ type: "turn_end" }) + "\\n");
+  }, 30);
+});
+setInterval(() => {}, 1000);
+`;
+  const { status, progress } = await run(script, {
+    activityWarningMs: 80,
+    activityIdleMs: 3000,
+    progressWarningMs: 250,
+    progressStallMs: 450,
+    cleanupTimeoutMs: 1000,
+  });
+  // Every cycle repeats the same single message with a strictly growing
+  // copy count, so under raw occurrence-count summaries each turn identity
+  // was unique and renewed the lease indefinitely. The turn identity is
+  // duplicate-insensitive, so no multiplicity renews the progress lease and
+  // the run reaches repeated_cycle.
+  assert.equal(status.state, "stalled");
+  assert.equal(status.stallCause, "repeated_cycle");
+  assert.equal(status.deadlineCause, "idle_deadline");
+  assert.ok(status.duplicateCheckpointCount >= 2);
+  assert.ok(status.activityEventCount >= 4);
+  assert.equal(status.progressWarningCount, 1);
+  assert.ok(status.elapsedSeconds < 1.4, `varying multiplicity must not renew the lease: ${status.elapsedSeconds}s`);
+  assert.doesNotMatch(JSON.stringify(progress), /checkpoint|[0-9a-f]{64}/);
+});
+
+test("the anonymous multi-tool watchdog stalls on the stalest silent tool by name bucket", async () => {
+  const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  if (!buffer.includes("\\n")) return;
+  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
+  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolName: "read", args: {} }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolName: "fake-unallowlisted-tool", args: {} }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolName: "bash", args: {} }) + "\\n");
+  let updates = 0;
+  setInterval(() => {
+    updates += 1;
+    process.stdout.write(JSON.stringify({ type: "tool_execution_update", toolName: "bash", partialResult: { n: updates } }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "tool_execution_update", toolName: "other-fake-tool", partialResult: { n: updates } }) + "\\n");
+  }, 30);
+});
+setInterval(() => {}, 1000);
+`;
+  const { status, progress } = await run(script, {
+    activityWarningMs: 100,
+    activityIdleMs: 400,
+    progressWarningMs: 3000,
+    progressStallMs: 6000,
+    cleanupTimeoutMs: 1000,
+  });
+  // The bash-named and unknown-bucket tools keep renewing through anonymous
+  // name-exact updates; only the silent anonymous read tool goes idle.
+  assert.equal(status.state, "stalled");
+  assert.equal(status.stallCause, "active_tool_idle");
+  assert.equal(status.activeToolCount, 3);
+  assert.equal(status.activeToolName, "read");
+  assert.equal(status.lastEvent, "tool_execution_update");
+  const withTools = progress.filter((item) => (item.activeToolCount ?? 0) > 0);
+  assert.ok(withTools.length > 0);
+  assert.ok(withTools.every((item) => item.activeToolName === "read"));
 });
 
 test("output bytes accumulate across the initial and recovery commands", async () => {
@@ -628,8 +1063,10 @@ process.stdin.on("data", (chunk) => {
 setInterval(() => {}, 1000);
 `;
   const { status } = await run(script, {
-    timeoutMs: 5000,
-    idleTimeoutMs: 4000,
+    activityWarningMs: 1000,
+    activityIdleMs: 4000,
+    progressWarningMs: 4500,
+    progressStallMs: 5000,
     maxOutputBytes: 50 * 1024 * 1024,
   });
   assert.equal(status.state, "output_limit");
@@ -659,6 +1096,172 @@ setInterval(() => {}, 1000);
   assert.throws(() => process.kill(pid, 0), /ESRCH/);
 });
 
+/** Fixture body whose leader accepts the prompt, starts one pipe-inheriting descendant, then exits zero. */
+function leaderExitScript(descendantCode: string): string {
+  return `
+import { spawn } from "node:child_process";
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  while (buffer.includes("\\n")) {
+    const index = buffer.indexOf("\\n");
+    const line = buffer.slice(0, index);
+    buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type !== "prompt") continue;
+    process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+    process.stderr.write("CHILD=" + process.pid + "\\n");
+    const descendant = spawn(process.execPath, ["-e", ${JSON.stringify(descendantCode)}], { stdio: ["ignore", "inherit", "inherit"] });
+    descendant.on("spawn", () => {
+      process.stderr.write("DESCENDANT=" + descendant.pid + "\\n");
+      setTimeout(() => process.exit(0), 50);
+    });
+  }
+});
+`;
+}
+
+/** Reads the CHILD and DESCENDANT pids recorded by a leaderExitScript run. */
+async function fixturePids(attemptDir: string): Promise<{ readonly leader: number; readonly descendant: number }> {
+  const stderr = await readFile(path.join(attemptDir, "stderr.log"), "utf8");
+  const leader = Number(/CHILD=(\d+)/.exec(stderr)?.[1]);
+  const descendant = Number(/DESCENDANT=(\d+)/.exec(stderr)?.[1]);
+  assert.ok(Number.isSafeInteger(leader));
+  assert.ok(Number.isSafeInteger(descendant));
+  return { leader, descendant };
+}
+
+test("leader-exit settlement honors a descendant's late completion inside the window", { skip: process.platform !== "linux" }, async () => {
+  // The leader exits zero with the stdio pipe still held by a descendant,
+  // so the close event cannot fire. The descendant writes the valid terminal
+  // completion inside the fixed settlement window: the stream stays active,
+  // the late result completes the run, and no descendant survives cleanup.
+  const late = completed("Late descendant report\n\nDELEGATE_RESULT: COMPLETED").slice(1);
+  const descendantCode = `setTimeout(() => {
+  for (const event of ${JSON.stringify(late)}) process.stdout.write(JSON.stringify(event) + "\\n");
+}, 300);`;
+  const { status, attemptDir } = await run(leaderExitScript(descendantCode));
+  assert.equal(status.state, "completed");
+  assert.equal(status.exitCode, 0);
+  assert.equal(status.completionCleanupPerformed, true);
+  assert.deepEqual(status.streamErrors, []);
+  const report = await readFile(path.join(attemptDir, "report.md"), "utf8");
+  assert.match(report, /Late descendant report/);
+  assert.match(report, /DELEGATE_RESULT: COMPLETED/);
+  const pids = await fixturePids(attemptDir);
+  assert.ok(await isGone(pids.leader), "the exited leader must stay gone");
+  assert.ok(await isGone(pids.descendant), "the descendant must not survive the run");
+  assert.ok(status.elapsedSeconds < 5, `settlement must stay bounded, got ${status.elapsedSeconds}s`);
+});
+
+test("an inherited pipe held open beyond the settlement window fails closed and boundedly", { skip: process.platform !== "linux" }, async () => {
+  // The descendant inherits the leader's stdio and holds it open far beyond
+  // the settlement window without writing anything. The window expires, the
+  // incomplete snapshot is classified, group termination stays inside the
+  // remaining cleanup budget, and the group is proven dead before return.
+  const descendantCode = "setInterval(() => {}, 1000);";
+  const { status, attemptDir } = await run(leaderExitScript(descendantCode), { graceMs: 200 });
+  assert.equal(status.state, "invalid_stream");
+  assert.equal(status.exitCode, 0);
+  assert.equal(status.cleanupFailureReason, undefined);
+  assert.equal(status.reportPresent, false);
+  assert.ok(status.elapsedSeconds >= 0.9, `the settlement window must run first, got ${status.elapsedSeconds}s`);
+  assert.ok(
+    status.elapsedSeconds < 10.5,
+    `settlement plus cleanup must stay inside the cleanup budget, got ${status.elapsedSeconds}s`,
+  );
+  const pids = await fixturePids(attemptDir);
+  assert.ok(await isGone(pids.leader), "the exited leader must stay gone");
+  assert.ok(await isGone(pids.descendant), "no descendant may survive the settled run");
+});
+
+test("a late completion after the settlement window cannot flip the frozen decision", { skip: process.platform !== "linux" }, async () => {
+  // The descendant traps SIGTERM and writes the valid completion only after
+  // the window already froze the incomplete snapshot as invalid_stream. The
+  // late record is consumed after the decision, so the terminal decision
+  // stands while the group is still proven dead.
+  const late = completed("Too late report\n\nDELEGATE_RESULT: COMPLETED").slice(1);
+  const descendantCode = `process.on("SIGTERM", () => {});
+setTimeout(() => {
+  for (const event of ${JSON.stringify(late)}) process.stdout.write(JSON.stringify(event) + "\\n");
+}, 1800);`;
+  const { status, attemptDir } = await run(leaderExitScript(descendantCode), { graceMs: 2500 });
+  assert.equal(status.state, "invalid_stream");
+  assert.equal(status.exitCode, 0);
+  assert.deepEqual(status.streamErrors, []);
+  assert.equal(status.reportPresent, true, "the late record is still consumed as stream evidence");
+  assert.ok(status.elapsedSeconds >= 1.0, `the settlement window must run first, got ${status.elapsedSeconds}s`);
+  assert.ok(status.elapsedSeconds < 10.5, `bounded cleanup must hold, got ${status.elapsedSeconds}s`);
+  const pids = await fixturePids(attemptDir);
+  assert.ok(await isGone(pids.leader), "the exited leader must stay gone");
+  assert.ok(await isGone(pids.descendant), "no descendant may survive the settled run");
+});
+
+test("late records inside the window are honored and never overwrite a terminal decision", { skip: process.platform !== "linux" }, async () => {
+  const lateTerminal = {
+    type: "message_end",
+    message: {
+      role: "assistant",
+      stopReason: "stop",
+      content: [{ type: "text", text: "Stopped late\n\nDELEGATE_REASON: budget_exhausted\nDELEGATE_RESULT: BLOCKED" }],
+    },
+  };
+  const descendantCode = `process.on("SIGTERM", () => {});
+setTimeout(() => {
+  process.stdout.write(JSON.stringify(${JSON.stringify(lateTerminal)}) + "\\n");
+}, 300);
+setTimeout(() => {
+  process.stdout.write(JSON.stringify({ type: "agent_end", willRetry: false }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "entry_appended", entry: { content: "SECRET-LATE" } }) + "\\n");
+}, 700);`;
+  const { status, attemptDir, progress } = await run(leaderExitScript(descendantCode), { graceMs: 2000 });
+  // The BLOCKED terminal inside the window is honored as the decision...
+  assert.equal(status.state, "blocked");
+  assert.equal(status.delegateOutcome, "blocked");
+  assert.equal(status.terminalReason, "budget_exhausted");
+  assert.equal(status.reasonStatus, "accepted");
+  assert.deepEqual(status.streamErrors, []);
+  const report = await readFile(path.join(attemptDir, "report.md"), "utf8");
+  assert.match(report, /DELEGATE_RESULT: BLOCKED/);
+  // ...and the later records after the decision change nothing.
+  const pids = await fixturePids(attemptDir);
+  assert.ok(await isGone(pids.leader), "the exited leader must stay gone");
+  assert.ok(await isGone(pids.descendant), "no descendant may survive the settled run");
+  assert.ok(status.elapsedSeconds < 5, `settlement must stay bounded, got ${status.elapsedSeconds}s`);
+  assert.doesNotMatch(JSON.stringify(status) + JSON.stringify(progress) + report, /SECRET-LATE/);
+});
+
+test("a natural close stays immediate and never waits the settlement window", async () => {
+  // The leader answers the prompt and exits zero with no descendant, so the
+  // close event settles at once: no settlement-window wait, and the parser
+  // is drained and finalized on the natural path.
+  const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  while (buffer.includes("\\n")) {
+    const index = buffer.indexOf("\\n");
+    const line = buffer.slice(0, index);
+    buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type !== "prompt") continue;
+    process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+    setTimeout(() => process.exit(0), 20);
+  }
+});
+`;
+  const { status } = await run(script);
+  assert.equal(status.state, "invalid_stream");
+  assert.equal(status.exitCode, 0);
+  assert.deepEqual(status.streamErrors, []);
+  assert.ok(status.elapsedSeconds < 0.9, `natural close must settle at once, got ${status.elapsedSeconds}s`);
+});
+
 /** Shared body for progress-sink failure tests: supervisePi must reject with the exact original sink error after full cleanup. */
 async function runSinkFailure(
   script: string,
@@ -681,12 +1284,11 @@ async function runSinkFailure(
       piInvocation: built.invocation,
       runtimeResourceArgs: RUNTIME_RESOURCE_ARGS,
       verifyRuntimeResources: () => {},
-      timeoutMs: 2500,
-      workDeadline: performance.now() + 2500,
-      workBudgetSeconds: 2.5,
-      remainingWorkSecondsAtAttemptStart: 2.5,
-      idleWarningMs: 200,
-      idleTimeoutMs: 2300,
+      activityWarningMs: 200,
+      activityIdleMs: 2300,
+      progressWarningMs: 2400,
+      progressStallMs: 2500,
+      reportRecoveryIdleMs: 2300,
       maxOutputBytes: 1024 * 1024,
       graceMs: 100,
       onProgress,
@@ -757,7 +1359,7 @@ setInterval(() => {}, 1000);
   const { attemptDir } = await runSinkFailure(script, sinkError, (progress) => {
     seen.push(progress.lastEvent);
     if (seen.length >= 2) throw sinkError;
-  }, { timeoutMs: 3500, idleWarningMs: 3000, idleTimeoutMs: 3400 });
+  }, { activityWarningMs: 3000, activityIdleMs: 3400, progressWarningMs: 3450, progressStallMs: 3500, reportRecoveryIdleMs: 3400 });
   // The first interval delivery reached the healthy sink unchanged; the
   // second one threw.
   assert.equal(seen[0], "process_start", "a normal interval delivery must precede the failure");
@@ -780,9 +1382,330 @@ test("partial trailing JSON fails a completed lifecycle closed", async () => {
   assert.ok(status.streamErrors.includes("rpc_partial_record"));
 });
 
+test("recovery-round tool lifecycle events terminate as invalid_stream for all three event types", async () => {
+  const round1 = [
+    { type: "agent_start" },
+    { type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: { path: "PRIVATE" } },
+    { type: "tool_execution_end", toolCallId: "r1", toolName: "read", result: { ok: true } },
+    { type: "agent_end", willRetry: false },
+    { type: "agent_settled" },
+  ];
+  const recoveryToolEvents = [
+    { type: "tool_execution_start", toolCallId: "r2", toolName: "bash", args: {} },
+    { type: "tool_execution_update", toolCallId: "r2", toolName: "bash", partialResult: { n: 1 } },
+    { type: "tool_execution_end", toolCallId: "r2", toolName: "bash", result: { ok: true } },
+  ];
+  for (const toolEvent of recoveryToolEvents) {
+    const { status, root } = await run(eventScript([round1, [{ type: "agent_start" }, toolEvent]]));
+    assert.equal(status.state, "invalid_stream", toolEvent.type);
+    assert.ok(status.streamErrors.includes("tool_execution_in_recovery_round"), toolEvent.type);
+    // The cumulative round-1 tool count and exactly one recovery prompt are
+    // preserved; there is never a third round.
+    assert.equal(status.toolExecutionCount, 1, toolEvent.type);
+    assert.equal(status.reportNudgeCount, 1, toolEvent.type);
+    assert.equal(status.reportRound, 2, toolEvent.type);
+    const commands = (await readFile(path.join(root, "commands.jsonl"), "utf8")).trim().split("\n");
+    assert.equal(commands.length, 2, toolEvent.type);
+  }
+});
+
+test("oversized tool-call ids fail closed before buffering for all three lifecycle types", async () => {
+  // Two valid tools (one id-backed, one anonymous) start at once; the
+  // oversized-id event arrives later and produces only the fixed protocol
+  // error, so it can never match, remove, or count either active tool and
+  // never renews the valid-RPC clock on its way to invalid_stream.
+  const earlyStarts = `process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolCallId: "valid", toolName: "bash", args: {} }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolName: "read", args: {} }) + "\\n");`;
+  const cases: ReadonlyArray<[string, string, string, number]> = [
+    [
+      "start",
+      "",
+      `{ type: "tool_execution_start", toolCallId: "x".repeat(201), toolName: "bash", args: { path: "PRIVATE" } }`,
+      0,
+    ],
+    [
+      "update",
+      earlyStarts,
+      `{ type: "tool_execution_update", toolCallId: "valid" + "x".repeat(196), toolName: "bash", partialResult: { n: 1 } }`,
+      2,
+    ],
+    [
+      "end",
+      earlyStarts,
+      `{ type: "tool_execution_end", toolCallId: "v".repeat(201), toolName: "read", result: { ok: true } }`,
+      2,
+    ],
+  ];
+  for (const [label, early, oversizedEvent, activeTools] of cases) {
+    const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  while (buffer.includes("\\n")) {
+    const index = buffer.indexOf("\\n");
+    const line = buffer.slice(0, index);
+    buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type !== "prompt") continue;
+    process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+    ${early}
+    setTimeout(() => {
+      process.stdout.write(JSON.stringify(${oversizedEvent}) + "\\n");
+    }, 450);
+  }
+});
+setInterval(() => {}, 1000);
+`;
+    const { status } = await run(script, {
+      activityIdleMs: 2000,
+      progressStallMs: 8000,
+    });
+    assert.equal(status.state, "invalid_stream", label);
+    assert.ok(status.streamErrors.includes("rpc_tool_call_id_too_long"), `${label}: ${JSON.stringify(status.streamErrors)}`);
+    assert.equal(status.activeToolCount, activeTools, label);
+    assert.equal(status.toolExecutionCount, activeTools, label);
+    assert.ok(
+      status.rpcIdleSeconds >= 0.3,
+      `${label}: rpc idle ${status.rpcIdleSeconds}s must include the pre-error gap`,
+    );
+    assert.doesNotMatch(JSON.stringify(status), /PRIVATE/);
+  }
+});
+
+test("a pre-prompt oversized tool-call id reports only the fixed rpc error", async () => {
+  // The oversized lifecycle event is written before the prompt response, so
+  // the bound fires while the prompt is still pending: one fixed protocol
+  // error, no buffering, and no renewal of RPC health.
+  const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  while (buffer.includes("\\n")) {
+    const index = buffer.indexOf("\\n");
+    const line = buffer.slice(0, index);
+    buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type !== "prompt") continue;
+    process.stdout.write(JSON.stringify({ type: "tool_execution_end", toolCallId: ${JSON.stringify("y".repeat(201))} }) + "\\n");
+  }
+});
+setInterval(() => {}, 1000);
+`;
+  const { status } = await run(script, { activityIdleMs: 2000, progressStallMs: 8000 });
+  assert.equal(status.state, "invalid_stream");
+  assert.deepEqual(status.streamErrors, ["rpc_tool_call_id_too_long"]);
+  assert.equal(status.sessionSeen, false);
+  assert.equal(status.agentStartCount, 0);
+});
+
+test("recovery-round streamed toolcall events terminate as invalid_stream for all three subtypes", async () => {
+  const round1 = [
+    { type: "agent_start" },
+    { type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: { path: "PRIVATE" } },
+    { type: "tool_execution_end", toolCallId: "r1", toolName: "read", result: { ok: true } },
+    { type: "agent_end", willRetry: false },
+    { type: "agent_settled" },
+  ];
+  const recoveryToolcallEvents = [
+    { type: "message_update", assistantMessageEvent: { type: "toolcall_start" } },
+    { type: "message_update", assistantMessageEvent: { type: "toolcall_delta", delta: "{}" } },
+    { type: "message_update", assistantMessageEvent: { type: "toolcall_end" } },
+  ];
+  for (const toolcallEvent of recoveryToolcallEvents) {
+    const label = `${toolcallEvent.type}:${toolcallEvent.assistantMessageEvent.type}`;
+    const { status, root } = await run(eventScript([round1, [{ type: "agent_start" }, toolcallEvent]]));
+    assert.equal(status.state, "invalid_stream", label);
+    assert.ok(status.streamErrors.includes("tool_execution_in_recovery_round"), label);
+    // Streamed tool selection is reporting-only in round 2: the cumulative
+    // round-1 tool count, exactly one recovery prompt, and no third round.
+    assert.equal(status.toolExecutionCount, 1, label);
+    assert.equal(status.reportNudgeCount, 1, label);
+    assert.equal(status.reportRound, 2, label);
+    const commands = (await readFile(path.join(root, "commands.jsonl"), "utf8")).trim().split("\n");
+    assert.equal(commands.length, 2, label);
+  }
+});
+
+test("seeded tool names surface only as the fixed unknown label through status and progress", async () => {
+  const seeded = "/home/gc/SECRET-PATH-9f2a";
+  // The seeded tool starts late and then stays silent, so the interval
+  // progress callbacks observe it live and the run ends on the tool-idle
+  // lease with the sanitized name on every surface.
+  const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  while (buffer.includes("\\n")) {
+    const index = buffer.indexOf("\\n");
+    const line = buffer.slice(0, index);
+    buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type !== "prompt") continue;
+    process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+    setTimeout(() => {
+      process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolCallId: "1", toolName: ${JSON.stringify(seeded)}, args: { path: "PRIVATE" } }) + "\\n");
+    }, 1100);
+  }
+});
+setInterval(() => {}, 1000);
+`;
+  const { status, progress } = await run(script, {
+    activityWarningMs: 100,
+    activityIdleMs: 2500,
+    progressWarningMs: 3000,
+    progressStallMs: 6000,
+    cleanupTimeoutMs: 1000,
+  });
+  assert.equal(status.state, "stalled");
+  assert.equal(status.stallCause, "active_tool_idle");
+  assert.equal(status.activeToolName, "unknown");
+  assert.equal(status.lastEvent, "tool_execution_start");
+  assert.equal(status.lastEventDetail, "unknown");
+  const toolProgress = progress.filter((item) => item.lastEvent === "tool_execution_start");
+  assert.ok(toolProgress.length > 0);
+  assert.ok(toolProgress.every((item) => item.lastEventDetail === "unknown" && item.activeToolName === "unknown"));
+  assert.doesNotMatch(JSON.stringify(status), /SECRET|PRIVATE|home\/gc/);
+  assert.doesNotMatch(JSON.stringify(progress), /SECRET|PRIVATE|home\/gc/);
+});
+
+/** Child that answers round 1 validly, then emits one bad record after a delay. */
+function delayedBadRecordScript(delayMs: number, badWriter: string): string {
+  return `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  while (buffer.includes("\\n")) {
+    const index = buffer.indexOf("\\n");
+    const line = buffer.slice(0, index);
+    buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type !== "prompt") continue;
+    process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+    setTimeout(() => { ${badWriter} }, ${delayMs});
+  }
+});
+setInterval(() => {}, 1000);
+`;
+}
+
+test("protocol errors never renew the valid-RPC clock on their way to invalid_stream", async () => {
+  const cases: ReadonlyArray<[string, string, string]> = [
+    ["malformed", "rpc_malformed_json", `process.stdout.write("{not json\\n");`],
+    ["duplicate response", "rpc_duplicate_response", `process.stdout.write(JSON.stringify({ id: "prompt-1", type: "response", command: "prompt", success: true }) + "\\n");`],
+    ["unknown response", "rpc_unknown_response", `process.stdout.write(JSON.stringify({ id: "prompt-9", type: "response", command: "prompt", success: true }) + "\\n");`],
+    [
+      "oversized line",
+      "rpc_line_too_large",
+      `process.stdout.write("x".repeat(8 * 1024 * 1024 + 64));`,
+    ],
+  ];
+  for (const [label, error, writer] of cases) {
+    const { status } = await run(delayedBadRecordScript(450, writer), {
+      activityIdleMs: 2000,
+      progressStallMs: 8000,
+      maxOutputBytes: 64 * 1024 * 1024,
+    });
+    assert.equal(status.state, "invalid_stream", label);
+    assert.ok(status.streamErrors.includes(error), `${label}: ${JSON.stringify(status.streamErrors)}`);
+    // The last valid record is the pre-gap response/event pair: the RPC idle
+    // age must reflect that old renewal, proving the bad record itself did
+    // not move the valid-RPC clock before termination.
+    assert.ok(
+      status.rpcIdleSeconds >= 0.3,
+      `${label}: rpc idle ${status.rpcIdleSeconds}s must include the pre-error gap`,
+    );
+  }
+});
+
+/** Child that answers round 1 validly, optionally cancels one valid dialog, then emits one malformed dialog after a delay. */
+function delayedDialogScript(delayMs: number, badWriter: string, earlyDialogMethod?: string): string {
+  return `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  while (buffer.includes("\\n")) {
+    const index = buffer.indexOf("\\n");
+    const line = buffer.slice(0, index);
+    buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type !== "prompt") continue;
+    process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+    ${earlyDialogMethod ? `process.stdout.write(JSON.stringify({ type: "extension_ui_request", id: "ui-1", method: ${JSON.stringify(earlyDialogMethod)} }) + "\\n");` : ""}
+    setTimeout(() => { ${badWriter} }, ${delayMs});
+  }
+});
+setInterval(() => {}, 1000);
+`;
+}
+
+test("delayed malformed extension UI dialogs fail closed with the exact rpc error and preserved RPC idle age", async () => {
+  const cases: ReadonlyArray<[string, string, string, string | undefined]> = [
+    ["missing dialog id", "rpc_malformed_ui_request", `process.stdout.write(JSON.stringify({ type: "extension_ui_request", method: "confirm" }) + "\\n");`, undefined],
+    ["empty dialog id", "rpc_malformed_ui_request", `process.stdout.write(JSON.stringify({ type: "extension_ui_request", id: "", method: "select" }) + "\\n");`, undefined],
+    ["oversized dialog id", "rpc_malformed_ui_request", `process.stdout.write(JSON.stringify({ type: "extension_ui_request", id: ${JSON.stringify("x".repeat(201))}, method: "input" }) + "\\n");`, undefined],
+    ["missing method", "rpc_malformed_ui_request", `process.stdout.write(JSON.stringify({ type: "extension_ui_request", id: "ui-1" }) + "\\n");`, undefined],
+    ["oversized method", "rpc_malformed_ui_request", `process.stdout.write(JSON.stringify({ type: "extension_ui_request", id: "ui-1", method: ${JSON.stringify("m".repeat(81))} }) + "\\n");`, undefined],
+    ["duplicate dialog id", "rpc_duplicate_ui_request", `process.stdout.write(JSON.stringify({ type: "extension_ui_request", id: "ui-1", method: "editor" }) + "\\n");`, "editor"],
+  ];
+  for (const [label, error, writer, earlyDialogMethod] of cases) {
+    const { status } = await run(delayedDialogScript(450, writer, earlyDialogMethod), {
+      activityIdleMs: 2000,
+      progressStallMs: 8000,
+    });
+    assert.equal(status.state, "invalid_stream", label);
+    assert.ok(status.streamErrors.includes(error), `${label}: ${JSON.stringify(status.streamErrors)}`);
+    // The malformed dialog never renews the valid-RPC clock: the idle age
+    // still spans the full pre-error gap back to the last valid record.
+    assert.ok(
+      status.rpcIdleSeconds >= 0.3,
+      `${label}: rpc idle ${status.rpcIdleSeconds}s must include the pre-error gap`,
+    );
+  }
+});
+
+test("valid prompt responses and events still renew the valid-RPC clock once each", async () => {
+  const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  while (buffer.includes("\\n")) {
+    const index = buffer.indexOf("\\n");
+    const line = buffer.slice(0, index);
+    buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type !== "prompt") continue;
+    process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+    setTimeout(() => {
+      for (const event of ${JSON.stringify(completed().slice(1))}) process.stdout.write(JSON.stringify(event) + "\\n");
+    }, 450);
+  }
+});
+setInterval(() => {}, 1000);
+`;
+  const { status } = await run(script, {
+    activityIdleMs: 2000,
+    progressStallMs: 8000,
+  });
+  assert.equal(status.state, "completed");
+  // The final events after the gap renewed the clock, so the reported RPC
+  // idle age covers only the short settlement tail, not the 450 ms gap.
+  assert.ok(status.rpcIdleSeconds < 0.3, `rpc idle ${status.rpcIdleSeconds}s must reflect the last valid event`);
+});
+
 test("a SIGTERM-resistant group uses a separate bounded cleanup deadline", { skip: process.platform !== "linux" }, async () => {
   // The leader and descendant trap SIGTERM. Productive work stops at its own
-  // deadline, then the separate cleanup allowance proves the group dead.
+  // progress lease, then the separate cleanup allowance proves the group dead.
   const script = `
 import { spawn } from "node:child_process";
 process.on("SIGTERM", () => {});
@@ -803,20 +1726,23 @@ setInterval(() => {}, 1000);
   let attemptDir: string | undefined;
   try {
     const outcome = await run(script, {
-      timeoutMs: 400,
+      activityWarningMs: 3000,
+      activityIdleMs: 5000,
+      progressWarningMs: 300,
+      progressStallMs: 400,
+      reportRecoveryIdleMs: 5000,
       graceMs: 250,
-      idleWarningMs: 3000,
-      idleTimeoutMs: 5000,
       cleanupTimeoutMs: 1000,
     });
     attemptDir = outcome.attemptDir;
-    assert.equal(outcome.status.state, "timed_out");
+    assert.equal(outcome.status.state, "stalled");
+    assert.equal(outcome.status.stallCause, "progress_stagnation");
     assert.ok(
       outcome.status.elapsedSeconds < 1.4,
       `work plus separate cleanup must stay bounded, got ${outcome.status.elapsedSeconds}s`,
     );
-    assert.ok(outcome.status.elapsedSeconds >= 0.35, "the productive-work deadline must run first");
-    assert.equal(outcome.status.deadlineCause, "work_deadline");
+    assert.ok(outcome.status.elapsedSeconds >= 0.35, "the progress lease must run first");
+    assert.equal(outcome.status.deadlineCause, "idle_deadline");
     const stderr = await readFile(path.join(outcome.attemptDir, "stderr.log"), "utf8");
     const childPid = Number(/CHILD=(\d+)/.exec(stderr)?.[1]);
     const descendantPid = Number(/DESCENDANT=(\d+)/.exec(stderr)?.[1]);
@@ -947,9 +1873,11 @@ test("a cleanup failure after termination records the sanitized terminal cleanup
       return { ...real, groupExists: () => true };
     };
     const { status, progress, attemptDir } = await run(eventScript([[{ type: "agent_start" }]]), {
-      timeoutMs: 400,
-      idleWarningMs: 5000,
-      idleTimeoutMs: 9000,
+      activityWarningMs: 5000,
+      activityIdleMs: 9000,
+      progressWarningMs: 300,
+      progressStallMs: 400,
+      reportRecoveryIdleMs: 9000,
     });
     assert.equal(status.state, "cleanup_failed");
     assert.equal(status.reportPresent, false);
@@ -986,9 +1914,11 @@ test("a missing leader close proof propagates close_unconfirmed", async () => {
       };
     };
     const { status } = await run(eventScript([[{ type: "agent_start" }]]), {
-      timeoutMs: 200,
-      idleWarningMs: 1000,
-      idleTimeoutMs: 2000,
+      activityWarningMs: 1000,
+      activityIdleMs: 2000,
+      progressWarningMs: 150,
+      progressStallMs: 200,
+      reportRecoveryIdleMs: 2000,
       cleanupTimeoutMs: 1000,
     });
     assert.equal(status.state, "cleanup_failed");
@@ -998,101 +1928,19 @@ test("a missing leader close proof propagates close_unconfirmed", async () => {
   }
 });
 
-test("a sub-100 ms work deadline still uses one-shot precision", { skip: process.platform !== "linux" }, async () => {
-  // A shell fixture is SIGTERM-resistant within milliseconds of spawn and
-  // keeps a descendant in the same process group. The supervision share is
-  // 95 ms; the 100 ms interval's first possible deadline check is far too
-  // late, so only the one-shot soft-deadline timer can cut the route off in
-  // time and still prove a dead group plus completed cleanup inside the share.
-  const root = await mkdtemp(path.join(os.tmpdir(), "delegate-sub100-"));
-  fixtureRoots.push(root);
-  const scriptPath = path.join(root, "resist.sh");
-  const promptPath = path.join(root, "prompt.md");
-  await writeFile(scriptPath, [
-    "#!/bin/sh",
-    "trap 'echo TERM_AT=$(date +%s%3N) >&2' TERM",
-    "node -e \"process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)\" &",
-    'echo "DESCENDANT=$!" >&2',
-    'echo "CHILD=$$" >&2',
-    'echo "START_AT=$(date +%s%3N)" >&2',
-    "while :; do sleep 3600; done",
-    "",
-  ].join("\n"), { mode: 0o700 });
-  await chmod(scriptPath, 0o700);
-  await writeFile(promptPath, "test", { mode: 0o600 });
-  const attemptDir = path.join(root, "attempt");
-  await createPrivateDirectory(attemptDir);
-  const progress: DelegateProgress[] = [];
-  try {
-    const deadline = performance.now() + 95;
-    const supervisionStarted = performance.now();
-    const status = await supervisePi({
-      label: "test",
-      role: "review-a",
-      attempt: 1,
-      cwd: root,
-      artifactDir: attemptDir,
-      promptPath,
-      route: ROUTE,
-      piInvocation: { command: scriptPath, prefixArgs: [] },
-      runtimeResourceArgs: RUNTIME_RESOURCE_ARGS,
-      verifyRuntimeResources: () => {},
-      timeoutMs: 95,
-      workDeadline: deadline,
-      workBudgetSeconds: 0.095,
-      remainingWorkSecondsAtAttemptStart: 0.095,
-      cleanupTimeoutMs: 1500,
-      idleWarningMs: 5000,
-      idleTimeoutMs: 9000,
-      maxOutputBytes: 1024 * 1024,
-      graceMs: 400,
-      onProgress: (value) => progress.push(value),
-    });
-    assert.equal(status.state, "timed_out");
-    const wallMs = performance.now() - supervisionStarted;
-    // The soft supervision cutoff ran first (the share is not cut short at
-    // spawn), the whole kill-plus-cleanup finished inside the share plus
-    // scheduler tolerance, and the 100 ms ticker alone could not have
-    // stopped the route this early.
-    assert.ok(wallMs >= 25, `the soft supervision cutoff must run before termination, wall ${wallMs.toFixed(1)}ms`);
-    assert.ok(
-      wallMs < 1600,
-      `work plus separate cleanup must stay bounded, wall ${wallMs.toFixed(1)}ms`,
-    );
-    assert.equal(status.deadlineCause, "work_deadline");
-    const stderr = await readFile(path.join(attemptDir, "stderr.log"), "utf8");
-    const childPid = Number(/CHILD=(\d+)/.exec(stderr)?.[1]);
-    const descendantPid = Number(/DESCENDANT=(\d+)/.exec(stderr)?.[1]);
-    assert.ok(Number.isSafeInteger(childPid), "the resistant leader must have started");
-    assert.ok(Number.isSafeInteger(descendantPid), "the resistant descendant must have started");
-    const startAt = Number(/START_AT=(\d+)/.exec(stderr)?.[1]);
-    const termAt = Number(/TERM_AT=(\d+)/.exec(stderr)?.[1]);
-    if (Number.isSafeInteger(startAt) && Number.isSafeInteger(termAt)) {
-      assert.ok(
-        termAt - startAt < 95,
-        `SIGTERM must come from the one-shot timer before the interval could fire, waited ${termAt - startAt}ms`,
-      );
-    }
-    // The whole process group is dead and cleanup fully completed.
-    assert.ok(await isGone(childPid), "the SIGTERM-resistant leader must be dead inside the share");
-    assert.ok(await isGone(descendantPid), "the SIGTERM-resistant descendant must be dead with the group");
-    const stderrStat = await stat(path.join(attemptDir, "stderr.log"));
-    assert.equal(stderrStat.mode & 0o777, 0o600);
-    const persisted = JSON.parse(await readFile(path.join(attemptDir, "status.json"), "utf8")) as { state: string };
-    assert.equal(persisted.state, "timed_out");
-    assert.equal(progress.at(-1)?.state, "timed_out");
-    return;
-  } finally {
-    // Safety net: a failing assertion must never leak a fixture process.
-    const stderr = await readFile(path.join(attemptDir, "stderr.log"), "utf8").catch(() => "");
-    for (const pid of [/CHILD=(\d+)/, /DESCENDANT=(\d+)/].map((pattern) => Number(pattern.exec(stderr)?.[1]))) {
-      for (const target of [pid, -pid]) {
-        try {
-          process.kill(target, "SIGKILL");
-        } catch {
-          // Already dead or already reaped.
-        }
-      }
-    }
+test("supervisor source contains no total-work deadline timer or budget", async () => {
+  // The one-shot wall-deadline timer was removed with the productive-work
+  // ceiling; the interval ticker plus the pure liveness reducer are the only
+  // wall-clock authority, and total elapsed time is never a stop condition.
+  const source = await readFile(new URL("./supervisor.ts", import.meta.url), "utf8");
+  for (const forbidden of [
+    "DEFAULT_WORK_TIMEOUT_MS",
+    "workDeadline",
+    "workBudgetSeconds",
+    "remainingWorkSecondsAtAttemptStart",
+    "timed_out",
+  ]) {
+    assert.ok(!source.includes(forbidden), `supervisor.ts must not contain "${forbidden}"`);
   }
+  assert.match(source, /setInterval\(/);
 });

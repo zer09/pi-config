@@ -4,6 +4,8 @@
 
 Accepted (2026-08-27). Extends ADR 0007 and ADR 0011. Routing, role permissions, concurrency, subprocess supervision, RPC framing, report parsing, fallback, cleanup, diagnostics, and resource isolation are unchanged.
 
+Current-policy note (renewable liveness): the statement that the supervisor enforces a 45-minute productive-work deadline is superseded by ADR 0013. The supervisor still owns every wall-clock decision; the five-minute activity warning and ten-minute activity-idle termination are unchanged, and the 45-minute value is now a renewable maximum gap between novel structural checkpoints rather than a total-work ceiling. The recovery-eligibility phrase "with output and work budget remaining" is likewise superseded: recovery eligibility keeps the output cap, a running child, no prior recovery, no abort, and no begun liveness termination, but consults no work budget. No model-visible instruction changed.
+
 ## Context
 
 ADR 0011 centralized every model-visible delegation instruction in `agent/extensions/delegated-pi-loop/instructions.ts` without changing its wording. The active parent surface still carried 24 long workflow guidelines, most of which did not name `delegate_run` even though Pi appends custom-tool guidelines as one flat ungrouped list. Solution and review waiver text repeated the same rules, schema descriptions repeated role lists already present in the generated enum and workflow, and runtime-enforced transport details consumed model context without helping the parent choose its next action.
@@ -34,7 +36,7 @@ Without a broader override, solution synthesis still requires at least one compl
 
 The child prompt keeps a semantic budget: at most two materially equivalent attempts for each proof or gate, repeat only when new evidence justifies it, then report `BLOCKED` if the result remains unavailable. The child prompt contains no minute, clock, or elapsed-time instruction.
 
-The existing supervisor remains the only wall-clock authority. It uses monotonic time for the five-minute idle warning, ten-minute idle termination, and 45-minute productive-work deadline. This change does not alter those values or their activity semantics.
+The supervisor remains the only wall-clock authority. It uses monotonic time for the five-minute activity warning, ten-minute activity-idle termination, and, since ADR 0013, a renewable 45-minute structural-progress lease instead of a total productive-work deadline. This change does not alter the supervisor's time semantics; the lease replacement is governed by ADR 0013.
 
 ### Child prompts expose the task earlier and use a compact terminal grammar
 
