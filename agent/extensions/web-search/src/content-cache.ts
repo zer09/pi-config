@@ -8,6 +8,7 @@
  * on disk for the configured TTL but cannot satisfy a fresher request.
  */
 import { asFiniteNumber as asNumber, asRecord, asString } from "./value-guards.js";
+import { stripTerminalControlSequences } from "./terminal-sanitize.js";
 import type { FormattedContentEntry } from "./format.js";
 import type { ContentCacheEntry, ContentProvider } from "./types.js";
 
@@ -15,6 +16,8 @@ export const MS_PER_HOUR = 3_600_000;
 
 /** Bounded generic label rendered for any failed content fetch. */
 const FAILED_CONTENT_STATUS_LABEL = "fetch failed";
+/** Upper bound for every model-visible provider status label copy. */
+const MAX_STATUS_LABEL_CHARS = 500;
 
 type ContentCacheMiss = { index: number; normalizedUrl: string; cacheKey: string };
 
@@ -52,20 +55,34 @@ function statusLabel(status: unknown): string | undefined {
 }
 
 /**
+ * Bounds one status label for every model-visible copy.
+ *
+ * Provider status strings are provider-controlled, so each copy is stripped
+ * of terminal control sequences and capped at 500 characters with a
+ * deterministic marker; stored-record copies additionally redact secrets.
+ */
+function boundedStatusLabelForDisplay(label: string): string {
+  const stripped = stripTerminalControlSequences(label);
+  if (stripped.length <= MAX_STATUS_LABEL_CHARS) return stripped;
+  const marker = `[truncated at ${MAX_STATUS_LABEL_CHARS} characters]`;
+  return stripped.slice(0, MAX_STATUS_LABEL_CHARS - marker.length) + marker;
+}
+
+/**
  * Bounded model-visible status label for a content entry.
  *
  * Failure-like provider statuses collapse to a fixed generic label so raw
  * provider diagnostics never reach tool output or tool details. Non-failure
- * statuses surface only their short provider status field; free-text
- * `error`/`message` fields stay private.
+ * statuses surface only their short provider status field, stripped and
+ * bounded; free-text `error`/`message` fields stay private.
  */
 function safeStatusLabel(entry: ContentCacheEntry): string | undefined {
   const status = entryStatus(entry);
   if (status === undefined || status === null) return undefined;
   if (statusIndicatesFailure(status)) return FAILED_CONTENT_STATUS_LABEL;
   const record = asRecord(status);
-  if (record) return asString(record.status);
-  return typeof status === "string" ? status : undefined;
+  const label = record ? asString(record.status) : typeof status === "string" ? status : undefined;
+  return label !== undefined ? boundedStatusLabelForDisplay(label) : undefined;
 }
 
 function statusIndicatesFailure(status: unknown): boolean {

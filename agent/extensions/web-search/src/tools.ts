@@ -10,11 +10,13 @@ import {
   isGroundingFallbackAllowed,
   isUsableGroundingAttempt,
 } from "./grounding-failure.js";
-import { fetchContentsEntries, parseFetchContentsInput } from "./contents.js";
+import { fetchContentsEntries, resolveFetchContentsInput, validateFetchContentsInput } from "./contents.js";
 import {
   appendDiagnosticSuffix,
   boundCodeSearchAttemptForStorage,
   boundGroundingAttemptForStorage,
+  boundQueryForStorage,
+  boundUrlForStorage,
   buildStoredFetchContentsRecord,
   codeFailureCategory,
   fetchFailureCategory,
@@ -169,7 +171,7 @@ export function buildStoredRecord(params: {
     tool: "web_search",
     depth: params.depth,
     selectedProvider: selected?.provider ?? "none",
-    query: params.query,
+    query: boundQueryForStorage(params.query, params.secrets),
     model: primary.model,
     attempts: boundedAttempts,
     provider: selected?.provider ?? primary.provider,
@@ -217,10 +219,14 @@ export function detailsForSearch(
     failureCategories: uniqueFailureCategories(attempts.map((attempt) => groundingFailureCategory(attempt))),
     fallbackUsed,
     fallbackFrom: fallbackUsed ? "parallel" : null,
+    // Derived from the bounded stored primary attempt, so an embedded error
+    // string is already redacted and capped at the diagnostic string bound.
     fallbackReason: fallbackUsed ? fallbackReasonFromGrounding(primaryFinal) : null,
-    sourceCount: geminiAnswered ? record.normalized?.sources.length ?? null : null,
-    supportCount: geminiAnswered ? record.normalized?.supports.length ?? null : null,
-    queryCount: geminiAnswered ? record.normalized?.webSearchQueries.length ?? null : null,
+    sourceCount: geminiAnswered ? record.normalized?.sourcesTotal ?? record.normalized?.sources.length ?? null : null,
+    supportCount: geminiAnswered ? record.normalized?.supportsTotal ?? record.normalized?.supports.length ?? null : null,
+    queryCount: geminiAnswered
+      ? record.normalized?.webSearchQueriesTotal ?? record.normalized?.webSearchQueries.length ?? null
+      : null,
     ...(elapsedMs !== undefined ? { elapsedMs } : {}),
   };
 }
@@ -249,7 +255,7 @@ export function buildStoredCodeSearchRecord(params: {
     tool: "web_code_search",
     focus: params.focus,
     selectedProvider: selected?.provider ?? "none",
-    query: params.query,
+    query: boundQueryForStorage(params.query, params.secrets),
     attempts,
     degraded: params.degraded,
   };
@@ -598,20 +604,24 @@ export async function executeFetchContents(
   let config: SearchConfig | undefined;
   try {
     const params = preflightStep(PREFLIGHT_CATEGORY.invalidInput, () => asParams(rawParams));
-    config = await markPreflight(PREFLIGHT_CATEGORY.configLoadFailure, async () => options?.config ?? loadConfig());
-    // Only pure input validation and URL normalization count as invalid
-    // input: this step does no cache, provider, or cache-write work, so
-    // operational failures later in the orchestration are rethrown unchanged
-    // instead of being mislabeled invalid_input.
-    const defaultMaxAgeHours = config.contents.defaultMaxAgeHours;
-    const input = preflightStep(PREFLIGHT_CATEGORY.invalidInput, () =>
-      parseFetchContentsInput({
+    // Config-independent validation runs before the config load so invalid
+    // input always wins over loader failures. Only pure input validation and
+    // URL normalization count as invalid input: this step does no cache,
+    // provider, or cache-write work, so operational failures later in the
+    // orchestration are rethrown unchanged instead of being mislabeled
+    // invalid_input.
+    const validated = preflightStep(PREFLIGHT_CATEGORY.invalidInput, () =>
+      validateFetchContentsInput({
         rawUris: params.uris,
         rawMaxCharacters: params.maxCharacters,
         rawMaxAgeHours: params.maxAgeHours,
-        defaultMaxAgeHours,
       }),
     );
+    // An injected config needs no load step; the production loader runs only
+    // here, after validation, so a failing loader can never mask invalid input.
+    config = await markPreflight(PREFLIGHT_CATEGORY.configLoadFailure, async () => options?.config ?? loadConfig());
+    // The absent maxAgeHours default resolves only now, from the loaded config.
+    const input = resolveFetchContentsInput(validated, config.contents.defaultMaxAgeHours);
 
     const diagnostics: FetchContentsDiagnostics = { attempts: [] };
     const entries = await fetchContentsEntries({
@@ -649,17 +659,29 @@ export async function executeFetchContents(
     // already produced entries.
     await writeDiagnosticRecordSafely(config.cacheDir, record, secrets);
 
+    // Model-visible URL copies use the same redacted 500-character bound as
+    // the stored record, reusing its bounded normalized URL where the
+    // indexes align. Provider calls and cache identity above keep the full
+    // normalized URL; only content, details, and renderer copies are bounded.
+    const boundedEntries = entries.map((entry, index) => ({
+      ...entry,
+      url: boundUrlForStorage(entry.url, secrets),
+      normalizedUrl: record.results[index]?.normalizedUrl ?? boundUrlForStorage(entry.normalizedUrl, secrets),
+    }));
+
     return {
-      content: [{ type: "text", text: formatFetchedContents(entries) }],
+      content: [{ type: "text", text: formatFetchedContents(boundedEntries) }],
       details: {
         responseId,
-        results: entries.map((entry) => ({
+        results: boundedEntries.map((entry, index) => ({
           url: entry.url,
           normalizedUrl: entry.normalizedUrl,
           title: entry.title,
           fromCache: entry.fromCache,
           provider: providerForContentEntry(entry) ?? null,
-          status: entry.statusLabel ?? null,
+          // Prefer the redacted, bounded stored copy of the status label so
+          // details never carry an unbounded provider-controlled string.
+          status: record.results[index]?.status ?? entry.statusLabel ?? null,
           characterCount: entry.text.length,
         })),
         providers: resultProviders(entries),
@@ -672,12 +694,14 @@ export async function executeFetchContents(
     };
   } catch (error) {
     if (error instanceof PreflightFailure) {
+      // An injected options config stays available to invalid-input records
+      // even though validation now runs before the load step.
       await writePreflightDiagnostic({
         tool: "fetch_contents",
         category: error.category,
         error: error.causeError,
         responseId,
-        settings: preflightSettingsFrom(config),
+        settings: preflightSettingsFrom(config ?? options?.config),
         metadata: safeFetchRequestMetadata(rawParams),
       });
       throw appendDiagnosticSuffix(error.causeError, responseId);

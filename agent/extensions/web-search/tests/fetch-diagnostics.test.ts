@@ -5,7 +5,7 @@
  */
 import "./pi-tui-mock.js";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { chmod, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ToolResult } from "../src/types.js";
@@ -31,7 +31,7 @@ const {
   preflightSettingsFrom,
   writePreflightDiagnostic,
 } = await import("../src/diagnostics.js");
-const { DEFAULT_CONFIG, ONE_MONTH_MS } = await import("../src/config.js");
+const { DEFAULT_CONFIG, ONE_MONTH_MS, setConfigLoaderForTests } = await import("../src/config.js");
 const { normalizeUrl } = await import("../src/url.js");
 const { createWebSearchResultRenderer } = await import("../src/render.js");
 const {
@@ -452,9 +452,14 @@ describe("fetch record URL and collection bounds", () => {
     // The raw URL survives only inside the bounded serialized request body.
     expect(typeof exa.rawRequest.body).toBe("string");
     expect(exa.rawRequest.body.length).toBeLessThanOrEqual(DIAGNOSTIC_MAX_BODY_CHARS);
-    // Runtime semantics stay unchanged: model-visible output keeps the full URL.
-    expect(((result.details!.results as Array<{ url: string }>)[1] as { url: string }).url).toBe(longNormalized);
+    // Model-visible output reuses the stored bounded URL copies; the full
+    // normalized URL appears only in the provider request captured above.
+    const visible = (result.details!.results as Array<{ url: string; normalizedUrl: string }>)[1]!;
+    expect(visible.url).toBe(storedLongUrl);
+    expect(visible.normalizedUrl).toBe(storedLongUrl);
     expect(result.content[0].text).toContain("Exa markdown body.");
+    expect(result.content[0].text).toContain(storedLongUrl);
+    expect(result.content[0].text).not.toContain(longNormalized);
   });
 
   it("replaces a secret crossing the URL cutoff before truncation and digests the redacted URL", () => {
@@ -621,12 +626,46 @@ describe("fetch record URL and collection bounds", () => {
 
     // The caps hold the worst case at a bounded serialized size in both the
     // compact form and the stored pretty-printed form, while staying heavy
-    // enough to prove the maximum was actually exercised.
+    // enough to prove the maximum was actually exercised. The reachable
+    // ceiling (26 attempts, 25 URLs/results per attempt) keeps the worst case
+    // well below the pre-cap ~9.5 MB bound.
     const compact = JSON.stringify(record).length;
     const pretty = JSON.stringify(record, null, 2).length;
-    expect(compact).toBeGreaterThan(5_000_000);
-    expect(compact).toBeLessThanOrEqual(10_000_000);
-    expect(pretty).toBeLessThanOrEqual(20_000_000);
+    expect(compact).toBeGreaterThan(1_000_000);
+    expect(compact).toBeLessThanOrEqual(2_000_000);
+    expect(pretty).toBeLessThanOrEqual(3_000_000);
+  });
+});
+
+describe("fetch result status bounds", () => {
+  it("bounds every stored and model-visible status copy at 500 characters and strips terminal controls", async () => {
+    // A non-failure provider status whose label is oversized and carries a
+    // terminal control sequence: every copy must be stripped and bounded.
+    const longStatus = "\x1b[31mok-" + "s".repeat(2_000);
+    install((call) => {
+      if (call.url === EXA_CONTENTS_URL) {
+        return jsonResponse({
+          results: [{ url: "https://example.com/x", title: "X", text: "Exa body." }],
+          statuses: [{ id: "https://example.com/x", status: longStatus }],
+        });
+      }
+      return jsonResponse({ success: false, error: "paywall" }, 402);
+    });
+    const result = await executeFetchContents({ uris: ["https://example.com/x"] }, undefined, { config: config() });
+
+    const record = await readRecord(result.details!.responseId as string);
+    const storedStatus = record.results[0].status as string;
+    expect(storedStatus.length).toBe(500);
+    expect(storedStatus.endsWith("[truncated at 500 characters]")).toBe(true);
+    expect(storedStatus).not.toContain("\x1b");
+    // Tool details reuse the redacted stored status copy, not a raw label.
+    const detailStatus = (result.details!.results as Array<{ status: string }>)[0]!.status;
+    expect(detailStatus).toBe(storedStatus);
+    // The model-visible output carries the same bounded, stripped label.
+    const text = result.content[0].text;
+    expect(text).toContain(`Status: ${storedStatus}`);
+    expect(text).not.toContain("\x1b");
+    expect(JSON.stringify(result)).not.toContain("s".repeat(600));
   });
 });
 
@@ -773,6 +812,106 @@ describe("Exa Contents 2xx-unusable batches", () => {
   });
 });
 
+describe("config-independent fetch input validation order", () => {
+  it("rejects 26 URLs as invalid_input before the config loader is ever called", async () => {
+    const calls = install([]);
+    let loadCount = 0;
+    setConfigLoaderForTests({
+      load: () => {
+        loadCount += 1;
+        throw new Error("Deterministic loader failure");
+      },
+      fallbackCacheDir: cacheDir,
+    });
+    try {
+      const urls = Array.from({ length: 26 }, (_, i) => `https://example.com/order/${i}`);
+      let thrown: unknown;
+      try {
+        await executeFetchContents({ uris: urls }, undefined);
+      } catch (error) {
+        thrown = error;
+      }
+      expect((thrown as Error).message).toContain("uris must contain at most 25 URLs");
+      // invalid_input wins: the loader was never reached and no provider or
+      // cache I/O happened.
+      expect(loadCount).toBe(0);
+      expect(calls).toHaveLength(0);
+
+      const record = await readRecord(responseIdFromError(thrown));
+      expect(record.tool).toBe("fetch_contents");
+      expect(record.category).toBe("invalid_input");
+      expect(record.attempts).toEqual([]);
+      expect(record.metadata).toEqual({ urlCount: 26 });
+      expect(JSON.stringify(record)).not.toContain("example.com/order");
+    } finally {
+      setConfigLoaderForTests(undefined);
+    }
+  });
+
+  it("rejects maxCharacters 50001 as invalid_input before the config loader is ever called", async () => {
+    const calls = install([]);
+    let loadCount = 0;
+    setConfigLoaderForTests({
+      load: () => {
+        loadCount += 1;
+        throw new Error("Deterministic loader failure");
+      },
+      fallbackCacheDir: cacheDir,
+    });
+    try {
+      let thrown: unknown;
+      try {
+        await executeFetchContents({ uris: ["https://example.com/a"], maxCharacters: 50_001 }, undefined);
+      } catch (error) {
+        thrown = error;
+      }
+      expect((thrown as Error).message).toContain("maxCharacters must be a positive integer no greater than 50000");
+      expect(loadCount).toBe(0);
+      expect(calls).toHaveLength(0);
+
+      const record = await readRecord(responseIdFromError(thrown));
+      expect(record.category).toBe("invalid_input");
+      expect(record.attempts).toEqual([]);
+      expect(record.metadata).toEqual({ urlCount: 1, maxCharacters: 50_001 });
+    } finally {
+      setConfigLoaderForTests(undefined);
+    }
+  });
+
+  it("keeps config_load_failure for valid input when the config loader throws", async () => {
+    const calls = install([]);
+    let loadCount = 0;
+    setConfigLoaderForTests({
+      load: () => {
+        loadCount += 1;
+        throw new Error("Deterministic loader failure");
+      },
+      fallbackCacheDir: cacheDir,
+    });
+    try {
+      let thrown: unknown;
+      try {
+        await executeFetchContents({ uris: ["https://example.com/a"] }, undefined);
+      } catch (error) {
+        thrown = error;
+      }
+      expect((thrown as Error).message).toContain("Deterministic loader failure");
+      // A valid input reaches the loader exactly once and classifies its
+      // failure as config_load_failure, never invalid_input.
+      expect(loadCount).toBe(1);
+      expect(calls).toHaveLength(0);
+
+      const record = await readRecord(responseIdFromError(thrown));
+      expect(record.tool).toBe("fetch_contents");
+      expect(record.category).toBe("config_load_failure");
+      expect(record.attempts).toEqual([]);
+      expect(record.metadata).toEqual({ urlCount: 1 });
+    } finally {
+      setConfigLoaderForTests(undefined);
+    }
+  });
+});
+
 describe("preflight diagnostic records", () => {
   it("persists an invalid-input record for bad uris and rethrows with the responseId suffix", async () => {
     install([]);
@@ -811,6 +950,29 @@ describe("preflight diagnostic records", () => {
     const record = await readRecord(responseIdFromError(thrown));
     expect(record.category).toBe("invalid_input");
     expect(record.metadata).toEqual({ urlCount: 1 });
+  });
+
+  it("persists an invalid-input record with only the URL count when 26 URLs are requested", async () => {
+    const calls = install([]);
+    const urls = Array.from({ length: 26 }, (_, i) => `https://example.com/over/${i}`);
+    let thrown: unknown;
+    try {
+      await executeFetchContents({ uris: urls }, undefined, { config: config() });
+    } catch (error) {
+      thrown = error;
+    }
+    expect((thrown as Error).message).toContain("uris must contain at most 25 URLs");
+    // Rejected before any cache or provider I/O.
+    expect(calls).toHaveLength(0);
+
+    const record = await readRecord(responseIdFromError(thrown));
+    expect(record.tool).toBe("fetch_contents");
+    expect(record.phase).toBe("preflight");
+    expect(record.category).toBe("invalid_input");
+    expect(record.attempts).toEqual([]);
+    // Only the safe count survives; no requested URL value is stored.
+    expect(record.metadata).toEqual({ urlCount: 26 });
+    expect(JSON.stringify(record)).not.toContain("example.com/over");
   });
 
   it("persists an invalid-input record for web_search and web_code_search", async () => {
@@ -913,17 +1075,24 @@ describe("preflight diagnostic records", () => {
   });
 
   it("keeps returning fetched entries when only the diagnostic record write fails", async () => {
-    const responsesDir = join(cacheDir, "responses");
-    await mkdir(responsesDir, { recursive: true });
-    await chmod(responsesDir, 0o500);
+    // A regular file where the responses directory belongs makes every
+    // diagnostic write fail deterministically, without permission bits that a
+    // root runner would bypass.
+    const responsesBlocker = join(cacheDir, "responses");
+    await writeFile(responsesBlocker, "blocker", "utf8");
     install([jsonResponse(scrapeSuccess())]);
-    try {
-      const result = await executeFetchContents({ uris: ["https://example.com/a"] }, undefined, { config: config() });
-      expect(result.content[0].text).toContain("Body text.");
-      expect(result.details!.responseId).toMatch(/^wse_/);
-    } finally {
-      await chmod(responsesDir, 0o700);
-    }
+    const result = await executeFetchContents({ uris: ["https://example.com/a"] }, undefined, { config: config() });
+
+    expect(result.content[0].text).toContain("Body text.");
+    expect(result.details!.responseId).toMatch(/^wse_/);
+    // The operational content cache still received the successful entry.
+    const { contentPath } = await import("../src/storage.js");
+    const { cacheKeyForUrl } = await import("../src/url.js");
+    const cached = JSON.parse(await readFile(contentPath(cacheDir, cacheKeyForUrl("https://example.com/a")), "utf8"));
+    expect(cached.text).toContain("Body text.");
+    // No diagnostic record was written; the blocker is untouched.
+    expect(await readFile(responsesBlocker, "utf8")).toBe("blocker");
+    await expect(readdir(responsesBlocker)).rejects.toMatchObject({ code: "ENOTDIR" });
   });
 });
 
@@ -1048,6 +1217,37 @@ describe("TUI safe summaries with diagnostics", () => {
 });
 
 describe("preflight redaction boundaries", () => {
+  it("bounds the preflight query metadata at 2000 characters with redaction before truncation", async () => {
+    // The secret is configured so redaction replaces it before truncation.
+    const secret = "wse-preflight-query-boundary-" + "q".repeat(30);
+    setTestEnv({ [TEST_ENV_NAMES.exaApiKeyEnv]: secret });
+    install([]);
+
+    let thrown: unknown;
+    try {
+      // The query crosses the 2000-character cutoff; depth validation fails so
+      // the record keeps only the bounded query metadata.
+      await executeWebSearch(
+        { query: "a".repeat(1_900) + secret + "b".repeat(600), depth: "extreme" },
+        undefined,
+        { config: config() },
+      );
+    } catch (error) {
+      thrown = error;
+    }
+    expect((thrown as Error).message).toContain("depth must be one of: standard, deep");
+
+    const record = await readRecord(responseIdFromError(thrown));
+    expect(record.category).toBe("invalid_input");
+    expect(typeof record.metadata.query).toBe("string");
+    expect(record.metadata.query.length).toBeLessThanOrEqual(2_000);
+    expect(record.metadata.query.endsWith("[truncated at 2000 characters]")).toBe(true);
+    // The complete secret was replaced before truncation, so no fragment survives.
+    expect(record.metadata.query).not.toContain(secret);
+    expect(record.metadata.query).toContain(`[REDACTED_${TEST_ENV_NAMES.exaApiKeyEnv}]`);
+    expectNoSecretFragments(JSON.stringify(record), secret);
+  });
+
   it("replaces a secret crossing the string cutoff in a persisted preflight error", async () => {
     // The URL scheme is echoed verbatim into the URL-normalization error, so
     // a secret-shaped scheme crosses the 500-character diagnostic cutoff.
@@ -1148,28 +1348,28 @@ describe("operational failures are never invalid input", () => {
   });
 
   it("rethrows cache write failures unchanged after provider work succeeded", async () => {
-    await mkdir(join(cacheDir, "contents"), { recursive: true });
-    await chmod(join(cacheDir, "contents"), 0o500);
+    // maxAgeHours 0 skips every cache read; a directory where the second
+    // URL's cache file belongs then fails only the cache write, with the
+    // same errno for root and non-root runners.
+    const { contentPath } = await import("../src/storage.js");
+    const { cacheKeyForUrl } = await import("../src/url.js");
+    await mkdir(contentPath(cacheDir, cacheKeyForUrl("https://example.com/b")), { recursive: true });
     install([jsonResponse(scrapeSuccess("# A", "https://example.com/a")), jsonResponse(scrapeSuccess("# B", "https://example.com/b"))]);
+    let thrown: unknown;
     try {
-      let thrown: unknown;
-      try {
-        await executeFetchContents(
-          { uris: ["https://example.com/a", "https://example.com/b"] },
-          undefined,
-          { config: config() },
-        );
-      } catch (error) {
-        thrown = error;
-      }
-      expect(thrown).toBeInstanceOf(Error);
-      expect((thrown as NodeJS.ErrnoException).code).toBe("EACCES");
-      expect((thrown as Error).message).not.toMatch(/Diagnostic responseId=/);
-      expect((thrown as Error).message).not.toContain("uris must be");
-      await expectNoStoredRecords();
-    } finally {
-      await chmod(join(cacheDir, "contents"), 0o700);
+      await executeFetchContents(
+        { uris: ["https://example.com/a", "https://example.com/b"], maxAgeHours: 0 },
+        undefined,
+        { config: config() },
+      );
+    } catch (error) {
+      thrown = error;
     }
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as NodeJS.ErrnoException).code).toBe("EISDIR");
+    expect((thrown as Error).message).not.toMatch(/Diagnostic responseId=/);
+    expect((thrown as Error).message).not.toContain("uris must be");
+    await expectNoStoredRecords();
   });
 
   it("still records pure validation and URL-normalization failures as invalid input", async () => {

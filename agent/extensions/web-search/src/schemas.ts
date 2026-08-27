@@ -1,3 +1,4 @@
+import { MAX_CONTENT_CHARACTERS, MAX_FETCH_CONTENT_URLS } from "./limits.js";
 import type { JsonSchema } from "./types.js";
 
 export const webSearchSchema = {
@@ -47,13 +48,15 @@ export const fetchContentsSchema = {
     uris: {
       type: "array",
       minItems: 1,
+      maxItems: MAX_FETCH_CONTENT_URLS,
       items: { type: "string", minLength: 1 },
-      description: "Explicit URLs to fetch as full Markdown text.",
+      description: `Explicit URLs to fetch as full Markdown text. At most ${MAX_FETCH_CONTENT_URLS} URLs per call.`,
     },
     maxCharacters: {
       type: "integer",
       minimum: 1,
-      description: "Maximum Markdown characters to return per URL. Defaults to 12000.",
+      maximum: MAX_CONTENT_CHARACTERS,
+      description: `Maximum Markdown characters to return per URL. Defaults to 12000. Cannot exceed ${MAX_CONTENT_CHARACTERS}.`,
     },
     maxAgeHours: {
       type: "integer",

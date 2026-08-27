@@ -80,14 +80,19 @@ export async function callFirecrawlScrape(params: {
 /**
  * Determines whether a Firecrawl Scrape attempt is usable.
  *
- * HTTP 2xx, `success === true`, and non-empty Markdown are required. Empty or
- * failure-status content is treated as an operational failure so the URL is
- * handed to the Exa Contents fallback.
+ * HTTP 2xx, `success === true`, and non-empty Markdown are required. The
+ * target page's own status code (metadata.statusCode), when present, must be
+ * under 400: Firecrawl can wrap a provider 2xx around a fetched 404/5xx error
+ * page whose Markdown is the error document, so 4xx/5xx target pages are
+ * treated as operational failures and handed to the Exa Contents fallback.
+ * Absent, 2xx, and 3xx target statuses stay usable.
  */
 export function isUsableFirecrawlScrape(attempt: ContentFetchAttempt): boolean {
   const status = attempt.rawResponse?.status;
   if (!status || status < 200 || status >= 300) return false;
   const root = asRecord(attempt.rawResponse?.bodyJson);
   if (root?.success !== true) return false;
-  return (attempt.normalized?.markdown ?? "").trim().length > 0;
+  if ((attempt.normalized?.markdown ?? "").trim().length === 0) return false;
+  const targetStatus = attempt.normalized?.statusCode;
+  return !(typeof targetStatus === "number" && targetStatus >= 400);
 }

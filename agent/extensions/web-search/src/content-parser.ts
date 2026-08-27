@@ -8,45 +8,65 @@ import { normalizeUrl } from "./url.js";
 import { asArray, asRecord, asString } from "./value-guards.js";
 import type { ContentCacheEntry } from "./types.js";
 
-function normalizeResultUrl(result: Record<string, unknown> | undefined): string | undefined {
-  const url = asString(result?.url) ?? asString(result?.uri);
-  if (!url) return undefined;
+/** Normalizes one candidate identity string, or undefined when it is not a usable http(s) URL. */
+function urlLikeIdentity(value: unknown): string | undefined {
+  const raw = asString(value);
+  if (!raw) return undefined;
   try {
-    return normalizeUrl(url);
+    return normalizeUrl(raw);
   } catch {
     return undefined;
   }
 }
 
-function findStatusForResult(statuses: unknown[], result: Record<string, unknown> | undefined, index: number): unknown {
-  // Status identity follows result identity: the provider id (Exa uses the
-  // URL) or the result's own normalized URL, never position alone.
-  const resultId = asString(result?.id) ?? normalizeResultUrl(result);
-  if (resultId) {
-    const byId = statuses.find((status) => asString(asRecord(status)?.id) === resultId);
-    if (byId) return byId;
+/**
+ * Resolves common Exa identity: normalized `url`, then `uri`, then a
+ * URL-like `id`. Results or statuses without one stay unidentified.
+ */
+function recordIdentity(record: Record<string, unknown> | undefined): string | undefined {
+  return urlLikeIdentity(record?.url) ?? urlLikeIdentity(record?.uri) ?? urlLikeIdentity(record?.id);
+}
+
+function findStatusForResult(params: {
+  statuses: unknown[];
+  result: Record<string, unknown> | undefined;
+  allowLegacyPositional: boolean;
+}): unknown {
+  // Status identity follows result identity through the same url/uri/URL-like
+  // id rule. Position is tolerated only for the single unidentified-result
+  // legacy case, never for multi-URL batches or identified results.
+  const identity = recordIdentity(params.result);
+  if (identity) {
+    return params.statuses.find((status) => recordIdentity(asRecord(status)) === identity);
   }
-  return statuses[index];
+  return params.allowLegacyPositional ? params.statuses[0] : undefined;
 }
 
 /**
  * Resolves the provider result allowed to satisfy one requested URL.
  *
- * URL identity is authoritative: a URL-bearing result may satisfy only the
- * request for the same normalized URL. Positional attribution survives only
- * as legacy tolerance for results without any URL identity, so a partial or
- * reordered response can never assign one URL's content to another request.
+ * URL identity is authoritative: a URL-bearing result (through `url`,
+ * `uri`, or a URL-like `id`) may satisfy only the request for the same
+ * normalized URL. Positional attribution survives only as legacy tolerance
+ * for a single-URL batch whose only result carries no identity of its own,
+ * so a partial or reordered multi-URL response can never assign one URL's
+ * content to another request, and a lone unidentified result can never be
+ * cross-applied to several requested URLs.
  */
 function resultForRequest(
   normalizedUrl: string,
-  index: number,
   byNormalizedUrl: Map<string, Record<string, unknown>>,
   results: Record<string, unknown>[],
+  allowLegacyPositional: boolean,
 ): Record<string, unknown> | undefined {
   const matched = byNormalizedUrl.get(normalizedUrl);
   if (matched) return matched;
-  const positional = results[index];
-  return positional && !normalizeResultUrl(positional) ? positional : undefined;
+  // Legacy tolerance only for a single-URL batch whose sole result carries
+  // no identity of its own: one unidentified result can never be applied to
+  // several different requested URLs.
+  if (!allowLegacyPositional || results.length !== 1) return undefined;
+  const positional = results[0];
+  return positional && !recordIdentity(positional) ? positional : undefined;
 }
 
 /**
@@ -76,13 +96,17 @@ export function parseExaContentsResults(params: {
   const statuses = asArray(root.statuses);
   const byNormalizedUrl = new Map<string, Record<string, unknown>>();
   results.forEach((result) => {
-    const normalized = normalizeResultUrl(result);
+    const normalized = recordIdentity(result);
     if (normalized) byNormalizedUrl.set(normalized, result);
   });
+  // Positional legacy tolerance requires exactly one requested URL, exactly
+  // one returned result, and no url/uri/URL-like id on that result.
+  const allowLegacyPositional =
+    params.requestedUrls.length === 1 && results.length === 1 && !recordIdentity(results[0]);
 
-  return params.requestedUrls.map((normalizedUrl, index) => {
-    const result = resultForRequest(normalizedUrl, index, byNormalizedUrl, results);
-    const status = result ? findStatusForResult(statuses, result, index) : undefined;
+  return params.requestedUrls.map((normalizedUrl) => {
+    const result = resultForRequest(normalizedUrl, byNormalizedUrl, results, allowLegacyPositional);
+    const status = result ? findStatusForResult({ statuses, result, allowLegacyPositional }) : undefined;
     return {
       url: normalizedUrl,
       normalizedUrl,

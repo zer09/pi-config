@@ -8,7 +8,7 @@
  */
 import "./pi-tui-mock.js";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { chmod, mkdtemp, mkdir, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -347,12 +347,20 @@ describe("codeFailureCategory integration", () => {
 });
 
 describe("best-effort main record writes", () => {
-  /** Blocks the diagnostic responses directory and returns its path. */
+  /** Blocks the diagnostic responses directory with a regular file and returns its path. */
   async function blockedResponsesDir(): Promise<string> {
+    // A file where the responses directory belongs makes every diagnostic
+    // write fail deterministically; unlike permission bits this cannot be
+    // bypassed by a root test runner.
     const responsesDir = join(cacheDir, "responses");
-    await mkdir(responsesDir, { recursive: true });
-    await chmod(responsesDir, 0o500);
+    await writeFile(responsesDir, "blocker", "utf8");
     return responsesDir;
+  }
+
+  /** Asserts the blocker is intact, proving no diagnostic record was written. */
+  async function expectNoRecordsWritten(blocker: string): Promise<void> {
+    expect(await readFile(blocker, "utf8")).toBe("blocker");
+    await expect(readdir(blocker)).rejects.toMatchObject({ code: "ENOTDIR" });
   }
 
   beforeEach(() => {
@@ -365,20 +373,16 @@ describe("best-effort main record writes", () => {
   it("web_search still returns the usable answer when the record write is blocked", async () => {
     const responsesDir = await blockedResponsesDir();
     install([jsonResponse(cleanGroundingBody("Grounded answer."))]);
-    try {
-      const result = await executeWebSearch(
-        { query: "How does MJML syntax highlighting work in Neovim?" },
-        undefined,
-        { config: config() },
-      );
+    const result = await executeWebSearch(
+      { query: "How does MJML syntax highlighting work in Neovim?" },
+      undefined,
+      { config: config() },
+    );
 
-      expect(result.content[0].text).toContain("Grounded answer [0].");
-      expect(result.details!.responseId).toMatch(/^wse_/);
-      expect(result.details!.answerProvider).toBe("gemini-parallel-grounding");
-      expect(await readdir(responsesDir)).toEqual([]);
-    } finally {
-      await chmod(responsesDir, 0o700);
-    }
+    expect(result.content[0].text).toContain("Grounded answer [0].");
+    expect(result.details!.responseId).toMatch(/^wse_/);
+    expect(result.details!.answerProvider).toBe("gemini-parallel-grounding");
+    await expectNoRecordsWritten(responsesDir);
   });
 
   it("web_search still returns the unavailable outcome when the record write is blocked", async () => {
@@ -387,41 +391,33 @@ describe("best-effort main record writes", () => {
       jsonResponse(googleErrorBody("upstream unavailable", 503, "UNAVAILABLE"), 503),
       jsonResponse(googleErrorBody("exa upstream down", 500, "INTERNAL"), 500),
     ]);
-    try {
-      const result = await executeWebSearch(
-        { query: "How does MJML syntax highlighting work in Neovim?" },
-        undefined,
-        { config: config() },
-      );
+    const result = await executeWebSearch(
+      { query: "How does MJML syntax highlighting work in Neovim?" },
+      undefined,
+      { config: config() },
+    );
 
-      expect(result.content[0].text).toContain("Web search could not produce a grounded answer");
-      expect(result.details!.responseId).toMatch(/^wse_/);
-      expect(result.details!.answerProvider).toBeNull();
-      expect(result.details!.failureCategories).toEqual(["http_503", "http_500"]);
-      expect(await readdir(responsesDir)).toEqual([]);
-    } finally {
-      await chmod(responsesDir, 0o700);
-    }
+    expect(result.content[0].text).toContain("Web search could not produce a grounded answer");
+    expect(result.details!.responseId).toMatch(/^wse_/);
+    expect(result.details!.answerProvider).toBeNull();
+    expect(result.details!.failureCategories).toEqual(["http_503", "http_500"]);
+    await expectNoRecordsWritten(responsesDir);
   });
 
   it("web_code_search still returns the usable result when the record write is blocked", async () => {
     const responsesDir = await blockedResponsesDir();
     install([jsonResponse(exaCodeSuccess)]);
-    try {
-      const result = await executeWebCodeSearch(
-        { query: "How do I validate a request body with Zod?", focus: "implementation_examples" },
-        undefined,
-        { config: config() },
-      );
+    const result = await executeWebCodeSearch(
+      { query: "How do I validate a request body with Zod?", focus: "implementation_examples" },
+      undefined,
+      { config: config() },
+    );
 
-      expect(result.content[0].text).toContain("z.object");
-      expect(result.details!.responseId).toMatch(/^wse_/);
-      expect(result.details!.answerProvider).toBe("exa-code");
-      expect(result.details!.resultCount).toBe(12);
-      expect(await readdir(responsesDir)).toEqual([]);
-    } finally {
-      await chmod(responsesDir, 0o700);
-    }
+    expect(result.content[0].text).toContain("z.object");
+    expect(result.details!.responseId).toMatch(/^wse_/);
+    expect(result.details!.answerProvider).toBe("exa-code");
+    expect(result.details!.resultCount).toBe(12);
+    await expectNoRecordsWritten(responsesDir);
   });
 
   it("web_code_search still returns the unavailable outcome when the record write is blocked", async () => {
@@ -430,20 +426,16 @@ describe("best-effort main record writes", () => {
       jsonResponse({ success: false, error: "internal failure" }, 500),
       jsonResponse({ error: "exa down" }, 503),
     ]);
-    try {
-      const result = await executeWebCodeSearch(
-        { query: "How do I validate a request body with Zod?", focus: "developer_sources" },
-        undefined,
-        { config: config() },
-      );
+    const result = await executeWebCodeSearch(
+      { query: "How do I validate a request body with Zod?", focus: "developer_sources" },
+      undefined,
+      { config: config() },
+    );
 
-      expect(result.content[0].text).toContain("Code search could not produce results");
-      expect(result.details!.responseId).toMatch(/^wse_/);
-      expect(result.details!.answerProvider).toBeNull();
-      expect(result.details!.failureCategories).toEqual(["http_500", "http_503"]);
-      expect(await readdir(responsesDir)).toEqual([]);
-    } finally {
-      await chmod(responsesDir, 0o700);
-    }
+    expect(result.content[0].text).toContain("Code search could not produce results");
+    expect(result.details!.responseId).toMatch(/^wse_/);
+    expect(result.details!.answerProvider).toBeNull();
+    expect(result.details!.failureCategories).toEqual(["http_500", "http_503"]);
+    await expectNoRecordsWritten(responsesDir);
   });
 });

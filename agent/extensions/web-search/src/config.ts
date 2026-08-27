@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { MAX_CONTENT_CONCURRENCY } from "./limits.js";
 import { asPositiveInteger, asRecordOrEmpty, asTrimmedNonEmptyString } from "./value-guards.js";
 import type { ExaGroundingBudget, ParallelGroundingMode, SearchConfig, WebSearchDepth } from "./types.js";
 
@@ -65,6 +66,19 @@ function optionalParallelMode(value: unknown, fallback: ParallelGroundingMode): 
 
 function optionalMaxAgeHours(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 720 ? value : fallback;
+}
+
+/**
+ * Resolves the fetch concurrency, keeping the project fallback pattern.
+ *
+ * Only integers 1..MAX_CONTENT_CONCURRENCY are honored; every other value
+ * (wrong type, non-integer, zero, negative, or above the ceiling) falls back
+ * to the default instead of failing the config load.
+ */
+function optionalConcurrency(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= MAX_CONTENT_CONCURRENCY
+    ? value
+    : fallback;
 }
 
 function optionalExaBudget(value: unknown, fallback: ExaGroundingBudget): ExaGroundingBudget {
@@ -170,7 +184,7 @@ export function configFromRaw(raw: Record<string, unknown>): SearchConfig {
     },
     contents: {
       defaultMaxAgeHours: optionalMaxAgeHours(contents.defaultMaxAgeHours, DEFAULT_CONFIG.contents.defaultMaxAgeHours),
-      concurrency: optionalPositiveInteger(contents.concurrency, DEFAULT_CONFIG.contents.concurrency),
+      concurrency: optionalConcurrency(contents.concurrency, DEFAULT_CONFIG.contents.concurrency),
       scrapeTimeoutMs: optionalPositiveInteger(contents.scrapeTimeoutMs, DEFAULT_CONFIG.contents.scrapeTimeoutMs),
     },
     cacheDir: resolve(cacheDir),
@@ -192,7 +206,32 @@ export function configFromRaw(raw: Record<string, unknown>): SearchConfig {
  * the new sections are absent so an existing local config file does not break.
  */
 export async function loadConfig(): Promise<SearchConfig> {
+  if (configLoaderForTests !== undefined) return await configLoaderForTests.load();
   return configFromRaw(await readConfigFile());
+}
+
+/**
+ * Deterministic test seam replacing the config-file load.
+ *
+ * `fallbackCacheDir` redirects only the default preflight settings used
+ * when the loader itself fails, so tests never touch the real config file
+ * or the live HOME cache directory.
+ */
+export type ConfigLoaderForTests = {
+  load: () => Promise<SearchConfig> | SearchConfig;
+  fallbackCacheDir?: string;
+};
+
+let configLoaderForTests: ConfigLoaderForTests | undefined;
+
+/** @internal Installs a test loader; pass undefined to restore production loading. */
+export function setConfigLoaderForTests(seam?: ConfigLoaderForTests): void {
+  configLoaderForTests = seam;
+}
+
+/** @internal Preflight fallback cache dir for tests whose loader itself failed. */
+export function configLoaderFallbackCacheDirForTests(): string | undefined {
+  return configLoaderForTests?.fallbackCacheDir;
 }
 
 export function readConfiguredEnv(name: string): string | undefined {

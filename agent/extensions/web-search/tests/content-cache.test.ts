@@ -30,7 +30,7 @@ describe("fetch_contents cache policy", () => {
     const [parsed] = parseExaContentsResults({
       data: {
         results: [{ url: "https://example.com/a", title: "A", text: "abcdef" }],
-        statuses: [{ status: "success" }],
+        statuses: [{ id: "https://example.com/a", status: "success" }],
       },
       requestedUrls: ["https://example.com/a"],
       requestedMaxCharacters: 500,
@@ -42,7 +42,7 @@ describe("fetch_contents cache policy", () => {
     expect(parsed.expiresAt).toBe(1010);
     expect(parsed.text).toBe("abcdef");
     expect(parsed.provider).toBe("exa_contents");
-    expect(parsed.providerStatus).toEqual({ status: "success" });
+    expect(parsed.providerStatus).toEqual({ id: "https://example.com/a", status: "success" });
   });
 
   it("attributes URL-bearing results only to the same normalized requested URL", () => {
@@ -107,6 +107,23 @@ describe("fetch_contents cache policy", () => {
     });
     expect(mismatched[0].text).toBe("");
     expect(isCacheableContentEntry(mismatched[0])).toBe(false);
+  });
+
+  it("never applies a single unidentified result to multiple requested URLs", () => {
+    const parsed = parseExaContentsResults({
+      // Exactly one result with no url, uri, or URL-like id: the old
+      // positional fallback satisfied every requested URL with it.
+      data: { results: [{ title: "Only", text: "unidentified body." }] },
+      requestedUrls: ["https://example.com/a", "https://example.com/b"],
+      requestedMaxCharacters: 1000,
+      ttlMs: 1000,
+      now: 10,
+    });
+
+    expect(parsed.map((entry) => entry.text)).toEqual(["", ""]);
+    expect(parsed.every((entry) => entry.title === undefined)).toBe(true);
+    expect(parsed.every((entry) => entry.providerStatus === "no result matched the requested URL")).toBe(true);
+    expect(parsed.every((entry) => isCacheableContentEntry(entry))).toBe(false);
   });
 
   it("does not let a smaller cached response satisfy a larger request", () => {

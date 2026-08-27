@@ -5,7 +5,8 @@ import type {
   NormalizedCodeSearchResult,
 } from "./types.js";
 
-const MAX_FETCH_CONTENT_OUTPUT_CHARACTERS = 50_000;
+/** Deterministic cap for model-visible tool output shared by the content and code formatters. */
+const MAX_TOOL_OUTPUT_CHARACTERS = 50_000;
 
 /**
  * Formats a clean Gemini grounding result (either partner) for tool output.
@@ -53,9 +54,18 @@ function isFirecrawlDeveloperResult(
  *
  * Firecrawl Developer output preserves ranked primary-source artifacts with
  * type, title or URL fallback, URL, and matched Markdown passages. Exa Code
- * output is the provider's implementation-ready code-context document.
+ * output is the provider's implementation-ready code-context document. Both
+ * forms are capped at 50 000 characters with a deterministic truncation
+ * marker; provider selection and details are unaffected.
  */
 export function formatCodeSearchResult(query: string, normalized: NormalizedCodeSearchResult): string {
+  const output = formatCodeSearchResultUnbounded(query, normalized);
+  const marker = `\n\n[Output truncated at ${MAX_TOOL_OUTPUT_CHARACTERS} characters. Narrow the query or focus for more specific results.]`;
+  if (output.length <= MAX_TOOL_OUTPUT_CHARACTERS) return output;
+  return `${output.slice(0, MAX_TOOL_OUTPUT_CHARACTERS - marker.length)}${marker}`;
+}
+
+function formatCodeSearchResultUnbounded(query: string, normalized: NormalizedCodeSearchResult): string {
   if (isFirecrawlDeveloperResult(normalized)) {
     const lines: string[] = [`Developer sources for: ${query}`, ""];
     normalized.artifacts.forEach((artifact, index) => {
@@ -105,6 +115,6 @@ export function formatFetchedContents(entries: FormattedContentEntry[]): string 
   });
 
   const output = lines.join("\n");
-  if (output.length <= MAX_FETCH_CONTENT_OUTPUT_CHARACTERS) return output;
-  return `${output.slice(0, MAX_FETCH_CONTENT_OUTPUT_CHARACTERS)}\n\n[Output truncated at ${MAX_FETCH_CONTENT_OUTPUT_CHARACTERS} characters. The fetched content was still cached on disk; call fetch_contents with fewer uris or a smaller maxCharacters value if more focused context is needed.]`;
+  if (output.length <= MAX_TOOL_OUTPUT_CHARACTERS) return output;
+  return `${output.slice(0, MAX_TOOL_OUTPUT_CHARACTERS)}\n\n[Output truncated at ${MAX_TOOL_OUTPUT_CHARACTERS} characters. The fetched content was still cached on disk; call fetch_contents with fewer uris or a smaller maxCharacters value if more focused context is needed.]`;
 }

@@ -48,6 +48,14 @@ describe("public tool registration", () => {
     expect(schema.required).toEqual(["uris"]);
   });
 
+  it("caps fetch_contents at 25 URLs and 50000 maxCharacters in the public schema", () => {
+    const schema = schemaFor("fetch_contents") as Record<string, any>;
+    expect(schema.properties.uris.maxItems).toBe(25);
+    expect(schema.properties.uris.minItems).toBe(1);
+    expect(schema.properties.maxCharacters.maximum).toBe(50_000);
+    expect(schema.properties.maxCharacters.minimum).toBe(1);
+  });
+
   it("keeps schemas closed against unexpected properties", () => {
     for (const tool of tools) {
       expect((tool.parameters as Record<string, unknown>).additionalProperties).toBe(false);

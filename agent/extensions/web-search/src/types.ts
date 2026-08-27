@@ -108,6 +108,10 @@ export type GroundingSupport = {
   groundingChunkIndices: number[];
   startIndex?: number;
   endIndex?: number;
+  /** Total chunk indices before the per-support storage cap (stored form only). */
+  chunkIndicesTotal?: number;
+  /** Chunk indices omitted by the per-support storage cap. */
+  chunkIndicesOmitted?: number;
 };
 
 export type NormalizedGeminiGroundingResponse = {
@@ -121,6 +125,18 @@ export type NormalizedGeminiGroundingResponse = {
   googleResponseId?: string;
   modelVersion?: string;
   promptBlockReason?: string;
+  /** Total sources before the storage cap (stored form only). */
+  sourcesTotal?: number;
+  /** Sources omitted by the storage cap. */
+  sourcesOmitted?: number;
+  /** Total supports before the storage cap (stored form only). */
+  supportsTotal?: number;
+  /** Supports omitted by the storage cap. */
+  supportsOmitted?: number;
+  /** Total generated search queries before the storage cap (stored form only). */
+  webSearchQueriesTotal?: number;
+  /** Generated search queries omitted by the storage cap. */
+  webSearchQueriesOmitted?: number;
 };
 
 export type RawHttpRequest = {
@@ -171,6 +187,10 @@ export type FirecrawlDeveloperArtifact = {
   url?: string;
   title?: string;
   passages: string[];
+  /** Total passages before the per-artifact storage cap (stored form only). */
+  passagesTotal?: number;
+  /** Passages omitted by the per-artifact storage cap. */
+  passagesOmitted?: number;
 };
 
 export type NormalizedFirecrawlDeveloperSearch = {
@@ -179,6 +199,10 @@ export type NormalizedFirecrawlDeveloperSearch = {
   coverage?: Record<string, unknown>;
   reranked?: boolean;
   resultCount: number;
+  /** Total artifacts before the storage cap (stored form only). */
+  artifactsTotal?: number;
+  /** Artifacts omitted by the storage cap. */
+  artifactsOmitted?: number;
 };
 
 export type NormalizedExaCodeSearch = {
@@ -310,6 +334,7 @@ export type StoredFetchResult = {
   normalizedUrl: string;
   provider: ContentProvider | null;
   fromCache: boolean;
+  /** Redacted, terminal-stripped, 500-bounded status label; null when no status exists. */
   status: string | null;
 };
 

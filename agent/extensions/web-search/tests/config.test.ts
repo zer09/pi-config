@@ -119,4 +119,19 @@ describe("legacy config compatibility", () => {
     expect(config.contents.defaultMaxAgeHours).toBe(24);
     expect(config.contents.concurrency).toBe(3);
   });
+
+  it("honors configured concurrency only for integers 1 through 10", () => {
+    expect(configFromRaw({ contents: { concurrency: 1 } }).contents.concurrency).toBe(1);
+    expect(configFromRaw({ contents: { concurrency: 5 } }).contents.concurrency).toBe(5);
+    expect(configFromRaw({ contents: { concurrency: 10 } }).contents.concurrency).toBe(10);
+    // Values outside the 1..10 integer range fall back to the default 3,
+    // matching the project's silent-fallback config pattern.
+    expect(configFromRaw({ contents: { concurrency: 11 } }).contents.concurrency).toBe(3);
+    expect(configFromRaw({ contents: { concurrency: 0 } }).contents.concurrency).toBe(3);
+    expect(configFromRaw({ contents: { concurrency: -1 } }).contents.concurrency).toBe(3);
+    expect(configFromRaw({ contents: { concurrency: 2.5 } }).contents.concurrency).toBe(3);
+    expect(configFromRaw({ contents: { concurrency: "3" } }).contents.concurrency).toBe(3);
+    expect(configFromRaw({ contents: { concurrency: null } }).contents.concurrency).toBe(3);
+    expect(configFromRaw({}).contents.concurrency).toBe(3);
+  });
 });

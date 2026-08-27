@@ -8,7 +8,7 @@
  * original tool error.
  */
 import { createHash } from "node:crypto";
-import { DEFAULT_CONFIG, readConfiguredEnv } from "./config.js";
+import { configLoaderFallbackCacheDirForTests, DEFAULT_CONFIG, readConfiguredEnv } from "./config.js";
 import { isUsableGroundingAttempt } from "./grounding-failure.js";
 import { sanitizeResponseId, writeStoredResponse } from "./storage.js";
 import { stripTerminalControlSequences } from "./terminal-sanitize.js";
@@ -17,6 +17,8 @@ import type {
   CodeSearchAttempt,
   FetchContentsAttempt,
   GroundingAttempt,
+  GroundingSource,
+  GroundingSupport,
   RawHttpRequest,
   RawHttpResponse,
   SearchConfig,
@@ -32,14 +34,34 @@ export const DIAGNOSTIC_MAX_STRING_CHARS = 500;
 export const DIAGNOSTIC_MAX_BODY_CHARS = 20_000;
 /** Upper bound for any persisted URL copy; longer URLs keep a prefix plus digest. */
 export const DIAGNOSTIC_MAX_URL_CHARS = 500;
-/** Upper bound for persisted fetch attempts in one stored record. */
-export const DIAGNOSTIC_MAX_FETCH_ATTEMPTS = 100;
-/** Upper bound for persisted per-URL results in one stored record. */
-export const DIAGNOSTIC_MAX_FETCH_RESULTS = 250;
-/** Upper bound for persisted URLs on one stored fetch attempt. */
-export const DIAGNOSTIC_MAX_ATTEMPT_URLS = 50;
+/** Upper bound for the persisted query copy on main records and preflight metadata. */
+export const DIAGNOSTIC_MAX_QUERY_CHARS = 2_000;
+/** Upper bound for persisted grounding sources on one stored normalized response. */
+export const DIAGNOSTIC_MAX_GROUNDING_SOURCES = 25;
+/** Upper bound for persisted grounding supports on one stored normalized response. */
+export const DIAGNOSTIC_MAX_GROUNDING_SUPPORTS = 25;
+/** Upper bound for persisted generated search queries on one stored normalized response. */
+export const DIAGNOSTIC_MAX_WEB_SEARCH_QUERIES = 25;
+/** Upper bound for persisted grounding chunk indices on one stored support. */
+export const DIAGNOSTIC_MAX_SUPPORT_CHUNK_INDICES = 25;
+/** Upper bound for persisted code artifacts on one stored normalized response. */
+export const DIAGNOSTIC_MAX_CODE_ARTIFACTS = 25;
+/** Upper bound for persisted passages on one stored code artifact. */
+export const DIAGNOSTIC_MAX_CODE_PASSAGES = 25;
+/** Serial bound for arbitrary provider metadata fields (coverage, cost, usage previews). */
+export const DIAGNOSTIC_MAX_ARBITRARY_FIELD_CHARS = 500;
+/**
+ * Upper bound for persisted fetch attempts in one stored record. The
+ * reachable maximum with 25 requested URLs is 25 Firecrawl Scrape attempts
+ * plus one Exa Contents batch attempt.
+ */
+export const DIAGNOSTIC_MAX_FETCH_ATTEMPTS = 26;
+/** Upper bound for persisted per-URL results in one stored record (one per requested URL). */
+export const DIAGNOSTIC_MAX_FETCH_RESULTS = 25;
+/** Upper bound for persisted URLs on one stored fetch attempt (one batch of at most 25 URLs). */
+export const DIAGNOSTIC_MAX_ATTEMPT_URLS = 25;
 /** Upper bound for persisted per-URL metadata entries on one stored fetch attempt. */
-export const DIAGNOSTIC_MAX_PER_URL_ENTRIES = 50;
+export const DIAGNOSTIC_MAX_PER_URL_ENTRIES = 25;
 
 /** Stable generic suffix attaching a diagnostic responseId to a thrown error. */
 export const DIAGNOSTIC_SUFFIX_TEMPLATE = ` Diagnostic responseId=`;
@@ -100,6 +122,147 @@ function boundHeaders(headers: Record<string, string>, secrets: SecretForRedacti
   return out;
 }
 
+/** Bounds one provider query for main-record and preflight storage. */
+export function boundQueryForStorage(query: string, secrets: SecretForRedaction[]): string {
+  // Complete secret values are replaced on the full query before truncation
+  // so a secret crossing the cutoff cannot survive as a partial fragment.
+  return truncateDiagnosticText(stripTerminalControlSequences(redactString(query, secrets)), DIAGNOSTIC_MAX_QUERY_CHARS);
+}
+
+/**
+ * Bounds one arbitrary provider metadata value without an unbounded escape.
+ *
+ * The redacted value keeps its ordinary shape only when its serialized form
+ * fits `maxChars`; anything larger becomes an explicit bounded preview
+ * wrapper carrying the deterministic truncation marker. Numbers, booleans,
+ * and null always keep their shape, so ordinary small coverage/cost/usage
+ * objects are stored unchanged when they fit. The recursive redaction and
+ * serialization both run inside the catch boundary: deeply nested,
+ * cyclic, or otherwise unserializable values become the constant omission
+ * wrapper, so provider-controlled metadata can never throw out of record
+ * construction and mask a usable tool outcome.
+ */
+export function boundArbitraryForStorage(value: unknown, secrets: SecretForRedaction[], maxChars: number): unknown {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  let redacted: unknown;
+  let serialized: string | undefined;
+  try {
+    redacted = redactSecrets(value, secrets);
+    serialized = JSON.stringify(redacted);
+  } catch {
+    // Cyclic, deeply nested (recursion overflow), or otherwise
+    // unserializable values become an omission marker.
+    return { diagnosticPreview: "[unserializable diagnostic value omitted]", diagnosticPreviewTruncated: false };
+  }
+  if (serialized === undefined) return undefined;
+  if (serialized.length <= maxChars) return redacted;
+  return {
+    diagnosticPreview: truncateDiagnosticText(stripTerminalControlSequences(serialized), maxChars),
+    diagnosticPreviewTruncated: true,
+  };
+}
+
+function boundOptionalString(value: string | undefined, secrets: SecretForRedaction[]): string | undefined {
+  return value !== undefined ? sanitizeDiagnosticText(value, secrets) : undefined;
+}
+
+/** Explicit bounded storage copy of one grounding normalized response. */
+function boundGroundingNormalizedForStorage(
+  normalized: NonNullable<GroundingAttempt["normalized"]>,
+  secrets: SecretForRedaction[],
+): NonNullable<GroundingAttempt["normalized"]> {
+  const sources = normalized.sources.slice(0, DIAGNOSTIC_MAX_GROUNDING_SOURCES);
+  const boundedSources: GroundingSource[] = sources.map((source) => ({
+    groundingId: source.groundingId,
+    title: boundOptionalString(source.title, secrets),
+    url: source.url !== undefined ? boundUrlForStorage(source.url, secrets) : undefined,
+    domain: boundOptionalString(source.domain, secrets),
+  }));
+  const supports = normalized.supports.slice(0, DIAGNOSTIC_MAX_GROUNDING_SUPPORTS);
+  const boundedSupports: GroundingSupport[] = supports.map((support) => {
+    const indices = support.groundingChunkIndices.slice(0, DIAGNOSTIC_MAX_SUPPORT_CHUNK_INDICES);
+    return {
+      text: sanitizeDiagnosticText(support.text, secrets),
+      groundingChunkIndices: indices,
+      startIndex: support.startIndex,
+      endIndex: support.endIndex,
+      chunkIndicesTotal: support.groundingChunkIndices.length,
+      chunkIndicesOmitted: support.groundingChunkIndices.length - indices.length,
+    };
+  });
+  const webSearchQueries = normalized.webSearchQueries.slice(0, DIAGNOSTIC_MAX_WEB_SEARCH_QUERIES);
+  return {
+    answer: truncateDiagnosticText(
+      stripTerminalControlSequences(redactString(normalized.answer, secrets)),
+      DIAGNOSTIC_MAX_BODY_CHARS,
+    ),
+    finishReason: boundOptionalString(normalized.finishReason, secrets),
+    cleanSuccess: normalized.cleanSuccess,
+    sources: boundedSources,
+    sourcesTotal: normalized.sources.length,
+    sourcesOmitted: normalized.sources.length - boundedSources.length,
+    supports: boundedSupports,
+    supportsTotal: normalized.supports.length,
+    supportsOmitted: normalized.supports.length - boundedSupports.length,
+    webSearchQueries: webSearchQueries.map((query) => sanitizeDiagnosticText(query, secrets)),
+    webSearchQueriesTotal: normalized.webSearchQueries.length,
+    webSearchQueriesOmitted: normalized.webSearchQueries.length - webSearchQueries.length,
+    usage: boundArbitraryForStorage(normalized.usage, secrets, DIAGNOSTIC_MAX_BODY_CHARS),
+    googleResponseId: boundOptionalString(normalized.googleResponseId, secrets),
+    modelVersion: boundOptionalString(normalized.modelVersion, secrets),
+    promptBlockReason: boundOptionalString(normalized.promptBlockReason, secrets),
+  };
+}
+
+/** Explicit bounded storage copy of one code-search normalized response. */
+function boundCodeNormalizedForStorage(
+  normalized: NonNullable<CodeSearchAttempt["normalized"]>,
+  secrets: SecretForRedaction[],
+): NonNullable<CodeSearchAttempt["normalized"]> {
+  if (!("artifacts" in normalized)) {
+    return {
+      response: truncateDiagnosticText(
+        stripTerminalControlSequences(redactString(normalized.response, secrets)),
+        DIAGNOSTIC_MAX_BODY_CHARS,
+      ),
+      resultsCount: normalized.resultsCount,
+      requestId: boundOptionalString(normalized.requestId, secrets),
+      costDollars: boundArbitraryForStorage(normalized.costDollars, secrets, DIAGNOSTIC_MAX_ARBITRARY_FIELD_CHARS),
+      searchTime: normalized.searchTime,
+      outputTokens: normalized.outputTokens,
+    };
+  }
+  const artifacts = normalized.artifacts.slice(0, DIAGNOSTIC_MAX_CODE_ARTIFACTS);
+  const boundedArtifacts = artifacts.map((artifact) => {
+    const passages = artifact.passages.slice(0, DIAGNOSTIC_MAX_CODE_PASSAGES);
+    return {
+      id: boundOptionalString(artifact.id, secrets),
+      type: boundOptionalString(artifact.type, secrets),
+      url: artifact.url !== undefined ? boundUrlForStorage(artifact.url, secrets) : undefined,
+      title: boundOptionalString(artifact.title, secrets),
+      passages: passages.map((passage) => sanitizeDiagnosticText(passage, secrets)),
+      passagesTotal: artifact.passages.length,
+      passagesOmitted: artifact.passages.length - passages.length,
+    };
+  });
+  return {
+    success: normalized.success,
+    artifacts: boundedArtifacts,
+    artifactsTotal: normalized.artifacts.length,
+    artifactsOmitted: normalized.artifacts.length - boundedArtifacts.length,
+    coverage:
+      normalized.coverage !== undefined
+        ? (boundArbitraryForStorage(normalized.coverage, secrets, DIAGNOSTIC_MAX_ARBITRARY_FIELD_CHARS) as Record<
+            string,
+            unknown
+          >)
+        : undefined,
+    reranked: normalized.reranked,
+    resultCount: normalized.resultCount,
+  };
+}
+
 /** Serializes and bounds one provider request body for storage. */
 function boundSerializedBodyForStorage(body: unknown, secrets: SecretForRedaction[]): string {
   return truncateDiagnosticText(redactString(JSON.stringify(redactSecrets(body, secrets)), secrets), DIAGNOSTIC_MAX_BODY_CHARS);
@@ -119,86 +282,117 @@ function boundRawResponseForStorage(raw: RawHttpResponse, secrets: SecretForReda
 }
 
 /**
+ * Bounds one raw request for storage.
+ *
+ * The request URL gets the same 500-character bound with digest as every
+ * other persisted URL copy; headers are bounded and the body is stored as a
+ * bounded serialized string.
+ */
+function boundRawRequestForStorage(raw: RawHttpRequest, secrets: SecretForRedaction[]): RawHttpRequest {
+  return {
+    method: raw.method,
+    url: boundUrlForStorage(raw.url, secrets),
+    headers: boundHeaders(raw.headers, secrets),
+    body: raw.body !== undefined ? boundSerializedBodyForStorage(raw.body, secrets) : undefined,
+  };
+}
+
+/**
  * Bounds one fetch attempt for storage without duplicating provider bodies.
  *
- * Complete secret values are replaced before any truncation so a secret
- * crossing a cutoff can never survive as a partial fragment. Every persisted
- * URL copy is bounded with a readable prefix plus digest, collection sizes
- * are capped with retained total/omitted counts, `bodyJson` is dropped on
- * purpose, and the request body is stored as a bounded serialized string
- * exactly like the web_search and web_code_search attempts.
+ * The copy is explicit, never a spread, so no provider-controlled field can
+ * survive unbounded. Complete secret values are replaced before any
+ * truncation so a secret crossing a cutoff can never survive as a partial
+ * fragment. Every persisted URL copy is bounded with a readable prefix plus
+ * digest, collection sizes are capped with retained total/omitted counts,
+ * `bodyJson` is dropped on purpose, and the request body is stored as a
+ * bounded serialized string exactly like the web_search and web_code_search
+ * attempts.
  */
 function boundFetchAttemptForStorage<T extends FetchContentsAttempt>(attempt: T, secrets: SecretForRedaction[]): T {
   const retainedUrls = attempt.urls.slice(0, DIAGNOSTIC_MAX_ATTEMPT_URLS).map((url) => boundUrlForStorage(url, secrets));
-  const normalized = attempt.normalized?.perUrl
+  const normalized = attempt.normalized
     ? {
-        ...attempt.normalized,
+        success: attempt.normalized.success,
+        statusCode: attempt.normalized.statusCode,
+        markdownCharacters: attempt.normalized.markdownCharacters,
         perUrl: attempt.normalized.perUrl
-          .slice(0, DIAGNOSTIC_MAX_PER_URL_ENTRIES)
-          .map((entry) => ({ ...entry, url: boundUrlForStorage(entry.url, secrets) })),
-        perUrlTotal: attempt.normalized.perUrl.length,
-        perUrlOmitted: attempt.normalized.perUrl.length - Math.min(attempt.normalized.perUrl.length, DIAGNOSTIC_MAX_PER_URL_ENTRIES),
+          ? attempt.normalized.perUrl
+              .slice(0, DIAGNOSTIC_MAX_PER_URL_ENTRIES)
+              .map((entry) => ({
+                url: boundUrlForStorage(entry.url, secrets),
+                ok: entry.ok,
+                textCharacters: entry.textCharacters,
+              }))
+          : undefined,
+        perUrlTotal: attempt.normalized.perUrl?.length,
+        perUrlOmitted: attempt.normalized.perUrl
+          ? attempt.normalized.perUrl.length - Math.min(attempt.normalized.perUrl.length, DIAGNOSTIC_MAX_PER_URL_ENTRIES)
+          : undefined,
       }
-    : attempt.normalized;
+    : undefined;
   const bounded = {
-    ...attempt,
+    provider: attempt.provider,
     urls: retainedUrls,
     urlsTotal: attempt.urls.length,
     urlsOmitted: attempt.urls.length - retainedUrls.length,
-    rawRequest: attempt.rawRequest && {
-      ...attempt.rawRequest,
-      url: boundUrlForStorage(attempt.rawRequest.url, secrets),
-      headers: boundHeaders(attempt.rawRequest.headers, secrets),
-      body:
-        attempt.rawRequest.body !== undefined ? boundSerializedBodyForStorage(attempt.rawRequest.body, secrets) : undefined,
-    },
+    requestStartedAt: attempt.requestStartedAt,
+    elapsedMs: attempt.elapsedMs,
+    rawRequest: attempt.rawRequest && boundRawRequestForStorage(attempt.rawRequest, secrets),
     rawResponse: attempt.rawResponse && boundRawResponseForStorage(attempt.rawResponse, secrets),
     normalized,
+    status: attempt.status,
     error: attempt.error !== undefined ? sanitizeDiagnosticText(attempt.error, secrets) : undefined,
     skippedReason: attempt.skippedReason !== undefined ? sanitizeDiagnosticText(attempt.skippedReason, secrets) : undefined,
   };
   return bounded as T;
 }
 
-/** Fields shared by web_search and web_code_search provider attempts. */
-type RawAttemptFields = {
-  rawRequest?: RawHttpRequest;
-  rawResponse?: RawHttpResponse;
-  error?: string;
-};
-
 /**
- * Storage normalization shared by web_search and web_code_search attempts.
+ * Storage normalization for one grounding attempt, exported so the
+ * stored-record normalization can be tested deterministically.
  *
- * Headers, status text, and error strings are capped at 500 characters and
- * raw bodies at 20 000, with complete secret values replaced before any
- * truncation. The request body is stored as a bounded serialized string so no
- * unbounded nested object copy survives, and the duplicate `bodyJson` is
- * omitted because the bounded `bodyText` retains the diagnostic context.
+ * The copy is explicit, never a spread, so the provider-controlled normalized
+ * response (answer, sources, supports, queries, usage) is stored only through
+ * its bounded copy. Headers, status text, and error strings are capped at 500
+ * characters, raw bodies, answers, and usage at 20 000, with complete secret
+ * values replaced before any truncation. The request body is stored as a
+ * bounded serialized string and the duplicate `bodyJson` is omitted because
+ * the bounded `bodyText` retains the diagnostic context.
  */
-function boundSearchAttemptForStorage<T extends RawAttemptFields>(attempt: T, secrets: SecretForRedaction[]): T {
-  const bounded: RawAttemptFields = {
-    ...attempt,
-    rawRequest: attempt.rawRequest && {
-      method: attempt.rawRequest.method,
-      url: attempt.rawRequest.url,
-      headers: boundHeaders(attempt.rawRequest.headers, secrets),
-      body: attempt.rawRequest.body !== undefined ? boundSerializedBodyForStorage(attempt.rawRequest.body, secrets) : undefined,
-    },
+export function boundGroundingAttemptForStorage(attempt: GroundingAttempt, secrets: SecretForRedaction[]): GroundingAttempt {
+  return {
+    provider: attempt.provider,
+    partner: attempt.partner,
+    model: sanitizeDiagnosticText(attempt.model, secrets),
+    requestStartedAt: attempt.requestStartedAt,
+    elapsedMs: attempt.elapsedMs,
+    rawRequest: attempt.rawRequest && boundRawRequestForStorage(attempt.rawRequest, secrets),
     rawResponse: attempt.rawResponse && boundRawResponseForStorage(attempt.rawResponse, secrets),
+    normalized: attempt.normalized && boundGroundingNormalizedForStorage(attempt.normalized, secrets),
     error: attempt.error !== undefined ? sanitizeDiagnosticText(attempt.error, secrets) : undefined,
   };
-  return bounded as T;
 }
 
-/** @internal Exported so the stored-record normalization can be tested deterministically. */
-export function boundGroundingAttemptForStorage(attempt: GroundingAttempt, secrets: SecretForRedaction[]): GroundingAttempt {
-  return boundSearchAttemptForStorage(attempt, secrets);
-}
-
-/** @internal Exported so the stored-record normalization can be tested deterministically. */
+/**
+ * Storage normalization for one code-search attempt, exported so the
+ * stored-record normalization can be tested deterministically.
+ *
+ * The copy is explicit, never a spread, so the provider-controlled normalized
+ * response (Exa Code response text, Firecrawl artifacts/passages/coverage) is
+ * stored only through its bounded copy, with the same string, body, and URL
+ * bounds as the grounding attempts.
+ */
 export function boundCodeSearchAttemptForStorage(attempt: CodeSearchAttempt, secrets: SecretForRedaction[]): CodeSearchAttempt {
-  return boundSearchAttemptForStorage(attempt, secrets);
+  return {
+    provider: attempt.provider,
+    requestStartedAt: attempt.requestStartedAt,
+    elapsedMs: attempt.elapsedMs,
+    rawRequest: attempt.rawRequest && boundRawRequestForStorage(attempt.rawRequest, secrets),
+    rawResponse: attempt.rawResponse && boundRawResponseForStorage(attempt.rawResponse, secrets),
+    normalized: attempt.normalized && boundCodeNormalizedForStorage(attempt.normalized, secrets),
+    error: attempt.error !== undefined ? sanitizeDiagnosticText(attempt.error, secrets) : undefined,
+  };
 }
 
 /**
@@ -241,7 +435,14 @@ export function buildStoredFetchContentsRecord(params: {
   });
   const retainedResults = params.results
     .slice(0, DIAGNOSTIC_MAX_FETCH_RESULTS)
-    .map((result) => ({ ...result, normalizedUrl: boundUrlForStorage(result.normalizedUrl, params.secrets) }));
+    .map((result) => ({
+      normalizedUrl: boundUrlForStorage(result.normalizedUrl, params.secrets),
+      provider: result.provider,
+      fromCache: result.fromCache,
+      // Status labels are provider-controlled strings: every stored copy is
+      // redacted, terminal-stripped, and bounded to the diagnostic string cap.
+      status: result.status !== null ? sanitizeDiagnosticText(result.status, params.secrets) : null,
+    }));
   return {
     schemaVersion: 2,
     responseId: params.responseId,
@@ -277,7 +478,9 @@ export type PreflightRecordSettings = {
  */
 export function preflightSettingsFrom(config?: SearchConfig): PreflightRecordSettings {
   return {
-    cacheDir: config?.cacheDir ?? DEFAULT_CONFIG.cacheDir,
+    // The test seam's fallback dir applies only when the loader itself
+    // failed, so deterministic tests never touch the live default cache.
+    cacheDir: config?.cacheDir ?? configLoaderFallbackCacheDirForTests() ?? DEFAULT_CONFIG.cacheDir,
     rawResponseTtlMs: config?.rawResponseTtlMs ?? DEFAULT_CONFIG.rawResponseTtlMs,
     envNames: {
       googleCloudApiKeyEnv: config?.googleCloudApiKeyEnv ?? DEFAULT_CONFIG.googleCloudApiKeyEnv,
@@ -297,6 +500,30 @@ function secretsForSettings(settings: PreflightRecordSettings): SecretForRedacti
   ].filter((secret) => secret.value !== undefined);
 }
 
+function boundPreflightMetadataForStorage(
+  metadata: Record<string, unknown> | undefined,
+  secrets: SecretForRedaction[],
+): Record<string, unknown> | undefined {
+  if (!metadata) return undefined;
+  const bounded: Record<string, unknown> = {};
+  if (typeof metadata.query === "string") bounded.query = boundQueryForStorage(metadata.query, secrets);
+  if (typeof metadata.urlCount === "number" && Number.isInteger(metadata.urlCount) && metadata.urlCount >= 0) {
+    bounded.urlCount = metadata.urlCount;
+  }
+  if (typeof metadata.maxCharacters === "number" && Number.isInteger(metadata.maxCharacters) && metadata.maxCharacters > 0) {
+    bounded.maxCharacters = metadata.maxCharacters;
+  }
+  if (
+    typeof metadata.maxAgeHours === "number" &&
+    Number.isInteger(metadata.maxAgeHours) &&
+    metadata.maxAgeHours >= 0 &&
+    metadata.maxAgeHours <= 720
+  ) {
+    bounded.maxAgeHours = metadata.maxAgeHours;
+  }
+  return bounded;
+}
+
 /**
  * Persists a safe preflight failure record and never throws.
  *
@@ -313,6 +540,9 @@ export async function writePreflightDiagnostic(params: {
 }): Promise<void> {
   const secrets = secretsForSettings(params.settings);
   const now = Date.now();
+  // Preflight metadata is an allow-list of scalar diagnostics. Query text is
+  // redacted and bounded before truncation exactly like main-record queries.
+  const metadata = boundPreflightMetadataForStorage(params.metadata, secrets);
   const record: StoredPreflightRecord = {
     schemaVersion: 2,
     responseId: params.responseId,
@@ -322,7 +552,7 @@ export async function writePreflightDiagnostic(params: {
     phase: "preflight",
     category: params.category,
     error: sanitizeDiagnosticText(params.error, secrets),
-    metadata: params.metadata,
+    metadata,
     attempts: [],
   };
   await writeDiagnosticRecordSafely(params.settings.cacheDir, record, secrets);

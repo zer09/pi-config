@@ -256,3 +256,67 @@ describe("web_code_search routing", () => {
     expect(record.attempts[0].rawRequest.headers["x-api-key"]).toBe("[REDACTED_WSE_TEST_EXA_KEY]");
   });
 });
+
+describe("web_code_search model-visible output cap", () => {
+  it("caps an oversized Exa Code response at 50000 characters with a deterministic marker", async () => {
+    const bigResponse = "const snippet = \"" + "x".repeat(120_000) + "\";";
+    install([jsonResponse({ response: bigResponse, resultsCount: 12 })]);
+    const result = await run("implementation_examples");
+
+    const text = result.content[0].text;
+    expect(text.length).toBeLessThanOrEqual(50_000);
+    expect(text).toContain("[Output truncated at 50000 characters.");
+    expect(text.startsWith('const snippet = "xxxx')).toBe(true);
+    // Provider selection and details stay unchanged by the output cap.
+    expect(result.details.answerProvider).toBe("exa-code");
+    expect(result.details.resultCount).toBe(12);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("caps oversized Firecrawl artifact and passage output at 50000 characters", async () => {
+    const heavyFirecrawl = {
+      success: true,
+      results: Array.from({ length: 30 }, (_, i) => ({
+        id: `doc:${i}`,
+        type: "doc",
+        url: `https://example.com/docs/${i}`,
+        title: `Doc ${i}`,
+        passages: Array.from({ length: 6 }, (_, j) => ({ text: `passage-${i}-${j}-` + "y".repeat(900) })),
+      })),
+      coverage: { doc: "ok" },
+    };
+    install([jsonResponse(heavyFirecrawl)]);
+    const result = await run("developer_sources");
+
+    const text = result.content[0].text;
+    expect(text.length).toBeLessThanOrEqual(50_000);
+    expect(text).toContain("[Output truncated at 50000 characters.");
+    expect(text).toContain("Doc 0");
+    expect(result.details.answerProvider).toBe("firecrawl-developer");
+    expect(result.details.resultCount).toBe(30);
+    expect(result.details.fallbackUsed).toBe(false);
+  });
+
+  it("keeps raw provider errors out of the capped output and terminal controls out of the TUI", async () => {
+    const sentinel = "WSE-CODE-OUTPUT-SENTINEL-5e11";
+    const dirty = "const ok = true;\x1b[31m red \x1b[0m " + "z".repeat(60_000);
+    install([
+      jsonResponse({ success: false, error: `firecrawl rejected ${sentinel}` }, 402),
+      jsonResponse({ response: dirty, resultsCount: 3 }),
+    ]);
+    const result = await run("developer_sources");
+
+    const text = result.content[0].text;
+    expect(text).not.toContain(sentinel);
+    expect(text).not.toContain("firecrawl rejected");
+    expect(JSON.stringify(result.details)).not.toContain(sentinel);
+    expect(text).toContain("const ok = true;");
+    expect(text.length).toBeLessThanOrEqual(50_000);
+    expect(result.details.answerProvider).toBe("exa-code");
+
+    // The TUI render path strips terminal control sequences from the output.
+    const { createWebSearchResultRenderer } = await import("../src/render.js");
+    const lines = createWebSearchResultRenderer("web_code_search")(result, { expanded: true }, {}, {}).render(400) as string[];
+    expect(lines.join("\n")).not.toContain("\x1b");
+  });
+});

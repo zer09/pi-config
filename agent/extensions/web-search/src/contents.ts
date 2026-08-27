@@ -19,6 +19,7 @@ import { parseExaContentsResults } from "./content-parser.js";
 import { callExaContents } from "./exa-contents.js";
 import { callFirecrawlScrape, isUsableFirecrawlScrape } from "./firecrawl-scrape.js";
 import { loadConfig, readConfiguredEnv } from "./config.js";
+import { MAX_CONTENT_CHARACTERS, MAX_CONTENT_CONCURRENCY, MAX_FETCH_CONTENT_URLS } from "./limits.js";
 import { cacheKeyForUrl, normalizeUrl } from "./url.js";
 import { readContentCacheEntry, writeContentCacheEntry } from "./storage.js";
 import type {
@@ -46,6 +47,43 @@ export type ParsedFetchContentsInput = {
 };
 
 /**
+ * Config-independent validated fetch_contents input.
+ *
+ * `maxAgeHours` stays absent until a config supplies the default, so this
+ * validation can run before any config load.
+ */
+export type ValidatedFetchContentsInput = {
+  uris: string[];
+  normalizedUrls: string[];
+  maxCharacters: number;
+  maxAgeHours?: number;
+};
+
+/**
+ * Validates tool input and normalizes URLs without touching config, cache,
+ * provider, or cache-write state, so this step can run before the config
+ * load and invalid input always wins over loader failures.
+ */
+export function validateFetchContentsInput(params: {
+  rawUris: unknown;
+  rawMaxCharacters?: unknown;
+  rawMaxAgeHours?: unknown;
+}): ValidatedFetchContentsInput {
+  const maxCharacters = optionalMaxCharacters(params.rawMaxCharacters);
+  const maxAgeHours = explicitMaxAgeHours(params.rawMaxAgeHours);
+  const inputUris = assertStringArray(params.rawUris, "uris");
+  return { uris: inputUris, normalizedUrls: inputUris.map((uri) => normalizeUrl(uri)), maxCharacters, maxAgeHours };
+}
+
+/** Resolves the config-dependent defaults on an already validated input. */
+export function resolveFetchContentsInput(
+  input: ValidatedFetchContentsInput,
+  defaultMaxAgeHours: number,
+): ParsedFetchContentsInput {
+  return { ...input, maxAgeHours: input.maxAgeHours ?? defaultMaxAgeHours };
+}
+
+/**
  * Validates tool input and normalizes URLs without touching cache, provider,
  * or cache-write state, so callers can classify these failures as invalid
  * input separately from later operational failures.
@@ -56,10 +94,7 @@ export function parseFetchContentsInput(params: {
   rawMaxAgeHours?: unknown;
   defaultMaxAgeHours: number;
 }): ParsedFetchContentsInput {
-  const maxCharacters = optionalMaxCharacters(params.rawMaxCharacters);
-  const maxAgeHours = optionalMaxAgeHours(params.rawMaxAgeHours, params.defaultMaxAgeHours);
-  const inputUris = assertStringArray(params.rawUris, "uris");
-  return { uris: inputUris, normalizedUrls: inputUris.map((uri) => normalizeUrl(uri)), maxCharacters, maxAgeHours };
+  return resolveFetchContentsInput(validateFetchContentsInput(params), params.defaultMaxAgeHours);
 }
 
 /** Converts one Firecrawl Scrape attempt into the stored-record attempt shape. */
@@ -110,17 +145,24 @@ function assertStringArray(value: unknown, field: string): string[] {
   if (!Array.isArray(value) || value.length === 0 || value.some((item) => typeof item !== "string" || item.trim().length === 0)) {
     throw new Error(`${field} must be a non-empty array of non-empty strings`);
   }
+  if (value.length > MAX_FETCH_CONTENT_URLS) {
+    throw new Error(`${field} must contain at most ${MAX_FETCH_CONTENT_URLS} URLs`);
+  }
   return value.map((item) => item.trim());
 }
 
 function optionalMaxCharacters(value: unknown): number {
   if (value === undefined) return DEFAULT_CONTENT_MAX_CHARACTERS;
   if (!Number.isInteger(value) || (value as number) <= 0) throw new Error("maxCharacters must be a positive integer");
+  if ((value as number) > MAX_CONTENT_CHARACTERS) {
+    throw new Error(`maxCharacters must be a positive integer no greater than ${MAX_CONTENT_CHARACTERS}`);
+  }
   return value as number;
 }
 
-function optionalMaxAgeHours(value: unknown, fallback: number): number {
-  if (value === undefined || value === null) return fallback;
+/** Config-independent explicit maxAgeHours check; absent and null stay unresolved. */
+function explicitMaxAgeHours(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
   if (!Number.isInteger(value) || (value as number) < 0 || (value as number) > MAX_CONTENT_AGE_HOURS) {
     throw new Error(`maxAgeHours must be an integer between 0 and ${MAX_CONTENT_AGE_HOURS}`);
   }
@@ -130,7 +172,10 @@ function optionalMaxAgeHours(value: unknown, fallback: number): number {
 async function runWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
   const results = new Array<R>(items.length);
   let next = 0;
-  const runners = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+  // Defensive ceiling: even an injected or corrupt config value can never
+  // start more than MAX_CONTENT_CONCURRENCY workers at once.
+  const workerCount = Math.max(1, Math.min(limit, MAX_CONTENT_CONCURRENCY, items.length));
+  const runners = Array.from({ length: workerCount }, async () => {
     while (next < items.length) {
       const index = next;
       next += 1;
@@ -180,6 +225,15 @@ export async function fetchContentsEntries(params: {
   secrets?: SecretForRedaction[];
   diagnostics?: FetchContentsDiagnostics;
 }): Promise<FormattedContentEntry[]> {
+  // Config-independent validation runs before the config load so an invalid
+  // direct call fails as invalid input even when no config can load.
+  const validatedInput = params.input
+    ? undefined
+    : validateFetchContentsInput({
+        rawUris: params.rawUris,
+        rawMaxCharacters: params.rawMaxCharacters,
+        rawMaxAgeHours: params.rawMaxAgeHours,
+      });
   const config = params.config ?? (await loadConfig());
   const diagnostics = params.diagnostics;
   const exaApiKey = params.exaApiKey ?? readConfiguredEnv(config.exaApiKeyEnv);
@@ -193,14 +247,8 @@ export async function fetchContentsEntries(params: {
       { label: config.firecrawlApiKeyEnv, value: firecrawlApiKey },
     ].filter((secret) => secret.value !== undefined);
 
-  const input =
-    params.input ??
-    parseFetchContentsInput({
-      rawUris: params.rawUris,
-      rawMaxCharacters: params.rawMaxCharacters,
-      rawMaxAgeHours: params.rawMaxAgeHours,
-      defaultMaxAgeHours: config.contents.defaultMaxAgeHours,
-    });
+  // The absent maxAgeHours default resolves only now, from the loaded config.
+  const input = params.input ?? resolveFetchContentsInput(validatedInput!, config.contents.defaultMaxAgeHours);
   const maxCharacters = input.maxCharacters;
   const maxAgeHours = input.maxAgeHours;
   const now = Date.now();

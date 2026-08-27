@@ -6,11 +6,20 @@ import { join } from "node:path";
 
 // Imported dynamically so the pi-tui stub is registered before tools.ts loads render.ts.
 const { executeFetchContents } = await import("../src/tools.js");
-const { fetchContentsEntries } = await import("../src/contents.js");
-const { contentPath, readContentCacheEntry } = await import("../src/storage.js");
-const { cacheKeyForUrl } = await import("../src/url.js");
+const {
+  fetchContentsEntries,
+  parseFetchContentsInput,
+  resolveFetchContentsInput,
+  validateFetchContentsInput,
+} = await import("../src/contents.js");
+const { contentPath, readContentCacheEntry, readStoredToolRecord } = await import("../src/storage.js");
+const { cacheKeyForUrl, normalizeUrl } = await import("../src/url.js");
+const { boundUrlForStorage } = await import("../src/diagnostics.js");
+const { createWebSearchResultRenderer } = await import("../src/render.js");
+const { setConfigLoaderForTests } = await import("../src/config.js");
 const {
   clearTestEnv,
+  expectNoSecretFragments,
   jsonResponse,
   mockFetch,
   setTestEnv,
@@ -474,5 +483,482 @@ describe("fetch_contents provider routing", () => {
     expect(details[0].status).toBeNull();
     expect(details[0].characterCount).toBe("# Details".length);
     expect(result.content[0].text).toContain("Source: Firecrawl /scrape");
+  });
+
+  it("bounds and redacts every model-visible URL copy while the provider sees the full URL", async () => {
+    // A dedicated long secret embedded in the URL exercises redaction before
+    // truncation on every model-visible copy.
+    const urlSecret = "wse-visible-url-secret-" + "s".repeat(40);
+    setTestEnv({ [TEST_ENV_NAMES.exaApiKeyEnv]: urlSecret });
+    const longUrl = `https://example.com/deep?token=${urlSecret}&pad=${"v".repeat(700)}`;
+    const normalized = normalizeUrl(longUrl);
+    expect(normalized.length).toBeGreaterThan(500);
+    const secrets = [
+      { label: TEST_ENV_NAMES.googleCloudApiKeyEnv, value: TEST_KEYS.google },
+      { label: TEST_ENV_NAMES.parallelApiKeyEnv, value: TEST_KEYS.parallel },
+      { label: TEST_ENV_NAMES.exaApiKeyEnv, value: urlSecret },
+      { label: TEST_ENV_NAMES.firecrawlApiKeyEnv, value: TEST_KEYS.firecrawl },
+    ];
+    const bounded = boundUrlForStorage(normalized, secrets);
+    expect(bounded.length).toBeLessThanOrEqual(500);
+    expect(bounded).toMatch(/\[\+sha256:[0-9a-f]{12}\]$/);
+    expectNoSecretFragments(bounded, urlSecret);
+
+    install(async (call) => {
+      // The provider call keeps the original full normalized URL.
+      expect(call.url).toBe(FIRECRAWL_SCRAPE_URL);
+      expect(call.body.url).toBe(normalized);
+      return jsonResponse(scrapeSuccess("# Secret page"));
+    });
+    const result = await executeFetchContents({ uris: [longUrl] }, undefined, { config: config() });
+
+    // The stored diagnostic record carries only bounded, redacted copies.
+    const record = (await readStoredToolRecord(cacheDir, result.details.responseId as string)) as Record<string, any>;
+    expect(record.results[0].normalizedUrl).toBe(bounded);
+    expect(record.attempts[0].urls[0]).toBe(bounded);
+    expectNoSecretFragments(JSON.stringify(record), urlSecret);
+    expect(JSON.stringify(record)).not.toContain(normalized);
+
+    // Tool details reuse the stored bounded copies; no secret or full URL leaks.
+    const details = result.details.results as Array<Record<string, unknown>>;
+    expect(details[0].url).toBe(bounded);
+    expect(details[0].normalizedUrl).toBe(bounded);
+    expectNoSecretFragments(JSON.stringify(result.details), urlSecret);
+    expect(JSON.stringify(result.details)).not.toContain(normalized);
+
+    // Model-visible content output carries the same bounded copy.
+    const text = result.content[0].text;
+    expect(text).toContain(`URL: ${bounded}`);
+    expect(text).toContain("# Secret page");
+    expectNoSecretFragments(text, urlSecret);
+    expect(text).not.toContain(normalized);
+
+    // The expanded TUI render reads only the bounded details copies.
+    const lines = (createWebSearchResultRenderer("fetch_contents")(result, { expanded: true, isPartial: false }, {}, {}).render(400) as string[]).join("\n");
+    expect(lines).toContain(bounded);
+    expect(lines).not.toContain(normalized);
+    expectNoSecretFragments(lines, urlSecret);
+
+    // The content cache keeps cache identity but is secret-redacted on write.
+    const cached = await readCachedEntry(normalized);
+    expect(cached?.text).toContain("# Secret page");
+    expectNoSecretFragments(JSON.stringify(cached), urlSecret);
+  });
+});
+
+describe("fetch_contents public resource bounds", () => {
+  it("rejects 26 URLs as invalid input before any cache or provider attempt", async () => {
+    const urls = Array.from({ length: 26 }, (_, i) => `https://example.com/u/${i}`);
+    install([]);
+
+    let thrown: unknown;
+    try {
+      await executeFetchContents({ uris: urls }, undefined, { config: config() });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toContain("uris must contain at most 25 URLs");
+    // No cache read, no provider call, no cache write happened at all.
+    expect(calls).toHaveLength(0);
+    expect(await listContentCache()).toEqual([]);
+
+    // The direct orchestration entry rejects the same input before I/O too.
+    await expect(fetchContentsEntries({ rawUris: urls, config: config() })).rejects.toThrow("at most 25 URLs");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("accepts 25 URLs and records one Firecrawl attempt per unique URL", async () => {
+    const urls = Array.from({ length: 25 }, (_, i) => `https://example.com/u/${i}`);
+    install(async (call) => jsonResponse(scrapeSuccess(`# Page ${call.body.url}`, call.body.url)));
+
+    const result = await executeFetchContents({ uris: urls }, undefined, { config: config() });
+
+    expect(calls).toHaveLength(25);
+    expect(result.content[0].text).toContain("# Page https://example.com/u/0");
+    expect((result.details.results as unknown[])).toHaveLength(25);
+    expect(result.details.attemptCount).toBe(25);
+    expect(result.details.failureCategories).toEqual([]);
+  });
+
+  it("keeps at most 10 scrapes in flight for configured concurrency 10", async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const mock = mockFetch(async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight -= 1;
+      return jsonResponse(scrapeSuccess());
+    });
+    restore = mock.restore;
+    calls = mock.calls;
+    const urls = Array.from({ length: 25 }, (_, i) => `https://example.com/u/${i}`);
+
+    const entries = await fetchContentsEntries({
+      rawUris: urls,
+      config: testConfig({ cacheDir, contents: { ...config().contents, concurrency: 10 } }),
+    });
+
+    expect(entries).toHaveLength(25);
+    expect(maxInFlight).toBeLessThanOrEqual(10);
+    expect(maxInFlight).toBeGreaterThan(3);
+  });
+
+  it("defensively caps injected concurrency above the ceiling to 10 workers", async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const mock = mockFetch(async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight -= 1;
+      return jsonResponse(scrapeSuccess());
+    });
+    restore = mock.restore;
+    calls = mock.calls;
+    const urls = Array.from({ length: 25 }, (_, i) => `https://example.com/u/${i}`);
+
+    // A corrupted or injected config value above the ceiling still runs at most 10 workers.
+    const entries = await fetchContentsEntries({
+      rawUris: urls,
+      config: testConfig({ cacheDir, contents: { ...config().contents, concurrency: 50 } }),
+    });
+
+    expect(entries).toHaveLength(25);
+    expect(maxInFlight).toBeLessThanOrEqual(10);
+  });
+
+  it("rejects maxCharacters above 50000 as invalid input before any provider call", async () => {
+    install([]);
+    let thrown: unknown;
+    try {
+      await executeFetchContents({ uris: ["https://example.com/a"], maxCharacters: 50_001 }, undefined, { config: config() });
+    } catch (error) {
+      thrown = error;
+    }
+    expect((thrown as Error).message).toContain("maxCharacters must be a positive integer no greater than 50000");
+    expect(calls).toHaveLength(0);
+
+    thrown = undefined;
+    try {
+      await fetchContentsEntries({ rawUris: ["https://example.com/a"], rawMaxCharacters: 500_001, config: config() });
+    } catch (error) {
+      thrown = error;
+    }
+    expect((thrown as Error).message).toContain("no greater than 50000");
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("fetch input validation and default resolution", () => {
+  it("validates shape, caps, and explicit maxAgeHours without a config", () => {
+    const validated = validateFetchContentsInput({
+      rawUris: ["https://example.com/a"],
+      rawMaxCharacters: 500,
+      rawMaxAgeHours: 0,
+    });
+    expect(validated).toEqual({
+      uris: ["https://example.com/a"],
+      normalizedUrls: ["https://example.com/a"],
+      maxCharacters: 500,
+      maxAgeHours: 0,
+    });
+    expect(validateFetchContentsInput({ rawUris: ["https://example.com/a"] }).maxAgeHours).toBeUndefined();
+    expect(validateFetchContentsInput({ rawUris: ["https://example.com/a"], rawMaxAgeHours: null }).maxAgeHours).toBeUndefined();
+    expect(() => validateFetchContentsInput({ rawUris: ["https://example.com/a"], rawMaxAgeHours: 721 })).toThrow(
+      "maxAgeHours must be an integer between 0 and 720",
+    );
+    expect(() => validateFetchContentsInput({ rawUris: ["https://example.com/a"], rawMaxAgeHours: -1 })).toThrow(
+      "maxAgeHours must be an integer between 0 and 720",
+    );
+  });
+
+  it("resolves absent maxAgeHours only through the config default and keeps explicit zero", () => {
+    const validated = validateFetchContentsInput({ rawUris: ["https://example.com/a"], rawMaxCharacters: 100 });
+    expect(resolveFetchContentsInput(validated, 48).maxAgeHours).toBe(48);
+    expect(resolveFetchContentsInput({ ...validated, maxAgeHours: 0 }, 48).maxAgeHours).toBe(0);
+    // The compatibility wrapper keeps composing both steps.
+    expect(
+      parseFetchContentsInput({ rawUris: ["https://example.com/a"], rawMaxAgeHours: null, defaultMaxAgeHours: 9 }).maxAgeHours,
+    ).toBe(9);
+    expect(parseFetchContentsInput({ rawUris: ["https://example.com/a"], defaultMaxAgeHours: 12 }).maxAgeHours).toBe(12);
+  });
+});
+
+describe("direct fetchContentsEntries validation order", () => {
+  it("rejects invalid input before the config loader runs", async () => {
+    const urls = Array.from({ length: 26 }, (_, i) => `https://example.com/u/${i}`);
+    let loadCount = 0;
+    setConfigLoaderForTests({
+      load: () => {
+        loadCount += 1;
+        throw new Error("config loader must not be reached");
+      },
+    });
+    try {
+      await expect(fetchContentsEntries({ rawUris: urls })).rejects.toThrow("at most 25 URLs");
+    } finally {
+      setConfigLoaderForTests(undefined);
+    }
+    expect(loadCount).toBe(0);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("resolves the absent maxAgeHours default from the loader-provided config", async () => {
+    let loadCount = 0;
+    setConfigLoaderForTests({
+      load: () => {
+        loadCount += 1;
+        return testConfig({ cacheDir, contents: { ...config().contents, defaultMaxAgeHours: 7 } });
+      },
+    });
+    try {
+      install([jsonResponse(scrapeSuccess())]);
+      const entries = await fetchContentsEntries({ rawUris: ["https://example.com/a"] });
+
+      expect(loadCount).toBe(1);
+      expect(entries[0].text).toContain("Body text.");
+      expect(calls[0].body.maxAge).toBe(7 * HOUR_MS);
+    } finally {
+      setConfigLoaderForTests(undefined);
+    }
+  });
+});
+
+describe("Exa Contents result identity", () => {
+  it("maps a URL-like id-only result to its own requested URL only", async () => {
+    install([
+      jsonResponse({ success: false }, 500),
+      jsonResponse({ success: false }, 500),
+      jsonResponse({
+        results: [{ id: "https://example.com/b", title: "B", text: "B body only." }],
+        statuses: [{ id: "https://example.com/b", status: "success" }],
+      }),
+    ]);
+    const entries = await fetchContentsEntries({
+      rawUris: ["https://example.com/a", "https://example.com/b"],
+      config: config(),
+    });
+
+    // A stays a generic failure; B's content is attributed to B alone.
+    expect(entries.map((entry) => entry.text)).toEqual(["", "B body only."]);
+    expect(entries[0].statusLabel).toBe("fetch failed");
+    expect(entries[1].provider).toBe("exa_contents");
+    expect(await readCachedEntry("https://example.com/a")).toBeNull();
+    expect(await readCachedEntry("https://example.com/b")).toMatchObject({ text: "B body only." });
+  });
+
+  it("matches status entries through the same url/uri/id identity without positional fallback", async () => {
+    install([
+      jsonResponse({ success: false }, 500),
+      jsonResponse({
+        results: [{ url: "https://example.com/a", title: "A", text: "A body only." }],
+        statuses: [
+          { id: "https://example.com/other", status: "error: wrong positional status" },
+          { uri: "https://example.com/a", status: "success via uri" },
+        ],
+      }),
+    ]);
+    const entries = await fetchContentsEntries({ rawUris: ["https://example.com/a"], config: config() });
+
+    expect(entries[0].text).toBe("A body only.");
+    expect(entries[0].statusLabel).toBe("success via uri");
+    expect(await readCachedEntry("https://example.com/a")).toMatchObject({ text: "A body only." });
+    expect(JSON.stringify(entries)).not.toContain("wrong positional status");
+  });
+
+  it("does not apply an unrelated positional status to an identified result in a multi-URL batch", async () => {
+    install([
+      jsonResponse({ success: false }, 500),
+      jsonResponse({ success: false }, 500),
+      jsonResponse({
+        results: [{ url: "https://example.com/a", title: "A", text: "A body only." }],
+        statuses: [{ id: "https://example.com/b", status: "error: belongs to B" }],
+      }),
+    ]);
+    const entries = await fetchContentsEntries({
+      rawUris: ["https://example.com/a", "https://example.com/b"],
+      config: config(),
+    });
+
+    expect(entries[0].text).toBe("A body only.");
+    expect(entries[0].statusLabel).toBeUndefined();
+    expect(entries[1].text).toBe("");
+    expect(entries[1].statusLabel).toBe("fetch failed");
+    expect(await readCachedEntry("https://example.com/a")).toMatchObject({ text: "A body only." });
+    expect(await readCachedEntry("https://example.com/b")).toBeNull();
+  });
+
+  it("maps an id-only result inside an unordered partial batch to its own URL", async () => {
+    install([
+      jsonResponse({ success: false }, 500),
+      jsonResponse({ success: false }, 500),
+      jsonResponse({ success: false }, 500),
+      jsonResponse({
+        results: [
+          { id: "https://example.com/c", title: "C", text: "C body only." },
+          { url: "https://example.com/a", title: "A", text: "A body only." },
+        ],
+        statuses: [
+          { id: "https://example.com/c", status: "success" },
+          { id: "https://example.com/a", status: "success" },
+        ],
+      }),
+    ]);
+    const entries = await fetchContentsEntries({
+      rawUris: ["https://example.com/a", "https://example.com/b", "https://example.com/c"],
+      config: config(),
+    });
+
+    expect(entries.map((entry) => entry.text)).toEqual(["A body only.", "", "C body only."]);
+    expect(JSON.stringify(entries[1])).not.toContain("C body only.");
+    expect(await readCachedEntry("https://example.com/b")).toBeNull();
+    expect(await readCachedEntry("https://example.com/c")).toMatchObject({ text: "C body only." });
+  });
+
+  it("never positionally assigns unidentified results across multiple requested URLs", async () => {
+    install([
+      jsonResponse({ success: false }, 500),
+      jsonResponse({ success: false }, 500),
+      jsonResponse({
+        // No url, uri, or URL-like id: unsafe to assign to any request.
+        results: [
+          { title: "First", text: "unidentified first body." },
+          { title: "Second", text: "unidentified second body." },
+        ],
+        statuses: [],
+      }),
+    ]);
+    const entries = await fetchContentsEntries({
+      rawUris: ["https://example.com/a", "https://example.com/b"],
+      config: config(),
+    });
+
+    expect(entries.map((entry) => entry.text)).toEqual(["", ""]);
+    expect(entries.every((entry) => entry.statusLabel === "fetch failed")).toBe(true);
+    expect(JSON.stringify(entries)).not.toContain("unidentified");
+    expect(await listContentCache()).toEqual([]);
+  });
+
+  it("keeps the legacy single-URL positional case for one unidentified result", async () => {
+    install([
+      jsonResponse({ success: false }, 500),
+      jsonResponse({ results: [{ title: "Only", text: "legacy single body." }], statuses: [] }),
+    ]);
+    const entries = await fetchContentsEntries({ rawUris: ["https://example.com/a"], config: config() });
+
+    expect(entries[0].text).toBe("legacy single body.");
+    expect(entries[0].provider).toBe("exa_contents");
+    expect(await readCachedEntry("https://example.com/a")).toMatchObject({ text: "legacy single body." });
+  });
+
+  it("fails both URLs generically when one unidentified result answers two requests", async () => {
+    install([
+      jsonResponse({ success: false }, 500),
+      jsonResponse({ success: false }, 500),
+      // A single unidentified result: the old positional fallback applied it
+      // to every requested URL, handing one body to both requests.
+      jsonResponse({ results: [{ title: "Only", text: "unidentified single body." }], statuses: [] }),
+    ]);
+    const entries = await fetchContentsEntries({
+      rawUris: ["https://example.com/a", "https://example.com/b"],
+      config: config(),
+    });
+
+    expect(entries.map((entry) => entry.normalizedUrl)).toEqual(["https://example.com/a", "https://example.com/b"]);
+    expect(entries.map((entry) => entry.text)).toEqual(["", ""]);
+    expect(entries.every((entry) => entry.statusLabel === "fetch failed")).toBe(true);
+    expect(JSON.stringify(entries)).not.toContain("unidentified single body.");
+    // Neither URL receives the unidentified content, so nothing is cached.
+    expect(await listContentCache()).toEqual([]);
+  });
+
+  it("does not positionally assign a single mismatched identified result to one of two requests", async () => {
+    install([
+      jsonResponse({ success: false }, 500),
+      jsonResponse({ success: false }, 500),
+      jsonResponse({
+        results: [{ url: "https://example.com/other", title: "Other", text: "other body." }],
+        statuses: [{ id: "https://example.com/other", status: "success" }],
+      }),
+    ]);
+    const entries = await fetchContentsEntries({
+      rawUris: ["https://example.com/a", "https://example.com/b"],
+      config: config(),
+    });
+
+    expect(entries.map((entry) => entry.text)).toEqual(["", ""]);
+    expect(JSON.stringify(entries)).not.toContain("other body.");
+    expect(await listContentCache()).toEqual([]);
+  });
+});
+
+describe("Firecrawl target-page status handling", () => {
+  it("rejects a wrapped 404 target page, falls back to Exa, and never caches the error page", async () => {
+    install([
+      jsonResponse(scrapeSuccess("# 404 Not Found\n\nThe page you requested does not exist.", {
+        metadata: { title: "Not Found", sourceURL: "https://example.com/a", statusCode: 404 },
+      })),
+      jsonResponse(exaContentsSuccess(["https://example.com/a"])),
+    ]);
+    const result = await executeFetchContents({ uris: ["https://example.com/a"] }, undefined, { config: config() });
+
+    // The Firecrawl error-page Markdown never reaches output.
+    expect(result.content[0].text).toContain("Exa markdown body.");
+    expect(result.content[0].text).not.toContain("404 Not Found");
+    expect(calls).toHaveLength(2);
+    expect(calls[1]!.url).toBe(EXA_CONTENTS_URL);
+    const cached = await readCachedEntry("https://example.com/a");
+    expect(cached?.text).toBe("Exa markdown body.");
+    expect(cached?.provider).toBe("exa_contents");
+    expect(result.details.failureCategories).toContain("unusable_response");
+
+    const { readStoredToolRecord } = await import("../src/storage.js");
+    const record = (await readStoredToolRecord(cacheDir, result.details!.responseId as string)) as Record<string, any>;
+    expect(record.attempts[0].status).toBe("unusable_response");
+    expect(record.attempts[0].normalized.statusCode).toBe(404);
+    expect(record.results[0].provider).toBe("exa_contents");
+  });
+
+  it("rejects a wrapped 500 target page and returns a generic failure when Exa also fails", async () => {
+    install([
+      jsonResponse(scrapeSuccess("# 500 Server Error\n\nInternal error page markdown.", {
+        metadata: { title: "Server Error", sourceURL: "https://example.com/a", statusCode: 500 },
+      })),
+      jsonResponse({ error: "exa down" }, 503),
+    ]);
+    const result = await executeFetchContents({ uris: ["https://example.com/a"] }, undefined, { config: config() });
+
+    expect(result.content[0].text).toContain("Status: fetch failed");
+    expect(result.content[0].text).not.toContain("Internal error page markdown.");
+    expect(await listContentCache()).toEqual([]);
+
+    const { readStoredToolRecord } = await import("../src/storage.js");
+    const record = (await readStoredToolRecord(cacheDir, result.details!.responseId as string)) as Record<string, any>;
+    expect(record.attempts[0].status).toBe("unusable_response");
+    expect(record.attempts[0].normalized.statusCode).toBe(500);
+    expect(record.attempts[1].status).toBe("http_error");
+  });
+
+  it("keeps absent, 2xx, and 3xx target statuses usable without an Exa call", async () => {
+    install([
+      jsonResponse(scrapeSuccess("# No status", { metadata: { title: "No Status", sourceURL: "https://example.com/a" } })),
+      jsonResponse(scrapeSuccess("# Explicit 200", { metadata: { title: "OK", sourceURL: "https://example.com/b", statusCode: 200 } })),
+      jsonResponse(scrapeSuccess("# Redirected 302", { metadata: { title: "Moved", sourceURL: "https://example.com/c", statusCode: 302 } })),
+    ]);
+    const result = await executeFetchContents(
+      { uris: ["https://example.com/a", "https://example.com/b", "https://example.com/c"] },
+      undefined,
+      { config: config() },
+    );
+
+    expect(calls).toHaveLength(3);
+    expect(calls.every((call) => call.url === FIRECRAWL_SCRAPE_URL)).toBe(true);
+    const text = result.content[0].text;
+    expect(text).toContain("# No status");
+    expect(text).toContain("# Explicit 200");
+    expect(text).toContain("# Redirected 302");
+    expect(result.details.failureCategories).toEqual([]);
   });
 });
