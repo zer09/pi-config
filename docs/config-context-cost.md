@@ -92,6 +92,8 @@ Delegated instruction-centralization update: 2026-08-26 (moved every model-visib
 
 Delegated C-route Ox Alpha removal update: 2026-08-27 (removed the `stealth/ox-alpha` capability record and Gate C tier from `routing.json` together with the global OpenRouter override, the TokenReply `ox-alpha` model entry, and the `openrouter/stealth/ox-alpha` enabled model because every provider dropped the model; zero model-visible startup-context delta because the public role schema, tool guidance, and global instructions are unchanged; provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated C-route GLM-5.3-Flash restoration update: 2026-08-27 (Z.AI officially revealed Ox Alpha as GLM-5.3-Flash, so Gate C's first tier is restored as `zai/glm-5.3-flash:high` ahead of the retained Hy3 fallback, with the matching `glm-5.3-flash` capability in `routing.json` and the `zai/glm-5.3-flash` enabled model; zero model-visible startup-context delta because the public role schema, tool guidance, and global instructions are unchanged; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`

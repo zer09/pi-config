@@ -2,6 +2,15 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-08-27 — Restore Gate C Ox Alpha routing through official Z.AI GLM-5.3-Flash
+
+- Z.AI officially revealed Ox Alpha as GLM-5.3-Flash. The separately committed built-in `zai` provider entry in `agent/models.json` already carries the official model record (1M context, 131,072 max output, thinking, images); this change restores the former Ox Alpha routing role through the official direct route `zai/glm-5.3-flash`, not the removed temporary aliases `openrouter/stealth/ox-alpha` or `tokenreply/ox-alpha`, and not OpenRouter or TokenReply.
+- `agent/settings.json` enables `zai/glm-5.3-flash` where the former Ox Alpha enabled-model entry used to be; the pre-existing unrelated default-provider and default-thinking-level changes in the same file stay untouched.
+- Restored the routing configuration in `agent/extensions/delegated-pi-loop/routing.json`: a new `glm-5.3-flash` capability on `zai` (thinking `low`, `high`, `max`; default `max`) and Gate C's first tier as `zai/glm-5.3-flash:high` ahead of the retained `opencode-go/hy3:high` fallback. Role counts, role assignments, schemas, and provider selection behavior are unchanged.
+- Updated the focused delegated-pi-loop regressions to the restored policy: the shipped-config test pins the official `glm-5.3-flash` capability, Gate C's chain is `zai/glm-5.3-flash:high` then `opencode-go/hy3:high`, the provider-plus-model default-thinking and capability-error cases run on the official route, and the obsolete alias ids stay absent. The generic `runner.test.ts` test-isolation improvements from the removal commit stay untouched. The negative route-detail pins that forbid `ox-alpha` in model-visible text stay.
+- Updated the current-policy maintenance contract and ADR 0009 (new superseding 2026-08-27 current-policy note plus a dated Decision paragraph; earlier history preserved), restored the `zai/glm-5.3-flash` lean-catalog check, and recorded a zero-delta context-cost line. The instruction reference's route table now shows Gate C on GLM-5.3-Flash then Hy3; the generated sections are unchanged because role counts and instruction text did not change.
+- Validation: extension suite (288 tests), JSON parse checks on every edited configuration, `git diff --check`, and no-inference catalog checks including `pi --list-models glm-5.3-flash` and the lean-catalog `zai/glm-5.3-flash` probe. No paid inference or live delegate smoke was run, and nothing was staged or committed.
+
 ## 2026-08-27 — Remove Ox Alpha from local Pi configuration
 
 - Removed Ox Alpha everywhere because every provider dropped the model. `agent/settings.json` no longer enables `openrouter/stealth/ox-alpha`; the pre-existing unrelated theme change in the same file stays untouched.
