@@ -596,7 +596,7 @@ Tasks:
 
 Files:
 
-- new `docs/adr/0013-delegated-renewable-liveness.md`;
+- new `docs/adr/0015-delegated-renewable-liveness.md`;
 - `docs/delegated-pi-loop-deadline-and-liveness-plan.md` supersession note;
 - `docs/adr/0007-delegated-pi-role-isolation.md` current-policy note;
 - `docs/adr/0012-delegated-instruction-efficiency.md` current-policy note;

@@ -1,11 +1,17 @@
 import { asArray, asFiniteNumber as asNumber, asRecord, asString } from "./value-guards.js";
-import type { GroundingSource, GroundingSupport, NormalizedGeminiExaResponse } from "./types.js";
+import type { GroundingSource, GroundingSupport, NormalizedGeminiGroundingResponse } from "./types.js";
 
 function asIntegerArray(value: unknown): number[] {
-  return asArray(value).filter((item): item is number => Number.isInteger(item) && item >= 0);
+  return asArray(value).filter((item): item is number => typeof item === "number" && Number.isInteger(item) && item >= 0);
 }
 
-export function normalizeGeminiExaResponse(response: unknown): NormalizedGeminiExaResponse {
+/**
+ * Normalizes a Gemini generateContent grounding response.
+ *
+ * The response shape is identical for the Parallel and Exa grounding
+ * partners, so one normalizer covers both.
+ */
+export function normalizeGeminiGroundingResponse(response: unknown): NormalizedGeminiGroundingResponse {
   const root = asRecord(response) ?? {};
   const candidate = asRecord(asArray(root.candidates)[0]);
   const content = asRecord(candidate?.content);

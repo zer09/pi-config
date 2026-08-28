@@ -95,6 +95,7 @@ const LIVE_TOOL_NAMES: ReadonlySet<string> = new Set([
   "edit",
   "write",
   "web_search",
+  "web_code_search",
   "fetch_contents",
   "ctx_execute_file",
   "ctx_batch_execute",

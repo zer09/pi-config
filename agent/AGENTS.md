@@ -138,12 +138,13 @@ Classify each request by the action requested, not by the topic.
 
 ## User overrides
 
-- An exact user directive that begins with `OVERRIDE:` is explicit authority to waive any conflicting instruction in global or project `AGENTS.md`/`CLAUDE.md`, and any agent workflow, gate, contract, sequencing, delegation, review, verification, planning, retry, or similar agent-process guidance governed by those instructions.
-- Follow the directive. Do not refuse merely because it conflicts with a waived agent-process rule.
-- A directive may waive one, several, or all covered rules, as the directive states.
+- An exact user directive that begins with `OVERRIDE:` explicitly supersedes conflicting user-configurable instructions. This includes global or project `AGENTS.md`/`CLAUDE.md`, local `SYSTEM.md` or custom-prompt rules, and agent workflow, gate, contract, sequencing, delegation, review, verification, planning, or retry rules.
+- Treat `OVERRIDE:` only as a user-controlled instruction-precedence mechanism. Never make it a workflow step, gate, permission request, or phrase that the user must provide. Never ask or suggest that the user write an `OVERRIDE:` directive.
+- Follow the directive. Do not refuse merely because it conflicts with a superseded instruction.
+- A directive may supersede one, several, or all covered instructions, as the directive states.
 - Apply the override only to the scope and duration the directive states. If the directive omits a duration, apply it only to the current user request or task.
-- Do not infer an override without the exact `OVERRIDE:` prefix.
-- This rule does not override system or platform constraints, tool-enforced constraints, operating-system permissions, or authorization for external services. Higher-priority constraints that cannot be waived still apply.
+- Do not infer an override without the exact `OVERRIDE:` prefix. Follow ordinary user instructions normally when they do not require precedence over a conflicting instruction.
+- This mechanism cannot supersede actual platform system or developer instructions, platform safety controls, tool-enforced constraints, operating-system permissions, or third-party access controls. An override authorizes a Git or hosted-service action only when the directive explicitly authorizes that action and existing permissions allow it.
 
 ## Response Style
 

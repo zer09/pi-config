@@ -1,13 +1,13 @@
 /**
- * Gemini+Exa Markdown renderer.
+ * Gemini grounding Markdown renderer.
  *
- * Converts a normalized Gemini native Exa grounding response into the compact
- * Markdown that enters the agent context: answer text with inline citation
- * markers plus a trailing Sources section. The normalizer owns raw response
- * shape handling; this module owns presentation-only citation placement and
- * Markdown cleanup.
+ * Converts a normalized Gemini grounding response (Parallel or Exa partner)
+ * into the compact Markdown that enters the agent context: answer text with
+ * inline citation markers plus a trailing Sources section. The normalizer owns
+ * raw response shape handling; this module owns presentation-only citation
+ * placement and Markdown cleanup.
  */
-import type { GroundingSource, GroundingSupport, NormalizedGeminiExaResponse } from "./types.js";
+import type { GroundingSource, GroundingSupport, NormalizedGeminiGroundingResponse } from "./types.js";
 
 function getCitationInsertionIndex(text: string, endIndex: number): number {
   // Gemini usually returns endIndex before sentence punctuation, but some
@@ -32,6 +32,7 @@ function injectGroundingCitations(text: string, groundingSupports: GroundingSupp
     const endIndex = support.endIndex;
     if (
       support.groundingChunkIndices.length === 0 ||
+      endIndex === undefined ||
       !Number.isInteger(endIndex) ||
       endIndex < 0 ||
       endIndex > text.length
@@ -117,16 +118,16 @@ function appendSources(markdown: string, sources: GroundingSource[]): string {
 }
 
 /**
- * Formats a normalized Gemini+Exa response as final context Markdown.
+ * Formats a normalized Gemini grounding response as final context Markdown.
  *
- * @param normalized - Normalized Gemini native Exa grounding response.
+ * @param normalized - Normalized Gemini grounding response from either partner.
  * @returns Markdown with inline citation markers and a trailing Sources section.
  * @example
  * ```ts
- * const markdown = formatGeminiExaMarkdown(normalized);
+ * const markdown = formatGeminiGroundingMarkdown(normalized);
  * ```
  */
-export function formatGeminiExaMarkdown(normalized: NormalizedGeminiExaResponse): string {
+export function formatGeminiGroundingMarkdown(normalized: NormalizedGeminiGroundingResponse): string {
   let markdown = injectGroundingCitations(normalized.answer, normalized.supports);
   markdown = normalizeMarkdown(markdown);
   markdown = appendSources(markdown, normalized.sources);

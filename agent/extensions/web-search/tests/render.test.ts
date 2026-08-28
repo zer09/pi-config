@@ -3,12 +3,20 @@ import { describe, expect, it } from "bun:test";
 import type { ToolResult } from "../src/types.js";
 
 // Imported dynamically so the pi-tui stub is registered before render.ts loads.
-const { createWebSearchResultRenderer } = await import("../src/render.js");
+const { createWebSearchCallRenderer, createWebSearchResultRenderer } = await import("../src/render.js");
 
 const theme = { bold: (text: string) => text, fg: (_name: string, text: string) => text };
-const renderer = createWebSearchResultRenderer("web_search");
 
-function detailsLine(details: Record<string, unknown>, expanded = false): string {
+function renderCall(toolName: "web_search" | "web_code_search" | "fetch_contents", args: unknown): string {
+  return (createWebSearchCallRenderer(toolName)(args, theme, {}) as { render: () => string[] }).render().join("\n");
+}
+
+function detailsLine(
+  toolName: "web_search" | "web_code_search" | "fetch_contents",
+  details: Record<string, unknown>,
+  expanded = false,
+): string {
+  const renderer = createWebSearchResultRenderer(toolName);
   const result: ToolResult = { content: [{ type: "text", text: "Answer text." }], details };
   const lines = renderer(result, { expanded, isPartial: false }, theme, {}).render(400) as string[];
   const line = lines.find((entry) => entry.startsWith("Details: "));
@@ -16,158 +24,207 @@ function detailsLine(details: Record<string, unknown>, expanded = false): string
   return line.slice("Details: ".length);
 }
 
+describe("call summary rendering", () => {
+  it("renders the web_search query and depth", () => {
+    const summary = renderCall("web_search", { query: "How does MJML work?", depth: "deep" });
+    expect(summary).toContain("Web Search");
+    expect(summary).toContain('query="How does MJML work?"');
+    expect(summary).toContain("depth=deep");
+  });
+
+  it("omits the depth label when not requested", () => {
+    expect(renderCall("web_search", { query: "q" })).not.toContain("depth=");
+  });
+
+  it("renders the web_code_search query and focus", () => {
+    const summary = renderCall("web_code_search", { query: "Zod validation", focus: "developer_sources" });
+    expect(summary).toContain("Web Code Search");
+    expect(summary).toContain('query="Zod validation"');
+    expect(summary).toContain("focus=developer_sources");
+  });
+
+  it("renders fetch_contents URL count, max characters, and freshness", () => {
+    const summary = renderCall("fetch_contents", { uris: ["a", "b"], maxCharacters: 5000, maxAgeHours: 0 });
+    expect(summary).toContain("Fetch Contents");
+    expect(summary).toContain("urls=2");
+    expect(summary).toContain("maxChars=5000");
+    expect(summary).toContain("maxAgeHours=0");
+  });
+
+  it("omits absent optional fetch_contents labels", () => {
+    const summary = renderCall("fetch_contents", { uris: ["a"] });
+    expect(summary).toContain("urls=1");
+    expect(summary).not.toContain("maxChars=");
+    expect(summary).not.toContain("maxAgeHours=");
+  });
+});
+
 describe("web_search result details rendering", () => {
-  it("describes a clean primary answer", () => {
+  it("describes a clean Parallel answer", () => {
     expect(
-      detailsLine({
+      detailsLine("web_search", {
         responseId: "wse_abc",
-        answerProvider: "gemini-exa-grounding",
-        primaryAttemptCount: 1,
-        primaryFinalStatus: 200,
+        answerProvider: "gemini-parallel-grounding",
+        attemptCount: 1,
+        primaryStatus: 200,
         primaryFirstFailureCode: null,
         primaryFinalFailureCode: null,
         fallbackUsed: false,
         sourceCount: 14,
         supportCount: 14,
       }),
-    ).toBe("provider=gemini-exa-grounding attempts=1 sources=14 supports=14 responseId=wse_abc");
+    ).toBe("provider=gemini-parallel-grounding attempts=1 sources=14 supports=14 responseId=wse_abc");
   });
 
-  it("shows the recovered first failure after a successful retry", () => {
+  it("describes an Exa grounding fallback answer", () => {
     expect(
-      detailsLine({
+      detailsLine("web_search", {
         responseId: "wse_abc",
         answerProvider: "gemini-exa-grounding",
-        primaryAttemptCount: 2,
-        primaryFinalStatus: 200,
-        primaryFirstFailureCode: "EXA_EMPTY_QUERY",
-        primaryFinalFailureCode: null,
-        fallbackUsed: false,
-        sourceCount: 14,
-        supportCount: 14,
-      }),
-    ).toBe(
-      "provider=gemini-exa-grounding attempts=2 firstError=EXA_EMPTY_QUERY sources=14 supports=14 responseId=wse_abc",
-    );
-  });
-
-  it("describes an exa_search fallback answer without Gemini counts", () => {
-    expect(
-      detailsLine({
-        responseId: "wse_abc",
-        answerProvider: "exa_search",
-        primaryAttemptCount: 2,
-        primaryFinalStatus: 400,
-        primaryFirstFailureCode: "EXA_EMPTY_QUERY",
-        primaryFinalFailureCode: "EXA_EMPTY_QUERY",
-        fallbackUsed: true,
-        fallbackProvider: "exa_search",
-        fallbackResultCount: 5,
-        sourceCount: null,
-        supportCount: null,
-      }),
-    ).toBe("provider=exa_search attempts=2 results=5 primaryError=EXA_EMPTY_QUERY responseId=wse_abc");
-  });
-
-  it("describes a code_search fallback answer with its result count", () => {
-    expect(
-      detailsLine({
-        responseId: "wse_abc",
-        answerProvider: "code_search",
-        primaryAttemptCount: 1,
-        primaryFinalStatus: 400,
+        attemptCount: 2,
+        primaryStatus: 429,
         primaryFirstFailureCode: null,
         primaryFinalFailureCode: null,
         fallbackUsed: true,
-        fallbackProvider: "code_search",
-        fallbackResultCount: 10,
-        sourceCount: null,
-        supportCount: null,
+        fallbackFrom: "parallel",
+        sourceCount: 9,
+        supportCount: 9,
       }),
-    ).toBe("provider=code_search attempts=1 results=10 primaryError=HTTP_400 responseId=wse_abc");
+    ).toBe("provider=gemini-exa-grounding attempts=2 fallbackFrom=parallel sources=9 supports=9 responseId=wse_abc");
   });
 
-  it("omits the result count when the fallback did not report one", () => {
+  it("renders provider=none when answerProvider is explicitly null", () => {
     expect(
-      detailsLine({
+      detailsLine("web_search", {
         responseId: "wse_abc",
-        answerProvider: "exa_search",
-        primaryAttemptCount: 1,
-        primaryFinalStatus: 400,
-        fallbackUsed: true,
-        fallbackProvider: "exa_search",
-        fallbackResultCount: null,
+        answerProvider: null,
+        attemptCount: 1,
+        primaryStatus: 503,
+        primaryFirstFailureCode: null,
+        primaryFinalFailureCode: "http_503",
         sourceCount: null,
         supportCount: null,
       }),
-    ).toBe("provider=exa_search attempts=1 primaryError=HTTP_400 responseId=wse_abc");
-  });
-
-  it("reports a non-STOP finish reason instead of an HTTP 200 error label", () => {
-    const summary = detailsLine({
-      responseId: "wse_abc",
-      answerProvider: "exa_search",
-      primaryAttemptCount: 1,
-      primaryFinalStatus: 200,
-      primaryFinishReason: "MAX_TOKENS",
-      primaryFirstFailureCode: null,
-      primaryFinalFailureCode: null,
-      fallbackUsed: true,
-      fallbackProvider: "exa_search",
-      fallbackResultCount: 5,
-      sourceCount: null,
-      supportCount: null,
-    });
-
-    expect(summary).toBe("provider=exa_search attempts=1 results=5 finishReason=MAX_TOKENS responseId=wse_abc");
-    expect(summary).not.toContain("HTTP_200");
-  });
-
-  it("omits the finish reason for a clean STOP primary that still needed fallback", () => {
-    const summary = detailsLine({
-      responseId: "wse_abc",
-      answerProvider: "exa_search",
-      primaryAttemptCount: 1,
-      primaryFinalStatus: 200,
-      primaryFinishReason: "STOP",
-      fallbackUsed: true,
-      fallbackProvider: "exa_search",
-      fallbackResultCount: 5,
-    });
-
-    expect(summary).toBe("provider=exa_search attempts=1 results=5 responseId=wse_abc");
-    expect(summary).not.toContain("HTTP_200");
+    ).toBe("provider=none attempts=1 primaryError=http_503 responseId=wse_abc");
   });
 
   it("does not fabricate zeros for minimal details", () => {
-    expect(detailsLine({ responseId: "wse_abc" })).toBe(
-      "provider=gemini-exa-grounding attempts=1 responseId=wse_abc",
+    expect(detailsLine("web_search", { responseId: "wse_abc" })).toBe(
+      "provider=gemini-parallel-grounding attempts=1 responseId=wse_abc",
     );
   });
 
   it("keeps the same provider summary when expanded", () => {
     const details = {
       responseId: "wse_abc",
-      answerProvider: "code_search",
-      primaryAttemptCount: 1,
-      primaryFinalStatus: 400,
+      answerProvider: "gemini-exa-grounding",
+      attemptCount: 2,
       fallbackUsed: true,
-      fallbackProvider: "code_search",
-      fallbackResultCount: 10,
+      fallbackFrom: "parallel",
+      sourceCount: 3,
     };
-    expect(detailsLine(details, true)).toBe(detailsLine(details, false));
+    expect(detailsLine("web_search", details, true)).toBe(detailsLine("web_search", details, false));
   });
 
   it("strips terminal control sequences from diagnostic values", () => {
     const escape = String.fromCharCode(27);
     expect(
-      detailsLine({
+      detailsLine("web_search", {
         responseId: `wse_${escape}[31mabc`,
-        answerProvider: "exa_search",
-        primaryAttemptCount: 1,
-        fallbackUsed: true,
-        fallbackProvider: "exa_search",
+        answerProvider: "gemini-parallel-grounding",
+        attemptCount: 1,
       }),
-    ).toBe("provider=exa_search attempts=1 responseId=wse_abc");
+    ).toBe("provider=gemini-parallel-grounding attempts=1 responseId=wse_abc");
+  });
+});
+
+describe("web_code_search result details rendering", () => {
+  it("describes a primary Firecrawl answer", () => {
+    expect(
+      detailsLine("web_code_search", {
+        responseId: "wse_abc",
+        focus: "developer_sources",
+        answerProvider: "firecrawl-developer",
+        attemptCount: 1,
+        fallbackUsed: false,
+        degraded: false,
+        resultCount: 10,
+      }),
+    ).toBe("provider=firecrawl-developer focus=developer_sources attempts=1 results=10 responseId=wse_abc");
+  });
+
+  it("shows the degraded status for the Exa developer-source fallback", () => {
+    expect(
+      detailsLine("web_code_search", {
+        responseId: "wse_abc",
+        focus: "developer_sources",
+        answerProvider: "exa-code",
+        attemptCount: 2,
+        fallbackUsed: true,
+        fallbackFrom: "firecrawl-developer",
+        degraded: true,
+        resultCount: 15,
+      }),
+    ).toBe(
+      "provider=exa-code focus=developer_sources attempts=2 fallbackFrom=firecrawl-developer degraded=true results=15 responseId=wse_abc",
+    );
+  });
+
+  it("omits the result count when the provider did not report one", () => {
+    expect(
+      detailsLine("web_code_search", {
+        responseId: "wse_abc",
+        focus: "implementation_examples",
+        answerProvider: "exa-code",
+        attemptCount: 1,
+      }),
+    ).toBe("provider=exa-code focus=implementation_examples attempts=1 responseId=wse_abc");
+  });
+
+  it("renders provider=none with attempt diagnostics when every provider failed", () => {
+    expect(
+      detailsLine("web_code_search", {
+        responseId: "wse_abc",
+        focus: "developer_sources",
+        answerProvider: null,
+        selectedProvider: null,
+        attemptCount: 2,
+        attemptProviders: ["firecrawl-developer", "exa-code"],
+        failureCategories: ["http_502", "empty_response"],
+        fallbackUsed: false,
+        fallbackFrom: null,
+        degraded: false,
+        resultCount: null,
+        elapsedMs: 1500,
+      }),
+    ).toBe(
+      "provider=none focus=developer_sources attempts=2 providers=firecrawl-developer,exa-code failures=http_502,empty_response elapsed=1500ms responseId=wse_abc",
+    );
+  });
+
+  it("keeps provider=unknown for legacy details without answerProvider", () => {
+    expect(
+      detailsLine("web_code_search", {
+        responseId: "wse_legacy",
+        focus: "developer_sources",
+      }),
+    ).toBe("provider=unknown focus=developer_sources attempts=1 responseId=wse_legacy");
+  });
+});
+
+describe("fetch_contents result details rendering", () => {
+  it("shows the URL count, cache hits, and character total", () => {
+    expect(
+      detailsLine("fetch_contents", {
+        results: [
+          { normalizedUrl: "https://a", fromCache: true, characterCount: 10 },
+          { normalizedUrl: "https://b", fromCache: false, characterCount: 20 },
+        ],
+      }),
+    ).toBe("2 URLs, cache hits 1/2, chars=30");
+  });
+
+  it("renders zero-state details without crashing", () => {
+    expect(detailsLine("fetch_contents", {})).toBe("0 URLs, cache hits 0/0, chars=0");
   });
 });

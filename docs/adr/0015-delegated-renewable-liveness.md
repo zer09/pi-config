@@ -1,8 +1,8 @@
-# ADR 0013: Replace the delegated runtime ceiling with renewable liveness
+# ADR 0015: Replace the delegated runtime ceiling with renewable liveness
 
 ## Status
 
-Accepted (2026-08-27). Implements the accepted contract in `docs/delegated-pi-loop-runtime-ceiling-removal-plan.md`. Extends ADR 0007, ADR 0008, and ADR 0012. Supersedes only the hard total-runtime portions of `docs/delegated-pi-loop-deadline-and-liveness-plan.md` (its sections 4.1, 4.2, 6.1, 6.2, 6.3, 7.3, 8.2, 9.1, 11, 12, 14.6, 15, 18, and 19) and the current-policy statements in ADR 0007 and ADR 0012 that an active delegate always reaches a 45-minute wall deadline. Routing, role permissions, concurrency, resource isolation, child resource profiles, prompt efficiency, report recovery, interruption, cleanup, process-group proof, and the prompt-efficiency behavior of baseline `51722ff` are unchanged.
+Accepted (2026-08-27). Implements the accepted contract in `docs/delegated-pi-loop-runtime-ceiling-removal-plan.md`. Extends ADR 0007, ADR 0008, and ADR 0012. Note on numbering: this decision was originally recorded as ADR 0013; a merge with `master` independently added ADR 0013 (decouple user overrides) and ADR 0014 (web-search provider routing), so it was renumbered to the next free number, 0015, and every current-policy reference was updated. Supersedes only the hard total-runtime portions of `docs/delegated-pi-loop-deadline-and-liveness-plan.md` (its sections 4.1, 4.2, 6.1, 6.2, 6.3, 7.3, 8.2, 9.1, 11, 12, 14.6, 15, 18, and 19) and the current-policy statements in ADR 0007 and ADR 0012 that an active delegate always reaches a 45-minute wall deadline. Routing, role permissions, concurrency, resource isolation, child resource profiles, prompt efficiency, report recovery, interruption, cleanup, process-group proof, and the prompt-efficiency behavior of baseline `51722ff` are unchanged.
 
 ## Context
 

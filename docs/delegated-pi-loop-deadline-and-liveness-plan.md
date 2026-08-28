@@ -4,7 +4,7 @@
 > this plan are superseded by
 > [`docs/delegated-pi-loop-runtime-ceiling-removal-plan.md`](./delegated-pi-loop-runtime-ceiling-removal-plan.md)
 > and
-> [`docs/adr/0013-delegated-renewable-liveness.md`](./adr/0013-delegated-renewable-liveness.md).
+> [`docs/adr/0015-delegated-renewable-liveness.md`](./adr/0015-delegated-renewable-liveness.md).
 > Superseded sections: 4.1, 4.2, 6.1, 6.2, 6.3, 7.3, 8.2, 9.1, 11, 12,
 > 14.6, 15, 18, and 19. A delegate no longer has a 45-minute total
 > productive-work ceiling; the 45-minute value is now a renewable maximum gap

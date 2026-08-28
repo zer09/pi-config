@@ -1,9 +1,9 @@
 {
   "name": "pi-web-search-extension",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Pi extension for Gemini native Exa grounding with direct Exa fallbacks.",
+  "description": "Pi extension exposing web_search (Gemini grounding with Parallel/Exa partner routing), web_code_search (Firecrawl Developer / Exa Code focus routing), and fetch_contents (Firecrawl Scrape with Exa Contents fallback).",
   "scripts": {
     "test": "bun test"
   },

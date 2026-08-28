@@ -161,11 +161,12 @@ test("agent/AGENTS.md no longer duplicates the parent delegation workflow", asyn
   ]) {
     assert.ok(!agents.includes(forbidden), `agent/AGENTS.md must not duplicate delegation policy (found "${forbidden}")`);
   }
-  // The compact failed-gate rules deliberately reuse the one general process
-  // override mechanism instead of carrying a second waiver grammar.
+  // The general override mechanism remains user-controlled instruction
+  // precedence and must never become part of a delegated workflow.
   assert.match(agents, /## User overrides/);
   assert.match(agents, /begins with `OVERRIDE:`/);
-  assert.match(agents, /Do not infer an override without the exact `OVERRIDE:` prefix/);
+  assert.match(agents, /Never ask or suggest that the user write an `OVERRIDE:` directive/);
+  assert.match(agents, /cannot supersede actual platform system or developer instructions/);
 });
 
 test("no model or provider catalog enumeration enters permanent prompt content", async () => {
@@ -201,7 +202,9 @@ test("the parent guidelines stay dynamic, compact, and tool-attributed", () => {
   assert.match(text, /solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently/);
   assert.match(text, /review-a, review-b, review-c, review-d, and review-e concurrently/);
   assert.match(text, /wait for every role/);
-  assert.match(text, /applicable OVERRIDE: directive naming the failed role\(s\) and current gate/);
+  assert.match(text, /follow the user's next instruction/);
+  assert.match(text, /continue, resume, or retry requires no special syntax/);
+  assert.doesNotMatch(text, /OVERRIDE:/);
   assert.match(text, /at least one completed report/);
   assert.ok(text.length < 7_000, "the compact parent workflow must stay within its character budget");
   assert.ok(MODEL_CATALOG_PROMPT_GUIDELINES.every((line) => line.startsWith("delegate_model_catalog:")));

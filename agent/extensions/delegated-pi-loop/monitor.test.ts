@@ -1531,7 +1531,7 @@ test("message_update toolcall events are rejected in the recovery round for all 
 test("live tool names round-trip only through the fixed runtime allowlist", () => {
   const allowlisted = [
     "read", "bash", "edit", "write",
-    "web_search", "fetch_contents",
+    "web_search", "web_code_search", "fetch_contents",
     "ctx_execute_file", "ctx_batch_execute", "ctx_search",
     "codegraph_explore", "codegraph_search", "codegraph_files",
     "codegraph_callers", "codegraph_callees", "codegraph_impact",
@@ -1542,11 +1542,61 @@ test("live tool names round-trip only through the fixed runtime allowlist", () =
     instance.acceptPrompt(1);
     consume(instance, 1, { type: "agent_start" });
     consume(instance, 1, { type: "tool_execution_start", toolCallId: "t", toolName: name, args: {} });
-    const snapshot = instance.snapshot();
-    assert.equal(snapshot.activeToolName, name, name);
-    assert.equal(snapshot.lastEventDetail, name, name);
+    const started = instance.snapshot();
+    assert.equal(started.activeToolName, name, name);
+    assert.equal(started.lastEventDetail, name, name);
+    consume(instance, 1, { type: "tool_execution_update", toolCallId: "t", toolName: name, partialResult: { n: 1 } });
+    const updated = instance.snapshot();
+    assert.equal(updated.activeToolName, name, name);
+    assert.equal(updated.lastEventDetail, name, name);
     consume(instance, 1, { type: "tool_execution_end", toolCallId: "t", toolName: name, result: { ok: true } });
+    const ended = instance.snapshot();
+    assert.equal(ended.activeToolName, undefined, name);
+    assert.equal(ended.lastEventDetail, name, name);
   }
+});
+
+test("a completed web_code_search checkpoint stays distinct from an unallowlisted unknown tool with identical args and result", () => {
+  const { monitor: instance, tick } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  const args = { query: "How does Pi register child tools?", focus: "developer_sources" };
+  const result = { ok: true };
+  // One completed allowlisted cycle: the exact safe name earns a novel checkpoint.
+  tick();
+  consume(instance, 1, { type: "tool_execution_start", toolCallId: "w1", toolName: "web_code_search", args });
+  assert.equal(instance.snapshot().activeToolName, "web_code_search");
+  const beforeFirstEnd = instance.snapshot();
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "w1", toolName: "web_code_search", result });
+  assert.ok(instance.snapshot().lastStructuralProgressMonotonic > beforeFirstEnd.lastStructuralProgressMonotonic);
+
+  // An unallowlisted name with identical args and result maps to the fixed
+  // unknown label, so its completed checkpoint identity stays distinct from
+  // the web_code_search one: novel, never a duplicate of the first cycle.
+  tick();
+  consume(instance, 1, { type: "tool_execution_start", toolCallId: "u", toolName: "not-a-real-tool", args });
+  assert.equal(instance.snapshot().activeToolName, "unknown");
+  const beforeUnknownEnd = instance.snapshot();
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "u", toolName: "not-a-real-tool", result });
+  const afterUnknown = instance.snapshot();
+  assert.ok(
+    afterUnknown.lastStructuralProgressMonotonic > beforeUnknownEnd.lastStructuralProgressMonotonic,
+    "the unknown cycle is a distinct novel checkpoint",
+  );
+  assert.equal(afterUnknown.duplicateCheckpointCount, 0);
+
+  // A fresh exact web_code_search cycle repeats the first identity as a
+  // duplicate, proving the unknown cycle never overwrote or conflated it.
+  tick();
+  consume(instance, 1, { type: "tool_execution_start", toolCallId: "w2", toolName: "web_code_search", args });
+  const beforeRepeatEnd = instance.snapshot();
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "w2", toolName: "web_code_search", result });
+  const after = instance.snapshot();
+  assert.equal(after.lastStructuralProgressMonotonic, beforeRepeatEnd.lastStructuralProgressMonotonic, "the repeat renews nothing");
+  assert.equal(after.duplicateCheckpointCount, 1);
+  assert.equal(after.lastEventDetail, "web_code_search");
+  assert.equal(instance.classifyRound(1), "running");
+  assert.doesNotMatch(JSON.stringify(after), /not-a-real-tool/);
 });
 
 test("seeded path, credential, and provider-body tool names map to unknown at ingress", () => {

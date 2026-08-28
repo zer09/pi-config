@@ -92,6 +92,7 @@ Delegated instruction-centralization update: 2026-08-26 (moved every model-visib
 
 Delegated C-route Ox Alpha removal update: 2026-08-27 (removed the `stealth/ox-alpha` capability record and Gate C tier from `routing.json` together with the global OpenRouter override, the TokenReply `ox-alpha` model entry, and the `openrouter/stealth/ox-alpha` enabled model because every provider dropped the model; zero model-visible startup-context delta because the public role schema, tool guidance, and global instructions are unchanged; provider calibration and the full extension/tool inventory were not rerun)
 
+Web-search provider-routing update: 2026-08-27 (added the `web_code_search` tool, removed the `web_search` mode parameter, added `depth` and `maxAgeHours`, and rewrote all three web-search tool descriptions and guidelines; local `o200k_base` attribution below; provider calibration and the full extension/tool inventory were not rerun)
 Delegated C-route GLM-5.3-Flash restoration update: 2026-08-27 (Z.AI officially revealed Ox Alpha as GLM-5.3-Flash, so Gate C's first tier is restored as `zai/glm-5.3-flash:high` ahead of the retained Hy3 fallback, with the matching `glm-5.3-flash` capability in `routing.json` and the `zai/glm-5.3-flash` enabled model; zero model-visible startup-context delta because the public role schema, tool guidance, and global instructions are unchanged; provider calibration and the full extension/tool inventory were not rerun)
 
 CWD measured: `/home/gc/.pi`
@@ -811,9 +812,21 @@ Every flat parent guideline now names `delegate_run`; catalog guidelines name `d
 | Restart note | 49 | 33 | -16 |
 | Same-session recovery prompt | 191 | 82 | -109 |
 
-The child prompt now presents the assignment before attempt and terminal details. Its attempt rule remains semantic (two materially equivalent attempts, repeat only with new evidence) and contains no wall-clock instruction; at ADR 0012 the supervisor still owned the programmatic five-minute warning, ten-minute idle termination, and 45-minute productive-work deadline. (Historical: ADR 0013 later removed that 45-minute productive-work deadline and replaced it with renewable programmatic liveness leases; the token counts in this section were measured against the ADR-0012-era wording and are intentionally not recalculated.) The terminal reason lists are generated from the same closed enums used by the parser. Recovery still sends one programmatic `prompt-2` message to the same child session, but refers to the original final protocol instead of repeating every reason code.
+The child prompt now presents the assignment before attempt and terminal details. Its attempt rule remains semantic (two materially equivalent attempts, repeat only with new evidence) and contains no wall-clock instruction; at ADR 0012 the supervisor still owned the programmatic five-minute warning, ten-minute idle termination, and 45-minute productive-work deadline. (Historical: ADR 0015 later removed that 45-minute productive-work deadline and replaced it with renewable programmatic liveness leases; the token counts in this section were measured against the ADR-0012-era wording and are intentionally not recalculated.) The terminal reason lists are generated from the same closed enums used by the parser. Recovery still sends one programmatic `prompt-2` message to the same child session, but refers to the original final protocol instead of repeating every reason code.
 
 A complex six-solution, oracle, implementation, and five-review workflow saves about 3,085 aggregate local instruction/prompt tokens across its separate parent and child contexts before assignment-body changes. Provider framing, caching, and billing can differ; provider-reported input remains authoritative.
+
+## 2026-08-27 user-controlled override attribution
+
+ADR 0013 removes `OVERRIDE:` from delegated workflow policy and keeps it only as a user-controlled instruction-precedence mechanism. Counts use local `tiktoken` `o200k_base` over the exact raw `agent/AGENTS.md` file and the generated shipped-role guidelines joined with newlines. No provider calibration or paid inference was run.
+
+| Surface | Before | After | Delta |
+|---|---:|---:|---:|
+| Raw `agent/AGENTS.md` | 2,701 | 2,792 | +91 |
+| `delegate_run` workflow guidelines | 773 | 790 | +17 |
+| **Directly changed model-visible text** | **3,474** | **3,582** | **+108** |
+
+The global increase states that agents must never request or require override syntax and records the actual platform boundary. The tool-guideline change replaces failed-gate override grammar with ordinary user-directed continuation, current-tree inspection after non-completed mutation, and bounded automatic retry behavior. Tool descriptions, snippets, parameter schemas, child prompts, restart text, recovery prompts, routing, and runtime behavior are unchanged. Provider-reported input remains authoritative.
 
 ## Provider-calibrated baseline probes
 
@@ -1052,3 +1065,25 @@ Use both provider calibration and local attribution.
 5. Convert active tools through the OpenAI Responses tool serializer (`convertResponsesTools`) to estimate provider tool-schema surface.
 6. Count all strings/JSON with Python `tiktoken.get_encoding("o200k_base")`.
 7. Update this document and `docs/CHANGELOG.md` when active tools, skill inventory/descriptions, prompt templates, global instructions, or package/extension resources change materially.
+
+## 2026-08-27 web-search provider-routing attribution
+
+This change was measured locally with `tiktoken` `o200k_base` using the same serialization as the delegated attribution tables: prompt guidelines join with newlines and the parameter schema uses plain `JSON.stringify` separators. Before values are commit `0cf2642` (the extension as exported by `git archive`), after values are the working tree. No paid provider calibration was run, and the full extension/tool inventory was not rerun.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| `web_search` description | 62 | 83 | +21 | Active custom-tool metadata |
+| `web_search` prompt snippet | 18 | 19 | +1 | Included while the tool is active |
+| `web_search` prompt guidelines | 231 | 248 | +17 | Included while the tool is active |
+| `web_search` parameter schema | 125 | 124 | -1 | Serialized as an active provider tool schema |
+| `web_code_search` description | 0 | 75 | +75 | New active custom-tool metadata |
+| `web_code_search` prompt snippet | 0 | 19 | +19 | New; included while the tool is active |
+| `web_code_search` prompt guidelines | 0 | 134 | +134 | New; included while the tool is active |
+| `web_code_search` parameter schema | 0 | 131 | +131 | New; serialized as an active provider tool schema |
+| `fetch_contents` description | 22 | 35 | +13 | Active custom-tool metadata |
+| `fetch_contents` prompt snippet | 14 | 14 | 0 | Included while the tool is active |
+| `fetch_contents` prompt guidelines | 22 | 26 | +4 | Included while the tool is active |
+| `fetch_contents` parameter schema | 80 | 129 | +49 | Serialized as an active provider tool schema |
+| **Tool total** | **574** | **1,037** | **+463** | Before provider-specific framing |
+
+The extension's always-loaded model-visible surface grows by 463 local tokens before provider framing: +38 for the rewritten `web_search` metadata and schema, +359 for the new `web_code_search` tool, and +66 for the extended `fetch_contents` schema and guidance. All other routing, caching, fallback, and redaction behavior is executable TypeScript or private tool details and adds no startup model context. Provider-reported input remains the authority and was not rerun.
