@@ -14,7 +14,8 @@
  * providers, per-run values, prompts, reports, or raw errors are printed.
  * The analyzer performs no writes and no network calls.
  */
-import { lstat, readdir, readFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { open, readdir, type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { diagnosticsDirectory } from "./diagnostics.ts";
@@ -30,6 +31,15 @@ export const THRESHOLD_MINUTES: readonly number[] = [5, 10, 15, 20, 30, 45];
  * regular file larger than this 1 MiB cap is skipped rather than read.
  */
 export const SCAN_MAX_RECORD_BYTES = 1024 * 1024;
+
+/**
+ * Open flags for one scanned `*.json` entry: read-only, no-follow (a
+ * symlink entry fails with ELOOP instead of being followed), and
+ * non-blocking (a FIFO entry cannot block the open indefinitely; harmless
+ * for regular files).
+ */
+const SCAN_OPEN_FLAGS: number =
+  fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK;
 
 /** Reasons one scanned record is excluded from the eligible sample. */
 export type IgnoredReason =
@@ -211,16 +221,43 @@ export function formatProgressGapAnalysis(analysis: ProgressGapAnalysis): string
 }
 
 /**
+ * Opens one `*.json` entry once and reads at most `SCAN_MAX_RECORD_BYTES`
+ * bytes from that same handle. The handle itself is `fstat`-validated, so a
+ * symlink, FIFO, or over-cap entry is never read, and a same-user process
+ * replacing or growing the pathname mid-scan cannot change what is read.
+ * Returns `undefined` for a skipped (non-regular or over-cap) entry; any
+ * open, fstat, or read failure (including ELOOP and ENOENT) throws.
+ */
+async function readCappedEntryText(
+  openEntry: (filePath: string, flags: number) => Promise<FileHandle>,
+  filePath: string,
+): Promise<string | undefined> {
+  const handle = await openEntry(filePath, SCAN_OPEN_FLAGS);
+  try {
+    const info = await handle.stat();
+    if (!info.isFile() || info.size > SCAN_MAX_RECORD_BYTES) return undefined;
+    // The cap-plus-one buffer lets one bounded read detect an entry that
+    // grew past the cap after the fstat above.
+    const buffer = Buffer.alloc(SCAN_MAX_RECORD_BYTES + 1);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    if (bytesRead > SCAN_MAX_RECORD_BYTES) return undefined;
+    return buffer.subarray(0, bytesRead).toString("utf8");
+  } finally {
+    await handle.close().catch(() => {});
+  }
+}
+
+/**
  * Scans one diagnostics directory read-only. A file that vanishes mid-scan
  * (another local Pi process pruning it) or a malformed JSON file never fails
- * the scan; both are counted separately. Every `*.json` entry is `lstat`ed
- * with no-follow semantics before it is read: non-regular entries (symlinks,
- * FIFOs) are never opened, and regular files over the byte cap are never
- * read into memory.
+ * the scan; both are counted separately. Every `*.json` entry is opened with
+ * no-follow, non-blocking, read-only flags and validated by fstat on that
+ * same handle before one bounded read, so the scan never follows a symlink,
+ * never blocks on a FIFO, and never reads past the byte cap.
  */
 export async function scanProgressGapRecords(
   directory: string,
-  readFileText: (filePath: string) => Promise<string> = (filePath) => readFile(filePath, "utf8"),
+  openEntry: (filePath: string, flags: number) => Promise<FileHandle> = (filePath, flags) => open(filePath, flags),
 ): Promise<ProgressGapAnalysis> {
   let names: string[];
   try {
@@ -234,29 +271,19 @@ export async function scanProgressGapRecords(
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
     const filePath = path.join(directory, name);
-    let info;
+    let text: string | undefined;
     try {
-      // No-follow check: a symlink or FIFO named *.json is never followed
-      // or opened (a FIFO could block the scan indefinitely).
-      info = await lstat(filePath);
+      text = await readCappedEntryText(openEntry, filePath);
     } catch {
-      // A vanished file (ENOENT from concurrent pruning) and any other
-      // metadata failure are excluded without failing the scan.
+      // A vanished file (ENOENT from concurrent pruning), a symlink entry
+      // (ELOOP from O_NOFOLLOW), and any other open/fstat/read failure are
+      // excluded without failing the scan.
       ignored.readFailures = (ignored.readFailures ?? 0) + 1;
       continue;
     }
-    // Skipped non-regular or over-cap entries count as read failures, the
-    // closest existing ignored category, so the aggregate output is unchanged.
-    if (!info.isFile() || info.size > SCAN_MAX_RECORD_BYTES) {
-      ignored.readFailures = (ignored.readFailures ?? 0) + 1;
-      continue;
-    }
-    let text: string;
-    try {
-      text = await readFileText(filePath);
-    } catch {
-      // A vanished file (ENOENT from concurrent pruning) and any other read
-      // failure are excluded without failing the scan.
+    if (text === undefined) {
+      // Skipped non-regular or over-cap entries count as read failures, the
+      // closest existing ignored category, so the aggregate output is unchanged.
       ignored.readFailures = (ignored.readFailures ?? 0) + 1;
       continue;
     }

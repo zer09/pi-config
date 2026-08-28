@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { after, test } from "node:test";
-import { lstat, mkdir, mkdtemp, readdir, readFile, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, open, readdir, readFile, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -249,14 +250,14 @@ test("scan tolerates malformed JSON and vanished files and keeps directory conte
     const filePath = path.join(ownedDirectory, name);
     return [name, { content: await readFile(filePath, "utf8"), mtime: (await lstat(filePath)).mtimeMs }] as const;
   })));
-  const analysis = await scanProgressGapRecords(ownedDirectory, async (filePath) => {
-    // Cross-process-style disappearance: one file vanishes mid-scan.
+  const analysis = await scanProgressGapRecords(ownedDirectory, async (filePath, flags) => {
+    // Cross-process-style disappearance: one entry fails to open with ENOENT.
     if (filePath.endsWith("a-completed.json")) {
       const error = new Error("vanished") as NodeJS.ErrnoException;
       error.code = "ENOENT";
       throw error;
     }
-    return readFile(filePath, "utf8");
+    return open(filePath, flags);
   });
   assert.equal(analysis.eligibleCount, 0);
   assert.equal(analysis.ignored.readFailures, 1);
@@ -280,23 +281,70 @@ test("scan skips symlinks and oversized regular files without reading them", asy
   const oversized = path.join(ownedDirectory, "d-oversized.json");
   await writeFile(oversized, "{}\n", { mode: 0o600 });
   await truncate(oversized, SCAN_MAX_RECORD_BYTES + 1);
-  const readFiles: string[] = [];
-  const analysis = await scanProgressGapRecords(ownedDirectory, async (filePath) => {
-    readFiles.push(path.basename(filePath));
-    return readFile(filePath, "utf8");
-  });
-  // Only the one regular in-bounds record is opened; the three skipped
-  // entries count as unreadable and the aggregates stay correct.
-  assert.deepEqual(readFiles, ["a-completed.json"]);
+  // Behavioral proof with the real opener: the open flags reject both
+  // symlinks (ELOOP from O_NOFOLLOW) and the fstat cap check skips the
+  // oversized file, so none of the three is ever read. Following the live
+  // symlink would have produced a second eligible 120 s sample, and reading
+  // the sparse oversized file would have produced a malformed count.
+  const analysis = await scanProgressGapRecords(ownedDirectory);
   assert.equal(analysis.recordsScanned, 4);
   assert.equal(analysis.eligibleCount, 1);
   assert.equal(analysis.ignored.readFailures, 3);
+  assert.equal(analysis.ignored.malformedJson, 0);
   assert.equal(analysis.minimumSeconds, 120);
   assert.equal(analysis.p50Seconds, 120);
   // Read-only scan: the skipped entries themselves are untouched.
   assert.ok((await lstat(path.join(ownedDirectory, "b-symlink.json"))).isSymbolicLink());
   assert.ok((await lstat(path.join(ownedDirectory, "c-dangling.json"))).isSymbolicLink());
   assert.equal((await lstat(oversized)).size, SCAN_MAX_RECORD_BYTES + 1);
+  await rm(ownedDirectory, { recursive: true, force: true });
+});
+
+/** mkfifo exists on Linux and macOS; elsewhere the FIFO test is skipped. */
+const canMkfifo = process.platform !== "win32"
+  && spawnSync("mkfifo", ["--version"], { stdio: "ignore" }).status === 0;
+
+test("scan skips a FIFO entry without blocking on it", { skip: canMkfifo ? false : "mkfifo unavailable" }, async () => {
+  await writeRecord("a-completed.json", completedRecord(30));
+  const fifoPath = path.join(ownedDirectory, "b-fifo.json");
+  assert.equal(spawnSync("mkfifo", [fifoPath]).status, 0);
+  // Opening a reader-less FIFO read-only blocks forever without
+  // O_NONBLOCK; the race turns that hang into a failing assertion instead
+  // of a stalled suite.
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const outcome = await Promise.race([
+      scanProgressGapRecords(ownedDirectory),
+      new Promise<"timeout">((resolve) => {
+        timer = setTimeout(() => resolve("timeout"), 5_000);
+      }),
+    ]);
+    if (outcome === "timeout") assert.fail("scan blocked on the FIFO entry");
+    // The FIFO counts as unreadable (non-regular after the open) while the
+    // regular record still parses.
+    assert.equal(outcome.recordsScanned, 2);
+    assert.equal(outcome.eligibleCount, 1);
+    assert.equal(outcome.ignored.readFailures, 1);
+    assert.equal(outcome.minimumSeconds, 30);
+  } finally {
+    clearTimeout(timer);
+  }
+  await rm(ownedDirectory, { recursive: true, force: true });
+});
+
+test("a regular file exactly at the cap boundary is still read", async () => {
+  const header = `${JSON.stringify(completedRecord(77.5))}\n`;
+  // Trailing spaces are valid JSON padding and stretch the file to exactly
+  // the cap, one byte below the skip threshold.
+  const padded = header + " ".repeat(SCAN_MAX_RECORD_BYTES - header.length);
+  assert.equal(Buffer.byteLength(padded), SCAN_MAX_RECORD_BYTES);
+  await writeRecord("at-cap.json", padded);
+  const analysis = await scanProgressGapRecords(ownedDirectory);
+  assert.equal(analysis.recordsScanned, 1);
+  assert.equal(analysis.eligibleCount, 1);
+  assert.equal(analysis.ignored.readFailures, 0);
+  assert.equal(analysis.ignored.malformedJson, 0);
+  assert.equal(analysis.minimumSeconds, 77.5);
   await rm(ownedDirectory, { recursive: true, force: true });
 });
 
