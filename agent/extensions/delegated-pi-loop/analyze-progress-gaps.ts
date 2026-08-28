@@ -14,7 +14,7 @@
  * providers, per-run values, prompts, reports, or raw errors are printed.
  * The analyzer performs no writes and no network calls.
  */
-import { readdir, readFile } from "node:fs/promises";
+import { lstat, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { diagnosticsDirectory } from "./diagnostics.ts";
@@ -24,6 +24,12 @@ export const P99_MINIMUM_SAMPLES = 100;
 
 /** Threshold edges in minutes reported as counts and percentages at or above. */
 export const THRESHOLD_MINUTES: readonly number[] = [5, 10, 15, 20, 30, 45];
+
+/**
+ * Scan-input safety cap in bytes: a schema-7 record is a few KB, so a
+ * regular file larger than this 1 MiB cap is skipped rather than read.
+ */
+export const SCAN_MAX_RECORD_BYTES = 1024 * 1024;
 
 /** Reasons one scanned record is excluded from the eligible sample. */
 export type IgnoredReason =
@@ -207,7 +213,10 @@ export function formatProgressGapAnalysis(analysis: ProgressGapAnalysis): string
 /**
  * Scans one diagnostics directory read-only. A file that vanishes mid-scan
  * (another local Pi process pruning it) or a malformed JSON file never fails
- * the scan; both are counted separately.
+ * the scan; both are counted separately. Every `*.json` entry is `lstat`ed
+ * with no-follow semantics before it is read: non-regular entries (symlinks,
+ * FIFOs) are never opened, and regular files over the byte cap are never
+ * read into memory.
  */
 export async function scanProgressGapRecords(
   directory: string,
@@ -224,9 +233,27 @@ export async function scanProgressGapRecords(
   const ignored: Partial<Record<IgnoredReason, number>> = { malformedJson: 0, readFailures: 0 };
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
+    const filePath = path.join(directory, name);
+    let info;
+    try {
+      // No-follow check: a symlink or FIFO named *.json is never followed
+      // or opened (a FIFO could block the scan indefinitely).
+      info = await lstat(filePath);
+    } catch {
+      // A vanished file (ENOENT from concurrent pruning) and any other
+      // metadata failure are excluded without failing the scan.
+      ignored.readFailures = (ignored.readFailures ?? 0) + 1;
+      continue;
+    }
+    // Skipped non-regular or over-cap entries count as read failures, the
+    // closest existing ignored category, so the aggregate output is unchanged.
+    if (!info.isFile() || info.size > SCAN_MAX_RECORD_BYTES) {
+      ignored.readFailures = (ignored.readFailures ?? 0) + 1;
+      continue;
+    }
     let text: string;
     try {
-      text = await readFileText(path.join(directory, name));
+      text = await readFileText(filePath);
     } catch {
       // A vanished file (ENOENT from concurrent pruning) and any other read
       // failure are excluded without failing the scan.

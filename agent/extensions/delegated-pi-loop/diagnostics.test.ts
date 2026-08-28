@@ -647,6 +647,27 @@ test("retention keeps the newest records and prunes only exact success-v7 files"
   });
 });
 
+test("nothing is pruned while the exact-name candidate count is at or under the limit", async () => {
+  await withDiagnosticsRoot(async (root) => {
+    const directory = path.join(root, "logs", "delegated-pi-loop");
+    const base = Date.now() - 3_600_000;
+    const seeded = [
+      "success-v7-implementation-1000-1-1.json",
+      "success-v7-implementation-1000-1-2.json",
+    ];
+    for (let index = 0; index < seeded.length; index += 1) {
+      await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
+    }
+    // Two seeded files plus one new write against limit three: the sweep
+    // cannot prune anything and every exact success record stays in place.
+    const written = await writeSuccessTelemetry(completedResult(), 3);
+    const remaining = await successEntries(directory);
+    assert.equal(remaining.length, 3);
+    for (const name of seeded) assert.ok(remaining.includes(name), name);
+    assert.ok(remaining.includes(path.basename(written)));
+  });
+});
+
 test("retention order is deterministic by write time with a filename tie-breaker", async () => {
   await withDiagnosticsRoot(async (root) => {
     const directory = path.join(root, "logs", "delegated-pi-loop");

@@ -12,6 +12,9 @@ export const SUCCESS_RECORD_LIMIT = 4096;
 /** Exact filename prefix for successful-run schema-7 telemetry records. */
 export const SUCCESS_FILE_PREFIX = "success-v7-";
 
+/** Concurrent lstat calls per batch while gathering retention metadata. */
+const RETENTION_LSTAT_BATCH_SIZE = 64;
+
 const MAX_ATTEMPTS = 10;
 const MAX_STREAM_ERRORS = 20;
 const MAX_ERROR_LENGTH = 200;
@@ -222,7 +225,10 @@ function enqueueTelemetry<T>(operation: () => Promise<T>): Promise<T> {
  * unknown names, directories, or symlinks: candidates pass a no-follow
  * `lstat` regular-file check immediately before deletion. An `ENOENT` from
  * another local Pi process pruning the same file is ignored; every other
- * error propagates to the best-effort caller.
+ * error propagates to the best-effort caller. When the exact-name candidate
+ * count is at or below the limit the sweep exits before any metadata
+ * gathering; otherwise candidate metadata is collected with bounded
+ * concurrent `lstat` batches instead of one call per candidate.
  */
 async function pruneSuccessTelemetry(directory: string, limit: number): Promise<void> {
   let entries;
@@ -232,20 +238,31 @@ async function pruneSuccessTelemetry(directory: string, limit: number): Promise<
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
     throw error;
   }
+  const exactNames = entries.filter(isSuccessTelemetryName);
+  // Early exit: at or under the limit nothing can be pruned and the write
+  // already happened, so the sweep performs no lstat work at all.
+  if (exactNames.length <= limit) return;
   const candidates: { readonly name: string; readonly writtenAt: number }[] = [];
-  for (const name of entries) {
-    if (!isSuccessTelemetryName(name)) continue;
-    let info;
-    try {
-      // No-follow check: a symlink or directory with a success-looking name
-      // is never a pruning candidate, and a vanished file is simply gone.
-      info = await lstat(path.join(directory, name));
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-      throw error;
+  for (let start = 0; start < exactNames.length; start += RETENTION_LSTAT_BATCH_SIZE) {
+    // Only metadata gathering inside this one sweep is parallel; the
+    // write-plus-prune serialization in enqueueTelemetry is unchanged.
+    const batch = exactNames.slice(start, start + RETENTION_LSTAT_BATCH_SIZE);
+    const infos = await Promise.all(batch.map(async (name) => {
+      try {
+        // No-follow check: a symlink or directory with a success-looking name
+        // is never a pruning candidate, and a vanished file is simply gone.
+        return await lstat(path.join(directory, name));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+        throw error;
+      }
+    }));
+    for (let index = 0; index < batch.length; index += 1) {
+      const info = infos[index];
+      if (info !== undefined && info.isFile()) {
+        candidates.push({ name: batch[index]!, writtenAt: info.mtimeMs });
+      }
     }
-    if (!info.isFile()) continue;
-    candidates.push({ name, writtenAt: info.mtimeMs });
   }
   if (candidates.length <= limit) return;
   // Deterministic order: write time ascending with the filename as the

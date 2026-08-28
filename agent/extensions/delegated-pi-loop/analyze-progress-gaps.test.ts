@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { lstat, mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -10,6 +10,7 @@ import {
   formatProgressGapAnalysis,
   nearestRankPercentile,
   P99_MINIMUM_SAMPLES,
+  SCAN_MAX_RECORD_BYTES,
   scanProgressGapRecords,
 } from "./analyze-progress-gaps.ts";
 
@@ -237,6 +238,35 @@ test("scan tolerates malformed JSON and vanished files and keeps directory conte
     assert.equal(await readFile(filePath, "utf8"), entry.content, name);
     assert.equal((await lstat(filePath)).mtimeMs, entry.mtime, name);
   }
+  await rm(ownedDirectory, { recursive: true, force: true });
+});
+
+test("scan skips symlinks and oversized regular files without reading them", async () => {
+  await writeRecord("a-completed.json", completedRecord(120));
+  // A symlink to a real record, a dangling symlink, and a sparse oversized
+  // file (truncated to just above the cap, not megabytes of real data).
+  await symlink(path.join(ownedDirectory, "a-completed.json"), path.join(ownedDirectory, "b-symlink.json"));
+  await symlink(path.join(ownedDirectory, "does-not-exist.json"), path.join(ownedDirectory, "c-dangling.json"));
+  const oversized = path.join(ownedDirectory, "d-oversized.json");
+  await writeFile(oversized, "{}\n", { mode: 0o600 });
+  await truncate(oversized, SCAN_MAX_RECORD_BYTES + 1);
+  const readFiles: string[] = [];
+  const analysis = await scanProgressGapRecords(ownedDirectory, async (filePath) => {
+    readFiles.push(path.basename(filePath));
+    return readFile(filePath, "utf8");
+  });
+  // Only the one regular in-bounds record is opened; the three skipped
+  // entries count as unreadable and the aggregates stay correct.
+  assert.deepEqual(readFiles, ["a-completed.json"]);
+  assert.equal(analysis.recordsScanned, 4);
+  assert.equal(analysis.eligibleCount, 1);
+  assert.equal(analysis.ignored.readFailures, 3);
+  assert.equal(analysis.minimumSeconds, 120);
+  assert.equal(analysis.p50Seconds, 120);
+  // Read-only scan: the skipped entries themselves are untouched.
+  assert.ok((await lstat(path.join(ownedDirectory, "b-symlink.json"))).isSymbolicLink());
+  assert.ok((await lstat(path.join(ownedDirectory, "c-dangling.json"))).isSymbolicLink());
+  assert.equal((await lstat(oversized)).size, SCAN_MAX_RECORD_BYTES + 1);
   await rm(ownedDirectory, { recursive: true, force: true });
 });
 
