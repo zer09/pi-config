@@ -11,6 +11,7 @@ import {
   formatProgressGapAnalysis,
   nearestRankPercentile,
   P99_MINIMUM_SAMPLES,
+  type ReadOnlyEntryHandle,
   SCAN_MAX_RECORD_BYTES,
   scanProgressGapRecords,
 } from "./analyze-progress-gaps.ts";
@@ -36,6 +37,34 @@ function completedRecord(maxProgressIdleSeconds: number, extra: Record<string, u
     state: "completed",
     attempts: [{ route: "prov/model:high", state: "completed", elapsedSeconds: 10, maxProgressIdleSeconds }],
     ...extra,
+  };
+}
+
+/**
+ * Minimal structural read-only handle that serves an in-memory payload in
+ * chunked short reads followed by zero-byte EOF reads. `reportedSize` lets
+ * the fstat report a size below the payload length to simulate an entry
+ * growing past the cap after the fstat.
+ */
+function chunkedReadHandle(
+  payload: Buffer,
+  chunkBytes: (readIndex: number) => number,
+  reportedSize: number = payload.length,
+): ReadOnlyEntryHandle {
+  let readIndex = 0;
+  return {
+    async stat() {
+      return { isFile: () => true, size: reportedSize };
+    },
+    async read(buffer, offset, length, position) {
+      const chunk = Math.min(chunkBytes(readIndex), length);
+      readIndex += 1;
+      const available = Math.max(0, payload.length - position);
+      const bytesRead = Math.min(chunk, available);
+      if (bytesRead > 0) payload.copy(buffer, offset, position, position + bytesRead);
+      return { bytesRead };
+    },
+    async close() {},
   };
 }
 
@@ -345,6 +374,46 @@ test("a regular file exactly at the cap boundary is still read", async () => {
   assert.equal(analysis.ignored.readFailures, 0);
   assert.equal(analysis.ignored.malformedJson, 0);
   assert.equal(analysis.minimumSeconds, 77.5);
+  await rm(ownedDirectory, { recursive: true, force: true });
+});
+
+test("a valid record delivered in short reads still parses and stays eligible", async () => {
+  await writeRecord("short-reads.json", completedRecord(88.25));
+  const payload = Buffer.from(await readFile(path.join(ownedDirectory, "short-reads.json"), "utf8"));
+  // The read API may return short before EOF, so one single handle.read
+  // would have seen only the first chunk and counted the record as
+  // malformedJson. Both plans end with a zero-byte EOF read.
+  const plans: [label: string, handle: ReadOnlyEntryHandle][] = [
+    ["one byte at a time", chunkedReadHandle(payload, () => 1)],
+    ["odd-sized chunks", chunkedReadHandle(payload, (readIndex) => [3, 7, 4096, 1, 131][readIndex % 5])],
+  ];
+  for (const [label, handle] of plans) {
+    const analysis = await scanProgressGapRecords(ownedDirectory, async () => handle);
+    assert.equal(analysis.recordsScanned, 1, label);
+    assert.equal(analysis.eligibleCount, 1, label);
+    assert.equal(analysis.ignored.readFailures, 0, label);
+    assert.equal(analysis.ignored.malformedJson, 0, label);
+    assert.equal(analysis.minimumSeconds, 88.25, label);
+    assert.equal(analysis.p50Seconds, 88.25, label);
+  }
+  await rm(ownedDirectory, { recursive: true, force: true });
+});
+
+test("a chunked read that crosses the cap mid-loop still skips as oversized", async () => {
+  await writeRecord("a-completed.json", completedRecord(10));
+  // The fstat reports a small regular file, but the reads grow the entry
+  // past the cap: every individual chunk stays far below the cap, so only
+  // the accumulated total can trigger the skip.
+  const grownPastCap = Buffer.concat([
+    Buffer.from(await readFile(path.join(ownedDirectory, "a-completed.json"), "utf8")),
+    Buffer.alloc(SCAN_MAX_RECORD_BYTES),
+  ]);
+  const handle = chunkedReadHandle(grownPastCap, () => 256 * 1024, 4);
+  const analysis = await scanProgressGapRecords(ownedDirectory, async () => handle);
+  assert.equal(analysis.recordsScanned, 1);
+  assert.equal(analysis.eligibleCount, 0);
+  assert.equal(analysis.ignored.readFailures, 1);
+  assert.equal(analysis.ignored.malformedJson, 0);
   await rm(ownedDirectory, { recursive: true, force: true });
 });
 

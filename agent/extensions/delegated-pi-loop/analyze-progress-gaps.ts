@@ -15,7 +15,7 @@
  * The analyzer performs no writes and no network calls.
  */
 import { constants as fsConstants } from "node:fs";
-import { open, readdir, type FileHandle } from "node:fs/promises";
+import { open, readdir } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { diagnosticsDirectory } from "./diagnostics.ts";
@@ -40,6 +40,31 @@ export const SCAN_MAX_RECORD_BYTES = 1024 * 1024;
  */
 const SCAN_OPEN_FLAGS: number =
   fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK;
+
+/**
+ * Minimal structural read-only handle shape the scan uses from one opened
+ * `*.json` entry: `stat` for the fstat validation, `read` for the bounded
+ * accumulating read loop, and `close` for cleanup. A real `FileHandle`
+ * satisfies this shape; tests supply minimal fakes that simulate short
+ * reads before EOF and mid-scan growth past the cap.
+ */
+export interface ReadOnlyEntryHandle {
+  stat(): Promise<{ isFile(): boolean; size: number }>;
+  read(
+    buffer: Buffer,
+    offset: number,
+    length: number,
+    position: number,
+  ): Promise<{ bytesRead: number }>;
+  close(): Promise<void>;
+}
+
+/**
+ * Seam for opening one scanned entry with the scan flags above. The
+ * analyzer default uses `fs/promises.open`; tests override it with
+ * fake read-only handles.
+ */
+export type OpenEntry = (filePath: string, flags: number) => Promise<ReadOnlyEntryHandle>;
 
 /** Reasons one scanned record is excluded from the eligible sample. */
 export type IgnoredReason =
@@ -140,28 +165,29 @@ export function eligibleGap(record: unknown): { status: "eligible"; value: numbe
 }
 
 /**
- * Analyzes parsed records into the aggregate report. Values are kept
- * unrounded for percentile selection; formatting rounds for display only.
- * `scanIgnored` carries scan-layer exclusions (malformed JSON, vanished or
- * unreadable files) that never produce a parsed record.
+ * Streaming fold state: the eligible numeric maximum values plus the
+ * per-category ignored counts. Only these aggregates are retained across
+ * records, so parsed record objects stay confined to one loop iteration.
  */
-export function analyzeRecords(
-  records: readonly unknown[],
-  scanIgnored: Partial<Record<IgnoredReason, number>> = {},
-): ProgressGapAnalysis {
-  const ignored = emptyIgnored();
-  const values: number[] = [];
-  for (const record of records) {
-    const outcome = eligibleGap(record);
-    if (outcome.status === "eligible") values.push(outcome.value);
-    else ignored[outcome.reason] += 1;
-  }
-  // Scanned records are parsed entries plus scan-layer exclusions; the
-  // classified malformed count below must not be added twice.
-  const scanned = records.length + (scanIgnored.malformedJson ?? 0) + (scanIgnored.readFailures ?? 0);
-  for (const reason of Object.keys(ignored) as IgnoredReason[]) {
-    ignored[reason] += scanIgnored[reason] ?? 0;
-  }
+interface GapFold {
+  readonly values: number[];
+  readonly ignored: Record<IgnoredReason, number>;
+}
+
+function emptyGapFold(): GapFold {
+  return { values: [], ignored: emptyIgnored() };
+}
+
+/** Classifies one parsed record into the fold without retaining the record. */
+function foldGapRecord(fold: GapFold, record: unknown): void {
+  const outcome = eligibleGap(record);
+  if (outcome.status === "eligible") fold.values.push(outcome.value);
+  else fold.ignored[outcome.reason] += 1;
+}
+
+/** Builds the final aggregate from a completed fold. */
+function finalizeGapAnalysis(fold: GapFold, scanned: number): ProgressGapAnalysis {
+  const { values, ignored } = fold;
   values.sort((left, right) => left - right);
   const thresholds = THRESHOLD_MINUTES.map((minutes) => {
     const seconds = minutes * 60;
@@ -184,6 +210,31 @@ export function analyzeRecords(
     p99Sufficient: values.length >= P99_MINIMUM_SAMPLES,
     thresholds,
   };
+}
+
+/**
+ * Analyzes parsed records into the aggregate report through the same fold
+ * the directory scan streams through, so both entry points produce
+ * identical aggregates. Values are kept unrounded for percentile
+ * selection; formatting rounds for display only. `scanIgnored` carries
+ * scan-layer exclusions (malformed JSON, vanished or unreadable files)
+ * that never produce a parsed record.
+ */
+export function analyzeRecords(
+  records: readonly unknown[],
+  scanIgnored: Partial<Record<IgnoredReason, number>> = {},
+): ProgressGapAnalysis {
+  const fold = emptyGapFold();
+  for (const record of records) {
+    foldGapRecord(fold, record);
+  }
+  // Scanned records are parsed entries plus scan-layer exclusions; the
+  // classified malformed count below must not be added twice.
+  const scanned = records.length + (scanIgnored.malformedJson ?? 0) + (scanIgnored.readFailures ?? 0);
+  for (const reason of Object.keys(fold.ignored) as IgnoredReason[]) {
+    fold.ignored[reason] += scanIgnored[reason] ?? 0;
+  }
+  return finalizeGapAnalysis(fold, scanned);
 }
 
 function secondsText(value: number | undefined): string {
@@ -225,23 +276,37 @@ export function formatProgressGapAnalysis(analysis: ProgressGapAnalysis): string
  * bytes from that same handle. The handle itself is `fstat`-validated, so a
  * symlink, FIFO, or over-cap entry is never read, and a same-user process
  * replacing or growing the pathname mid-scan cannot change what is read.
- * Returns `undefined` for a skipped (non-regular or over-cap) entry; any
- * open, fstat, or read failure (including ELOOP and ENOENT) throws.
+ * The read API may return short before EOF, so reads continue from the
+ * same handle into the same buffer at advancing offsets until one returns
+ * zero bytes (EOF) or the accumulated total passes the cap. Returns
+ * `undefined` for a skipped (non-regular or over-cap) entry; any open,
+ * fstat, or read failure (including ELOOP and ENOENT) throws.
  */
 async function readCappedEntryText(
-  openEntry: (filePath: string, flags: number) => Promise<FileHandle>,
+  openEntry: OpenEntry,
   filePath: string,
 ): Promise<string | undefined> {
   const handle = await openEntry(filePath, SCAN_OPEN_FLAGS);
   try {
     const info = await handle.stat();
     if (!info.isFile() || info.size > SCAN_MAX_RECORD_BYTES) return undefined;
-    // The cap-plus-one buffer lets one bounded read detect an entry that
-    // grew past the cap after the fstat above.
+    // The cap-plus-one buffer lets the accumulating loop below detect an
+    // entry that grew past the cap after the fstat above, across partial
+    // reads: the cap applies to the accumulated total, not per call.
     const buffer = Buffer.alloc(SCAN_MAX_RECORD_BYTES + 1);
-    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-    if (bytesRead > SCAN_MAX_RECORD_BYTES) return undefined;
-    return buffer.subarray(0, bytesRead).toString("utf8");
+    let totalBytesRead = 0;
+    for (;;) {
+      const { bytesRead } = await handle.read(
+        buffer,
+        totalBytesRead,
+        buffer.length - totalBytesRead,
+        totalBytesRead,
+      );
+      if (bytesRead === 0) break;
+      totalBytesRead += bytesRead;
+      if (totalBytesRead > SCAN_MAX_RECORD_BYTES) return undefined;
+    }
+    return buffer.subarray(0, totalBytesRead).toString("utf8");
   } finally {
     await handle.close().catch(() => {});
   }
@@ -252,25 +317,29 @@ async function readCappedEntryText(
  * (another local Pi process pruning it) or a malformed JSON file never fails
  * the scan; both are counted separately. Every `*.json` entry is opened with
  * no-follow, non-blocking, read-only flags and validated by fstat on that
- * same handle before one bounded read, so the scan never follows a symlink,
- * never blocks on a FIFO, and never reads past the byte cap.
+ * same handle before the bounded accumulating read, so the scan never follows
+ * a symlink, never blocks on a FIFO, and never reads past the byte cap.
+ * Each record is classified during the scan and only its eligible numeric
+ * value or ignored-category count is retained, so parsed record objects are
+ * never held beyond the current loop iteration.
  */
 export async function scanProgressGapRecords(
   directory: string,
-  openEntry: (filePath: string, flags: number) => Promise<FileHandle> = (filePath, flags) => open(filePath, flags),
+  openEntry: OpenEntry = (filePath, flags) => open(filePath, flags),
 ): Promise<ProgressGapAnalysis> {
   let names: string[];
   try {
     names = await readdir(directory);
   } catch {
     // A missing or unreadable directory yields an empty aggregate, never an error.
-    return analyzeRecords([]);
+    return finalizeGapAnalysis(emptyGapFold(), 0);
   }
-  const parsed: unknown[] = [];
-  const ignored: Partial<Record<IgnoredReason, number>> = { malformedJson: 0, readFailures: 0 };
+  const fold = emptyGapFold();
+  let scanned = 0;
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
     const filePath = path.join(directory, name);
+    scanned += 1;
     let text: string | undefined;
     try {
       text = await readCappedEntryText(openEntry, filePath);
@@ -278,22 +347,27 @@ export async function scanProgressGapRecords(
       // A vanished file (ENOENT from concurrent pruning), a symlink entry
       // (ELOOP from O_NOFOLLOW), and any other open/fstat/read failure are
       // excluded without failing the scan.
-      ignored.readFailures = (ignored.readFailures ?? 0) + 1;
+      fold.ignored.readFailures += 1;
       continue;
     }
     if (text === undefined) {
       // Skipped non-regular or over-cap entries count as read failures, the
       // closest existing ignored category, so the aggregate output is unchanged.
-      ignored.readFailures = (ignored.readFailures ?? 0) + 1;
+      fold.ignored.readFailures += 1;
       continue;
     }
+    let record: unknown;
     try {
-      parsed.push(JSON.parse(text));
+      record = JSON.parse(text);
     } catch {
-      ignored.malformedJson = (ignored.malformedJson ?? 0) + 1;
+      fold.ignored.malformedJson += 1;
+      continue;
     }
+    foldGapRecord(fold, record);
   }
-  return analyzeRecords(parsed, ignored);
+  // `scanned` counts every entry that reached the read attempt, which is
+  // exactly parsed records plus malformed JSON plus read failures.
+  return finalizeGapAnalysis(fold, scanned);
 }
 
 /** Full analysis over the delegated-pi-loop diagnostics directory. */
