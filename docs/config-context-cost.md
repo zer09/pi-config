@@ -95,6 +95,8 @@ Delegated C-route Ox Alpha removal update: 2026-08-27 (removed the `stealth/ox-a
 Web-search provider-routing update: 2026-08-27 (added the `web_code_search` tool, removed the `web_search` mode parameter, added `depth` and `maxAgeHours`, and rewrote all three web-search tool descriptions and guidelines; local `o200k_base` attribution below; provider calibration and the full extension/tool inventory were not rerun)
 Delegated C-route GLM-5.3-Flash restoration update: 2026-08-27 (Z.AI officially revealed Ox Alpha as GLM-5.3-Flash, so Gate C's first tier is restored as `zai/glm-5.3-flash:high` ahead of the retained Hy3 fallback, with the matching `glm-5.3-flash` capability in `routing.json` and the `zai/glm-5.3-flash` enabled model; zero model-visible startup-context delta because the public role schema, tool guidance, and global instructions are unchanged; provider calibration and the full extension/tool inventory were not rerun)
 
+Web-search Tavily-fallback update: 2026-08-28 (added the final direct Tavily `/search` fallback to `web_search` with a degraded ordered source document and calling-model synthesis/citation guidance; local `o200k_base` attribution below; provider calibration and the full extension/tool inventory were not rerun)
+
 CWD measured: `/home/gc/.pi`
 
 Pi version for quantitative calibration: `0.80.2`
@@ -1087,3 +1089,19 @@ This change was measured locally with `tiktoken` `o200k_base` using the same ser
 | **Tool total** | **574** | **1,037** | **+463** | Before provider-specific framing |
 
 The extension's always-loaded model-visible surface grows by 463 local tokens before provider framing: +38 for the rewritten `web_search` metadata and schema, +359 for the new `web_code_search` tool, and +66 for the extended `fetch_contents` schema and guidance. All other routing, caching, fallback, and redaction behavior is executable TypeScript or private tool details and adds no startup model context. Provider-reported input remains the authority and was not rerun.
+
+## 2026-08-28 web-search Tavily-fallback attribution
+
+This change was measured locally with `tiktoken` `o200k_base` using the same serialization as the attribution tables above: prompt guidelines join with newlines and the parameter schema uses plain `JSON.stringify` separators. Before values are commit `ff1438f` (`HEAD`), after values are the working tree. No paid provider calibration was run, and the full extension/tool inventory was not rerun.
+
+| Surface | Before | After | Delta | Startup behavior |
+|---|---:|---:|---:|---|
+| `web_search` description | 83 | 124 | +41 | Active custom-tool metadata |
+| `web_search` prompt snippet | 19 | 19 | 0 | Included while the tool is active |
+| `web_search` prompt guidelines | 248 | 297 | +49 | Included while the tool is active |
+| `web_search` parameter schema | 124 | 124 | 0 | Serialized as an active provider tool schema |
+| `web_code_search` all metadata | — | — | 0 | Byte-identical |
+| `fetch_contents` all metadata | — | — | 0 | Byte-identical |
+| **Tool total** | **1,037** | **1,127** | **+90** | Before provider-specific framing |
+
+The only model-visible startup change is the `web_search` description and one added guideline explaining the degraded ordered source document and the calling model's synthesis/citation responsibility (+90 local tokens; guidelines 8 to 9). The public `web_search` schema (`query`, `depth`) and the other two tools' metadata are byte-identical, and all Tavily routing, normalization, bounds, redaction, schema-3 storage, and TUI behavior is executable TypeScript or private tool details that add no startup model context. Provider-reported input remains the authority and was not rerun.

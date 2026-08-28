@@ -2,6 +2,7 @@ export type WebSearchDepth = "standard" | "deep";
 export type CodeSearchFocus = "developer_sources" | "implementation_examples";
 export type GroundingPartner = "parallel" | "exa";
 export type ParallelGroundingMode = "basic" | "advanced";
+export type TavilySearchDepth = "basic" | "advanced";
 export type CodeSearchProvider = "firecrawl-developer" | "exa-code";
 export type ContentProvider = "firecrawl_scrape" | "exa_contents";
 
@@ -76,11 +77,13 @@ export type SearchConfig = {
   parallelApiKeyEnv: string;
   exaApiKeyEnv: string;
   firecrawlApiKeyEnv: string;
+  tavilyApiKeyEnv: string;
   model: string;
   webSearch: {
     defaultDepth: WebSearchDepth;
     parallel: { standardMode: ParallelGroundingMode; deepMode: ParallelGroundingMode };
     exa: { standard: ExaGroundingBudget; deep: ExaGroundingBudget };
+    tavily: { standard: TavilySearchSettings; deep: TavilySearchSettings };
   };
   codeSearch: {
     firecrawl: { k: number; passages: number };
@@ -167,6 +170,61 @@ export type GroundingAttempt = {
   error?: string;
 };
 
+/** One normalized Tavily search result; only validated fields survive. */
+export type TavilySearchResult = {
+  title: string;
+  url: string;
+  content: string;
+  score?: number;
+};
+
+/** Per-depth Tavily request settings resolved from configuration. */
+export type TavilySearchSettings = {
+  searchDepth: TavilySearchDepth;
+  maxResults: number;
+};
+
+/** Normalized Tavily /search response with counters and safe metadata only. */
+export type NormalizedTavilySearchResponse = {
+  results: TavilySearchResult[];
+  /** Raw provider results array length before per-result validation. */
+  resultsTotal: number;
+  /** Survivors after per-result validation, before the retention cap. */
+  usableResultsCount: number;
+  /** Raw results not retained: validation drops plus over-cap survivors. */
+  resultsOmitted: number;
+  /** Whether the provider response carried a results array at all. */
+  resultsArrayPresent: boolean;
+  requestId?: string;
+  responseTime?: number;
+  usageCredits?: number;
+};
+
+/** One direct Tavily /search attempt. */
+export type TavilySearchAttempt = {
+  provider: "tavily-search";
+  requestStartedAt: string;
+  elapsedMs: number;
+  rawRequest?: RawHttpRequest;
+  rawResponse?: RawHttpResponse;
+  normalized?: NormalizedTavilySearchResponse;
+  /**
+   * Final post-redaction delivered result-block count, recorded once the
+   * orchestrator has formatted the degraded document and before final
+   * selection. Stored copies keep only a finite nonnegative value capped at
+   * the Tavily retention bound; the count is never recomputed from stored
+   * URLs.
+   */
+  deliveredResultsCount?: number;
+  error?: string;
+};
+
+/** Providers that can produce a web_search outcome, including none. */
+export type WebSearchProvider = "gemini-parallel-grounding" | "gemini-exa-grounding" | "tavily-search" | "none";
+
+/** One chronological web_search attempt across any of its providers. */
+export type WebSearchAttempt = GroundingAttempt | TavilySearchAttempt;
+
 /** Provider failure classes recognized exactly enough to act on. */
 export type PrimaryFailureCode = "EXA_EMPTY_QUERY";
 
@@ -237,11 +295,34 @@ export type ContentFetchAttempt = {
 };
 
 /**
+ * Authoritative bounded copy of the selected web_search result.
+ *
+ * Schema 3 records discriminate by the exact provider that produced the
+ * selection and store null when no provider was selected. The legacy Gemini
+ * mirrors below keep describing the final Gemini attempt only, so a Tavily
+ * selection never places Tavily data into them.
+ */
+export type StoredSelectedWebSearchResult =
+  | StoredGeminiSelection
+  | { provider: "tavily-search"; normalized: NormalizedTavilySearchResponse }
+  | null;
+
+/** The Gemini member of the stored selection union, either partner. */
+export type StoredGeminiSelection = {
+  provider: "gemini-parallel-grounding" | "gemini-exa-grounding";
+  normalized: NormalizedGeminiGroundingResponse;
+};
+
+/**
  * Stored record for the web_search tool.
  *
- * New fields (schemaVersion, tool, depth, selectedProvider, attempts) are
- * written on every store. The legacy mirrored fields keep describing the final
- * attempt so pre-existing raw-response consumers stay correct.
+ * New fields (schemaVersion, tool, depth, selectedProvider, selectedResult,
+ * attempts) are written on every store. The legacy mirrored fields keep
+ * describing the final Gemini attempt: `provider`, `request`, `response`,
+ * `normalized`, and `googleResponseId` never carry Tavily data, and a Tavily
+ * or none selection leaves the legacy selected-response mirrors absent or
+ * null while `provider` keeps the final bounded Gemini attempt provider
+ * (`fallback?.provider ?? primary.provider`).
  */
 export type StoredSearchResponse = {
   schemaVersion: number;
@@ -250,11 +331,13 @@ export type StoredSearchResponse = {
   expiresAt: number;
   tool: "web_search";
   depth: WebSearchDepth;
-  selectedProvider: "gemini-parallel-grounding" | "gemini-exa-grounding" | "none";
+  selectedProvider: WebSearchProvider;
+  selectedResult: StoredSelectedWebSearchResult;
   query: string;
   model: string;
-  attempts: GroundingAttempt[];
-  provider: string;
+  attempts: WebSearchAttempt[];
+  /** Legacy Gemini mirror: the final bounded Gemini attempt provider, never `tavily-search`. */
+  provider: GroundingAttempt["provider"];
   request?: RawHttpRequest;
   response?: RawHttpResponse;
   primary: GroundingAttempt;

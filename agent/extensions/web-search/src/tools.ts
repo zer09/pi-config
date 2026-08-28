@@ -10,23 +10,25 @@ import {
   isGroundingFallbackAllowed,
   isUsableGroundingAttempt,
 } from "./grounding-failure.js";
+import { callTavilySearch, isUsableTavilySearch } from "./tavily-search.js";
 import { fetchContentsEntries, resolveFetchContentsInput, validateFetchContentsInput } from "./contents.js";
 import {
   appendDiagnosticSuffix,
   boundCodeSearchAttemptForStorage,
   boundGroundingAttemptForStorage,
+  boundTavilyAttemptForStorage,
   boundQueryForStorage,
   boundUrlForStorage,
   buildStoredFetchContentsRecord,
   codeFailureCategory,
   fetchFailureCategory,
-  groundingFailureCategory,
   markPreflight,
   preflightSettingsFrom,
   preflightStep,
   PREFLIGHT_CATEGORY,
   PreflightFailure,
   uniqueFailureCategories,
+  webSearchFailureCategory,
   writeDiagnosticRecordSafely,
   writePreflightDiagnostic,
 } from "./diagnostics.js";
@@ -35,9 +37,10 @@ import {
   formatCodeSearchResult,
   formatCodeSearchUnavailable,
   formatFetchedContents,
+  formatTavilyDeliveredDocument,
   formatWebSearchUnavailable,
 } from "./format.js";
-import type { FormattedContentEntry } from "./format.js";
+import type { FormattedContentEntry, TavilyDeliveredDocument } from "./format.js";
 import { loadConfig, readConfiguredEnv } from "./config.js";
 import {
   createWebSearchCallRenderer,
@@ -60,9 +63,13 @@ import type {
   SearchConfig,
   StoredCodeSearchResponse,
   StoredFetchResult,
+  StoredGeminiSelection,
   StoredSearchResponse,
+  StoredSelectedWebSearchResult,
+  TavilySearchAttempt,
   ToolRegistration,
   ToolResult,
+  WebSearchAttempt,
   WebSearchDepth,
 } from "./types.js";
 import type { SecretForRedaction } from "./redact.js";
@@ -101,14 +108,16 @@ function buildSecrets(
     parallelApiKeyEnv: string;
     exaApiKeyEnv: string;
     firecrawlApiKeyEnv: string;
+    tavilyApiKeyEnv: string;
   },
-  keys: { google?: string; parallel?: string; exa?: string; firecrawl?: string },
+  keys: { google?: string; parallel?: string; exa?: string; firecrawl?: string; tavily?: string },
 ): SecretForRedaction[] {
   return [
     { label: configEnv.googleCloudApiKeyEnv, value: keys.google },
     { label: configEnv.parallelApiKeyEnv, value: keys.parallel },
     { label: configEnv.exaApiKeyEnv, value: keys.exa },
     { label: configEnv.firecrawlApiKeyEnv, value: keys.firecrawl },
+    { label: configEnv.tavilyApiKeyEnv, value: keys.tavily },
   ];
 }
 
@@ -140,6 +149,15 @@ function makeSkippedCodeAttempt(
   };
 }
 
+function makeSkippedTavily(reason: string): TavilySearchAttempt {
+  return {
+    provider: "tavily-search",
+    requestStartedAt: new Date().toISOString(),
+    elapsedMs: 0,
+    error: reason,
+  };
+}
+
 /** @internal Exported only so the stored-record field contract can be tested deterministically. */
 export function buildStoredRecord(params: {
   responseId: string;
@@ -149,66 +167,148 @@ export function buildStoredRecord(params: {
   depth: WebSearchDepth;
   parallelAttempts: [GroundingAttempt, ...GroundingAttempt[]];
   exaAttempts: GroundingAttempt[];
-  selected: GroundingAttempt | undefined;
+  tavilyAttempt?: TavilySearchAttempt;
+  selected: WebSearchAttempt | undefined;
   secrets: SecretForRedaction[];
 }): StoredSearchResponse {
   // Every stored attempt and every legacy mirror derives from these bounded
   // copies so raw unbounded values cannot re-enter the record.
   const parallelAttempts = params.parallelAttempts.map((attempt) => boundGroundingAttemptForStorage(attempt, params.secrets));
   const exaAttempts = params.exaAttempts.map((attempt) => boundGroundingAttemptForStorage(attempt, params.secrets));
-  const rawAttempts = [...params.parallelAttempts, ...params.exaAttempts];
-  const boundedAttempts = [...parallelAttempts, ...exaAttempts];
-  const selected = params.selected === undefined ? undefined : boundedAttempts[rawAttempts.indexOf(params.selected)];
+  const tavilyAttempt =
+    params.tavilyAttempt !== undefined ? boundTavilyAttemptForStorage(params.tavilyAttempt, params.secrets) : undefined;
+  const rawAttempts: WebSearchAttempt[] = [...params.parallelAttempts, ...params.exaAttempts];
+  if (params.tavilyAttempt !== undefined) rawAttempts.push(params.tavilyAttempt);
+  const boundedAttempts: WebSearchAttempt[] = [...parallelAttempts, ...exaAttempts];
+  if (tavilyAttempt !== undefined) boundedAttempts.push(tavilyAttempt);
+  const selectedIndex = params.selected === undefined ? -1 : rawAttempts.indexOf(params.selected);
+  const selected = selectedIndex >= 0 ? boundedAttempts[selectedIndex] : undefined;
   const primary = parallelAttempts[parallelAttempts.length - 1]!;
   const fallback = exaAttempts.length > 0 ? exaAttempts[exaAttempts.length - 1]! : null;
-  // Legacy top-level fields keep describing the final selected attempt so
-  // existing raw-response consumers stay correct while history is preserved.
+
+  // Authoritative bounded copy of the selected result, discriminated by the
+  // exact provider that produced it. Schema 3 stores null when no provider
+  // was selected; a Tavily or null selection leaves the legacy Gemini
+  // selected-response mirrors absent or null so no Tavily data can reach a
+  // legacy consumer.
+  let selectedResult: StoredSelectedWebSearchResult = null;
+  if (selected?.provider === "tavily-search" && selected.normalized) {
+    selectedResult = { provider: "tavily-search", normalized: selected.normalized };
+  } else if (selected !== undefined && selected.provider !== "tavily-search" && selected.normalized) {
+    selectedResult = { provider: selected.provider, normalized: selected.normalized };
+  }
+  const geminiSelection = geminiSelectionOf(selectedResult);
+
+  // Legacy top-level fields keep describing the final Gemini attempt so
+  // existing raw-response consumers stay correct while history is preserved;
+  // `provider` mirrors the final bounded Gemini attempt provider even for a
+  // Tavily or none selection, never `tavily-search`.
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     responseId: params.responseId,
     createdAt: params.now,
     expiresAt: params.now + params.ttlMs,
     tool: "web_search",
     depth: params.depth,
     selectedProvider: selected?.provider ?? "none",
+    selectedResult,
     query: boundQueryForStorage(params.query, params.secrets),
     model: primary.model,
     attempts: boundedAttempts,
-    provider: selected?.provider ?? primary.provider,
-    request: selected?.rawRequest ?? primary.rawRequest,
-    response: selected?.rawResponse ?? primary.rawResponse,
+    provider: geminiSelection ? geminiSelection.provider : fallback?.provider ?? primary.provider,
+    request: geminiSelection ? selected?.rawRequest ?? primary.rawRequest : undefined,
+    response: geminiSelection ? selected?.rawResponse ?? primary.rawResponse : undefined,
     primary,
     // `primary` already is the only Parallel attempt, so history is stored only
     // when a retry actually produced a second attempt.
     primaryAttempts: parallelAttempts.length > 1 ? parallelAttempts : undefined,
-    normalized: selected?.normalized ?? null,
+    normalized: geminiSelection ? geminiSelection.normalized : null,
     fallback,
-    googleResponseId: selected?.normalized?.googleResponseId,
+    googleResponseId: geminiSelection ? geminiSelection.normalized.googleResponseId : undefined,
   };
 }
 
-function attemptsForRecord(record: StoredSearchResponse): GroundingAttempt[] {
+function attemptsForRecord(record: StoredSearchResponse): WebSearchAttempt[] {
   if (record.attempts?.length) return record.attempts;
   return record.primaryAttempts?.length ? record.primaryAttempts : [record.primary];
+}
+
+/** The Gemini member of the selection union, or null for Tavily/none/null. */
+function geminiSelectionOf(selection: StoredSelectedWebSearchResult): StoredGeminiSelection | null {
+  return selection !== null && selection.provider !== "tavily-search" ? selection : null;
+}
+
+/** The Tavily member of the selection union, or null otherwise. */
+function tavilySelectionOf(
+  selection: StoredSelectedWebSearchResult,
+): Extract<StoredSelectedWebSearchResult, { provider: "tavily-search" }> | null {
+  return selection !== null && selection.provider === "tavily-search" ? selection : null;
+}
+
+/**
+ * Delivered count persisted on the latest chronological stored Tavily
+ * attempt, or null when no Tavily attempt carries one. Storage re-bounds
+ * every stored URL, so recomputing a count from the stored selection could
+ * retain blocks the live redacted delivery dropped; the stored field is the
+ * only source that cannot disagree with the live delivery.
+ */
+function storedTavilyDeliveredResultCount(attempts: WebSearchAttempt[]): number | null {
+  for (let i = attempts.length - 1; i >= 0; i--) {
+    const attempt = attempts[i]!;
+    if (attempt.provider === "tavily-search") return attempt.deliveredResultsCount ?? null;
+  }
+  return null;
+}
+
+function isGeminiProvider(provider: string): provider is GroundingAttempt["provider"] {
+  return provider === "gemini-parallel-grounding" || provider === "gemini-exa-grounding";
+}
+
+/**
+ * Selected result tolerating schema-2 and pre-schema legacy records.
+ *
+ * Legacy records without the discriminated field keep their meaning: a
+ * non-null Gemini `normalized` mirror means the Gemini attempt described by
+ * the legacy `selectedProvider`/`provider` mirrors was selected.
+ */
+function selectedResultFor(record: StoredSearchResponse): StoredSelectedWebSearchResult {
+  if (record.selectedResult !== undefined) return record.selectedResult;
+  if (record.normalized == null) return null;
+  const provider = isGeminiProvider(record.selectedProvider) ? record.selectedProvider : record.provider;
+  return { provider, normalized: record.normalized };
 }
 
 export function detailsForSearch(
   record: StoredSearchResponse,
   elapsedMs?: number,
+  deliveredTavilyResultCount?: number,
 ): Record<string, unknown> {
   const attempts = attemptsForRecord(record);
   const primaryAttempts = record.primaryAttempts?.length ? record.primaryAttempts : [record.primary];
   const primaryFinal = primaryAttempts[primaryAttempts.length - 1]!;
-  const geminiAnswered = record.normalized != null;
+  const selectedResult = selectedResultFor(record);
+  const geminiSelection = geminiSelectionOf(selectedResult);
+  const tavilySelection = tavilySelectionOf(selectedResult);
+  const geminiAnswered = geminiSelection !== null;
+  const tavilySelected = tavilySelection !== null;
   const fallbackUsed = record.fallback !== null;
   // Grounding counts describe a Gemini answer; reporting them for a failed
-  // chain would claim a successful search found nothing.
+  // chain or a degraded Tavily document would claim sources that do not exist.
   return {
     responseId: record.responseId,
     googleResponseId: record.googleResponseId ?? null,
     depth: record.depth ?? "standard",
-    answerProvider: geminiAnswered ? record.selectedProvider ?? record.provider : null,
+    answerProvider: tavilySelection ? "tavily-search" : geminiSelection ? geminiSelection.provider : null,
     selectedProvider: record.selectedProvider ?? null,
+    degraded: tavilySelected,
+    // Exactly the delivered result blocks of the degraded document: the
+    // live caller passes the count it derived while formatting, and a
+    // stored record supplies the count persisted on its Tavily attempt.
+    // The count is never recomputed from stored data, where storage-bounded
+    // URLs can disagree with the live redacted delivery.
+    resultCount: tavilySelection
+      ? deliveredTavilyResultCount ?? storedTavilyDeliveredResultCount(attempts)
+      : null,
     primaryProvider: "gemini-parallel-grounding",
     primaryStatus: primaryFinal.rawResponse?.status ?? null,
     primaryFinishReason: primaryFinal.normalized?.finishReason ?? null,
@@ -216,7 +316,7 @@ export function detailsForSearch(
     primaryFinalFailureCode: classifyPrimaryFailure(primaryFinal) ?? null,
     attemptCount: attempts.length,
     attemptProviders: attempts.map((attempt) => attempt.provider),
-    failureCategories: uniqueFailureCategories(attempts.map((attempt) => groundingFailureCategory(attempt))),
+    failureCategories: uniqueFailureCategories(attempts.map((attempt) => webSearchFailureCategory(attempt))),
     fallbackUsed,
     fallbackFrom: fallbackUsed ? "parallel" : null,
     // Derived from the bounded stored primary attempt, so an embedded error
@@ -355,66 +455,112 @@ export async function executeWebSearch(
     const query = preflightStep(PREFLIGHT_CATEGORY.invalidInput, () => assertQuery(params.query));
     const depth = preflightStep(PREFLIGHT_CATEGORY.invalidInput, () => assertDepth(params.depth, config!.webSearch.defaultDepth));
 
-    // Both grounding partners share the Google transport, so a missing Google
-    // credential is terminal for web_search: no Exa grounding attempt is made.
     const googleCloudApiKey = readConfiguredEnv(config.googleCloudApiKeyEnv);
-    if (!googleCloudApiKey) {
-      throw new PreflightFailure(
-        PREFLIGHT_CATEGORY.missingCredentials,
-        new Error(`Missing required environment variable ${config.googleCloudApiKeyEnv}`),
-      );
+    const parallelApiKey = readConfiguredEnv(config.parallelApiKeyEnv);
+    const exaApiKey = readConfiguredEnv(config.exaApiKeyEnv);
+    const tavilyApiKey = readConfiguredEnv(config.tavilyApiKeyEnv);
+    const secrets = buildSecrets(config, {
+      google: googleCloudApiKey,
+      parallel: parallelApiKey,
+      exa: exaApiKey,
+      firecrawl: readConfiguredEnv(config.firecrawlApiKeyEnv),
+      tavily: tavilyApiKey,
+    });
+
+    const mode = depth === "deep" ? config.webSearch.parallel.deepMode : config.webSearch.parallel.standardMode;
+
+    // Both grounding partners share the Google transport, so a missing Google
+    // credential skips both Gemini stages instead of failing the call: the
+    // Tavily direct-search fallback stays reachable without any Google quota.
+    const parallelAttempts: [GroundingAttempt, ...GroundingAttempt[]] = googleCloudApiKey
+      ? [
+          await callGeminiParallelGrounding({
+            query,
+            googleCloudApiKey,
+            parallelApiKey,
+            mode,
+            model: config.model,
+            signal,
+          }),
+        ]
+      : [
+          makeSkippedGrounding(
+            "gemini-parallel-grounding",
+            "parallel",
+            config.model,
+            `Missing required environment variable ${config.googleCloudApiKeyEnv}`,
+          ),
+        ];
+    const parallelFinal = parallelAttempts[0]!;
+
+    let selected: WebSearchAttempt | undefined;
+    if (isUsableGroundingAttempt(parallelFinal)) {
+      selected = parallelFinal;
     }
 
-  const parallelApiKey = readConfiguredEnv(config.parallelApiKeyEnv);
-  const exaApiKey = readConfiguredEnv(config.exaApiKeyEnv);
-  const secrets = buildSecrets(config, {
-    google: googleCloudApiKey,
-    parallel: parallelApiKey,
-    exa: exaApiKey,
-    firecrawl: readConfiguredEnv(config.firecrawlApiKeyEnv),
-  });
-
-  const mode = depth === "deep" ? config.webSearch.parallel.deepMode : config.webSearch.parallel.standardMode;
-  const parallelAttempts: [GroundingAttempt, ...GroundingAttempt[]] = [
-    await callGeminiParallelGrounding({
-      query,
-      googleCloudApiKey,
-      parallelApiKey,
-      mode,
-      model: config.model,
-      signal,
-    }),
-  ];
-  const parallelFinal = parallelAttempts[0]!;
-
-  let selected: GroundingAttempt | undefined;
-  let exaAttempts: GroundingAttempt[] = [];
-  if (isUsableGroundingAttempt(parallelFinal)) {
-    selected = parallelFinal;
-  } else if (isGroundingFallbackAllowed(parallelFinal, signal)) {
-    if (!exaApiKey) {
-      exaAttempts = [
-        makeSkippedGrounding(
-          "gemini-exa-grounding",
-          "exa",
-          config.model,
-          `Missing required environment variable ${config.exaApiKeyEnv}`,
-        ),
-      ];
-    } else {
-      const budget = depth === "deep" ? config.webSearch.exa.deep : config.webSearch.exa.standard;
-      exaAttempts = await callGeminiExaGroundingAttempts({
-        query,
-        googleCloudApiKey,
-        exaApiKey,
-        budget,
-        model: config.model,
-        signal,
-      });
-      const exaFinal = exaAttempts[exaAttempts.length - 1]!;
-      if (isUsableGroundingAttempt(exaFinal)) selected = exaFinal;
+    // Caller cancellation and Gemini prompt safety blocks stay terminal after
+    // either Gemini stage: they stop the chain and prevent the Tavily stage.
+    let exaAttempts: GroundingAttempt[] = [];
+    if (selected === undefined && isGroundingFallbackAllowed(parallelFinal, signal)) {
+      if (!googleCloudApiKey || !exaApiKey) {
+        exaAttempts = [
+          makeSkippedGrounding(
+            "gemini-exa-grounding",
+            "exa",
+            config.model,
+            `Missing required environment variable ${
+              !googleCloudApiKey ? config.googleCloudApiKeyEnv : config.exaApiKeyEnv
+            }`,
+          ),
+        ];
+      } else {
+        const budget = depth === "deep" ? config.webSearch.exa.deep : config.webSearch.exa.standard;
+        exaAttempts = await callGeminiExaGroundingAttempts({
+          query,
+          googleCloudApiKey,
+          exaApiKey,
+          budget,
+          model: config.model,
+          signal,
+        });
+        const exaFinal = exaAttempts[exaAttempts.length - 1]!;
+        if (isUsableGroundingAttempt(exaFinal)) selected = exaFinal;
+      }
     }
-  }
+
+    // Final operational fallback: one direct Tavily search, never retried.
+    // Runs only when the Exa stage actually produced an attempt whose outcome
+    // still allows fallback, so terminal Gemini causes prevent Tavily too.
+    let tavilyAttempt: TavilySearchAttempt | undefined;
+    let tavilyDelivered: TavilyDeliveredDocument | undefined;
+    const exaFinal = exaAttempts.length > 0 ? exaAttempts[exaAttempts.length - 1] : undefined;
+    if (selected === undefined && exaFinal !== undefined && isGroundingFallbackAllowed(exaFinal, signal)) {
+      tavilyAttempt = tavilyApiKey
+        ? await callTavilySearch({
+            query,
+            tavilyApiKey,
+            settings: depth === "deep" ? config.webSearch.tavily.deep : config.webSearch.tavily.standard,
+            signal,
+          })
+        : makeSkippedTavily(`Missing required environment variable ${config.tavilyApiKeyEnv}`);
+      if (isUsableTavilySearch(tavilyAttempt) && tavilyAttempt.normalized) {
+        // Pre-format structural eligibility passed: format the delivered
+        // document once here, with the active secrets. Redaction can expand
+        // every URL past the 2000-character bound and drop every result
+        // block, so the final post-redaction delivered count is recorded on
+        // the attempt before final selection; an attempt that delivers zero
+        // blocks is not selected but stays in the chronological history with
+        // its final delivery outcome.
+        const delivered = formatTavilyDeliveredDocument(tavilyAttempt.normalized, secrets);
+        tavilyAttempt = { ...tavilyAttempt, deliveredResultsCount: delivered.resultCount };
+        // Final acceptance shares the routing predicate: with the count
+        // recorded, the predicate requires at least one delivered block.
+        if (isUsableTavilySearch(tavilyAttempt)) {
+          selected = tavilyAttempt;
+          tavilyDelivered = delivered;
+        }
+      }
+    }
 
   const record = buildStoredRecord({
     responseId,
@@ -424,6 +570,7 @@ export async function executeWebSearch(
     depth,
     parallelAttempts,
     exaAttempts,
+    tavilyAttempt,
     selected,
     secrets,
   });
@@ -431,7 +578,22 @@ export async function executeWebSearch(
   // an unavailable-provider outcome the providers already produced.
   await writeDiagnosticRecordSafely(config.cacheDir, record, secrets);
 
-  if (selected?.normalized) {
+  if (selected?.provider === "tavily-search" && selected.normalized && tavilyDelivered) {
+    // The delivered document was already formatted once, before selection,
+    // with the active secrets; reusing that pass means the text and the
+    // details result count can never diverge.
+    return {
+      content: [
+        {
+          type: "text",
+          text: tavilyDelivered.text,
+        },
+      ],
+      details: detailsForSearch(record, Date.now() - startedAt, tavilyDelivered.resultCount),
+    };
+  }
+
+  if (selected !== undefined && selected.provider !== "tavily-search" && selected.normalized) {
     return {
       content: [
         {
@@ -498,6 +660,7 @@ export async function executeWebCodeSearch(
     parallel: readConfiguredEnv(cfg.parallelApiKeyEnv),
     exa: exaApiKey,
     firecrawl: firecrawlApiKey,
+    tavily: readConfiguredEnv(cfg.tavilyApiKeyEnv),
   });
 
   const firecrawlCall = (types?: string[]) =>
@@ -639,6 +802,7 @@ export async function executeFetchContents(
       parallel: readConfiguredEnv(config.parallelApiKeyEnv),
       exa: readConfiguredEnv(config.exaApiKeyEnv),
       firecrawl: readConfiguredEnv(config.firecrawlApiKeyEnv),
+      tavily: readConfiguredEnv(config.tavilyApiKeyEnv),
     });
     const record = buildStoredFetchContentsRecord({
       responseId,
@@ -716,14 +880,15 @@ export function createToolRegistrations(): ToolRegistration[] {
       name: "web_search",
       label: "Web Search",
       description:
-        "Produce a current, source-backed answer using public-web research with inline citations. Use for current facts, versions, releases, changelogs, documentation, issues and pull-request history, comparisons, benchmarks, news, and broad technical research. Prefer web_code_search when the primary need is concrete implementation snippets, exact SDK or API syntax, or working code examples. Do not use this tool to inspect the current local repository.",
+        "Produce a current, source-backed answer using public-web research with inline citations. Use for current facts, versions, releases, changelogs, documentation, issues and pull-request history, comparisons, benchmarks, news, and broad technical research. Prefer web_code_search when the primary need is concrete implementation snippets, exact SDK or API syntax, or working code examples. Do not use this tool to inspect the current local repository. Normally returns a grounded answer with inline citations and a Sources section; when grounding providers are unavailable it may instead return a degraded ordered source document ('## Search results') that you must synthesize and cite yourself.",
       promptSnippet:
         "Search the public web with a complete research question or investigation task, not a keyword/list query.",
       promptGuidelines: [
         "Use web_search for current or source-backed web information; phrase the query as a complete question or task starting with words like 'How', 'What', 'Find', 'Does', 'Determine', 'Investigate', etc.",
         "For web_search, exact identifiers are good — package names, commands, config keys, repos, file extensions — but include them inside a sentence that states what you need to verify.",
         "For web_search, include source preferences in prose, e.g. 'Prefer official docs, npm package pages, GitHub repositories, and maintainer documentation.'",
-        "web_search returns answer text with inline citation markers and a Sources section; use those source URLs directly for final answers or fetch_contents.",
+        "web_search normally returns a grounded answer with inline citation markers and a Sources section; use those source URLs directly for final answers or fetch_contents.",
+        "When web_search returns a degraded ordered source document ('## Search results' with titled URL entries instead of a grounded answer), synthesize the answer yourself from those results and cite their URLs; do not treat the document as provider-written prose.",
         "Do not send web_search terse keyword/list queries such as 'MJML Vim Neovim syntax highlighting plugin .mjml filetype vim-mjml current status'. Rewrite them as a question or investigation task.",
         "For web_search, use one rich query before trying multiple variants; split searches only when the external fact or source target differs.",
         "A single task may use both web_search and web_code_search when it needs both current facts and implementation examples.",

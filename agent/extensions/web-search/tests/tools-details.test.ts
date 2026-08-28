@@ -108,10 +108,11 @@ describe("stored web_search record construction", () => {
       selected: parallel,
     });
 
-    expect(built.schemaVersion).toBe(2);
+    expect(built.schemaVersion).toBe(3);
     expect(built.tool).toBe("web_search");
     expect(built.depth).toBe("standard");
     expect(built.selectedProvider).toBe("gemini-parallel-grounding");
+    expect(built.selectedResult.provider).toBe("gemini-parallel-grounding");
     expect(built.attempts).toHaveLength(1);
     expect(built.primaryAttempts).toBeUndefined();
     expect(JSON.parse(JSON.stringify(built))).not.toHaveProperty("primaryAttempts");
@@ -328,6 +329,7 @@ describe("stored-record storage normalization bounds", () => {
       model: "gemini-3.5-flash",
       requestStartedAt: "2026-07-30T00:00:00.000Z",
       elapsedMs: 10,
+      normalized: cleanNormalized,
       rawRequest: {
         method: "POST",
         url: "https://example.invalid/generateContent",

@@ -12,3 +12,7 @@ export const MAX_FETCH_CONTENT_URLS = 25;
 export const MAX_CONTENT_CHARACTERS = 50_000;
 /** Hard ceiling for configured fetch_contents concurrency. */
 export const MAX_CONTENT_CONCURRENCY = 10;
+/** Maximum Tavily results normalized, retained in diagnostics, or configured. */
+export const MAX_TAVILY_RESULTS = 20;
+/** Maximum Tavily result URL length; longer URLs drop the whole result instead of truncating. */
+export const MAX_TAVILY_RESULT_URL_CHARS = 2_000;

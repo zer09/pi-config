@@ -248,6 +248,7 @@ export async function fetchContentsEntries(params: {
       { label: config.parallelApiKeyEnv, value: readConfiguredEnv(config.parallelApiKeyEnv) },
       { label: config.exaApiKeyEnv, value: exaApiKey },
       { label: config.firecrawlApiKeyEnv, value: firecrawlApiKey },
+      { label: config.tavilyApiKeyEnv, value: readConfiguredEnv(config.tavilyApiKeyEnv) },
     ].filter((secret) => secret.value !== undefined);
 
   // The absent maxAgeHours default resolves only now, from the loaded config.
