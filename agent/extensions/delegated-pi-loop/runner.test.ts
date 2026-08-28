@@ -690,6 +690,97 @@ setInterval(() => {}, 1000);
   return { root, invocation: { command: process.execPath, prefixArgs: [script] } };
 }
 
+/**
+ * Fake Pi whose catalog leader exits immediately with a large sub-limit
+ * listing while a pipe-holding descendant that escaped the process group
+ * (detached into its own session) inherits the leader's stdio pipes. The
+ * escaped holder keeps the runner-side close event blocked: it either
+ * writes the valid provider/model tail line after a fixed delay and exits,
+ * or writes nothing and never exits. The leader's group therefore dies the
+ * moment the recorded exit is reaped, so the process-group cleanup proof
+ * completes at once while the stream settlement is still unproven.
+ */
+async function escapedStdioPi(options: {
+  readonly catalogRoute: string;
+  readonly tailDelayMs?: number;
+  readonly holdPipes?: boolean;
+}): Promise<{ root: string; invocation: { command: string; prefixArgs: string[] } }> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "delegate-runner-escaped-"));
+  fixtureRoots.push(root);
+  const script = path.join(root, "fake-pi-escaped.mjs");
+  const separator = options.catalogRoute.indexOf("/");
+  const provider = options.catalogRoute.slice(0, separator);
+  const model = options.catalogRoute.slice(separator + 1);
+  const tailLine = `${provider} ${model} 272K 128K yes yes`;
+  // The escaped holder either delivers the valid tail after a delay and
+  // exits, or holds the inherited pipes open forever without writing.
+  const holderScript = options.holdPipes === true
+    ? "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);"
+    : `setTimeout(() => { process.stdout.write(${JSON.stringify(`${tailLine}\n`)}, () => process.exit(0)); }, ${options.tailDelayMs ?? 250});`;
+  await writeFile(script, `
+import { spawn } from "node:child_process";
+import { appendFileSync, writeFileSync } from "node:fs";
+const args = process.argv.slice(2);
+const provider = ${JSON.stringify(provider)};
+const model = ${JSON.stringify(model)};
+const tailLine = ${JSON.stringify(tailLine)};
+const holdPipes = ${options.holdPipes === true};
+if (args.includes("--list-models")) {
+  const route = args[args.indexOf("--list-models") + 1];
+  if (route === ${JSON.stringify(options.catalogRoute)}) {
+    // A large sub-limit listing whose valid provider/model row is the very
+    // last line. When the holder delivers the tail, the leader stops one
+    // line short; either way it spawns the holder and exits zero at once.
+    const lines = ["provider model context max-out thinking images"];
+    for (let index = 0; index < 6000; index += 1) {
+      lines.push("filler-" + index + " filler-model-" + index + " 272K 128K yes yes");
+    }
+    if (holdPipes) lines.push(tailLine);
+    // Exit only after the payload is flushed: process.exit can truncate a
+    // still-buffered pipe write, which would fake a truncated listing.
+    process.stdout.write(lines.join("\\n") + "\\n", () => {
+      const holder = spawn(process.execPath, ["-e", ${JSON.stringify(holderScript)}], { stdio: "inherit", detached: true });
+      writeFileSync("escaped-group.json", JSON.stringify({ leader: process.pid, descendant: -1 }));
+      holder.on("spawn", () => {
+        writeFileSync("escaped-group.json", JSON.stringify({ leader: process.pid, descendant: holder.pid }));
+        process.exit(0);
+      });
+    });
+  } else {
+    console.log("provider model context max-out thinking images");
+    process.exit(0);
+  }
+  setInterval(() => {}, 1000);
+} else {
+  appendFileSync("supervision-routes.jsonl", provider + "/" + model + "\\n");
+  const emit = (event) => console.log(JSON.stringify(event));
+  let buffer = "";
+  process.stdin.on("data", (chunk) => {
+    buffer += chunk.toString("utf8");
+    while (buffer.includes("\\n")) {
+      const newline = buffer.indexOf("\\n");
+      const line = buffer.slice(0, newline);
+      buffer = buffer.slice(newline + 1);
+      if (!line) continue;
+      const command = JSON.parse(line);
+      if (command.type !== "prompt") continue;
+      emit({ id: command.id, type: "response", command: "prompt", success: true });
+      emit({ type: "agent_start" });
+      emit({
+        type: "message_end",
+        message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Completed on " + provider + "/" + model + ".\\n\\nDELEGATE_RESULT: COMPLETED" }] },
+      });
+      emit({ type: "agent_end", willRetry: false });
+      emit({ type: "agent_settled" });
+    }
+  });
+}
+setInterval(() => {}, 1000);
+`, { mode: 0o700 });
+  await execFileAsync(process.execPath, ["--check", script]);
+  return { root, invocation: { command: process.execPath, prefixArgs: [script] } };
+}
+
 test("classifies exactly the operational failure states as fallback-eligible", () => {
   for (const state of [
     "provider_failed", "stalled", "output_limit", "prompt_rejected",
@@ -1797,6 +1888,71 @@ test("catalog consumes bounded cleanup failure while inherited stdio keeps close
     assert.equal(await isGone(group.descendant), false, "the inherited-stdio descendant must still be alive before safety cleanup");
   } finally {
     terminationProbes.build = originalBuild;
+    killOwned(group.leader, group.descendant);
+  }
+});
+
+test("catalog parses a large sub-limit listing whose valid tail drains after leader exit", { skip: process.platform !== "linux" }, async () => {
+  const fixture = await escapedStdioPi({ catalogRoute: "prov-a/model-x", tailDelayMs: 250 });
+  const group = { leader: -1, descendant: -1 };
+  try {
+    const resultPromise = runDelegate(baseOptions(fixture, { routingConfig: singleRouteRoutingConfig() }));
+    const recorded = await waitForFixtureGroup(fixture.root, "escaped-group.json");
+    group.leader = recorded.leader;
+    group.descendant = recorded.descendant;
+    safetyGroups.push({ ...group });
+    await settleAndFinalize(resultPromise, async (result) => {
+      // The catalog leader exited zero with the valid provider/model row at
+      // the tail of a large sub-limit listing that had not drained yet, and
+      // the pipe holder outside the group delivered that tail only after the
+      // leader was already gone. A positive group-death proof alone must
+      // not start parsing before the streams settle, so the route stays
+      // catalogued and the runtime attempt starts and completes.
+      assert.equal(result.state, "completed");
+      assert.equal(result.selectedRoute, "prov-a/model-x:high");
+      assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["completed"]);
+      assert.equal(result.attempts[0]?.deadlineCause, undefined);
+      assert.equal(result.cleanupFailureReason, undefined);
+      assert.match(result.report, /Completed on prov-a\/model-x/);
+      // The runtime child really started on the catalogued route.
+      const spawned = await readFile(path.join(fixture.root, "supervision-routes.jsonl"), "utf8");
+      assert.deepEqual(spawned.trim().split("\n"), ["prov-a/model-x"]);
+    });
+    assert.ok(await isGone(group.leader), "the catalog leader must already be gone");
+    assert.ok(await isGone(group.descendant), "the tail-writing holder must have exited by close");
+  } finally {
+    killOwned(group.leader, group.descendant);
+  }
+});
+
+test("a catalog stream that never settles fails closed boundedly with close_unconfirmed", { skip: process.platform !== "linux" }, async () => {
+  const fixture = await escapedStdioPi({ catalogRoute: "prov-a/model-x", holdPipes: true });
+  const group = { leader: -1, descendant: -1 };
+  try {
+    const settledAt = performance.now();
+    const resultPromise = runDelegate(baseOptions(fixture, { routingConfig: singleRouteRoutingConfig() }));
+    const recorded = await waitForFixtureGroup(fixture.root, "escaped-group.json");
+    group.leader = recorded.leader;
+    group.descendant = recorded.descendant;
+    safetyGroups.push({ ...group });
+    await settleAndFinalize(resultPromise, async (result) => {
+      // The leader wrote the complete listing including the valid tail and
+      // exited zero, but the escaped pipe holder never releases the streams,
+      // so actual settlement cannot be confirmed. The preflight fails closed
+      // with the bounded close_unconfirmed reason instead of parsing output
+      // whose drain status stays unproven, and no runtime child starts.
+      assert.equal(result.state, "cleanup_failed");
+      assert.equal(result.selectedRoute, undefined);
+      assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["cleanup_failed"]);
+      assert.equal(result.attempts[0]?.cleanupFailureReason, "close_unconfirmed");
+      assert.equal(result.cleanupFailureReason, "close_unconfirmed");
+      assert.equal(result.report, "");
+      await assert.rejects(() => stat(path.join(fixture.root, "supervision-routes.jsonl")), enoent);
+    });
+    assert.ok(performance.now() - settledAt < 5_000, "settlement must stay inside the bounded cleanup budget");
+    assert.ok(await isGone(group.leader), "the catalog leader must already be gone");
+    assert.equal(await isGone(group.descendant), false, "the escaped pipe holder must still be alive before safety cleanup");
+  } finally {
     killOwned(group.leader, group.descendant);
   }
 });

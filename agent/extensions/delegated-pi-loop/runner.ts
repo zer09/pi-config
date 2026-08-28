@@ -19,6 +19,7 @@ import {
   DEFAULT_ACTIVITY_WARNING_MS,
   DEFAULT_CATALOG_TIMEOUT_MS,
   DEFAULT_CLEANUP_TIMEOUT_MS,
+  DEFAULT_LEADER_EXIT_SETTLEMENT_MS,
   DEFAULT_MAX_OUTPUT_BYTES,
   DEFAULT_PROGRESS_STALL_MS,
   DEFAULT_PROGRESS_WARNING_MS,
@@ -122,7 +123,13 @@ async function routeIsCatalogued(
   const closePromise = new Promise<void>((resolve) => {
     resolveClose = resolve;
   });
-  const onClose = () => resolveClose();
+  // True only after the child's real close event: unlike a recorded exit,
+  // close proves the stdout and stderr streams drained to their ends.
+  let closed = false;
+  const onClose = () => {
+    closed = true;
+    resolveClose();
+  };
   let resolveLeaderExited!: () => void;
   // Resolves when the leader records its exit even if the close event stays
   // blocked because a descendant inherited the leader's stdio pipes.
@@ -164,6 +171,9 @@ async function routeIsCatalogued(
   let stopOutcome: CatalogResult["outcome"] = "timed_out";
   let deadlineCause: DeadlineCause | undefined;
   let termination: Promise<TerminationOutcome> | undefined;
+  // One absolute cleanup deadline per preflight. The drain wait below is
+  // charged against this same budget, so settlement never adds wall time.
+  let cleanupDeadline = 0;
   // Resolves as soon as the stop path starts termination. The wait below
   // races it against close, because a descendant that inherited the catalog
   // child's stdio pipes can keep the close event blocked indefinitely, even
@@ -177,7 +187,7 @@ async function routeIsCatalogued(
     stopped = true;
     if (signal?.aborted) stopOutcome = "interrupted";
     else deadlineCause = catalogDeadlineCause;
-    const cleanupDeadline = performance.now() + DEFAULT_CLEANUP_TIMEOUT_MS;
+    cleanupDeadline = performance.now() + DEFAULT_CLEANUP_TIMEOUT_MS;
     termination = terminateProcessGroup(
       child,
       DEFAULT_TERMINATION_GRACE_MS,
@@ -204,7 +214,7 @@ async function routeIsCatalogued(
       // when the deadline itself won before natural settlement.
       clearTimeout(timer);
       signal?.removeEventListener("abort", stop);
-      const cleanupDeadline = performance.now() + DEFAULT_CLEANUP_TIMEOUT_MS;
+      cleanupDeadline = performance.now() + DEFAULT_CLEANUP_TIMEOUT_MS;
       termination = terminateProcessGroup(
         child,
         DEFAULT_TERMINATION_GRACE_MS,
@@ -212,16 +222,52 @@ async function routeIsCatalogued(
       );
     }
     const terminationOutcome = await termination!;
-    // Stop consuming output before ending the decoder. A negative cleanup
-    // proof can leave a child alive, so no later data may reach settled state.
-    removeChildListeners();
-    stdout += stdoutDecoder.end();
     // A preflight group that cannot be proven dead is a bounded cleanup
     // failure: the caller fails the chain closed instead of risking overlap.
+    // Output consumption stops immediately, because a negative proof can
+    // leave a child alive and no later data may reach a settled state.
     if (!terminationOutcome.ok) {
+      removeChildListeners();
       return { outcome: "cleanup_failed", cleanupFailureReason: terminationOutcome.reason, deadlineCause };
     }
-    if (stopped) return { outcome: stopOutcome, deadlineCause };
+    if (stopped) {
+      removeChildListeners();
+      return { outcome: stopOutcome, deadlineCause };
+    }
+    if (!closed && !spawnFailed) {
+      // A positive termination proof can complete before the close event:
+      // after a recorded leader exit the group is already dead while the
+      // final stdout bytes still sit unread in the pipes, and a descendant
+      // that inherited them can delay or block close indefinitely. Parsing
+      // now would settle on incomplete output, so the listeners stay
+      // attached and the drain gets the fixed leader-exit settlement window
+      // charged inside the same absolute cleanup deadline, never a new one.
+      const settlementBudgetMs = Math.min(
+        DEFAULT_LEADER_EXIT_SETTLEMENT_MS,
+        Math.max(0, cleanupDeadline - performance.now()),
+      );
+      let settlementTimer: NodeJS.Timeout | undefined;
+      try {
+        await Promise.race([
+          closePromise,
+          new Promise<void>((resolve) => {
+            settlementTimer = setTimeout(resolve, settlementBudgetMs);
+          }),
+        ]);
+      } finally {
+        if (settlementTimer !== undefined) clearTimeout(settlementTimer);
+      }
+    }
+    // Stop consuming output before ending the decoder: nothing after this
+    // point may feed more data into the settled snapshot.
+    removeChildListeners();
+    stdout += stdoutDecoder.end();
+    if (!closed && !spawnFailed) {
+      // Stream settlement stayed unproven inside the bounded window. Parsing
+      // partial output could discard the valid catalog tail, so the preflight
+      // fails closed with the bounded close_unconfirmed reason instead.
+      return { outcome: "cleanup_failed", cleanupFailureReason: "close_unconfirmed" };
+    }
     if (spawnFailed || child.exitCode !== 0 || outputBytes > 1024 * 1024) return { outcome: "unavailable" };
 
     const available = stdout.split(/\r?\n/).some((line) => {
