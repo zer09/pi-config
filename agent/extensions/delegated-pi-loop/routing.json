@@ -13,7 +13,8 @@
     },
     "deepseek-v4-flash": {
       "providers": {
-        "opencode-go": { "thinking": ["low", "high", "max"], "default": "max" }
+        "opencode-go": { "thinking": ["low", "high", "max"], "default": "max" },
+        "agentrouter": { "thinking": ["low", "high", "max"], "default": "max" }
       }
     },
     "hy3": {
@@ -127,7 +128,7 @@
         {
           "model": "deepseek-v4-flash",
           "thinking": "max",
-          "providers": ["opencode-go"]
+          "providers": ["agentrouter"]
         }
       ]
     },
