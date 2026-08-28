@@ -169,7 +169,10 @@ export interface DelegateProgress {
   /** Fixed bounded lease-warning label; one label at most is active at a time. */
   readonly leaseWarning?: "activity" | "progress";
   readonly rpcIdleSeconds?: number;
+  /** Settlement/current idle age of the newest novel structural checkpoint. */
   readonly progressIdleSeconds?: number;
+  /** Maximum structural-progress gap of this attempt so far: attempt start, every completed checkpoint interval, and the currently open interval. */
+  readonly maxProgressIdleSeconds?: number;
   readonly activityEventCount: number;
   readonly structuralProgressCount: number;
   readonly duplicateCheckpointCount: number;
@@ -187,6 +190,8 @@ export interface MonitorSnapshot {
   readonly lastValidRpcMonotonic: number;
   readonly lastActivityMonotonic: number;
   readonly lastStructuralProgressMonotonic: number;
+  /** Completed-interval maximum progress gap in milliseconds; a duration, never a timestamp. The open interval must be combined by the caller. */
+  readonly maxCompletedProgressGapMs: number;
   readonly activityEventCount: number;
   readonly structuralProgressCount: number;
   readonly duplicateCheckpointCount: number;
@@ -250,7 +255,10 @@ export interface AttemptStatus {
   readonly phase: string;
   readonly activityIdleSeconds: number;
   readonly rpcIdleSeconds: number;
+  /** Settlement idle age from the newest novel structural checkpoint to settlement. */
   readonly progressIdleSeconds: number;
+  /** Maximum structural-progress gap of this attempt: attempt start, every completed checkpoint interval, and the final open interval to settlement. */
+  readonly maxProgressIdleSeconds: number;
   readonly activityWarningCount: number;
   readonly progressWarningCount: number;
   readonly sessionSeen: boolean;
@@ -286,7 +294,10 @@ export interface ChainAttempt {
    */
   readonly rpcIdleSeconds?: number;
   readonly activityIdleSeconds?: number;
+  /** Settlement idle age from the newest novel structural checkpoint. */
   readonly progressIdleSeconds?: number;
+  /** Maximum structural-progress gap of this attempt; supervised attempts only, catalog-only attempts omit it. */
+  readonly maxProgressIdleSeconds?: number;
   readonly activityEventCount?: number;
   readonly structuralProgressCount?: number;
   readonly duplicateCheckpointCount?: number;

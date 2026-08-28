@@ -269,10 +269,11 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
             onUpdate?.(partialResult(handle.id, progress));
           },
         });
-        // Terminal finalization: persist the compact failure diagnostic for
-        // unsuccessful runs (path travels only in details for the TUI
-        // renderer), assemble the raw-Markdown ToolResult, then remove the
-        // temporary supervision artifacts for every terminal outcome.
+        // Terminal finalization: persist the schema-7 run telemetry (the
+        // compact failure diagnostic for unsuccessful runs, path travels only
+        // in details for the TUI renderer, or one best-effort metadata-only
+        // success record), assemble the raw-Markdown ToolResult, then remove
+        // the temporary supervision artifacts for every terminal outcome.
         return finalResult(handle.id, await finalizeDelegateRun(result));
       } finally {
         runSignal.dispose();

@@ -8,6 +8,8 @@ This plan changes the default structural-progress warning from 30 minutes to 15 
 
 This plan supersedes only the 30-minute structural-progress warning in `docs/delegated-pi-loop-runtime-ceiling-removal-plan.md` and ADR 0015. Every other renewable-liveness decision remains current.
 
+Status note (2026-08-28, after completion): this plan's schema-6 compatibility decision was correct for that completed retune. It was later superseded for new writes by schema 7 (`docs/delegated-pi-loop-schema-7-maximum-progress-gap-telemetry-plan.md`, ADR 0016), which adds `maxProgressIdleSeconds` and metadata-only success records; historical schema-6 files remain valid and untouched.
+
 ## 1. Goal
 
 Warn the parent earlier when a delegate remains active but completes no novel structural checkpoint.

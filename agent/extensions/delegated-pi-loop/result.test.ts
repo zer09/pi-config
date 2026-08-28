@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -499,13 +499,22 @@ async function tempArtifactDir(): Promise<string> {
   return directory;
 }
 
-test("finalizeDelegateRun assembles the completed result and removes every temp artifact", async () => {
-  const artifactDir = await tempArtifactDir();
-  const toolResult = await finalizeDelegateRun({ ...completedResult("Done\n\nDELEGATE_RESULT: COMPLETED"), artifactDir });
-  assert.match(toolResult.content[0]!.text, /## Delegate solution-a completed/);
-  assert.doesNotMatch(toolResult.content[0]!.text, /delegate-finalize-test|diagnostic log/);
-  assert.equal("diagnosticPath" in (toolResult.details ?? {}), false);
-  await assert.rejects(() => stat(artifactDir), enoent);
+test("finalizeDelegateRun assembles the completed result, writes success telemetry, and removes every temp artifact", async () => {
+  await withDiagnosticsRoot(async (root) => {
+    const artifactDir = await tempArtifactDir();
+    const toolResult = await finalizeDelegateRun({ ...completedResult("Done\n\nDELEGATE_RESULT: COMPLETED"), artifactDir });
+    assert.match(toolResult.content[0]!.text, /## Delegate solution-a completed/);
+    assert.doesNotMatch(toolResult.content[0]!.text, /delegate-finalize-test|diagnostic log|success-v7/);
+    assert.equal("diagnosticPath" in (toolResult.details ?? {}), false);
+    // The best-effort success record exists under the owned root, and its
+    // path never reaches ToolResult content or details.
+    const directory = path.join(root, "logs", "delegated-pi-loop");
+    const entries = await readdir(directory);
+    assert.equal(entries.length, 1);
+    assert.ok(entries[0]!.startsWith("success-v7-"), entries[0]);
+    assert.doesNotMatch(JSON.stringify(toolResult.details ?? {}), /success-v7/);
+    await assert.rejects(() => stat(artifactDir), enoent);
+  });
 });
 
 test("finalizeDelegateRun persists the compact diagnostic, then removes every temp artifact", async () => {
@@ -544,5 +553,103 @@ test("finalizeDelegateRun survives a diagnostic write failure with sanitized con
   assert.match(toolResult.content[0]!.text, /- state: stalled/);
   assert.doesNotMatch(toolResult.content[0]!.text, /SECRET-REPORT-BODY|\/tmp\/|diagnostic log/);
   assert.equal("diagnosticPath" in (toolResult.details ?? {}), false);
+  await assert.rejects(() => stat(artifactDir), enoent);
+});
+
+test("sanitized progress and attempts propagate the maximum gap and preserve zero", () => {
+  const result = failedResult({
+    progress: progress({ maxProgressIdleSeconds: 0 }),
+    attempts: [
+      { route: "opencode-go/muse-spark-1.2-contributor:xhigh", state: "stalled", elapsedSeconds: 301, maxProgressIdleSeconds: 0 },
+    ],
+  });
+  const toolResult = finalToolResult(result);
+  const details = toolResult.details as Record<string, unknown>;
+  const sanitized = details.progress as Record<string, unknown>;
+  const attempts = details.attempts as Record<string, unknown>[];
+  assert.equal(sanitized.maxProgressIdleSeconds, 0);
+  assert.equal(attempts[0]!.maxProgressIdleSeconds, 0);
+});
+
+test("valid top-level and per-attempt maximum values survive sanitization", () => {
+  const result = failedResult({
+    progress: progress({ maxProgressIdleSeconds: 431.2 }),
+    attempts: [
+      { route: "opencode-go/muse-spark-1.2-contributor:xhigh", state: "stalled", elapsedSeconds: 301, maxProgressIdleSeconds: 431.2 },
+    ],
+  });
+  const details = finalToolResult(result).details as Record<string, unknown>;
+  assert.equal((details.progress as Record<string, unknown>).maxProgressIdleSeconds, 431.2);
+  assert.equal((details.attempts as Record<string, unknown>[])[0]!.maxProgressIdleSeconds, 431.2);
+});
+
+test("negative and non-finite maximum values are omitted, never converted to zero", () => {
+  for (const invalid of [-0.1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    const result = failedResult({
+      progress: progress({ maxProgressIdleSeconds: invalid }),
+      attempts: [
+        { route: "opencode-go/muse-spark-1.2-contributor:xhigh", state: "stalled", elapsedSeconds: 301, maxProgressIdleSeconds: invalid },
+      ],
+    });
+    const details = finalToolResult(result).details as Record<string, unknown>;
+    const serialized = JSON.stringify(details);
+    assert.equal((details.progress as Record<string, unknown>).maxProgressIdleSeconds, undefined, String(invalid));
+    assert.ok(!serialized.includes("maxProgressIdleSeconds"), String(invalid));
+  }
+});
+
+test("catalog-only attempts omit the maximum in sanitized attempt history", () => {
+  const result = failedResult({
+    attempts: [{ route: "opencode-go/muse-spark-1.2-contributor:xhigh", state: "catalog_unavailable", elapsedSeconds: 0.4 }],
+  });
+  const details = finalToolResult(result).details as Record<string, unknown>;
+  const attempt = (details.attempts as Record<string, unknown>[])[0]!;
+  assert.equal("maxProgressIdleSeconds" in attempt, false);
+});
+
+test("a successful telemetry write failure never changes the completed output", async () => {
+  // Point PI_CODING_AGENT_DIR at a regular file so the telemetry mkdir fails.
+  const blocker = await mkdtemp(path.join(os.tmpdir(), "delegate-finalize-block-"));
+  const notADirectory = path.join(blocker, "not-a-directory");
+  await writeFile(notADirectory, "x");
+  const previous = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = notADirectory;
+  const artifactDir = await tempArtifactDir();
+  let toolResult: ToolResult;
+  try {
+    toolResult = await finalizeDelegateRun({ ...completedResult("Done\n\nDELEGATE_RESULT: COMPLETED"), artifactDir });
+  } finally {
+    if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previous;
+    await rm(blocker, { recursive: true, force: true });
+  }
+  assert.match(toolResult.content[0]!.text, /## Delegate solution-a completed/);
+  assert.equal("diagnosticPath" in (toolResult.details ?? {}), false);
+  assert.doesNotMatch(JSON.stringify(toolResult.details ?? {}), /success-v7|not-a-directory/);
+  // Cleanup still ran after the failed telemetry write.
+  await assert.rejects(() => stat(artifactDir), enoent);
+});
+
+test("artifact cleanup runs after both successful and failed telemetry writes", async () => {
+  // Successful telemetry write: artifacts are still removed afterwards.
+  await withDiagnosticsRoot(async () => {
+    const artifactDir = await tempArtifactDir();
+    await finalizeDelegateRun({ ...completedResult("Done\n\nDELEGATE_RESULT: COMPLETED"), artifactDir });
+    await assert.rejects(() => stat(artifactDir), enoent);
+  });
+  // Failed telemetry write: the finally still removes the artifacts.
+  const blocker = await mkdtemp(path.join(os.tmpdir(), "delegate-finalize-block-"));
+  const notADirectory = path.join(blocker, "not-a-directory");
+  await writeFile(notADirectory, "x");
+  const previous = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = notADirectory;
+  const artifactDir = await tempArtifactDir();
+  try {
+    await finalizeDelegateRun({ ...completedResult("Done\n\nDELEGATE_RESULT: COMPLETED"), artifactDir });
+  } finally {
+    if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previous;
+    await rm(blocker, { recursive: true, force: true });
+  }
   await assert.rejects(() => stat(artifactDir), enoent);
 });

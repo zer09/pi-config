@@ -49,6 +49,7 @@ Delegated A-route Muse update: 2026-08-21 (replaced the A Luna primary and SeekA
 Delegated native-extension migration: 2026-08-21 (removed the runtime skill and added the native `delegate_run` tool with live last-event timestamps; provider calibration and the full extension/tool inventory were not rerun)
 
 Delegated native-result update: 2026-08-21 (made completed and failed delegate results self-contained Markdown tool results and added failure-only private diagnostics; provider calibration and the full extension/tool inventory were not rerun)
+Delegated schema-7 telemetry update: 2026-08-28 (diagnostics are no longer failure-only: completed runs also write one bounded metadata-only schema-7 record capped at the newest 4,096 `success-v7-` files, and new records gain only `maxProgressIdleSeconds`; no prompt, report, or tool content is persisted, nothing new is model-visible, and provider calibration and the full extension/tool inventory were not rerun)
 
 Delegated four-member D expansion: 2026-08-21 (added solution/review D on GPT-5.5/medium across five eligible OpenAI Codex alias providers with inherited-or-random primary selection; provider calibration and the full extension/tool inventory were not rerun)
 

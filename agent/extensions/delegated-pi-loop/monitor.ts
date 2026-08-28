@@ -505,6 +505,7 @@ export class PiRpcMonitor {
   private lastValidRpcValue: number;
   private lastActivityValue: number;
   private lastStructuralProgressValue: number;
+  private maxCompletedProgressGapMsValue = 0;
   private activityEventCountValue = 0;
   private structuralProgressCountValue = 0;
   private duplicateCheckpointCountValue = 0;
@@ -830,6 +831,7 @@ export class PiRpcMonitor {
       lastValidRpcMonotonic: this.lastValidRpcValue,
       lastActivityMonotonic: this.lastActivityValue,
       lastStructuralProgressMonotonic: this.lastStructuralProgressValue,
+      maxCompletedProgressGapMs: this.maxCompletedProgressGapMsValue,
       activityEventCount: this.activityEventCountValue,
       structuralProgressCount: this.structuralProgressCountValue,
       duplicateCheckpointCount: this.duplicateCheckpointCountValue,
@@ -1092,7 +1094,17 @@ export class PiRpcMonitor {
   }
 
   private renewStructuralProgress(): void {
-    this.lastStructuralProgressValue = this.monotonicNow();
+    // One monotonic read drives both the completed-gap maximum and the new
+    // structural timestamp. A negative or anomalous injected delta clamps
+    // to zero before comparison, so clock regressions can never fabricate a
+    // gap. Only completed intervals accumulate here; the caller combines
+    // this duration with the still-open interval at observation time.
+    const now = this.monotonicNow();
+    this.maxCompletedProgressGapMsValue = Math.max(
+      this.maxCompletedProgressGapMsValue,
+      Math.max(0, now - this.lastStructuralProgressValue),
+    );
+    this.lastStructuralProgressValue = now;
     this.structuralProgressCountValue += 1;
     this.duplicateCheckpointsSinceNovelValue = 0;
   }
