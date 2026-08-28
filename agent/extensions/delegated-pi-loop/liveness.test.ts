@@ -5,7 +5,7 @@ import { evaluateLiveness, type LivenessAges, type LivenessThresholds } from "./
 const THRESHOLDS: LivenessThresholds = {
   activityWarningMs: 5 * 60 * 1000,
   activityIdleMs: 10 * 60 * 1000,
-  progressWarningMs: 30 * 60 * 1000,
+  progressWarningMs: 15 * 60 * 1000,
   progressStallMs: 45 * 60 * 1000,
 };
 
@@ -111,7 +111,7 @@ test("warnings fire only below every stall threshold, activity before progress",
   );
   assert.deepEqual(
     evaluateLiveness(
-      ages({ activityIdleMs: 4 * 60 * 1000, progressIdleMs: 30 * 60 * 1000 }),
+      ages({ activityIdleMs: 4 * 60 * 1000, progressIdleMs: 15 * 60 * 1000 }),
       THRESHOLDS,
     ),
     { action: "warn", kind: "progress" },
@@ -120,7 +120,7 @@ test("warnings fire only below every stall threshold, activity before progress",
   // warning wins because it is the stronger near-term risk.
   assert.deepEqual(
     evaluateLiveness(
-      ages({ activityIdleMs: 6 * 60 * 1000, progressIdleMs: 35 * 60 * 1000 }),
+      ages({ activityIdleMs: 6 * 60 * 1000, progressIdleMs: 20 * 60 * 1000 }),
       THRESHOLDS,
     ),
     { action: "warn", kind: "activity" },
@@ -144,11 +144,16 @@ test("boundaries are inclusive: exactly-at-threshold ages act", () => {
     evaluateLiveness(ages({ progressIdleMs: 45 * 60 * 1000 }), THRESHOLDS),
     { action: "stall", cause: "progress_stagnation" },
   );
+  // Warning boundaries are inclusive too: exactly 15 idle minutes warns.
+  assert.deepEqual(
+    evaluateLiveness(ages({ progressIdleMs: 15 * 60 * 1000 }), THRESHOLDS),
+    { action: "warn", kind: "progress" },
+  );
 });
 
 test("a novel checkpoint one millisecond before the warning keeps running", () => {
   assert.deepEqual(
-    evaluateLiveness(ages({ progressIdleMs: 30 * 60 * 1000 - 1 }), THRESHOLDS),
+    evaluateLiveness(ages({ progressIdleMs: 15 * 60 * 1000 - 1 }), THRESHOLDS),
     { action: "run" },
   );
   assert.deepEqual(
@@ -177,7 +182,7 @@ test("without an active tool the model falls back to the communication leases", 
   );
   assert.deepEqual(decision, { action: "stall", cause: "activity_idle" });
   assert.deepEqual(
-    evaluateLiveness(ages({ activeToolIdleMs: undefined, progressIdleMs: 30 * 60 * 1000 }), THRESHOLDS),
+    evaluateLiveness(ages({ activeToolIdleMs: undefined, progressIdleMs: 15 * 60 * 1000 }), THRESHOLDS),
     { action: "warn", kind: "progress" },
   );
 });

@@ -452,7 +452,7 @@ Key limits:
 |---|---:|
 | Activity warning (no accepted task activity) | 5 minutes |
 | Activity-idle termination | 10 minutes |
-| Structural-progress warning (no novel checkpoint) | 30 minutes |
+| Structural-progress warning (no novel checkpoint) | 15 minutes |
 | Renewable structural-progress lease | 45 minutes between novel checkpoints |
 | Report-recovery idle lease | 5 minutes |
 | Output limit | 50 MiB per route attempt |
