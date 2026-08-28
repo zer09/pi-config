@@ -18,12 +18,16 @@ test("registration guidelines encode the compact automatic delegation policy wit
   assert.ok(lines.every((line) => line.startsWith("delegate_run ")));
   const guidelines = lines.join("\n");
 
-  assert.match(guidelines, /Use for repository implementation unless the user explicitly opts out/);
-  assert.match(guidelines, /Parent may directly make only trivial no-behavior edits/);
+  assert.match(guidelines, /Use implementation delegation for non-trivial repository implementation/);
+  assert.match(guidelines, /parent handles simple, mechanical, and low-risk tasks directly/i);
+  assert.match(guidelines, /explicitly requested Git operations/);
+  assert.match(guidelines, /executes the task directly without a delegate/);
   assert.match(guidelines, /Parent directly owns all planning and research deliverables/);
   assert.match(guidelines, /Pure planning or research runs no implementation, review, or remediation/);
   assert.match(guidelines, /Never use implementation or remediation for research or plans/);
-  assert.match(guidelines, /exactly one implementation/);
+  assert.match(guidelines, /non-trivial task with an accepted solution contract/);
+  assert.match(guidelines, /exactly one implementation delegate/);
+  assert.match(guidelines, /contract for delegated implementation/);
 
   assert.match(guidelines, /solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently/);
   assert.match(guidelines, /review-a, review-b, review-c, review-d, and review-e concurrently/);
