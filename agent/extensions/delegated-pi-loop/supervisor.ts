@@ -5,6 +5,7 @@ import path from "node:path";
 import { atomicWriteJson, atomicWriteText, readPrivateText } from "./artifacts.ts";
 import { interruptionSource } from "./manager.ts";
 import { REPORT_RECOVERY_PROMPT } from "./instructions.ts";
+import { evaluateLiveness } from "./liveness.ts";
 import { PiRpcMonitor } from "./monitor.ts";
 import { RpcJsonlProtocol, type ProtocolRecord } from "./protocol.ts";
 import { routeKey } from "./routes.ts";
@@ -19,15 +20,26 @@ import type {
   MonitorSnapshot,
   PiInvocation,
   PiRoute,
+  StallCause,
 } from "./types.ts";
 
-export const DEFAULT_WORK_TIMEOUT_MS = 45 * 60 * 1000;
+/**
+ * Renewable-liveness defaults. There is deliberately no total-work
+ * deadline: `DEFAULT_PROGRESS_STALL_MS` bounds only the maximum gap between
+ * novel structural checkpoints and is never measured from delegate start.
+ */
+export const DEFAULT_ACTIVITY_WARNING_MS = 5 * 60 * 1000;
+export const DEFAULT_ACTIVITY_IDLE_MS = 10 * 60 * 1000;
+export const DEFAULT_PROGRESS_WARNING_MS = 30 * 60 * 1000;
+export const DEFAULT_PROGRESS_STALL_MS = 45 * 60 * 1000;
+export const DEFAULT_REPORT_RECOVERY_IDLE_MS = 5 * 60 * 1000;
+export const DEFAULT_CATALOG_TIMEOUT_MS = 15_000;
 export const DEFAULT_CLEANUP_TIMEOUT_MS = 10_000;
 export const DEFAULT_TERMINATION_GRACE_MS = 5_000;
+/** Fixed upper bound on stream settlement after a recorded leader exit. */
+export const DEFAULT_LEADER_EXIT_SETTLEMENT_MS = 1_000;
 export const FORCED_KILL_VERIFY_MS = 3_000;
 export const FINAL_CLEANUP_ALLOWANCE_MS = 2_000;
-export const DEFAULT_IDLE_WARNING_MS = 5 * 60 * 1000;
-export const DEFAULT_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 export const DEFAULT_MAX_OUTPUT_BYTES = 50 * 1024 * 1024;
 const PROGRESS_INTERVAL_MS = 1_000;
 
@@ -61,14 +73,11 @@ interface SuperviseBaseOptions {
   /** Chain-level count of advances after an attempt that had executed tools or accepted recovery. */
   readonly restartAfterWorkCount?: number;
   readonly signal?: AbortSignal;
-  /** Remaining productive-work budget at this attempt's start. */
-  readonly timeoutMs: number;
-  /** One absolute productive-work deadline shared by every route. */
-  readonly workDeadline: number;
-  readonly workBudgetSeconds: number;
-  readonly remainingWorkSecondsAtAttemptStart: number;
-  readonly idleWarningMs: number;
-  readonly idleTimeoutMs: number;
+  readonly activityWarningMs: number;
+  readonly activityIdleMs: number;
+  readonly progressWarningMs: number;
+  readonly progressStallMs: number;
+  readonly reportRecoveryIdleMs: number;
   readonly maxOutputBytes: number;
   readonly graceMs: number;
   readonly cleanupTimeoutMs?: number;
@@ -292,11 +301,21 @@ function progressFromMonitor(
   reportRecoveryReason: "missing_report" | "invalid_result" | undefined,
   metadata: {
     readonly deadlineCause?: DeadlineCause;
+    readonly stallCause?: StallCause;
     readonly cleanupFailureReason?: CleanupFailureReason;
     readonly interruptionSource?: InterruptionSource;
   } = {},
 ): DelegateProgress {
   const snapshot = monitor.snapshot();
+  const now = performance.now();
+  const rpcIdleSeconds = Math.round((now - snapshot.lastValidRpcMonotonic) / 100) / 10;
+  const activityIdleSeconds = Math.round((now - snapshot.lastActivityMonotonic) / 100) / 10;
+  const progressIdleSeconds = Math.round((now - snapshot.lastStructuralProgressMonotonic) / 100) / 10;
+  const leaseWarning = activityIdleSeconds * 1000 >= options.activityWarningMs
+    ? "activity"
+    : progressIdleSeconds * 1000 >= options.progressWarningMs
+      ? "progress"
+      : undefined;
   return {
     label: options.label,
     role: options.role,
@@ -308,10 +327,12 @@ function progressFromMonitor(
     lastEvent: snapshot.lastEvent,
     lastEventDetail: snapshot.lastEventDetail,
     lastEventAt: snapshot.lastEventAt,
-    idleSeconds: Math.round((performance.now() - snapshot.lastActivityMonotonic) / 100) / 10,
+    activityIdleSeconds,
     elapsedSeconds: elapsedSeconds(started),
     toolExecutionCount: snapshot.toolExecutionCount,
-    idleWarningCount: snapshot.warningCount,
+    activityWarningCount: snapshot.activityWarningCount,
+    progressWarningCount: snapshot.progressWarningCount,
+    leaseWarning,
     restartAfterWorkCount: options.restartAfterWorkCount ?? 0,
     reportNudgeCount,
     reportRecoveryReason,
@@ -321,12 +342,17 @@ function progressFromMonitor(
     terminalReason: snapshot.terminalReason,
     reasonStatus: snapshot.reasonStatus,
     blockedMisuseSuspected: snapshot.blockedMisuseSuspected,
-    workBudgetSeconds: options.workBudgetSeconds,
-    remainingWorkSecondsAtAttemptStart: options.remainingWorkSecondsAtAttemptStart,
+    rpcIdleSeconds,
+    progressIdleSeconds,
+    activityEventCount: snapshot.activityEventCount,
+    structuralProgressCount: snapshot.structuralProgressCount,
+    duplicateCheckpointCount: snapshot.duplicateCheckpointCount,
     activeToolCount: snapshot.activeToolCount,
     activeToolName: snapshot.activeToolName,
     activeToolElapsedSeconds: snapshot.activeToolElapsedSeconds,
+    activeToolIdleSeconds: snapshot.activeToolIdleSeconds,
     deadlineCause: metadata.deadlineCause,
+    stallCause: metadata.stallCause,
     cleanupFailureReason: metadata.cleanupFailureReason,
     interruptionSource: metadata.interruptionSource,
   };
@@ -335,9 +361,9 @@ function progressFromMonitor(
 export async function supervisePi(options: SupervisePiOptions): Promise<AttemptStatus> {
   const started = performance.now();
   const startedAt = isoNow();
-  // Productive work uses the one absolute delegate deadline. Cleanup starts
-  // only after work ends and receives a separate bounded allowance.
-  const workDeadline = Math.min(started + options.timeoutMs, options.workDeadline);
+  // Productive work has no total deadline: renewable liveness leases are the
+  // only wall-clock stop, evaluated by the ticker below. Cleanup starts only
+  // after work ends and receives a separate bounded allowance.
   const cleanupTimeoutMs = Math.min(
     options.cleanupTimeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS,
     DEFAULT_CLEANUP_TIMEOUT_MS,
@@ -347,7 +373,19 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     FINAL_CLEANUP_ALLOWANCE_MS,
     Math.max(1, Math.floor(cleanupTimeoutMs / 5)),
   );
-  const newCleanupDeadline = () => performance.now() + cleanupTimeoutMs;
+  // Leader-exit settlement window: a fixed short drain chance for final
+  // stdout before the incomplete snapshot is classified. It never adds a
+  // new budget: it is charged inside the same absolute cleanup deadline,
+  // so it shrinks whenever the configured cleanup constants demand it.
+  const leaderExitSettlementMs = Math.min(
+    DEFAULT_LEADER_EXIT_SETTLEMENT_MS,
+    Math.max(0, cleanupTimeoutMs - finalCleanupAllowanceMs),
+  );
+  // Explicit recorded leader-exit time. The close event can stay blocked
+  // indefinitely when a descendant inherited the leader's stdio pipes, so
+  // settlement decisions key off this signal, not off close.
+  let leaderExitAt: number | undefined;
+  const newCleanupDeadline = () => (leaderExitAt ?? performance.now()) + cleanupTimeoutMs;
   const terminationDeadlineFor = (cleanupDeadline: number) =>
     cleanupDeadline - finalCleanupAllowanceMs;
   const reportPath = path.join(options.artifactDir, "report.md");
@@ -361,7 +399,8 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   let outputBytes = 0;
   let state: DelegateState = "running";
   let completionCleanupPerformed = false;
-  let idleWarningIssued = false;
+  let activityWarningIssued = false;
+  let progressWarningIssued = false;
   let lastProgressAt = 0;
   let terminalRequested = false;
   let terminationPromise: Promise<TerminationOutcome> | undefined;
@@ -371,6 +410,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   let progressSinkFailed = false;
   let progressSinkError: unknown;
   let deadlineCause: DeadlineCause | undefined;
+  let stallCauseValue: StallCause | undefined;
   let cleanupFailureReason: CleanupFailureReason | undefined;
   let interruptionSourceValue: InterruptionSource | undefined;
   let cleanupDeadline: number | undefined;
@@ -392,10 +432,9 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     reasonStatus: snapshot.reasonStatus,
     blockedMisuseSuspected: snapshot.blockedMisuseSuspected,
     deadlineCause,
+    stallCause: stallCauseValue,
     cleanupFailureReason,
     interruptionSource: interruptionSourceValue,
-    workBudgetSeconds: options.workBudgetSeconds,
-    remainingWorkSecondsAtAttemptStart: options.remainingWorkSecondsAtAttemptStart,
     startedAt,
     endedAt: isoNow(),
     elapsedSeconds: elapsedSeconds(started),
@@ -406,12 +445,17 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     reportPath,
     stderrPath,
     activityEventCount: snapshot.activityEventCount,
+    structuralProgressCount: snapshot.structuralProgressCount,
+    duplicateCheckpointCount: snapshot.duplicateCheckpointCount,
     lastEvent: snapshot.lastEvent,
     lastEventDetail: snapshot.lastEventDetail,
     lastEventAt: snapshot.lastEventAt,
     phase: snapshot.phase,
-    idleSeconds: Math.round((performance.now() - snapshot.lastActivityMonotonic) / 100) / 10,
-    idleWarningCount: snapshot.warningCount,
+    activityIdleSeconds: Math.round((performance.now() - snapshot.lastActivityMonotonic) / 100) / 10,
+    rpcIdleSeconds: Math.round((performance.now() - snapshot.lastValidRpcMonotonic) / 100) / 10,
+    progressIdleSeconds: Math.round((performance.now() - snapshot.lastStructuralProgressMonotonic) / 100) / 10,
+    activityWarningCount: snapshot.activityWarningCount,
+    progressWarningCount: snapshot.progressWarningCount,
     sessionSeen: snapshot.sessionSeen,
     agentStartCount: snapshot.agentStartCount,
     agentEndCount: snapshot.agentEndCount,
@@ -421,6 +465,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     activeToolCount: snapshot.activeToolCount,
     activeToolName: snapshot.activeToolName,
     activeToolElapsedSeconds: snapshot.activeToolElapsedSeconds,
+    activeToolIdleSeconds: snapshot.activeToolIdleSeconds,
     routeUnavailableSeen: snapshot.routeUnavailableSeen,
     providerFailureCategory: snapshot.providerFailureCategory,
     reportNudgeCount,
@@ -474,7 +519,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
         monitor,
         reportNudgeCount,
         reportRecoveryReason,
-        { deadlineCause, cleanupFailureReason, interruptionSource: interruptionSourceValue },
+        { deadlineCause, stallCause: stallCauseValue, cleanupFailureReason, interruptionSource: interruptionSourceValue },
       ));
     } catch (error) {
       // The caller-owned progress sink failed inside a supervisor-owned
@@ -489,16 +534,20 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     }
   }
 
-  function requestTermination(nextState: DelegateState, cleanup = false): void {
+  function requestTermination(nextState: DelegateState, cleanup = false, stallCause?: StallCause): void {
     if (terminalRequested) return;
     terminalRequested = true;
     state = nextState;
     completionCleanupPerformed = cleanup;
-    if (nextState === "timed_out") deadlineCause = "work_deadline";
-    else if (nextState === "stalled") deadlineCause = "idle_deadline";
-    else if (nextState === "interrupted") {
+    if (nextState === "stalled") {
+      deadlineCause = "idle_deadline";
+      stallCauseValue = stallCause;
+    } else if (nextState === "interrupted") {
       interruptionSourceValue = interruptionSource(options.signal?.reason);
     }
+    // The cleanup budget is one absolute window: once the leader's exit is
+    // recorded, any later termination anchors at that instant, so a
+    // settlement window plus cleanup together stay inside the fixed budget.
     cleanupDeadline = newCleanupDeadline();
     terminationPromise = terminateProcessGroup(
       child,
@@ -553,7 +602,6 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
       || !processIsRunning(child)
       || options.signal?.aborted
       || outputBytes > options.maxOutputBytes
-      || performance.now() >= workDeadline
     ) {
       requestTermination(roundState);
       return;
@@ -573,12 +621,20 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   }
 
   function handleProtocolRecord(record: ProtocolRecord): void {
+    // A protocol error is terminal for the stream. It is branched on before
+    // the RPC-health clock so a malformed, oversized, duplicate, or
+    // out-of-order record can never renew communication liveness on its way
+    // to invalid_stream. Valid prompt responses and events still renew once.
     if (record.kind === "protocol_error") {
       monitor.addProtocolError(record.category);
       state = "invalid_stream";
       if (!terminalRequested) requestTermination("invalid_stream");
       return;
     }
+    // Every accepted protocol record renews RPC health: it passed framed
+    // JSONL parsing and prompt-round correlation. Malformed, oversized,
+    // duplicate, and out-of-order records fail earlier and never reach here.
+    monitor.recordValidRpc();
     if (record.kind === "prompt_rejected") {
       requestTermination("prompt_rejected");
       return;
@@ -609,14 +665,17 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   const terminationStarted = new Promise<void>((resolve) => {
     signalTerminationStarted = resolve;
   });
-  let closed = false;
   let resolveClose!: () => void;
   const closePromise = new Promise<void>((resolve) => {
     resolveClose = resolve;
   });
   const onClose = () => {
-    closed = true;
     resolveClose();
+  };
+  // The recorded leader-exit signal: fixes the settlement-window start and
+  // anchors the single absolute cleanup budget at the exit instant.
+  const onLeaderExit = () => {
+    if (leaderExitAt === undefined) leaderExitAt = performance.now();
   };
   let spawnError: Error | undefined;
   const onChildError = (error: Error) => {
@@ -639,12 +698,14 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   };
   const removeChildListeners = () => {
     child.removeListener("close", onClose);
+    child.removeListener("exit", onLeaderExit);
     child.removeListener("error", onChildError);
     child.stdin?.removeListener("error", ignoreStdinError);
     child.stdout?.removeListener("data", onStdoutData);
     child.stderr?.removeListener("data", onStderrData);
   };
   child.once("close", onClose);
+  child.once("exit", onLeaderExit);
   child.once("error", onChildError);
   child.stdin?.on("error", ignoreStdinError);
   child.stdout?.on("data", onStdoutData);
@@ -655,24 +716,81 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   if (options.signal?.aborted) abort();
   else options.signal?.addEventListener("abort", abort, { once: true });
 
-  // One one-shot timer enforces the shared productive-work deadline. Meaningful
-  // activity resets idle age only and never reschedules this timer.
-  const deadlineTimer = setTimeout(() => {
-    if (terminalRequested || closed) return;
-    requestTermination("timed_out");
-  }, Math.max(0, workDeadline - performance.now()));
-
+  // The ticker is the only wall-clock authority for productive work. It
+  // evaluates the pure renewable-liveness reducer each tick; total elapsed
+  // time is never a termination condition.
   const ticker = setInterval(() => {
-    if (terminalRequested || !processIsRunning(child)) return;
+    if (terminalRequested) return;
+    if (!processIsRunning(child)) {
+      // The leader's exit is recorded, but the close event can stay blocked
+      // indefinitely when a descendant inherited the leader's stdio pipes.
+      // Classification must not freeze before final stdout drains, so one
+      // fixed short settlement window keeps the stdout/protocol listeners
+      // and the normal evaluateRound path active: a valid late terminal
+      // result may still complete. A natural close ends the window at once.
+      if (leaderExitAt === undefined) leaderExitAt = performance.now();
+      if (performance.now() - leaderExitAt < leaderExitSettlementMs) {
+        emitProgress(false);
+        return;
+      }
+      // The window expired without terminal settlement or close: classify
+      // the incomplete snapshot exactly like a natural close would and start
+      // group termination with only the remaining cleanup budget.
+      const snapshot = monitor.snapshot();
+      const classified = monitor.classifyRound(snapshot.reportRound, true);
+      if (classified !== "running") {
+        requestTermination(classified, classified === "completed");
+      } else {
+        requestTermination(child.exitCode !== 0 ? "child_failed" : "invalid_stream");
+      }
+      return;
+    }
+    emitProgress(false);
+    if (outputBytes > options.maxOutputBytes) {
+      requestTermination("output_limit");
+      return;
+    }
     const now = performance.now();
     const snapshot = monitor.snapshot();
-    const idleMs = now - snapshot.lastActivityMonotonic;
-    emitProgress(false);
-    if (outputBytes > options.maxOutputBytes) requestTermination("output_limit");
-    else if (idleMs >= options.idleTimeoutMs) requestTermination("stalled");
-    else if (idleMs >= options.idleWarningMs && !idleWarningIssued) {
-      idleWarningIssued = true;
-      monitor.issueIdleWarning();
+    const inRecovery = snapshot.reportRound === 2;
+    // The recovery round gets its own shorter activity-idle lease; tools are
+    // forbidden there, so the reporting phase cannot hide behind tool output.
+    const activityIdleMs = inRecovery ? options.reportRecoveryIdleMs : options.activityIdleMs;
+    const ages = {
+      rpcIdleMs: now - snapshot.lastValidRpcMonotonic,
+      activityIdleMs: now - snapshot.lastActivityMonotonic,
+      progressIdleMs: now - snapshot.lastStructuralProgressMonotonic,
+      activeToolIdleMs: snapshot.activeToolLastNovelUpdateMonotonic === undefined
+        ? undefined
+        : now - snapshot.activeToolLastNovelUpdateMonotonic,
+      duplicateCheckpointsSinceNovel: snapshot.duplicateCheckpointsSinceNovel,
+    };
+    const decision = evaluateLiveness(ages, {
+      activityWarningMs: options.activityWarningMs,
+      activityIdleMs,
+      progressWarningMs: options.progressWarningMs,
+      progressStallMs: options.progressStallMs,
+    });
+    if (decision.action === "stall") {
+      // Any communication-family stall during the recovery round reports the
+      // dedicated bounded reporting-phase cause.
+      const cause: StallCause = inRecovery && decision.cause !== "progress_stagnation" && decision.cause !== "repeated_cycle"
+        ? "report_recovery_idle"
+        : decision.cause;
+      requestTermination("stalled", false, cause);
+      return;
+    }
+    // Warnings are one-shot per lease interval: a fresh lease clears the
+    // latch so a later interval can warn again.
+    if (ages.activityIdleMs < options.activityWarningMs) activityWarningIssued = false;
+    if (ages.progressIdleMs < options.progressWarningMs) progressWarningIssued = false;
+    if (decision.action === "warn" && decision.kind === "activity" && !activityWarningIssued) {
+      activityWarningIssued = true;
+      monitor.issueActivityWarning();
+      emitProgress(true);
+    } else if (decision.action === "warn" && decision.kind === "progress" && !progressWarningIssued) {
+      progressWarningIssued = true;
+      monitor.issueProgressWarning();
       emitProgress(true);
     }
   }, 100);
@@ -731,12 +849,13 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     if (progressSinkFailed) throw progressSinkError;
     return status;
   } finally {
-    // Timers and the abort listener are cleared even when termination,
-    // artifact cleanup, or the caller's progress sink throws mid-settlement.
+    // Timers, the abort listener, child listeners, and the ephemeral
+    // novelty keys are cleared even when termination, artifact cleanup, or
+    // the caller's progress sink throws mid-settlement.
     clearInterval(ticker);
-    clearTimeout(deadlineTimer);
     options.signal?.removeEventListener("abort", abort);
     removeChildListeners();
+    monitor.clearEphemeralState();
   }
 }
 

@@ -38,6 +38,11 @@ function eventText(progress: DelegateProgress): string {
     : progress.lastEvent;
 }
 
+/** Bounded liveness age text; unknown ages stay unknown rather than fabricated. */
+function secondsText(seconds: number | undefined): string {
+  return seconds === undefined ? "unknown" : `${seconds.toFixed(1)}s`;
+}
+
 function delegateIdFrom(result: ToolResult, context: ToolRenderContext): number | undefined {
   const value = result.details?.delegateId;
   const delegateId = typeof value === "number" ? value : undefined;
@@ -80,16 +85,22 @@ export function renderDelegateResult(
     const event = eventText(progress);
     const restarts = progress.restartAfterWorkCount > 0 ? `  restarts: ${progress.restartAfterWorkCount}` : "";
     const activeTool = (progress.activeToolCount ?? 0) > 0
-      ? `  active tools: ${progress.activeToolCount}${progress.activeToolName ? ` (${progress.activeToolName})` : ""}${progress.activeToolElapsedSeconds === undefined ? "" : ` ${progress.activeToolElapsedSeconds.toFixed(1)}s`}`
+      ? `  active tools: ${progress.activeToolCount}${progress.activeToolName ? ` (${progress.activeToolName})` : ""}${progress.activeToolIdleSeconds === undefined ? "" : ` idle ${progress.activeToolIdleSeconds.toFixed(1)}s`}`
       : "";
     const heading = progress.reportRound === 2
       ? `⏳ ${id}${progress.label} · recovering report · round 2/2`
       : `⏳ ${id}${progress.label}`;
+    const warning = progress.leaseWarning === "activity"
+      ? "  ⚠ activity idle"
+      : progress.leaseWarning === "progress"
+        ? "  ⚠ progress idle"
+        : "";
     text.setText([
       theme.fg("warning", heading) + theme.fg("muted", `  ${route}`),
-      theme.fg("muted", `phase: ${progress.phase}  state: ${progress.state}  attempt: ${progress.attempt}${restarts}${activeTool}`),
+      theme.fg("muted", `phase: ${progress.phase}  state: ${progress.state}  attempt: ${progress.attempt}${restarts}${activeTool}${warning}`),
       theme.fg("toolOutput", `last: ${event}`),
       theme.fg("dim", `at: ${ageText(progress.lastEventAt)}  elapsed: ${progress.elapsedSeconds.toFixed(1)}s`),
+      theme.fg("dim", `idle: rpc ${secondsText(progress.rpcIdleSeconds)} · activity ${progress.activityIdleSeconds.toFixed(1)}s · progress ${secondsText(progress.progressIdleSeconds)}`),
     ].join("\n"));
     return text;
   }

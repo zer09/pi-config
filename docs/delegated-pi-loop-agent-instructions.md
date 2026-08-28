@@ -310,7 +310,10 @@ It is sent only when:
 - No recovery has already occurred.
 - The child is still running.
 - The run is not cancelled.
-- The output and work limits remain available.
+- The cumulative output stays under the 50 MiB cap.
+- No liveness termination has begun.
+
+Round 2 starts a distinct bounded reporting phase: the RPC and accepted-activity clocks restart, while output bytes, retry counters, duplicate-checkpoint counters, and tool counts stay cumulative. A silent recovery round stops after its fixed five-minute idle lease with the `report_recovery_idle` stall cause.
 
 See `evaluateRound` in `agent/extensions/delegated-pi-loop/supervisor.ts`.
 
@@ -447,15 +450,25 @@ Key limits:
 
 | Limit | Value |
 |---|---:|
-| Total productive-work budget across all routes | 45 minutes |
-| Idle warning | 5 minutes |
-| Idle termination | 10 minutes |
-| Output limit | 50 MiB |
-| Catalog preflight cap | 15 seconds |
+| Activity warning (no accepted task activity) | 5 minutes |
+| Activity-idle termination | 10 minutes |
+| Structural-progress warning (no novel checkpoint) | 30 minutes |
+| Renewable structural-progress lease | 45 minutes between novel checkpoints |
+| Report-recovery idle lease | 5 minutes |
+| Output limit | 50 MiB per route attempt |
+| Catalog preflight cap | 15 seconds, independent per route |
 | Graceful termination | 5 seconds |
 | Cleanup allowance | 10 seconds |
 
 Source: the limit constants at the top of `agent/extensions/delegated-pi-loop/supervisor.ts`.
+
+There is deliberately no total runtime ceiling: total elapsed time never terminates a delegate. The supervisor's 100 ms ticker evaluates a pure reducer (`evaluateLiveness` in `liveness.ts`) over three independent monotonic clocks from the monitor:
+
+1. **Valid RPC health**: renewed by every protocol record that passed framing and correlation; proves communication only.
+2. **Accepted activity**: renewed by valid lifecycle transitions, nonempty deltas, novel tool updates, and retry or compaction transitions; empty deltas, unchanged queue state, and identical accumulated tool updates never renew it.
+3. **Novel structural progress**: renewed only by completed checkpoints not seen before in the attempt (authoritative `message_end`, `turn_end`, `tool_execution_end`, final `agent_end`, `agent_settled`, prompt acceptance); streaming deltas and generic tool output never renew it.
+
+Checkpoint novelty is compared through per-attempt in-memory HMAC digests over a bounded 64-entry index; keys and digests are never persisted, rendered, or returned. When the renewable 45-minute progress lease expires, the fixed `stallCause` distinguishes `repeated_cycle` (exact duplicate checkpoints were observed) from `progress_stagnation`. The complete fixed stall-cause enum is `rpc_silent`, `activity_idle`, `active_tool_idle`, `progress_stagnation`, `repeated_cycle`, and `report_recovery_idle`.
 
 Operational states eligible for automatic fallback are:
 
@@ -471,14 +484,18 @@ Operational states eligible for automatic fallback are:
 
 Source: `OPERATIONAL_FAILURE_STATES` in `agent/extensions/delegated-pi-loop/runner.ts`.
 
+Fallback has no remaining-work-time predicate: every operational failure, including `stalled` with any stall cause, advances to the next route after positive cleanup proof, regardless of total elapsed time.
+
 These outcomes are terminal and do not trigger route fallback:
 
 - Completed
 - Intentional BLOCKED
 - Intentional FAILED
 - Cancellation
-- Work deadline
 - Cleanup proof failure
+- Route-chain exhaustion, reported as `routes_unavailable`
+
+The only remaining `timed_out` outcome is the fixed 15-second catalog preflight cap (`deadlineCause: "catalog_preflight"`), which is itself fallback-eligible.
 
 ## 12. Terminal report validation
 

@@ -13,6 +13,7 @@ import {
   stripCompletedMarker,
 } from "./result.ts";
 import type { DelegateProgress, DelegateRunResult, ToolResult } from "./types.ts";
+import { PROVIDER_FAILURE_CATEGORIES } from "./types.ts";
 
 function progress(overrides: Partial<DelegateProgress> = {}): DelegateProgress {
   return {
@@ -26,13 +27,19 @@ function progress(overrides: Partial<DelegateProgress> = {}): DelegateProgress {
     lastEvent: "tool_execution_start",
     lastEventDetail: "read",
     lastEventAt: "2026-08-21T10:00:00.000Z",
-    idleSeconds: 0,
+    activityIdleSeconds: 0,
     elapsedSeconds: 612.4,
     toolExecutionCount: 2,
-    idleWarningCount: 0,
+    activityWarningCount: 0,
+    progressWarningCount: 0,
     restartAfterWorkCount: 0,
     reportNudgeCount: 0,
     reportRound: 1,
+    rpcIdleSeconds: 0,
+    progressIdleSeconds: 0,
+    activityEventCount: 7,
+    structuralProgressCount: 1,
+    duplicateCheckpointCount: 0,
     ...overrides,
   };
 }
@@ -54,7 +61,6 @@ function completedResult(report: string): DelegateRunResult {
     elapsedSeconds: 612.4,
     streamErrors: [],
     progress: progress({ state: "completed", phase: "complete", lastEvent: "agent_settled" }),
-    workBudgetSeconds: 2700,
   };
 }
 
@@ -79,7 +85,6 @@ function failedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunRe
     elapsedSeconds: 612.4,
     streamErrors: ["Pi JSON stream ended with a partial line"],
     progress: progress({ restartAfterWorkCount: 1 }),
-    workBudgetSeconds: 2700,
     ...overrides,
   };
 }
@@ -137,8 +142,23 @@ test("failure Markdown is exact, sanitized, and acts without diagnostics", () =>
     "- elapsed: 612.4s",
     "- attempts: opencode-go/muse-spark-1.2-contributor:xhigh -> stalled (restart after work)",
     "",
-    "The delegate had no meaningful Pi RPC activity for ten minutes and was terminated.",
+    "The delegate stopped producing required liveness evidence and was terminated.",
   ].join("\n"));
+});
+
+test("failure Markdown carries the fixed stall-cause bullet and summary", () => {
+  for (const [cause, summary] of [
+    ["rpc_silent", "No valid RPC record arrived from the child within the activity-idle interval."],
+    ["activity_idle", "The child kept communicating but produced no accepted task activity within the activity-idle interval."],
+    ["active_tool_idle", "An executing tool produced no novel update within the activity-idle interval."],
+    ["progress_stagnation", "The delegate produced no novel completed structural checkpoint within the renewable progress lease."],
+    ["repeated_cycle", "The delegate repeated already-seen structural checkpoints without novel progress until the progress lease expired."],
+    ["report_recovery_idle", "The report-recovery round went silent within its fixed five-minute idle lease."],
+  ] as const) {
+    const text = failureMarkdown(failedResult({ stallCause: cause }));
+    assert.match(text, new RegExp(`^- stall cause: ${cause}$`, "m"), cause);
+    assert.match(text, new RegExp(summary.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "m"), cause);
+  }
 });
 
 test("failure Markdown omits absent route and bounds untrusted fields", () => {
@@ -170,6 +190,7 @@ test("failure Markdown and ToolResult details reject seeded operational free tex
   const result = failedResult({
     selectedRoute: forbidden,
     deadlineCause: forbidden as never,
+    stallCause: forbidden as never,
     cleanupFailureReason: forbidden as never,
     interruptionSource: forbidden as never,
     attempts: [{
@@ -178,6 +199,7 @@ test("failure Markdown and ToolResult details reject seeded operational free tex
       elapsedSeconds: 1,
       activeToolName: forbidden,
       deadlineCause: forbidden as never,
+      stallCause: forbidden as never,
       cleanupFailureReason: forbidden as never,
       interruptionSource: forbidden as never,
     }],
@@ -188,12 +210,147 @@ test("failure Markdown and ToolResult details reject seeded operational free tex
       lastEventAt: forbidden,
       activeToolCount: 1,
       activeToolName: forbidden,
+      stallCause: forbidden as never,
+      leaseWarning: forbidden as never,
+      providerFailureCategory: `${forbidden} 503 PRIVATE` as never,
     }),
   });
   const toolResult = finalToolResult(result);
   const content = JSON.stringify(toolResult);
   for (const token of ["PRIVATE_PATH", "SECRET_TOKEN", "SIGKILL", "4242", "raw-error", "tool-argument", "tool-result", "provider-body"]) {
     assert.ok(!content.includes(token), token);
+  }
+});
+
+test("sanitized attempts carry the mapped unknown tool label and finite idle telemetry, and omit them when unavailable", () => {
+  const withTool = failedResult({
+    attempts: [{
+      route: "zai/glm-5.3:max",
+      state: "stalled",
+      elapsedSeconds: 12.5,
+      activeToolCount: 1,
+      activeToolName: "unknown",
+      activeToolElapsedSeconds: 3.2,
+      activeToolIdleSeconds: 2.1,
+      stallCause: "active_tool_idle",
+    }],
+    progress: progress({
+      stallCause: "active_tool_idle",
+      activeToolCount: 1,
+      activeToolName: "unknown",
+      activeToolIdleSeconds: 2.1,
+    }),
+  });
+  const details = finalToolResult(withTool).details as Record<string, unknown>;
+  assert.deepEqual(details.attempts, [{
+    route: "zai/glm-5.3:max",
+    state: "stalled",
+    elapsedSeconds: 12.5,
+    activeToolCount: 1,
+    activeToolName: "unknown",
+    activeToolElapsedSeconds: 3.2,
+    activeToolIdleSeconds: 2.1,
+    stallCause: "active_tool_idle",
+  }]);
+  const sanitizedProgress = details.progress as Record<string, unknown>;
+  assert.equal(sanitizedProgress.activeToolName, "unknown");
+  assert.equal(sanitizedProgress.activeToolIdleSeconds, 2.1);
+  assert.match((finalToolResult(withTool).content[0] as { text: string }).text, /- active tool: unknown/);
+
+  // A catalog attempt without tool telemetry keeps no fabricated fields.
+  const withoutTool = failedResult({
+    attempts: [{ route: "zai/glm-5.3:max", state: "catalog_unavailable", elapsedSeconds: 0.4 }],
+  });
+  const absent = (finalToolResult(withoutTool).details as Record<string, unknown>).attempts as Record<string, unknown>[];
+  assert.equal("activeToolCount" in absent[0]!, false);
+  assert.equal("activeToolIdleSeconds" in absent[0]!, false);
+});
+
+test("sanitized attempts retain finite supervised liveness evidence and drop non-finite internals", () => {
+  const supervised = {
+    rpcIdleSeconds: 301.2,
+    activityIdleSeconds: 300.4,
+    progressIdleSeconds: 299.8,
+    activityEventCount: 88,
+    structuralProgressCount: 9,
+    duplicateCheckpointCount: 3,
+    activityWarningCount: 1,
+    progressWarningCount: 1,
+    activeToolIdleSeconds: 12.3,
+  };
+  const finiteResult = failedResult({
+    attempts: [{
+      route: "zai/glm-5.3:max",
+      state: "stalled",
+      elapsedSeconds: 301.0,
+      stallCause: "progress_stagnation",
+      ...supervised,
+    }],
+  });
+  const details = finalToolResult(finiteResult).details as Record<string, unknown>;
+  assert.deepEqual(details.attempts, [{
+    route: "zai/glm-5.3:max",
+    state: "stalled",
+    elapsedSeconds: 301.0,
+    stallCause: "progress_stagnation",
+    ...supervised,
+  }]);
+  // Malformed internal non-finite values fail closed: every supervised
+  // field is omitted, never passed through or fabricated.
+  for (const poison of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    const poisoned = failedResult({
+      attempts: [{
+        route: "zai/glm-5.3:max",
+        state: "stalled",
+        elapsedSeconds: 1,
+        rpcIdleSeconds: poison,
+        activityIdleSeconds: poison,
+        progressIdleSeconds: poison,
+        activityEventCount: poison,
+        structuralProgressCount: poison,
+        duplicateCheckpointCount: poison,
+        activityWarningCount: poison,
+        progressWarningCount: poison,
+        activeToolIdleSeconds: poison,
+      }],
+    });
+    const sanitized = (finalToolResult(poisoned).details as Record<string, unknown>).attempts as Record<string, unknown>[];
+    for (const key of [
+      "rpcIdleSeconds",
+      "activityIdleSeconds",
+      "progressIdleSeconds",
+      "activityEventCount",
+      "structuralProgressCount",
+      "duplicateCheckpointCount",
+      "activityWarningCount",
+      "progressWarningCount",
+      "activeToolIdleSeconds",
+    ]) {
+      assert.equal(key in sanitized[0]!, false, `${key} for ${poison}`);
+    }
+  }
+});
+
+test("invalid provider categories are omitted from ToolResult surfaces and valid ones survive", () => {
+  for (const invalid of [
+    "/home/gc/PRIVATE_PATH/provider",
+    "sk-SECRET_TOKEN",
+    "503 provider body PRIVATE",
+    "credits_exhausted ",
+    "unknown_category",
+  ]) {
+    const result = failedResult({ progress: progress({ providerFailureCategory: invalid as never }) });
+    const toolResult = finalToolResult(result) as ToolResult;
+    assert.equal(toolResult.details?.providerFailureCategory, undefined, invalid);
+    const sanitized = toolResult.details?.progress as DelegateProgress;
+    assert.equal(sanitized.providerFailureCategory, undefined, invalid);
+    assert.doesNotMatch(JSON.stringify(toolResult), /PRIVATE|SECRET|503/);
+  }
+  for (const valid of PROVIDER_FAILURE_CATEGORIES) {
+    const result = failedResult({ progress: progress({ providerFailureCategory: valid }) });
+    const toolResult = finalToolResult(result) as ToolResult;
+    assert.equal(toolResult.details?.providerFailureCategory, valid);
+    assert.equal((toolResult.details?.progress as DelegateProgress).providerFailureCategory, valid);
   }
 });
 

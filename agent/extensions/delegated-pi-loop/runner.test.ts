@@ -27,8 +27,12 @@ type Behavior =
   | "hang"
   | "thinking-active"
   | "tool-active"
+  | "tool-silent"
   | "invalid-stream"
-  | "custom";
+  | "custom"
+  | "novel-long"
+  | "novel-long-fail"
+  | "missing-long";
 
 function enoent(error: NodeJS.ErrnoException): boolean {
   return error.code === "ENOENT";
@@ -237,21 +241,62 @@ if (args.includes("--list-models")) {
       emit({ id: command.id, type: "response", command: "prompt", success: true });
       emit({ type: "agent_start" });
       if (behavior === "hang") continue;
+      if (behavior === "missing-long" && round === 2) {
+        emit({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Recovered.\\n\\nDELEGATE_RESULT: COMPLETED" }] } });
+        emit({ type: "agent_end", willRetry: false });
+        emit({ type: "agent_settled" });
+        continue;
+      }
+      if (behavior === "novel-long" || behavior === "novel-long-fail" || behavior === "missing-long") {
+        // Emits one novel authoritative message every 120 ms for about 1.6 s,
+        // so every renewable progress lease is renewed many times; the route
+        // then completes, fails after novel work, or settles without a valid
+        // terminal marker (invalid-result recovery stays eligible).
+        let count = 0;
+        const timer = setInterval(() => {
+          count += 1;
+          emit({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "novel checkpoint " + count + " on " + route }] } });
+          if (count < 14) return;
+          clearInterval(timer);
+          if (behavior === "novel-long") {
+            emit({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Completed on " + route + ".\\n\\nDELEGATE_RESULT: COMPLETED" }] } });
+            emit({ type: "agent_end", willRetry: false });
+            emit({ type: "agent_settled" });
+          } else if (behavior === "novel-long-fail") {
+            emit({ type: "message_update", assistantMessageEvent: { type: "error", errorMessage: "503 Service unavailable" } });
+            emit({ type: "agent_end", willRetry: false });
+            emit({ type: "agent_settled" });
+          } else {
+            emit({ type: "agent_end", willRetry: false });
+            emit({ type: "agent_settled" });
+          }
+        }, 120);
+        continue;
+      }
       if (behavior === "invalid-stream") {
         process.stdout.write("{malformed\\n");
         continue;
       }
-      if (behavior === "thinking-active" || behavior === "tool-active") {
+      if (behavior === "thinking-active" || behavior === "tool-active" || behavior === "tool-silent") {
         let updates = 0;
         if (behavior === "tool-active") {
           emit({ type: "tool_execution_start", toolCallId: "active-1", toolName: "ctx_batch_execute", args: {} });
+        }
+        if (behavior === "tool-silent") {
+          // One tool starts and never updates or ends: the attempt ends on
+          // the active-tool idle lease with the tool still executing.
+          emit({ type: "tool_execution_start", toolCallId: "silent-1", toolName: "ctx_batch_execute", args: {} });
+          continue;
         }
         const timer = setInterval(() => {
           updates += 1;
           if (behavior === "thinking-active") {
             emit({ type: "message_update", assistantMessageEvent: { type: "thinking_delta", delta: "x" } });
           } else {
-            emit({ type: "tool_execution_update", toolCallId: "active-1", toolName: "ctx_batch_execute", partialResult: {} });
+            // Each update carries a novel accumulated result: identical
+            // accumulated updates renew nothing by contract, so a meaningful
+            // tool-activity fixture must actually change the payload.
+            emit({ type: "tool_execution_update", toolCallId: "active-1", toolName: "ctx_batch_execute", partialResult: { n: updates } });
           }
           if (updates < 6) return;
           clearInterval(timer);
@@ -313,9 +358,11 @@ function baseOptions(
     prompt: "Investigate the fixture without editing it.",
     cwd: fixture.root,
     piInvocation: fixture.invocation,
-    timeoutMs: 3000,
-    idleWarningMs: 200,
-    idleTimeoutMs: 800,
+    activityWarningMs: 200,
+    activityIdleMs: 800,
+    progressWarningMs: 1500,
+    progressStallMs: 4000,
+    reportRecoveryIdleMs: 800,
     graceMs: 100,
     ...extra,
   };
@@ -636,6 +683,97 @@ if (args.includes("--list-models")) {
       }
     });
   }
+}
+setInterval(() => {}, 1000);
+`, { mode: 0o700 });
+  await execFileAsync(process.execPath, ["--check", script]);
+  return { root, invocation: { command: process.execPath, prefixArgs: [script] } };
+}
+
+/**
+ * Fake Pi whose catalog leader exits immediately with a large sub-limit
+ * listing while a pipe-holding descendant that escaped the process group
+ * (detached into its own session) inherits the leader's stdio pipes. The
+ * escaped holder keeps the runner-side close event blocked: it either
+ * writes the valid provider/model tail line after a fixed delay and exits,
+ * or writes nothing and never exits. The leader's group therefore dies the
+ * moment the recorded exit is reaped, so the process-group cleanup proof
+ * completes at once while the stream settlement is still unproven.
+ */
+async function escapedStdioPi(options: {
+  readonly catalogRoute: string;
+  readonly tailDelayMs?: number;
+  readonly holdPipes?: boolean;
+}): Promise<{ root: string; invocation: { command: string; prefixArgs: string[] } }> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "delegate-runner-escaped-"));
+  fixtureRoots.push(root);
+  const script = path.join(root, "fake-pi-escaped.mjs");
+  const separator = options.catalogRoute.indexOf("/");
+  const provider = options.catalogRoute.slice(0, separator);
+  const model = options.catalogRoute.slice(separator + 1);
+  const tailLine = `${provider} ${model} 272K 128K yes yes`;
+  // The escaped holder either delivers the valid tail after a delay and
+  // exits, or holds the inherited pipes open forever without writing.
+  const holderScript = options.holdPipes === true
+    ? "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);"
+    : `setTimeout(() => { process.stdout.write(${JSON.stringify(`${tailLine}\n`)}, () => process.exit(0)); }, ${options.tailDelayMs ?? 250});`;
+  await writeFile(script, `
+import { spawn } from "node:child_process";
+import { appendFileSync, writeFileSync } from "node:fs";
+const args = process.argv.slice(2);
+const provider = ${JSON.stringify(provider)};
+const model = ${JSON.stringify(model)};
+const tailLine = ${JSON.stringify(tailLine)};
+const holdPipes = ${options.holdPipes === true};
+if (args.includes("--list-models")) {
+  const route = args[args.indexOf("--list-models") + 1];
+  if (route === ${JSON.stringify(options.catalogRoute)}) {
+    // A large sub-limit listing whose valid provider/model row is the very
+    // last line. When the holder delivers the tail, the leader stops one
+    // line short; either way it spawns the holder and exits zero at once.
+    const lines = ["provider model context max-out thinking images"];
+    for (let index = 0; index < 6000; index += 1) {
+      lines.push("filler-" + index + " filler-model-" + index + " 272K 128K yes yes");
+    }
+    if (holdPipes) lines.push(tailLine);
+    // Exit only after the payload is flushed: process.exit can truncate a
+    // still-buffered pipe write, which would fake a truncated listing.
+    process.stdout.write(lines.join("\\n") + "\\n", () => {
+      const holder = spawn(process.execPath, ["-e", ${JSON.stringify(holderScript)}], { stdio: "inherit", detached: true });
+      writeFileSync("escaped-group.json", JSON.stringify({ leader: process.pid, descendant: -1 }));
+      holder.on("spawn", () => {
+        writeFileSync("escaped-group.json", JSON.stringify({ leader: process.pid, descendant: holder.pid }));
+        process.exit(0);
+      });
+    });
+  } else {
+    console.log("provider model context max-out thinking images");
+    process.exit(0);
+  }
+  setInterval(() => {}, 1000);
+} else {
+  appendFileSync("supervision-routes.jsonl", provider + "/" + model + "\\n");
+  const emit = (event) => console.log(JSON.stringify(event));
+  let buffer = "";
+  process.stdin.on("data", (chunk) => {
+    buffer += chunk.toString("utf8");
+    while (buffer.includes("\\n")) {
+      const newline = buffer.indexOf("\\n");
+      const line = buffer.slice(0, newline);
+      buffer = buffer.slice(newline + 1);
+      if (!line) continue;
+      const command = JSON.parse(line);
+      if (command.type !== "prompt") continue;
+      emit({ id: command.id, type: "response", command: "prompt", success: true });
+      emit({ type: "agent_start" });
+      emit({
+        type: "message_end",
+        message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Completed on " + provider + "/" + model + ".\\n\\nDELEGATE_RESULT: COMPLETED" }] },
+      });
+      emit({ type: "agent_end", willRetry: false });
+      emit({ type: "agent_settled" });
+    }
+  });
 }
 setInterval(() => {}, 1000);
 `, { mode: 0o700 });
@@ -992,7 +1130,7 @@ test("raw reason values never reach statuses, Markdown, details, or diagnostics"
   const diagnosticPath = toolResult.details?.diagnosticPath;
   assert.equal(typeof diagnosticPath, "string");
   const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
-  assert.equal(diagnostic.schemaVersion, 5);
+  assert.equal(diagnostic.schemaVersion, 6);
   assert.equal(diagnostic.delegateOutcome, "blocked");
   assert.equal(diagnostic.terminalReason, "unspecified");
   assert.equal(diagnostic.reasonStatus, "rejected");
@@ -1220,7 +1358,7 @@ function providerCountRoutingConfig(count: number) {
   });
 }
 
-test("catalog preflight time is deducted from the shared wall deadline", async () => {
+test("a delayed catalog preflight consumes no shared work budget", async () => {
   const fixture = await fakePi(
     ["prov-a/model-x"],
     { "prov-a/model-x": "hang" },
@@ -1229,52 +1367,38 @@ test("catalog preflight time is deducted from the shared wall deadline", async (
   await runAndFinalize(
     baseOptions(fixture, {
       routingConfig: singleRouteRoutingConfig(),
-      timeoutMs: 1200,
-      idleWarningMs: 200,
-      idleTimeoutMs: 1100,
     }),
     async (result) => {
-      // The delayed catalog preflight consumed most of the 1200 ms wall budget,
-      // so the supervisor ran the hanging child on the recomputed remainder and
-      // the total stayed near the shared deadline instead of budget plus delay.
-      // A single-route chain is exhausted after its supervised timeout, so the
-      // chain outcome is the safe routes_unavailable; chain-level timed_out is
-      // reserved for cumulative-deadline exhaustion.
-      assert.equal(result.state, "timed_out");
-      assert.equal(result.deadlineCause, "work_deadline");
+      // The delayed catalog preflight ran to completion inside its fixed cap
+      // without consuming any shared work budget (none exists), so the
+      // supervised child still received the full renewable liveness leases
+      // and the single-route chain ends as the safe routes_unavailable.
+      assert.equal(result.state, "routes_unavailable");
+      assert.equal(result.deadlineCause, undefined);
       assert.equal(result.attempts.length, 1);
-      assert.equal(result.attempts[0]?.state, "timed_out");
+      assert.equal(result.attempts[0]?.state, "stalled");
+      assert.equal(result.attempts[0]?.stallCause, "rpc_silent");
       assert.equal(result.attempts[0]?.route, "prov-a/model-x:high");
-      assert.ok(
-        result.attempts[0]!.elapsedSeconds < 0.9,
-        `the supervisor must run on the recomputed budget, got ${result.attempts[0]!.elapsedSeconds}`,
-      );
-      assert.ok(
-        result.elapsedSeconds < 1.7,
-        `total elapsed must stay near the shared deadline, got ${result.elapsedSeconds}`,
-      );
-      assert.ok(result.elapsedSeconds >= 0.7, "the delayed catalog preflight must have run");
+      assert.ok(result.attempts[0]!.elapsedSeconds >= 0.7, "the hanging child must receive the full idle lease");
+      assert.ok(result.elapsedSeconds >= 1.4, "the delayed catalog preflight must have run in full");
     },
   );
 });
 
-test("one-route, nine-route, and added-provider configurations receive the same work budget", async () => {
-  const observed: number[] = [];
+test("one-route, nine-route, and added-provider configurations share no work budget field", async () => {
   for (const count of [1, 9, 10]) {
     const providers = Array.from({ length: count }, (_, index) => `prov-${index + 1}/model-x`);
     const fixture = await fakePi(providers, Object.fromEntries(providers.map((route) => [route, "complete"])));
     await runAndFinalize(baseOptions(fixture, {
       routingConfig: providerCountRoutingConfig(count),
-      timeoutMs: 1000,
       random: () => 0,
     }), async (result) => {
       assert.equal(result.state, "completed");
-      assert.equal(result.workBudgetSeconds, 1);
-      observed.push(result.attempts[0]!.remainingWorkSecondsAtAttemptStart!);
+      assert.equal("workBudgetSeconds" in result, false);
+      assert.equal("remainingWorkSecondsAtAttemptStart" in (result.attempts[0] ?? {}), false);
+      assert.equal("timeoutMs" in baseOptions(fixture), false);
     });
   }
-  assert.ok(Math.abs(observed[0]! - observed[1]!) <= 0.1, `provider count changed work time: ${observed}`);
-  assert.ok(Math.abs(observed[1]! - observed[2]!) <= 0.1, `adding a provider changed work time: ${observed}`);
 });
 
 test("meaningful thinking and tool activity continue beyond the old one-ninth boundary without fallback", async () => {
@@ -1286,9 +1410,8 @@ test("meaningful thinking and tool activity continue beyond the old one-ninth bo
     }, { supervisionLog: true });
     await runAndFinalize(baseOptions(fixture, {
       routingConfig: providerCountRoutingConfig(9),
-      timeoutMs: 1000,
-      idleWarningMs: 80,
-      idleTimeoutMs: 140,
+      activityWarningMs: 80,
+      activityIdleMs: 140,
       random: () => 0,
     }), async (result) => {
       assert.equal(result.state, "completed", behavior);
@@ -1301,20 +1424,203 @@ test("meaningful thinking and tool activity continue beyond the old one-ninth bo
   }
 });
 
-test("early provider failure gives fallback the actual remaining work time", async () => {
+test("a silent active tool propagates per-attempt idle telemetry through attempts and details", async () => {
+  const fixture = await fakePi(["prov-1/model-x"], { "prov-1/model-x": "tool-silent" });
+  await runAndFinalize(baseOptions(fixture, {
+    routingConfig: providerCountRoutingConfig(1),
+    activityWarningMs: 80,
+    activityIdleMs: 300,
+    progressWarningMs: 1000,
+    progressStallMs: 2000,
+  }), async (result, finalize) => {
+    assert.equal(result.attempts[0]?.state, "stalled");
+    assert.equal(result.attempts[0]?.stallCause, "active_tool_idle");
+    const attempt = result.attempts[0];
+    assert.equal(attempt?.state, "stalled");
+    assert.equal(attempt?.stallCause, "active_tool_idle");
+    assert.equal(attempt?.activeToolCount, 1);
+    assert.equal(attempt?.activeToolName, "ctx_batch_execute");
+    assert.ok(attempt?.activeToolIdleSeconds !== undefined && attempt.activeToolIdleSeconds >= 0.2,
+      `attempt idle telemetry must travel, got ${attempt?.activeToolIdleSeconds}`);
+    const toolResult = await finalize();
+    const details = toolResult.details as { attempts?: readonly Record<string, unknown>[] };
+    const sanitized = details.attempts?.[0];
+    assert.equal(sanitized?.activeToolName, "ctx_batch_execute");
+    assert.equal(sanitized?.activeToolIdleSeconds, attempt?.activeToolIdleSeconds);
+  });
+});
+
+test("catalog-only attempts stay without active tool idle telemetry", async () => {
+  const fixture = await fakePi(
+    ["prov-1/model-x", "prov-2/model-x"],
+    { "prov-1/model-x": "complete", "prov-2/model-x": "complete" },
+    { catalogDelayMs: 500, catalogDelayRoute: "prov-1/model-x" },
+  );
+  await runAndFinalize(baseOptions(fixture, {
+    routingConfig: providerCountRoutingConfig(2),
+    catalogTimeoutMs: 100,
+    random: () => 0,
+  }), async (result) => {
+    assert.equal(result.state, "completed");
+    assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out", "completed"]);
+    // The catalog attempt never carries the field, and the completed
+    // attempt had no active tool, so both stay without a finite value.
+    assert.equal(result.attempts[0]?.activeToolIdleSeconds, undefined);
+    assert.equal(result.attempts[1]?.activeToolIdleSeconds, undefined);
+  });
+});
+
+test("catalog-only attempts omit every supervised liveness field", async () => {
+  const fixture = await fakePi(
+    ["prov-1/model-x", "prov-2/model-x"],
+    { "prov-1/model-x": "complete", "prov-2/model-x": "complete" },
+    { catalogDelayMs: 500, catalogDelayRoute: "prov-1/model-x" },
+  );
+  await runAndFinalize(baseOptions(fixture, {
+    routingConfig: providerCountRoutingConfig(2),
+    catalogTimeoutMs: 100,
+    random: () => 0,
+  }), async (result, finalize) => {
+    assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out", "completed"]);
+    const supervisedKeys = [
+      "stallCause",
+      "rpcIdleSeconds",
+      "activityIdleSeconds",
+      "progressIdleSeconds",
+      "activityEventCount",
+      "structuralProgressCount",
+      "duplicateCheckpointCount",
+      "activityWarningCount",
+      "progressWarningCount",
+      "activeToolIdleSeconds",
+    ] as const;
+    // The catalog-only timed_out attempt fabricates no supervised evidence.
+    for (const key of supervisedKeys) {
+      assert.equal(result.attempts[0]?.[key], undefined, key);
+    }
+    const toolResult = await finalize();
+    const details = toolResult.details as { attempts?: readonly Record<string, unknown>[] };
+    const sanitizedCatalog = details.attempts?.[0] as Record<string, unknown>;
+    for (const key of supervisedKeys) {
+      assert.equal(key in sanitizedCatalog, false, key);
+    }
+  });
+});
+
+test("route-one supervised liveness evidence survives a completed final-route fallback", async () => {
+  const fixture = await fakePi(
+    ["prov-1/model-x", "prov-2/model-x"],
+    { "prov-1/model-x": "tool-silent", "prov-2/model-x": "complete" },
+  );
+  await runAndFinalize(baseOptions(fixture, {
+    routingConfig: providerCountRoutingConfig(2),
+    random: () => 0,
+    activityWarningMs: 80,
+    activityIdleMs: 300,
+    progressWarningMs: 1000,
+    progressStallMs: 2000,
+  }), async (result, finalize) => {
+    assert.equal(result.state, "completed");
+    assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["stalled", "completed"]);
+    const stalled = result.attempts[0]!;
+    // Every §13.2 field that settled on the stalled route-one attempt
+    // travels on the chain attempt after fallback.
+    assert.equal(stalled.stallCause, "active_tool_idle");
+    assert.equal(stalled.deadlineCause, "idle_deadline");
+    assert.ok(stalled.rpcIdleSeconds !== undefined && Number.isFinite(stalled.rpcIdleSeconds), "rpc idle evidence");
+    assert.ok(stalled.activityIdleSeconds !== undefined && stalled.activityIdleSeconds >= 0.2, "activity idle evidence");
+    assert.ok(stalled.progressIdleSeconds !== undefined && Number.isFinite(stalled.progressIdleSeconds), "progress idle evidence");
+    assert.ok(stalled.activityEventCount !== undefined && stalled.activityEventCount >= 1, "activity counter evidence");
+    assert.ok(stalled.structuralProgressCount !== undefined && stalled.structuralProgressCount >= 1, "progress counter evidence");
+    assert.equal(stalled.duplicateCheckpointCount, 0);
+    assert.equal(stalled.activityWarningCount, 1);
+    assert.equal(stalled.progressWarningCount, 0);
+    assert.ok(stalled.activeToolIdleSeconds !== undefined && stalled.activeToolIdleSeconds >= 0.2, "active tool idle evidence");
+    // The completed attempt carries its own settled supervised telemetry.
+    const completed = result.attempts[1]!;
+    assert.ok(completed.activityEventCount !== undefined && completed.activityEventCount >= 2);
+    assert.ok(completed.structuralProgressCount !== undefined && completed.structuralProgressCount >= 1);
+    assert.equal(completed.duplicateCheckpointCount, 0);
+    assert.ok(completed.rpcIdleSeconds !== undefined && completed.rpcIdleSeconds < stalled.rpcIdleSeconds!);
+    // Final progress stays tied to the final route, never to route one.
+    assert.equal(result.progress.route, completed.route);
+    assert.equal(result.selectedRoute, completed.route);
+    assert.equal(result.progress.state, "completed");
+    assert.equal(result.progress.attempt, 2);
+    assert.ok(result.progress.activityEventCount === completed.activityEventCount);
+    // Sanitized ToolResult attempt details retain the finite route-one values.
+    const toolResult = await finalize();
+    const details = toolResult.details as { attempts?: readonly Record<string, unknown>[] };
+    const sanitizedStalled = details.attempts?.[0] as Record<string, unknown>;
+    assert.equal(sanitizedStalled.stallCause, "active_tool_idle");
+    assert.equal(sanitizedStalled.rpcIdleSeconds, stalled.rpcIdleSeconds);
+    assert.equal(sanitizedStalled.activityIdleSeconds, stalled.activityIdleSeconds);
+    assert.equal(sanitizedStalled.progressIdleSeconds, stalled.progressIdleSeconds);
+    assert.equal(sanitizedStalled.activityEventCount, stalled.activityEventCount);
+    assert.equal(sanitizedStalled.structuralProgressCount, stalled.structuralProgressCount);
+    assert.equal(sanitizedStalled.duplicateCheckpointCount, 0);
+    assert.equal(sanitizedStalled.activityWarningCount, 1);
+    assert.equal(sanitizedStalled.progressWarningCount, 0);
+    assert.equal(sanitizedStalled.activeToolIdleSeconds, stalled.activeToolIdleSeconds);
+  });
+});
+
+test("an exhausted operational chain persists full per-attempt liveness evidence", async () => {
+  const catalog = [
+    "prov-a/model-x",
+    "prov-b/model-y",
+  ];
+  const behaviors = Object.fromEntries(catalog.map((route) => [route, "credit"])) as Record<string, Behavior>;
+  const fixture = await fakePi(catalog, behaviors);
+  await runAndFinalize(baseOptions(fixture, { role: "solution-c", routingConfig: twoTierRoutingConfig() }), async (result, finalize) => {
+    assert.equal(result.state, "routes_unavailable");
+    assert.ok(result.attempts.every((attempt) => attempt.state === "provider_failed"));
+    const supervisedKeys = [
+      "rpcIdleSeconds",
+      "activityIdleSeconds",
+      "progressIdleSeconds",
+      "activityEventCount",
+      "structuralProgressCount",
+      "duplicateCheckpointCount",
+      "activityWarningCount",
+      "progressWarningCount",
+    ] as const;
+    for (const attempt of result.attempts) {
+      for (const key of supervisedKeys) {
+        assert.equal(typeof attempt[key], "number", key);
+        assert.ok(Number.isFinite(attempt[key] as number), key);
+      }
+    }
+    // The exhausted chain persists the schema-6 diagnostic with the same
+    // per-attempt evidence on every attempt record.
+    const toolResult = await finalize();
+    const diagnosticPath = toolResult.details?.diagnosticPath as string;
+    const parsed = JSON.parse(await readFile(diagnosticPath, "utf8")) as Record<string, unknown>;
+    const attempts = parsed.attempts as Record<string, unknown>[];
+    assert.equal(attempts.length, 2);
+    for (const record of attempts) {
+      assert.equal(record.state, "provider_failed");
+      for (const key of supervisedKeys) {
+        assert.equal(typeof record[key], "number", key);
+        assert.ok(Number.isFinite(record[key] as number), key);
+      }
+      // No tool executed on these attempts, so no active-tool idle is fabricated.
+      assert.equal("activeToolIdleSeconds" in record, false);
+    }
+  });
+});
+
+test("early provider failure falls back with no remaining-work predicate", async () => {
   const fixture = await fakePi(
     ["prov-a/model-x", "prov-a/model-y"],
     { "prov-a/model-x": "unavailable", "prov-a/model-y": "complete" },
   );
   await runAndFinalize(baseOptions(fixture, {
     routingConfig: twoTierOracleRoutingConfig(),
-    timeoutMs: 1200,
   }), async (result) => {
     assert.equal(result.state, "completed");
     assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["provider_failed", "completed"]);
-    const fallbackRemaining = result.attempts[1]!.remainingWorkSecondsAtAttemptStart!;
-    assert.ok(fallbackRemaining > 0.8, `fallback received a route fraction instead of actual remainder: ${fallbackRemaining}`);
-    assert.ok(fallbackRemaining <= 1.2);
+    assert.ok(result.attempts.every((attempt) => !("remainingWorkSecondsAtAttemptStart" in attempt)));
   });
 });
 
@@ -1326,14 +1632,52 @@ test("catalog preflight timeout continues with its fixed cause while work remain
   );
   await runAndFinalize(baseOptions(fixture, {
     routingConfig: twoTierOracleRoutingConfig(),
-    timeoutMs: 1200,
     catalogTimeoutMs: 100,
   }), async (result) => {
     assert.equal(result.state, "completed");
     assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out", "completed"]);
     assert.equal(result.attempts[0]?.deadlineCause, "catalog_preflight");
-    assert.ok(result.attempts[1]!.remainingWorkSecondsAtAttemptStart! > 0.8);
+    assert.equal(result.attempts[0]?.stallCause, undefined);
   });
+});
+
+test("a catalog child that settles naturally ignores a later deadline and runs one cleanup", async () => {
+  const fixture = await fakePi(
+    ["prov-a/model-x"],
+    { "prov-a/model-x": "complete" },
+  );
+  // The catalog child settles almost immediately, but its positive cleanup
+  // proof is stretched past the short catalog deadline through the shared
+  // termination-probe seam. Natural settlement must disarm the deadline
+  // timer first, so the outcome stays available instead of flipping to
+  // timed_out/catalog_preflight mid-cleanup.
+  const originalBuild = terminationProbes.build;
+  const delayMs = 800;
+  try {
+    terminationProbes.build = (child) => {
+      const real = originalBuild(child);
+      return {
+        ...real,
+        waitForClose: async (timeoutMs: number) => {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          return real.waitForClose(Math.max(0, timeoutMs - delayMs));
+        },
+      };
+    };
+    await runAndFinalize(baseOptions(fixture, {
+      routingConfig: singleRouteRoutingConfig(),
+      catalogTimeoutMs: 400,
+    }), async (result) => {
+      assert.equal(result.state, "completed");
+      assert.equal(result.attempts.length, 1);
+      assert.equal(result.attempts[0]?.state, "completed");
+      assert.equal(result.attempts[0]?.deadlineCause, undefined);
+      // The positive cleanup proof really did finish after the deadline.
+      assert.ok(result.elapsedSeconds >= delayMs / 1000, `cleanup must outlast the deadline, got ${result.elapsedSeconds}s`);
+    });
+  } finally {
+    terminationProbes.build = originalBuild;
+  }
 });
 
 test("spawn failure and invalid stream fall back with actual remaining work", async () => {
@@ -1355,16 +1699,15 @@ test("spawn failure and invalid stream fall back with actual remaining work", as
     await runAndFinalize(baseOptions(fixture, {
       piInvocation: invocation,
       routingConfig: twoTierOracleRoutingConfig(),
-      timeoutMs: 1200,
     }), async (result) => {
       assert.equal(result.state, "completed", failure);
       assert.equal(result.attempts[0]?.state, failure === "spawn" ? "spawn_failed" : "invalid_stream");
-      assert.ok(result.attempts[1]!.remainingWorkSecondsAtAttemptStart! > 0.6, failure);
+      assert.equal(result.attempts[1]?.state, "completed", failure);
     });
   }
 });
 
-test("idle warning fires once and a ten-minute-equivalent stall falls back on actual remaining time", async () => {
+test("the activity warning fires once and a silent route falls back with rpc_silent", async () => {
   const fixture = await fakePi(
     ["prov-a/model-x", "prov-a/model-y"],
     { "prov-a/model-x": "hang", "prov-a/model-y": "complete" },
@@ -1372,18 +1715,17 @@ test("idle warning fires once and a ten-minute-equivalent stall falls back on ac
   const updates: DelegateRunResult["progress"][] = [];
   await runAndFinalize(baseOptions(fixture, {
     routingConfig: twoTierOracleRoutingConfig(),
-    timeoutMs: 1200,
-    idleWarningMs: 100,
-    idleTimeoutMs: 300,
+    activityWarningMs: 100,
+    activityIdleMs: 300,
     onProgress: (progress) => updates.push(progress),
   }), async (result) => {
     assert.equal(result.state, "completed");
     assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["stalled", "completed"]);
     assert.equal(result.attempts[0]?.deadlineCause, "idle_deadline");
-    assert.ok(result.attempts[1]!.remainingWorkSecondsAtAttemptStart! > 0.6);
-    const warnings = updates.filter((progress) => progress.route === "prov-a/model-x:high" && progress.idleWarningCount === 1);
+    assert.equal(result.attempts[0]?.stallCause, "rpc_silent");
+    const warnings = updates.filter((progress) => progress.route === "prov-a/model-x:high" && progress.activityWarningCount === 1);
     assert.ok(warnings.length >= 1);
-    assert.ok(updates.every((progress) => progress.idleWarningCount <= 1));
+    assert.ok(updates.every((progress) => progress.activityWarningCount <= 1));
   });
 });
 
@@ -1393,9 +1735,8 @@ test("fallback route starts only after positive leader and group death proof", {
   try {
     const resultPromise = runDelegate(baseOptions(fixture, {
       routingConfig: twoTierOracleRoutingConfig(),
-      timeoutMs: 2000,
-      idleWarningMs: 100,
-      idleTimeoutMs: 300,
+      activityWarningMs: 100,
+      activityIdleMs: 300,
       graceMs: 100,
       cleanupTimeoutMs: 1000,
     }));
@@ -1436,9 +1777,8 @@ test("a supervision cleanup failure fails the chain closed before route two star
     };
     const resultPromise = runDelegate(baseOptions(fixture, {
       routingConfig: twoTierOracleRoutingConfig(),
-      timeoutMs: 3000,
-      idleWarningMs: 400,
-      idleTimeoutMs: 2800,
+      activityWarningMs: 400,
+      activityIdleMs: 2800,
       graceMs: 300,
       cleanupTimeoutMs: 2500,
     }));
@@ -1487,9 +1827,8 @@ test("supervision consumes bounded cleanup failure while inherited stdio keeps c
     };
     const resultPromise = runDelegate(baseOptions(fixture, {
       routingConfig: twoTierOracleRoutingConfig(),
-      timeoutMs: 1200,
-      idleWarningMs: 400,
-      idleTimeoutMs: 1000,
+      activityWarningMs: 400,
+      activityIdleMs: 1000,
       graceMs: 300,
       cleanupTimeoutMs: 2500,
     }));
@@ -1528,9 +1867,8 @@ test("catalog consumes bounded cleanup failure while inherited stdio keeps close
     };
     const resultPromise = runDelegate(baseOptions(fixture, {
       routingConfig: twoTierOracleRoutingConfig(),
-      timeoutMs: 1200,
-      idleWarningMs: 400,
-      idleTimeoutMs: 1000,
+      activityWarningMs: 400,
+      activityIdleMs: 1000,
       graceMs: 300,
     }));
     const recorded = await waitForFixtureGroup(fixture.root, "inherited-group.json");
@@ -1554,31 +1892,156 @@ test("catalog consumes bounded cleanup failure while inherited stdio keeps close
   }
 });
 
-test("chain-level timed_out occurs only when the cumulative deadline itself is exhausted", async () => {
+test("catalog parses a large sub-limit listing whose valid tail drains after leader exit", { skip: process.platform !== "linux" }, async () => {
+  const fixture = await escapedStdioPi({ catalogRoute: "prov-a/model-x", tailDelayMs: 250 });
+  const group = { leader: -1, descendant: -1 };
+  try {
+    const resultPromise = runDelegate(baseOptions(fixture, { routingConfig: singleRouteRoutingConfig() }));
+    const recorded = await waitForFixtureGroup(fixture.root, "escaped-group.json");
+    group.leader = recorded.leader;
+    group.descendant = recorded.descendant;
+    safetyGroups.push({ ...group });
+    await settleAndFinalize(resultPromise, async (result) => {
+      // The catalog leader exited zero with the valid provider/model row at
+      // the tail of a large sub-limit listing that had not drained yet, and
+      // the pipe holder outside the group delivered that tail only after the
+      // leader was already gone. A positive group-death proof alone must
+      // not start parsing before the streams settle, so the route stays
+      // catalogued and the runtime attempt starts and completes.
+      assert.equal(result.state, "completed");
+      assert.equal(result.selectedRoute, "prov-a/model-x:high");
+      assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["completed"]);
+      assert.equal(result.attempts[0]?.deadlineCause, undefined);
+      assert.equal(result.cleanupFailureReason, undefined);
+      assert.match(result.report, /Completed on prov-a\/model-x/);
+      // The runtime child really started on the catalogued route.
+      const spawned = await readFile(path.join(fixture.root, "supervision-routes.jsonl"), "utf8");
+      assert.deepEqual(spawned.trim().split("\n"), ["prov-a/model-x"]);
+    });
+    assert.ok(await isGone(group.leader), "the catalog leader must already be gone");
+    assert.ok(await isGone(group.descendant), "the tail-writing holder must have exited by close");
+  } finally {
+    killOwned(group.leader, group.descendant);
+  }
+});
+
+test("a catalog stream that never settles fails closed boundedly with close_unconfirmed", { skip: process.platform !== "linux" }, async () => {
+  const fixture = await escapedStdioPi({ catalogRoute: "prov-a/model-x", holdPipes: true });
+  const group = { leader: -1, descendant: -1 };
+  try {
+    const settledAt = performance.now();
+    const resultPromise = runDelegate(baseOptions(fixture, { routingConfig: singleRouteRoutingConfig() }));
+    const recorded = await waitForFixtureGroup(fixture.root, "escaped-group.json");
+    group.leader = recorded.leader;
+    group.descendant = recorded.descendant;
+    safetyGroups.push({ ...group });
+    await settleAndFinalize(resultPromise, async (result) => {
+      // The leader wrote the complete listing including the valid tail and
+      // exited zero, but the escaped pipe holder never releases the streams,
+      // so actual settlement cannot be confirmed. The preflight fails closed
+      // with the bounded close_unconfirmed reason instead of parsing output
+      // whose drain status stays unproven, and no runtime child starts.
+      assert.equal(result.state, "cleanup_failed");
+      assert.equal(result.selectedRoute, undefined);
+      assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["cleanup_failed"]);
+      assert.equal(result.attempts[0]?.cleanupFailureReason, "close_unconfirmed");
+      assert.equal(result.cleanupFailureReason, "close_unconfirmed");
+      assert.equal(result.report, "");
+      await assert.rejects(() => stat(path.join(fixture.root, "supervision-routes.jsonl")), enoent);
+    });
+    assert.ok(performance.now() - settledAt < 5_000, "settlement must stay inside the bounded cleanup budget");
+    assert.ok(await isGone(group.leader), "the catalog leader must already be gone");
+    assert.equal(await isGone(group.descendant), false, "the escaped pipe holder must still be alive before safety cleanup");
+  } finally {
+    killOwned(group.leader, group.descendant);
+  }
+});
+
+test("a productive route completes after crossing many former total-deadline equivalents", async () => {
+  // The 400 ms renewable progress lease stands in for the former 45-minute
+  // ceiling: fourteen novel authoritative checkpoints renew it for about
+  // 1.7 s (more than four former-deadline equivalents) and the route still
+  // completes on the first provider with no fallback and no timed-out state.
+  const fixture = await fakePi(
+    ["prov-a/model-x", "prov-b/model-y"],
+    { "prov-a/model-x": "novel-long", "prov-b/model-y": "complete" },
+    { supervisionLog: true },
+  );
+  await runAndFinalize(baseOptions(fixture, {
+    routingConfig: twoTierRoutingConfig(),
+    activityWarningMs: 150,
+    activityIdleMs: 600,
+    progressWarningMs: 260,
+    progressStallMs: 400,
+  }), async (result) => {
+    assert.equal(result.state, "completed");
+    assert.equal(result.selectedRoute, "prov-a/model-x:high");
+    assert.equal(result.attempts.length, 1);
+    assert.equal(result.attempts[0]?.state, "completed");
+    assert.equal(result.deadlineCause, undefined);
+    assert.equal(result.stallCause, undefined);
+    assert.ok(result.elapsedSeconds >= 1.5, `several lease equivalents must elapse, got ${result.elapsedSeconds}s`);
+    assert.ok(JSON.stringify(result.attempts).includes("novel") === false);
+    const spawned = await readFile(path.join(fixture.root, "supervision-routes.jsonl"), "utf8");
+    assert.deepEqual(spawned.trim().split("\n"), ["prov-a/model-x"]);
+    assert.ok(result.progress.structuralProgressCount >= 14);
+  });
+});
+
+test("fallback starts after arbitrary elapsed time with no remaining-work predicate", async () => {
+  // Route one stays productively alive for about 1.7 s (several former
+  // total-deadline equivalents), then fails operationally after novel work.
+  // Route two must still start: no chain work budget or remaining-time
+  // predicate exists anywhere.
+  const fixture = await fakePi(
+    ["prov-a/model-x", "prov-b/model-y"],
+    { "prov-a/model-x": "novel-long-fail", "prov-b/model-y": "complete" },
+    { supervisionLog: true },
+  );
+  await runAndFinalize(baseOptions(fixture, {
+    routingConfig: twoTierRoutingConfig(),
+    activityWarningMs: 150,
+    activityIdleMs: 600,
+    progressWarningMs: 260,
+    progressStallMs: 400,
+  }), async (result) => {
+    assert.equal(result.state, "completed");
+    assert.equal(result.selectedRoute, "prov-b/model-y:high");
+    assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["provider_failed", "completed"]);
+    assert.ok(result.elapsedSeconds >= 1.5, `route one must outlive any former ceiling analog, got ${result.elapsedSeconds}s`);
+    assert.ok(result.attempts.every((attempt) => !("remainingWorkSecondsAtAttemptStart" in attempt)));
+    // Route one executed no tools and accepted no recovery, so no restart
+    // note was applied to route two's private prompt.
+    assert.equal(result.attempts[0]?.restartAfterWork, undefined);
+    assert.equal(result.progress.restartAfterWorkCount, 0);
+    const spawned = (await readFile(path.join(fixture.root, "supervision-routes.jsonl"), "utf8")).trim().split("\n");
+    assert.deepEqual(spawned, ["prov-a/model-x", "prov-b/model-y"]);
+  });
+});
+
+test("report recovery remains eligible after total elapsed time exceeds any former ceiling", async () => {
   const fixture = await fakePi(
     ["prov-a/model-x"],
-    { "prov-a/model-x": "hang" },
-    { catalogDelayMs: 2000 },
+    { "prov-a/model-x": "missing-long" },
   );
-  await runAndFinalize(
-    baseOptions(fixture, {
-      routingConfig: singleRouteRoutingConfig(),
-      timeoutMs: 1200,
-      idleWarningMs: 200,
-      idleTimeoutMs: 1100,
-    }),
-    async (result) => {
-      // The single final route owns the full remainder; its catalog preflight is
-      // stopped at the cumulative deadline, so the chain-level outcome is
-      // timed_out and the attempt records the route-budget stop distinct from
-      // catalog unavailability.
-      assert.equal(result.state, "timed_out");
-      assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out"]);
-      assert.equal(result.attempts[0]?.route, "prov-a/model-x:high");
-      assert.ok(result.elapsedSeconds >= 1.1, "the catalog preflight must run to the cumulative deadline");
-      assert.ok(result.elapsedSeconds < 1.9, `total must stay near the deadline, got ${result.elapsedSeconds}`);
-    },
-  );
+  await runAndFinalize(baseOptions(fixture, {
+    routingConfig: singleRouteRoutingConfig(),
+    activityWarningMs: 150,
+    activityIdleMs: 600,
+    progressWarningMs: 260,
+    progressStallMs: 400,
+    reportRecoveryIdleMs: 700,
+  }), async (result) => {
+    // Round one settled without a valid terminal marker only after about
+    // 1.7 s of renewed novel checkpoints, several former-deadline
+    // equivalents past the start; the same-session recovery round still ran
+    // and completed.
+    assert.equal(result.state, "completed");
+    assert.equal(result.attempts.length, 1);
+    assert.equal(result.progress.reportNudgeCount, 1);
+    assert.equal(result.progress.reportRound, 2);
+    assert.ok(result.elapsedSeconds >= 1.5, `the round must outlive any former ceiling analog, got ${result.elapsedSeconds}s`);
+  });
 });
 
 test("an oracle routing override is rejected before any child spawns", async () => {
@@ -1815,15 +2278,16 @@ test("the owned sandboxes are clean after success, rejection, and assertion fail
   await assertNoOwnedArtifacts("the owned artifact sandbox must be clean after an assertion failure");
 });
 
-test("global work timeout cleans a resistant route and never starts route two", { skip: process.platform !== "linux" }, async () => {
+test("progress stagnation on a resistant route cleans the group and falls back", { skip: process.platform !== "linux" }, async () => {
   const fixture = await resistantPi({ supervisionHangRoute: "prov-a/model-x" });
   const group = { leader: -1, descendant: -1 };
   try {
     const resultPromise = runDelegate(baseOptions(fixture, {
       routingConfig: twoTierOracleRoutingConfig(),
-      timeoutMs: 3000,
-      idleWarningMs: 400,
-      idleTimeoutMs: 2800,
+      activityWarningMs: 400,
+      activityIdleMs: 2800,
+      progressWarningMs: 1500,
+      progressStallMs: 2600,
       graceMs: 300,
     }));
     const recorded = await waitForFixtureGroup(fixture.root, "resistant-group.json");
@@ -1835,20 +2299,23 @@ test("global work timeout cleans a resistant route and never starts route two", 
       async (result) => {
         assert.ok(Number.isSafeInteger(group.leader) && group.leader > 0);
         assert.ok(Number.isSafeInteger(group.descendant) && group.descendant > 0, "the resistant descendant must have started");
-        // The idle stall occurs just before the fixed work deadline. Cleanup
-        // consumes the remaining wall time, so no productive budget remains
-        // for route two and the global outcome is timed_out.
-        assert.equal(result.state, "timed_out");
-        assert.equal(result.deadlineCause, "work_deadline");
-        assert.equal(result.attempts.length, 1);
-        assert.ok(
-          result.attempts[0]?.state === "stalled" || result.attempts[0]?.state === "timed_out",
-          `route one must stop at idle or work deadline, got ${result.attempts[0]?.state}`,
-        );
-        await assert.rejects(() => stat(path.join(fixture.root, "route-two-start.json")), enoent);
-        assert.ok(result.elapsedSeconds >= 2.8);
+        // Route one stopped at its renewable progress lease, not at any total
+        // deadline; cleanup proved the group dead and route two completed.
+        assert.equal(result.state, "completed");
+        assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["stalled", "completed"]);
+        assert.equal(result.attempts[0]?.stallCause, "progress_stagnation");
+        assert.equal(result.attempts[0]?.deadlineCause, "idle_deadline");
+        assert.ok(result.attempts[0]!.elapsedSeconds >= 2.4, "the progress lease must run first");
         assert.ok(await isGone(group.leader), "the SIGTERM-resistant leader must be dead");
-        assert.ok(await isGone(group.descendant), "the SIGTERM-resistant descendant must be dead");
+        assert.ok(await isGone(group.descendant), "the SIGTERM-resistant descendant must be dead with the group");
+        const start = JSON.parse(await readFile(path.join(fixture.root, "route-two-start.json"), "utf8")) as Record<string, {
+          leaderGone: boolean;
+          descendantGone: boolean;
+        }>;
+        for (const phase of ["catalog", "supervision"]) {
+          assert.equal(start[phase]?.leaderGone, true, phase);
+          assert.equal(start[phase]?.descendantGone, true, phase);
+        }
       },
     );
   } finally {
@@ -1856,15 +2323,13 @@ test("global work timeout cleans a resistant route and never starts route two", 
   }
 });
 
-test("global work timeout during catalog cleanup never starts route two", { skip: process.platform !== "linux" }, async () => {
+test("a fixed catalog-preflight timeout on a resistant child cleans up and continues", { skip: process.platform !== "linux" }, async () => {
   const fixture = await resistantPi({ catalogHangRoute: "prov-a/model-x" });
   const group = { leader: -1, descendant: -1 };
   try {
     const resultPromise = runDelegate(baseOptions(fixture, {
       routingConfig: twoTierOracleRoutingConfig(),
-      timeoutMs: 3000,
-      idleWarningMs: 400,
-      idleTimeoutMs: 2800,
+      catalogTimeoutMs: 500,
       graceMs: 300,
     }));
     const recorded = await waitForFixtureGroup(fixture.root, "resistant-group.json");
@@ -1876,15 +2341,15 @@ test("global work timeout during catalog cleanup never starts route two", { skip
       async (result) => {
         assert.ok(Number.isSafeInteger(group.leader) && group.leader > 0);
         assert.ok(Number.isSafeInteger(group.descendant) && group.descendant > 0, "the resistant descendant must have started");
-        assert.equal(result.state, "timed_out");
-        assert.equal(result.deadlineCause, "work_deadline");
-        assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out"]);
+        // The resistant catalog child was stopped at its own fixed cap, its
+        // group was proven dead, and the finite chain continued to route two.
+        assert.equal(result.state, "completed");
+        assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out", "completed"]);
         assert.equal(result.attempts[0]?.route, "prov-a/model-x:high");
-        assert.equal(result.attempts[0]?.deadlineCause, "work_deadline");
-        await assert.rejects(() => stat(path.join(fixture.root, "route-two-start.json")), enoent);
-        assert.ok(result.elapsedSeconds >= 3.0);
+        assert.equal(result.attempts[0]?.deadlineCause, "catalog_preflight");
+        assert.ok(result.attempts[0]!.elapsedSeconds >= 0.4, "the fixed catalog cap must run first");
         assert.ok(await isGone(group.leader), "the SIGTERM-resistant leader must be dead");
-        assert.ok(await isGone(group.descendant), "the SIGTERM-resistant descendant must be dead");
+        assert.ok(await isGone(group.descendant), "the SIGTERM-resistant descendant must be dead with the group");
       },
     );
   } finally {

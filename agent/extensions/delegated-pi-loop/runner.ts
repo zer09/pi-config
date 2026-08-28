@@ -15,12 +15,16 @@ import { oracleGuard, roleLabel, routeKey } from "./routes.ts";
 import { loadRoutingConfig, oracleModelIds, requireRole, selectRoutes } from "./routing.ts";
 import { buildDelegateResourceSelection, loadDelegateResources } from "./resources.ts";
 import {
+  DEFAULT_ACTIVITY_IDLE_MS,
+  DEFAULT_ACTIVITY_WARNING_MS,
+  DEFAULT_CATALOG_TIMEOUT_MS,
   DEFAULT_CLEANUP_TIMEOUT_MS,
-  DEFAULT_IDLE_TIMEOUT_MS,
-  DEFAULT_IDLE_WARNING_MS,
+  DEFAULT_LEADER_EXIT_SETTLEMENT_MS,
   DEFAULT_MAX_OUTPUT_BYTES,
+  DEFAULT_PROGRESS_STALL_MS,
+  DEFAULT_PROGRESS_WARNING_MS,
+  DEFAULT_REPORT_RECOVERY_IDLE_MS,
   DEFAULT_TERMINATION_GRACE_MS,
-  DEFAULT_WORK_TIMEOUT_MS,
   delegateEnvironment,
   FINAL_CLEANUP_ALLOWANCE_MS,
   resolvePiInvocation,
@@ -42,6 +46,7 @@ import type {
   PiInvocation,
   PiRoute,
   RunOptions,
+  StallCause,
 } from "./types.ts";
 
 function roundedSeconds(milliseconds: number): number {
@@ -49,10 +54,10 @@ function roundedSeconds(milliseconds: number): number {
 }
 
 /**
- * Failure states eligible for fallback while productive-work time remains,
- * even after tools or accepted report recovery. Global work timeout,
- * completed runs, intentional BLOCKED/FAILED markers, cancellation, and
- * cleanup proof failure are terminal.
+ * Failure states eligible for fallback after positive cleanup proof, even
+ * after tools or accepted report recovery. There is no remaining-work-time
+ * predicate: completed runs, intentional BLOCKED/FAILED markers,
+ * cancellation, and cleanup proof failure are terminal.
  */
 const OPERATIONAL_FAILURE_STATES: ReadonlySet<string> = new Set([
   "provider_failed",
@@ -83,14 +88,13 @@ async function routeIsCatalogued(
   verifyCatalog: () => void,
   route: PiRoute,
   cwd: string,
-  workDeadline: number,
   catalogTimeoutMs: number,
   signal?: AbortSignal,
 ): Promise<CatalogResult> {
-  const catalogDeadline = Math.min(workDeadline, performance.now() + catalogTimeoutMs);
-  const catalogDeadlineCause: DeadlineCause = catalogDeadline === workDeadline
-    ? "work_deadline"
-    : "catalog_preflight";
+  // Catalog preflight owns one fixed independent deadline; no shared chain
+  // work budget exists to clamp it.
+  const catalogDeadline = performance.now() + catalogTimeoutMs;
+  const catalogDeadlineCause: DeadlineCause = "catalog_preflight";
   // The lean catalog profile disables every discovery flag and explicitly
   // loads only the approved catalog extension entries (the provider alias
   // extension), so catalog preflights never load model-tool extensions,
@@ -119,7 +123,20 @@ async function routeIsCatalogued(
   const closePromise = new Promise<void>((resolve) => {
     resolveClose = resolve;
   });
-  const onClose = () => resolveClose();
+  // True only after the child's real close event: unlike a recorded exit,
+  // close proves the stdout and stderr streams drained to their ends.
+  let closed = false;
+  const onClose = () => {
+    closed = true;
+    resolveClose();
+  };
+  let resolveLeaderExited!: () => void;
+  // Resolves when the leader records its exit even if the close event stays
+  // blocked because a descendant inherited the leader's stdio pipes.
+  const leaderExited = new Promise<void>((resolve) => {
+    resolveLeaderExited = resolve;
+  });
+  const onExit = () => resolveLeaderExited();
   let spawnFailed = false;
   const onChildError = () => {
     spawnFailed = true;
@@ -136,11 +153,13 @@ async function routeIsCatalogued(
   };
   const removeChildListeners = () => {
     child.removeListener("close", onClose);
+    child.removeListener("exit", onExit);
     child.removeListener("error", onChildError);
     child.stdout?.removeListener("data", onStdoutData);
     child.stderr?.removeListener("data", onStderrData);
   };
   child.once("close", onClose);
+  child.once("exit", onExit);
   child.once("error", onChildError);
   child.stdout?.on("data", onStdoutData);
   child.stderr?.on("data", onStderrData);
@@ -152,6 +171,9 @@ async function routeIsCatalogued(
   let stopOutcome: CatalogResult["outcome"] = "timed_out";
   let deadlineCause: DeadlineCause | undefined;
   let termination: Promise<TerminationOutcome> | undefined;
+  // One absolute cleanup deadline per preflight. The drain wait below is
+  // charged against this same budget, so settlement never adds wall time.
+  let cleanupDeadline = 0;
   // Resolves as soon as the stop path starts termination. The wait below
   // races it against close, because a descendant that inherited the catalog
   // child's stdio pipes can keep the close event blocked indefinitely, even
@@ -165,7 +187,7 @@ async function routeIsCatalogued(
     stopped = true;
     if (signal?.aborted) stopOutcome = "interrupted";
     else deadlineCause = catalogDeadlineCause;
-    const cleanupDeadline = performance.now() + DEFAULT_CLEANUP_TIMEOUT_MS;
+    cleanupDeadline = performance.now() + DEFAULT_CLEANUP_TIMEOUT_MS;
     termination = terminateProcessGroup(
       child,
       DEFAULT_TERMINATION_GRACE_MS,
@@ -177,14 +199,22 @@ async function routeIsCatalogued(
   if (signal?.aborted) stop();
   else signal?.addEventListener("abort", stop, { once: true });
   try {
-    // Close or the stop path starts the settlement: once termination starts,
-    // only its bounded promise is awaited, so a negative outcome is consumed
-    // and mapped to cleanup_failed without an unbounded close wait first.
-    await Promise.race([closePromise, terminationStarted]);
+    // Close, the stop path, or a recorded leader exit starts the settlement:
+    // once termination starts, only its bounded promise is awaited, so a
+    // negative outcome is consumed and mapped to cleanup_failed without an
+    // unbounded close wait first. A leader exit without close (a descendant
+    // holds the pipes) settles through the same natural-exit sweep below.
+    await Promise.race([closePromise, terminationStarted, leaderExited]);
     if (!stopped) {
-      // Natural exit inside the budget: the group is still swept and its
-      // disappearance verified before the outcome returns.
-      const cleanupDeadline = performance.now() + DEFAULT_CLEANUP_TIMEOUT_MS;
+      // Natural settlement won before the deadline: disarm the execution
+      // timer and the abort listener immediately so a later deadline tick
+      // can no longer flip the settled outcome to timed_out or start a
+      // second termination mid-cleanup, then run exactly one independently
+      // bounded cleanup proof. timed_out/catalog_preflight is returned only
+      // when the deadline itself won before natural settlement.
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", stop);
+      cleanupDeadline = performance.now() + DEFAULT_CLEANUP_TIMEOUT_MS;
       termination = terminateProcessGroup(
         child,
         DEFAULT_TERMINATION_GRACE_MS,
@@ -192,16 +222,52 @@ async function routeIsCatalogued(
       );
     }
     const terminationOutcome = await termination!;
-    // Stop consuming output before ending the decoder. A negative cleanup
-    // proof can leave a child alive, so no later data may reach settled state.
-    removeChildListeners();
-    stdout += stdoutDecoder.end();
     // A preflight group that cannot be proven dead is a bounded cleanup
     // failure: the caller fails the chain closed instead of risking overlap.
+    // Output consumption stops immediately, because a negative proof can
+    // leave a child alive and no later data may reach a settled state.
     if (!terminationOutcome.ok) {
+      removeChildListeners();
       return { outcome: "cleanup_failed", cleanupFailureReason: terminationOutcome.reason, deadlineCause };
     }
-    if (stopped) return { outcome: stopOutcome, deadlineCause };
+    if (stopped) {
+      removeChildListeners();
+      return { outcome: stopOutcome, deadlineCause };
+    }
+    if (!closed && !spawnFailed) {
+      // A positive termination proof can complete before the close event:
+      // after a recorded leader exit the group is already dead while the
+      // final stdout bytes still sit unread in the pipes, and a descendant
+      // that inherited them can delay or block close indefinitely. Parsing
+      // now would settle on incomplete output, so the listeners stay
+      // attached and the drain gets the fixed leader-exit settlement window
+      // charged inside the same absolute cleanup deadline, never a new one.
+      const settlementBudgetMs = Math.min(
+        DEFAULT_LEADER_EXIT_SETTLEMENT_MS,
+        Math.max(0, cleanupDeadline - performance.now()),
+      );
+      let settlementTimer: NodeJS.Timeout | undefined;
+      try {
+        await Promise.race([
+          closePromise,
+          new Promise<void>((resolve) => {
+            settlementTimer = setTimeout(resolve, settlementBudgetMs);
+          }),
+        ]);
+      } finally {
+        if (settlementTimer !== undefined) clearTimeout(settlementTimer);
+      }
+    }
+    // Stop consuming output before ending the decoder: nothing after this
+    // point may feed more data into the settled snapshot.
+    removeChildListeners();
+    stdout += stdoutDecoder.end();
+    if (!closed && !spawnFailed) {
+      // Stream settlement stayed unproven inside the bounded window. Parsing
+      // partial output could discard the valid catalog tail, so the preflight
+      // fails closed with the bounded close_unconfirmed reason instead.
+      return { outcome: "cleanup_failed", cleanupFailureReason: "close_unconfirmed" };
+    }
     if (spawnFailed || child.exitCode !== 0 || outputBytes > 1024 * 1024) return { outcome: "unavailable" };
 
     const available = stdout.split(/\r?\n/).some((line) => {
@@ -230,10 +296,11 @@ function progressFromStatus(status: AttemptStatus, attempt: number, restartAfter
     lastEvent: status.lastEvent,
     lastEventDetail: status.lastEventDetail,
     lastEventAt: status.lastEventAt,
-    idleSeconds: status.idleSeconds,
+    activityIdleSeconds: status.activityIdleSeconds,
     elapsedSeconds: status.elapsedSeconds,
     toolExecutionCount: status.toolExecutionCount,
-    idleWarningCount: status.idleWarningCount,
+    activityWarningCount: status.activityWarningCount,
+    progressWarningCount: status.progressWarningCount,
     restartAfterWorkCount,
     reportNudgeCount: status.reportNudgeCount,
     reportRecoveryReason: status.reportRecoveryReason,
@@ -244,17 +311,22 @@ function progressFromStatus(status: AttemptStatus, attempt: number, restartAfter
     reasonStatus: status.reasonStatus,
     blockedMisuseSuspected: status.blockedMisuseSuspected,
     deadlineCause: status.deadlineCause,
+    stallCause: status.stallCause,
     cleanupFailureReason: status.cleanupFailureReason,
     interruptionSource: status.interruptionSource,
-    workBudgetSeconds: status.workBudgetSeconds,
-    remainingWorkSecondsAtAttemptStart: status.remainingWorkSecondsAtAttemptStart,
+    rpcIdleSeconds: status.rpcIdleSeconds,
+    progressIdleSeconds: status.progressIdleSeconds,
+    activityEventCount: status.activityEventCount,
+    structuralProgressCount: status.structuralProgressCount,
+    duplicateCheckpointCount: status.duplicateCheckpointCount,
     activeToolCount: status.activeToolCount,
     activeToolName: status.activeToolName,
     activeToolElapsedSeconds: status.activeToolElapsedSeconds,
+    activeToolIdleSeconds: status.activeToolIdleSeconds,
   };
 }
 
-function initialProgress(label: string, options: RunOptions, workBudgetSeconds: number): DelegateProgress {
+function initialProgress(label: string, options: RunOptions): DelegateProgress {
   const now = new Date().toISOString();
   return {
     label,
@@ -265,14 +337,17 @@ function initialProgress(label: string, options: RunOptions, workBudgetSeconds: 
     phase: "catalog",
     lastEvent: "catalog_check",
     lastEventAt: now,
-    idleSeconds: 0,
+    activityIdleSeconds: 0,
     elapsedSeconds: 0,
     toolExecutionCount: 0,
-    idleWarningCount: 0,
+    activityWarningCount: 0,
+    progressWarningCount: 0,
     restartAfterWorkCount: 0,
     reportNudgeCount: 0,
     reportRound: 1,
-    workBudgetSeconds,
+    activityEventCount: 0,
+    structuralProgressCount: 0,
+    duplicateCheckpointCount: 0,
     activeToolCount: 0,
   };
 }
@@ -292,22 +367,29 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
   const label = roleLabel(role);
   const started = performance.now();
   const startedAt = new Date().toISOString();
-  const timeoutMs = options.timeoutMs ?? DEFAULT_WORK_TIMEOUT_MS;
-  const idleWarningMs = options.idleWarningMs ?? DEFAULT_IDLE_WARNING_MS;
-  const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+  const activityWarningMs = options.activityWarningMs ?? DEFAULT_ACTIVITY_WARNING_MS;
+  const activityIdleMs = options.activityIdleMs ?? DEFAULT_ACTIVITY_IDLE_MS;
+  const progressWarningMs = options.progressWarningMs ?? DEFAULT_PROGRESS_WARNING_MS;
+  const progressStallMs = options.progressStallMs ?? DEFAULT_PROGRESS_STALL_MS;
+  const reportRecoveryIdleMs = options.reportRecoveryIdleMs ?? DEFAULT_REPORT_RECOVERY_IDLE_MS;
   const maxOutputBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
   const graceMs = options.graceMs ?? DEFAULT_TERMINATION_GRACE_MS;
   const cleanupTimeoutMs = options.cleanupTimeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS;
-  const catalogTimeoutMs = options.catalogTimeoutMs ?? 15_000;
-  if (timeoutMs <= 0 || timeoutMs > DEFAULT_WORK_TIMEOUT_MS) throw new Error("timeout must be between 1 ms and 45 minutes");
+  const catalogTimeoutMs = options.catalogTimeoutMs ?? DEFAULT_CATALOG_TIMEOUT_MS;
   if (cleanupTimeoutMs <= 0 || cleanupTimeoutMs > DEFAULT_CLEANUP_TIMEOUT_MS) {
     throw new Error("cleanup timeout must be between 1 ms and 10 seconds");
   }
-  if (catalogTimeoutMs <= 0 || catalogTimeoutMs > 15_000) {
+  if (catalogTimeoutMs <= 0 || catalogTimeoutMs > DEFAULT_CATALOG_TIMEOUT_MS) {
     throw new Error("catalog timeout must be between 1 ms and 15 seconds");
   }
-  if (idleWarningMs <= 0 || idleTimeoutMs <= idleWarningMs || idleTimeoutMs > DEFAULT_IDLE_TIMEOUT_MS) {
-    throw new Error("idle limits must be positive, ordered, and no longer than 10 minutes");
+  if (activityWarningMs <= 0 || activityIdleMs <= activityWarningMs || activityIdleMs > DEFAULT_ACTIVITY_IDLE_MS) {
+    throw new Error("activity limits must be positive, ordered, and no longer than 10 minutes");
+  }
+  if (progressWarningMs <= 0 || progressStallMs <= progressWarningMs || progressStallMs > DEFAULT_PROGRESS_STALL_MS) {
+    throw new Error("progress limits must be positive, ordered, and no longer than 45 minutes");
+  }
+  if (reportRecoveryIdleMs <= 0 || reportRecoveryIdleMs > DEFAULT_REPORT_RECOVERY_IDLE_MS) {
+    throw new Error("report recovery idle must be between 1 ms and 5 minutes");
   }
 
   // Route selection happens exactly once per invocation through the shared
@@ -340,14 +422,10 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
 
     const attempts: ChainAttempt[] = [];
     const piInvocation = options.piInvocation ?? resolvePiInvocation();
-    // One monotonic productive-work deadline belongs to the whole delegate.
-    // Every provider receives this same absolute deadline.
-    const workDeadline = started + timeoutMs;
-    const workBudgetSeconds = roundedSeconds(timeoutMs);
     let selectedRoute: string | undefined;
     let report = "";
     let finalState: DelegateState = "routes_unavailable";
-    let finalProgress = initialProgress(label, options, workBudgetSeconds);
+    let finalProgress = initialProgress(label, options);
     let restartAfterWorkCount = 0;
     let terminalStreamErrors: readonly string[] = [];
     let delegateOutcome: DelegateOutcome | undefined;
@@ -355,6 +433,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     let reasonStatus: DelegateReasonStatus | undefined;
     let blockedMisuseSuspected: boolean | undefined;
     let deadlineCause: DeadlineCause | undefined;
+    let stallCauseValue: StallCause | undefined;
     let cleanupFailureReason: CleanupFailureReason | undefined;
     let interruptionSourceValue: DelegateRunResult["interruptionSource"];
     options.onProgress?.(finalProgress);
@@ -366,13 +445,6 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         break;
       }
       const route = routes[index]!;
-      const remainingMs = workDeadline - performance.now();
-      if (remainingMs <= 0) {
-        finalState = "timed_out";
-        deadlineCause = "work_deadline";
-        break;
-      }
-      const remainingWorkSecondsAtAttemptStart = roundedSeconds(remainingMs);
 
       finalProgress = {
         ...finalProgress,
@@ -382,7 +454,6 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         lastEvent: "catalog_check",
         lastEventAt: new Date().toISOString(),
         elapsedSeconds: roundedSeconds(performance.now() - started),
-        remainingWorkSecondsAtAttemptStart,
       };
       options.onProgress?.(finalProgress);
       const catalogStarted = performance.now();
@@ -392,7 +463,6 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         resourceSelection.verifyCatalogSpawn,
         route,
         options.cwd,
-        workDeadline,
         catalogTimeoutMs,
         options.signal,
       );
@@ -402,7 +472,6 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
           state: "interrupted",
           elapsedSeconds: roundedSeconds(performance.now() - catalogStarted),
           interruptionSource: interruptionSource(options.signal?.reason),
-          remainingWorkSecondsAtAttemptStart,
         });
         finalState = "interrupted";
         interruptionSourceValue = interruptionSource(options.signal?.reason);
@@ -416,7 +485,6 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
           elapsedSeconds: roundedSeconds(performance.now() - catalogStarted),
           deadlineCause: catalog.deadlineCause,
           cleanupFailureReason,
-          remainingWorkSecondsAtAttemptStart,
         });
         finalState = "cleanup_failed";
         break;
@@ -427,37 +495,18 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
           state: "timed_out",
           elapsedSeconds: roundedSeconds(performance.now() - catalogStarted),
           deadlineCause: catalog.deadlineCause,
-          remainingWorkSecondsAtAttemptStart,
         });
-        if (catalog.deadlineCause === "work_deadline" || workDeadline - performance.now() <= 0) {
-          finalState = "timed_out";
-          deadlineCause = "work_deadline";
-          break;
-        }
-        // A fixed 15-second catalog preflight timeout may continue while the
-        // shared productive-work budget remains.
+        // A fixed 15-second catalog preflight timeout consumes no shared
+        // work budget (none exists); the finite route chain continues.
         continue;
-      }
-      if (workDeadline - performance.now() <= 0) {
-        finalState = "timed_out";
-        deadlineCause = "work_deadline";
-        break;
       }
       if (catalog.outcome === "unavailable") {
         attempts.push({
           route: routeKey(route),
           state: "catalog_unavailable",
           elapsedSeconds: roundedSeconds(performance.now() - catalogStarted),
-          remainingWorkSecondsAtAttemptStart,
         });
         continue;
-      }
-
-      const superviseBudgetMs = workDeadline - performance.now();
-      if (superviseBudgetMs <= 0) {
-        finalState = "timed_out";
-        deadlineCause = "work_deadline";
-        break;
       }
 
       const attemptDir = path.join(artifactDir, `attempt-${String(index + 1).padStart(2, "0")}`);
@@ -471,12 +520,11 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         promptPath,
         restartAfterWorkCount,
         signal: options.signal,
-        timeoutMs: superviseBudgetMs,
-        workDeadline,
-        workBudgetSeconds,
-        remainingWorkSecondsAtAttemptStart,
-        idleWarningMs,
-        idleTimeoutMs,
+        activityWarningMs,
+        activityIdleMs,
+        progressWarningMs,
+        progressStallMs,
+        reportRecoveryIdleMs,
         maxOutputBytes,
         graceMs,
         cleanupTimeoutMs,
@@ -499,12 +547,21 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         state: attemptStatus.state,
         elapsedSeconds: roundedSeconds(performance.now() - attemptStarted),
         deadlineCause: attemptStatus.deadlineCause,
+        stallCause: attemptStatus.stallCause,
+        rpcIdleSeconds: attemptStatus.rpcIdleSeconds,
+        activityIdleSeconds: attemptStatus.activityIdleSeconds,
+        progressIdleSeconds: attemptStatus.progressIdleSeconds,
+        activityEventCount: attemptStatus.activityEventCount,
+        structuralProgressCount: attemptStatus.structuralProgressCount,
+        duplicateCheckpointCount: attemptStatus.duplicateCheckpointCount,
+        activityWarningCount: attemptStatus.activityWarningCount,
+        progressWarningCount: attemptStatus.progressWarningCount,
         cleanupFailureReason: attemptStatus.cleanupFailureReason,
         interruptionSource: attemptStatus.interruptionSource,
-        remainingWorkSecondsAtAttemptStart,
         activeToolCount: attemptStatus.activeToolCount,
         activeToolName: attemptStatus.activeToolName,
         activeToolElapsedSeconds: attemptStatus.activeToolElapsedSeconds,
+        activeToolIdleSeconds: attemptStatus.activeToolIdleSeconds,
       });
 
       if (attemptStatus.state === "completed") {
@@ -517,6 +574,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         reasonStatus = attemptStatus.reasonStatus;
         blockedMisuseSuspected = attemptStatus.blockedMisuseSuspected;
         deadlineCause = attemptStatus.deadlineCause;
+        stallCauseValue = attemptStatus.stallCause;
         cleanupFailureReason = attemptStatus.cleanupFailureReason;
         interruptionSourceValue = attemptStatus.interruptionSource;
         break;
@@ -539,14 +597,9 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         reasonStatus = attemptStatus.reasonStatus;
         blockedMisuseSuspected = attemptStatus.blockedMisuseSuspected;
         deadlineCause = attemptStatus.deadlineCause;
+        stallCauseValue = attemptStatus.stallCause;
         cleanupFailureReason = attemptStatus.cleanupFailureReason;
         interruptionSourceValue = attemptStatus.interruptionSource;
-        break;
-      }
-
-      if (workDeadline - performance.now() <= 0) {
-        finalState = "timed_out";
-        deadlineCause = "work_deadline";
         break;
       }
 
@@ -581,9 +634,9 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       state: finalState,
       elapsedSeconds: elapsed,
       deadlineCause,
+      stallCause: stallCauseValue,
       cleanupFailureReason,
       interruptionSource: interruptionSourceValue,
-      workBudgetSeconds,
     };
     options.onProgress?.(finalProgress);
 
@@ -605,9 +658,9 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       reasonStatus,
       blockedMisuseSuspected,
       deadlineCause,
+      stallCause: stallCauseValue,
       cleanupFailureReason,
       interruptionSource: interruptionSourceValue,
-      workBudgetSeconds,
     };
   } catch (error) {
     // A throw before the successful return (for example a throwing
