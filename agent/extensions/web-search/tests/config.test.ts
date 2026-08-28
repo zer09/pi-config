@@ -9,11 +9,14 @@ describe("config defaults", () => {
     expect(config.parallelApiKeyEnv).toBe("PARALLEL_API_KEY");
     expect(config.exaApiKeyEnv).toBe("EXA_API_KEY");
     expect(config.firecrawlApiKeyEnv).toBe("FIRECRAWL_API_KEY");
+    expect(config.tavilyApiKeyEnv).toBe("TAVILY_API_KEY");
     expect(config.model).toBe("gemini-3.5-flash");
     expect(config.webSearch.defaultDepth).toBe("standard");
     expect(config.webSearch.parallel).toEqual({ standardMode: "basic", deepMode: "advanced" });
     expect(config.webSearch.exa.standard).toEqual({ type: "fast", numResults: 5, maxHighlightCharacters: 2000 });
     expect(config.webSearch.exa.deep).toEqual({ type: "fast", numResults: 10, maxHighlightCharacters: 4000 });
+    expect(config.webSearch.tavily.standard).toEqual({ searchDepth: "basic", maxResults: 5 });
+    expect(config.webSearch.tavily.deep).toEqual({ searchDepth: "advanced", maxResults: 10 });
     expect(config.codeSearch.firecrawl).toEqual({ k: 10, passages: 2 });
     expect(config.codeSearch.exaCode.tokensNum).toBe("dynamic");
     expect(config.contents).toEqual({ defaultMaxAgeHours: 24, concurrency: 3, scrapeTimeoutMs: 60_000 });
@@ -28,6 +31,7 @@ describe("config defaults", () => {
       parallel: { apiKeyEnv: "PARALLEL_ALT" },
       exa: { apiKeyEnv: "EXA_ALT" },
       firecrawl: { apiKeyEnv: "FIRECRAWL_ALT" },
+      tavily: { apiKeyEnv: "TAVILY_ALT" },
       webSearch: {
         model: "gemini-3.5-pro",
         defaultDepth: "deep",
@@ -35,6 +39,10 @@ describe("config defaults", () => {
         exaGrounding: {
           standard: { type: "fast", numResults: 3, maxHighlightCharacters: 900 },
           deep: { type: "fast", numResults: 20, maxHighlightCharacters: 8000 },
+        },
+        tavily: {
+          standard: { searchDepth: "advanced", maxResults: 3 },
+          deep: { searchDepth: "basic", maxResults: 20 },
         },
       },
       codeSearch: { firecrawl: { k: 5, passages: 1 }, exaCode: { tokensNum: 2000 } },
@@ -46,17 +54,44 @@ describe("config defaults", () => {
     expect(config.parallelApiKeyEnv).toBe("PARALLEL_ALT");
     expect(config.exaApiKeyEnv).toBe("EXA_ALT");
     expect(config.firecrawlApiKeyEnv).toBe("FIRECRAWL_ALT");
+    expect(config.tavilyApiKeyEnv).toBe("TAVILY_ALT");
     expect(config.model).toBe("gemini-3.5-pro");
     expect(config.webSearch.defaultDepth).toBe("deep");
     expect(config.webSearch.parallel.standardMode).toBe("advanced");
     expect(config.webSearch.exa.standard.numResults).toBe(3);
     expect(config.webSearch.exa.deep.maxHighlightCharacters).toBe(8000);
+    expect(config.webSearch.tavily.standard).toEqual({ searchDepth: "advanced", maxResults: 3 });
+    expect(config.webSearch.tavily.deep).toEqual({ searchDepth: "basic", maxResults: 20 });
     expect(config.codeSearch.exaCode.tokensNum).toBe(2000);
     expect(config.contents.defaultMaxAgeHours).toBe(48);
     expect(config.contents.concurrency).toBe(6);
     expect(config.cacheDir).toBe("/tmp/alt-cache");
     expect(config.rawResponseTtlMs).toBe(1000);
     expect(config.contentCacheTtlMs).toBe(2000);
+  });
+
+  it("silently falls back to the per-depth Tavily defaults for invalid fields", () => {
+    const config = configFromRaw({
+      webSearch: {
+        tavily: {
+          standard: { searchDepth: "turbo", maxResults: 21 },
+          deep: { searchDepth: null, maxResults: 0 },
+        },
+      },
+    });
+
+    expect(config.webSearch.tavily.standard).toEqual({ searchDepth: "basic", maxResults: 5 });
+    expect(config.webSearch.tavily.deep).toEqual({ searchDepth: "advanced", maxResults: 10 });
+    // Boundary values stay honored.
+    const boundary = configFromRaw({
+      webSearch: { tavily: { standard: { searchDepth: "advanced", maxResults: 1 }, deep: { searchDepth: "basic", maxResults: 20 } } },
+    });
+    expect(boundary.webSearch.tavily.standard).toEqual({ searchDepth: "advanced", maxResults: 1 });
+    expect(boundary.webSearch.tavily.deep).toEqual({ searchDepth: "basic", maxResults: 20 });
+    // Non-integer or non-numeric maxResults values fall back too.
+    const fractional = configFromRaw({ webSearch: { tavily: { standard: { maxResults: 2.5 }, deep: { maxResults: "10" } } } });
+    expect(fractional.webSearch.tavily.standard.maxResults).toBe(5);
+    expect(fractional.webSearch.tavily.deep.maxResults).toBe(10);
   });
 });
 

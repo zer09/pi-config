@@ -75,6 +75,7 @@ export const TEST_ENV_NAMES = {
   parallelApiKeyEnv: "WSE_TEST_PARALLEL_KEY",
   exaApiKeyEnv: "WSE_TEST_EXA_KEY",
   firecrawlApiKeyEnv: "WSE_TEST_FIRECRAWL_KEY",
+  tavilyApiKeyEnv: "WSE_TEST_TAVILY_KEY",
 } as const;
 
 export const TEST_KEYS = {
@@ -82,6 +83,7 @@ export const TEST_KEYS = {
   parallel: "test-parallel-key",
   exa: "test-exa-key",
   firecrawl: "test-firecrawl-key",
+  tavily: "test-tavily-key",
 } as const;
 
 export function setTestEnv(values: Record<string, string | undefined>): void {
@@ -97,6 +99,7 @@ export function clearTestEnv(): void {
     [TEST_ENV_NAMES.parallelApiKeyEnv]: undefined,
     [TEST_ENV_NAMES.exaApiKeyEnv]: undefined,
     [TEST_ENV_NAMES.firecrawlApiKeyEnv]: undefined,
+    [TEST_ENV_NAMES.tavilyApiKeyEnv]: undefined,
   });
 }
 
@@ -133,6 +136,18 @@ export function cleanGroundingBody(answer = "Grounded answer."): unknown {
 
 export function googleErrorBody(message: string, status = 400, label = "INVALID_ARGUMENT"): unknown {
   return { error: { code: status, message, status: label } };
+}
+
+/** A clean Tavily /search success body. */
+export function cleanTavilyBody(results: Array<Record<string, unknown>> = tavilyResults()): unknown {
+  return { results, response_time: 1.23, request_id: "tavily-req-1", usage: { credits: 2 } };
+}
+
+export function tavilyResults(): Array<Record<string, unknown>> {
+  return [
+    { title: "Example Docs", url: "https://example.com/docs", content: "Example documentation snippet.", score: 0.97 },
+    { title: "Example Blog", url: "https://example.com/blog", content: "Example blog snippet.", score: 0.84 },
+  ];
 }
 
 export const EXA_EMPTY_QUERY_MESSAGE =
