@@ -11,7 +11,7 @@
     "../../development/pi-extensions-cursor/packages/pi-cursor"
   ],
   "enabledModels": [
-    "claude-bridge/claude-opus-4-6",
+    "agentrouter/deepseek-v4-flash",
     "cursor/auto-smart",
     "openai-codex/gpt-5.5",
     "openai-codex/gpt-5.6-sol",
@@ -19,16 +19,14 @@
     "openai-codex-cgpt1/gpt-5.6-sol",
     "openai-codex-cgpt2/gpt-5.6-sol",
     "openai-codex-cgpt3/gpt-5.6-sol",
-    "openai-codex-cgpt6/gpt-5.5",
-    "openai-codex-cgpt7/gpt-5.5",
+    "openai-codex-cgpt4/gpt-5.6-sol",
+    "openai-codex-cgpt5/gpt-5.6-sol",
     "openai-codex-cgpt6/gpt-5.6-sol",
     "openai-codex-cgpt7/gpt-5.6-sol",
-    "opencode-go/deepseek-v4-pro",
     "zai/glm-5.3",
-    "agentrouter/claude-opus-5",
     "zai/glm-5.3-flash"
   ],
-  "defaultProvider": "openai-codex-cgpt6",
+  "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.6-sol",
   "defaultThinkingLevel": "high",
   "theme": "light",
