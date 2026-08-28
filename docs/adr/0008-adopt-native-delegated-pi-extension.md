@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. The hardcoded route maps, backend values, and pre-tool-only fallback cutoff this ADR preserved were superseded on 2026-08-23 by the extension-owned routing configuration in ADR 0009. On 2026-08-25, ADR 0010 superseded this ADR's inherited extension and skill discovery for delegated children: children now load only the strict extension allowlist and orchestrator-selected skill candidates from the extension-owned resource policy, so the statement that read-only delegates receive the normal extension set no longer holds (they still receive Pi's normal built-in tool set). Every other supervision, recovery, privacy, and concurrency decision below stands.
+Accepted. The hardcoded route maps, backend values, and pre-tool-only fallback cutoff this ADR preserved were superseded on 2026-08-23 by the extension-owned routing configuration in ADR 0009. On 2026-08-25, ADR 0010 superseded this ADR's inherited extension and skill discovery for delegated children: children now load only the strict extension allowlist and orchestrator-selected skill candidates from the extension-owned resource policy, so the statement that read-only delegates receive the normal extension set no longer holds (they still receive Pi's normal built-in tool set). On 2026-08-27, ADR 0015 superseded the 45-minute wall deadline in the preserved list below: total elapsed time never terminates a delegate, and the 45-minute value is now a renewable maximum gap between novel structural checkpoints. Every other supervision, recovery, privacy, and concurrency decision below stands.
 
 ## Context
 
