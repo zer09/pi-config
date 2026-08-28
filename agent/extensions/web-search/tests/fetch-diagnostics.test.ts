@@ -1002,24 +1002,32 @@ describe("preflight diagnostic records", () => {
     expect(record.category).toBe("invalid_input");
   });
 
-  it("persists a missing-credentials record for the terminal missing Google key", async () => {
+  it("routes a missing Google key through skipped Gemini attempts instead of a preflight failure", async () => {
     setTestEnv({ [TEST_ENV_NAMES.googleCloudApiKeyEnv]: undefined });
     install([]);
 
-    let thrown: unknown;
-    try {
-      await executeWebSearch({ query: "grounded query" }, undefined, { config: config() });
-    } catch (error) {
-      thrown = error;
-    }
-    expect((thrown as Error).message).toContain(`Missing required environment variable ${TEST_ENV_NAMES.googleCloudApiKeyEnv}`);
+    const result = await executeWebSearch({ query: "grounded query" }, undefined, { config: config() });
 
-    const record = await readRecord(responseIdFromError(thrown));
-    expect(record.tool).toBe("web_search");
-    expect(record.category).toBe("missing_credentials");
-    expect(record.attempts).toEqual([]);
-    expect(record.error).toContain("Missing required environment variable");
-    expect(record.metadata).toEqual({ query: "grounded query" });
+    // Missing Google no longer throws: both Gemini stages are recorded as
+    // safe skips and the Tavily skip ends the chain with zero HTTP calls.
+    expect(result.content[0].text).toContain("Web search could not produce usable results");
+    expect(result.details.answerProvider).toBeNull();
+    expect(result.details.attemptProviders).toEqual([
+      "gemini-parallel-grounding",
+      "gemini-exa-grounding",
+      "tavily-search",
+    ]);
+    expect(result.details.failureCategories).toEqual(["skipped_missing_credentials"]);
+
+    const record = JSON.parse(await readRecordFile(result.details.responseId as string));
+    expect(record.phase).toBeUndefined();
+    expect(record.category).toBeUndefined();
+    expect(record.attempts).toHaveLength(3);
+    expect(record.attempts.map((attempt: { error?: string }) => attempt.error)).toEqual([
+      `Missing required environment variable ${TEST_ENV_NAMES.googleCloudApiKeyEnv}`,
+      `Missing required environment variable ${TEST_ENV_NAMES.googleCloudApiKeyEnv}`,
+      `Missing required environment variable ${TEST_ENV_NAMES.tavilyApiKeyEnv}`,
+    ]);
   });
 
   it("falls back to the default cache dir, TTL, and credential env names when the config never loaded", async () => {
@@ -1031,6 +1039,7 @@ describe("preflight diagnostic records", () => {
       parallelApiKeyEnv: "PARALLEL_API_KEY",
       exaApiKeyEnv: "EXA_API_KEY",
       firecrawlApiKeyEnv: "FIRECRAWL_API_KEY",
+      tavilyApiKeyEnv: "TAVILY_API_KEY",
     });
 
     // Same branch executeWebSearch uses when loadConfig fails, exercised with

@@ -2,9 +2,9 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { MAX_CONTENT_CONCURRENCY } from "./limits.js";
+import { MAX_CONTENT_CONCURRENCY, MAX_TAVILY_RESULTS } from "./limits.js";
 import { asPositiveInteger, asRecordOrEmpty, asTrimmedNonEmptyString } from "./value-guards.js";
-import type { ExaGroundingBudget, ParallelGroundingMode, SearchConfig, WebSearchDepth } from "./types.js";
+import type { ExaGroundingBudget, ParallelGroundingMode, SearchConfig, TavilySearchSettings, WebSearchDepth } from "./types.js";
 
 export const ONE_MONTH_MS = 2_592_000_000;
 export const DEFAULT_CACHE_DIR = "~/.pi/web_search_cache";
@@ -19,6 +19,7 @@ export const DEFAULT_CONFIG: SearchConfig = {
   parallelApiKeyEnv: "PARALLEL_API_KEY",
   exaApiKeyEnv: "EXA_API_KEY",
   firecrawlApiKeyEnv: "FIRECRAWL_API_KEY",
+  tavilyApiKeyEnv: "TAVILY_API_KEY",
   model: "gemini-3.5-flash",
   webSearch: {
     defaultDepth: "standard",
@@ -26,6 +27,10 @@ export const DEFAULT_CONFIG: SearchConfig = {
     exa: {
       standard: { type: "fast", numResults: 5, maxHighlightCharacters: 2000 },
       deep: { type: "fast", numResults: 10, maxHighlightCharacters: 4000 },
+    },
+    tavily: {
+      standard: { searchDepth: "basic", maxResults: 5 },
+      deep: { searchDepth: "advanced", maxResults: 10 },
     },
   },
   codeSearch: {
@@ -92,6 +97,27 @@ function optionalExaBudget(value: unknown, fallback: ExaGroundingBudget): ExaGro
   };
 }
 
+/**
+ * Resolves one per-depth Tavily settings record.
+ *
+ * Only `searchDepth: "basic" | "advanced"` and integer `maxResults`
+ * 1..MAX_TAVILY_RESULTS are honored; every other value silently falls back
+ * to the corresponding depth default instead of failing the config load.
+ */
+function optionalTavilySettings(value: unknown, fallback: TavilySearchSettings): TavilySearchSettings {
+  const record = asRecordOrEmpty(value);
+  return {
+    searchDepth: record.searchDepth === "basic" || record.searchDepth === "advanced" ? record.searchDepth : fallback.searchDepth,
+    maxResults:
+      typeof record.maxResults === "number" &&
+      Number.isInteger(record.maxResults) &&
+      record.maxResults >= 1 &&
+      record.maxResults <= MAX_TAVILY_RESULTS
+        ? record.maxResults
+        : fallback.maxResults,
+  };
+}
+
 async function readConfigFile(): Promise<Record<string, unknown>> {
   try {
     const text = await readFile(CONFIG_FILE_PATH, "utf8");
@@ -113,6 +139,7 @@ export function configFromRaw(raw: Record<string, unknown>): SearchConfig {
   const parallel = asRecordOrEmpty(raw.parallel);
   const exa = asRecordOrEmpty(raw.exa);
   const firecrawl = asRecordOrEmpty(raw.firecrawl);
+  const tavily = asRecordOrEmpty(raw.tavily);
   const webSearch = asRecordOrEmpty(raw.webSearch);
   const codeSearch = asRecordOrEmpty(raw.codeSearch);
   const contents = asRecordOrEmpty(raw.contents);
@@ -122,6 +149,7 @@ export function configFromRaw(raw: Record<string, unknown>): SearchConfig {
   const legacyExaGrounding = asRecordOrEmpty(webSearch.exaGrounding);
 
   const parallelSection = asRecordOrEmpty(webSearch.parallel);
+  const tavilySection = asRecordOrEmpty(webSearch.tavily);
   const firecrawlSection = asRecordOrEmpty(codeSearch.firecrawl);
   const exaCodeSection = asRecordOrEmpty(codeSearch.exaCode);
 
@@ -153,6 +181,7 @@ export function configFromRaw(raw: Record<string, unknown>): SearchConfig {
     parallelApiKeyEnv: optionalString(parallel.apiKeyEnv, DEFAULT_CONFIG.parallelApiKeyEnv),
     exaApiKeyEnv: optionalString(exa.apiKeyEnv, DEFAULT_CONFIG.exaApiKeyEnv),
     firecrawlApiKeyEnv: optionalString(firecrawl.apiKeyEnv, DEFAULT_CONFIG.firecrawlApiKeyEnv),
+    tavilyApiKeyEnv: optionalString(tavily.apiKeyEnv, DEFAULT_CONFIG.tavilyApiKeyEnv),
     model: optionalString(webSearch.model, optionalString(legacyGrounding.model, DEFAULT_CONFIG.model)),
     webSearch: {
       defaultDepth: optionalDepth(webSearch.defaultDepth, DEFAULT_CONFIG.webSearch.defaultDepth),
@@ -163,6 +192,10 @@ export function configFromRaw(raw: Record<string, unknown>): SearchConfig {
       exa: {
         standard: optionalExaBudget(legacyExaGrounding.standard, legacyGroundingBudget ?? DEFAULT_CONFIG.webSearch.exa.standard),
         deep: optionalExaBudget(legacyExaGrounding.deep, legacyGroundingBudget ?? DEFAULT_CONFIG.webSearch.exa.deep),
+      },
+      tavily: {
+        standard: optionalTavilySettings(tavilySection.standard, DEFAULT_CONFIG.webSearch.tavily.standard),
+        deep: optionalTavilySettings(tavilySection.deep, DEFAULT_CONFIG.webSearch.tavily.deep),
       },
     },
     codeSearch: {

@@ -10,6 +10,8 @@
 import { createHash } from "node:crypto";
 import { configLoaderFallbackCacheDirForTests, DEFAULT_CONFIG, readConfiguredEnv } from "./config.js";
 import { isUsableGroundingAttempt } from "./grounding-failure.js";
+import { isUsableTavilySearch } from "./tavily-search.js";
+import { MAX_TAVILY_RESULTS } from "./limits.js";
 import { sanitizeResponseId, writeStoredResponse } from "./storage.js";
 import { stripTerminalControlSequences } from "./terminal-sanitize.js";
 import { redactSecrets, redactString, type SecretForRedaction } from "./redact.js";
@@ -26,6 +28,8 @@ import type {
   StoredFetchResult,
   StoredPreflightRecord,
   StoredToolRecord,
+  TavilySearchAttempt,
+  WebSearchAttempt,
 } from "./types.js";
 
 /** Upper bound for any diagnostic string (errors, warnings, header values). */
@@ -48,6 +52,10 @@ export const DIAGNOSTIC_MAX_SUPPORT_CHUNK_INDICES = 25;
 export const DIAGNOSTIC_MAX_CODE_ARTIFACTS = 25;
 /** Upper bound for persisted passages on one stored code artifact. */
 export const DIAGNOSTIC_MAX_CODE_PASSAGES = 25;
+/** Upper bound for persisted Tavily results on one stored normalized response. */
+export const DIAGNOSTIC_MAX_TAVILY_RESULTS = MAX_TAVILY_RESULTS;
+/** Upper bound for persisted Tavily result content per result. */
+export const DIAGNOSTIC_MAX_TAVILY_CONTENT_CHARS = 4_000;
 /** Serial bound for arbitrary provider metadata fields (coverage, cost, usage previews). */
 export const DIAGNOSTIC_MAX_ARBITRARY_FIELD_CHARS = 500;
 /**
@@ -69,7 +77,6 @@ export const DIAGNOSTIC_SUFFIX_TEMPLATE = ` Diagnostic responseId=`;
 export const PREFLIGHT_CATEGORY = {
   invalidInput: "invalid_input",
   configLoadFailure: "config_load_failure",
-  missingCredentials: "missing_credentials",
 } as const;
 
 function truncateDiagnosticText(value: string, maxChars: number): string {
@@ -395,6 +402,66 @@ export function boundCodeSearchAttemptForStorage(attempt: CodeSearchAttempt, sec
   };
 }
 
+/** Explicit bounded storage copy of one Tavily normalized response. */
+function boundTavilyNormalizedForStorage(
+  normalized: NonNullable<TavilySearchAttempt["normalized"]>,
+  secrets: SecretForRedaction[],
+): NonNullable<TavilySearchAttempt["normalized"]> {
+  const results = normalized.results.slice(0, DIAGNOSTIC_MAX_TAVILY_RESULTS);
+  return {
+    results: results.map((result) => ({
+      title: sanitizeDiagnosticText(result.title, secrets),
+      url: boundUrlForStorage(result.url, secrets),
+      content: truncateDiagnosticText(
+        stripTerminalControlSequences(redactString(result.content, secrets)),
+        DIAGNOSTIC_MAX_TAVILY_CONTENT_CHARS,
+      ),
+      score: Number.isFinite(result.score) ? result.score : undefined,
+    })),
+    resultsTotal: normalized.resultsTotal,
+    usableResultsCount: normalized.usableResultsCount,
+    resultsOmitted: normalized.resultsOmitted,
+    resultsArrayPresent: normalized.resultsArrayPresent,
+    requestId: boundOptionalString(normalized.requestId, secrets),
+    responseTime: Number.isFinite(normalized.responseTime) ? normalized.responseTime : undefined,
+    usageCredits: Number.isFinite(normalized.usageCredits) ? normalized.usageCredits : undefined,
+  };
+}
+
+/**
+ * Bounded storage copy of the recorded final delivered count. Only a finite
+ * nonnegative value survives, capped at the Tavily retention bound; the
+ * count is copied verbatim, never recomputed from stored URLs.
+ */
+function boundTavilyDeliveredCountForStorage(count: number | undefined): number | undefined {
+  if (count === undefined || !Number.isFinite(count) || count < 0) return undefined;
+  return Math.min(Math.floor(count), DIAGNOSTIC_MAX_TAVILY_RESULTS);
+}
+
+/**
+ * Storage normalization for one Tavily attempt, exported so the
+ * stored-record normalization can be tested deterministically.
+ *
+ * The copy is explicit, never a spread, so provider-controlled Tavily values
+ * are stored only through their bounded copy: at most 20 results with title
+ * strings bounded at 500, URLs through the diagnostic URL bound, content
+ * bounded at 4 000 per result, and only finite numeric score, response time,
+ * and usage credits. Counters, results-array presence, and the recorded
+ * final delivered count survive as bounded numeric fields.
+ */
+export function boundTavilyAttemptForStorage(attempt: TavilySearchAttempt, secrets: SecretForRedaction[]): TavilySearchAttempt {
+  return {
+    provider: attempt.provider,
+    requestStartedAt: attempt.requestStartedAt,
+    elapsedMs: attempt.elapsedMs,
+    rawRequest: attempt.rawRequest && boundRawRequestForStorage(attempt.rawRequest, secrets),
+    rawResponse: attempt.rawResponse && boundRawResponseForStorage(attempt.rawResponse, secrets),
+    normalized: attempt.normalized && boundTavilyNormalizedForStorage(attempt.normalized, secrets),
+    deliveredResultsCount: boundTavilyDeliveredCountForStorage(attempt.deliveredResultsCount),
+    error: attempt.error !== undefined ? sanitizeDiagnosticText(attempt.error, secrets) : undefined,
+  };
+}
+
 /**
  * Canonical stored order for fetch attempts: synchronous dispatch ordinal
  * first, start timestamp only as the fallback for attempts without one.
@@ -468,6 +535,7 @@ export type PreflightRecordSettings = {
     parallelApiKeyEnv: string;
     exaApiKeyEnv: string;
     firecrawlApiKeyEnv: string;
+    tavilyApiKeyEnv: string;
   };
 };
 
@@ -487,6 +555,7 @@ export function preflightSettingsFrom(config?: SearchConfig): PreflightRecordSet
       parallelApiKeyEnv: config?.parallelApiKeyEnv ?? DEFAULT_CONFIG.parallelApiKeyEnv,
       exaApiKeyEnv: config?.exaApiKeyEnv ?? DEFAULT_CONFIG.exaApiKeyEnv,
       firecrawlApiKeyEnv: config?.firecrawlApiKeyEnv ?? DEFAULT_CONFIG.firecrawlApiKeyEnv,
+      tavilyApiKeyEnv: config?.tavilyApiKeyEnv ?? DEFAULT_CONFIG.tavilyApiKeyEnv,
     },
   };
 }
@@ -497,6 +566,7 @@ function secretsForSettings(settings: PreflightRecordSettings): SecretForRedacti
     { label: settings.envNames.parallelApiKeyEnv, value: readConfiguredEnv(settings.envNames.parallelApiKeyEnv) },
     { label: settings.envNames.exaApiKeyEnv, value: readConfiguredEnv(settings.envNames.exaApiKeyEnv) },
     { label: settings.envNames.firecrawlApiKeyEnv, value: readConfiguredEnv(settings.envNames.firecrawlApiKeyEnv) },
+    { label: settings.envNames.tavilyApiKeyEnv, value: readConfiguredEnv(settings.envNames.tavilyApiKeyEnv) },
   ].filter((secret) => secret.value !== undefined);
 }
 
@@ -644,6 +714,30 @@ export function groundingFailureCategory(attempt: GroundingAttempt): string | nu
   const finishReason = attempt.normalized?.finishReason;
   if (finishReason && finishReason !== "STOP") return `finish_${finishReason}`;
   return attempt.error ? "error" : "unusable";
+}
+
+/** Safe failure category for one Tavily attempt, or null when it was usable. */
+export function tavilyFailureCategory(attempt: TavilySearchAttempt): string | null {
+  // Status-first classification mirrors the other providers: no parsed body
+  // can masquerade as usable under a failing HTTP status.
+  const status = attempt.rawResponse?.status;
+  if (typeof status !== "number") {
+    if (attempt.error) return missingCredentials(attempt.error) ? "skipped_missing_credentials" : "transport_error";
+    return "unusable";
+  }
+  if (status < 200 || status >= 300) return `http_${status}`;
+  const normalized = attempt.normalized;
+  if (!normalized) return "unparsed";
+  if (normalized.resultsArrayPresent && normalized.resultsTotal === 0) return "no_results";
+  // Null exactly when the routing usability predicate accepts the attempt;
+  // a missing results array, an all-dropped array, or a recorded zero
+  // post-redaction delivery stays unusable.
+  return isUsableTavilySearch(attempt) ? null : "unusable";
+}
+
+/** Safe failure-category dispatcher for any web_search attempt. */
+export function webSearchFailureCategory(attempt: WebSearchAttempt): string | null {
+  return attempt.provider === "tavily-search" ? tavilyFailureCategory(attempt) : groundingFailureCategory(attempt);
 }
 
 /** Safe failure category for one code-search attempt, or null when it was usable. */

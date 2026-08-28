@@ -9,6 +9,7 @@ const { executeWebSearch } = await import("../src/tools.js");
 const { responsePath } = await import("../src/storage.js");
 const {
   cleanGroundingBody,
+  cleanTavilyBody,
   clearTestEnv,
   EXA_EMPTY_QUERY_MESSAGE,
   googleErrorBody,
@@ -21,6 +22,7 @@ const {
 } = await import("./helpers.js");
 
 const GEMINI_URL = "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.5-flash:generateContent";
+const TAVILY_URL = "https://api.tavily.com/search";
 
 function safetyBlockedBody(): unknown {
   return { promptFeedback: { blockReason: "SAFETY" }, candidates: [] };
@@ -178,25 +180,40 @@ describe("web_search grounding orchestration", () => {
     expect(calls).toHaveLength(1);
     expect(result.details.fallbackUsed).toBe(false);
     expect(result.details.answerProvider).toBeNull();
-    expect(result.content[0].text).toContain("Web search could not produce a grounded answer");
+    expect(result.content[0].text).toContain("Web search could not produce usable results");
   });
 
-  it("treats a missing Google credential as terminal", async () => {
-    setTestEnv({ [TEST_ENV_NAMES.googleCloudApiKeyEnv]: undefined });
-    install([]);
-    await expect(run()).rejects.toThrow("Missing required environment variable WSE_TEST_GOOGLE_KEY");
-    expect(calls).toHaveLength(0);
+  it("does not preflight-throw on a missing Google credential and skips both Gemini stages", async () => {
+    setTestEnv({ [TEST_ENV_NAMES.googleCloudApiKeyEnv]: undefined, [TEST_ENV_NAMES.tavilyApiKeyEnv]: TEST_KEYS.tavily });
+    install([jsonResponse(cleanTavilyBody())]);
+    const result = await run();
+
+    // Only the Tavily call is made; both Gemini stages are recorded as skips.
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe(TAVILY_URL);
+    expect(result.details.attemptProviders).toEqual([
+      "gemini-parallel-grounding",
+      "gemini-exa-grounding",
+      "tavily-search",
+    ]);
+    expect(result.details.failureCategories).toEqual(["skipped_missing_credentials"]);
+    expect(result.details.answerProvider).toBe("tavily-search");
+    expect(result.details.fallbackUsed).toBe(true);
+    expect(result.content[0].text).toContain("## Search results");
   });
 
   it("records a skipped Exa attempt when only the Exa key is missing", async () => {
-    setTestEnv({ [TEST_ENV_NAMES.exaApiKeyEnv]: undefined });
-    install([jsonResponse(googleErrorBody("upstream unavailable", 503, "UNAVAILABLE"))]);
+    setTestEnv({ [TEST_ENV_NAMES.exaApiKeyEnv]: undefined, [TEST_ENV_NAMES.tavilyApiKeyEnv]: TEST_KEYS.tavily });
+    install([jsonResponse(googleErrorBody("upstream unavailable", 503, "UNAVAILABLE")), jsonResponse(cleanTavilyBody())]);
     const result = await run();
 
-    expect(calls).toHaveLength(1);
-    expect(result.details.attemptProviders).toEqual(["gemini-parallel-grounding", "gemini-exa-grounding"]);
-    expect(result.details.answerProvider).toBeNull();
-    expect(result.content[0].text).toContain("Web search could not produce a grounded answer");
+    expect(calls).toHaveLength(2);
+    expect(result.details.attemptProviders).toEqual([
+      "gemini-parallel-grounding",
+      "gemini-exa-grounding",
+      "tavily-search",
+    ]);
+    expect(result.details.answerProvider).toBe("tavily-search");
   });
 
   it("keeps provider failures out of model-visible output when both partners fail", async () => {
@@ -211,12 +228,18 @@ describe("web_search grounding orchestration", () => {
     expect(text).not.toContain("500");
     expect(text).not.toContain("test-google-key");
     expect(text).not.toContain("test-exa-key");
-    expect(text).toContain("Web search could not produce a grounded answer");
-    expect(result.details.attemptCount).toBe(2);
+    expect(text).not.toContain("test-tavily-key");
+    expect(text).toContain("Web search could not produce usable results");
+    // Parallel 429, Exa 500, then the Tavily skip: three attempts, one skip.
+    expect(result.details.attemptCount).toBe(3);
+    expect(result.details.failureCategories).toEqual(["http_429", "http_500", "skipped_missing_credentials"]);
   });
 
-  it("redacts all four credentials from the stored record", async () => {
-    install([jsonResponse(cleanGroundingBody())]);
+  it("redacts all five credentials from the stored record", async () => {
+    setTestEnv({ [TEST_ENV_NAMES.tavilyApiKeyEnv]: TEST_KEYS.tavily });
+    install([
+      jsonResponse(cleanGroundingBody()),
+    ]);
     const result = await run();
 
     const stored = await readFile(responsePath(cacheDir, result.details.responseId as string), "utf8");
@@ -224,11 +247,13 @@ describe("web_search grounding orchestration", () => {
     expect(stored).not.toContain(TEST_KEYS.parallel);
     expect(stored).not.toContain(TEST_KEYS.exa);
     expect(stored).not.toContain(TEST_KEYS.firecrawl);
+    expect(stored).not.toContain(TEST_KEYS.tavily);
     const record = JSON.parse(stored);
-    expect(record.schemaVersion).toBe(2);
+    expect(record.schemaVersion).toBe(3);
     expect(record.tool).toBe("web_search");
     expect(record.depth).toBe("standard");
     expect(record.selectedProvider).toBe("gemini-parallel-grounding");
+    expect(record.selectedResult.provider).toBe("gemini-parallel-grounding");
     expect(record.attempts[0].rawRequest.headers["x-goog-api-key"]).toBe("[REDACTED_WSE_TEST_GOOGLE_KEY]");
     expect(JSON.stringify(record.attempts[0].rawRequest.body)).toContain("[REDACTED_WSE_TEST_PARALLEL_KEY]");
   });

@@ -397,10 +397,12 @@ describe("best-effort main record writes", () => {
       { config: config() },
     );
 
-    expect(result.content[0].text).toContain("Web search could not produce a grounded answer");
+    expect(result.content[0].text).toContain("Web search could not produce usable results");
     expect(result.details!.responseId).toMatch(/^wse_/);
     expect(result.details!.answerProvider).toBeNull();
-    expect(result.details!.failureCategories).toEqual(["http_503", "http_500"]);
+    // Both partners fail operationally, then the unconfigured Tavily fallback
+    // is recorded as a credential skip.
+    expect(result.details!.failureCategories).toEqual(["http_503", "http_500", "skipped_missing_credentials"]);
     await expectNoRecordsWritten(responsesDir);
   });
 

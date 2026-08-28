@@ -103,6 +103,10 @@ function resultDetailsSummary(toolName: WebSearchToolName, result: ToolResult): 
     const provider = details.answerProvider === null ? "none" : asString(details.answerProvider) ?? "gemini-parallel-grounding";
     const attempts = asNumber(details.attemptCount) ?? 1;
     const fallbackFrom = asString(details.fallbackFrom);
+    // A degraded web_search result is a Tavily ordered source document shown
+    // with its delivered result count instead of grounding counts.
+    const degraded = details.degraded === true;
+    const resultCount = asNumber(details.resultCount);
     const finalStatus = asNumber(details.primaryStatus);
     // A 2xx primary can still need fallback (non-STOP finish, empty answer), so
     // an HTTP label is only meaningful for a failing status.
@@ -119,6 +123,8 @@ function resultDetailsSummary(toolName: WebSearchToolName, result: ToolResult): 
     const [providers, failures, elapsed] = attemptSummaryParts(details);
     return [
       `provider=${provider}`,
+      degraded ? "degraded=true" : "",
+      resultCount !== undefined ? `results=${resultCount}` : "",
       `attempts=${attempts}`,
       providers,
       failures,
