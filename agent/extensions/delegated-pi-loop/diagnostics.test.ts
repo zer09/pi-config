@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   diagnosticPermissions,
   failureDiagnostic,
+  isSuccessTelemetryName,
   retentionProbes,
   SCHEMA_VERSION,
   schemaSevenRecord,
@@ -715,11 +716,13 @@ test("retention order is deterministic by write time with a filename tie-breaker
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const base = Date.now() - 3_600_000;
     // Identical write times: the filename tie-breaker decides deterministically.
+    // The seeded names use the full writer-generated shape (numeric timestamp,
+    // pid, and counter segments) because only writer-owned names are candidates.
     const sameTime = new Date(base);
     const names = [
-      "success-v7-implementation-1000-1-a.json",
-      "success-v7-implementation-1000-1-b.json",
-      "success-v7-implementation-1000-1-c.json",
+      "success-v7-implementation-1000-1-1.json",
+      "success-v7-implementation-1000-1-2.json",
+      "success-v7-implementation-1000-1-3.json",
     ];
     for (const name of names) await seedSuccessFile(directory, name, sameTime);
     const written = await writeSuccessTelemetry(completedResult(), 2);
@@ -728,10 +731,90 @@ test("retention order is deterministic by write time with a filename tie-breaker
     // lexicographically smallest seeded names; the newest seeded name and
     // the freshly written record (newest mtime) survive.
     assert.equal(remaining.length, 2);
-    assert.ok(remaining.includes("success-v7-implementation-1000-1-c.json"));
-    assert.ok(!remaining.includes("success-v7-implementation-1000-1-a.json"));
-    assert.ok(!remaining.includes("success-v7-implementation-1000-1-b.json"));
+    assert.ok(remaining.includes("success-v7-implementation-1000-1-3.json"));
+    assert.ok(!remaining.includes("success-v7-implementation-1000-1-1.json"));
+    assert.ok(!remaining.includes("success-v7-implementation-1000-1-2.json"));
     assert.ok(remaining.includes(path.basename(written)));
+  });
+});
+
+test("near-miss success-v7-looking names are never pruning candidates and survive retention", async () => {
+  await withDiagnosticsRoot(async (root) => {
+    const directory = path.join(root, "logs", "delegated-pi-loop");
+    const base = Date.now() - 3_600_000;
+    // Regular files whose names only look extension-owned: too few segments,
+    // a non-numeric timestamp/pid/counter segment, empty numeric segments.
+    const foreign = [
+      "success-v7-not-owned.json",
+      "success-v7-abc.json",
+      "success-v7-label-notatime-123-4.json",
+      "success-v7-label-123-x-4.json",
+      "success-v7-label-123-4-x.json",
+      "success-v7-label--123-4.json",
+      "success-v7-label-123--4.json",
+      "success-v7-label-123-4-.json",
+    ];
+    for (const name of foreign) assert.equal(isSuccessTelemetryName(name), false, name);
+    // The foreign files are seeded as the oldest regular files: under a
+    // prefix-plus-suffix check they would be the first pruning victims.
+    const foreignBefore: { name: string; mtimeMs: number }[] = [];
+    for (let index = 0; index < foreign.length; index += 1) {
+      await seedSuccessFile(directory, foreign[index]!, new Date(base - 60_000 + index));
+      const filePath = path.join(directory, foreign[index]!);
+      foreignBefore.push({ name: foreign[index]!, mtimeMs: (await stat(filePath)).mtimeMs });
+    }
+    const seeded = [
+      "success-v7-implementation-1000-1-1.json",
+      "success-v7-implementation-1000-1-2.json",
+      "success-v7-implementation-1000-1-3.json",
+      "success-v7-implementation-1000-1-4.json",
+      "success-v7-implementation-1000-1-5.json",
+    ];
+    for (let index = 0; index < seeded.length; index += 1) {
+      await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
+    }
+    await writeSuccessTelemetry(completedResult(), 2);
+    // Genuine writer-shaped records are still pruned down to the limit.
+    const remaining = await successEntries(directory);
+    const genuine = remaining.filter(isSuccessTelemetryName);
+    assert.equal(genuine.length, 2, `genuine records must be pruned to the limit, got ${genuine.join(",")}`);
+    for (const name of seeded.slice(0, 4)) assert.ok(!remaining.includes(name), name);
+    assert.ok(remaining.includes(seeded[4]!), "the newest genuine record must survive");
+    // Every foreign regular file survives untouched with identical bytes and mtime.
+    for (const entry of foreignBefore) {
+      const filePath = path.join(directory, entry.name);
+      assert.equal(await readFile(filePath, "utf8"), "{}\n", entry.name);
+      assert.equal((await stat(filePath)).mtimeMs, entry.mtimeMs, entry.name);
+    }
+  });
+});
+
+test("every writer-generated success filename matches the name filter across varied labels", async () => {
+  await withDiagnosticsRoot(async (root) => {
+    const directory = path.join(root, "logs", "delegated-pi-loop");
+    // Labels that exercise every safeLabel edge: plain, hyphenated, dotted,
+    // interior sanitization, the empty-after-sanitization fallback, and the
+    // 64-character slice bound.
+    const labels = [
+      "implementation",
+      "schema-7-fix",
+      "progress.gap.telemetry",
+      "fix.7 schema v2",
+      "/// ??? !!!",
+      "a".repeat(100),
+    ];
+    for (const label of labels) {
+      const filePath = await writeSuccessTelemetry(completedResult({ label }), 3);
+      const name = path.basename(filePath);
+      // A false rejection would silently disable retention and break the bound.
+      assert.ok(isSuccessTelemetryName(name), `writer output must stay a retention candidate: ${name}`);
+    }
+    const names = await successEntries(directory);
+    // The sanitization fallback still produces a bounded, writer-owned name.
+    assert.ok(names.some((name) => name.startsWith(`${SUCCESS_FILE_PREFIX}delegate-`)), "the empty-after-sanitization fallback must produce a delegate-labeled name");
+    // Retention still prunes genuine writer output down to the injectable limit.
+    assert.equal(names.length, 3, `varied-label writes must still prune to the limit, got ${names.join(",")}`);
+    assert.ok(names.every(isSuccessTelemetryName));
   });
 });
 

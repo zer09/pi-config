@@ -213,9 +213,37 @@ export async function writeFailureDiagnosticQuietly(result: DelegateRunResult): 
   }
 }
 
-/** True only for exact extension-owned success-telemetry filenames. */
-function isSuccessTelemetryName(name: string): boolean {
-  return name.startsWith(SUCCESS_FILE_PREFIX) && name.endsWith(".json");
+/**
+ * Exactly the characters `safeLabel` (artifacts.ts) can emit: its replace
+ * step maps every run of characters outside `[A-Za-z0-9._-]` to `-`, the
+ * leading/trailing `[-.]+` strip and the `slice(0, 64)` never add new
+ * characters, and the `|| "delegate"` fallback guarantees at least one
+ * character.
+ */
+const SAFE_LABEL_SHAPE = /^[A-Za-z0-9._-]+$/;
+/** One or more ASCII digits: the shape of `Date.now()`, `process.pid`, and the write counter. */
+const DIGIT_SEGMENT = /^[0-9]+$/;
+
+/**
+ * True only for the complete writer-generated success-telemetry filename
+ * shape `success-v7-<label>-<timestamp>-<pid>-<counter>.json` produced by
+ * writeRunDiagnostic. `safeLabel` output may itself contain hyphens, so the
+ * three numeric segments are anchored from the right: the final three
+ * hyphen-separated segments before `.json` must each be one or more ASCII
+ * digits, and the joined remainder (the label portion) must consist exactly
+ * of characters `safeLabel` can emit. Every other `success-v7-*.json`-looking
+ * name is not writer-owned and is never a pruning candidate.
+ */
+export function isSuccessTelemetryName(name: string): boolean {
+  if (!name.startsWith(SUCCESS_FILE_PREFIX) || !name.endsWith(".json")) return false;
+  const segments = name.slice(SUCCESS_FILE_PREFIX.length, name.length - ".json".length).split("-");
+  // The writer always emits a non-empty label plus three numeric segments.
+  if (segments.length < 4) return false;
+  const counter = segments.pop()!;
+  const pid = segments.pop()!;
+  const timestamp = segments.pop()!;
+  return DIGIT_SEGMENT.test(timestamp) && DIGIT_SEGMENT.test(pid) && DIGIT_SEGMENT.test(counter)
+    && SAFE_LABEL_SHAPE.test(segments.join("-"));
 }
 
 /**
