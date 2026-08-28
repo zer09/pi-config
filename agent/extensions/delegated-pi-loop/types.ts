@@ -445,7 +445,7 @@ export interface RunOptions {
   readonly activityWarningMs?: number;
   /** Internal test seam for the ten-minute accepted-activity idle lease. */
   readonly activityIdleMs?: number;
-  /** Internal test seam for the thirty-minute structural-progress warning. */
+  /** Internal test seam for the fifteen-minute structural-progress warning. */
   readonly progressWarningMs?: number;
   /** Internal test seam for the renewable 45-minute structural-progress lease. */
   readonly progressStallMs?: number;

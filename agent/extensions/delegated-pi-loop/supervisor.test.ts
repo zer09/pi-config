@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
+import { writeFileSync } from "node:fs";
 import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createPrivateDirectory } from "./artifacts.ts";
 import { REPORT_RECOVERY_PROMPT } from "./instructions.ts";
 import {
+  DEFAULT_PROGRESS_STALL_MS,
+  DEFAULT_PROGRESS_WARNING_MS,
   supervisePi,
   terminateProcessGroupWith,
   terminationProbes,
@@ -754,6 +757,124 @@ setInterval(() => {}, 1000);
   assert.equal(status.deadlineCause, undefined);
   assert.ok(status.elapsedSeconds >= 1.5, `several lease equivalents must elapse, got ${status.elapsedSeconds}s`);
   assert.ok(status.structuralProgressCount >= 13);
+});
+
+test("a novel checkpoint between stale intervals re-arms the one-shot progress-warning latch", async () => {
+  // Observation-driven latch proof: the child keeps RPC health and the
+  // accepted-activity lease fresh with novel nonstructural text deltas only,
+  // and emits its authoritative structural checkpoint and its terminal
+  // completion only after the test observes each progress warning on the
+  // progress sink and drops the matching marker file in the shared fixture
+  // directory. The checkpoint timing therefore follows the observed latch
+  // behavior, never a fixed delay, and no real 15-minute threshold runs.
+  const script = `
+import { existsSync } from "node:fs";
+let buffer = "";
+let phase = "waiting";
+function emit(event) {
+  process.stdout.write(JSON.stringify(event) + "\\n");
+}
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  while (buffer.includes("\\n")) {
+    const index = buffer.indexOf("\\n");
+    const line = buffer.slice(0, index);
+    buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type !== "prompt") continue;
+    process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+    let deltas = 0;
+    const activityTimer = setInterval(() => {
+      deltas += 1;
+      emit({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "fresh " + deltas } });
+    }, 25);
+    const checkpointPoll = setInterval(() => {
+      if (phase === "waiting" && existsSync("warn1.marker")) {
+        phase = "checkpointed";
+        clearInterval(checkpointPoll);
+        emit({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "structural checkpoint " + Date.now() + "-" + deltas }] } });
+      }
+    }, 15);
+    const completePoll = setInterval(() => {
+      if (phase === "checkpointed" && existsSync("warn2.marker")) {
+        clearInterval(completePoll);
+        // Deltas must stop before the agent lifecycle closes: a delta racing
+        // past agent_end would poison the stream, not renew any lease.
+        clearInterval(activityTimer);
+        emit({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Done\\n\\nDELEGATE_RESULT: COMPLETED" }] } });
+        emit({ type: "agent_end", willRetry: false });
+        emit({ type: "agent_settled" });
+      }
+    }, 15);
+  }
+});
+setInterval(() => {}, 1000);
+`;
+  const built = await fixture(script);
+  const attemptDir = path.join(built.root, "attempt");
+  await createPrivateDirectory(attemptDir);
+  const progress: DelegateProgress[] = [];
+  let markerFailure: unknown;
+  let droppedFirstMarker = false;
+  let droppedSecondMarker = false;
+  const dropMarker = (name: string): void => {
+    try {
+      writeFileSync(path.join(built.root, name), "");
+    } catch (error) {
+      markerFailure ??= error;
+    }
+  };
+  const status = await supervisePi({
+    label: "test",
+    role: "review-a",
+    attempt: 1,
+    cwd: built.root,
+    artifactDir: attemptDir,
+    promptPath: built.promptPath,
+    route: ROUTE,
+    piInvocation: built.invocation,
+    runtimeResourceArgs: RUNTIME_RESOURCE_ARGS,
+    verifyRuntimeResources: () => {},
+    activityWarningMs: 1000,
+    activityIdleMs: 5000,
+    progressWarningMs: 300,
+    progressStallMs: 9000,
+    reportRecoveryIdleMs: 5000,
+    maxOutputBytes: 1024 * 1024,
+    graceMs: 100,
+    cleanupTimeoutMs: 2000,
+    onProgress: (value) => {
+      progress.push(value);
+      if (!droppedFirstMarker && value.progressWarningCount >= 1) {
+        droppedFirstMarker = true;
+        dropMarker("warn1.marker");
+      }
+      if (droppedFirstMarker && !droppedSecondMarker && value.progressWarningCount >= 2) {
+        droppedSecondMarker = true;
+        dropMarker("warn2.marker");
+      }
+    },
+  });
+  assert.equal(markerFailure, undefined, "marker delivery must not fail the progress sink");
+  assert.equal(status.state, "completed");
+  assert.equal(status.stallCause, undefined);
+  assert.equal(status.deadlineCause, undefined);
+  // The latch fired exactly once per stale interval and never a third time.
+  assert.equal(status.progressWarningCount, 2);
+  assert.equal(status.activityWarningCount, 0, "nonstructural updates keep the activity lease fresh");
+  const firstWarning = progress.find((item) => item.progressWarningCount === 1);
+  const secondWarning = progress.find((item) => item.progressWarningCount === 2);
+  assert.ok(firstWarning, "the first progress warning must be observed");
+  assert.ok(secondWarning, "the re-armed latch must warn again on the second stale interval");
+  assert.equal(firstWarning.leaseWarning, "progress");
+  assert.equal(secondWarning.leaseWarning, "progress");
+  assert.ok(
+    secondWarning.structuralProgressCount > firstWarning.structuralProgressCount,
+    "the second warning must follow the counted novel checkpoint between the intervals",
+  );
+  assert.ok(status.elapsedSeconds < 10, `short injected thresholds must bound the run, got ${status.elapsedSeconds}s`);
 });
 
 
@@ -1926,6 +2047,13 @@ test("a missing leader close proof propagates close_unconfirmed", async () => {
   } finally {
     terminationProbes.build = originalBuild;
   }
+});
+
+test("production liveness defaults are the approved 15-minute warning and 45-minute stall", () => {
+  // Pure reducer tests inject thresholds; this pins the shipped defaults so
+  // they cannot drift while liveness.test.ts keeps using injected values.
+  assert.equal(DEFAULT_PROGRESS_WARNING_MS, 15 * 60 * 1000);
+  assert.equal(DEFAULT_PROGRESS_STALL_MS, 45 * 60 * 1000);
 });
 
 test("supervisor source contains no total-work deadline timer or budget", async () => {
