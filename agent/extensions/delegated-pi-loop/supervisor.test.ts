@@ -9,6 +9,7 @@ import { REPORT_RECOVERY_PROMPT } from "./instructions.ts";
 import {
   DEFAULT_PROGRESS_STALL_MS,
   DEFAULT_PROGRESS_WARNING_MS,
+  observableProgressGapMs,
   supervisePi,
   terminateProcessGroupWith,
   terminationProbes,
@@ -2071,4 +2072,305 @@ test("supervisor source contains no total-work deadline timer or budget", async 
     assert.ok(!source.includes(forbidden), `supervisor.ts must not contain "${forbidden}"`);
   }
   assert.match(source, /setInterval\(/);
+});
+
+/** Fixed snapshot fixture for the pure maximum-gap combination seam. */
+function gapSnapshot(completed: number, lastStructural: number): Parameters<typeof observableProgressGapMs>[0] {
+  return {
+    phase: "tool",
+    lastEvent: "tool_execution_end",
+    lastEventAt: "2026-01-01T00:00:00.000Z",
+    lastValidRpcMonotonic: 0,
+    lastActivityMonotonic: 0,
+    lastStructuralProgressMonotonic: lastStructural,
+    maxCompletedProgressGapMs: completed,
+    activityEventCount: 0,
+    structuralProgressCount: 1,
+    duplicateCheckpointCount: 0,
+    duplicateCheckpointsSinceNovel: 0,
+    activityWarningCount: 0,
+    progressWarningCount: 0,
+    sessionSeen: true,
+    agentRunning: false,
+    agentStartCount: 1,
+    agentEndCount: 1,
+    agentEndSeen: true,
+    agentSettledSeen: true,
+    toolExecutionCount: 1,
+    activeToolCount: 0,
+    routeUnavailableSeen: false,
+    reportRound: 1,
+    errors: [],
+  };
+}
+
+test("observable gap combines the completed maximum and the open interval from one now", () => {
+  // The open interval exceeds the completed maximum: the open interval wins.
+  assert.equal(observableProgressGapMs(gapSnapshot(100, 1000), 1500), 500);
+  // An earlier completed interval stays the maximum when the open interval is shorter.
+  assert.equal(observableProgressGapMs(gapSnapshot(900, 1000), 1200), 900);
+  // A negative anomalous delta clamps the open interval to zero instead of
+  // shrinking the completed maximum; a zero completed maximum stays zero.
+  assert.equal(observableProgressGapMs(gapSnapshot(400, 1000), 800), 400);
+  assert.equal(observableProgressGapMs(gapSnapshot(0, 1000), 400), 0);
+  assert.equal(observableProgressGapMs(gapSnapshot(0, 400), 1000), 600);
+});
+
+test("progress-stall settlement includes the final open interval in the maximum", async () => {
+  // The child accepts, starts, emits one novel message, then goes silent:
+  // the stall boundary itself must appear in the recorded maximum.
+  const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  if (!buffer.includes("\\n")) return;
+  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
+  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "only checkpoint" }] } }) + "\\n");
+});
+setInterval(() => {}, 1000);
+`;
+  const { status } = await run(script, {
+    activityWarningMs: 200,
+    activityIdleMs: 4000,
+    progressWarningMs: 250,
+    progressStallMs: 450,
+    cleanupTimeoutMs: 1000,
+  });
+  assert.equal(status.state, "stalled");
+  assert.equal(status.stallCause, "progress_stagnation");
+  // The final open interval at settlement is the stalled gap itself, so the
+  // maximum is at least the stall boundary and at least the recorded idle age.
+  assert.ok(status.maxProgressIdleSeconds >= 0.4, `max must include the stall gap, got ${status.maxProgressIdleSeconds}s`);
+  assert.ok(status.maxProgressIdleSeconds >= status.progressIdleSeconds - 0.05);
+});
+
+test("an earlier completed interval stays the maximum when the settlement age is smaller", async () => {
+  // A 300 ms initial gap is closed by the first checkpoint; frequent novel
+  // messages then renew every 60 ms, so settlement idles stay far below it.
+  const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  if (!buffer.includes("\\n")) return;
+  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
+  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+  setTimeout(() => {
+    let count = 0;
+    const timer = setInterval(() => {
+      count += 1;
+      process.stdout.write(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "step " + count }] } }) + "\\n");
+      if (count < 8) return;
+      clearInterval(timer);
+      process.stdout.write(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Final report\\n\\nDELEGATE_RESULT: COMPLETED" }] } }) + "\\n");
+      process.stdout.write(JSON.stringify({ type: "agent_end", willRetry: false }) + "\\n");
+      process.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\\n");
+    }, 60);
+  }, 300);
+});
+setInterval(() => {}, 1000);
+`;
+  const { status, progress } = await run(script, {
+    activityWarningMs: 200,
+    activityIdleMs: 800,
+    progressWarningMs: 1500,
+    progressStallMs: 4000,
+    cleanupTimeoutMs: 1000,
+  });
+  assert.equal(status.state, "completed");
+  assert.ok(status.maxProgressIdleSeconds >= 0.3, `the earlier gap must survive, got ${status.maxProgressIdleSeconds}s`);
+  assert.ok(status.progressIdleSeconds < 0.2, `settlement idle must stay small, got ${status.progressIdleSeconds}s`);
+  assert.ok(status.maxProgressIdleSeconds > status.progressIdleSeconds);
+  assert.ok(progress.every((item) => item.maxProgressIdleSeconds === undefined
+    || (item.maxProgressIdleSeconds >= item.progressIdleSeconds! - 0.05)));
+});
+
+test("a progress warning neither resets nor inflates the maximum", async () => {
+  // The child stays structurally silent long enough for the warning while
+  // activity keeps renewing (the activity warning holds precedence while
+  // active), then checkpoints: the warning must not close, restart, or
+  // inflate the open interval.
+  const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  if (!buffer.includes("\\n")) return;
+  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
+  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+  let updates = 0;
+  const activity = setInterval(() => {
+    updates += 1;
+    process.stdout.write(JSON.stringify({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "x" + updates } }) + "\\n");
+  }, 50);
+  setTimeout(() => {
+    clearInterval(activity);
+    process.stdout.write(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "post-warning checkpoint" }] } }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Final report\\n\\nDELEGATE_RESULT: COMPLETED" }] } }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "agent_end", willRetry: false }) + "\\n");
+    process.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\\n");
+  }, 500);
+});
+setInterval(() => {}, 1000);
+`;
+  const { status } = await run(script, {
+    activityWarningMs: 200,
+    activityIdleMs: 2000,
+    progressWarningMs: 250,
+    progressStallMs: 4000,
+    cleanupTimeoutMs: 1000,
+  });
+  assert.equal(status.state, "completed");
+  assert.equal(status.progressWarningCount, 1);
+  // The pre-warning open interval is closed by the post-warning checkpoint
+  // as one uninterrupted gap: the maximum covers it without inflation.
+  assert.ok(status.maxProgressIdleSeconds >= 0.4, `warning must not reset the gap, got ${status.maxProgressIdleSeconds}s`);
+  assert.ok(status.maxProgressIdleSeconds < 1.5, `warning must not inflate the gap, got ${status.maxProgressIdleSeconds}s`);
+  // The warning renewed no structural checkpoint: prompt acceptance, one
+  // work checkpoint, the final message, agent end, and settlement.
+  assert.equal(status.structuralProgressCount, 5);
+});
+
+test("a novel checkpoint resets current idle but preserves the recorded maximum", async () => {
+  const script = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  if (!buffer.includes("\\n")) return;
+  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
+  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
+  setTimeout(() => {
+    process.stdout.write(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "long-gap checkpoint" }] } }) + "\\n");
+    setTimeout(() => {
+      process.stdout.write(JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Final report\\n\\nDELEGATE_RESULT: COMPLETED" }] } }) + "\\n");
+      process.stdout.write(JSON.stringify({ type: "agent_end", willRetry: false }) + "\\n");
+      process.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\\n");
+    }, 60);
+  }, 350);
+});
+setInterval(() => {}, 1000);
+`;
+  const { status } = await run(script, {
+    activityWarningMs: 200,
+    activityIdleMs: 800,
+    progressWarningMs: 1500,
+    progressStallMs: 4000,
+    cleanupTimeoutMs: 1000,
+  });
+  assert.equal(status.state, "completed");
+  assert.ok(status.maxProgressIdleSeconds >= 0.35, `the closed gap must stay, got ${status.maxProgressIdleSeconds}s`);
+  assert.ok(status.progressIdleSeconds < 0.2, `current idle must reset, got ${status.progressIdleSeconds}s`);
+});
+
+test("report recovery preserves the round-1 maximum and measures the cross-recovery interval", async () => {
+  // Round 1 works with a 300 ms gap, settles without a report; the accepted
+  // recovery prompt closes the cross-recovery interval, and round 2 completes.
+  const script = `
+let buffer = "";
+let round = 0;
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  while (buffer.includes("\\n")) {
+    const index = buffer.indexOf("\\n");
+    const line = buffer.slice(0, index);
+    buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const command = JSON.parse(line);
+    if (command.type !== "prompt") continue;
+    round += 1;
+    const emit = (event) => process.stdout.write(JSON.stringify(event) + "\\n");
+    emit({ id: command.id, type: "response", command: "prompt", success: true });
+    emit({ type: "agent_start" });
+    if (round === 1) {
+      setTimeout(() => {
+        emit({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "round one work" }] } });
+        emit({ type: "agent_end", willRetry: false });
+        emit({ type: "agent_settled" });
+      }, 300);
+      continue;
+    }
+    emit({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Recovered.\\n\\nDELEGATE_RESULT: COMPLETED" }] } });
+    emit({ type: "agent_end", willRetry: false });
+    emit({ type: "agent_settled" });
+  }
+});
+setInterval(() => {}, 1000);
+`;
+  const { status } = await run(script, {
+    activityWarningMs: 200,
+    activityIdleMs: 800,
+    progressWarningMs: 1500,
+    progressStallMs: 4000,
+    reportRecoveryIdleMs: 800,
+    cleanupTimeoutMs: 1000,
+  });
+  assert.equal(status.state, "completed");
+  assert.equal(status.reportRound, 2);
+  assert.ok(status.reportRecoveryAccepted);
+  // The round-1 gap survives recovery, and the cross-recovery interval is
+  // measured through the recovery prompt acceptance.
+  assert.ok(status.maxProgressIdleSeconds >= 0.3, `round-1 gap must survive recovery, got ${status.maxProgressIdleSeconds}s`);
+  assert.ok(Number.isFinite(status.maxProgressIdleSeconds) && status.maxProgressIdleSeconds >= 0);
+});
+
+test("every supervised terminal state records finite non-negative maximum telemetry", async () => {
+  const cases: { name: string; script: string; overrides: Partial<Parameters<typeof supervisePi>[0]>; expected: string }[] = [
+    {
+      name: "completed",
+      script: eventScript([completed()]),
+      overrides: {},
+      expected: "completed",
+    },
+    {
+      name: "interrupted",
+      script: eventScript([[{ type: "agent_start" }]]),
+      overrides: {
+        signal: (() => {
+          const controller = new AbortController();
+          setTimeout(() => controller.abort(), 60);
+          return controller.signal;
+        })(),
+        activityIdleMs: 1000,
+      },
+      expected: "interrupted",
+    },
+    {
+      name: "output_limit",
+      script: eventScript([completed(`${"x".repeat(600)} invalid`), missing()]),
+      overrides: { maxOutputBytes: 1400 },
+      expected: "output_limit",
+    },
+    {
+      name: "invalid_stream",
+      script: eventScript([completed()], { trailing: "{malformed" }),
+      overrides: {},
+      expected: "invalid_stream",
+    },
+    {
+      name: "operational fallback state (provider_failed)",
+      script: eventScript([[
+        { type: "agent_start" },
+        { type: "message_update", assistantMessageEvent: { type: "error", errorMessage: "503 Service unavailable" } },
+        { type: "agent_end", willRetry: false },
+        { type: "agent_settled" },
+      ]]),
+      overrides: {},
+      expected: "provider_failed",
+    },
+  ];
+  for (const testCase of cases) {
+    const { status } = await run(testCase.script, testCase.overrides);
+    assert.equal(status.state, testCase.expected, testCase.name);
+    assert.ok(
+      Number.isFinite(status.maxProgressIdleSeconds) && status.maxProgressIdleSeconds >= 0,
+      `${testCase.name}: maximum must be finite non-negative, got ${status.maxProgressIdleSeconds}`,
+    );
+    assert.ok(
+      status.maxProgressIdleSeconds >= status.progressIdleSeconds - 0.05,
+      `${testCase.name}: maximum must cover the settlement idle age`,
+    );
+  }
 });

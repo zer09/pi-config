@@ -1,5 +1,5 @@
 import { DELEGATE_TOOL_OUTPUT_LIMIT, removeDirectory, truncateUtf8 } from "./artifacts.ts";
-import { writeFailureDiagnosticQuietly } from "./diagnostics.ts";
+import { writeFailureDiagnosticQuietly, writeSuccessTelemetryQuietly } from "./diagnostics.ts";
 import { PROVIDER_FAILURE_CATEGORIES } from "./types.ts";
 import type { ChainAttempt, DelegateProgress, DelegateRunResult, DelegateToolResultEvent, ToolResult } from "./types.ts";
 
@@ -83,6 +83,14 @@ function finite(value: number | undefined): number | undefined {
   return value !== undefined && Number.isFinite(value) ? value : undefined;
 }
 
+/**
+ * Finite non-negative liveness age only: zero survives, negative, NaN, and
+ * infinite values fail closed by omission, never by conversion to zero.
+ */
+function finiteNonNegative(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
 function safeTimestamp(value: string): string {
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) && Number.isFinite(Date.parse(value))
     ? value
@@ -106,6 +114,9 @@ function sanitizedProgress(progress: DelegateProgress): DelegateProgress {
     // The provider category is a fixed enum on every model-visible surface;
     // an invalid value fails closed by omission, never by passthrough.
     providerFailureCategory: fixed(progress.providerFailureCategory, PROVIDER_FAILURE_CATEGORIES) as DelegateProgress["providerFailureCategory"],
+    // The maximum gap is a bounded liveness age: negative, NaN, and infinite
+    // values fail closed by omission; zero is a valid measurement.
+    maxProgressIdleSeconds: finiteNonNegative(progress.maxProgressIdleSeconds),
   };
 }
 
@@ -123,6 +134,7 @@ function sanitizedAttempts(attempts: readonly ChainAttempt[]): readonly ChainAtt
       rpcIdleSeconds: finite(attempt.rpcIdleSeconds),
       activityIdleSeconds: finite(attempt.activityIdleSeconds),
       progressIdleSeconds: finite(attempt.progressIdleSeconds),
+      maxProgressIdleSeconds: finiteNonNegative(attempt.maxProgressIdleSeconds),
       activityEventCount: finite(attempt.activityEventCount),
       structuralProgressCount: finite(attempt.structuralProgressCount),
       duplicateCheckpointCount: finite(attempt.duplicateCheckpointCount),
@@ -138,6 +150,7 @@ function sanitizedAttempts(attempts: readonly ChainAttempt[]): readonly ChainAtt
       ...(supervised.rpcIdleSeconds === undefined ? {} : { rpcIdleSeconds: supervised.rpcIdleSeconds }),
       ...(supervised.activityIdleSeconds === undefined ? {} : { activityIdleSeconds: supervised.activityIdleSeconds }),
       ...(supervised.progressIdleSeconds === undefined ? {} : { progressIdleSeconds: supervised.progressIdleSeconds }),
+      ...(supervised.maxProgressIdleSeconds === undefined ? {} : { maxProgressIdleSeconds: supervised.maxProgressIdleSeconds }),
       ...(supervised.activityEventCount === undefined ? {} : { activityEventCount: supervised.activityEventCount }),
       ...(supervised.structuralProgressCount === undefined ? {} : { structuralProgressCount: supervised.structuralProgressCount }),
       ...(supervised.duplicateCheckpointCount === undefined ? {} : { duplicateCheckpointCount: supervised.duplicateCheckpointCount }),
@@ -328,17 +341,25 @@ export function diagnosticLine(diagnosticPath: string): string {
 
 /**
  * Execute-level finalization for one terminal delegate run. Persists the
- * compact failure diagnostic (unsuccessful runs only), assembles the final
- * ToolResult, and removes the temporary supervision artifact directory for
- * every terminal outcome. The finally also runs when diagnostic persistence
- * fails, so a failed write still returns sanitized failure content with no
- * diagnostic path. Directory removal stays best-effort.
+ * compact schema-7 run telemetry: the private failure diagnostic for
+ * unsuccessful runs (path travels only in ToolResult details for the TUI
+ * renderer) and one best-effort metadata-only success record for completed
+ * runs (never model-visible and never in ToolResult content or details).
+ * Then assembles the final ToolResult and removes the temporary supervision
+ * artifact directory for every terminal outcome. The finally also runs when
+ * telemetry persistence fails, so a failed write still returns sanitized
+ * content with no diagnostic path. Directory removal stays best-effort.
  */
 export async function finalizeDelegateRun(result: DelegateRunResult): Promise<ToolResult> {
   try {
-    const diagnosticPath = result.state === "completed"
-      ? undefined
-      : await writeFailureDiagnosticQuietly(result);
+    let diagnosticPath: string | undefined;
+    if (result.state === "completed") {
+      // Best-effort success telemetry: failures never alter the completed
+      // outcome and never expose any path to the model or ToolResult.
+      await writeSuccessTelemetryQuietly(result);
+    } else {
+      diagnosticPath = await writeFailureDiagnosticQuietly(result);
+    }
     return finalToolResult(result, diagnosticPath);
   } finally {
     await removeDirectory(result.artifactDir);

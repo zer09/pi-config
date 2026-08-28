@@ -113,6 +113,19 @@ function elapsedSeconds(started: number): number {
   return Math.round((performance.now() - started) / 100) / 10;
 }
 
+/**
+ * Combines the monitor's completed-interval maximum with the still-open
+ * interval measured from one captured `now`, so current and maximum ages
+ * cannot drift across separate clock reads. A negative anomalous delta
+ * clamps to zero. Telemetry only: never a liveness-decision input.
+ */
+export function observableProgressGapMs(snapshot: MonitorSnapshot, now: number): number {
+  return Math.max(
+    snapshot.maxCompletedProgressGapMs,
+    Math.max(0, now - snapshot.lastStructuralProgressMonotonic),
+  );
+}
+
 export function resolvePiInvocation(): PiInvocation {
   const currentScript = process.argv[1];
   const isBunVirtualScript = currentScript?.startsWith("/$bunfs/root/");
@@ -311,6 +324,9 @@ function progressFromMonitor(
   const rpcIdleSeconds = Math.round((now - snapshot.lastValidRpcMonotonic) / 100) / 10;
   const activityIdleSeconds = Math.round((now - snapshot.lastActivityMonotonic) / 100) / 10;
   const progressIdleSeconds = Math.round((now - snapshot.lastStructuralProgressMonotonic) / 100) / 10;
+  // The same captured `now` closes the open interval for the maximum, so
+  // progressIdleSeconds and maxProgressIdleSeconds stay consistent.
+  const maxProgressIdleSeconds = Math.round(observableProgressGapMs(snapshot, now) / 100) / 10;
   const leaseWarning = activityIdleSeconds * 1000 >= options.activityWarningMs
     ? "activity"
     : progressIdleSeconds * 1000 >= options.progressWarningMs
@@ -344,6 +360,7 @@ function progressFromMonitor(
     blockedMisuseSuspected: snapshot.blockedMisuseSuspected,
     rpcIdleSeconds,
     progressIdleSeconds,
+    maxProgressIdleSeconds,
     activityEventCount: snapshot.activityEventCount,
     structuralProgressCount: snapshot.structuralProgressCount,
     duplicateCheckpointCount: snapshot.duplicateCheckpointCount,
@@ -420,60 +437,66 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     exitCode: number | null,
     snapshot: MonitorSnapshot,
     reportPresent: boolean,
-  ): AttemptStatus => ({
-    schemaVersion: 1,
-    label: options.label,
-    role: options.role,
-    route: routeKey(options.route),
-    protocol: "pi-rpc",
-    state: finalState,
-    delegateOutcome: monitor.outcome(snapshot.reportRound),
-    terminalReason: snapshot.terminalReason,
-    reasonStatus: snapshot.reasonStatus,
-    blockedMisuseSuspected: snapshot.blockedMisuseSuspected,
-    deadlineCause,
-    stallCause: stallCauseValue,
-    cleanupFailureReason,
-    interruptionSource: interruptionSourceValue,
-    startedAt,
-    endedAt: isoNow(),
-    elapsedSeconds: elapsedSeconds(started),
-    exitCode,
-    completionCleanupPerformed,
-    outputBytes,
-    reportPresent,
-    reportPath,
-    stderrPath,
-    activityEventCount: snapshot.activityEventCount,
-    structuralProgressCount: snapshot.structuralProgressCount,
-    duplicateCheckpointCount: snapshot.duplicateCheckpointCount,
-    lastEvent: snapshot.lastEvent,
-    lastEventDetail: snapshot.lastEventDetail,
-    lastEventAt: snapshot.lastEventAt,
-    phase: snapshot.phase,
-    activityIdleSeconds: Math.round((performance.now() - snapshot.lastActivityMonotonic) / 100) / 10,
-    rpcIdleSeconds: Math.round((performance.now() - snapshot.lastValidRpcMonotonic) / 100) / 10,
-    progressIdleSeconds: Math.round((performance.now() - snapshot.lastStructuralProgressMonotonic) / 100) / 10,
-    activityWarningCount: snapshot.activityWarningCount,
-    progressWarningCount: snapshot.progressWarningCount,
-    sessionSeen: snapshot.sessionSeen,
-    agentStartCount: snapshot.agentStartCount,
-    agentEndCount: snapshot.agentEndCount,
-    agentEndSeen: snapshot.agentEndSeen,
-    agentSettledSeen: snapshot.agentSettledSeen,
-    toolExecutionCount: snapshot.toolExecutionCount,
-    activeToolCount: snapshot.activeToolCount,
-    activeToolName: snapshot.activeToolName,
-    activeToolElapsedSeconds: snapshot.activeToolElapsedSeconds,
-    activeToolIdleSeconds: snapshot.activeToolIdleSeconds,
-    routeUnavailableSeen: snapshot.routeUnavailableSeen,
-    providerFailureCategory: snapshot.providerFailureCategory,
-    reportNudgeCount,
-    reportRecoveryReason,
-    reportRound: snapshot.reportRound,
-    reportRecoveryAccepted,
-    streamErrors: snapshot.errors,
-  });
+  ): AttemptStatus => {
+    // One settlement `now` drives every idle age including the final open
+    // interval of the maximum, so the recorded values cannot drift apart.
+    const settledAt = performance.now();
+    return {
+      schemaVersion: 1,
+      label: options.label,
+      role: options.role,
+      route: routeKey(options.route),
+      protocol: "pi-rpc",
+      state: finalState,
+      delegateOutcome: monitor.outcome(snapshot.reportRound),
+      terminalReason: snapshot.terminalReason,
+      reasonStatus: snapshot.reasonStatus,
+      blockedMisuseSuspected: snapshot.blockedMisuseSuspected,
+      deadlineCause,
+      stallCause: stallCauseValue,
+      cleanupFailureReason,
+      interruptionSource: interruptionSourceValue,
+      startedAt,
+      endedAt: isoNow(),
+      elapsedSeconds: elapsedSeconds(started),
+      exitCode,
+      completionCleanupPerformed,
+      outputBytes,
+      reportPresent,
+      reportPath,
+      stderrPath,
+      activityEventCount: snapshot.activityEventCount,
+      structuralProgressCount: snapshot.structuralProgressCount,
+      duplicateCheckpointCount: snapshot.duplicateCheckpointCount,
+      lastEvent: snapshot.lastEvent,
+      lastEventDetail: snapshot.lastEventDetail,
+      lastEventAt: snapshot.lastEventAt,
+      phase: snapshot.phase,
+      activityIdleSeconds: Math.round((settledAt - snapshot.lastActivityMonotonic) / 100) / 10,
+      rpcIdleSeconds: Math.round((settledAt - snapshot.lastValidRpcMonotonic) / 100) / 10,
+      progressIdleSeconds: Math.round((settledAt - snapshot.lastStructuralProgressMonotonic) / 100) / 10,
+      maxProgressIdleSeconds: Math.round(observableProgressGapMs(snapshot, settledAt) / 100) / 10,
+      activityWarningCount: snapshot.activityWarningCount,
+      progressWarningCount: snapshot.progressWarningCount,
+      sessionSeen: snapshot.sessionSeen,
+      agentStartCount: snapshot.agentStartCount,
+      agentEndCount: snapshot.agentEndCount,
+      agentEndSeen: snapshot.agentEndSeen,
+      agentSettledSeen: snapshot.agentSettledSeen,
+      toolExecutionCount: snapshot.toolExecutionCount,
+      activeToolCount: snapshot.activeToolCount,
+      activeToolName: snapshot.activeToolName,
+      activeToolElapsedSeconds: snapshot.activeToolElapsedSeconds,
+      activeToolIdleSeconds: snapshot.activeToolIdleSeconds,
+      routeUnavailableSeen: snapshot.routeUnavailableSeen,
+      providerFailureCategory: snapshot.providerFailureCategory,
+      reportNudgeCount,
+      reportRecoveryReason,
+      reportRound: snapshot.reportRound,
+      reportRecoveryAccepted,
+      streamErrors: snapshot.errors,
+    };
+  };
 
   const args = [
     ...options.piInvocation.prefixArgs,

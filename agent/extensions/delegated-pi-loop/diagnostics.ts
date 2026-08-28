@@ -1,9 +1,16 @@
-import { chmod, mkdir, stat } from "node:fs/promises";
+import { chmod, lstat, mkdir, readdir, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { atomicWriteJson, safeLabel } from "./artifacts.ts";
 import { BLOCKED_REASON_CODES, DELEGATE_REASON_UNSPECIFIED, FAILED_REASON_CODES, PROVIDER_FAILURE_CATEGORY_SET } from "./types.ts";
 import type { DelegateRunResult } from "./types.ts";
+
+/** Schema version for every newly written run-telemetry record (failure and success). Historical schema 3-6 files are never migrated. */
+export const SCHEMA_VERSION = 7;
+/** Maximum number of exact extension-owned `success-v7-*.json` records retained. */
+export const SUCCESS_RECORD_LIMIT = 4096;
+/** Exact filename prefix for successful-run schema-7 telemetry records. */
+export const SUCCESS_FILE_PREFIX = "success-v7-";
 
 const MAX_ATTEMPTS = 10;
 const MAX_STREAM_ERRORS = 20;
@@ -41,6 +48,15 @@ function finiteNumber(value: number | undefined): number | undefined {
   return value !== undefined && Number.isFinite(value) ? value : undefined;
 }
 
+/**
+ * Finite non-negative liveness age only: zero survives, negative, NaN, and
+ * infinite values fail closed by omission, and invalid data is never
+ * silently converted to zero.
+ */
+function finiteNonNegativeSeconds(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
 function fixedValue(value: string | undefined, allowed: ReadonlySet<string>): string | undefined {
   return value !== undefined && allowed.has(value) ? value : undefined;
 }
@@ -57,15 +73,16 @@ export function diagnosticsDirectory(): string {
 }
 
 /**
- * Sanitized bounded failure record. Excludes prompts, delegate reports, raw
- * stdout/stderr, tool arguments and results, checkpoint digests and HMAC
+ * Sanitized bounded schema-7 run record, shared by failure diagnostics and
+ * best-effort successful-run telemetry. Excludes prompts, delegate reports,
+ * raw stdout/stderr, tool arguments and results, checkpoint digests and HMAC
  * keys, Git state, credentials, provider bodies, delegate-authored reason
  * text, and every file path. Temporary supervision artifacts are removed by
  * the caller after this record is persisted.
  */
-export function failureDiagnostic(result: DelegateRunResult): Record<string, unknown> {
+export function schemaSevenRecord(result: DelegateRunResult): Record<string, unknown> {
   return {
-    schemaVersion: 6,
+    schemaVersion: SCHEMA_VERSION,
     writtenAt: new Date().toISOString(),
     label: boundedIdentifier(result.label, 80),
     role: boundedIdentifier(result.role, 40),
@@ -89,6 +106,7 @@ export function failureDiagnostic(result: DelegateRunResult): Record<string, unk
     rpcIdleSeconds: finiteNumber(result.progress.rpcIdleSeconds),
     activityIdleSeconds: finiteNumber(result.progress.activityIdleSeconds),
     progressIdleSeconds: finiteNumber(result.progress.progressIdleSeconds),
+    maxProgressIdleSeconds: finiteNonNegativeSeconds(result.progress.maxProgressIdleSeconds),
     activityEventCount: finiteNumber(result.progress.activityEventCount),
     structuralProgressCount: finiteNumber(result.progress.structuralProgressCount),
     duplicateCheckpointCount: finiteNumber(result.progress.duplicateCheckpointCount),
@@ -116,6 +134,7 @@ export function failureDiagnostic(result: DelegateRunResult): Record<string, unk
       rpcIdleSeconds: finiteNumber(attempt.rpcIdleSeconds),
       activityIdleSeconds: finiteNumber(attempt.activityIdleSeconds),
       progressIdleSeconds: finiteNumber(attempt.progressIdleSeconds),
+      maxProgressIdleSeconds: finiteNonNegativeSeconds(attempt.maxProgressIdleSeconds),
       activityEventCount: finiteNumber(attempt.activityEventCount),
       structuralProgressCount: finiteNumber(attempt.structuralProgressCount),
       duplicateCheckpointCount: finiteNumber(attempt.duplicateCheckpointCount),
@@ -138,18 +157,32 @@ export function failureDiagnostic(result: DelegateRunResult): Record<string, unk
 
 let writeCounter = 0;
 
+/** Failure-specific view of the shared schema-7 record builder; unsuccessful runs only. */
+export function failureDiagnostic(result: DelegateRunResult): Record<string, unknown> {
+  return schemaSevenRecord(result);
+}
+
 /** Writes the failure diagnostic with a 0700 directory and a 0600 atomic file. */
 export async function writeFailureDiagnostic(result: DelegateRunResult): Promise<string> {
-  if (result.state === "completed") {
-    throw new Error("failure diagnostics are written only for unsuccessful runs");
+  if (result.state !== "completed") {
+    return writeRunDiagnostic("failure", result);
   }
+  throw new Error("failure diagnostics are written only for unsuccessful runs");
+}
+
+/**
+ * Shared record writer for one terminal run. Both failure and success names
+ * stay bounded and carry no prompt or report content.
+ */
+async function writeRunDiagnostic(kind: "failure" | "success", result: DelegateRunResult): Promise<string> {
   const directory = diagnosticsDirectory();
   await mkdir(directory, { mode: 0o700, recursive: true });
   await chmod(directory, 0o700);
   writeCounter += 1;
-  const fileName = `failure-${safeLabel(result.label)}-${Date.now()}-${process.pid}-${writeCounter}.json`;
+  const prefix = kind === "success" ? SUCCESS_FILE_PREFIX : "failure-";
+  const fileName = `${prefix}${safeLabel(result.label)}-${Date.now()}-${process.pid}-${writeCounter}.json`;
   const filePath = path.join(directory, fileName);
-  await atomicWriteJson(filePath, failureDiagnostic(result));
+  await atomicWriteJson(filePath, schemaSevenRecord(result));
   return filePath;
 }
 
@@ -162,6 +195,103 @@ export async function writeFailureDiagnosticQuietly(result: DelegateRunResult): 
     return await writeFailureDiagnostic(result);
   } catch {
     return undefined;
+  }
+}
+
+/** True only for exact extension-owned success-telemetry filenames. */
+function isSuccessTelemetryName(name: string): boolean {
+  return name.startsWith(SUCCESS_FILE_PREFIX) && name.endsWith(".json");
+}
+
+/**
+ * Serializes telemetry operations inside this extension process: each
+ * write-plus-prune pair runs alone, so concurrent finalizations cannot race
+ * the retention sweep against each other in-process.
+ */
+let telemetryChain: Promise<unknown> = Promise.resolve();
+
+function enqueueTelemetry<T>(operation: () => Promise<T>): Promise<T> {
+  const next = telemetryChain.then(operation, operation);
+  telemetryChain = next.then(() => undefined, () => undefined);
+  return next;
+}
+
+/**
+ * Prunes the oldest exact `success-v7-*.json` regular files beyond the
+ * retention limit. Never touches failures, historical schema 3-6 files,
+ * unknown names, directories, or symlinks: candidates pass a no-follow
+ * `lstat` regular-file check immediately before deletion. An `ENOENT` from
+ * another local Pi process pruning the same file is ignored; every other
+ * error propagates to the best-effort caller.
+ */
+async function pruneSuccessTelemetry(directory: string, limit: number): Promise<void> {
+  let entries;
+  try {
+    entries = await readdir(directory);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  const candidates: { readonly name: string; readonly writtenAt: number }[] = [];
+  for (const name of entries) {
+    if (!isSuccessTelemetryName(name)) continue;
+    let info;
+    try {
+      // No-follow check: a symlink or directory with a success-looking name
+      // is never a pruning candidate, and a vanished file is simply gone.
+      info = await lstat(path.join(directory, name));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+    if (!info.isFile()) continue;
+    candidates.push({ name, writtenAt: info.mtimeMs });
+  }
+  if (candidates.length <= limit) return;
+  // Deterministic order: write time ascending with the filename as the
+  // tie-breaker, so the newest `limit` files survive deterministically.
+  candidates.sort((left, right) =>
+    left.writtenAt - right.writtenAt || (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
+  for (const candidate of candidates.slice(0, candidates.length - limit)) {
+    try {
+      await rm(path.join(directory, candidate.name));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+  }
+}
+
+/**
+ * Writes one metadata-only schema-7 record for a completed invocation, then
+ * prunes to the newest `limit` exact success files. The retention limit is
+ * injectable only so tests can exercise pruning without 4,097 physical
+ * files; production always passes `SUCCESS_RECORD_LIMIT`.
+ */
+export async function writeSuccessTelemetry(
+  result: DelegateRunResult,
+  limit: number = SUCCESS_RECORD_LIMIT,
+): Promise<string> {
+  if (result.state !== "completed") {
+    throw new Error("success telemetry is written only for completed runs");
+  }
+  return enqueueTelemetry(async () => {
+    const filePath = await writeRunDiagnostic("success", result);
+    await pruneSuccessTelemetry(path.dirname(filePath), limit);
+    return filePath;
+  });
+}
+
+/**
+ * Best-effort successful-run telemetry: a create, write, chmod, or prune
+ * failure is swallowed and never changes a completed result into an error.
+ */
+export async function writeSuccessTelemetryQuietly(result: DelegateRunResult): Promise<void> {
+  if (result.state !== "completed") return;
+  try {
+    await writeSuccessTelemetry(result);
+  } catch {
+    // Telemetry is observational only; the delegate outcome stands.
   }
 }
 

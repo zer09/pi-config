@@ -40,6 +40,7 @@ import type {
   DelegateOutcome,
   DelegateProgress,
   DelegateReasonStatus,
+  DelegateRole,
   DelegateRunResult,
   DelegateState,
   DelegateTerminalReasonValue,
@@ -316,6 +317,7 @@ function progressFromStatus(status: AttemptStatus, attempt: number, restartAfter
     interruptionSource: status.interruptionSource,
     rpcIdleSeconds: status.rpcIdleSeconds,
     progressIdleSeconds: status.progressIdleSeconds,
+    maxProgressIdleSeconds: status.maxProgressIdleSeconds,
     activityEventCount: status.activityEventCount,
     structuralProgressCount: status.structuralProgressCount,
     duplicateCheckpointCount: status.duplicateCheckpointCount,
@@ -326,23 +328,37 @@ function progressFromStatus(status: AttemptStatus, attempt: number, restartAfter
   };
 }
 
-function initialProgress(label: string, options: RunOptions): DelegateProgress {
-  const now = new Date().toISOString();
+/**
+ * Fresh catalog-safe progress baseline shared by the pre-supervision initial
+ * progress and every later catalog preflight: a catalog check is
+ * unsupervised, so it never carries a prior attempt's liveness telemetry
+ * (phase, detail, idle ages, warning latches/counts, active-tool fields);
+ * only invocation-level values that legitimately cross routes survive.
+ */
+function catalogCheckProgress(
+  label: string,
+  role: DelegateRole,
+  route: string | undefined,
+  attempt: number,
+  elapsedSeconds: number,
+  restartAfterWorkCount: number,
+): DelegateProgress {
   return {
     label,
-    role: options.role,
+    role,
     state: "catalog_check",
     protocol: "pi-rpc",
-    attempt: 0,
+    route,
+    attempt,
     phase: "catalog",
     lastEvent: "catalog_check",
-    lastEventAt: now,
+    lastEventAt: new Date().toISOString(),
     activityIdleSeconds: 0,
-    elapsedSeconds: 0,
+    elapsedSeconds,
     toolExecutionCount: 0,
     activityWarningCount: 0,
     progressWarningCount: 0,
-    restartAfterWorkCount: 0,
+    restartAfterWorkCount,
     reportNudgeCount: 0,
     reportRound: 1,
     activityEventCount: 0,
@@ -350,6 +366,10 @@ function initialProgress(label: string, options: RunOptions): DelegateProgress {
     duplicateCheckpointCount: 0,
     activeToolCount: 0,
   };
+}
+
+function initialProgress(label: string, options: RunOptions): DelegateProgress {
+  return catalogCheckProgress(label, options.role, undefined, 0, 0, 0);
 }
 
 export async function runDelegate(options: RunOptions): Promise<DelegateRunResult> {
@@ -411,7 +431,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
 
   // Private temporary supervision directory. Ownership transfers to the
   // caller only when this function returns a DelegateRunResult: the caller
-  // then persists the failure diagnostic, assembles the tool result, and
+  // then persists the run diagnostic, assembles the tool result, and
   // removes the directory through finalizeDelegateRun.
   const artifactDir = await createArtifactDir(label);
   try {
@@ -446,15 +466,14 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       }
       const route = routes[index]!;
 
-      finalProgress = {
-        ...finalProgress,
-        state: "catalog_check",
-        route: routeKey(route),
-        attempt: index + 1,
-        lastEvent: "catalog_check",
-        lastEventAt: new Date().toISOString(),
-        elapsedSeconds: roundedSeconds(performance.now() - started),
-      };
+      finalProgress = catalogCheckProgress(
+        label,
+        options.role,
+        routeKey(route),
+        index + 1,
+        roundedSeconds(performance.now() - started),
+        restartAfterWorkCount,
+      );
       options.onProgress?.(finalProgress);
       const catalogStarted = performance.now();
       const catalog = await routeIsCatalogued(
@@ -551,6 +570,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         rpcIdleSeconds: attemptStatus.rpcIdleSeconds,
         activityIdleSeconds: attemptStatus.activityIdleSeconds,
         progressIdleSeconds: attemptStatus.progressIdleSeconds,
+        maxProgressIdleSeconds: attemptStatus.maxProgressIdleSeconds,
         activityEventCount: attemptStatus.activityEventCount,
         structuralProgressCount: attemptStatus.structuralProgressCount,
         duplicateCheckpointCount: attemptStatus.duplicateCheckpointCount,
@@ -627,8 +647,9 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     const elapsed = roundedSeconds(performance.now() - started);
     const endedAt = new Date().toISOString();
     // All outcome data travels in memory; no chain-level report.md or status.json
-    // is written. The caller persists the failure diagnostic (if any), assembles
-    // the tool result, and then removes the artifact directory.
+    // is written. The caller persists the schema-7 run telemetry (failure
+    // diagnostic or best-effort success record), assembles the tool result,
+    // and then removes the artifact directory.
     finalProgress = {
       ...finalProgress,
       state: finalState,

@@ -1130,7 +1130,7 @@ test("raw reason values never reach statuses, Markdown, details, or diagnostics"
   const diagnosticPath = toolResult.details?.diagnosticPath;
   assert.equal(typeof diagnosticPath, "string");
   const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
-  assert.equal(diagnostic.schemaVersion, 6);
+  assert.equal(diagnostic.schemaVersion, 7);
   assert.equal(diagnostic.delegateOutcome, "blocked");
   assert.equal(diagnostic.terminalReason, "unspecified");
   assert.equal(diagnostic.reasonStatus, "rejected");
@@ -1591,7 +1591,7 @@ test("an exhausted operational chain persists full per-attempt liveness evidence
         assert.ok(Number.isFinite(attempt[key] as number), key);
       }
     }
-    // The exhausted chain persists the schema-6 diagnostic with the same
+    // The exhausted chain persists the schema-7 diagnostic with the same
     // per-attempt evidence on every attempt record.
     const toolResult = await finalize();
     const diagnosticPath = toolResult.details?.diagnosticPath as string;
@@ -2620,4 +2620,187 @@ test("runtime sources contain no tree-fingerprint capture, read-only-mutation st
       assert.ok(!source.includes(forbidden), `${file} must not contain "${forbidden}"`);
     }
   }
+});
+
+test("a completed attempt exposes the maximum gap in final progress and attempt history", async () => {
+  const fixture = await fakePi(["prov-a/model-x"], {});
+  await runAndFinalize(baseOptions(fixture, { routingConfig: singleRouteRoutingConfig() }), async (result) => {
+    assert.equal(result.state, "completed");
+    const progressMaximum = result.progress.maxProgressIdleSeconds;
+    assert.ok(
+      progressMaximum !== undefined && Number.isFinite(progressMaximum) && progressMaximum >= 0,
+      `final progress maximum must be finite non-negative, got ${progressMaximum}`,
+    );
+    const attempt = result.attempts[0]!;
+    assert.equal(attempt.state, "completed");
+    const attemptMaximum = attempt.maxProgressIdleSeconds;
+    assert.ok(
+      attemptMaximum !== undefined && Number.isFinite(attemptMaximum) && attemptMaximum >= 0,
+      `attempt maximum must be finite non-negative, got ${attemptMaximum}`,
+    );
+    assert.equal(progressMaximum, attemptMaximum);
+    assert.ok(attemptMaximum >= attempt.progressIdleSeconds! - 0.05);
+  });
+});
+
+test("a stalled first route retains its maximum after a completed fallback route", async () => {
+  const fixture = await fakePi(["prov-a/model-x", "prov-b/model-y"], {
+    "prov-a/model-x": "hang",
+    "prov-b/model-y": "complete",
+  });
+  await runAndFinalize(baseOptions(fixture, {
+    routingConfig: twoTierRoutingConfig(),
+    activityWarningMs: 100,
+    activityIdleMs: 600,
+    progressWarningMs: 100,
+    progressStallMs: 260,
+  }), async (result) => {
+    assert.equal(result.state, "completed");
+    assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["stalled", "completed"]);
+    // The stalled route's own maximum survives the fallback: every
+    // supervised attempt carries its own bounded telemetry.
+    const stalled = result.attempts[0]!;
+    const completed = result.attempts[1]!;
+    const stalledMaximum = stalled.maxProgressIdleSeconds;
+    assert.ok(
+      stalledMaximum !== undefined && Number.isFinite(stalledMaximum) && stalledMaximum >= 0.2,
+      `stalled route maximum must cover the stall gap, got ${stalledMaximum}`,
+    );
+    const completedMaximum = completed.maxProgressIdleSeconds;
+    assert.ok(
+      completedMaximum !== undefined && Number.isFinite(completedMaximum) && completedMaximum >= 0,
+      `completed route maximum must be finite non-negative, got ${completedMaximum}`,
+    );
+  });
+});
+
+test("the final top-level progress belongs to the final route with its own maximum", async () => {
+  const fixture = await fakePi(["prov-a/model-x", "prov-b/model-y"], {
+    "prov-a/model-x": "hang",
+    "prov-b/model-y": "complete",
+  });
+  await runAndFinalize(baseOptions(fixture, {
+    routingConfig: twoTierRoutingConfig(),
+    activityWarningMs: 100,
+    activityIdleMs: 600,
+    progressWarningMs: 100,
+    progressStallMs: 260,
+  }), async (result) => {
+    assert.equal(result.state, "completed");
+    assert.equal(result.progress.route, "prov-b/model-y:high");
+    assert.equal(result.progress.attempt, 2);
+    assert.equal(result.progress.maxProgressIdleSeconds, result.attempts[1]!.maxProgressIdleSeconds);
+    assert.notEqual(result.progress.maxProgressIdleSeconds, result.attempts[0]!.maxProgressIdleSeconds);
+  });
+});
+
+test("catalog-only attempts omit the maximum while supervised attempts keep it", async () => {
+  const fixture = await fakePi(["prov-b/model-y"], {});
+  await runAndFinalize(baseOptions(fixture, { routingConfig: twoTierRoutingConfig() }), async (result) => {
+    assert.equal(result.state, "completed");
+    assert.equal(result.attempts[0]?.state, "catalog_unavailable");
+    assert.equal("maxProgressIdleSeconds" in result.attempts[0]!, false);
+    assert.ok(Number.isFinite(result.attempts[1]?.maxProgressIdleSeconds));
+    assert.ok(result.progress.maxProgressIdleSeconds !== undefined);
+  });
+});
+
+test("a catalog-only final route leaves no prior supervised telemetry in top-level progress", async () => {
+  // Route A is catalog-available and fails operationally with finite
+  // supervised telemetry; route B is catalog-unavailable, so the chain ends
+  // routes_unavailable after a bare catalog ChainAttempt.
+  const fixture = await fakePi(
+    ["prov-a/model-x"],
+    { "prov-a/model-x": "unavailable" },
+  );
+  await runAndFinalize(baseOptions(fixture, { routingConfig: twoTierRoutingConfig() }), async (result, finalize) => {
+    assert.equal(result.state, "routes_unavailable");
+    assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["provider_failed", "catalog_unavailable"]);
+    // Route A settled finite supervised telemetry, including its own maximum.
+    const failed = result.attempts[0]!;
+    assert.equal(failed.route, "prov-a/model-x:high");
+    assert.ok(failed.progressIdleSeconds !== undefined && Number.isFinite(failed.progressIdleSeconds));
+    assert.ok(
+      failed.maxProgressIdleSeconds !== undefined && Number.isFinite(failed.maxProgressIdleSeconds)
+        && failed.maxProgressIdleSeconds >= 0,
+      "failed route maximum must be finite non-negative",
+    );
+    // The catalog-only ChainAttempt fabricates no supervised evidence.
+    const catalogOnly = result.attempts[1]!;
+    assert.equal(catalogOnly.route, "prov-b/model-y:high");
+    for (const key of [
+      "stallCause",
+      "rpcIdleSeconds",
+      "activityIdleSeconds",
+      "progressIdleSeconds",
+      "maxProgressIdleSeconds",
+      "activityEventCount",
+      "structuralProgressCount",
+      "duplicateCheckpointCount",
+      "activityWarningCount",
+      "progressWarningCount",
+      "activeToolCount",
+      "activeToolName",
+      "activeToolElapsedSeconds",
+      "activeToolIdleSeconds",
+      "restartAfterWork",
+    ] as const) {
+      assert.equal(key in catalogOnly, false, key);
+    }
+    // The final top-level progress belongs to the final route and is rebuilt
+    // from the catalog-safe baseline: no supervised liveness field survives
+    // from route A into the catalog-check or finalized progress.
+    assert.equal(result.progress.route, "prov-b/model-y:high");
+    assert.equal(result.progress.attempt, 2);
+    assert.equal(result.progress.state, "routes_unavailable");
+    assert.equal(result.progress.phase, "catalog");
+    assert.equal(result.progress.lastEvent, "catalog_check");
+    assert.equal(result.progress.lastEventDetail, undefined);
+    for (const key of [
+      "progressIdleSeconds",
+      "maxProgressIdleSeconds",
+      "rpcIdleSeconds",
+      "leaseWarning",
+      "activeToolName",
+      "activeToolElapsedSeconds",
+      "activeToolIdleSeconds",
+    ] as const) {
+      assert.equal(key in result.progress, false, key);
+    }
+    // The same omission holds in the sanitized ToolResult details.progress
+    // and in the schema-7 failure record's top-level telemetry.
+    const toolResult = await finalize();
+    const details = toolResult.details as { progress?: Record<string, unknown>; diagnosticPath?: string };
+    const sanitizedProgress = details.progress!;
+    assert.equal(sanitizedProgress.route, "prov-b/model-y:high");
+    // The sanitizer keeps the key with an omitted value when the field is
+    // absent, so the omission is asserted as an undefined value here and as
+    // key absence in the JSON record below.
+    assert.equal(sanitizedProgress.progressIdleSeconds, undefined);
+    assert.equal(sanitizedProgress.maxProgressIdleSeconds, undefined);
+    const parsed = JSON.parse(await readFile(details.diagnosticPath!, "utf8")) as Record<string, unknown>;
+    assert.equal(parsed.state, "routes_unavailable");
+    assert.equal(parsed.phase, "catalog");
+    assert.equal(parsed.lastEvent, "catalog_check");
+    assert.equal("progressIdleSeconds" in parsed, false);
+    assert.equal("maxProgressIdleSeconds" in parsed, false);
+    const recordAttempts = parsed.attempts as Record<string, unknown>[];
+    assert.equal("maxProgressIdleSeconds" in recordAttempts[1]!, false);
+  });
+});
+
+test("restart-after-work behavior is unchanged and both supervised attempts keep their maxima", async () => {
+  const fixture = await fakePi(["prov-a/model-x", "prov-b/model-y"], {
+    "prov-a/model-x": "tool-unavailable",
+    "prov-b/model-y": "complete",
+  });
+  await runAndFinalize(baseOptions(fixture, { routingConfig: twoTierRoutingConfig() }), async (result) => {
+    assert.equal(result.state, "completed");
+    assert.equal(result.attempts[0]?.state, "provider_failed");
+    assert.equal(result.attempts[0]?.restartAfterWork, true);
+    assert.equal(result.progress.restartAfterWorkCount, 1);
+    assert.ok(Number.isFinite(result.attempts[0]?.maxProgressIdleSeconds));
+    assert.ok(Number.isFinite(result.attempts[1]?.maxProgressIdleSeconds));
+    assert.ok(Number.isFinite(result.progress.maxProgressIdleSeconds));
+  });
 });

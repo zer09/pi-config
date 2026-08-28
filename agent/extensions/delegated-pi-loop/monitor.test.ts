@@ -1820,3 +1820,240 @@ test("summary identity accumulators saturate at the fixed distinct cap", () => {
   assert.ok(snapshot.lastStructuralProgressMonotonic > afterFirst.lastStructuralProgressMonotonic);
   assert.equal(snapshot.structuralProgressCount, afterFirst.structuralProgressCount + 2);
 });
+
+test("maximum gap includes the attempt-start interval closed by the first structural checkpoint", () => {
+  const { monitor: instance, tick } = monitor();
+  // Construction starts the first interval; prompt acceptance is the first
+  // structural checkpoint and closes it.
+  tick();
+  tick();
+  tick();
+  instance.acceptPrompt(1);
+  const snapshot = instance.snapshot();
+  assert.equal(snapshot.maxCompletedProgressGapMs, 300);
+  assert.equal(snapshot.lastStructuralProgressMonotonic, 1300);
+});
+
+test("successive novel checkpoints close their intervals into the maximum", () => {
+  const { monitor: instance, tick } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  tick();
+  tick();
+  tick();
+  consume(instance, 1, assistant("first"));
+  assert.equal(instance.snapshot().maxCompletedProgressGapMs, 300);
+  tick();
+  tick();
+  tick();
+  tick();
+  consume(instance, 1, assistant("second"));
+  const snapshot = instance.snapshot();
+  assert.equal(snapshot.maxCompletedProgressGapMs, 400);
+  assert.equal(snapshot.structuralProgressCount, 3);
+});
+
+test("a shorter later interval does not replace an earlier maximum", () => {
+  const { monitor: instance, tick } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  tick();
+  tick();
+  tick();
+  tick();
+  tick();
+  tick();
+  consume(instance, 1, assistant("long gap message"));
+  assert.equal(instance.snapshot().maxCompletedProgressGapMs, 600);
+  tick();
+  consume(instance, 1, assistant("short gap message"));
+  const snapshot = instance.snapshot();
+  assert.equal(snapshot.maxCompletedProgressGapMs, 600);
+  assert.equal(snapshot.lastStructuralProgressMonotonic, 1700);
+});
+
+test("duplicate checkpoints do not close an interval", () => {
+  const { monitor: instance, tick } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  tick();
+  consume(instance, 1, assistant("same message"));
+  const afterFirst = instance.snapshot();
+  tick();
+  tick();
+  consume(instance, 1, assistant("same message"));
+  const snapshot = instance.snapshot();
+  assert.equal(snapshot.duplicateCheckpointCount, 1);
+  assert.equal(snapshot.maxCompletedProgressGapMs, afterFirst.maxCompletedProgressGapMs);
+  assert.equal(snapshot.lastStructuralProgressMonotonic, afterFirst.lastStructuralProgressMonotonic);
+});
+
+test("unavailable over-budget checkpoints do not close an interval", () => {
+  const { monitor: instance, tick } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  tick();
+  consume(instance, 1, assistant("usable message"));
+  const afterFirst = instance.snapshot();
+  tick();
+  tick();
+  // Content wider than the fixed item cap is one unavailable checkpoint:
+  // no normalization, no novelty, and no structural renewal.
+  const overCap = {
+    type: "message_end",
+    message: {
+      role: "assistant",
+      stopReason: "stop",
+      content: Array.from({ length: 20_001 }, () => ({ type: "text", text: "x" })),
+    },
+  };
+  consume(instance, 1, overCap);
+  const snapshot = instance.snapshot();
+  assert.equal(snapshot.duplicateCheckpointCount, 0);
+  assert.equal(snapshot.maxCompletedProgressGapMs, afterFirst.maxCompletedProgressGapMs);
+  assert.equal(snapshot.lastStructuralProgressMonotonic, afterFirst.lastStructuralProgressMonotonic);
+});
+
+test("activity-only events do not close an interval", () => {
+  const { monitor: instance, tick } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  tick();
+  consume(instance, 1, assistant("checkpoint"));
+  const afterCheckpoint = instance.snapshot();
+  for (let index = 0; index < 5; index += 1) {
+    tick();
+    consume(instance, 1, {
+      type: "message_update",
+      assistantMessageEvent: { type: "text_delta", delta: `delta ${index}` },
+    });
+  }
+  const snapshot = instance.snapshot();
+  assert.ok(snapshot.activityEventCount > afterCheckpoint.activityEventCount);
+  assert.equal(snapshot.maxCompletedProgressGapMs, afterCheckpoint.maxCompletedProgressGapMs);
+  assert.equal(snapshot.lastStructuralProgressMonotonic, afterCheckpoint.lastStructuralProgressMonotonic);
+});
+
+test("recovery start does not reset structural progress or the maximum", () => {
+  const { monitor: instance, tick } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  tick();
+  tick();
+  tick();
+  consume(instance, 1, assistant("round one work"));
+  consume(instance, 1, { type: "agent_end", willRetry: false });
+  consume(instance, 1, { type: "agent_settled" });
+  const settled = instance.snapshot();
+  assert.equal(settled.maxCompletedProgressGapMs, 300);
+  tick();
+  tick();
+  instance.beginRecovery();
+  const snapshot = instance.snapshot();
+  // beginRecovery restarts only the RPC and activity clocks; the structural
+  // checkpoint timestamp and the completed-gap maximum stay untouched.
+  assert.equal(snapshot.lastStructuralProgressMonotonic, settled.lastStructuralProgressMonotonic);
+  assert.equal(snapshot.maxCompletedProgressGapMs, settled.maxCompletedProgressGapMs);
+});
+
+test("recovery prompt acceptance closes the existing interval", () => {
+  const { monitor: instance, tick } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  tick();
+  tick();
+  consume(instance, 1, assistant("round one work"));
+  consume(instance, 1, { type: "agent_end", willRetry: false });
+  consume(instance, 1, { type: "agent_settled" });
+  // agent_settled closed the round-1 interval; round 2 stays open until the
+  // recovery prompt is accepted, which renews structural progress.
+  const settledAt = instance.snapshot().lastStructuralProgressMonotonic;
+  tick();
+  tick();
+  tick();
+  instance.beginRecovery();
+  instance.acceptPrompt(2);
+  const snapshot = instance.snapshot();
+  assert.equal(snapshot.lastStructuralProgressMonotonic - settledAt, 300);
+  assert.equal(snapshot.maxCompletedProgressGapMs, 300);
+  assert.equal(snapshot.reportRound, 2);
+});
+
+test("negative injected deltas clamp to zero and never shrink the maximum", () => {
+  // The first renewal reads a regressed clock: the construction-to-renewal
+  // delta is negative, clamps to zero, and never fabricates a gap.
+  const reads: number[] = [1000, 900];
+  const regressed = new PiRpcMonitor(
+    1000,
+    "2026-01-01T00:00:00.000Z",
+    () => reads.shift() ?? 800,
+  );
+  regressed.acceptPrompt(1);
+  const clamped = regressed.snapshot();
+  assert.equal(clamped.maxCompletedProgressGapMs, 0);
+  assert.equal(clamped.lastStructuralProgressMonotonic, 900);
+
+  // A regressed later renewal cannot lower an established maximum either.
+  const renewalReads: number[] = [1000, 1000, 1000, 1400, 1400, 800, 800];
+  const instance = new PiRpcMonitor(
+    1000,
+    "2026-01-01T00:00:00.000Z",
+    () => renewalReads.shift() ?? 800,
+  );
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  consume(instance, 1, assistant("long gap message"));
+  assert.equal(instance.snapshot().maxCompletedProgressGapMs, 400);
+  consume(instance, 1, assistant("regressed clock message"));
+  const snapshot = instance.snapshot();
+  assert.equal(snapshot.maxCompletedProgressGapMs, 400);
+  assert.equal(snapshot.lastStructuralProgressMonotonic, 800);
+});
+
+test("snapshot exposes the completed gap as one duration field only", () => {
+  const { monitor: instance, tick } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  tick();
+  tick();
+  consume(instance, 1, assistant("message"));
+  const snapshot = instance.snapshot();
+  assert.equal(typeof snapshot.maxCompletedProgressGapMs, "number");
+  assert.equal(snapshot.maxCompletedProgressGapMs, 200);
+  // The snapshot surface gains exactly the one duration field: no new raw
+  // timestamp, digest, or key material beyond the fixed contract keys.
+  assert.deepEqual(Object.keys(snapshot).sort(), [
+    "activeToolCount",
+    "activityEventCount",
+    "activityWarningCount",
+    "agentEndCount",
+    "agentEndSeen",
+    "agentRunning",
+    "agentSettledSeen",
+    "agentStartCount",
+    "blockedMisuseSuspected",
+    "duplicateCheckpointCount",
+    "duplicateCheckpointsSinceNovel",
+    "errors",
+    "finalReport",
+    "lastActivityMonotonic",
+    "lastEvent",
+    "lastEventAt",
+    "lastEventDetail",
+    "lastStructuralProgressMonotonic",
+    "lastValidRpcMonotonic",
+    "maxCompletedProgressGapMs",
+    "outcome",
+    "phase",
+    "progressWarningCount",
+    "providerFailureCategory",
+    "reasonStatus",
+    "reportRound",
+    "routeUnavailableSeen",
+    "sessionSeen",
+    "structuralProgressCount",
+    "terminalReason",
+    "toolExecutionCount",
+  ]);
+  assert.doesNotMatch(JSON.stringify(snapshot), /[0-9a-f]{64}/);
+});

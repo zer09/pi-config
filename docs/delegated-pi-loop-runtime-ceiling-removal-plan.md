@@ -4,6 +4,8 @@ Status: Accepted implementation contract
 
 Supersession note (2026-08-28): the 30-minute structural-progress warning default in this plan was retuned to 15 minutes under the accepted contract in `docs/delegated-pi-loop-schema-6-progress-warning-retune-plan.md` and the ADR 0015 amendment. The renewable 45-minute structural-progress lease and every other decision below remain current policy. The rest of this document is preserved unchanged as historical evidence of the accepted 30/45 design.
 
+Supersession note (2026-08-28, diagnostics schema): the schema-6 diagnostics sections of this plan no longer describe current writes: new run telemetry uses schema 7 with `maxProgressIdleSeconds` and metadata-only success records under `docs/delegated-pi-loop-schema-7-maximum-progress-gap-telemetry-plan.md` (ADR 0016). Historical schema 3 through 6 files remain valid and untouched.
+
 Baseline commit: `51722ff` (`refactor(delegate): compact delegation instructions`)
 
 Intended branch: `feat/delegate-renewable-liveness`
