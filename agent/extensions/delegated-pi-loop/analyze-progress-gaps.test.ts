@@ -139,6 +139,36 @@ test("the default sample takes the completed attempt and ignores fallback attemp
   assert.deepEqual(eligibleGap(mixed), { status: "eligible", value: 45.6 });
 });
 
+test("records shaped like the bounded writer stay eligible through their retained terminal attempt", () => {
+  // Fixed-writer shape for a twelve-attempt history: the bounded slice
+  // keeps nine earlier attempts plus the terminal completed attempt.
+  const fixedWriter = {
+    schemaVersion: 7,
+    state: "completed",
+    attempts: [
+      ...Array.from({ length: 9 }, () => ({
+        route: "prov/a:high",
+        state: "stalled",
+        maxProgressIdleSeconds: 9999,
+      })),
+      { route: "prov/b:high", state: "completed", maxProgressIdleSeconds: 321.5 },
+    ],
+  };
+  assert.deepEqual(eligibleGap(fixedWriter), { status: "eligible", value: 321.5 });
+  // Legacy pre-fix shape: ten serialized attempts whose completed tail was
+  // truncated away stays ignored as noCompletedAttempt, never guessed at.
+  const legacyTruncated = {
+    schemaVersion: 7,
+    state: "completed",
+    attempts: Array.from({ length: 10 }, () => ({
+      route: "prov/a:high",
+      state: "stalled",
+      maxProgressIdleSeconds: 9999,
+    })),
+  };
+  assert.deepEqual(eligibleGap(legacyTruncated), { status: "ignored", reason: "noCompletedAttempt" });
+});
+
 test("analyzeRecords reports counts, extrema, percentiles, and thresholds", () => {
   const values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 299, 301, 599, 601, 899, 901, 1199, 1201, 1799, 2700];
   const analysis = analyzeRecords(values.map((value) => completedRecord(value)));

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { atomicWriteJson, safeLabel } from "./artifacts.ts";
 import { BLOCKED_REASON_CODES, DELEGATE_REASON_UNSPECIFIED, FAILED_REASON_CODES, PROVIDER_FAILURE_CATEGORY_SET } from "./types.ts";
-import type { DelegateRunResult } from "./types.ts";
+import type { ChainAttempt, DelegateRunResult } from "./types.ts";
 
 /** Schema version for every newly written run-telemetry record (failure and success). Historical schema 3-6 files are never migrated. */
 export const SCHEMA_VERSION = 7;
@@ -69,6 +69,17 @@ function isoTimestamp(value: string | undefined): string | undefined {
   return Number.isFinite(Date.parse(value)) ? value : undefined;
 }
 
+/**
+ * Bounded attempt selection: histories at or under MAX_ATTEMPTS serialize
+ * unchanged; longer histories keep the first MAX_ATTEMPTS - 1 attempts plus
+ * the terminal attempt. A long fallback chain's final completion always
+ * survives truncation, and the record never exceeds the attempt cap.
+ */
+function boundedAttemptList(attempts: readonly ChainAttempt[]): readonly ChainAttempt[] {
+  if (attempts.length <= MAX_ATTEMPTS) return attempts;
+  return [...attempts.slice(0, MAX_ATTEMPTS - 1), attempts[attempts.length - 1]!];
+}
+
 /** `${PI_CODING_AGENT_DIR:-~/.pi/agent}/logs/delegated-pi-loop` */
 export function diagnosticsDirectory(): string {
   const agentDir = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
@@ -125,7 +136,7 @@ export function schemaSevenRecord(result: DelegateRunResult): Record<string, unk
     reportRecoveryReason: fixedValue(result.progress.reportRecoveryReason, new Set(["missing_report", "invalid_result"])),
     finalRound: result.progress.reportRound,
     providerFailureCategory: fixedValue(result.progress.providerFailureCategory, PROVIDER_FAILURE_CATEGORY_SET),
-    attempts: result.attempts.slice(0, MAX_ATTEMPTS).map((attempt) => ({
+    attempts: boundedAttemptList(result.attempts).map((attempt) => ({
       route: boundedRoute(attempt.route),
       state: fixedValue(attempt.state, DELEGATE_STATES),
       elapsedSeconds: finiteNumber(attempt.elapsedSeconds),

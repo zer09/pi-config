@@ -280,6 +280,47 @@ test("bounds attempts and stream errors in the diagnostic", async () => {
   });
 });
 
+test("truncated attempt histories retain the terminal attempt within the attempt cap", () => {
+  // Twelve attempts: eleven failed fallbacks, then a terminal completion.
+  // The routing parser imposes no route-count limit, so the bounded slice
+  // must keep the completion the analyzer's eligible sample depends on.
+  const attempts = [
+    ...Array.from({ length: 11 }, (_, index) => ({
+      route: `provider/model-${index}:max`,
+      state: "stalled" as const,
+      elapsedSeconds: index + 1,
+    })),
+    {
+      route: "zai/glm-5.3:max",
+      state: "completed" as const,
+      elapsedSeconds: 42,
+      maxProgressIdleSeconds: 321.5,
+    },
+  ];
+  const record = schemaSevenRecord(failedResult({ attempts }));
+  const serialized = record.attempts as Record<string, unknown>[];
+  assert.equal(serialized.length, 10);
+  assert.deepEqual(
+    serialized.slice(0, 9).map((attempt) => attempt.route),
+    Array.from({ length: 9 }, (_, index) => `provider/model-${index}:max`),
+  );
+  assert.equal(serialized[9]!.route, "zai/glm-5.3:max");
+  assert.equal(serialized[9]!.state, "completed");
+  assert.equal(serialized[9]!.maxProgressIdleSeconds, 321.5);
+  assert.ok(!JSON.stringify(record).includes("provider/model-9"));
+  assert.ok(!JSON.stringify(record).includes("provider/model-10"));
+  // At or under the cap, every attempt serializes in full order.
+  const shortHistory = [
+    { route: "provider/one:max", state: "stalled" as const, elapsedSeconds: 1 },
+    { route: "provider/two:max", state: "completed" as const, elapsedSeconds: 2, maxProgressIdleSeconds: 5.5 },
+  ];
+  const shortRecord = schemaSevenRecord(failedResult({ attempts: shortHistory }));
+  assert.deepEqual(
+    (shortRecord.attempts as Record<string, unknown>[]).map((attempt) => attempt.state),
+    ["stalled", "completed"],
+  );
+});
+
 test("schema 7 rejects seeded paths, credentials, payloads, signals, pids, digests, and raw errors", () => {
   const forbidden = "/home/gc/PRIVATE_PATH sk-SECRET_TOKEN SIGKILL pid=4242 provider-body tool-argument tool-result raw-error 4f2a9c1b8e7d";
   const result = failedResult({
