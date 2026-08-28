@@ -214,13 +214,11 @@ export async function writeFailureDiagnosticQuietly(result: DelegateRunResult): 
 }
 
 /**
- * Exactly the characters `safeLabel` (artifacts.ts) can emit: its replace
- * step maps every run of characters outside `[A-Za-z0-9._-]` to `-`, the
- * leading/trailing `[-.]+` strip and the `slice(0, 64)` never add new
- * characters, and the `|| "delegate"` fallback guarantees at least one
- * character.
+ * Label shape `safeLabel` (artifacts.ts) can emit: 1 to 64 characters of
+ * `[A-Za-z0-9._-]` whose first character is never `-` or `.`, because the
+ * pre-slice `[-.]+` strip always removes a leading punctuation run.
  */
-const SAFE_LABEL_SHAPE = /^[A-Za-z0-9._-]+$/;
+const SAFE_LABEL_SHAPE = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,63}$/;
 /** One or more ASCII digits: the shape of `Date.now()`, `process.pid`, and the write counter. */
 const DIGIT_SEGMENT = /^[0-9]+$/;
 
@@ -230,9 +228,10 @@ const DIGIT_SEGMENT = /^[0-9]+$/;
  * writeRunDiagnostic. `safeLabel` output may itself contain hyphens, so the
  * three numeric segments are anchored from the right: the final three
  * hyphen-separated segments before `.json` must each be one or more ASCII
- * digits, and the joined remainder (the label portion) must consist exactly
- * of characters `safeLabel` can emit. Every other `success-v7-*.json`-looking
- * name is not writer-owned and is never a pruning candidate.
+ * digits, and the label remainder must fit `SAFE_LABEL_SHAPE`. Every other
+ * `success-v7-*.json`-looking name is not writer-owned and is never a
+ * pruning candidate; a foreign file that exactly mimics one possible writer
+ * output remains indistinguishable by name.
  */
 export function isSuccessTelemetryName(name: string): boolean {
   if (!name.startsWith(SUCCESS_FILE_PREFIX) || !name.endsWith(".json")) return false;
@@ -278,15 +277,21 @@ export const retentionProbes: {
  * retention limit. Never touches failures, historical schema 3-6 files,
  * unknown names, directories, or symlinks: candidates pass a no-follow
  * `lstat` regular-file check immediately before deletion, and deletion is
- * bound to the batched entry's `dev`/`ino` identity so a concurrent
- * replacement at the same pathname is skipped, never deleted. An `ENOENT`
- * from another local Pi process pruning the same file is ignored, and a
- * final-check `lstat` error of any kind skips that candidate; a
- * non-`ENOENT` deletion error propagates to the best-effort caller. When
- * the exact-name
- * candidate count is at or below the limit the sweep exits before any
- * metadata gathering; otherwise candidate metadata is collected with
- * bounded concurrent `lstat` batches instead of one call per candidate.
+ * bound to the batched entry's `dev`/`ino` identity as re-verified by a
+ * final no-follow `lstat` immediately before the `rm`. This narrows the
+ * replacement window to the interval between that final check and the
+ * `rm` itself; a replacement landing inside that window is still deleted,
+ * because pathname-based fs APIs cannot eliminate it. That window is
+ * inherent to the plan's prescribed lstat-then-deletion mechanism (plan
+ * section 7.4 rule 3), and the designed writer population only ever creates
+ * uniquely named new records and prunes, never replaces existing names.
+ * An `ENOENT` from another local Pi process pruning the same file is
+ * ignored, and a final-check `lstat` error of any kind skips that
+ * candidate; a non-`ENOENT` deletion error propagates to the best-effort
+ * caller. When the exact-name candidate count is at or below the limit the
+ * sweep exits before any metadata gathering; otherwise candidate metadata
+ * is collected with bounded concurrent `lstat` batches instead of one call
+ * per candidate.
  */
 async function pruneSuccessTelemetry(directory: string, limit: number): Promise<void> {
   let entries;
@@ -331,8 +336,11 @@ async function pruneSuccessTelemetry(directory: string, limit: number): Promise<
     try {
       const fresh = await retentionProbes.lstat(path.join(directory, candidate.name));
       // Bind deletion to the validated entry: a replacement with a different
-      // dev/ino, or any non-regular replacement (symlink, directory), is
-      // skipped untouched.
+      // dev/ino, or any non-regular replacement (symlink, directory), that
+      // landed before this check is skipped. A replacement landing between
+      // this check and the awaited `rm` below still falls inside the window
+      // inherent to the plan's lstat-then-deletion mechanism (section 7.4
+      // rule 3), which pathname-based fs APIs cannot close.
       if (!fresh.isFile() || fresh.dev !== candidate.dev || fresh.ino !== candidate.ino) continue;
     } catch {
       // Skip-and-continue best-effort (ENOENT included): the final check

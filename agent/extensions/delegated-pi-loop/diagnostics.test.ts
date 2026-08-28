@@ -789,6 +789,113 @@ test("near-miss success-v7-looking names are never pruning candidates and surviv
   });
 });
 
+test("a writer-shaped name with a 65-character label is not writer-owned and never pruned", async () => {
+  await withDiagnosticsRoot(async (root) => {
+    const directory = path.join(root, "logs", "delegated-pi-loop");
+    const base = Date.now() - 3_600_000;
+    // `safeLabel` always truncates to 64 characters, so a 65-character label
+    // remainder cannot be writer-owned regardless of its characters.
+    const overLength = `success-v7-${"a".repeat(65)}-1000-1-1.json`;
+    assert.equal(isSuccessTelemetryName(overLength), false);
+    // Seeded as the oldest regular file: under an unbounded label check it
+    // would be the first pruning victim.
+    await seedSuccessFile(directory, overLength, new Date(base - 60_000));
+    const seeded = [
+      "success-v7-implementation-1000-1-1.json",
+      "success-v7-implementation-1000-1-2.json",
+      "success-v7-implementation-1000-1-3.json",
+      "success-v7-implementation-1000-1-4.json",
+    ];
+    for (let index = 0; index < seeded.length; index += 1) {
+      await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
+    }
+    await writeSuccessTelemetry(completedResult(), 2);
+    // Genuine records still prune to the limit while the over-length name
+    // survives untouched as a foreign file.
+    const remaining = await successEntries(directory);
+    const genuine = remaining.filter(isSuccessTelemetryName);
+    assert.equal(genuine.length, 2, `genuine records must be pruned to the limit, got ${genuine.join(",")}`);
+    assert.ok(remaining.includes(overLength), "the 65-character-label file must survive the sweep");
+    assert.equal(await readFile(path.join(directory, overLength), "utf8"), "{}\n");
+  });
+});
+
+test("label remainders safeLabel can never emit are rejected by the name matcher", () => {
+  // safeLabel strips leading [-.]+ before its slice, so writer output can
+  // never start with - or .
+  const rejected = [
+    "success-v7--foreign-1000-1-1.json",
+    "success-v7-.foreign-1000-1-1.json",
+  ];
+  for (const name of rejected) assert.equal(isSuccessTelemetryName(name), false, name);
+});
+
+test("foreign leading-punctuation files survive an over-limit sweep", async () => {
+  await withDiagnosticsRoot(async (root) => {
+    const directory = path.join(root, "logs", "delegated-pi-loop");
+    const base = Date.now() - 3_600_000;
+    // The two leading-punctuation probes: remainders outside safeLabel's
+    // emission shape, seeded as the oldest regular files so an over-broad
+    // matcher would delete them first.
+    const foreign = [
+      "success-v7--foreign-1000-1-1.json",
+      "success-v7-.foreign-1000-1-1.json",
+    ];
+    for (const name of foreign) assert.equal(isSuccessTelemetryName(name), false, name);
+    const foreignBefore: { name: string; mtimeMs: number }[] = [];
+    for (let index = 0; index < foreign.length; index += 1) {
+      await seedSuccessFile(directory, foreign[index]!, new Date(base - 60_000 + index));
+      const filePath = path.join(directory, foreign[index]!);
+      foreignBefore.push({ name: foreign[index]!, mtimeMs: (await stat(filePath)).mtimeMs });
+    }
+    const seeded = [
+      "success-v7-implementation-1000-1-1.json",
+      "success-v7-implementation-1000-1-2.json",
+      "success-v7-implementation-1000-1-3.json",
+      "success-v7-implementation-1000-1-4.json",
+      "success-v7-implementation-1000-1-5.json",
+    ];
+    for (let index = 0; index < seeded.length; index += 1) {
+      await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
+    }
+    await writeSuccessTelemetry(completedResult(), 2);
+    // Genuine writer-shaped records still prune down to the limit.
+    const remaining = await successEntries(directory);
+    const genuine = remaining.filter(isSuccessTelemetryName);
+    assert.equal(genuine.length, 2, `genuine records must be pruned to the limit, got ${genuine.join(",")}`);
+    for (const name of seeded.slice(0, 4)) assert.ok(!remaining.includes(name), name);
+    assert.ok(remaining.includes(seeded[4]!), "the newest genuine record must survive");
+    // Every foreign file survives untouched with identical bytes and mtime.
+    for (const entry of foreignBefore) {
+      const filePath = path.join(directory, entry.name);
+      assert.equal(await readFile(filePath, "utf8"), "{}\n", entry.name);
+      assert.equal((await stat(filePath)).mtimeMs, entry.mtimeMs, entry.name);
+    }
+  });
+});
+
+test("exact-64 label remainders ending in - or . are writer-emittable and accepted", async () => {
+  await withDiagnosticsRoot(async () => {
+    // slice(0, 64) can cut right after a - or ., so a trailing - or . is
+    // writer-emittable exactly at the 64-character bound; rejecting these
+    // names would silently disable retention for genuine writer output.
+    const hyphenEnd = `success-v7-${"a".repeat(63)}--1000-1-1.json`;
+    const dotEnd = `success-v7-${"a".repeat(63)}.-1000-1-1.json`;
+    const alnumEnd = `success-v7-${"a".repeat(64)}-1000-1-1.json`;
+    assert.equal(isSuccessTelemetryName(hyphenEnd), true);
+    assert.equal(isSuccessTelemetryName(dotEnd), true);
+    assert.equal(isSuccessTelemetryName(alnumEnd), true);
+    // The real writer emits exactly these shapes from longer inputs: the
+    // strip leaves both ends intact, then the slice cuts at 64.
+    const hyphenWritten = await writeSuccessTelemetry(completedResult({ label: `${"a".repeat(63)}-a` }), 4);
+    const dotWritten = await writeSuccessTelemetry(completedResult({ label: `${"a".repeat(63)}.a` }), 4);
+    assert.ok(isSuccessTelemetryName(path.basename(hyphenWritten)));
+    assert.ok(isSuccessTelemetryName(path.basename(dotWritten)));
+    assert.ok(path.basename(hyphenWritten).includes(`${"a".repeat(63)}--`));
+    assert.ok(path.basename(dotWritten).includes(`${"a".repeat(63)}.-`));
+  });
+});
+
 test("every writer-generated success filename matches the name filter across varied labels", async () => {
   await withDiagnosticsRoot(async (root) => {
     const directory = path.join(root, "logs", "delegated-pi-loop");
