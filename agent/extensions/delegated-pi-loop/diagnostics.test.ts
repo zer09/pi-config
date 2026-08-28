@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
   diagnosticPermissions,
   failureDiagnostic,
+  retentionProbes,
   SCHEMA_VERSION,
   schemaSevenRecord,
   SUCCESS_FILE_PREFIX,
@@ -767,5 +768,153 @@ test("files disappearing mid-prune never fail the delegate result", async () => 
     assert.ok(path.basename(written).startsWith(SUCCESS_FILE_PREFIX));
     const remaining = await successEntries(directory);
     assert.ok(remaining.length <= 5, `the limit still holds after disappearances, got ${remaining.join(",")}`);
+  });
+});
+
+/** Installs recording retention probes and returns their restore function plus every rm call. */
+function installRecordingProbes(): { restore: () => void; rmCalls: string[] } {
+  const rmCalls: string[] = [];
+  const originalLstat = retentionProbes.lstat;
+  const originalRm = retentionProbes.rm;
+  retentionProbes.rm = async (filePath) => {
+    rmCalls.push(filePath);
+    return originalRm(filePath);
+  };
+  return {
+    rmCalls,
+    restore: () => {
+      retentionProbes.lstat = originalLstat;
+      retentionProbes.rm = originalRm;
+    },
+  };
+}
+
+test("a symlink replacement between validation and deletion survives untouched", async () => {
+  await withDiagnosticsRoot(async (root) => {
+    const directory = path.join(root, "logs", "delegated-pi-loop");
+    const base = Date.now() - 3_600_000;
+    const seeded = [
+      "success-v7-implementation-3000-1-1.json",
+      "success-v7-implementation-3000-1-2.json",
+      "success-v7-implementation-3000-1-3.json",
+    ];
+    for (let index = 0; index < seeded.length; index += 1) {
+      await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
+    }
+    const target = path.join(directory, seeded[0]!);
+    const saved = `${target}.saved`;
+    const originalLstat = retentionProbes.lstat;
+    const { restore, rmCalls } = await installRecordingProbes();
+    retentionProbes.lstat = async (filePath) => {
+      if (filePath === target) {
+        // Cross-process replacement after the batched validation: another
+        // same-user process moves the validated regular file aside and puts
+        // a symlink at the same pathname before the deletion check runs.
+        await rename(target, saved);
+        await symlink(saved, target);
+      }
+      return originalLstat(filePath);
+    };
+    try {
+      await writeSuccessTelemetry(completedResult(), 2);
+    } finally {
+      restore();
+    }
+    assert.ok((await lstat(target)).isSymbolicLink(), "the replacement symlink must survive");
+    await stat(saved);
+    assert.ok(!rmCalls.includes(target), "rm must not be called for the replaced entry");
+    assert.ok(!rmCalls.includes(saved), "the moved-aside validated file must not be deleted either");
+    // The sweep still prunes the next-oldest over-limit candidate.
+    assert.ok(rmCalls.includes(path.join(directory, seeded[1]!)));
+    const remaining = await successEntries(directory);
+    assert.ok(remaining.length <= 2, `at most the limit survives, got ${remaining.join(",")}`);
+  });
+});
+
+test("a foreign regular-file replacement survives the dev/ino identity check", async () => {
+  await withDiagnosticsRoot(async (root) => {
+    const directory = path.join(root, "logs", "delegated-pi-loop");
+    const base = Date.now() - 3_600_000;
+    const seeded = [
+      "success-v7-implementation-3100-1-1.json",
+      "success-v7-implementation-3100-1-2.json",
+      "success-v7-implementation-3100-1-3.json",
+    ];
+    for (let index = 0; index < seeded.length; index += 1) {
+      await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
+    }
+    const target = path.join(directory, seeded[0]!);
+    const moved = `${target}.moved`;
+    const validatedIno = (await lstat(target)).ino;
+    const originalLstat = retentionProbes.lstat;
+    const { restore, rmCalls } = await installRecordingProbes();
+    retentionProbes.lstat = async (filePath) => {
+      if (filePath === target) {
+        // Cross-process replacement with an unrelated regular file: a new
+        // inode occupies the validated pathname before deletion runs.
+        await rename(target, moved);
+        await writeFile(filePath, "{\"foreign\":true}\n", { mode: 0o600 });
+      }
+      return originalLstat(filePath);
+    };
+    try {
+      await writeSuccessTelemetry(completedResult(), 2);
+    } finally {
+      restore();
+    }
+    const fresh = await lstat(target);
+    assert.ok(fresh.isFile(), "the foreign replacement regular file must survive");
+    assert.notEqual(fresh.ino, validatedIno, "the replacement must occupy a different inode");
+    assert.equal(await readFile(target, "utf8"), "{\"foreign\":true}\n");
+    assert.ok(!rmCalls.includes(target), "rm must not be called for the replaced entry");
+    await stat(moved);
+    assert.ok(rmCalls.includes(path.join(directory, seeded[1]!)));
+    // The preserved replacement is itself a regular success-named file, so
+    // this sweep ends one entry over the limit; a later sweep re-validates
+    // it as its own candidate and restores the bound. The pruned record is
+    // gone and the newest records survive.
+    const remaining = await successEntries(directory);
+    assert.ok(!remaining.includes(seeded[1]!));
+    assert.ok(remaining.includes(seeded[0]!));
+    assert.ok(remaining.includes(seeded[2]!));
+    assert.equal(remaining.length, 3);
+  });
+});
+
+test("a candidate vanishing before the deletion check is skipped without failing the sweep", async () => {
+  await withDiagnosticsRoot(async (root) => {
+    const directory = path.join(root, "logs", "delegated-pi-loop");
+    const base = Date.now() - 3_600_000;
+    const seeded = [
+      "success-v7-implementation-3200-1-1.json",
+      "success-v7-implementation-3200-1-2.json",
+      "success-v7-implementation-3200-1-3.json",
+    ];
+    for (let index = 0; index < seeded.length; index += 1) {
+      await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
+    }
+    const target = path.join(directory, seeded[0]!);
+    const originalLstat = retentionProbes.lstat;
+    const { restore, rmCalls } = await installRecordingProbes();
+    retentionProbes.lstat = async (filePath) => {
+      if (filePath === target) {
+        // Another local Pi process prunes the file between the batched
+        // validation and the deletion check: the final lstat sees ENOENT.
+        await rm(filePath, { force: true });
+      }
+      return originalLstat(filePath);
+    };
+    let written: string | undefined;
+    try {
+      written = await writeSuccessTelemetry(completedResult(), 2);
+    } finally {
+      restore();
+    }
+    await assert.rejects(() => lstat(target), (error: NodeJS.ErrnoException) => error.code === "ENOENT");
+    assert.ok(!rmCalls.includes(target), "rm must not be called for the vanished entry");
+    assert.ok(rmCalls.includes(path.join(directory, seeded[1]!)));
+    const remaining = await successEntries(directory);
+    assert.ok(remaining.length <= 2, `at most the limit survives, got ${remaining.join(",")}`);
+    assert.ok(remaining.includes(path.basename(written!)));
   });
 });

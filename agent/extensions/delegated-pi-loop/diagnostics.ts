@@ -1,3 +1,4 @@
+import type { Stats } from "node:fs";
 import { chmod, lstat, mkdir, readdir, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -231,15 +232,33 @@ function enqueueTelemetry<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * Test seam: replaceable deletion-check surface (the pre-deletion no-follow
+ * `lstat` and the `rm` it guards) so tests can simulate a same-user process
+ * replacing a retention candidate between batched validation and deletion;
+ * production always keeps the real calls.
+ */
+export const retentionProbes: {
+  lstat: (filePath: string) => Promise<Stats>;
+  rm: (filePath: string) => Promise<void>;
+} = {
+  lstat: (filePath) => lstat(filePath),
+  rm: (filePath) => rm(filePath),
+};
+
+/**
  * Prunes the oldest exact `success-v7-*.json` regular files beyond the
  * retention limit. Never touches failures, historical schema 3-6 files,
  * unknown names, directories, or symlinks: candidates pass a no-follow
- * `lstat` regular-file check immediately before deletion. An `ENOENT` from
- * another local Pi process pruning the same file is ignored; every other
- * error propagates to the best-effort caller. When the exact-name candidate
- * count is at or below the limit the sweep exits before any metadata
- * gathering; otherwise candidate metadata is collected with bounded
- * concurrent `lstat` batches instead of one call per candidate.
+ * `lstat` regular-file check immediately before deletion, and deletion is
+ * bound to the batched entry's `dev`/`ino` identity so a concurrent
+ * replacement at the same pathname is skipped, never deleted. An `ENOENT`
+ * from another local Pi process pruning the same file is ignored, and a
+ * final-check `lstat` error of any kind skips that candidate; a
+ * non-`ENOENT` deletion error propagates to the best-effort caller. When
+ * the exact-name
+ * candidate count is at or below the limit the sweep exits before any
+ * metadata gathering; otherwise candidate metadata is collected with
+ * bounded concurrent `lstat` batches instead of one call per candidate.
  */
 async function pruneSuccessTelemetry(directory: string, limit: number): Promise<void> {
   let entries;
@@ -253,7 +272,7 @@ async function pruneSuccessTelemetry(directory: string, limit: number): Promise<
   // Early exit: at or under the limit nothing can be pruned and the write
   // already happened, so the sweep performs no lstat work at all.
   if (exactNames.length <= limit) return;
-  const candidates: { readonly name: string; readonly writtenAt: number }[] = [];
+  const candidates: { readonly name: string; readonly writtenAt: number; readonly dev: number; readonly ino: number }[] = [];
   for (let start = 0; start < exactNames.length; start += RETENTION_LSTAT_BATCH_SIZE) {
     // Only metadata gathering inside this one sweep is parallel; the
     // write-plus-prune serialization in enqueueTelemetry is unchanged.
@@ -271,7 +290,7 @@ async function pruneSuccessTelemetry(directory: string, limit: number): Promise<
     for (let index = 0; index < batch.length; index += 1) {
       const info = infos[index];
       if (info !== undefined && info.isFile()) {
-        candidates.push({ name: batch[index]!, writtenAt: info.mtimeMs });
+        candidates.push({ name: batch[index]!, writtenAt: info.mtimeMs, dev: info.dev, ino: info.ino });
       }
     }
   }
@@ -282,7 +301,19 @@ async function pruneSuccessTelemetry(directory: string, limit: number): Promise<
     left.writtenAt - right.writtenAt || (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
   for (const candidate of candidates.slice(0, candidates.length - limit)) {
     try {
-      await rm(path.join(directory, candidate.name));
+      const fresh = await retentionProbes.lstat(path.join(directory, candidate.name));
+      // Bind deletion to the validated entry: a replacement with a different
+      // dev/ino, or any non-regular replacement (symlink, directory), is
+      // skipped untouched.
+      if (!fresh.isFile() || fresh.dev !== candidate.dev || fresh.ino !== candidate.ino) continue;
+    } catch {
+      // Skip-and-continue best-effort (ENOENT included): the final check
+      // cannot alter the delegate result, so one bad entry must not abort
+      // the sweep.
+      continue;
+    }
+    try {
+      await retentionProbes.rm(path.join(directory, candidate.name));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
       throw error;
