@@ -4,6 +4,8 @@ Quantitative calibration date: 2026-07-01
 
 Structural inventory refresh: 2026-07-19 (Pi 0.80.10; `pi-browser-harness` 0.8.3; 57 registered tools, 54 active tools including 36 browser tools). Provider calibration was not rerun; current tool schema and guideline attribution was measured offline.
 
+Impeccable explicit-only skill installation: 2026-08-30 (added the locally adapted Impeccable runtime payload with `disable-model-invocation: true`; zero startup skill-catalog delta because Pi excludes explicit-only skills from automatic model routing; provider calibration and the full extension/tool inventory were not rerun)
+
 Skill-catalog-only update: 2026-07-09 (added `directus-browser`; provider calibration was not rerun)
 
 Global-instruction and skill-catalog incremental update: 2026-08-03 (added `delegated-pi-loop`; provider calibration and the full extension/tool inventory were not rerun)
@@ -208,6 +210,18 @@ pi "${COMMON[@]}" hi > /tmp/pi-full-hi.jsonl
 - Local `tiktoken` totals are not guaranteed to equal provider totals. Provider tokenization, Responses API framing, tool framing, and hidden/backend protocol all differ from plain local string counting.
 - Token counts are not always additive because BPE token boundaries change when sections are joined.
 - Prompt templates, extension command metadata, full `SKILL.md` files, tool results, and prior session history are not startup model context unless invoked/read/sent in a later turn.
+
+## 2026-08-30 Impeccable explicit-only skill attribution
+
+This change was measured locally with `tiktoken` `o200k_base`; no paid provider calibration was run.
+
+| Surface | Tokens | Startup behavior |
+|---|---:|---|
+| Impeccable catalog description | 0 | Excluded from automatic model routing by `disable-model-invocation: true` |
+| `impeccable/SKILL.md` | 2,768 | Loaded only after explicit `/skill:impeccable` invocation |
+| Impeccable references and scripts | On demand | Read or executed only when the selected playbook needs them |
+
+The installation adds 165 regular files total, including the local license and OpenAI metadata, but no tool schema or always-loaded instruction. Impeccable remains excluded from delegated-child skills, so child startup context is unchanged.
 
 ## 2026-08-03 delegated-loop incremental attribution
 

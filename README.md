@@ -143,7 +143,7 @@ Important skill groups include:
 - Firebase, Firestore, Firebase Auth, Firebase Hosting, Firebase App Hosting, Firebase Data Connect, and Genkit guidance
 - Python tooling skills for `uv`, `ruff`, and `ty`
 - database skills for Postgres and MySQL
-- Figma and OpenAI-derived skills
+- Figma, Impeccable frontend design, and OpenAI-derived skills
 - session handoff and local continuity workflows; delegated Pi and Z.AI loops run through the native TypeScript extension, including Claude-named models served by Pi providers
 - skill creation and maintenance workflows
 

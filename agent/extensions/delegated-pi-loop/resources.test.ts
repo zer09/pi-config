@@ -33,7 +33,7 @@ const SHIPPED_ALLOWED_SKILLS = [
 const SHIPPED_EXCLUDED_SKILLS = [
   "crit", "crit-cli", "developing-genkit-dart", "developing-genkit-go",
   "developing-genkit-js", "developing-genkit-python", "directus-browser",
-  "grill-with-docs", "improve-codebase-architecture", "intent-layer",
+  "grill-with-docs", "improve-codebase-architecture", "intent-layer", "impeccable",
   "nlm-skill", "pi-browser-harness", "session-handoff", "skill-creator",
 ] as const;
 
