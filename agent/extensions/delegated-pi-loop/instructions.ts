@@ -154,8 +154,9 @@ Review the draft contract against the neutral problem, governing documents, and 
 Report exactly one verdict, VALID or REVISE, plus correctness analysis, missing invariants and risks, material alternatives, exact path:line evidence, validation changes, and limits. Parent verifies claims and owns the final contract.`,
 
   verification: `Read-only verification of one supplied finding. Do not edit, fix, broaden review, or change Git or hosted state.
-Classify: REPRODUCED, PARTIALLY REPRODUCED, NOT REPRODUCED, ALREADY FIXED, DUPLICATE, or ARCHITECTURE AMBIGUITY.
-Report evidence, the exact remediation contract when applicable, and limits.`,
+Classify: REPRODUCED, PARTIALLY REPRODUCED, NOT REPRODUCED, ALREADY FIXED, DUPLICATE, or ARCHITECTURE AMBIGUITY. Report evidence for the classification and limits.
+For REPRODUCED or PARTIALLY REPRODUCED, report the root cause and impact, then propose the smallest repository-compatible remediation contract: target paths and symbols; required behavior and invariants; implementation approach; regression tests; acceptance criteria; risks and assumptions. Scope a PARTIALLY REPRODUCED proposal only to confirmed behavior.
+For every other classification, explain why no remediation is proposed.`,
 
   remediation: `Implement only the focused remediation contract. Add the failing regression before or with the smallest correct fix.
 Do not broaden review, perform unrelated cleanup, make Git or hosted transitions, or delegate.
