@@ -146,6 +146,33 @@
         }
       ]
     },
+    "justworker": {
+      "baseUrl": "https://api.justwoker.icu",
+      "api": "anthropic-messages",
+      "apiKey": "$JUSTWORKER_API_KEY",
+      "compat": {
+        "supportsLongCacheRetention": false
+      },
+      "models": [
+        {
+          "id": "claude-opus-5-thinking",
+          "name": "Claude Opus 5 Thinking",
+          "reasoning": true,
+          "input": ["text"],
+          "contextWindow": 1000000,
+          "maxTokens": 128000,
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": null
+          }
+        }
+      ]
+    },
     "gorouter": {
       "baseUrl": "https://gorouter.app",
       "api": "anthropic-messages",
