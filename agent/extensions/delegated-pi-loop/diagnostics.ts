@@ -191,6 +191,33 @@ let writeCounter = 0;
 const TERMINAL_SUFFIX_PATTERN =
   /(?:^|\r?\n)(?:[^\S\n]*DELEGATE_REASON:[^\S\n]*([a-z][a-z0-9_]*)[^\S\n]*\r?\n)?DELEGATE_RESULT:\s*(COMPLETED|BLOCKED|FAILED)\s*$/;
 
+/** Exact reason marker, spelled as the strict monitor parser reads it. */
+const DELEGATE_REASON_MARKER = "DELEGATE_REASON:";
+
+/** Single-character test for the exact Unicode set `String.prototype.trim()` strips (JS `\s`). */
+const TRIMMED_WHITESPACE = /\s/;
+
+/**
+ * True when the original line directly above the result separator at
+ * separatorIndex starts with the exact `DELEGATE_REASON:` marker after the
+ * parser's Unicode trim: a reason line whose value the suffix pattern could
+ * not capture and validate. Only the marker prefix is examined in place, so
+ * the malformed reason value itself is never parsed, copied, logged, or
+ * exposed.
+ */
+function reasonLineAboveSeparator(report: string, separatorIndex: number): boolean {
+  // Index 0 is the empty `^` branch: the report itself starts with the
+  // result line, so no preceding line exists and the bare result stands.
+  if (separatorIndex === 0) return false;
+  const lineStart = report.lastIndexOf("\n", separatorIndex - 1) + 1;
+  // Leading trim in place over the same Unicode whitespace the parser's
+  // line.trim() strips; a lone CR inside the line is ordinary whitespace to
+  // both the parser's line split and its trim, so it stays line content.
+  let start = lineStart;
+  while (start < separatorIndex && TRIMMED_WHITESPACE.test(report.charAt(start))) start += 1;
+  return start < separatorIndex && report.startsWith(DELEGATE_REASON_MARKER, start);
+}
+
 /**
  * Exact recognized terminal suffix of a delegate report: the verbatim
  * text from the complete original line separator (a lone LF or a full
@@ -208,7 +235,11 @@ const TERMINAL_SUFFIX_PATTERN =
  * outcome fields, not here. Including the complete separator keeps the
  * terminal lines on their own line, with their original CRLF boundary
  * bytes intact, after the body prefix is cut; blank lines above it stay
- * body content.
+ * body content. One bare-result exception exists: when no reason could be
+ * captured, the original line directly above the matched result separator
+ * is inspected with the parser's Unicode trim, and an exact `DELEGATE_REASON:`
+ * marker there (a malformed reason value the pattern cannot validate) rejects
+ * recognition so the UTF-8-safe whole-report prefix fallback applies.
  */
 function terminalDelegateSuffix(report: string): string | undefined {
   const match = TERMINAL_SUFFIX_PATTERN.exec(report);
@@ -219,6 +250,12 @@ function terminalDelegateSuffix(report: string): string | undefined {
     if (outcome === "COMPLETED") return undefined;
     const allowed = outcome === "BLOCKED" ? BLOCKED_REASON_SET : FAILED_REASON_SET;
     if (!allowed.has(reasonCode)) return undefined;
+  } else if (reasonLineAboveSeparator(report, match.index)) {
+    // Bare-result guard: a malformed reason value defeats the optional
+    // reason group, and the pattern then retries at the separator below
+    // it, which would misread a rejected reason/result pair as a legacy
+    // bare result. Recognition is rejected instead; the value is not read.
+    return undefined;
   }
   // Index 0 is the empty `^` branch; otherwise the match starts at the
   // separator's first byte, LF or the CR of a CRLF pair, which all belongs

@@ -533,6 +533,97 @@ test("oversized reports with an unrecognized terminal look-alike tail keep prefi
   });
 });
 
+test("oversized bare results below a malformed immediate reason line keep prefix truncation only", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Regression for the suffix bypass: a malformed reason value defeats
+    // the optional reason group, and the pattern then retries at the
+    // separator under DELEGATE_RESULT, which used to recognize a fake
+    // bare-result suffix and append the result marker after cutting the
+    // malformed line away. The immediate reason line now rejects
+    // recognition, so the UTF-8-safe whole-report prefix is stored and
+    // neither terminal line survives; the malformed value never enters
+    // the persisted record.
+    const head = "m".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512);
+    const cases = [
+      { newline: "\n", reasonLine: "DELEGATE_REASON: /home/me/secret", malformed: "/home/me/secret" },
+      { newline: "\r\n", reasonLine: "DELEGATE_REASON: /home/me/secret", malformed: "/home/me/secret" },
+      { newline: "\n", reasonLine: "\u3000\t DELEGATE_REASON:\u00a0Not A Code\u00a0\t", malformed: "Not A Code" },
+      { newline: "\r\n", reasonLine: "\t\u3000DELEGATE_REASON: verification-failure\u3000", malformed: "verification-failure" },
+    ] as const;
+    const outcomes = ["BLOCKED", "FAILED", "COMPLETED"] as const;
+    for (const { newline, reasonLine, malformed } of cases) {
+      for (const outcome of outcomes) {
+        const report = `${head}${newline}${newline}${reasonLine}${newline}DELEGATE_RESULT: ${outcome}${newline}`;
+        // Parser view: the malformed immediate reason is rejected for
+        // BLOCKED and FAILED, and a reason line paired with COMPLETED
+        // invalidates the whole terminal structure.
+        assert.deepEqual(
+          parseDelegateTerminal(report),
+          outcome === "COMPLETED" ? {} : { outcome: outcome.toLowerCase(), reason: { status: "rejected" } },
+        );
+        const result = outcome === "BLOCKED"
+          ? blockedResult({ report, progress: blockedProgress({ terminalReason: "unspecified", reasonStatus: "rejected" }) })
+          : outcome === "FAILED"
+            ? failedResult({
+              report,
+              state: "delegate_failed",
+              progress: blockedProgress({ state: "delegate_failed", delegateOutcome: "failed", terminalReason: "unspecified", reasonStatus: "rejected" }),
+            })
+            : failedResult({
+              report,
+              state: "invalid_result",
+              progress: blockedProgress({ state: "invalid_result", terminalReason: "unspecified", reasonStatus: "rejected" }),
+            });
+        const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(result), "utf8")) as Record<string, unknown>;
+        const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+        // Prefix-only fallback: the cut lands inside the ASCII head, both
+        // terminal lines fall away, and the stored text stays at the bound.
+        assert.equal(delegateReport.text, "m".repeat(DELEGATE_TOOL_OUTPUT_LIMIT));
+        const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+        assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+        assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+        assert.ok(delegateReport.truncatedBytes > 0);
+        assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
+        assert.doesNotMatch(delegateReport.text, /DELEGATE_REASON|DELEGATE_RESULT/);
+        assert.ok(!JSON.stringify(parsed).includes(malformed));
+        assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
+      }
+    }
+  });
+});
+
+test("oversized genuine bare-result terminals keep the exact result-line suffix", async () => {
+  await withDiagnosticsRoot(async () => {
+    // With no reason line directly above the marker, the suffix is only
+    // the separator plus the result line: a genuine bare result.
+    const suffix = "\nDELEGATE_RESULT: BLOCKED\n";
+    const suffixBytes = Buffer.byteLength(suffix, "utf8");
+    const plain = `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512)}\n\nDELEGATE_RESULT: BLOCKED\n`;
+    assert.deepEqual(parseDelegateTerminal(plain), { outcome: "blocked", reason: { status: "missing" } });
+    // A reason-like line elsewhere in the body never invalidates the
+    // genuine bare result: the parser records a misplaced reason while
+    // the recognized suffix stays the separator plus the result line.
+    const stray = `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512)}\nDELEGATE_REASON: external_dependency\n\nDELEGATE_RESULT: BLOCKED\n`;
+    assert.deepEqual(parseDelegateTerminal(stray), { outcome: "blocked", reason: { status: "rejected" } });
+    for (const report of [plain, stray]) {
+      const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(blockedResult({
+        report,
+        progress: blockedProgress({ terminalReason: "unspecified", reasonStatus: report === plain ? "missing" : "rejected" }),
+      })), "utf8")) as Record<string, unknown>;
+      const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+      assert.equal(delegateReport.text, `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes)}${suffix}`);
+      assert.ok(delegateReport.text.endsWith(suffix));
+      const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+      assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+      assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+      assert.ok(delegateReport.truncatedBytes > 0);
+      assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
+      assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
+      assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/);
+    }
+  });
+});
+
 function blockedProgress(overrides: Partial<DelegateRunResult["progress"]> = {}): DelegateRunResult["progress"] {
   return {
     ...failedResult().progress,
