@@ -269,7 +269,7 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
             onUpdate?.(partialResult(handle.id, progress));
           },
         });
-        // Terminal finalization: persist the schema-7 run telemetry (the
+        // Terminal finalization: persist the schema-8 run telemetry (the
         // compact failure diagnostic for unsuccessful runs, path travels only
         // in details for the TUI renderer, or one best-effort metadata-only
         // success record), assemble the raw-Markdown ToolResult, then remove

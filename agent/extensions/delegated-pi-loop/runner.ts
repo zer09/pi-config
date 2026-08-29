@@ -626,6 +626,23 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       if (index >= routes.length - 1) {
         // An exhausted operational chain keeps the existing safe outcome.
         finalState = "routes_unavailable";
+        // Diagnostic-only capture of the final supervised attempt's report:
+        // it reaches only the private schema-8 failure diagnostic that
+        // finalizeDelegateRun persists before artifact removal, never the
+        // model-visible ToolResult. Only the final attempt's report is
+        // read; an earlier fallback attempt's report was never kept, and a
+        // final attempt without a report leaves the chain report empty.
+        // The capture is best-effort: a report that became unreadable after
+        // supervision (concurrently removed or replaced) keeps the already
+        // established routes_unavailable outcome and an empty report, so
+        // the diagnostic omits delegateReport.
+        if (attemptStatus.reportPresent) {
+          try {
+            report = await readPrivateText(attemptStatus.reportPath);
+          } catch {
+            report = "";
+          }
+        }
         break;
       }
 
@@ -647,7 +664,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     const elapsed = roundedSeconds(performance.now() - started);
     const endedAt = new Date().toISOString();
     // All outcome data travels in memory; no chain-level report.md or status.json
-    // is written. The caller persists the schema-7 run telemetry (failure
+    // is written. The caller persists the schema-8 run telemetry (failure
     // diagnostic or best-effort success record), assembles the tool result,
     // and then removes the artifact directory.
     finalProgress = {

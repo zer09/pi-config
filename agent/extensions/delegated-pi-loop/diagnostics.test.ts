@@ -9,13 +9,15 @@ import {
   isSuccessTelemetryName,
   retentionProbes,
   SCHEMA_VERSION,
-  schemaSevenRecord,
+  schemaEightRecord,
   SUCCESS_FILE_PREFIX,
   SUCCESS_RECORD_LIMIT,
   writeFailureDiagnostic,
   writeSuccessTelemetry,
   writeSuccessTelemetryQuietly,
 } from "./diagnostics.ts";
+import { DELEGATE_TOOL_OUTPUT_LIMIT, truncateUtf8 } from "./artifacts.ts";
+import { hasExactlyOneDelegateResultMarker, parseDelegateTerminal } from "./monitor.ts";
 import { PROVIDER_FAILURE_CATEGORIES } from "./types.ts";
 import type { DelegateRunResult } from "./types.ts";
 
@@ -118,13 +120,13 @@ test("writes failure diagnostics with 0700 directories and 0600 atomic files", a
   });
 });
 
-test("diagnostic content is bounded, sanitized, and free of excluded material", async () => {
+test("diagnostic content is bounded and sanitized except the exact bounded delegate report", async () => {
   await withDiagnosticsRoot(async () => {
     const filePath = await writeFailureDiagnostic(failedResult());
     const content = await readFile(filePath, "utf8");
     const parsed = JSON.parse(content) as Record<string, unknown>;
 
-    assert.equal(parsed.schemaVersion, 7);
+    assert.equal(parsed.schemaVersion, 8);
     assert.equal(parsed.state, "invalid_stream");
     assert.equal(parsed.role, "implementation");
     assert.equal(parsed.deadlineCause, "idle_deadline");
@@ -182,6 +184,13 @@ test("diagnostic content is bounded, sanitized, and free of excluded material", 
     assert.equal(parsed.finalRound, 2);
     assert.deepEqual(parsed.streamErrors, ["rpc_partial_record"]);
 
+    // The exact final report persists only in the failure-only delegateReport
+    // field, with exact byte metadata and no truncation for a short report.
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    assert.equal(delegateReport.text, "SECRET-REPORT-BODY");
+    assert.equal(delegateReport.totalBytes, Buffer.byteLength("SECRET-REPORT-BODY", "utf8"));
+    assert.equal(delegateReport.truncatedBytes, 0);
+
     // The removed tree-fingerprint fields stay excluded if ever reintroduced.
     for (const forbidden of [
       "report", "reportPath", "statusPath", "artifactDir", "prompt", "stdout", "stderr",
@@ -189,25 +198,32 @@ test("diagnostic content is bounded, sanitized, and free of excluded material", 
     ]) {
       assert.equal(forbidden in parsed, false, `diagnostic must not contain key ${forbidden}`);
     }
-    assert.doesNotMatch(content, /SECRET-REPORT-BODY/);
+    // Report text never appears outside the delegateReport field.
+    const withoutReport = { ...parsed, delegateReport: undefined };
+    assert.doesNotMatch(JSON.stringify(withoutReport), /SECRET-REPORT-BODY/);
     assert.doesNotMatch(content, /\/tmp\/|delegated-pi-implementation-x/);
   });
 });
 
-test("schema 7 records typed terminal reason fields for non-completed outcomes without raw reason text", async () => {
+test("schema 8 records typed terminal reason fields for non-completed outcomes without raw reason text", async () => {
   await withDiagnosticsRoot(async () => {
+    const report = "SECRET-REPORT-BODY\n\nDELEGATE_REASON: finding_reported\nDELEGATE_RESULT: BLOCKED";
     const accepted = await writeFailureDiagnostic(blockedResult({
-      report: "SECRET-REPORT-BODY\n\nDELEGATE_REASON: finding_reported\nDELEGATE_RESULT: BLOCKED",
+      report,
       progress: blockedProgress({ delegateOutcome: "blocked", terminalReason: "finding_reported", reasonStatus: "accepted", blockedMisuseSuspected: true }),
     }));
     const acceptedContent = await readFile(accepted, "utf8");
     const acceptedParsed = JSON.parse(acceptedContent) as Record<string, unknown>;
-    assert.equal(acceptedParsed.schemaVersion, 7);
+    assert.equal(acceptedParsed.schemaVersion, 8);
     assert.equal(acceptedParsed.delegateOutcome, "blocked");
     assert.equal(acceptedParsed.terminalReason, "finding_reported");
     assert.equal(acceptedParsed.reasonStatus, "accepted");
     assert.equal(acceptedParsed.blockedMisuseSuspected, true);
-    assert.doesNotMatch(acceptedContent, /SECRET-REPORT-BODY|DELEGATE_REASON|DELEGATE_RESULT/);
+    // The exact report persists verbatim, terminal markers included, while
+    // the typed reason fields stay enum-only outside it.
+    assert.equal((acceptedParsed.delegateReport as { text: string }).text, report);
+    const acceptedWithoutReport = JSON.stringify({ ...acceptedParsed, delegateReport: undefined });
+    assert.doesNotMatch(acceptedWithoutReport, /SECRET-REPORT-BODY|DELEGATE_REASON|DELEGATE_RESULT/);
 
     const rejected = await writeFailureDiagnostic(failedResult({
       state: "delegate_failed",
@@ -218,6 +234,7 @@ test("schema 7 records typed terminal reason fields for non-completed outcomes w
     assert.equal(rejectedParsed.terminalReason, "unspecified");
     assert.equal(rejectedParsed.reasonStatus, "rejected");
     assert.equal(rejectedParsed.blockedMisuseSuspected, undefined);
+    assert.equal((rejectedParsed.delegateReport as { text: string }).text, "SECRET-REPORT-BODY");
     assert.doesNotMatch(rejectedContent, /DELEGATE_REASON|DELEGATE_RESULT/);
   });
 });
@@ -231,6 +248,686 @@ function blockedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunR
     ...overrides,
   });
 }
+
+test("failure diagnostics persist the exact delegate report with its terminal markers", async () => {
+  await withDiagnosticsRoot(async () => {
+    const report = "Diagnostic body line.\n\nDELEGATE_REASON: external_dependency\nDELEGATE_RESULT: BLOCKED";
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(blockedResult({ report })), "utf8")) as Record<string, unknown>;
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    // Exact preservation: the report survives byte-identical, terminal lines included.
+    assert.equal(delegateReport.text, report);
+    assert.ok(delegateReport.text.endsWith("DELEGATE_REASON: external_dependency\nDELEGATE_RESULT: BLOCKED"));
+    assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+    assert.equal(delegateReport.truncatedBytes, 0);
+  });
+});
+
+test("an empty delegate report omits the delegateReport field entirely", async () => {
+  await withDiagnosticsRoot(async () => {
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(failedResult({ report: "" })), "utf8")) as Record<string, unknown>;
+    assert.equal("delegateReport" in parsed, false);
+    assert.doesNotMatch(JSON.stringify(parsed), /delegateReport/);
+  });
+});
+
+test("delegate report truncation is UTF-8-safe at the 50 KiB bound with exact byte metadata", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Three-byte code points straddle the 51,200-byte bound two bytes into a
+    // character, so the cut must back off to the last whole character.
+    const head = "x".repeat(51_198);
+    const report = `${head}${"\u{20ac}".repeat(150)}TAIL-MARKER`;
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(failedResult({ report })), "utf8")) as Record<string, unknown>;
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    const textBytes = Buffer.byteLength(delegateReport.text, "utf8");
+    assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+    assert.ok(delegateReport.totalBytes > DELEGATE_TOOL_OUTPUT_LIMIT);
+    assert.ok(textBytes <= DELEGATE_TOOL_OUTPUT_LIMIT);
+    // The cut backed off to the whole-character boundary before the run.
+    assert.equal(delegateReport.text, head);
+    assert.equal(textBytes, 51_198);
+    assert.ok(delegateReport.truncatedBytes > 0);
+    assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - textBytes);
+    // The survivor never carries the dropped tail and stays valid UTF-8.
+    assert.doesNotMatch(delegateReport.text, /TAIL-MARKER|\u{20ac}/u);
+    assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
+  });
+});
+
+test("oversized BLOCKED terminal reports keep the exact suffix and a UTF-8-safe body prefix", async () => {
+  await withDiagnosticsRoot(async () => {
+    // The blank line above the terminal lines is body content: only the
+    // separator newline plus the terminal lines form the preserved suffix.
+    const suffix = "\nDELEGATE_REASON: external_dependency\nDELEGATE_RESULT: BLOCKED\n";
+    const suffixBytes = Buffer.byteLength(suffix, "utf8");
+    // An ASCII body well past the bound: the whole budget left for the
+    // suffix is spent on body bytes.
+    const report = `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512)}\n\nDELEGATE_REASON: external_dependency\nDELEGATE_RESULT: BLOCKED\n`;
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(blockedResult({ report })), "utf8")) as Record<string, unknown>;
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    // The exact terminal suffix survives verbatim at the stored end.
+    assert.ok(delegateReport.text.endsWith(suffix));
+    assert.equal(
+      delegateReport.text,
+      `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes)}${suffix}`,
+    );
+    const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+    assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+    assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+    assert.ok(delegateReport.truncatedBytes > 0);
+    assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
+    // Stored text stays valid UTF-8 and the body carries no terminal line.
+    assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
+    assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/);
+  });
+});
+
+test("oversized CRLF terminal reports keep the exact suffix with the complete CRLF separator", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Every line boundary in this report is CRLF. The blank line above the
+    // terminal lines is body content: the preserved suffix must open with
+    // the complete CRLF separator that ends it, never a lone LF whose CR
+    // stayed behind only to be cut away with the truncated body prefix.
+    const suffix = "\r\nDELEGATE_REASON: external_dependency\r\nDELEGATE_RESULT: BLOCKED\r\n";
+    const suffixBytes = Buffer.byteLength(suffix, "utf8");
+    const report = `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512)}\r\n\r\nDELEGATE_REASON: external_dependency\r\nDELEGATE_RESULT: BLOCKED\r\n`;
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(blockedResult({ report })), "utf8")) as Record<string, unknown>;
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    // Byte-exact preservation: the stored end is the original suffix with
+    // its complete leading CRLF, and the body prefix spends the rest of
+    // the limit on whole ASCII bytes.
+    assert.equal(delegateReport.text, `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes)}${suffix}`);
+    const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+    assert.ok(storedBytes <= DELEGATE_TOOL_OUTPUT_LIMIT);
+    assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+    assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+    assert.ok(delegateReport.truncatedBytes > 0);
+    assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
+    // Stored text stays valid UTF-8 and the body carries no terminal line.
+    assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
+    assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/);
+  });
+});
+
+test("oversized LF accepted terminals keep an indented reason and Unicode whitespace around the outcome", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Parser-accepted terminal: the reason line carries the leading and
+    // surrounding Unicode whitespace line.trim()/value.trim() allow, the
+    // outcome sits in Unicode whitespace, and only the result line itself
+    // stays unindented. The blank line above stays body content.
+    const reasonLine = "\u00a0\t DELEGATE_REASON:\u3000budget_exhausted\u00a0";
+    const resultLine = "DELEGATE_RESULT:\u00a0BLOCKED";
+    const suffix = `\n${reasonLine}\n${resultLine}\n\u00a0\n`;
+    const suffixBytes = Buffer.byteLength(suffix, "utf8");
+    const report = `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512)}\n\n${reasonLine}\n${resultLine}\n\u00a0\n`;
+    assert.deepEqual(
+      parseDelegateTerminal(report),
+      { outcome: "blocked", reason: { status: "accepted", code: "budget_exhausted" } },
+    );
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(blockedResult({ report })), "utf8")) as Record<string, unknown>;
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    // Byte-exact preservation: the stored end is the verbatim separator,
+    // indented reason line, and whitespace-surrounded outcome.
+    assert.equal(delegateReport.text, `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes)}${suffix}`);
+    const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+    assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+    assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+    assert.ok(delegateReport.truncatedBytes > 0);
+    assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
+    // Stored text stays valid UTF-8 and the body carries no terminal line.
+    assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
+    assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/);
+  });
+});
+
+test("oversized CRLF accepted terminals keep an indented reason and Unicode whitespace around the outcome", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Every line boundary is CRLF. The parser accepts the tab and
+    // ideographic-space indent, the NBSP around the reason code, the
+    // ideographic space before FAILED, and the Unicode-whitespace-only
+    // trailing line; the suffix must keep all of it byte-exact with the
+    // complete leading CRLF separator.
+    const reasonLine = "\t\u3000DELEGATE_REASON:\u00a0verification_failure\u00a0";
+    const resultLine = "DELEGATE_RESULT:\u3000FAILED";
+    const suffix = `\r\n${reasonLine}\r\n${resultLine}\r\n\u3000\r\n`;
+    const suffixBytes = Buffer.byteLength(suffix, "utf8");
+    const report = `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512)}\r\n\r\n${reasonLine}\r\n${resultLine}\r\n\u3000\r\n`;
+    assert.deepEqual(
+      parseDelegateTerminal(report),
+      { outcome: "failed", reason: { status: "accepted", code: "verification_failure" } },
+    );
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(failedResult({
+      report,
+      state: "delegate_failed",
+      progress: blockedProgress({ state: "delegate_failed", delegateOutcome: "failed", terminalReason: "verification_failure", reasonStatus: "accepted" }),
+    })), "utf8")) as Record<string, unknown>;
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    assert.equal(delegateReport.text, `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes)}${suffix}`);
+    const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+    assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+    assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+    assert.ok(delegateReport.truncatedBytes > 0);
+    assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
+    // Stored text stays valid UTF-8 and the body carries no terminal line.
+    assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
+    assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/);
+  });
+});
+
+test("an accepted-terminal report exactly at the byte limit survives byte-for-byte", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Exactly at the 50 KiB bound the suffix machinery never engages: the
+    // whole report, Unicode whitespace included, is stored verbatim.
+    const suffix = "\n\u00a0DELEGATE_REASON: budget_exhausted\nDELEGATE_RESULT:\u00a0BLOCKED\n";
+    const report = `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - Buffer.byteLength(suffix, "utf8"))}${suffix}`;
+    assert.equal(Buffer.byteLength(report, "utf8"), DELEGATE_TOOL_OUTPUT_LIMIT);
+    assert.deepEqual(
+      parseDelegateTerminal(report),
+      { outcome: "blocked", reason: { status: "accepted", code: "budget_exhausted" } },
+    );
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(blockedResult({ report })), "utf8")) as Record<string, unknown>;
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    assert.equal(delegateReport.text, report);
+    assert.equal(delegateReport.totalBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+    assert.equal(delegateReport.truncatedBytes, 0);
+    assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
+  });
+});
+
+test("oversized FAILED terminal reports keep the exact suffix across a multibyte prefix boundary", async () => {
+  await withDiagnosticsRoot(async () => {
+    const suffix = "\nDELEGATE_REASON: verification_failure\nDELEGATE_RESULT: FAILED\n";
+    const suffixBytes = Buffer.byteLength(suffix, "utf8");
+    // The body budget minus one ASCII byte, then two-byte code points: the
+    // raw cut lands inside the first '\u00f1' and must back off to the last
+    // whole 'y', one byte below the stored limit.
+    const pad = "y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes - 1);
+    const report = `${pad}${"\u00f1".repeat(400)}\n\nDELEGATE_REASON: verification_failure\nDELEGATE_RESULT: FAILED\n`;
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(failedResult({
+      report,
+      state: "delegate_failed",
+      progress: blockedProgress({ state: "delegate_failed", delegateOutcome: "failed", terminalReason: "verification_failure", reasonStatus: "accepted" }),
+    })), "utf8")) as Record<string, unknown>;
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    assert.equal(delegateReport.text, `${pad}${suffix}`);
+    assert.ok(delegateReport.text.endsWith("DELEGATE_REASON: verification_failure\nDELEGATE_RESULT: FAILED\n"));
+    const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+    assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT - 1);
+    assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+    // Exactly the 800 dropped multibyte bytes plus the one body-side
+    // blank-line newline are reported as truncated.
+    assert.equal(delegateReport.truncatedBytes, 801);
+    assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
+    assert.doesNotMatch(delegateReport.text, /\u00f1/u);
+    assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
+  });
+});
+
+test("an over-limit recognized suffix falls back to whole-report prefix truncation", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Trailing whitespace after the terminal marker is unbounded, so the
+    // recognized suffix itself can exceed the limit; it can never fit, so
+    // the stored text must be a plain UTF-8-safe prefix of the whole report.
+    const suffix = `\nDELEGATE_REASON: external_dependency\nDELEGATE_RESULT: BLOCKED\n${"\n".repeat(60_000)}`;
+    const suffixBytes = Buffer.byteLength(suffix, "utf8");
+    assert.ok(suffixBytes > DELEGATE_TOOL_OUTPUT_LIMIT);
+    const report = `body\n\n${suffix.slice(1)}`;
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(blockedResult({ report })), "utf8")) as Record<string, unknown>;
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+    // ASCII head: the cut lands exactly on the limit with no corruption.
+    assert.equal(delegateReport.text, report.slice(0, DELEGATE_TOOL_OUTPUT_LIMIT));
+    assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+    assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+    assert.ok(delegateReport.truncatedBytes > 0);
+    assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
+    assert.ok(!delegateReport.text.includes("\u{fffd}"));
+    assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
+  });
+});
+
+test("an over-limit recognized suffix over a multibyte body stays UTF-8-safe at the bound", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Three-byte code points straddle the 50 KiB cut two bytes into a
+    // character, so the fallback prefix must back off to the last whole
+    // character even though a terminal suffix was recognized.
+    const suffix = `\nDELEGATE_REASON: verification_failure\nDELEGATE_RESULT: FAILED\n${"\r\n".repeat(30_000)}`;
+    assert.ok(Buffer.byteLength(suffix, "utf8") > DELEGATE_TOOL_OUTPUT_LIMIT);
+    const body = "\u{20ac}".repeat(17_067);
+    const report = `${body}\n\n${suffix.slice(1)}`;
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(failedResult({
+      report,
+      state: "delegate_failed",
+      progress: blockedProgress({ state: "delegate_failed", delegateOutcome: "failed", terminalReason: "verification_failure", reasonStatus: "accepted" }),
+    })), "utf8")) as Record<string, unknown>;
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+    assert.ok(storedBytes <= DELEGATE_TOOL_OUTPUT_LIMIT);
+    // 51,200 = 3 x 17,066 + 2: the cut backs off two bytes to 51,198.
+    assert.equal(storedBytes, 51_198);
+    assert.equal(delegateReport.text, "\u{20ac}".repeat(17_066));
+    assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+    assert.ok(delegateReport.truncatedBytes > 0);
+    assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
+    assert.ok(!delegateReport.text.includes("\u{fffd}"));
+    assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
+  });
+});
+
+test("oversized reports with an unrecognized terminal look-alike tail keep prefix truncation only", async () => {
+  await withDiagnosticsRoot(async () => {
+    // The tail looks terminal but carries a reason code outside the fixed
+    // enum, so no suffix is recognized and safe prefix truncation applies.
+    const head = "z".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 64);
+    const report = `${head}\n\nDELEGATE_REASON: not_a_fixed_code\nDELEGATE_RESULT: BLOCKED\n`;
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(blockedResult({
+      report,
+      progress: blockedProgress({ terminalReason: "unspecified", reasonStatus: "rejected" }),
+    })), "utf8")) as Record<string, unknown>;
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    assert.equal(delegateReport.text, "z".repeat(DELEGATE_TOOL_OUTPUT_LIMIT));
+    const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+    assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+    assert.ok(delegateReport.truncatedBytes > 0);
+    assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
+    assert.doesNotMatch(delegateReport.text, /DELEGATE_REASON|DELEGATE_RESULT/);
+  });
+});
+
+test("oversized bare results below a malformed immediate reason line keep prefix truncation only", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Regression for the suffix bypass: a malformed reason value defeats
+    // the optional reason group, and the pattern then retries at the
+    // separator under DELEGATE_RESULT, which used to recognize a fake
+    // bare-result suffix and append the result marker after cutting the
+    // malformed line away. The immediate reason line now rejects
+    // recognition, so the UTF-8-safe whole-report prefix is stored and
+    // neither terminal line survives; the malformed value never enters
+    // the persisted record.
+    const head = "m".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512);
+    const cases = [
+      { newline: "\n", reasonLine: "DELEGATE_REASON: /home/me/secret", malformed: "/home/me/secret" },
+      { newline: "\r\n", reasonLine: "DELEGATE_REASON: /home/me/secret", malformed: "/home/me/secret" },
+      { newline: "\n", reasonLine: "\u3000\t DELEGATE_REASON:\u00a0Not A Code\u00a0\t", malformed: "Not A Code" },
+      { newline: "\r\n", reasonLine: "\t\u3000DELEGATE_REASON: verification-failure\u3000", malformed: "verification-failure" },
+    ] as const;
+    const outcomes = ["BLOCKED", "FAILED", "COMPLETED"] as const;
+    for (const { newline, reasonLine, malformed } of cases) {
+      for (const outcome of outcomes) {
+        const report = `${head}${newline}${newline}${reasonLine}${newline}DELEGATE_RESULT: ${outcome}${newline}`;
+        // Parser view: the malformed immediate reason is rejected for
+        // BLOCKED and FAILED, and a reason line paired with COMPLETED
+        // invalidates the whole terminal structure.
+        assert.deepEqual(
+          parseDelegateTerminal(report),
+          outcome === "COMPLETED" ? {} : { outcome: outcome.toLowerCase(), reason: { status: "rejected" } },
+        );
+        const result = outcome === "BLOCKED"
+          ? blockedResult({ report, progress: blockedProgress({ terminalReason: "unspecified", reasonStatus: "rejected" }) })
+          : outcome === "FAILED"
+            ? failedResult({
+              report,
+              state: "delegate_failed",
+              progress: blockedProgress({ state: "delegate_failed", delegateOutcome: "failed", terminalReason: "unspecified", reasonStatus: "rejected" }),
+            })
+            : failedResult({
+              report,
+              state: "invalid_result",
+              progress: blockedProgress({ state: "invalid_result", terminalReason: "unspecified", reasonStatus: "rejected" }),
+            });
+        const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(result), "utf8")) as Record<string, unknown>;
+        const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+        // Prefix-only fallback: the cut lands inside the ASCII head, both
+        // terminal lines fall away, and the stored text stays at the bound.
+        assert.equal(delegateReport.text, "m".repeat(DELEGATE_TOOL_OUTPUT_LIMIT));
+        const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+        assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+        assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+        assert.ok(delegateReport.truncatedBytes > 0);
+        assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
+        assert.doesNotMatch(delegateReport.text, /DELEGATE_REASON|DELEGATE_RESULT/);
+        assert.ok(!JSON.stringify(parsed).includes(malformed));
+        assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
+      }
+    }
+  });
+});
+
+test("oversized genuine bare-result terminals keep the exact result-line suffix", async () => {
+  await withDiagnosticsRoot(async () => {
+    // With no reason line anywhere in the report, the suffix is only the
+    // separator plus the result line: a genuine bare result the strict
+    // parser reads as reason missing. A reason line elsewhere in the body
+    // is misplaced and rejected by the parser, so it belongs to the
+    // misplaced-reason fallback regressions below, never here.
+    for (const newline of ["\n", "\r\n"] as const) {
+      const suffix = `${newline}DELEGATE_RESULT: BLOCKED${newline}`;
+      const suffixBytes = Buffer.byteLength(suffix, "utf8");
+      const report = `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512)}${newline}${newline}DELEGATE_RESULT: BLOCKED${newline}`;
+      assert.deepEqual(parseDelegateTerminal(report), { outcome: "blocked", reason: { status: "missing" } }, newline);
+      const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(blockedResult({
+        report,
+        progress: blockedProgress({ terminalReason: "unspecified", reasonStatus: "missing" }),
+      })), "utf8")) as Record<string, unknown>;
+      const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+      assert.equal(delegateReport.text, `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes)}${suffix}`, newline);
+      assert.ok(delegateReport.text.endsWith(suffix), newline);
+      const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+      assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT, newline);
+      assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"), newline);
+      assert.ok(delegateReport.truncatedBytes > 0, newline);
+      assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes, newline);
+      assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text, newline);
+      assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/, newline);
+    }
+  });
+});
+
+test("oversized parser-valid terminals keep the exact suffix across LF and CRLF", async () => {
+  await withDiagnosticsRoot(async () => {
+    // The eligibility gate is the shared strict parse: every case below
+    // parses to a valid completed, accepted-reason, or genuine
+    // missing-reason terminal, so the exact suffix survives verbatim and
+    // the body prefix spends the rest of the limit.
+    const head = "y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512);
+    const cases = [
+      {
+        label: "lf-completed",
+        report: `${head}\n\nDELEGATE_RESULT: COMPLETED\n`,
+        suffix: "\nDELEGATE_RESULT: COMPLETED\n",
+        terminal: { outcome: "completed" },
+      },
+      {
+        label: "crlf-completed",
+        report: `${head}\r\n\r\nDELEGATE_RESULT: COMPLETED\r\n`,
+        suffix: "\r\nDELEGATE_RESULT: COMPLETED\r\n",
+        terminal: { outcome: "completed" },
+      },
+      {
+        label: "crlf-failed-accepted",
+        report: `${head}\r\n\r\nDELEGATE_REASON: verification_failure\r\nDELEGATE_RESULT: FAILED\r\n`,
+        suffix: "\r\nDELEGATE_REASON: verification_failure\r\nDELEGATE_RESULT: FAILED\r\n",
+        terminal: { outcome: "failed", reason: { status: "accepted", code: "verification_failure" } },
+      },
+      {
+        label: "lf-blocked-accepted-unicode",
+        report: `${head}\n\n\u00a0DELEGATE_REASON:\u3000budget_exhausted\u00a0\nDELEGATE_RESULT:\u00a0BLOCKED\n`,
+        suffix: "\n\u00a0DELEGATE_REASON:\u3000budget_exhausted\u00a0\nDELEGATE_RESULT:\u00a0BLOCKED\n",
+        terminal: { outcome: "blocked", reason: { status: "accepted", code: "budget_exhausted" } },
+      },
+      {
+        label: "crlf-failed-missing",
+        report: `${head}\r\n\r\nDELEGATE_RESULT: FAILED\r\n`,
+        suffix: "\r\nDELEGATE_RESULT: FAILED\r\n",
+        terminal: { outcome: "failed", reason: { status: "missing" } },
+      },
+    ] as const;
+    for (const { label, report, suffix, terminal } of cases) {
+      assert.deepEqual(parseDelegateTerminal(report), terminal, label);
+      const suffixBytes = Buffer.byteLength(suffix, "utf8");
+      const result = terminal.outcome === "blocked"
+        ? blockedResult({ report })
+        : terminal.outcome === "failed"
+          ? failedResult({
+            report,
+            state: "delegate_failed",
+            progress: blockedProgress({ state: "delegate_failed", delegateOutcome: "failed" }),
+          })
+          : failedResult({ report, state: "child_failed", progress: blockedProgress({ state: "child_failed" }) });
+      const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(result), "utf8")) as Record<string, unknown>;
+      const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+      assert.equal(delegateReport.text, `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes)}${suffix}`, label);
+      const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+      assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT, label);
+      assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"), label);
+      assert.ok(delegateReport.truncatedBytes > 0, label);
+      assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes, label);
+      assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text, label);
+      assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/, label);
+    }
+  });
+});
+
+test("oversized reports with misplaced reason lines take the whole-report prefix fallback", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Regression for the misplaced-reason bypass: a reason line anywhere
+    // in the body makes the strict parse reject the terminal (a rejected
+    // reason for BLOCKED and FAILED, no outcome at all for COMPLETED), so
+    // the bare result-line tail is never preserved after the body cut,
+    // which would drop the reason evidence and present the report as one
+    // valid bare terminal.
+    const head = "m".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512);
+    const variants = [
+      { label: "valid", reasonLine: "DELEGATE_REASON: external_dependency" },
+      { label: "malformed", reasonLine: "DELEGATE_REASON: /home/me/secret" },
+      { label: "unicode", reasonLine: "\u3000\tDELEGATE_REASON:\u00a0budget_exhausted\u00a0" },
+    ] as const;
+    for (const newline of ["\n", "\r\n"] as const) {
+      for (const { label, reasonLine } of variants) {
+        for (const outcome of ["BLOCKED", "FAILED", "COMPLETED"] as const) {
+          const report = `${head}${newline}${reasonLine}${newline}${newline}DELEGATE_RESULT: ${outcome}${newline}`;
+          assert.deepEqual(
+            parseDelegateTerminal(report),
+            outcome === "COMPLETED" ? {} : { outcome: outcome.toLowerCase(), reason: { status: "rejected" } },
+            `${label}/${outcome}`,
+          );
+          const result = outcome === "BLOCKED"
+            ? blockedResult({ report, progress: blockedProgress({ terminalReason: "unspecified", reasonStatus: "rejected" }) })
+            : outcome === "FAILED"
+              ? failedResult({
+                report,
+                state: "delegate_failed",
+                progress: blockedProgress({ state: "delegate_failed", delegateOutcome: "failed", terminalReason: "unspecified", reasonStatus: "rejected" }),
+              })
+              : failedResult({
+                report,
+                state: "invalid_result",
+                progress: blockedProgress({ state: "invalid_result", terminalReason: "unspecified", reasonStatus: "rejected" }),
+              });
+          const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(result), "utf8")) as Record<string, unknown>;
+          const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+          // Prefix-only fallback: exactly the truncateUtf8 prefix of the
+          // whole report, so both terminal lines fall away with the cut.
+          assert.equal(delegateReport.text, truncateUtf8(report, DELEGATE_TOOL_OUTPUT_LIMIT).text, `${label}/${outcome}`);
+          const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+          assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT, `${label}/${outcome}`);
+          assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"), `${label}/${outcome}`);
+          assert.ok(delegateReport.truncatedBytes > 0, `${label}/${outcome}`);
+          assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes, `${label}/${outcome}`);
+          assert.doesNotMatch(delegateReport.text, /DELEGATE_REASON|DELEGATE_RESULT/, `${label}/${outcome}`);
+          assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text, `${label}/${outcome}`);
+        }
+      }
+    }
+  });
+});
+
+test("oversized duplicate-reason reports take the whole-report prefix fallback", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Regression for the duplicate-reason bypass: the final reason line
+    // directly above the marker carries a valid code the raw matcher can
+    // capture, but the earlier duplicate makes the strict parse reject
+    // the reason. A COMPLETED terminal above earlier reason lines yields
+    // no outcome at all. Neither valid-looking tail is ever preserved.
+    const head = "m".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512);
+    for (const newline of ["\n", "\r\n"] as const) {
+      const cases = [
+        {
+          label: "blocked-accepted-final",
+          report: `${head}${newline}DELEGATE_REASON: external_dependency${newline}${newline}DELEGATE_REASON: external_dependency${newline}DELEGATE_RESULT: BLOCKED${newline}`,
+          terminal: { outcome: "blocked" as const, reason: { status: "rejected" as const } },
+        },
+        {
+          label: "failed-accepted-final",
+          report: `${head}${newline}DELEGATE_REASON: verification_failure${newline}${newline}DELEGATE_REASON: verification_failure${newline}DELEGATE_RESULT: FAILED${newline}`,
+          terminal: { outcome: "failed" as const, reason: { status: "rejected" as const } },
+        },
+        {
+          label: "completed-earlier-duplicate",
+          report: `${head}${newline}DELEGATE_REASON: external_dependency${newline}DELEGATE_REASON: budget_exhausted${newline}${newline}DELEGATE_RESULT: COMPLETED${newline}`,
+          terminal: {},
+        },
+      ];
+      for (const { label, report, terminal } of cases) {
+        assert.deepEqual(parseDelegateTerminal(report), terminal, `${label}/${newline === "\n" ? "lf" : "crlf"}`);
+        const result = terminal.outcome === "blocked"
+          ? blockedResult({ report, progress: blockedProgress({ terminalReason: "unspecified", reasonStatus: "rejected" }) })
+          : terminal.outcome === "failed"
+            ? failedResult({
+              report,
+              state: "delegate_failed",
+              progress: blockedProgress({ state: "delegate_failed", delegateOutcome: "failed", terminalReason: "unspecified", reasonStatus: "rejected" }),
+            })
+            : failedResult({
+              report,
+              state: "invalid_result",
+              progress: blockedProgress({ state: "invalid_result", terminalReason: "unspecified", reasonStatus: "rejected" }),
+            });
+        const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(result), "utf8")) as Record<string, unknown>;
+        const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+        assert.equal(
+          delegateReport.text,
+          truncateUtf8(report, DELEGATE_TOOL_OUTPUT_LIMIT).text,
+          `${label}/${newline === "\n" ? "lf" : "crlf"}`,
+        );
+        const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+        assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT, label);
+        assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"), label);
+        assert.ok(delegateReport.truncatedBytes > 0, label);
+        assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes, label);
+        assert.doesNotMatch(delegateReport.text, /DELEGATE_REASON|DELEGATE_RESULT/, label);
+        assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text, label);
+      }
+    }
+  });
+});
+
+test("oversized duplicate-marker reports reject suffix recognition and keep the whole-report prefix", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Regression for the duplicate-marker bypass: an earlier recognized
+    // DELEGATE_RESULT line makes the strict parser reject the whole report,
+    // but the suffix matcher used to preserve the valid-looking final tail
+    // anyway. When the body cut removed the earlier marker, the stored
+    // diagnostic made an invalid report look like it carried one valid
+    // terminal. Recognition now shares the parser's report-wide
+    // exactly-one-marker predicate, so every duplicate-marker report takes
+    // the UTF-8-safe whole-report prefix fallback.
+    const head = "m".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512);
+    const unicodeReasonLine = "\u00a0\t DELEGATE_REASON:\u3000budget_exhausted\u00a0";
+    const unicodeResultLine = "DELEGATE_RESULT:\u00a0BLOCKED";
+    const cases = [
+      // LF and CRLF bare final suffixes above one late earlier marker.
+      { label: "lf-bare-late", report: `${head}\nDELEGATE_RESULT: FAILED\n\nDELEGATE_RESULT: BLOCKED\n` },
+      { label: "crlf-bare-late", report: `${head}\r\nDELEGATE_RESULT: FAILED\r\n\r\nDELEGATE_RESULT: BLOCKED\r\n` },
+      // LF and CRLF accepted-reason final suffixes above one late earlier marker.
+      {
+        label: "lf-reason-late",
+        report: `${head}\nDELEGATE_RESULT: FAILED\n\nDELEGATE_REASON: external_dependency\nDELEGATE_RESULT: BLOCKED\n`,
+      },
+      {
+        label: "crlf-reason-late",
+        report: `${head}\r\nDELEGATE_RESULT: FAILED\r\n\r\nDELEGATE_REASON: external_dependency\r\nDELEGATE_RESULT: BLOCKED\r\n`,
+      },
+      // Unicode/tab whitespace terminal above one late earlier marker.
+      {
+        label: "lf-unicode-late",
+        report: `${head}\nDELEGATE_RESULT: FAILED\n\n${unicodeReasonLine}\n${unicodeResultLine}\n`,
+      },
+      // Multiple earlier recognized markers before the final tail.
+      {
+        label: "lf-multiple-earlier",
+        report: `${head}\nDELEGATE_RESULT: FAILED\nDELEGATE_RESULT: COMPLETED\n\nDELEGATE_REASON: verification_failure\nDELEGATE_RESULT: FAILED\n`,
+      },
+      {
+        label: "crlf-multiple-earlier-bare",
+        report: `${head}\r\nDELEGATE_RESULT: COMPLETED\r\nDELEGATE_RESULT: FAILED\r\n\r\nDELEGATE_RESULT: BLOCKED\r\n`,
+      },
+      // One early earlier marker that stays inside the stored prefix.
+      {
+        label: "lf-reason-early",
+        report: `DELEGATE_RESULT: FAILED\n${head}\n\nDELEGATE_REASON: external_dependency\nDELEGATE_RESULT: BLOCKED\n`,
+      },
+      {
+        label: "crlf-bare-early",
+        report: `DELEGATE_RESULT: FAILED\r\n${head}\r\n\r\nDELEGATE_RESULT: BLOCKED\r\n`,
+      },
+    ] as const;
+    for (const { label, report } of cases) {
+      // Parser view: the whole terminal structure is rejected report-wide.
+      assert.equal(hasExactlyOneDelegateResultMarker(report), false, label);
+      assert.deepEqual(parseDelegateTerminal(report), {}, label);
+      const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(failedResult({
+        report,
+        state: "invalid_result",
+        progress: blockedProgress({ state: "invalid_result" }),
+      })), "utf8")) as Record<string, unknown>;
+      const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+      // Whole-report prefix fallback: the stored text is exactly the
+      // truncateUtf8 prefix of the original report.
+      assert.equal(delegateReport.text, truncateUtf8(report, DELEGATE_TOOL_OUTPUT_LIMIT).text, label);
+      const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+      assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+      assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"), label);
+      assert.ok(delegateReport.truncatedBytes > 0, label);
+      assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes, label);
+      assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text, label);
+      assert.ok(!delegateReport.text.includes("\u{fffd}"), label);
+      // Late earlier markers fall away with the cut and the valid-looking
+      // tail is never appended; an early marker stays visible so the
+      // duplicate-marker evidence survives in the stored prefix.
+      if (label.endsWith("-late") || label.includes("multiple-earlier")) {
+        assert.doesNotMatch(delegateReport.text, /DELEGATE_REASON|DELEGATE_RESULT/, label);
+      } else {
+        assert.equal(delegateReport.text.match(/DELEGATE_RESULT:/g)?.length, 1, label);
+        assert.ok(delegateReport.text.startsWith("DELEGATE_RESULT: FAILED"), label);
+        assert.doesNotMatch(delegateReport.text, /DELEGATE_REASON|external_dependency/, label);
+      }
+    }
+  });
+});
+
+test("single-marker reports keep the exact suffix over indented and case-mismatched earlier look-alikes", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Controls for the duplicate-marker gate: earlier look-alike lines the
+    // parser does not recognize (indentation, tab indent, case mismatch,
+    // embedded prefix, trailing text) do not count as markers, so the
+    // genuine single-marker terminal keeps its exact suffix preservation.
+    const head = "y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512);
+    const suffix = "\nDELEGATE_REASON: external_dependency\nDELEGATE_RESULT: BLOCKED\n";
+    const suffixBytes = Buffer.byteLength(suffix, "utf8");
+    const lookalikes = [
+      "  DELEGATE_RESULT: BLOCKED",
+      "\tDELEGATE_RESULT: BLOCKED",
+      "Delegate_Result: BLOCKED",
+      "delegate_result: blocked",
+      "XDELEGATE_RESULT: BLOCKED",
+      "DELEGATE_RESULT: BLOCKED extra",
+    ];
+    for (const lookalike of lookalikes) {
+      const report = `${head}\n\n${lookalike}\n\nDELEGATE_REASON: external_dependency\nDELEGATE_RESULT: BLOCKED\n`;
+      assert.equal(hasExactlyOneDelegateResultMarker(report), true, lookalike);
+      assert.deepEqual(
+        parseDelegateTerminal(report),
+        { outcome: "blocked", reason: { status: "accepted", code: "external_dependency" } },
+        lookalike,
+      );
+      const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(blockedResult({ report })), "utf8")) as Record<string, unknown>;
+      const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+      assert.ok(delegateReport.text.endsWith(suffix), lookalike);
+      assert.equal(
+        delegateReport.text,
+        `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes)}${suffix}`,
+        lookalike,
+      );
+      const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+      assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+      assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"), lookalike);
+      assert.ok(delegateReport.truncatedBytes > 0, lookalike);
+      assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes, lookalike);
+      assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text, lookalike);
+      assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/, lookalike);
+    }
+  });
+});
 
 function blockedProgress(overrides: Partial<DelegateRunResult["progress"]> = {}): DelegateRunResult["progress"] {
   return {
@@ -299,7 +996,7 @@ test("truncated attempt histories retain the terminal attempt within the attempt
       maxProgressIdleSeconds: 321.5,
     },
   ];
-  const record = schemaSevenRecord(failedResult({ attempts }));
+  const record = schemaEightRecord(failedResult({ attempts }));
   const serialized = record.attempts as Record<string, unknown>[];
   assert.equal(serialized.length, 10);
   assert.deepEqual(
@@ -316,14 +1013,14 @@ test("truncated attempt histories retain the terminal attempt within the attempt
     { route: "provider/one:max", state: "stalled" as const, elapsedSeconds: 1 },
     { route: "provider/two:max", state: "completed" as const, elapsedSeconds: 2, maxProgressIdleSeconds: 5.5 },
   ];
-  const shortRecord = schemaSevenRecord(failedResult({ attempts: shortHistory }));
+  const shortRecord = schemaEightRecord(failedResult({ attempts: shortHistory }));
   assert.deepEqual(
     (shortRecord.attempts as Record<string, unknown>[]).map((attempt) => attempt.state),
     ["stalled", "completed"],
   );
 });
 
-test("schema 7 rejects seeded paths, credentials, payloads, signals, pids, digests, and raw errors", () => {
+test("schema 8 rejects seeded paths, credentials, payloads, signals, pids, digests, and raw errors", () => {
   const forbidden = "/home/gc/PRIVATE_PATH sk-SECRET_TOKEN SIGKILL pid=4242 provider-body tool-argument tool-result raw-error 4f2a9c1b8e7d";
   const result = failedResult({
     label: forbidden,
@@ -364,7 +1061,7 @@ test("schema 7 rejects seeded paths, credentials, payloads, signals, pids, diges
   assert.ok(Buffer.byteLength(content) < 16 * 1024, `diagnostic must stay bounded: ${Buffer.byteLength(content)}`);
 });
 
-test("schema 7 attempt records drop malformed non-finite supervised values", () => {
+test("schema 8 attempt records drop malformed non-finite supervised values", () => {
   const result = failedResult({
     attempts: [{
       route: "zai/glm-5.3:max",
@@ -404,7 +1101,7 @@ test("schema 7 attempt records drop malformed non-finite supervised values", () 
   }
 });
 
-test("schema 7 omits invalid provider categories and keeps every valid category", async () => {
+test("schema 8 omits invalid provider categories and keeps every valid category", async () => {
   await withDiagnosticsRoot(async () => {
     for (const invalid of [
       "/home/gc/PRIVATE_PATH/provider",
@@ -416,6 +1113,7 @@ test("schema 7 omits invalid provider categories and keeps every valid category"
       "",
     ]) {
       const result = failedResult({
+        report: "",
         progress: { ...failedResult().progress, providerFailureCategory: invalid as never },
       });
       const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(result), "utf8")) as Record<string, unknown>;
@@ -511,39 +1209,45 @@ async function successEntries(directory: string): Promise<string[]> {
   return regular;
 }
 
-test("schema version is exactly 7 and the new maximum field has the bounded shape", async () => {
+test("schema version is exactly 8 and the maximum field has the bounded shape", async () => {
   await withDiagnosticsRoot(async () => {
-    assert.equal(SCHEMA_VERSION, 7);
+    assert.equal(SCHEMA_VERSION, 8);
     assert.equal(SUCCESS_RECORD_LIMIT, 4096);
     const record = failureDiagnostic(failedResult());
-    assert.equal(record.schemaVersion, 7);
+    assert.equal(record.schemaVersion, 8);
     assert.equal(record.maxProgressIdleSeconds, 431.2);
     assert.equal((record.attempts as Record<string, unknown>[])[0]!.maxProgressIdleSeconds, 431.2);
   });
 });
 
-test("completed and unsuccessful records share the same safe schema-7 shape", async () => {
+test("completed and unsuccessful records share the same safe schema-8 shape except the failure-only delegate report", async () => {
   await withDiagnosticsRoot(async () => {
     const completedPath = await writeSuccessTelemetry(completedResult());
     const completed = JSON.parse(await readFile(completedPath, "utf8")) as Record<string, unknown>;
     // Same builder, same optionals-absent comparison shape: the unsuccessful
     // twin clears exactly the optional fields the completed fixture clears.
-    const unsuccessful = serializedRecord(schemaSevenRecord(failedResult({
+    const unsuccessful = serializedRecord(failureDiagnostic(failedResult({
       deadlineCause: undefined,
       stallCause: undefined,
       cleanupFailureReason: undefined,
       interruptionSource: undefined,
       progress: { ...failedResult().progress, reportRecoveryReason: undefined },
     })));
-    assert.deepEqual(Object.keys(completed).sort(), Object.keys(unsuccessful).sort());
-    assert.equal(completed.schemaVersion, 7);
+    // The failure view adds exactly one key: the bounded delegate report.
+    assert.deepEqual(
+      Object.keys(unsuccessful).filter((key) => key !== "delegateReport").sort(),
+      Object.keys(completed).sort(),
+    );
+    assert.equal("delegateReport" in unsuccessful, true);
+    assert.equal("delegateReport" in completed, false);
+    assert.equal(completed.schemaVersion, 8);
     assert.equal(completed.state, "completed");
     assert.equal(completed.maxProgressIdleSeconds, 300.4);
     assert.equal((completed.attempts as Record<string, unknown>[])[0]!.maxProgressIdleSeconds, 300.4);
   });
 });
 
-test("success records contain no report, prompt, path, or provider text", async () => {
+test("success records contain no delegate report, prompt, path, or provider text", async () => {
   await withDiagnosticsRoot(async (root) => {
     // A label outside the bounded identifier alphabet is omitted entirely;
     // the bounded record itself never carries report or prompt material.
@@ -552,6 +1256,9 @@ test("success records contain no report, prompt, path, or provider text", async 
     const content = await readFile(completedPath, "utf8");
     assert.ok(path.basename(completedPath).startsWith(SUCCESS_FILE_PREFIX));
     assert.ok(completedPath.startsWith(path.join(root, "logs", "delegated-pi-loop")));
+    // Successful telemetry never gains the failure-only delegate report.
+    const parsed = JSON.parse(content) as Record<string, unknown>;
+    assert.equal("delegateReport" in parsed, false);
     for (const forbidden of [
       "SECRET",
       "PRIVATE",
@@ -568,7 +1275,7 @@ test("success records contain no report, prompt, path, or provider text", async 
 });
 
 test("top-level and attempt maxima survive when valid, including zero", () => {
-  const record = schemaSevenRecord(completedResult({
+  const record = schemaEightRecord(completedResult({
     progress: { ...completedResult().progress, maxProgressIdleSeconds: 0 },
     attempts: [{ route: "zai/glm-5.3:max", state: "completed", elapsedSeconds: 1, maxProgressIdleSeconds: 0 }],
   }));
@@ -578,7 +1285,7 @@ test("top-level and attempt maxima survive when valid, including zero", () => {
 
 test("invalid top-level and attempt maximum values fail closed by omission", () => {
   for (const invalid of [-1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
-    const record = serializedRecord(schemaSevenRecord(completedResult({
+    const record = serializedRecord(schemaEightRecord(completedResult({
       progress: { ...completedResult().progress, maxProgressIdleSeconds: invalid },
       attempts: [{ route: "zai/glm-5.3:max", state: "completed", elapsedSeconds: 1, maxProgressIdleSeconds: invalid }],
     })));
@@ -587,15 +1294,15 @@ test("invalid top-level and attempt maximum values fail closed by omission", () 
   }
 });
 
-test("catalog-only attempts omit the maximum in schema-7 records", () => {
-  const record = serializedRecord(schemaSevenRecord(completedResult({
+test("catalog-only attempts omit the maximum in schema-8 records", () => {
+  const record = serializedRecord(schemaEightRecord(completedResult({
     attempts: [{ route: "zai/glm-5.3:max", state: "catalog_unavailable", elapsedSeconds: 0.4 }],
   })));
   const attempt = (record.attempts as Record<string, unknown>[])[0]!;
   assert.equal("maxProgressIdleSeconds" in attempt, false);
 });
 
-test("historical schema 3-6 files are never rewritten or pruned", async () => {
+test("historical schema 3-7 files are never rewritten or pruned", async () => {
   await withDiagnosticsRoot(async (root) => {
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const historicalAt = new Date(Date.now() - 3_600_000);
@@ -606,7 +1313,11 @@ test("historical schema 3-6 files are never rewritten or pruned", async () => {
       "unknown-file.json",
       "success-v6-implementation-1000-3-3.json",
       "success-v7x-implementation-1000-4-4.json",
+      // A genuine old-writer schema-7 success name: historical files stay
+      // unmigrated and are never pruning candidates for the v8 writer.
+      "success-v7-implementation-1000-5-5.json",
     ];
+    assert.equal(isSuccessTelemetryName("success-v7-implementation-1000-5-5.json"), false);
     for (let index = 0; index < names.length; index += 1) {
       await seedSuccessFile(directory, names[index]!, new Date(historicalAt.getTime() + index * 1000));
     }
@@ -614,7 +1325,10 @@ test("historical schema 3-6 files are never rewritten or pruned", async () => {
       const filePath = path.join(directory, name);
       return { name, content: await readFile(filePath, "utf8"), mtime: (await stat(filePath)).mtimeMs };
     }));
-    await writeSuccessTelemetry(completedResult(), 2);
+    // Retention limit 1: with the correct v8-only matcher the single new
+    // record is the only candidate, so nothing is pruned; a matcher that
+    // wrongly accepted the historical v7 name would prune it as the oldest.
+    await writeSuccessTelemetry(completedResult(), 1);
     await writeFailureDiagnostic(failedResult());
     for (const entry of before) {
       const filePath = path.join(directory, entry.name);
@@ -656,22 +1370,22 @@ test("success telemetry is refused for unsuccessful runs and quietly isolated on
   }
 });
 
-test("retention keeps the newest records and prunes only exact success-v7 files", async () => {
+test("retention keeps the newest records and prunes only exact success-v8 files", async () => {
   await withDiagnosticsRoot(async (root) => {
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const base = Date.now() - 3_600_000;
     const seeded = [
-      "success-v7-implementation-1000-1-1.json",
-      "success-v7-implementation-1000-1-2.json",
-      "success-v7-implementation-1000-1-3.json",
+      "success-v8-implementation-1000-1-1.json",
+      "success-v8-implementation-1000-1-2.json",
+      "success-v8-implementation-1000-1-3.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
     }
     // Pruning candidates with success-looking names that must never be
     // deleted: a symlink, a directory, a failure, and an unknown name.
-    await symlink(path.join(directory, seeded[0]!), path.join(directory, "success-v7-symlink.json"));
-    await mkdir(path.join(directory, "success-v7-directory.json"));
+    await symlink(path.join(directory, seeded[0]!), path.join(directory, "success-v8-symlink.json"));
+    await mkdir(path.join(directory, "success-v8-directory.json"));
     await writeFile(path.join(directory, "failure-implementation-1000-9-9.json"), "{}\n", { mode: 0o600 });
     await writeFile(path.join(directory, "other.json"), "{}\n", { mode: 0o600 });
     // Retention limit 2: the oldest seeded success file is pruned, the two
@@ -683,8 +1397,8 @@ test("retention keeps the newest records and prunes only exact success-v7 files"
     assert.ok(!remaining.includes(seeded[0]!), "the oldest success record must be pruned");
     // Non-record entries survive untouched (no-follow checks: the symlink
     // itself must survive even though its pruned target is gone).
-    assert.ok((await lstat(path.join(directory, "success-v7-symlink.json"))).isSymbolicLink());
-    assert.ok((await lstat(path.join(directory, "success-v7-directory.json"))).isDirectory());
+    assert.ok((await lstat(path.join(directory, "success-v8-symlink.json"))).isSymbolicLink());
+    assert.ok((await lstat(path.join(directory, "success-v8-directory.json"))).isDirectory());
     await stat(path.join(directory, "failure-implementation-1000-9-9.json"));
     await stat(path.join(directory, "other.json"));
   });
@@ -695,8 +1409,8 @@ test("nothing is pruned while the exact-name candidate count is at or under the 
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const base = Date.now() - 3_600_000;
     const seeded = [
-      "success-v7-implementation-1000-1-1.json",
-      "success-v7-implementation-1000-1-2.json",
+      "success-v8-implementation-1000-1-1.json",
+      "success-v8-implementation-1000-1-2.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
@@ -720,9 +1434,9 @@ test("retention order is deterministic by write time with a filename tie-breaker
     // pid, and counter segments) because only writer-owned names are candidates.
     const sameTime = new Date(base);
     const names = [
-      "success-v7-implementation-1000-1-1.json",
-      "success-v7-implementation-1000-1-2.json",
-      "success-v7-implementation-1000-1-3.json",
+      "success-v8-implementation-1000-1-1.json",
+      "success-v8-implementation-1000-1-2.json",
+      "success-v8-implementation-1000-1-3.json",
     ];
     for (const name of names) await seedSuccessFile(directory, name, sameTime);
     const written = await writeSuccessTelemetry(completedResult(), 2);
@@ -731,28 +1445,28 @@ test("retention order is deterministic by write time with a filename tie-breaker
     // lexicographically smallest seeded names; the newest seeded name and
     // the freshly written record (newest mtime) survive.
     assert.equal(remaining.length, 2);
-    assert.ok(remaining.includes("success-v7-implementation-1000-1-3.json"));
-    assert.ok(!remaining.includes("success-v7-implementation-1000-1-1.json"));
-    assert.ok(!remaining.includes("success-v7-implementation-1000-1-2.json"));
+    assert.ok(remaining.includes("success-v8-implementation-1000-1-3.json"));
+    assert.ok(!remaining.includes("success-v8-implementation-1000-1-1.json"));
+    assert.ok(!remaining.includes("success-v8-implementation-1000-1-2.json"));
     assert.ok(remaining.includes(path.basename(written)));
   });
 });
 
-test("near-miss success-v7-looking names are never pruning candidates and survive retention", async () => {
+test("near-miss success-v8-looking names are never pruning candidates and survive retention", async () => {
   await withDiagnosticsRoot(async (root) => {
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const base = Date.now() - 3_600_000;
     // Regular files whose names only look extension-owned: too few segments,
     // a non-numeric timestamp/pid/counter segment, empty numeric segments.
     const foreign = [
-      "success-v7-not-owned.json",
-      "success-v7-abc.json",
-      "success-v7-label-notatime-123-4.json",
-      "success-v7-label-123-x-4.json",
-      "success-v7-label-123-4-x.json",
-      "success-v7-label--123-4.json",
-      "success-v7-label-123--4.json",
-      "success-v7-label-123-4-.json",
+      "success-v8-not-owned.json",
+      "success-v8-abc.json",
+      "success-v8-label-notatime-123-4.json",
+      "success-v8-label-123-x-4.json",
+      "success-v8-label-123-4-x.json",
+      "success-v8-label--123-4.json",
+      "success-v8-label-123--4.json",
+      "success-v8-label-123-4-.json",
     ];
     for (const name of foreign) assert.equal(isSuccessTelemetryName(name), false, name);
     // The foreign files are seeded as the oldest regular files: under a
@@ -764,11 +1478,11 @@ test("near-miss success-v7-looking names are never pruning candidates and surviv
       foreignBefore.push({ name: foreign[index]!, mtimeMs: (await stat(filePath)).mtimeMs });
     }
     const seeded = [
-      "success-v7-implementation-1000-1-1.json",
-      "success-v7-implementation-1000-1-2.json",
-      "success-v7-implementation-1000-1-3.json",
-      "success-v7-implementation-1000-1-4.json",
-      "success-v7-implementation-1000-1-5.json",
+      "success-v8-implementation-1000-1-1.json",
+      "success-v8-implementation-1000-1-2.json",
+      "success-v8-implementation-1000-1-3.json",
+      "success-v8-implementation-1000-1-4.json",
+      "success-v8-implementation-1000-1-5.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
@@ -795,16 +1509,16 @@ test("a writer-shaped name with a 65-character label is not writer-owned and nev
     const base = Date.now() - 3_600_000;
     // `safeLabel` always truncates to 64 characters, so a 65-character label
     // remainder cannot be writer-owned regardless of its characters.
-    const overLength = `success-v7-${"a".repeat(65)}-1000-1-1.json`;
+    const overLength = `success-v8-${"a".repeat(65)}-1000-1-1.json`;
     assert.equal(isSuccessTelemetryName(overLength), false);
     // Seeded as the oldest regular file: under an unbounded label check it
     // would be the first pruning victim.
     await seedSuccessFile(directory, overLength, new Date(base - 60_000));
     const seeded = [
-      "success-v7-implementation-1000-1-1.json",
-      "success-v7-implementation-1000-1-2.json",
-      "success-v7-implementation-1000-1-3.json",
-      "success-v7-implementation-1000-1-4.json",
+      "success-v8-implementation-1000-1-1.json",
+      "success-v8-implementation-1000-1-2.json",
+      "success-v8-implementation-1000-1-3.json",
+      "success-v8-implementation-1000-1-4.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
@@ -824,8 +1538,8 @@ test("label remainders safeLabel can never emit are rejected by the name matcher
   // safeLabel strips leading [-.]+ before its slice, so writer output can
   // never start with - or .
   const rejected = [
-    "success-v7--foreign-1000-1-1.json",
-    "success-v7-.foreign-1000-1-1.json",
+    "success-v8--foreign-1000-1-1.json",
+    "success-v8-.foreign-1000-1-1.json",
   ];
   for (const name of rejected) assert.equal(isSuccessTelemetryName(name), false, name);
 });
@@ -838,8 +1552,8 @@ test("foreign leading-punctuation files survive an over-limit sweep", async () =
     // emission shape, seeded as the oldest regular files so an over-broad
     // matcher would delete them first.
     const foreign = [
-      "success-v7--foreign-1000-1-1.json",
-      "success-v7-.foreign-1000-1-1.json",
+      "success-v8--foreign-1000-1-1.json",
+      "success-v8-.foreign-1000-1-1.json",
     ];
     for (const name of foreign) assert.equal(isSuccessTelemetryName(name), false, name);
     const foreignBefore: { name: string; mtimeMs: number }[] = [];
@@ -849,11 +1563,11 @@ test("foreign leading-punctuation files survive an over-limit sweep", async () =
       foreignBefore.push({ name: foreign[index]!, mtimeMs: (await stat(filePath)).mtimeMs });
     }
     const seeded = [
-      "success-v7-implementation-1000-1-1.json",
-      "success-v7-implementation-1000-1-2.json",
-      "success-v7-implementation-1000-1-3.json",
-      "success-v7-implementation-1000-1-4.json",
-      "success-v7-implementation-1000-1-5.json",
+      "success-v8-implementation-1000-1-1.json",
+      "success-v8-implementation-1000-1-2.json",
+      "success-v8-implementation-1000-1-3.json",
+      "success-v8-implementation-1000-1-4.json",
+      "success-v8-implementation-1000-1-5.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
@@ -879,9 +1593,9 @@ test("exact-64 label remainders ending in - or . are writer-emittable and accept
     // slice(0, 64) can cut right after a - or ., so a trailing - or . is
     // writer-emittable exactly at the 64-character bound; rejecting these
     // names would silently disable retention for genuine writer output.
-    const hyphenEnd = `success-v7-${"a".repeat(63)}--1000-1-1.json`;
-    const dotEnd = `success-v7-${"a".repeat(63)}.-1000-1-1.json`;
-    const alnumEnd = `success-v7-${"a".repeat(64)}-1000-1-1.json`;
+    const hyphenEnd = `success-v8-${"a".repeat(63)}--1000-1-1.json`;
+    const dotEnd = `success-v8-${"a".repeat(63)}.-1000-1-1.json`;
+    const alnumEnd = `success-v8-${"a".repeat(64)}-1000-1-1.json`;
     assert.equal(isSuccessTelemetryName(hyphenEnd), true);
     assert.equal(isSuccessTelemetryName(dotEnd), true);
     assert.equal(isSuccessTelemetryName(alnumEnd), true);
@@ -904,7 +1618,7 @@ test("every writer-generated success filename matches the name filter across var
     // 64-character slice bound.
     const labels = [
       "implementation",
-      "schema-7-fix",
+      "schema-8-fix",
       "progress.gap.telemetry",
       "fix.7 schema v2",
       "/// ??? !!!",
@@ -942,7 +1656,7 @@ test("files disappearing mid-prune never fail the delegate result", async () => 
     const base = Date.now() - 3_600_000;
     const seeded: string[] = [];
     for (let index = 0; index < 40; index += 1) {
-      const name = `success-v7-implementation-1000-1-${String(index).padStart(4, "0")}.json`;
+      const name = `success-v8-implementation-1000-1-${String(index).padStart(4, "0")}.json`;
       seeded.push(name);
       await seedSuccessFile(directory, name, new Date(base + index * 1000));
     }
@@ -984,9 +1698,9 @@ test("a symlink replacement between validation and deletion survives untouched",
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const base = Date.now() - 3_600_000;
     const seeded = [
-      "success-v7-implementation-3000-1-1.json",
-      "success-v7-implementation-3000-1-2.json",
-      "success-v7-implementation-3000-1-3.json",
+      "success-v8-implementation-3000-1-1.json",
+      "success-v8-implementation-3000-1-2.json",
+      "success-v8-implementation-3000-1-3.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
@@ -1026,9 +1740,9 @@ test("a foreign regular-file replacement survives the dev/ino identity check", a
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const base = Date.now() - 3_600_000;
     const seeded = [
-      "success-v7-implementation-3100-1-1.json",
-      "success-v7-implementation-3100-1-2.json",
-      "success-v7-implementation-3100-1-3.json",
+      "success-v8-implementation-3100-1-1.json",
+      "success-v8-implementation-3100-1-2.json",
+      "success-v8-implementation-3100-1-3.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
@@ -1076,9 +1790,9 @@ test("a candidate vanishing before the deletion check is skipped without failing
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const base = Date.now() - 3_600_000;
     const seeded = [
-      "success-v7-implementation-3200-1-1.json",
-      "success-v7-implementation-3200-1-2.json",
-      "success-v7-implementation-3200-1-3.json",
+      "success-v8-implementation-3200-1-1.json",
+      "success-v8-implementation-3200-1-2.json",
+      "success-v8-implementation-3200-1-3.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));

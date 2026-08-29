@@ -424,6 +424,25 @@ export function parseDelegateOutcome(report: string): Outcome | undefined {
 }
 
 /**
+ * True when the report contains exactly one parser-recognized
+ * `DELEGATE_RESULT` marker line, using the strict terminal parser's own
+ * `RESULT_LINE_PATTERN` semantics. Shared with the diagnostics suffix
+ * recognizer so both surfaces apply one report-wide exactly-one-marker
+ * predicate instead of counting markers independently.
+ */
+export function hasExactlyOneDelegateResultMarker(report: string): boolean {
+  // The scan stops at the second recognized marker: the boolean answer is
+  // identical to a full count, but an oversized duplicate-marker report
+  // never pays for scanning every later match.
+  let recognized = 0;
+  for (const _marker of report.matchAll(RESULT_LINE_PATTERN)) {
+    recognized += 1;
+    if (recognized > 1) return false;
+  }
+  return recognized === 1;
+}
+
+/**
  * Strict terminal-structure parser for the DELEGATE_RESULT marker and the
  * DELEGATE_REASON line directly above it. Only exact fixed reason codes are
  * accepted; unknown, malformed, duplicate, misplaced, path-like,
@@ -435,8 +454,7 @@ export function parseDelegateOutcome(report: string): Outcome | undefined {
  * delegate-authored free text is ever retained.
  */
 export function parseDelegateTerminal(report: string): DelegateTerminal {
-  const markers = [...report.matchAll(RESULT_LINE_PATTERN)];
-  if (markers.length !== 1) return {};
+  if (!hasExactlyOneDelegateResultMarker(report)) return {};
   const trimmed = report.trimEnd();
   const match = RESULT_PATTERN.exec(trimmed);
   if (!match) return {};
