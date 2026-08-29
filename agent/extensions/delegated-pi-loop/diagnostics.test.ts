@@ -17,6 +17,7 @@ import {
   writeSuccessTelemetryQuietly,
 } from "./diagnostics.ts";
 import { DELEGATE_TOOL_OUTPUT_LIMIT } from "./artifacts.ts";
+import { parseDelegateTerminal } from "./monitor.ts";
 import { PROVIDER_FAILURE_CATEGORIES } from "./types.ts";
 import type { DelegateRunResult } from "./types.ts";
 
@@ -344,6 +345,91 @@ test("oversized CRLF terminal reports keep the exact suffix with the complete CR
     // Stored text stays valid UTF-8 and the body carries no terminal line.
     assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
     assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/);
+  });
+});
+
+test("oversized LF accepted terminals keep an indented reason and Unicode whitespace around the outcome", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Parser-accepted terminal: the reason line carries the leading and
+    // surrounding Unicode whitespace line.trim()/value.trim() allow, the
+    // outcome sits in Unicode whitespace, and only the result line itself
+    // stays unindented. The blank line above stays body content.
+    const reasonLine = "\u00a0\t DELEGATE_REASON:\u3000budget_exhausted\u00a0";
+    const resultLine = "DELEGATE_RESULT:\u00a0BLOCKED";
+    const suffix = `\n${reasonLine}\n${resultLine}\n\u00a0\n`;
+    const suffixBytes = Buffer.byteLength(suffix, "utf8");
+    const report = `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512)}\n\n${reasonLine}\n${resultLine}\n\u00a0\n`;
+    assert.deepEqual(
+      parseDelegateTerminal(report),
+      { outcome: "blocked", reason: { status: "accepted", code: "budget_exhausted" } },
+    );
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(blockedResult({ report })), "utf8")) as Record<string, unknown>;
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    // Byte-exact preservation: the stored end is the verbatim separator,
+    // indented reason line, and whitespace-surrounded outcome.
+    assert.equal(delegateReport.text, `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes)}${suffix}`);
+    const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+    assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+    assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+    assert.ok(delegateReport.truncatedBytes > 0);
+    assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
+    // Stored text stays valid UTF-8 and the body carries no terminal line.
+    assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
+    assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/);
+  });
+});
+
+test("oversized CRLF accepted terminals keep an indented reason and Unicode whitespace around the outcome", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Every line boundary is CRLF. The parser accepts the tab and
+    // ideographic-space indent, the NBSP around the reason code, the
+    // ideographic space before FAILED, and the Unicode-whitespace-only
+    // trailing line; the suffix must keep all of it byte-exact with the
+    // complete leading CRLF separator.
+    const reasonLine = "\t\u3000DELEGATE_REASON:\u00a0verification_failure\u00a0";
+    const resultLine = "DELEGATE_RESULT:\u3000FAILED";
+    const suffix = `\r\n${reasonLine}\r\n${resultLine}\r\n\u3000\r\n`;
+    const suffixBytes = Buffer.byteLength(suffix, "utf8");
+    const report = `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512)}\r\n\r\n${reasonLine}\r\n${resultLine}\r\n\u3000\r\n`;
+    assert.deepEqual(
+      parseDelegateTerminal(report),
+      { outcome: "failed", reason: { status: "accepted", code: "verification_failure" } },
+    );
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(failedResult({
+      report,
+      state: "delegate_failed",
+      progress: blockedProgress({ state: "delegate_failed", delegateOutcome: "failed", terminalReason: "verification_failure", reasonStatus: "accepted" }),
+    })), "utf8")) as Record<string, unknown>;
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    assert.equal(delegateReport.text, `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes)}${suffix}`);
+    const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+    assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+    assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
+    assert.ok(delegateReport.truncatedBytes > 0);
+    assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
+    // Stored text stays valid UTF-8 and the body carries no terminal line.
+    assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
+    assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/);
+  });
+});
+
+test("an accepted-terminal report exactly at the byte limit survives byte-for-byte", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Exactly at the 50 KiB bound the suffix machinery never engages: the
+    // whole report, Unicode whitespace included, is stored verbatim.
+    const suffix = "\n\u00a0DELEGATE_REASON: budget_exhausted\nDELEGATE_RESULT:\u00a0BLOCKED\n";
+    const report = `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - Buffer.byteLength(suffix, "utf8"))}${suffix}`;
+    assert.equal(Buffer.byteLength(report, "utf8"), DELEGATE_TOOL_OUTPUT_LIMIT);
+    assert.deepEqual(
+      parseDelegateTerminal(report),
+      { outcome: "blocked", reason: { status: "accepted", code: "budget_exhausted" } },
+    );
+    const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(blockedResult({ report })), "utf8")) as Record<string, unknown>;
+    const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    assert.equal(delegateReport.text, report);
+    assert.equal(delegateReport.totalBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+    assert.equal(delegateReport.truncatedBytes, 0);
+    assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
   });
 });
 

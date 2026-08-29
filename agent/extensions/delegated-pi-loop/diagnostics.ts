@@ -179,19 +179,29 @@ let writeCounter = 0;
 /**
  * Recognized terminal tail of a delegate report: an optional exact
  * `DELEGATE_REASON` line directly above the final `DELEGATE_RESULT` line,
- * followed only by whitespace through the end of the report.
+ * followed only by whitespace through the end of the report. The reason
+ * line may carry the same Unicode whitespace the parser's `line.trim()`
+ * and `value.trim()` accept before the marker and around the code, kept
+ * line-bounded because `[^\S\n]` is any Unicode whitespace except the
+ * line-ending LF. `\s` around the outcome keeps the parser's Unicode
+ * whitespace semantics, while `DELEGATE_RESULT` itself must sit directly
+ * after its line separator: result-line indentation stays prohibited,
+ * matching the parser.
  */
 const TERMINAL_SUFFIX_PATTERN =
-  /(?:^|\r?\n)(?:DELEGATE_REASON:[ \t]*([a-z][a-z0-9_]*)[ \t]*\r?\n)?DELEGATE_RESULT:[ \t]*(COMPLETED|BLOCKED|FAILED)[ \t\r\n]*$/;
+  /(?:^|\r?\n)(?:[^\S\n]*DELEGATE_REASON:[^\S\n]*([a-z][a-z0-9_]*)[^\S\n]*\r?\n)?DELEGATE_RESULT:\s*(COMPLETED|BLOCKED|FAILED)\s*$/;
 
 /**
  * Exact recognized terminal suffix of a delegate report: the verbatim
  * text from the complete original line separator (a lone LF or a full
  * CRLF) before the terminal `DELEGATE_REASON`/`DELEGATE_RESULT` lines (or
  * the report start) through the absolute end of the report, or undefined
- * for every other tail. Mirrors the monitor's strict terminal parser: the
- * final line must be the `DELEGATE_RESULT` marker, and when the line
- * directly above it is a `DELEGATE_REASON` line, its value must be one of
+ * for every other tail. Mirrors the monitor's strict terminal parser,
+ * including its Unicode whitespace acceptance: the final line must be
+ * the unindented `DELEGATE_RESULT` marker, and when the line directly
+ * above it is a `DELEGATE_REASON` line, that line may be indented with
+ * and surround its value by the Unicode whitespace `line.trim()` and
+ * `value.trim()` strip in the parser, and its value must be one of
  * the exact fixed codes for that outcome. A reason line paired with
  * `COMPLETED` is not recognized. Recognition is tail-structural only: a
  * malformed terminal elsewhere in the body is recorded by the typed
