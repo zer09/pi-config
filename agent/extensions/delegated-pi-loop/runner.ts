@@ -632,8 +632,16 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         // model-visible ToolResult. Only the final attempt's report is
         // read; an earlier fallback attempt's report was never kept, and a
         // final attempt without a report leaves the chain report empty.
+        // The capture is best-effort: a report that became unreadable after
+        // supervision (concurrently removed or replaced) keeps the already
+        // established routes_unavailable outcome and an empty report, so
+        // the diagnostic omits delegateReport.
         if (attemptStatus.reportPresent) {
-          report = await readPrivateText(attemptStatus.reportPath);
+          try {
+            report = await readPrivateText(attemptStatus.reportPath);
+          } catch {
+            report = "";
+          }
         }
         break;
       }

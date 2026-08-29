@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { after, test } from "node:test";
+import { existsSync, readdirSync, rmSync, symlinkSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -11,7 +12,7 @@ import { validateRoutingConfig } from "./routing.ts";
 import { finalizeDelegateRun } from "./result.ts";
 import { isOperationalFailureState, runDelegate } from "./runner.ts";
 import { terminationProbes } from "./supervisor.ts";
-import type { DelegateRunResult, RunOptions, ToolResult } from "./types.ts";
+import type { DelegateProgress, DelegateRunResult, RunOptions, ToolResult } from "./types.ts";
 
 const execFileAsync = promisify(execFile);
 type Behavior =
@@ -168,6 +169,34 @@ async function runAndFinalize<T>(
   body: (result: DelegateRunResult, finalize: () => Promise<ToolResult>) => Promise<T>,
 ): Promise<T> {
   return settleAndFinalize(runDelegate(options), body);
+}
+
+/**
+ * Deterministic seam for an unreadable final report on an exhausted chain:
+ * the supervisor's final forced progress emission runs after report.md was
+ * written but before runDelegate's diagnostic-only read, so a synchronous
+ * replacement inside the progress callback models a report concurrently
+ * removed or swapped after supervision. Directories created before this
+ * helper are never touched, and the replacement happens at most once.
+ */
+async function replaceFinalReportOnProgress(
+  replace: (reportPath: string) => void,
+): Promise<(progress: DelegateProgress) => void> {
+  const preExisting = new Set(await ownedArtifactDirs());
+  let replaced = false;
+  return () => {
+    if (replaced) return;
+    for (const entry of readdirSync(ownedArtifactParent)) {
+      if (!entry.startsWith("delegated-pi-")) continue;
+      const candidate = path.join(ownedArtifactParent, entry);
+      if (preExisting.has(candidate)) continue;
+      const reportPath = path.join(candidate, "attempt-01", "report.md");
+      if (!existsSync(reportPath)) continue;
+      replace(reportPath);
+      replaced = true;
+      return;
+    }
+  };
 }
 
 async function fakePi(
@@ -1727,6 +1756,82 @@ test("an exhausted chain whose final attempt has no report omits delegateReport"
   assert.equal(diagnostic.state, "routes_unavailable");
   assert.equal("delegateReport" in diagnostic, false);
   assert.doesNotMatch(JSON.stringify(diagnostic), /EARLIER-ROUTE-REPORT/);
+});
+
+test("an exhausted chain keeps routes_unavailable when the final report vanishes before capture", async () => {
+  const reportText = "Ran out of budget before the terminal marker.\n\nDELEGATE_RESULT: COMPLE";
+  const fixture = await fakePi(
+    ["prov-a/model-x"],
+    { "prov-a/model-x": "custom" },
+    { reportText },
+  );
+  const removeReport = await replaceFinalReportOnProgress((reportPath) => rmSync(reportPath));
+  const toolResult = await runAndFinalize(
+    baseOptions(fixture, { routingConfig: singleRouteRoutingConfig(), onProgress: removeReport }),
+    async (result, finalize) => {
+      // The unreadable report never masks the established safe outcome.
+      assert.equal(result.state, "routes_unavailable");
+      assert.equal(result.attempts.length, 1);
+      assert.equal(result.attempts[0]?.state, "invalid_result");
+      assert.equal(result.selectedRoute, undefined);
+      assert.equal(result.report, "");
+      const finalized = await finalize();
+      await assert.rejects(() => stat(result.artifactDir), enoent);
+      return finalized;
+    },
+  );
+  assert.equal(toolResult.details?.state, "routes_unavailable");
+  assert.match(toolResult.content[0]!.text, /## Delegate solution-a failed: routes_unavailable/);
+  assert.doesNotMatch(toolResult.content[0]!.text, /Ran out of budget|DELEGATE_RESULT/);
+  assert.doesNotMatch(JSON.stringify(toolResult.details ?? {}), /Ran out of budget|DELEGATE_RESULT/);
+  const diagnosticPath = toolResult.details?.diagnosticPath;
+  assert.equal(typeof diagnosticPath, "string");
+  const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
+  assert.equal(diagnostic.schemaVersion, 8);
+  assert.equal(diagnostic.state, "routes_unavailable");
+  assert.equal("delegateReport" in diagnostic, false);
+  assert.doesNotMatch(JSON.stringify(diagnostic), /Ran out of budget|DELEGATE_RESULT/);
+});
+
+test("an exhausted chain keeps routes_unavailable when the final report is replaced by a symlink before capture", async () => {
+  const reportText = "Ran out of budget before the terminal marker.\n\nDELEGATE_RESULT: COMPLE";
+  const fixture = await fakePi(
+    ["prov-a/model-x"],
+    { "prov-a/model-x": "custom" },
+    { reportText },
+  );
+  const outsideReportPath = path.join(fixture.root, "outside-report.txt");
+  await writeFile(outsideReportPath, "OUTSIDE-REPORT-CONTENT after a concurrent swap\n");
+  const swapReport = await replaceFinalReportOnProgress((reportPath) => {
+    rmSync(reportPath);
+    symlinkSync(outsideReportPath, reportPath);
+  });
+  const toolResult = await runAndFinalize(
+    baseOptions(fixture, { routingConfig: singleRouteRoutingConfig(), onProgress: swapReport }),
+    async (result, finalize) => {
+      // The unsafe replacement is never followed: the read fails closed and
+      // the chain keeps its safe outcome with an empty report.
+      assert.equal(result.state, "routes_unavailable");
+      assert.equal(result.attempts.length, 1);
+      assert.equal(result.attempts[0]?.state, "invalid_result");
+      assert.equal(result.selectedRoute, undefined);
+      assert.equal(result.report, "");
+      const finalized = await finalize();
+      await assert.rejects(() => stat(result.artifactDir), enoent);
+      return finalized;
+    },
+  );
+  assert.equal(toolResult.details?.state, "routes_unavailable");
+  assert.match(toolResult.content[0]!.text, /## Delegate solution-a failed: routes_unavailable/);
+  assert.doesNotMatch(toolResult.content[0]!.text, /Ran out of budget|DELEGATE_RESULT|OUTSIDE-REPORT-CONTENT/);
+  assert.doesNotMatch(JSON.stringify(toolResult.details ?? {}), /Ran out of budget|DELEGATE_RESULT|OUTSIDE-REPORT-CONTENT/);
+  const diagnosticPath = toolResult.details?.diagnosticPath;
+  assert.equal(typeof diagnosticPath, "string");
+  const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
+  assert.equal(diagnostic.schemaVersion, 8);
+  assert.equal(diagnostic.state, "routes_unavailable");
+  assert.equal("delegateReport" in diagnostic, false);
+  assert.doesNotMatch(JSON.stringify(diagnostic), /Ran out of budget|DELEGATE_RESULT|OUTSIDE-REPORT-CONTENT/);
 });
 
 test("early provider failure falls back with no remaining-work predicate", async () => {
