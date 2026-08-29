@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import {
   boundedDigest,
   DIGEST_STRING_CHUNK_UNITS,
+  hasExactlyOneDelegateResultMarker,
   machineErrorEnvelope,
   parseDelegateOutcome,
   parseDelegateTerminal,
@@ -65,6 +66,42 @@ test("accepts exactly one terminal marker at the final line", () => {
   assert.equal(parseDelegateOutcome("Done\n\nDELEGATE_RESULT: COMPLETED"), "completed");
   assert.equal(parseDelegateOutcome("DELEGATE_RESULT: COMPLETED\nmore"), undefined);
   assert.equal(parseDelegateOutcome("DELEGATE_RESULT: COMPLETED\nDELEGATE_RESULT: COMPLETED"), undefined);
+});
+
+test("the shared marker predicate recognizes exactly one result marker line report-wide", () => {
+  // Zero recognized markers fail the predicate.
+  assert.equal(hasExactlyOneDelegateResultMarker(""), false);
+  assert.equal(hasExactlyOneDelegateResultMarker("Done.\n\nNo terminal here."), false);
+  // Exactly one recognized marker passes, in bare, reasoned, CRLF, and
+  // Unicode-whitespace forms the strict parser also counts.
+  assert.equal(hasExactlyOneDelegateResultMarker("DELEGATE_RESULT: COMPLETED"), true);
+  assert.equal(
+    hasExactlyOneDelegateResultMarker("Done.\n\nDELEGATE_REASON: budget_exhausted\nDELEGATE_RESULT: BLOCKED"),
+    true,
+  );
+  assert.equal(hasExactlyOneDelegateResultMarker("DELEGATE_RESULT: BLOCKED\r\n"), true);
+  assert.equal(hasExactlyOneDelegateResultMarker("DELEGATE_RESULT:\u00a0BLOCKED\n\u3000\n"), true);
+  // Indentation, case mismatch, embedded prefix text, and trailing text
+  // defeat recognition exactly as the strict parser's line pattern does.
+  assert.equal(hasExactlyOneDelegateResultMarker("  DELEGATE_RESULT: BLOCKED"), false);
+  assert.equal(hasExactlyOneDelegateResultMarker("\tDELEGATE_RESULT: BLOCKED"), false);
+  assert.equal(hasExactlyOneDelegateResultMarker("Delegate_Result: BLOCKED"), false);
+  assert.equal(hasExactlyOneDelegateResultMarker("delegate_result: blocked"), false);
+  assert.equal(hasExactlyOneDelegateResultMarker("XDELEGATE_RESULT: BLOCKED"), false);
+  assert.equal(hasExactlyOneDelegateResultMarker("DELEGATE_RESULT: BLOCKED extra"), false);
+  // One or more earlier recognized markers fail the exact-one predicate.
+  const duplicates = [
+    "DELEGATE_RESULT: BLOCKED\nDELEGATE_RESULT: FAILED",
+    "Done.\nDELEGATE_RESULT: FAILED\nmore\nDELEGATE_RESULT: BLOCKED",
+    "DELEGATE_RESULT: FAILED\nDELEGATE_RESULT: COMPLETED\nDELEGATE_RESULT: BLOCKED",
+    "body\r\nDELEGATE_RESULT: FAILED\r\nbody\r\nDELEGATE_REASON: external_dependency\r\nDELEGATE_RESULT: BLOCKED\r\n",
+  ];
+  for (const report of duplicates) {
+    assert.equal(hasExactlyOneDelegateResultMarker(report), false, report);
+    // Parser agreement: without exactly one marker the strict terminal
+    // parser rejects the whole report.
+    assert.deepEqual(parseDelegateTerminal(report), {}, report);
+  }
 });
 
 test("parses accepted reason codes for BLOCKED and FAILED terminals", () => {

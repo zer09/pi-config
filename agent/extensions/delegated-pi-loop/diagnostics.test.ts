@@ -16,8 +16,8 @@ import {
   writeSuccessTelemetry,
   writeSuccessTelemetryQuietly,
 } from "./diagnostics.ts";
-import { DELEGATE_TOOL_OUTPUT_LIMIT } from "./artifacts.ts";
-import { parseDelegateTerminal } from "./monitor.ts";
+import { DELEGATE_TOOL_OUTPUT_LIMIT, truncateUtf8 } from "./artifacts.ts";
+import { hasExactlyOneDelegateResultMarker, parseDelegateTerminal } from "./monitor.ts";
 import { PROVIDER_FAILURE_CATEGORIES } from "./types.ts";
 import type { DelegateRunResult } from "./types.ts";
 
@@ -620,6 +620,134 @@ test("oversized genuine bare-result terminals keep the exact result-line suffix"
       assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
       assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
       assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/);
+    }
+  });
+});
+
+test("oversized duplicate-marker reports reject suffix recognition and keep the whole-report prefix", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Regression for the duplicate-marker bypass: an earlier recognized
+    // DELEGATE_RESULT line makes the strict parser reject the whole report,
+    // but the suffix matcher used to preserve the valid-looking final tail
+    // anyway. When the body cut removed the earlier marker, the stored
+    // diagnostic made an invalid report look like it carried one valid
+    // terminal. Recognition now shares the parser's report-wide
+    // exactly-one-marker predicate, so every duplicate-marker report takes
+    // the UTF-8-safe whole-report prefix fallback.
+    const head = "m".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512);
+    const unicodeReasonLine = "\u00a0\t DELEGATE_REASON:\u3000budget_exhausted\u00a0";
+    const unicodeResultLine = "DELEGATE_RESULT:\u00a0BLOCKED";
+    const cases = [
+      // LF and CRLF bare final suffixes above one late earlier marker.
+      { label: "lf-bare-late", report: `${head}\nDELEGATE_RESULT: FAILED\n\nDELEGATE_RESULT: BLOCKED\n` },
+      { label: "crlf-bare-late", report: `${head}\r\nDELEGATE_RESULT: FAILED\r\n\r\nDELEGATE_RESULT: BLOCKED\r\n` },
+      // LF and CRLF accepted-reason final suffixes above one late earlier marker.
+      {
+        label: "lf-reason-late",
+        report: `${head}\nDELEGATE_RESULT: FAILED\n\nDELEGATE_REASON: external_dependency\nDELEGATE_RESULT: BLOCKED\n`,
+      },
+      {
+        label: "crlf-reason-late",
+        report: `${head}\r\nDELEGATE_RESULT: FAILED\r\n\r\nDELEGATE_REASON: external_dependency\r\nDELEGATE_RESULT: BLOCKED\r\n`,
+      },
+      // Unicode/tab whitespace terminal above one late earlier marker.
+      {
+        label: "lf-unicode-late",
+        report: `${head}\nDELEGATE_RESULT: FAILED\n\n${unicodeReasonLine}\n${unicodeResultLine}\n`,
+      },
+      // Multiple earlier recognized markers before the final tail.
+      {
+        label: "lf-multiple-earlier",
+        report: `${head}\nDELEGATE_RESULT: FAILED\nDELEGATE_RESULT: COMPLETED\n\nDELEGATE_REASON: verification_failure\nDELEGATE_RESULT: FAILED\n`,
+      },
+      {
+        label: "crlf-multiple-earlier-bare",
+        report: `${head}\r\nDELEGATE_RESULT: COMPLETED\r\nDELEGATE_RESULT: FAILED\r\n\r\nDELEGATE_RESULT: BLOCKED\r\n`,
+      },
+      // One early earlier marker that stays inside the stored prefix.
+      {
+        label: "lf-reason-early",
+        report: `DELEGATE_RESULT: FAILED\n${head}\n\nDELEGATE_REASON: external_dependency\nDELEGATE_RESULT: BLOCKED\n`,
+      },
+      {
+        label: "crlf-bare-early",
+        report: `DELEGATE_RESULT: FAILED\r\n${head}\r\n\r\nDELEGATE_RESULT: BLOCKED\r\n`,
+      },
+    ] as const;
+    for (const { label, report } of cases) {
+      // Parser view: the whole terminal structure is rejected report-wide.
+      assert.equal(hasExactlyOneDelegateResultMarker(report), false, label);
+      assert.deepEqual(parseDelegateTerminal(report), {}, label);
+      const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(failedResult({
+        report,
+        state: "invalid_result",
+        progress: blockedProgress({ state: "invalid_result" }),
+      })), "utf8")) as Record<string, unknown>;
+      const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+      // Whole-report prefix fallback: the stored text is exactly the
+      // truncateUtf8 prefix of the original report.
+      assert.equal(delegateReport.text, truncateUtf8(report, DELEGATE_TOOL_OUTPUT_LIMIT).text, label);
+      const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+      assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+      assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"), label);
+      assert.ok(delegateReport.truncatedBytes > 0, label);
+      assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes, label);
+      assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text, label);
+      assert.ok(!delegateReport.text.includes("\u{fffd}"), label);
+      // Late earlier markers fall away with the cut and the valid-looking
+      // tail is never appended; an early marker stays visible so the
+      // duplicate-marker evidence survives in the stored prefix.
+      if (label.endsWith("-late") || label.includes("multiple-earlier")) {
+        assert.doesNotMatch(delegateReport.text, /DELEGATE_REASON|DELEGATE_RESULT/, label);
+      } else {
+        assert.equal(delegateReport.text.match(/DELEGATE_RESULT:/g)?.length, 1, label);
+        assert.ok(delegateReport.text.startsWith("DELEGATE_RESULT: FAILED"), label);
+        assert.doesNotMatch(delegateReport.text, /DELEGATE_REASON|external_dependency/, label);
+      }
+    }
+  });
+});
+
+test("single-marker reports keep the exact suffix over indented and case-mismatched earlier look-alikes", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Controls for the duplicate-marker gate: earlier look-alike lines the
+    // parser does not recognize (indentation, tab indent, case mismatch,
+    // embedded prefix, trailing text) do not count as markers, so the
+    // genuine single-marker terminal keeps its exact suffix preservation.
+    const head = "y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512);
+    const suffix = "\nDELEGATE_REASON: external_dependency\nDELEGATE_RESULT: BLOCKED\n";
+    const suffixBytes = Buffer.byteLength(suffix, "utf8");
+    const lookalikes = [
+      "  DELEGATE_RESULT: BLOCKED",
+      "\tDELEGATE_RESULT: BLOCKED",
+      "Delegate_Result: BLOCKED",
+      "delegate_result: blocked",
+      "XDELEGATE_RESULT: BLOCKED",
+      "DELEGATE_RESULT: BLOCKED extra",
+    ];
+    for (const lookalike of lookalikes) {
+      const report = `${head}\n\n${lookalike}\n\nDELEGATE_REASON: external_dependency\nDELEGATE_RESULT: BLOCKED\n`;
+      assert.equal(hasExactlyOneDelegateResultMarker(report), true, lookalike);
+      assert.deepEqual(
+        parseDelegateTerminal(report),
+        { outcome: "blocked", reason: { status: "accepted", code: "external_dependency" } },
+        lookalike,
+      );
+      const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(blockedResult({ report })), "utf8")) as Record<string, unknown>;
+      const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+      assert.ok(delegateReport.text.endsWith(suffix), lookalike);
+      assert.equal(
+        delegateReport.text,
+        `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes)}${suffix}`,
+        lookalike,
+      );
+      const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+      assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
+      assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"), lookalike);
+      assert.ok(delegateReport.truncatedBytes > 0, lookalike);
+      assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes, lookalike);
+      assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text, lookalike);
+      assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/, lookalike);
     }
   });
 });
