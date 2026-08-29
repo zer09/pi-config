@@ -1099,13 +1099,14 @@ test("a COMPLETED-with-reason response follows invalid-result recovery on the sa
   assert.match(toolResult.content[0]!.text, /## Delegate solution-a completed/);
 });
 
-test("raw reason values never reach statuses, Markdown, details, or diagnostics", async () => {
+test("raw reason values never reach statuses, Markdown, or details; diagnostics persist them only inside the delegate report", async () => {
   const reportText = "Blocked.\n\nDELEGATE_REASON: /home/gc/SECRET-PATH/sk-RAWTOKEN99\nDELEGATE_RESULT: BLOCKED";
   const fixture = await fakePi(
     ["opencode-go/muse-spark-1.2-contributor"],
     { "opencode-go/muse-spark-1.2-contributor": "custom" },
     { reportText },
   );
+  let persistedReport = "";
   const toolResult = await runAndFinalize(baseOptions(fixture), async (result, finalize) => {
     assert.equal(result.state, "blocked");
     const progressText = JSON.stringify(result.progress);
@@ -1119,6 +1120,7 @@ test("raw reason values never reach statuses, Markdown, details, or diagnostics"
     assert.equal(attemptStatus.terminalReason, "unspecified");
     assert.equal(attemptStatus.reasonStatus, "rejected");
     assert.doesNotMatch(JSON.stringify(attemptStatus), /SECRET|RAWTOKEN|DELEGATE_REASON/);
+    persistedReport = result.report;
     return finalize();
   });
   const markdown = toolResult.content[0]!.text;
@@ -1130,11 +1132,18 @@ test("raw reason values never reach statuses, Markdown, details, or diagnostics"
   const diagnosticPath = toolResult.details?.diagnosticPath;
   assert.equal(typeof diagnosticPath, "string");
   const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
-  assert.equal(diagnostic.schemaVersion, 7);
+  assert.equal(diagnostic.schemaVersion, 8);
   assert.equal(diagnostic.delegateOutcome, "blocked");
   assert.equal(diagnostic.terminalReason, "unspecified");
   assert.equal(diagnostic.reasonStatus, "rejected");
-  assert.doesNotMatch(JSON.stringify(diagnostic), /SECRET|RAWTOKEN|DELEGATE_REASON/);
+  // The private failure diagnostic persists the exact final report (raw
+  // reason line included) in delegateReport only; every other field stays typed.
+  const delegateReport = diagnostic.delegateReport as { text: string };
+  assert.equal(delegateReport.text, persistedReport);
+  assert.ok(delegateReport.text.includes("DELEGATE_REASON: /home/gc/SECRET-PATH/sk-RAWTOKEN99"));
+  assert.ok(delegateReport.text.trimEnd().endsWith("DELEGATE_RESULT: BLOCKED"));
+  const withoutReport = JSON.stringify({ ...diagnostic, delegateReport: undefined });
+  assert.doesNotMatch(withoutReport, /SECRET|RAWTOKEN/);
 });
 
 test("an interrupted run stays terminal without attempts or fallback", async () => {
@@ -1591,7 +1600,7 @@ test("an exhausted operational chain persists full per-attempt liveness evidence
         assert.ok(Number.isFinite(attempt[key] as number), key);
       }
     }
-    // The exhausted chain persists the schema-7 diagnostic with the same
+    // The exhausted chain persists the schema-8 diagnostic with the same
     // per-attempt evidence on every attempt record.
     const toolResult = await finalize();
     const diagnosticPath = toolResult.details?.diagnosticPath as string;
@@ -2768,7 +2777,7 @@ test("a catalog-only final route leaves no prior supervised telemetry in top-lev
       assert.equal(key in result.progress, false, key);
     }
     // The same omission holds in the sanitized ToolResult details.progress
-    // and in the schema-7 failure record's top-level telemetry.
+    // and in the schema-8 failure record's top-level telemetry.
     const toolResult = await finalize();
     const details = toolResult.details as { progress?: Record<string, unknown>; diagnosticPath?: string };
     const sanitizedProgress = details.progress!;

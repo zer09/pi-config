@@ -341,7 +341,7 @@ export function diagnosticLine(diagnosticPath: string): string {
 
 /**
  * Execute-level finalization for one terminal delegate run. Persists the
- * compact schema-7 run telemetry: the private failure diagnostic for
+ * compact schema-8 run telemetry: the private failure diagnostic for
  * unsuccessful runs (path travels only in ToolResult details for the TUI
  * renderer) and one best-effort metadata-only success record for completed
  * runs (never model-visible and never in ToolResult content or details).

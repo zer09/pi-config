@@ -2,6 +2,8 @@
 
 ## Status
 
+Status note (2026-08-29, after completion): this plan was implemented and its decisions are historical. New writes moved from schema 7 to schema 8 under `docs/adr/0017-delegated-schema-8-diagnostic-report-persistence.md` (ADR 0017), which adds the failure-only bounded `delegateReport` object; every other schema-7 decision here (the `maxProgressIdleSeconds` measurement, metadata-only success records, retention, and the analyzer) remains current policy as amended by ADR 0017. Historical schema-7 files remain valid and untouched. The body below is preserved unchanged as historical evidence.
+
 Ready for implementation by a fresh agent. Not yet implemented.
 
 At planning time, local `master` and `origin/master` point to `031fe0c`. A fresh agent must inspect the current branch and working tree before editing. If later source changes materially alter the telemetry pipeline described here, the agent must stop and report the conflict instead of silently redesigning this contract.

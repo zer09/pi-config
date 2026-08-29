@@ -33,7 +33,7 @@ async function writeRecord(name: string, record: unknown, writtenAt?: Date): Pro
 
 function completedRecord(maxProgressIdleSeconds: number, extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    schemaVersion: 7,
+    schemaVersion: 8,
     state: "completed",
     attempts: [{ route: "prov/model:high", state: "completed", elapsedSeconds: 10, maxProgressIdleSeconds }],
     ...extra,
@@ -86,26 +86,26 @@ test("nearest-rank percentiles use rank = ceil(p * n) exactly", () => {
   assert.equal(nearestRankPercentile([], 0.5), undefined);
 });
 
-test("eligible records require schema 7, completed invocation, and a completed attempt with a valid maximum", () => {
+test("eligible records require schema 8, completed invocation, and a completed attempt with a valid maximum", () => {
   assert.deepEqual(eligibleGap(completedRecord(12.3)), { status: "eligible", value: 12.3 });
   // Zero is a valid measurement.
   assert.deepEqual(eligibleGap(completedRecord(0)), { status: "eligible", value: 0 });
-  // Historical schema 3-6 and unknown versions.
-  for (const schemaVersion of [3, 4, 5, 6]) {
+  // Historical schema 3-7 and unknown versions.
+  for (const schemaVersion of [3, 4, 5, 6, 7]) {
     assert.deepEqual(
       eligibleGap({ ...completedRecord(1), schemaVersion }),
       { status: "ignored", reason: "historicalSchema" },
       `schema ${schemaVersion}`,
     );
   }
-  for (const schemaVersion of [1, 2, 8, 99]) {
+  for (const schemaVersion of [1, 2, 9, 99]) {
     assert.deepEqual(
       eligibleGap({ ...completedRecord(1), schemaVersion }),
       { status: "ignored", reason: "unknownSchemaVersion" },
       `schema ${schemaVersion}`,
     );
   }
-  assert.deepEqual(eligibleGap({ ...completedRecord(1), schemaVersion: "7" }), { status: "ignored", reason: "unknownSchemaVersion" });
+  assert.deepEqual(eligibleGap({ ...completedRecord(1), schemaVersion: "8" }), { status: "ignored", reason: "unknownSchemaVersion" });
   // Unsuccessful records never contribute.
   assert.deepEqual(eligibleGap({ ...completedRecord(1), state: "stalled" }), { status: "ignored", reason: "unsuccessfulRecords" });
   // Catalog-only histories form their own ignored category, taking
@@ -114,7 +114,7 @@ test("eligible records require schema 7, completed invocation, and a completed a
   // (only catalog-unavailable attempts) and the synthetic completed shape.
   assert.deepEqual(
     eligibleGap({
-      schemaVersion: 7,
+      schemaVersion: 8,
       state: "routes_unavailable",
       attempts: [{ route: "prov/a:high", state: "catalog_unavailable", elapsedSeconds: 1 }],
     }),
@@ -147,7 +147,7 @@ test("the default sample takes the completed attempt and ignores fallback attemp
   // A stalled fallback attempt carries a huge value, but only the completed
   // supervised attempt defines the eligible sample.
   const record = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     state: "completed",
     attempts: [
       { route: "prov/a:high", state: "stalled", maxProgressIdleSeconds: 9999 },
@@ -159,7 +159,7 @@ test("the default sample takes the completed attempt and ignores fallback attemp
   // catalog-only: the mixed chain stays eligible through its completed
   // supervised attempt.
   const mixed = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     state: "completed",
     attempts: [
       { route: "prov/a:high", state: "catalog_unavailable", elapsedSeconds: 1 },
@@ -173,7 +173,7 @@ test("records shaped like the bounded writer stay eligible through their retaine
   // Fixed-writer shape for a twelve-attempt history: the bounded slice
   // keeps nine earlier attempts plus the terminal completed attempt.
   const fixedWriter = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     state: "completed",
     attempts: [
       ...Array.from({ length: 9 }, () => ({
@@ -188,7 +188,7 @@ test("records shaped like the bounded writer stay eligible through their retaine
   // Legacy pre-fix shape: ten serialized attempts whose completed tail was
   // truncated away stays ignored as noCompletedAttempt, never guessed at.
   const legacyTruncated = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     state: "completed",
     attempts: Array.from({ length: 10 }, () => ({
       route: "prov/a:high",
@@ -226,7 +226,7 @@ test("analyzeRecords reports counts, extrema, percentiles, and thresholds", () =
 test("analyzeRecords counts every ignored category separately", () => {
   const analysis = analyzeRecords([
     completedRecord(10),
-    { ...completedRecord(10), schemaVersion: 6 },
+    { ...completedRecord(10), schemaVersion: 7 },
     { ...completedRecord(10), schemaVersion: 5 },
     { ...completedRecord(10), schemaVersion: 9 },
     { ...completedRecord(10), state: "stalled" },
@@ -274,7 +274,7 @@ test("fewer than 100 eligible samples label p99 as insufficient; 100 or more do 
 test("scan tolerates malformed JSON and vanished files and keeps directory contents unchanged", async () => {
   await writeRecord("a-completed.json", completedRecord(120));
   await writeRecord("b-malformed.json", "{not json");
-  await writeRecord("c-historical.json", { ...completedRecord(9), schemaVersion: 4 });
+  await writeRecord("c-historical.json", { ...completedRecord(9), schemaVersion: 7 });
   const before = new Map(await Promise.all((await readdir(ownedDirectory)).map(async (name) => {
     const filePath = path.join(ownedDirectory, name);
     return [name, { content: await readFile(filePath, "utf8"), mtime: (await lstat(filePath)).mtimeMs }] as const;

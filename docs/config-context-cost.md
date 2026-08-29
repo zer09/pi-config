@@ -51,6 +51,8 @@ Delegated native-extension migration: 2026-08-21 (removed the runtime skill and 
 Delegated native-result update: 2026-08-21 (made completed and failed delegate results self-contained Markdown tool results and added failure-only private diagnostics; provider calibration and the full extension/tool inventory were not rerun)
 Delegated schema-7 telemetry update: 2026-08-28 (diagnostics are no longer failure-only: completed runs also write one bounded metadata-only schema-7 record capped at the newest 4,096 `success-v7-` files, and new records gain only `maxProgressIdleSeconds`; no prompt, report, or tool content is persisted, nothing new is model-visible, and provider calibration and the full extension/tool inventory were not rerun)
 
+Delegated schema-8 telemetry update: 2026-08-29 (failure diagnostics gain one bounded `delegateReport` object holding the exact final report up to 50 KiB with recognized terminal DELEGATE_REASON/DELEGATE_RESULT lines preserved verbatim when oversized; success records stay metadata-only under `success-v8-`, nothing new is model-visible so parent context cost is unchanged, and provider calibration and the full extension/tool inventory were not rerun)
+
 Delegated four-member D expansion: 2026-08-21 (added solution/review D on GPT-5.5/medium across five eligible OpenAI Codex alias providers with inherited-or-random primary selection; provider calibration and the full extension/tool inventory were not rerun)
 
 Delegated C-route Ox update: 2026-08-21 (replaced the C HY3/high primary with OpenCode Go Ox Alpha Free/max for investigation and review; zero startup-context delta because the executable route map is TypeScript and is not model-visible; provider calibration and the full extension/tool inventory were not rerun)

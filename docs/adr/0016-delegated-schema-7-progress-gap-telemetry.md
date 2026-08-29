@@ -4,6 +4,8 @@
 
 Accepted (2026-08-28). Implements the accepted contract in `docs/delegated-pi-loop-schema-7-maximum-progress-gap-telemetry-plan.md`. Extends ADR 0015 (renewable liveness). Supersedes ADR 0015's schema-6 telemetry limits for newly written records only: schema 6 recorded only the settlement idle age and only for unsuccessful runs, so a percentile over maximum structural-progress gaps could not be reconstructed and the dataset oversampled failures. Historical schema 3 through schema 6 files remain valid historical records and are never migrated, rewritten, or deleted. The 15-minute structural-progress warning, the renewable 45-minute structural-progress stall, every other lease threshold, warning precedence, latches, fallback, recovery, routing, role permissions, concurrency, resource isolation, cleanup, and model-visible instructions are unchanged.
 
+Supersession note (2026-08-29): this decision's schema-7 version for newly written records is itself superseded by ADR 0017 (`docs/adr/0017-delegated-schema-8-diagnostic-report-persistence.md`), which adds the failure-only bounded `delegateReport` object and writes `success-v8-` success telemetry. Every other schema-7 decision below (the `maxProgressIdleSeconds` measurement, success retention, analyzer, and privacy bounds) remains current policy through ADR 0017. Historical schema 3 through schema 7 files remain valid and untouched.
+
 ## Context
 
 Schema 6 persisted `progressIdleSeconds` only at attempt settlement and only for unsuccessful delegate invocations. Two defects followed:

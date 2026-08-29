@@ -2,16 +2,16 @@ import type { Stats } from "node:fs";
 import { chmod, lstat, mkdir, readdir, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { atomicWriteJson, safeLabel } from "./artifacts.ts";
+import { atomicWriteJson, DELEGATE_TOOL_OUTPUT_LIMIT, safeLabel, truncateUtf8 } from "./artifacts.ts";
 import { BLOCKED_REASON_CODES, DELEGATE_REASON_UNSPECIFIED, FAILED_REASON_CODES, PROVIDER_FAILURE_CATEGORY_SET } from "./types.ts";
 import type { ChainAttempt, DelegateRunResult } from "./types.ts";
 
-/** Schema version for every newly written run-telemetry record (failure and success). Historical schema 3-6 files are never migrated. */
-export const SCHEMA_VERSION = 7;
-/** Maximum number of exact extension-owned `success-v7-*.json` records retained. */
+/** Schema version for every newly written run-telemetry record (failure and success). Historical schema 3-7 files are never migrated. */
+export const SCHEMA_VERSION = 8;
+/** Maximum number of exact extension-owned `success-v8-*.json` records retained. */
 export const SUCCESS_RECORD_LIMIT = 4096;
-/** Exact filename prefix for successful-run schema-7 telemetry records. */
-export const SUCCESS_FILE_PREFIX = "success-v7-";
+/** Exact filename prefix for successful-run schema-8 telemetry records. */
+export const SUCCESS_FILE_PREFIX = "success-v8-";
 
 /** Concurrent lstat calls per batch while gathering retention metadata. */
 const RETENTION_LSTAT_BATCH_SIZE = 64;
@@ -37,6 +37,8 @@ const DELEGATE_STATES = new Set([
   "missing_report", "child_failed", "spawn_failed", "cleanup_failed", "interrupted", "catalog_unavailable",
 ]);
 const TERMINAL_REASONS = new Set([...BLOCKED_REASON_CODES, ...FAILED_REASON_CODES, DELEGATE_REASON_UNSPECIFIED]);
+const BLOCKED_REASON_SET: ReadonlySet<string> = new Set(BLOCKED_REASON_CODES);
+const FAILED_REASON_SET: ReadonlySet<string> = new Set(FAILED_REASON_CODES);
 const SAFE_ROUTE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}:(?:off|minimal|low|medium|high|xhigh|max)$/;
 
 function boundedIdentifier(value: string | undefined, limit = MAX_ERROR_LENGTH): string | undefined {
@@ -88,14 +90,16 @@ export function diagnosticsDirectory(): string {
 }
 
 /**
- * Sanitized bounded schema-7 run record, shared by failure diagnostics and
- * best-effort successful-run telemetry. Excludes prompts, delegate reports,
- * raw stdout/stderr, tool arguments and results, checkpoint digests and HMAC
- * keys, Git state, credentials, provider bodies, delegate-authored reason
- * text, and every file path. Temporary supervision artifacts are removed by
- * the caller after this record is persisted.
+ * Sanitized bounded schema-8 run record, shared by failure diagnostics and
+ * best-effort successful-run telemetry. Excludes prompts, raw stdout/stderr,
+ * tool arguments and results, checkpoint digests and HMAC keys, Git state,
+ * credentials, provider bodies, delegate-authored reason text, and every
+ * file path. Only the failure view (failureDiagnostic) adds the bounded
+ * exact delegate report; successful-run telemetry never carries it.
+ * Temporary supervision artifacts are removed by the caller after this
+ * record is persisted.
  */
-export function schemaSevenRecord(result: DelegateRunResult): Record<string, unknown> {
+export function schemaEightRecord(result: DelegateRunResult): Record<string, unknown> {
   return {
     schemaVersion: SCHEMA_VERSION,
     writtenAt: new Date().toISOString(),
@@ -172,9 +176,89 @@ export function schemaSevenRecord(result: DelegateRunResult): Record<string, unk
 
 let writeCounter = 0;
 
-/** Failure-specific view of the shared schema-7 record builder; unsuccessful runs only. */
+/**
+ * Recognized terminal tail of a delegate report: an optional exact
+ * `DELEGATE_REASON` line directly above the final `DELEGATE_RESULT` line,
+ * followed only by whitespace through the end of the report.
+ */
+const TERMINAL_SUFFIX_PATTERN =
+  /(?:^|\r?\n)(?:DELEGATE_REASON:[ \t]*([a-z][a-z0-9_]*)[ \t]*\r?\n)?DELEGATE_RESULT:[ \t]*(COMPLETED|BLOCKED|FAILED)[ \t\r\n]*$/;
+
+/**
+ * Exact recognized terminal suffix of a delegate report: the verbatim
+ * text from the complete original line separator (a lone LF or a full
+ * CRLF) before the terminal `DELEGATE_REASON`/`DELEGATE_RESULT` lines (or
+ * the report start) through the absolute end of the report, or undefined
+ * for every other tail. Mirrors the monitor's strict terminal parser: the
+ * final line must be the `DELEGATE_RESULT` marker, and when the line
+ * directly above it is a `DELEGATE_REASON` line, its value must be one of
+ * the exact fixed codes for that outcome. A reason line paired with
+ * `COMPLETED` is not recognized. Recognition is tail-structural only: a
+ * malformed terminal elsewhere in the body is recorded by the typed
+ * outcome fields, not here. Including the complete separator keeps the
+ * terminal lines on their own line, with their original CRLF boundary
+ * bytes intact, after the body prefix is cut; blank lines above it stay
+ * body content.
+ */
+function terminalDelegateSuffix(report: string): string | undefined {
+  const match = TERMINAL_SUFFIX_PATTERN.exec(report);
+  if (match === null) return undefined;
+  const reasonCode = match[1];
+  const outcome = match[2]!;
+  if (reasonCode !== undefined) {
+    if (outcome === "COMPLETED") return undefined;
+    const allowed = outcome === "BLOCKED" ? BLOCKED_REASON_SET : FAILED_REASON_SET;
+    if (!allowed.has(reasonCode)) return undefined;
+  }
+  // Index 0 is the empty `^` branch; otherwise the match starts at the
+  // separator's first byte, LF or the CR of a CRLF pair, which all belongs
+  // to the suffix so the junction between a cut body prefix and the
+  // terminal lines stays an exact original line boundary.
+  return report.slice(match.index);
+}
+
+/**
+ * Failure-only persistence of the exact final delegate report, bounded to
+ * DELEGATE_TOOL_OUTPUT_LIMIT. A report within the limit survives
+ * byte-for-byte. An oversized report with a recognized terminal suffix that
+ * itself fits the limit keeps that suffix verbatim at the end and spends the
+ * remaining budget on a UTF-8-safe body prefix; an oversized report without
+ * one, or whose recognized suffix alone exceeds the limit because its
+ * trailing whitespace is unbounded, keeps only a UTF-8-safe prefix of the
+ * whole report. Stored text always stays valid UTF-8 within the
+ * limit; `totalBytes` is the original UTF-8 byte count and
+ * `truncatedBytes` the omitted bytes. An empty report omits the field.
+ */
+function failureDelegateReport(result: DelegateRunResult): { text: string; totalBytes: number; truncatedBytes: number } | undefined {
+  if (result.report === "") return undefined;
+  const totalBytes = Buffer.byteLength(result.report, "utf8");
+  const suffix = totalBytes > DELEGATE_TOOL_OUTPUT_LIMIT ? terminalDelegateSuffix(result.report) : undefined;
+  // A recognized suffix is not bounded: its trailing whitespace can push it
+  // past the limit. A suffix larger than the limit can never fit, so the
+  // whole report takes the UTF-8-safe prefix cut instead of a negative body
+  // budget being handed to truncateUtf8.
+  const suffixBytes = suffix === undefined ? 0 : Buffer.byteLength(suffix, "utf8");
+  if (suffix === undefined || suffixBytes > DELEGATE_TOOL_OUTPUT_LIMIT) {
+    const { text, truncatedBytes } = truncateUtf8(result.report, DELEGATE_TOOL_OUTPUT_LIMIT);
+    return { text, totalBytes, truncatedBytes };
+  }
+  // Cut only the body: the prefix lands on a whole UTF-8 character and the
+  // suffix starts on an ASCII line boundary, so the joined text stays valid
+  // UTF-8 and within the limit while the terminal evidence survives intact.
+  const body = result.report.slice(0, result.report.length - suffix.length);
+  const { text: prefix } = truncateUtf8(body, DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes);
+  const text = `${prefix}${suffix}`;
+  return { text, totalBytes, truncatedBytes: totalBytes - Buffer.byteLength(text, "utf8") };
+}
+
+/**
+ * Failure-specific view of the shared schema-8 record builder for
+ * unsuccessful runs only: the sanitized telemetry plus the bounded exact
+ * delegate report when one exists.
+ */
 export function failureDiagnostic(result: DelegateRunResult): Record<string, unknown> {
-  return schemaSevenRecord(result);
+  const delegateReport = failureDelegateReport(result);
+  return { ...schemaEightRecord(result), ...(delegateReport === undefined ? {} : { delegateReport }) };
 }
 
 /** Writes the failure diagnostic with a 0700 directory and a 0600 atomic file. */
@@ -186,8 +270,9 @@ export async function writeFailureDiagnostic(result: DelegateRunResult): Promise
 }
 
 /**
- * Shared record writer for one terminal run. Both failure and success names
- * stay bounded and carry no prompt or report content.
+ * Shared record writer for one terminal run. The failure name carries the
+ * bounded delegate report; both names stay bounded and carry no prompt
+ * content.
  */
 async function writeRunDiagnostic(kind: "failure" | "success", result: DelegateRunResult): Promise<string> {
   const directory = diagnosticsDirectory();
@@ -197,7 +282,7 @@ async function writeRunDiagnostic(kind: "failure" | "success", result: DelegateR
   const prefix = kind === "success" ? SUCCESS_FILE_PREFIX : "failure-";
   const fileName = `${prefix}${safeLabel(result.label)}-${Date.now()}-${process.pid}-${writeCounter}.json`;
   const filePath = path.join(directory, fileName);
-  await atomicWriteJson(filePath, schemaSevenRecord(result));
+  await atomicWriteJson(filePath, kind === "failure" ? failureDiagnostic(result) : schemaEightRecord(result));
   return filePath;
 }
 
@@ -224,14 +309,15 @@ const DIGIT_SEGMENT = /^[0-9]+$/;
 
 /**
  * True only for the complete writer-generated success-telemetry filename
- * shape `success-v7-<label>-<timestamp>-<pid>-<counter>.json` produced by
+ * shape `success-v8-<label>-<timestamp>-<pid>-<counter>.json` produced by
  * writeRunDiagnostic. `safeLabel` output may itself contain hyphens, so the
  * three numeric segments are anchored from the right: the final three
  * hyphen-separated segments before `.json` must each be one or more ASCII
  * digits, and the label remainder must fit `SAFE_LABEL_SHAPE`. Every other
- * `success-v7-*.json`-looking name is not writer-owned and is never a
- * pruning candidate; a foreign file that exactly mimics one possible writer
- * output remains indistinguishable by name.
+ * `success-v8-*.json`-looking name (including historical `success-v7-`
+ * files) is not writer-owned and is never a pruning candidate; a foreign
+ * file that exactly mimics one possible writer output remains
+ * indistinguishable by name.
  */
 export function isSuccessTelemetryName(name: string): boolean {
   if (!name.startsWith(SUCCESS_FILE_PREFIX) || !name.endsWith(".json")) return false;
@@ -273,9 +359,9 @@ export const retentionProbes: {
 };
 
 /**
- * Prunes the oldest exact `success-v7-*.json` regular files beyond the
- * retention limit. Never touches failures, historical schema 3-6 files,
- * unknown names, directories, or symlinks: candidates pass a no-follow
+ * Prunes the oldest exact `success-v8-*.json` regular files beyond the
+ * retention limit. Never touches failures, historical schema 3-7 success
+ * files, unknown names, directories, or symlinks: candidates pass a no-follow
  * `lstat` regular-file check immediately before deletion, and deletion is
  * bound to the batched entry's `dev`/`ino` identity as re-verified by a
  * final no-follow `lstat` immediately before the `rm`. This narrows the
@@ -358,7 +444,7 @@ async function pruneSuccessTelemetry(directory: string, limit: number): Promise<
 }
 
 /**
- * Writes one metadata-only schema-7 record for a completed invocation, then
+ * Writes one metadata-only schema-8 record for a completed invocation, then
  * prunes to the newest `limit` exact success files. The retention limit is
  * injectable only so tests can exercise pruning without 4,097 physical
  * files; production always passes `SUCCESS_RECORD_LIMIT`.

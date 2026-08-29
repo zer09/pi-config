@@ -647,7 +647,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     const elapsed = roundedSeconds(performance.now() - started);
     const endedAt = new Date().toISOString();
     // All outcome data travels in memory; no chain-level report.md or status.json
-    // is written. The caller persists the schema-7 run telemetry (failure
+    // is written. The caller persists the schema-8 run telemetry (failure
     // diagnostic or best-effort success record), assembles the tool result,
     // and then removes the artifact directory.
     finalProgress = {
