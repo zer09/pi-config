@@ -594,32 +594,209 @@ test("oversized bare results below a malformed immediate reason line keep prefix
 
 test("oversized genuine bare-result terminals keep the exact result-line suffix", async () => {
   await withDiagnosticsRoot(async () => {
-    // With no reason line directly above the marker, the suffix is only
-    // the separator plus the result line: a genuine bare result.
-    const suffix = "\nDELEGATE_RESULT: BLOCKED\n";
-    const suffixBytes = Buffer.byteLength(suffix, "utf8");
-    const plain = `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512)}\n\nDELEGATE_RESULT: BLOCKED\n`;
-    assert.deepEqual(parseDelegateTerminal(plain), { outcome: "blocked", reason: { status: "missing" } });
-    // A reason-like line elsewhere in the body never invalidates the
-    // genuine bare result: the parser records a misplaced reason while
-    // the recognized suffix stays the separator plus the result line.
-    const stray = `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512)}\nDELEGATE_REASON: external_dependency\n\nDELEGATE_RESULT: BLOCKED\n`;
-    assert.deepEqual(parseDelegateTerminal(stray), { outcome: "blocked", reason: { status: "rejected" } });
-    for (const report of [plain, stray]) {
+    // With no reason line anywhere in the report, the suffix is only the
+    // separator plus the result line: a genuine bare result the strict
+    // parser reads as reason missing. A reason line elsewhere in the body
+    // is misplaced and rejected by the parser, so it belongs to the
+    // misplaced-reason fallback regressions below, never here.
+    for (const newline of ["\n", "\r\n"] as const) {
+      const suffix = `${newline}DELEGATE_RESULT: BLOCKED${newline}`;
+      const suffixBytes = Buffer.byteLength(suffix, "utf8");
+      const report = `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512)}${newline}${newline}DELEGATE_RESULT: BLOCKED${newline}`;
+      assert.deepEqual(parseDelegateTerminal(report), { outcome: "blocked", reason: { status: "missing" } }, newline);
       const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(blockedResult({
         report,
-        progress: blockedProgress({ terminalReason: "unspecified", reasonStatus: report === plain ? "missing" : "rejected" }),
+        progress: blockedProgress({ terminalReason: "unspecified", reasonStatus: "missing" }),
       })), "utf8")) as Record<string, unknown>;
       const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
-      assert.equal(delegateReport.text, `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes)}${suffix}`);
-      assert.ok(delegateReport.text.endsWith(suffix));
+      assert.equal(delegateReport.text, `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes)}${suffix}`, newline);
+      assert.ok(delegateReport.text.endsWith(suffix), newline);
       const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
-      assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT);
-      assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"));
-      assert.ok(delegateReport.truncatedBytes > 0);
-      assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes);
-      assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text);
-      assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/);
+      assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT, newline);
+      assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"), newline);
+      assert.ok(delegateReport.truncatedBytes > 0, newline);
+      assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes, newline);
+      assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text, newline);
+      assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/, newline);
+    }
+  });
+});
+
+test("oversized parser-valid terminals keep the exact suffix across LF and CRLF", async () => {
+  await withDiagnosticsRoot(async () => {
+    // The eligibility gate is the shared strict parse: every case below
+    // parses to a valid completed, accepted-reason, or genuine
+    // missing-reason terminal, so the exact suffix survives verbatim and
+    // the body prefix spends the rest of the limit.
+    const head = "y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512);
+    const cases = [
+      {
+        label: "lf-completed",
+        report: `${head}\n\nDELEGATE_RESULT: COMPLETED\n`,
+        suffix: "\nDELEGATE_RESULT: COMPLETED\n",
+        terminal: { outcome: "completed" },
+      },
+      {
+        label: "crlf-completed",
+        report: `${head}\r\n\r\nDELEGATE_RESULT: COMPLETED\r\n`,
+        suffix: "\r\nDELEGATE_RESULT: COMPLETED\r\n",
+        terminal: { outcome: "completed" },
+      },
+      {
+        label: "crlf-failed-accepted",
+        report: `${head}\r\n\r\nDELEGATE_REASON: verification_failure\r\nDELEGATE_RESULT: FAILED\r\n`,
+        suffix: "\r\nDELEGATE_REASON: verification_failure\r\nDELEGATE_RESULT: FAILED\r\n",
+        terminal: { outcome: "failed", reason: { status: "accepted", code: "verification_failure" } },
+      },
+      {
+        label: "lf-blocked-accepted-unicode",
+        report: `${head}\n\n\u00a0DELEGATE_REASON:\u3000budget_exhausted\u00a0\nDELEGATE_RESULT:\u00a0BLOCKED\n`,
+        suffix: "\n\u00a0DELEGATE_REASON:\u3000budget_exhausted\u00a0\nDELEGATE_RESULT:\u00a0BLOCKED\n",
+        terminal: { outcome: "blocked", reason: { status: "accepted", code: "budget_exhausted" } },
+      },
+      {
+        label: "crlf-failed-missing",
+        report: `${head}\r\n\r\nDELEGATE_RESULT: FAILED\r\n`,
+        suffix: "\r\nDELEGATE_RESULT: FAILED\r\n",
+        terminal: { outcome: "failed", reason: { status: "missing" } },
+      },
+    ] as const;
+    for (const { label, report, suffix, terminal } of cases) {
+      assert.deepEqual(parseDelegateTerminal(report), terminal, label);
+      const suffixBytes = Buffer.byteLength(suffix, "utf8");
+      const result = terminal.outcome === "blocked"
+        ? blockedResult({ report })
+        : terminal.outcome === "failed"
+          ? failedResult({
+            report,
+            state: "delegate_failed",
+            progress: blockedProgress({ state: "delegate_failed", delegateOutcome: "failed" }),
+          })
+          : failedResult({ report, state: "child_failed", progress: blockedProgress({ state: "child_failed" }) });
+      const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(result), "utf8")) as Record<string, unknown>;
+      const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+      assert.equal(delegateReport.text, `${"y".repeat(DELEGATE_TOOL_OUTPUT_LIMIT - suffixBytes)}${suffix}`, label);
+      const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+      assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT, label);
+      assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"), label);
+      assert.ok(delegateReport.truncatedBytes > 0, label);
+      assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes, label);
+      assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text, label);
+      assert.doesNotMatch(delegateReport.text.slice(0, -suffix.length), /DELEGATE_REASON|DELEGATE_RESULT/, label);
+    }
+  });
+});
+
+test("oversized reports with misplaced reason lines take the whole-report prefix fallback", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Regression for the misplaced-reason bypass: a reason line anywhere
+    // in the body makes the strict parse reject the terminal (a rejected
+    // reason for BLOCKED and FAILED, no outcome at all for COMPLETED), so
+    // the bare result-line tail is never preserved after the body cut,
+    // which would drop the reason evidence and present the report as one
+    // valid bare terminal.
+    const head = "m".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512);
+    const variants = [
+      { label: "valid", reasonLine: "DELEGATE_REASON: external_dependency" },
+      { label: "malformed", reasonLine: "DELEGATE_REASON: /home/me/secret" },
+      { label: "unicode", reasonLine: "\u3000\tDELEGATE_REASON:\u00a0budget_exhausted\u00a0" },
+    ] as const;
+    for (const newline of ["\n", "\r\n"] as const) {
+      for (const { label, reasonLine } of variants) {
+        for (const outcome of ["BLOCKED", "FAILED", "COMPLETED"] as const) {
+          const report = `${head}${newline}${reasonLine}${newline}${newline}DELEGATE_RESULT: ${outcome}${newline}`;
+          assert.deepEqual(
+            parseDelegateTerminal(report),
+            outcome === "COMPLETED" ? {} : { outcome: outcome.toLowerCase(), reason: { status: "rejected" } },
+            `${label}/${outcome}`,
+          );
+          const result = outcome === "BLOCKED"
+            ? blockedResult({ report, progress: blockedProgress({ terminalReason: "unspecified", reasonStatus: "rejected" }) })
+            : outcome === "FAILED"
+              ? failedResult({
+                report,
+                state: "delegate_failed",
+                progress: blockedProgress({ state: "delegate_failed", delegateOutcome: "failed", terminalReason: "unspecified", reasonStatus: "rejected" }),
+              })
+              : failedResult({
+                report,
+                state: "invalid_result",
+                progress: blockedProgress({ state: "invalid_result", terminalReason: "unspecified", reasonStatus: "rejected" }),
+              });
+          const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(result), "utf8")) as Record<string, unknown>;
+          const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+          // Prefix-only fallback: exactly the truncateUtf8 prefix of the
+          // whole report, so both terminal lines fall away with the cut.
+          assert.equal(delegateReport.text, truncateUtf8(report, DELEGATE_TOOL_OUTPUT_LIMIT).text, `${label}/${outcome}`);
+          const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+          assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT, `${label}/${outcome}`);
+          assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"), `${label}/${outcome}`);
+          assert.ok(delegateReport.truncatedBytes > 0, `${label}/${outcome}`);
+          assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes, `${label}/${outcome}`);
+          assert.doesNotMatch(delegateReport.text, /DELEGATE_REASON|DELEGATE_RESULT/, `${label}/${outcome}`);
+          assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text, `${label}/${outcome}`);
+        }
+      }
+    }
+  });
+});
+
+test("oversized duplicate-reason reports take the whole-report prefix fallback", async () => {
+  await withDiagnosticsRoot(async () => {
+    // Regression for the duplicate-reason bypass: the final reason line
+    // directly above the marker carries a valid code the raw matcher can
+    // capture, but the earlier duplicate makes the strict parse reject
+    // the reason. A COMPLETED terminal above earlier reason lines yields
+    // no outcome at all. Neither valid-looking tail is ever preserved.
+    const head = "m".repeat(DELEGATE_TOOL_OUTPUT_LIMIT + 512);
+    for (const newline of ["\n", "\r\n"] as const) {
+      const cases = [
+        {
+          label: "blocked-accepted-final",
+          report: `${head}${newline}DELEGATE_REASON: external_dependency${newline}${newline}DELEGATE_REASON: external_dependency${newline}DELEGATE_RESULT: BLOCKED${newline}`,
+          terminal: { outcome: "blocked" as const, reason: { status: "rejected" as const } },
+        },
+        {
+          label: "failed-accepted-final",
+          report: `${head}${newline}DELEGATE_REASON: verification_failure${newline}${newline}DELEGATE_REASON: verification_failure${newline}DELEGATE_RESULT: FAILED${newline}`,
+          terminal: { outcome: "failed" as const, reason: { status: "rejected" as const } },
+        },
+        {
+          label: "completed-earlier-duplicate",
+          report: `${head}${newline}DELEGATE_REASON: external_dependency${newline}DELEGATE_REASON: budget_exhausted${newline}${newline}DELEGATE_RESULT: COMPLETED${newline}`,
+          terminal: {},
+        },
+      ];
+      for (const { label, report, terminal } of cases) {
+        assert.deepEqual(parseDelegateTerminal(report), terminal, `${label}/${newline === "\n" ? "lf" : "crlf"}`);
+        const result = terminal.outcome === "blocked"
+          ? blockedResult({ report, progress: blockedProgress({ terminalReason: "unspecified", reasonStatus: "rejected" }) })
+          : terminal.outcome === "failed"
+            ? failedResult({
+              report,
+              state: "delegate_failed",
+              progress: blockedProgress({ state: "delegate_failed", delegateOutcome: "failed", terminalReason: "unspecified", reasonStatus: "rejected" }),
+            })
+            : failedResult({
+              report,
+              state: "invalid_result",
+              progress: blockedProgress({ state: "invalid_result", terminalReason: "unspecified", reasonStatus: "rejected" }),
+            });
+        const parsed = JSON.parse(await readFile(await writeFailureDiagnostic(result), "utf8")) as Record<string, unknown>;
+        const delegateReport = parsed.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+        assert.equal(
+          delegateReport.text,
+          truncateUtf8(report, DELEGATE_TOOL_OUTPUT_LIMIT).text,
+          `${label}/${newline === "\n" ? "lf" : "crlf"}`,
+        );
+        const storedBytes = Buffer.byteLength(delegateReport.text, "utf8");
+        assert.equal(storedBytes, DELEGATE_TOOL_OUTPUT_LIMIT, label);
+        assert.equal(delegateReport.totalBytes, Buffer.byteLength(report, "utf8"), label);
+        assert.ok(delegateReport.truncatedBytes > 0, label);
+        assert.equal(delegateReport.truncatedBytes, delegateReport.totalBytes - storedBytes, label);
+        assert.doesNotMatch(delegateReport.text, /DELEGATE_REASON|DELEGATE_RESULT/, label);
+        assert.equal(Buffer.from(delegateReport.text, "utf8").toString("utf8"), delegateReport.text, label);
+      }
     }
   });
 });

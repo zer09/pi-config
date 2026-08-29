@@ -3,7 +3,7 @@ import { chmod, lstat, mkdir, readdir, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { atomicWriteJson, DELEGATE_TOOL_OUTPUT_LIMIT, safeLabel, truncateUtf8 } from "./artifacts.ts";
-import { hasExactlyOneDelegateResultMarker } from "./monitor.ts";
+import { parseDelegateTerminal } from "./monitor.ts";
 import { BLOCKED_REASON_CODES, DELEGATE_REASON_UNSPECIFIED, FAILED_REASON_CODES, PROVIDER_FAILURE_CATEGORY_SET } from "./types.ts";
 import type { ChainAttempt, DelegateRunResult } from "./types.ts";
 
@@ -38,8 +38,6 @@ const DELEGATE_STATES = new Set([
   "missing_report", "child_failed", "spawn_failed", "cleanup_failed", "interrupted", "catalog_unavailable",
 ]);
 const TERMINAL_REASONS = new Set([...BLOCKED_REASON_CODES, ...FAILED_REASON_CODES, DELEGATE_REASON_UNSPECIFIED]);
-const BLOCKED_REASON_SET: ReadonlySet<string> = new Set(BLOCKED_REASON_CODES);
-const FAILED_REASON_SET: ReadonlySet<string> = new Set(FAILED_REASON_CODES);
 const SAFE_ROUTE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}:(?:off|minimal|low|medium|high|xhigh|max)$/;
 
 function boundedIdentifier(value: string | undefined, limit = MAX_ERROR_LENGTH): string | undefined {
@@ -187,90 +185,63 @@ let writeCounter = 0;
  * line-ending LF. `\s` around the outcome keeps the parser's Unicode
  * whitespace semantics, while `DELEGATE_RESULT` itself must sit directly
  * after its line separator: result-line indentation stays prohibited,
- * matching the parser. The pattern is tail-structural only; the report-wide
- * exactly-one-marker requirement recognition depends on is gated
- * separately at the start of terminalDelegateSuffix.
+ * matching the parser. The pattern is tail-structural byte extraction
+ * only; report-wide eligibility is decided by the shared strict parser
+ * at the start of terminalDelegateSuffix, and the captured outcome and
+ * reason must agree with that parse before the tail is returned.
  */
 const TERMINAL_SUFFIX_PATTERN =
   /(?:^|\r?\n)(?:[^\S\n]*DELEGATE_REASON:[^\S\n]*([a-z][a-z0-9_]*)[^\S\n]*\r?\n)?DELEGATE_RESULT:\s*(COMPLETED|BLOCKED|FAILED)\s*$/;
-
-/** Exact reason marker, spelled as the strict monitor parser reads it. */
-const DELEGATE_REASON_MARKER = "DELEGATE_REASON:";
-
-/** Single-character test for the exact Unicode set `String.prototype.trim()` strips (JS `\s`). */
-const TRIMMED_WHITESPACE = /\s/;
-
-/**
- * True when the original line directly above the result separator at
- * separatorIndex starts with the exact `DELEGATE_REASON:` marker after the
- * parser's Unicode trim: a reason line whose value the suffix pattern could
- * not capture and validate. Only the marker prefix is examined in place, so
- * the malformed reason value itself is never parsed, copied, logged, or
- * exposed.
- */
-function reasonLineAboveSeparator(report: string, separatorIndex: number): boolean {
-  // Index 0 is the empty `^` branch: the report itself starts with the
-  // result line, so no preceding line exists and the bare result stands.
-  if (separatorIndex === 0) return false;
-  const lineStart = report.lastIndexOf("\n", separatorIndex - 1) + 1;
-  // Leading trim in place over the same Unicode whitespace the parser's
-  // line.trim() strips; a lone CR inside the line is ordinary whitespace to
-  // both the parser's line split and its trim, so it stays line content.
-  let start = lineStart;
-  while (start < separatorIndex && TRIMMED_WHITESPACE.test(report.charAt(start))) start += 1;
-  return start < separatorIndex && report.startsWith(DELEGATE_REASON_MARKER, start);
-}
 
 /**
  * Exact recognized terminal suffix of a delegate report: the verbatim
  * text from the complete original line separator (a lone LF or a full
  * CRLF) before the terminal `DELEGATE_REASON`/`DELEGATE_RESULT` lines (or
  * the report start) through the absolute end of the report, or undefined
- * for every other tail. Mirrors the monitor's strict terminal parser,
- * including its Unicode whitespace acceptance: the final line must be
- * the unindented `DELEGATE_RESULT` marker, and when the line directly
- * above it is a `DELEGATE_REASON` line, that line may be indented with
- * and surround its value by the Unicode whitespace `line.trim()` and
- * `value.trim()` strip in the parser, and its value must be one of
- * the exact fixed codes for that outcome. A reason line paired with
- * `COMPLETED` is not recognized. Recognition additionally requires
- * exactly one parser-recognized `DELEGATE_RESULT` marker line
- * report-wide, the monitor's exact-one predicate: a report with an
- * earlier recognized marker is invalid to the parser, and preserving
- * its final tail after cutting the body could hide the duplicate-marker
- * evidence behind one valid-looking terminal, so no suffix is recognized
- * and the report takes the UTF-8-safe whole-report prefix fallback.
- * Including the complete separator keeps the
- * terminal lines on their own line, with their original CRLF boundary
- * bytes intact, after the body prefix is cut; blank lines above it stay
- * body content. One bare-result exception exists: when no reason could be
- * captured, the original line directly above the matched result separator
- * is inspected with the parser's Unicode trim, and an exact `DELEGATE_REASON:`
- * marker there (a malformed reason value the pattern cannot validate) rejects
- * recognition so the UTF-8-safe whole-report prefix fallback applies.
+ * for every other tail. Eligibility is the shared strict terminal parser
+ * applied to the whole report (parseDelegateTerminal, including its
+ * report-wide exactly-one-marker predicate): the suffix survives only
+ * for a valid COMPLETED terminal, a BLOCKED or FAILED terminal with an
+ * accepted reason, or a BLOCKED or FAILED terminal with a genuinely
+ * missing reason (no reason line anywhere in the report). Every other
+ * parse yields no outcome or a rejected reason status (unknown,
+ * malformed, misplaced, duplicate, or outcome-mismatched reason values,
+ * a reason line paired with COMPLETED, or an earlier recognized
+ * duplicate result marker), and recognition is rejected so the oversized
+ * report keeps the UTF-8-safe whole-report prefix fallback: preserving a
+ * tail after cutting the body could otherwise hide the invalid or
+ * rejected reason evidence behind one valid-looking terminal. The raw
+ * matcher above then extracts only the tail bytes, and its captured
+ * outcome and reason code must agree with the parse. Including the
+ * complete separator keeps the terminal lines on their own line, with
+ * their original CRLF boundary bytes intact, after the body prefix is
+ * cut; blank lines above it stay body content.
  */
 function terminalDelegateSuffix(report: string): string | undefined {
-  // Report-wide gate: the strict parser accepts a terminal only when the
-  // whole report carries exactly one parser-recognized result marker. The
-  // same predicate is applied here, so a duplicate-marker report is never
-  // presented with a preserved valid-looking tail: recognition is rejected
-  // and the oversized invalid report takes the UTF-8-safe whole-report
-  // prefix fallback below, keeping the earlier marker's fate visible to
-  // the human inspecting the record.
-  if (!hasExactlyOneDelegateResultMarker(report)) return undefined;
+  // Report-wide eligibility gate: the shared strict parser reads the whole
+  // report, so a COMPLETED terminal above a misplaced earlier reason line,
+  // a duplicate reason, or a duplicate result marker is rejected exactly
+  // as the monitor rejects it, not by a tail-local approximation.
+  const terminal = parseDelegateTerminal(report);
+  if (terminal.outcome === undefined) return undefined;
+  if (
+    terminal.outcome !== "completed"
+    && terminal.reason?.status !== "accepted"
+    && terminal.reason?.status !== "missing"
+  ) {
+    return undefined;
+  }
   const match = TERMINAL_SUFFIX_PATTERN.exec(report);
   if (match === null) return undefined;
-  const reasonCode = match[1];
-  const outcome = match[2]!;
-  if (reasonCode !== undefined) {
-    if (outcome === "COMPLETED") return undefined;
-    const allowed = outcome === "BLOCKED" ? BLOCKED_REASON_SET : FAILED_REASON_SET;
-    if (!allowed.has(reasonCode)) return undefined;
-  } else if (reasonLineAboveSeparator(report, match.index)) {
-    // Bare-result guard: a malformed reason value defeats the optional
-    // reason group, and the pattern then retries at the separator below
-    // it, which would misread a rejected reason/result pair as a legacy
-    // bare result. Recognition is rejected instead; the value is not read.
+  // Byte-exact extraction with parser agreement: the captured outcome must
+  // be the parsed outcome, and a captured reason code is allowed only for
+  // an accepted parse carrying the same code. Any disagreement rejects
+  // recognition and the whole-report prefix fallback applies.
+  if (match[2]!.toLowerCase() !== terminal.outcome) return undefined;
+  const reason = terminal.reason;
+  if (reason?.status === "accepted") {
+    if (match[1] !== reason.code) return undefined;
+  } else if (match[1] !== undefined) {
     return undefined;
   }
   // Index 0 is the empty `^` branch; otherwise the match starts at the
@@ -283,16 +254,19 @@ function terminalDelegateSuffix(report: string): string | undefined {
 /**
  * Failure-only persistence of the exact final delegate report, bounded to
  * DELEGATE_TOOL_OUTPUT_LIMIT. A report within the limit survives
- * byte-for-byte. An oversized report with a recognized terminal suffix
- * (recognized only when the report carries exactly one parser-recognized
- * result marker) that itself fits the limit keeps that suffix verbatim at
- * the end and spends the remaining budget on a UTF-8-safe body prefix; an
- * oversized report without one, including any report with an earlier
- * recognized duplicate marker, or whose recognized suffix alone exceeds
- * the limit because its trailing whitespace is unbounded, keeps only a
- * UTF-8-safe prefix of the whole report. Stored text always stays valid
- * UTF-8 within the limit; `totalBytes` is the original UTF-8 byte count
- * and `truncatedBytes` the omitted bytes. An empty report omits the field.
+ * byte-for-byte. An oversized report whose whole-report strict parse is a
+ * valid COMPLETED terminal, a BLOCKED or FAILED terminal with an accepted
+ * reason, or a BLOCKED or FAILED terminal with a genuinely missing reason
+ * keeps that parser-recognized terminal suffix verbatim at the end and
+ * spends the remaining budget on a UTF-8-safe body prefix; every other
+ * oversized report, including one whose parse yields no outcome or a
+ * rejected reason status (misplaced, duplicate, malformed, or
+ * COMPLETED-paired reason lines, or an earlier recognized duplicate result
+ * marker), keeps only a UTF-8-safe prefix of the whole report, as does a
+ * recognized suffix that alone exceeds the limit because its trailing
+ * whitespace is unbounded. Stored text always stays valid UTF-8 within
+ * the limit; `totalBytes` is the original UTF-8 byte count and
+ * `truncatedBytes` the omitted bytes. An empty report omits the field.
  */
 function failureDelegateReport(result: DelegateRunResult): { text: string; totalBytes: number; truncatedBytes: number } | undefined {
   if (result.report === "") return undefined;
