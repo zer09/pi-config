@@ -544,6 +544,44 @@ test("finalizeDelegateRun persists the compact diagnostic, then removes every te
   });
 });
 
+test("finalizeDelegateRun persists a routes_unavailable report in the diagnostic only", async () => {
+  await withDiagnosticsRoot(async (root) => {
+    const artifactDir = await tempArtifactDir();
+    // An exhausted operational chain: the final attempt ended invalid_result
+    // with a captured report, no route was selected, and the state stayed
+    // the safe routes_unavailable outcome.
+    const result = failedResult({
+      state: "routes_unavailable",
+      selectedRoute: undefined,
+      attempts: [
+        {
+          route: "opencode-go/muse-spark-1.2-contributor:xhigh",
+          state: "invalid_result",
+          elapsedSeconds: 301.0,
+          restartAfterWork: true,
+        },
+      ],
+      progress: progress({ state: "routes_unavailable", restartAfterWorkCount: 1 }),
+    });
+    const toolResult = await finalizeDelegateRun({ ...result, artifactDir });
+    const diagnosticPath = toolResult.details?.diagnosticPath;
+    assert.equal(typeof diagnosticPath, "string");
+    assert.ok((diagnosticPath as string).startsWith(path.join(root, "logs", "delegated-pi-loop")));
+    assert.match(toolResult.content[0]!.text, /## Delegate solution-a failed: routes_unavailable/);
+    // The parent-facing ToolResult content and details exclude the report.
+    assert.doesNotMatch(toolResult.content[0]!.text, /SECRET-REPORT-BODY|DELEGATE_RESULT/);
+    assert.doesNotMatch(JSON.stringify(toolResult.details ?? {}), /SECRET-REPORT-BODY/);
+    // The private schema-8 failure diagnostic persists the bounded exact report.
+    const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
+    assert.equal(diagnostic.state, "routes_unavailable");
+    assert.equal(diagnostic.selectedRoute, undefined);
+    const delegateReport = diagnostic.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+    assert.equal(delegateReport.text, "SECRET-REPORT-BODY\n\nDELEGATE_RESULT: COMPLETED");
+    assert.equal(delegateReport.truncatedBytes, 0);
+    await assert.rejects(() => stat(artifactDir), enoent);
+  });
+});
+
 test("finalizeDelegateRun survives a diagnostic write failure with sanitized content and cleanup", async () => {
   // Point PI_CODING_AGENT_DIR at a regular file so the logs mkdir fails.
   const blocker = await mkdtemp(path.join(os.tmpdir(), "delegate-finalize-block-"));

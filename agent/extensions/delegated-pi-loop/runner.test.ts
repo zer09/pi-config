@@ -181,6 +181,7 @@ async function fakePi(
     argvLog?: boolean;
     reportText?: string;
     recoveryReportText?: string;
+    routeReportText?: Readonly<Record<string, string>>;
   } = {},
 ): Promise<{
   root: string;
@@ -198,6 +199,7 @@ const catalog = ${JSON.stringify(catalog)};
 const behaviors = ${JSON.stringify(behaviors)};
 const customReportText = ${JSON.stringify(options.reportText ?? null)};
 const recoveryReportText = ${JSON.stringify(options.recoveryReportText ?? null)};
+const routeReportText = ${JSON.stringify(options.routeReportText ?? null)};
 const catalogDelayMs = ${options.catalogDelayMs ?? 0};
 const catalogDelayRoute = ${JSON.stringify(options.catalogDelayRoute ?? null)};
 const spawnMarkerPath = ${JSON.stringify(spawnMarkerPath ?? null)};
@@ -333,7 +335,9 @@ if (args.includes("--list-models")) {
         : behavior === "failed"
           ? "Failed.\\n\\nDELEGATE_RESULT: FAILED"
           : behavior === "custom"
-            ? (round === 2 && recoveryReportText !== null ? recoveryReportText : customReportText)
+            ? (routeReportText !== null && routeReportText[route] !== undefined
+                ? routeReportText[route]
+                : (round === 2 && recoveryReportText !== null ? recoveryReportText : customReportText))
             : "Completed on " + route + ".\\n\\nDELEGATE_RESULT: COMPLETED";
       emit({
         type: "message_end",
@@ -1616,7 +1620,113 @@ test("an exhausted operational chain persists full per-attempt liveness evidence
       // No tool executed on these attempts, so no active-tool idle is fabricated.
       assert.equal("activeToolIdleSeconds" in record, false);
     }
+    // No attempt wrote a report, so the failure diagnostic omits delegateReport.
+    assert.equal("delegateReport" in parsed, false);
   });
+});
+
+test("an exhausted single-route invalid_result chain captures the final report for the diagnostic only", async () => {
+  const reportText = "Ran out of budget before the terminal marker.\n\nDELEGATE_RESULT: COMPLE";
+  const fixture = await fakePi(
+    ["prov-a/model-x"],
+    { "prov-a/model-x": "custom" },
+    { reportText },
+  );
+  const toolResult = await runAndFinalize(
+    baseOptions(fixture, { routingConfig: singleRouteRoutingConfig() }),
+    async (result, finalize) => {
+      assert.equal(result.state, "routes_unavailable");
+      assert.equal(result.attempts.length, 1);
+      assert.equal(result.attempts[0]?.state, "invalid_result");
+      // The exhausted chain keeps its safe outcome and selects no route.
+      assert.equal(result.selectedRoute, undefined);
+      // The final attempt's report is captured in memory for the diagnostic.
+      // atomicWriteText normalizes the stored artifact with one trailing newline.
+      assert.equal(result.report, `${reportText}\n`);
+      // The per-attempt report artifact survives until execute-level finalization.
+      await stat(path.join(result.artifactDir, "attempt-01", "report.md"));
+      const finalized = await finalize();
+      await assert.rejects(() => stat(result.artifactDir), enoent);
+      return finalized;
+    },
+  );
+  // The parent-facing ToolResult content and details exclude the report.
+  assert.equal(toolResult.details?.state, "routes_unavailable");
+  assert.match(toolResult.content[0]!.text, /## Delegate solution-a failed: routes_unavailable/);
+  assert.doesNotMatch(toolResult.content[0]!.text, /Ran out of budget|DELEGATE_RESULT/);
+  assert.doesNotMatch(JSON.stringify(toolResult.details ?? {}), /Ran out of budget|DELEGATE_RESULT/);
+  // The private schema-8 failure diagnostic persists the bounded exact report.
+  const diagnosticPath = toolResult.details?.diagnosticPath;
+  assert.equal(typeof diagnosticPath, "string");
+  const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
+  assert.equal(diagnostic.schemaVersion, 8);
+  assert.equal(diagnostic.state, "routes_unavailable");
+  const delegateReport = diagnostic.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
+  assert.equal(delegateReport.text, `${reportText}\n`);
+  assert.equal(delegateReport.truncatedBytes, 0);
+});
+
+test("an exhausted multi-route chain keeps only the final attempt's report", async () => {
+  const earlierReport = "EARLIER-ROUTE-REPORT stopped before a valid terminal marker";
+  const finalReport = "FINAL-ROUTE-REPORT stopped before a valid terminal marker";
+  const fixture = await fakePi(
+    ["prov-a/model-x", "prov-b/model-y"],
+    { "prov-a/model-x": "custom", "prov-b/model-y": "custom" },
+    { routeReportText: { "prov-a/model-x": earlierReport, "prov-b/model-y": finalReport } },
+  );
+  const toolResult = await runAndFinalize(
+    baseOptions(fixture, { role: "solution-c", routingConfig: twoTierRoutingConfig() }),
+    async (result, finalize) => {
+      assert.equal(result.state, "routes_unavailable");
+      assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["invalid_result", "invalid_result"]);
+      // The earlier failed attempt accepted report recovery, so the restart note applied.
+      assert.equal(result.attempts[0]?.restartAfterWork, true);
+      assert.equal(result.progress.restartAfterWorkCount, 1);
+      // The chain report is the final attempt's report, never the earlier one.
+      assert.equal(result.report, `${finalReport}\n`);
+      return finalize();
+    },
+  );
+  assert.equal(toolResult.details?.state, "routes_unavailable");
+  assert.doesNotMatch(toolResult.content[0]!.text, /EARLIER-ROUTE-REPORT|FINAL-ROUTE-REPORT/);
+  assert.doesNotMatch(JSON.stringify(toolResult.details ?? {}), /EARLIER-ROUTE-REPORT|FINAL-ROUTE-REPORT/);
+  const diagnosticPath = toolResult.details?.diagnosticPath;
+  assert.equal(typeof diagnosticPath, "string");
+  const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
+  const delegateReport = diagnostic.delegateReport as { text: string };
+  assert.equal(delegateReport.text, `${finalReport}\n`);
+  assert.doesNotMatch(JSON.stringify({ ...diagnostic, delegateReport: undefined }), /EARLIER-ROUTE-REPORT/);
+});
+
+test("an exhausted chain whose final attempt has no report omits delegateReport", async () => {
+  const earlierReport = "EARLIER-ROUTE-REPORT stopped before a valid terminal marker";
+  const fixture = await fakePi(
+    ["prov-a/model-x", "prov-b/model-y"],
+    { "prov-a/model-x": "custom", "prov-b/model-y": "credit" },
+    { routeReportText: { "prov-a/model-x": earlierReport } },
+  );
+  const toolResult = await runAndFinalize(
+    baseOptions(fixture, { role: "solution-c", routingConfig: twoTierRoutingConfig() }),
+    async (result, finalize) => {
+      assert.equal(result.state, "routes_unavailable");
+      assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["invalid_result", "provider_failed"]);
+      // The earlier attempt wrote a report, but the final attempt has none:
+      // the chain report stays empty and never keeps the earlier fallback.
+      assert.equal(result.report, "");
+      const finalized = await finalize();
+      await assert.rejects(() => stat(result.artifactDir), enoent);
+      return finalized;
+    },
+  );
+  assert.equal(toolResult.details?.state, "routes_unavailable");
+  assert.doesNotMatch(toolResult.content[0]!.text, /EARLIER-ROUTE-REPORT/);
+  assert.doesNotMatch(JSON.stringify(toolResult.details ?? {}), /EARLIER-ROUTE-REPORT/);
+  const diagnosticPath = toolResult.details?.diagnosticPath;
+  assert.equal(typeof diagnosticPath, "string");
+  const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
+  assert.equal(diagnostic.state, "routes_unavailable");
+  assert.equal("delegateReport" in diagnostic, false);
+  assert.doesNotMatch(JSON.stringify(diagnostic), /EARLIER-ROUTE-REPORT/);
 });
 
 test("early provider failure falls back with no remaining-work predicate", async () => {

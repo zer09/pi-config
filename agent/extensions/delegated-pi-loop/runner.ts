@@ -626,6 +626,15 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       if (index >= routes.length - 1) {
         // An exhausted operational chain keeps the existing safe outcome.
         finalState = "routes_unavailable";
+        // Diagnostic-only capture of the final supervised attempt's report:
+        // it reaches only the private schema-8 failure diagnostic that
+        // finalizeDelegateRun persists before artifact removal, never the
+        // model-visible ToolResult. Only the final attempt's report is
+        // read; an earlier fallback attempt's report was never kept, and a
+        // final attempt without a report leaves the chain report empty.
+        if (attemptStatus.reportPresent) {
+          report = await readPrivateText(attemptStatus.reportPath);
+        }
         break;
       }
 
