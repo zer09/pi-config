@@ -109,7 +109,7 @@
     },
     "glm-5.3-flash": {
       "providers": {
-        "zai": { "thinking": ["low", "high", "max"], "default": "max" }
+        "zai": { "thinking": ["low", "high", "max"], "default": "high" }
       }
     }
   },

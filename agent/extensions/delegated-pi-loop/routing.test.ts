@@ -131,7 +131,7 @@ test("the shipped config pins delegate model thinking capabilities", () => {
   assert.equal(config.models["claude-fable-5"], undefined);
   assert.deepEqual(config.models["glm-5.3-flash"]?.providers.zai, {
     thinking: ["low", "high", "max"],
-    default: "max",
+    default: "high",
   });
   // AgentRouter is fully removed from delegated routing: neither its former
   // Opus 4.8 capability record nor any agentrouter provider capability remains.
@@ -1023,7 +1023,7 @@ test("provider plus model overrides are exact after capability validation", () =
   // Without an explicit thinking level the provider's configured default applies.
   assert.deepEqual(
     selectRoutes(config, "implementation", { provider: "zai", model: "glm-5.3-flash", reason: "user requested glm-5.3 flash on zai" }).map(routeKey),
-    ["zai/glm-5.3-flash:max"],
+    ["zai/glm-5.3-flash:high"],
   );
   // Capability violations fail closed.
   assert.throws(
