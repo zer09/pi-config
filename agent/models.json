@@ -434,6 +434,14 @@
           "input": ["text"],
           "contextWindow": 204800,
           "maxTokens": 131100
+        },
+        {
+          "id": "deepseek/deepseek-v4-flash",
+          "name": "DeepSeek V4 Flash",
+          "reasoning": true,
+          "input": ["text"],
+          "contextWindow": 1048576,
+          "maxTokens": 65536
         }
       ]
     }
