@@ -356,6 +356,59 @@
           "maxTokens": 128000
         }
       ]
+    },
+    "xkiro": {
+      "baseUrl": "https://api.xkiro.com/v1",
+      "api": "openai-completions",
+      "apiKey": "$XKIRO_API_KEY",
+      "models": [
+        {
+          "id": "anthropic/claude-opus-5",
+          "name": "Claude Opus 5",
+          "reasoning": true,
+          "input": ["text", "image"],
+          "contextWindow": 1000000,
+          "maxTokens": 65536,
+          "cost": {
+            "input": 4.25,
+            "output": 21.25,
+            "cacheRead": 0.425,
+            "cacheWrite": 8.5
+          },
+          "thinkingLevelMap": {
+            "off": "none",
+            "minimal": "low",
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": "xhigh",
+            "max": "max"
+          },
+          "compat": {
+            "supportsReasoningEffort": true,
+            "supportsStrictMode": true
+          }
+        },
+        {
+          "id": "qwen/qwen3.8-max:free",
+          "name": "Qwen3.8 Max (Free)",
+          "reasoning": true,
+          "input": ["text", "image"],
+          "contextWindow": 1000000,
+          "maxTokens": 65536,
+          "compat": {
+            "supportsStrictMode": true
+          }
+        },
+        {
+          "id": "minimax/minimax-m2.7-highspeed",
+          "name": "MiniMax M2.7 Highspeed",
+          "reasoning": true,
+          "input": ["text"],
+          "contextWindow": 204800,
+          "maxTokens": 131100
+        }
+      ]
     }
   }
 }
