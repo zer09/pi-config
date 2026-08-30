@@ -123,25 +123,23 @@ test("solution and review concurrency is unchanged inside and across gates", () 
   manager.begin("r8", role("review-e"));
 });
 
-// A temporary sixth reviewer may reuse a non-exclusive role: permanent
-// review-e already occupies the five-member default gate.
-test("a temporary sixth reviewer reuses an existing non-exclusive review role", () => {
+// A temporary extra reviewer may reuse a non-exclusive role: permanent
+// review-c already occupies the three-member default gate.
+test("a temporary fourth reviewer reuses an existing non-exclusive review role", () => {
   const manager = new DelegateManager();
   manager.begin("r1", role("review-a"));
   manager.begin("r2", role("review-b"));
   manager.begin("r3", role("review-c"));
-  manager.begin("r4", role("review-d"));
-  manager.begin("r5", role("review-e"));
-  // The temporary sixth reviewer reuses review-a under a distinct
+  // The temporary fourth reviewer reuses review-a under a distinct
   // assignment; duplicate non-exclusive review roles overlap by design.
-  const extra = manager.begin("r6-extra", role("review-a"));
-  assert.equal(extra.id, 6);
+  const extra = manager.begin("r4-extra", role("review-a"));
+  assert.equal(extra.id, 4);
   // Verification and exclusive roles still refuse to overlap the duplicate.
   assert.throws(() => manager.begin("v1", role("verification")), OVERLAP_ERROR);
   assert.throws(() => manager.begin("mutator", role("implementation")), EXCLUSIVE_ERROR);
-  manager.finish("r6-extra");
+  manager.finish("r4-extra");
   // The reuse leaves no residue: a later gate still starts the plain roles.
-  manager.begin("r6", role("review-d"));
+  manager.begin("r4", role("review-c"));
 });
 
 test("assigns monotonic numeric IDs without reusing completed IDs", () => {

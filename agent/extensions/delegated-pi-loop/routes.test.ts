@@ -54,12 +54,15 @@ test("exposes the oracle role in the derived model-visible role registry", () =>
   assert.equal(registry.get("oracle")!.slot, undefined);
 });
 
-test("the shipped snapshot derives six solution roles and five review roles in canonical order", () => {
+test("the shipped snapshot derives nine solution roles and three review roles in canonical order", () => {
   const ids = roleIds(loadRoutingConfig());
   const solutions = ids.filter((id) => id.startsWith("solution-"));
   const reviews = ids.filter((id) => id.startsWith("review-"));
-  assert.deepEqual(solutions, ["solution-a", "solution-b", "solution-c", "solution-d", "solution-e", "solution-f"]);
-  assert.deepEqual(reviews, ["review-a", "review-b", "review-c", "review-d", "review-e"]);
+  assert.deepEqual(solutions, [
+    "solution-a", "solution-b", "solution-c", "solution-d", "solution-e",
+    "solution-f", "solution-g", "solution-h", "solution-i",
+  ]);
+  assert.deepEqual(reviews, ["review-a", "review-b", "review-c"]);
   // Singleton families keep their fixed ids and stay present exactly once.
   assert.deepEqual(
     ids.filter((id) => ["implementation", "remediation", "verification", "oracle"].includes(id)),

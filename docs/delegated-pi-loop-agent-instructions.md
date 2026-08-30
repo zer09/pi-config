@@ -71,11 +71,12 @@ The current shipped snapshot derives:
 - `solution-d`
 - `solution-e`
 - `solution-f`
+- `solution-g`
+- `solution-h`
+- `solution-i`
 - `review-a`
 - `review-b`
 - `review-c`
-- `review-d`
-- `review-e`
 - `implementation`
 - `remediation`
 - `verification`
@@ -92,7 +93,7 @@ These instructions are injected by `delegate_run` through `promptGuidelines`, ge
 
 3. delegate_run [Fast path]: For a simple task with an obvious established pattern, the parent finalizes the scope and executes the task directly without a delegate. For a non-trivial task with an accepted solution contract, skip solution and oracle and run exactly one implementation delegate.
 
-4. delegate_run [Investigation]: If root cause, architecture, or approach needs investigation, run solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently with the same neutral assignment and wait for every role. They gather evidence and options; parent verifies, synthesizes, and solely authors the final deliverable and contract.
+4. delegate_run [Investigation]: If root cause, architecture, or approach needs investigation, run solution-a, solution-b, solution-c, solution-d, solution-e, solution-f, solution-g, solution-h, and solution-i concurrently with the same neutral assignment and wait for every role. They gather evidence and options; parent verifies, synthesizes, and solely authors the final deliverable and contract.
 
 5. delegate_run [Gate failure]: Any required non-completed solution or review role leaves automatic gate advancement incomplete. Report the failed role(s), preserve completed evidence, and follow the user's next instruction. Never label failures completed or passed.
 
@@ -104,7 +105,7 @@ These instructions are injected by `delegate_run` through `promptGuidelines`, ge
 
 9. delegate_run [Execution]: After finalizing a contract for delegated implementation, run one implementation delegate. Run only one implementation, remediation, or oracle at a time, and do not edit the working tree while it runs. After a non-completed implementation, inspect the current tree before any user-directed continuation.
 
-10. delegate_run [Review]: Inspect the implementation diff and evidence, then run review-a, review-b, review-c, review-d, and review-e concurrently with the same neutral scope; wait for every role before automatic advancement.
+10. delegate_run [Review]: Inspect the implementation diff and evidence, then run review-a, review-b, and review-c concurrently with the same neutral scope; wait for every role before automatic advancement.
 
 11. delegate_run [Findings]: Consolidate exact duplicate blocking findings. Give each fresh verification exactly one finding and no sibling reports. Run independent verifications in batches of at most four, dependent findings sequentially, and overlap only verification with verification. Wait for the full batch; a non-completed verification leaves that finding unresolved without erasing completed siblings.
 
@@ -379,17 +380,19 @@ Routing comes exclusively from:
 
 It does not use the parent's enabled-model settings. A missing or invalid routing file fails closed, and a version-1 document is rejected with one migration error. See `agent/extensions/delegated-pi-loop/routing.ts`.
 
-The file is schema version 2: profiles of ordered model tiers plus an `assignments` object mapping the six role families. Solution and review assignments are ordered profile arrays (deriving the lettered role ids); implementation, remediation, verification, and oracle are one profile string each. The shipped snapshot assigns `solution` to `gate-a`..`gate-f`, `review` to `gate-a`..`gate-d` plus `gate-g`, both `implementation` and `remediation` to `implementation`, `verification` to `verification`, and `oracle` to `oracle`. The oracle self-review model set derives from every tier of the assigned oracle profile; there is no separately duplicated model list.
+The file is schema version 2: profiles of ordered model tiers plus an `assignments` object mapping the six role families. Solution and review assignments are ordered profile arrays (deriving the lettered role ids); implementation, remediation, verification, and oracle are one profile string each. The shipped snapshot assigns `solution` to `gate-a`..`gate-i`, `review` to `gate-a`..`gate-c`, both `implementation` and `remediation` to `implementation`, `verification` to `verification`, and `oracle` to `oracle`. The oracle self-review model set derives from every tier of the assigned oracle profile; there is no separately duplicated model list.
 
 | Role | Primary configured route |
 |---|---|
-| `solution-a`, `review-a` | `opencode-go/muse-spark-1.2-contributor:xhigh` |
-| `solution-b`, `review-b` | `opencode-go/deepseek-v4-flash:max` |
-| `solution-c`, `review-c` | `zai/glm-5.3-flash:high`, then `opencode-go/hy3:high` |
-| `solution-d`, `review-d` | `gpt-5.5:high` through the configured OpenAI Codex provider pool |
-| `solution-e` | `gpt-5.6-sol:high` through the OpenAI Codex provider pool |
-| `solution-f` | `zai/glm-5.3:max` |
-| `review-e` | `zai/glm-5.3:max`, then `gpt-5.6-sol:high` provider pool |
+| `solution-a`, `review-a` | `gpt-5.6-sol:high` through the OpenAI Codex provider pool |
+| `solution-b`, `review-b` | `gpt-5.5:high` through the OpenAI Codex provider pool |
+| `solution-c`, `review-c` | `zai/glm-5.3:max` |
+| `solution-d` | `zai/glm-5.3-flash:high` |
+| `solution-e` | `opencode-go/muse-spark-1.2-contributor:xhigh` |
+| `solution-f` | `opencode-go/hy3:high` |
+| `solution-g` | `xkiro/minimax/minimax-m2.7-highspeed:high` |
+| `solution-h` | `xkiro/qwen/qwen3.8-max:free:high` |
+| `solution-i` | `agentrouter/deepseek-v4-flash:max`, then `xkiro/deepseek/deepseek-v4-flash:high` |
 | `oracle` | `gpt-5.6-sol:high` provider pool |
 | `implementation`, `remediation` | `zai/glm-5.3:max` |
 | `verification` | `openai-codex/gpt-5.6-sol:high` |

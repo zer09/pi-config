@@ -141,28 +141,23 @@
     "gate-a": {
       "tiers": [
         {
-          "model": "muse-spark-1.2-contributor",
-          "thinking": "xhigh",
-          "providers": ["opencode-go"]
+          "model": "gpt-5.6-sol",
+          "thinking": "high",
+          "providers": [
+            "openai-codex",
+            "openai-codex-zahlo",
+            "openai-codex-cgpt1",
+            "openai-codex-cgpt2",
+            "openai-codex-cgpt3",
+            "openai-codex-cgpt4",
+            "openai-codex-cgpt5",
+            "openai-codex-cgpt6",
+            "openai-codex-cgpt7"
+          ]
         }
       ]
     },
     "gate-b": {
-      "tiers": [
-        {
-          "model": "deepseek-v4-flash",
-          "thinking": "max",
-          "providers": ["agentrouter"]
-        }
-      ]
-    },
-    "gate-c": {
-      "tiers": [
-        { "model": "glm-5.3-flash", "thinking": "high", "providers": ["zai"] },
-        { "model": "hy3", "thinking": "high", "providers": ["opencode-go"] }
-      ]
-    },
-    "gate-d": {
       "tiers": [
         {
           "model": "gpt-5.5",
@@ -181,47 +176,59 @@
         }
       ]
     },
+    "gate-c": {
+      "tiers": [
+        { "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }
+      ]
+    },
+    "gate-d": {
+      "tiers": [
+        { "model": "glm-5.3-flash", "thinking": "high", "providers": ["zai"] }
+      ]
+    },
     "gate-e": {
       "tiers": [
         {
-          "model": "gpt-5.6-sol",
-          "thinking": "high",
-          "providers": [
-            "openai-codex",
-            "openai-codex-zahlo",
-            "openai-codex-cgpt1",
-            "openai-codex-cgpt2",
-            "openai-codex-cgpt3",
-            "openai-codex-cgpt4",
-            "openai-codex-cgpt5",
-            "openai-codex-cgpt6",
-            "openai-codex-cgpt7"
-          ]
+          "model": "muse-spark-1.2-contributor",
+          "thinking": "xhigh",
+          "providers": ["opencode-go"]
         }
       ]
     },
     "gate-f": {
       "tiers": [
-        { "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }
+        { "model": "hy3", "thinking": "high", "providers": ["opencode-go"] }
       ]
     },
     "gate-g": {
       "tiers": [
-        { "model": "glm-5.3", "thinking": "max", "providers": ["zai"] },
         {
-          "model": "gpt-5.6-sol",
+          "model": "minimax/minimax-m2.7-highspeed",
           "thinking": "high",
-          "providers": [
-            "openai-codex",
-            "openai-codex-zahlo",
-            "openai-codex-cgpt1",
-            "openai-codex-cgpt2",
-            "openai-codex-cgpt3",
-            "openai-codex-cgpt4",
-            "openai-codex-cgpt5",
-            "openai-codex-cgpt6",
-            "openai-codex-cgpt7"
-          ]
+          "providers": ["xkiro"]
+        }
+      ]
+    },
+    "gate-h": {
+      "tiers": [
+        {
+          "model": "qwen/qwen3.8-max:free",
+          "thinking": "high",
+          "providers": ["xkiro"]
+        }
+      ]
+    },
+    "gate-i": {
+      "tiers": [
+        {
+          "model": "deepseek-v4-flash",
+          "thinking": "max",
+          "providers": ["agentrouter"]
+        },
+        {
+          "model": "deepseek/deepseek-v4-flash",
+          "thinking": "high",
+          "providers": ["xkiro"]
         }
       ]
     },
@@ -267,14 +274,15 @@
       "gate-c",
       "gate-d",
       "gate-e",
-      "gate-f"
+      "gate-f",
+      "gate-g",
+      "gate-h",
+      "gate-i"
     ],
     "review": [
       "gate-a",
       "gate-b",
-      "gate-c",
-      "gate-d",
-      "gate-g"
+      "gate-c"
     ],
     "implementation": "implementation",
     "remediation": "implementation",

@@ -429,12 +429,12 @@ function twoTierOracleRoutingConfig() {
 
 /**
  * Version-2 assignments mapping every derived role to one shared profile,
- * mirroring the shipped gate shape (six solution slots, five review slots).
+ * mirroring the shipped gate shape (nine solution slots, three review slots).
  */
 function uniformAssignments(profile: string) {
   return {
-    solution: Array.from({ length: 6 }, () => profile),
-    review: Array.from({ length: 5 }, () => profile),
+    solution: Array.from({ length: 9 }, () => profile),
+    review: Array.from({ length: 3 }, () => profile),
     implementation: profile,
     remediation: profile,
     verification: profile,
@@ -936,7 +936,7 @@ test("one route attempt can recover in the same session without fallback", async
       "opencode-go/muse-spark-1.2-contributor": "missing-recover",
     },
   );
-  await runAndFinalize(baseOptions(fixture), async (result) => {
+  await runAndFinalize(baseOptions(fixture, { role: "solution-e" }), async (result) => {
     assert.equal(result.state, "completed");
     assert.equal(result.selectedRoute, "opencode-go/muse-spark-1.2-contributor:xhigh");
     assert.equal(result.attempts.length, 1);
@@ -1030,7 +1030,7 @@ test("intentional BLOCKED and FAILED delegate outcomes stay terminal without fal
         "opencode-go/muse-spark-1.2-contributor": behavior,
       },
     );
-    await runAndFinalize(baseOptions(fixture), async (result) => {
+    await runAndFinalize(baseOptions(fixture, { role: "solution-e" }), async (result) => {
       assert.equal(result.state, expectedState);
       assert.equal(result.attempts.length, 1);
       assert.equal(result.selectedRoute, "opencode-go/muse-spark-1.2-contributor:xhigh");
@@ -1059,7 +1059,7 @@ test("accepted reason codes propagate typed through result, progress, details, a
       },
       { reportText },
     );
-    const toolResult = await runAndFinalize(baseOptions(fixture), async (result, finalize) => {
+    const toolResult = await runAndFinalize(baseOptions(fixture, { role: "solution-e" }), async (result, finalize) => {
       assert.equal(result.state, expectedState, reason);
       // The intentional outcome stays terminal: one attempt, no fallback.
       assert.equal(result.attempts.length, 1, reason);
@@ -1097,7 +1097,7 @@ test("missing or rejected reasons never change BLOCKED and FAILED terminality or
       },
       { reportText },
     );
-    await runAndFinalize(baseOptions(fixture), async (result) => {
+    await runAndFinalize(baseOptions(fixture, { role: "solution-e" }), async (result) => {
       assert.equal(result.state, expectedState, reportText);
       // The intentional terminal outcome stands and no route advances solely
       // because the reason is missing or rejected.
@@ -1118,7 +1118,7 @@ test("a COMPLETED-with-reason response follows invalid-result recovery on the sa
       recoveryReportText: "Recovered.\n\nDELEGATE_RESULT: COMPLETED",
     },
   );
-  const toolResult = await runAndFinalize(baseOptions(fixture), async (result, finalize) => {
+  const toolResult = await runAndFinalize(baseOptions(fixture, { role: "solution-e" }), async (result, finalize) => {
     assert.equal(result.state, "completed");
     assert.equal(result.attempts.length, 1);
     assert.equal(result.attempts[0]?.state, "completed");
@@ -1129,7 +1129,7 @@ test("a COMPLETED-with-reason response follows invalid-result recovery on the sa
     assert.equal(result.reasonStatus, undefined);
     return finalize();
   });
-  assert.match(toolResult.content[0]!.text, /## Delegate solution-a completed/);
+  assert.match(toolResult.content[0]!.text, /## Delegate solution-e completed/);
 });
 
 test("raw reason values never reach statuses, Markdown, or details; diagnostics persist them only inside the delegate report", async () => {
@@ -1140,7 +1140,7 @@ test("raw reason values never reach statuses, Markdown, or details; diagnostics 
     { reportText },
   );
   let persistedReport = "";
-  const toolResult = await runAndFinalize(baseOptions(fixture), async (result, finalize) => {
+  const toolResult = await runAndFinalize(baseOptions(fixture, { role: "solution-e" }), async (result, finalize) => {
     assert.equal(result.state, "blocked");
     const progressText = JSON.stringify(result.progress);
     assert.doesNotMatch(progressText, /SECRET|RAWTOKEN/);
@@ -1193,7 +1193,7 @@ test("an interrupted run stays terminal without attempts or fallback", async () 
   );
 });
 
-test("D draws one random primary per invocation and records the ordered chain", async () => {
+test("B draws one random primary per invocation and records the ordered chain", async () => {
   const fixture = await fakePi(
     ["openai-codex/gpt-5.5"],
     { "openai-codex/gpt-5.5": "complete" },
@@ -1201,7 +1201,7 @@ test("D draws one random primary per invocation and records the ordered chain", 
   let randomCalls = 0;
   const toolResult = await runAndFinalize(
     baseOptions(fixture, {
-      role: "solution-d",
+      role: "solution-b",
       // The injected draw picks the primary; no provider preference exists.
       random: () => {
         randomCalls += 1;
@@ -1222,7 +1222,7 @@ test("D draws one random primary per invocation and records the ordered chain", 
       return finalize();
     },
   );
-  assert.match(toolResult.content[0]!.text, /## Delegate solution-d completed/);
+  assert.match(toolResult.content[0]!.text, /## Delegate solution-b completed/);
 });
 
 test("an eligible former parent provider no longer pins the primary", async () => {
@@ -1233,7 +1233,7 @@ test("an eligible former parent provider no longer pins the primary", async () =
   let randomCalls = 0;
   await runAndFinalize(
     baseOptions(fixture, {
-      role: "review-d",
+      role: "review-b",
       prompt: "Review only.",
       // openai-codex-cgpt4 is eligible for the tier, but no parent-provider
       // preference exists: the draw alone picks the primary, so the pinned
@@ -2429,7 +2429,7 @@ test("a read-only delegate that changes the Git tree still completes without inv
   await execFileAsync("git", ["-C", fixture.root, "init", "-q"]);
   await writeFile(path.join(fixture.root, "existing-untracked.txt"), "before");
   const toolResult = await runAndFinalize(
-    baseOptions(fixture, { role: "review-a", prompt: "Review only." }),
+    baseOptions(fixture, { role: "solution-e", prompt: "Investigate only." }),
     async (result, finalize) => {
       // The working tree changed during the read-only run, but the removed
       // global fingerprint check no longer attributes the change to the
@@ -2443,7 +2443,7 @@ test("a read-only delegate that changes the Git tree still completes without inv
       return finalize();
     },
   );
-  assert.match(toolResult.content[0]!.text, /## Delegate review-a completed/);
+  assert.match(toolResult.content[0]!.text, /## Delegate solution-e completed/);
 });
 
 test("a concurrently present foreign delegated-pi directory is never touched", async () => {
@@ -2476,7 +2476,7 @@ test("a concurrently present foreign delegated-pi directory is never touched", a
 test("the owned sandboxes are clean after success, rejection, and assertion failure", async () => {
   // Success: the run is finalized and the owned artifact sandbox is empty.
   const fixture = await fakePi(["zai/glm-5.3"], { "zai/glm-5.3": "complete" });
-  await runAndFinalize(baseOptions(fixture), async () => {});
+  await runAndFinalize(baseOptions(fixture, { role: "implementation", prompt: "Implement only." }), async () => {});
   await assertNoOwnedArtifacts("the owned artifact sandbox must be clean after success");
   // Rejection: a failed run leaves no artifact directory behind.
   const rejecting = await fakePi(["zai/glm-5.3"], { "zai/glm-5.3": "complete" });
@@ -2491,7 +2491,7 @@ test("the owned sandboxes are clean after success, rejection, and assertion fail
   const failing = await fakePi(["zai/glm-5.3"], { "zai/glm-5.3": "complete" });
   let caught: unknown;
   try {
-    await runAndFinalize(baseOptions(failing), async (result) => {
+    await runAndFinalize(baseOptions(failing, { role: "implementation", prompt: "Implement only." }), async (result) => {
       assert.equal(result.state, "completed");
       assert.fail("deliberate assertion failure to prove finally cleanup");
     });
@@ -2724,7 +2724,7 @@ test("a vanished approved extension entry fails the run before artifact creation
   assert.ok(fixture.spawnMarkerPath, "the spawn marker path must be set");
   // The previously validated web-search entry file disappears before spawn.
   await rm(path.join(extensionsRoot, "web-search", "index.ts"));
-  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { resourcePolicy })));
+  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { role: "solution-e", resourcePolicy })));
   await assert.rejects(() => stat(fixture.spawnMarkerPath!), enoent);
 });
 
@@ -2747,7 +2747,7 @@ test("a post-selection catalog-entry symlink swap fails the run before any spawn
   await writeFile(outside, "");
   await rm(path.join(extensionsRoot, "openai-codex-aliases", "index.ts"));
   await symlink(outside, path.join(extensionsRoot, "openai-codex-aliases", "index.ts"));
-  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { resourceSelection })));
+  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { role: "solution-e", resourceSelection })));
   await assert.rejects(() => stat(fixture.spawnMarkerPath!), enoent);
 });
 
@@ -2768,7 +2768,7 @@ test("a post-selection runtime-entry symlink swap fails before the runtime spawn
   await writeFile(outside, "");
   await rm(path.join(extensionsRoot, "web-search", "index.ts"));
   await symlink(outside, path.join(extensionsRoot, "web-search", "index.ts"));
-  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { resourceSelection })));
+  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { role: "solution-e", resourceSelection })));
   const logged = await argvLogLines(fixture.root);
   assert.ok(logged.length >= 1, "at least the catalog preflight must have run");
   for (const argv of logged) {
@@ -2796,7 +2796,7 @@ test("a post-selection selected-skill symlink swap fails before any spawn", { sk
   await writeFile(path.join(outsideDir, "SKILL.md"), "# outside\n");
   await rm(path.join(skillsRoot, "alpha"), { recursive: true });
   await symlink(outsideDir, path.join(skillsRoot, "alpha"));
-  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { resourceSelection })));
+  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { role: "solution-e", resourceSelection })));
   await assert.rejects(() => stat(fixture.spawnMarkerPath!), enoent);
   await assert.rejects(() => stat(path.join(fixture.root, "argv.jsonl")), enoent);
 });
@@ -2816,7 +2816,7 @@ test("a post-selection selected-skill SKILL.md removal fails before any spawn", 
   // pre-spawn verifier must fail closed before the first catalog spawn, so
   // no catalog or runtime child command line exists.
   await rm(path.join(skillsRoot, "alpha", "SKILL.md"));
-  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { resourceSelection })));
+  await assertCreatesNoArtifact(() => runDelegate(baseOptions(fixture, { role: "solution-e", resourceSelection })));
   await assert.rejects(() => stat(fixture.spawnMarkerPath!), enoent);
   await assert.rejects(() => stat(path.join(fixture.root, "argv.jsonl")), enoent);
 });

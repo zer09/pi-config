@@ -142,7 +142,7 @@ test("the shipped config pins delegate model thinking capabilities", () => {
     thinking: ["low", "high", "max"],
     default: "max",
   });
-  // Gate D runs gpt-5.5 at high across its full provider set; every
+  // Gate B runs gpt-5.5 at high across its full provider set; every
   // provider keeps its declared scale with high as the default.
   for (const provider of CODEX_PROVIDERS) {
     assert.deepEqual(
@@ -542,7 +542,8 @@ test("a profile may repeat inside and across indexed assignment arrays", () => {
 test("unknown roles fail closed at the registry boundary", () => {
   const config = loadRoutingConfig();
   assert.throws(() => requireRole(config, "solution-z"), /unknown delegate role "solution-z"/);
-  assert.throws(() => requireRole(config, "review-f"), /unknown delegate role "review-f"/);
+  // The review family ends at review-c in the shipped snapshot.
+  assert.throws(() => requireRole(config, "review-d"), /unknown delegate role "review-d"/);
   assert.throws(() => requireRole(config, "ghost"), /unknown delegate role "ghost"/);
   // Route selection performs the same registry validation.
   assert.throws(
@@ -557,26 +558,30 @@ test("unknown roles fail closed at the registry boundary", () => {
 test("selectRoutes preserves the ordered tier chains for the shipped gate profiles", () => {
   const config = loadRoutingConfig();
   const keys = (role: DelegateRole) => selectRoutes(config, role).map(routeKey);
-  const expectedA = [
-    "opencode-go/muse-spark-1.2-contributor:xhigh",
-  ];
-  const expectedB = [
+  const expectedC = ["zai/glm-5.3:max"];
+  const expectedD = ["zai/glm-5.3-flash:high"];
+  const expectedE = ["opencode-go/muse-spark-1.2-contributor:xhigh"];
+  const expectedF = ["opencode-go/hy3:high"];
+  const expectedG = ["xkiro/minimax/minimax-m2.7-highspeed:high"];
+  const expectedH = ["xkiro/qwen/qwen3.8-max:free:high"];
+  // Gate I keeps DeepSeek on two ordered tiers because the provider model
+  // ids differ: AgentRouter serves deepseek-v4-flash first, then xKiro
+  // serves deepseek/deepseek-v4-flash as the fallback tier.
+  const expectedI = [
     "agentrouter/deepseek-v4-flash:max",
-  ];
-  const expectedC = [
-    "zai/glm-5.3-flash:high",
-    "opencode-go/hy3:high",
+    "xkiro/deepseek/deepseek-v4-flash:high",
   ];
   // Solution and review pairs share one profile and produce identical
-  // chains. Every A/B/C tier allowlists exactly one provider, so the chains
-  // are deterministic without a random draw. Gate C's restored
-  // GLM-5.3-Flash tier keeps its first-tier slot.
-  assert.deepEqual(keys("solution-a"), expectedA);
-  assert.deepEqual(keys("review-a"), expectedA);
-  assert.deepEqual(keys("solution-b"), expectedB);
-  assert.deepEqual(keys("review-b"), expectedB);
+  // chains. Every tier of these gates allowlists exactly one provider, so
+  // the chains are deterministic without a random draw.
   assert.deepEqual(keys("solution-c"), expectedC);
   assert.deepEqual(keys("review-c"), expectedC);
+  assert.deepEqual(keys("solution-d"), expectedD);
+  assert.deepEqual(keys("solution-e"), expectedE);
+  assert.deepEqual(keys("solution-f"), expectedF);
+  assert.deepEqual(keys("solution-g"), expectedG);
+  assert.deepEqual(keys("solution-h"), expectedH);
+  assert.deepEqual(keys("solution-i"), expectedI);
   // Single-provider tiers stay deterministic and consume no random draw,
   // even when one is injected.
   let draws = 0;
@@ -584,47 +589,44 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
     draws += 1;
     return 0.99;
   };
-  assert.deepEqual(selectRoutes(config, "solution-a", undefined, { random: counting }).map(routeKey), expectedA);
-  assert.deepEqual(selectRoutes(config, "solution-b", undefined, { random: counting }).map(routeKey), expectedB);
   assert.deepEqual(selectRoutes(config, "solution-c", undefined, { random: counting }).map(routeKey), expectedC);
+  assert.deepEqual(selectRoutes(config, "solution-i", undefined, { random: counting }).map(routeKey), expectedI);
   assert.equal(draws, 0);
 });
 
-test("gate D, solution E/F, review E, and the oracle select their configured chains", () => {
+test("gate A, gate B, and the oracle select their configured Codex pools", () => {
   const config = loadRoutingConfig();
-  const canonicalD = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.5:high`);
-  const canonicalOracle = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.6-sol:high`);
-  const expectedF = ["zai/glm-5.3:max"];
-  const expectedG = ["zai/glm-5.3:max", ...canonicalOracle];
+  const canonicalA = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.6-sol:high`);
+  const canonicalB = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.5:high`);
 
   // Every multi-provider tier consumes exactly one random draw: no eligible
   // provider can suppress it, so the primary always follows the draw.
   let draws = 0;
-  const dRoutes = selectRoutes(config, "solution-d", undefined, {
+  const aRoutes = selectRoutes(config, "solution-a", undefined, {
     random: () => {
       draws += 1;
       return 0.4; // floor(0.4 * 9) = 3 -> openai-codex-cgpt2
     },
   });
   assert.equal(draws, 1);
-  assert.equal(routeKey(dRoutes[0]!), "openai-codex-cgpt2/gpt-5.5:high");
+  assert.equal(routeKey(aRoutes[0]!), "openai-codex-cgpt2/gpt-5.6-sol:high");
   assert.deepEqual(
-    dRoutes.slice(1).map(routeKey),
-    canonicalD.filter((key) => key !== "openai-codex-cgpt2/gpt-5.5:high"),
+    aRoutes.slice(1).map(routeKey),
+    canonicalA.filter((key) => key !== "openai-codex-cgpt2/gpt-5.6-sol:high"),
   );
 
-  // Solution E pins its primary with the same single draw on the same pool.
-  let eDraws = 0;
+  // Review B pins its primary with the same single draw on the gpt-5.5 pool.
+  let bDraws = 0;
   assert.deepEqual(
-    selectRoutes(config, "solution-e", undefined, {
+    selectRoutes(config, "review-b", undefined, {
       random: () => {
-        eDraws += 1;
+        bDraws += 1;
         return 0; // floor(0 * 9) = 0 -> openai-codex primary
       },
     }).map(routeKey),
-    canonicalOracle,
+    canonicalB,
   );
-  assert.equal(eDraws, 1);
+  assert.equal(bDraws, 1);
 
   let oracleDraws = 0;
   const oracleRoutes = selectRoutes(config, "oracle", undefined, {
@@ -637,40 +639,14 @@ test("gate D, solution E/F, review E, and the oracle select their configured cha
   assert.equal(routeKey(oracleRoutes[0]!), "openai-codex-cgpt7/gpt-5.6-sol:high");
   assert.deepEqual(
     oracleRoutes.slice(1).map(routeKey),
-    canonicalOracle.filter((key) => key !== "openai-codex-cgpt7/gpt-5.6-sol:high"),
+    canonicalA.filter((key) => key !== "openai-codex-cgpt7/gpt-5.6-sol:high"),
   );
 
-  // Gate F's single GLM tier is deterministic and consumes no draw; Gate G's
-  // one multi-provider Codex tier consumes exactly one draw, so the pinned
-  // zero draw reproduces the stable config order.
-  let fDraws = 0;
-  assert.deepEqual(
-    selectRoutes(config, "solution-f", undefined, {
-      random: () => {
-        fDraws += 1;
-        return 0.99;
-      },
-    }).map(routeKey),
-    expectedF,
-  );
-  assert.equal(fDraws, 0);
-  let gDraws = 0;
-  assert.deepEqual(
-    selectRoutes(config, "review-e", undefined, {
-      random: () => {
-        gDraws += 1;
-        return 0;
-      },
-    }).map(routeKey),
-    expectedG,
-  );
-  assert.equal(gDraws, 1);
-
-  // Cursor and every non-Codex provider stay excluded from the Gate D,
-  // Solution E, Review E, and Oracle Codex chains.
+  // Cursor and every non-Codex provider stay excluded from the Gate A,
+  // Gate B, and Oracle Codex chains.
   for (const routes of [
-    selectRoutes(config, "solution-d", undefined, { random: () => 0 }),
-    selectRoutes(config, "solution-e", undefined, { random: () => 0 }),
+    selectRoutes(config, "solution-a", undefined, { random: () => 0 }),
+    selectRoutes(config, "solution-b", undefined, { random: () => 0 }),
     oracleRoutes,
   ]) {
     assert.equal(routes.length, CODEX_PROVIDERS.length);
@@ -689,14 +665,24 @@ test("implementation and remediation use only GLM while verification stays pinne
   assert.deepEqual([...oracleModelIds(config)], ["gpt-5.6-sol"]);
 });
 
-test("the shipped assignments map solution-f to gate-f and review-e to gate-g", () => {
+test("the shipped assignments map gate-a through gate-i to the derived role ids", () => {
   const config = loadRoutingConfig();
+  const solutions = roleIdsInFamily(config, "solution");
   const reviews = roleIdsInFamily(config, "review");
-  assert.deepEqual(reviews, ["review-a", "review-b", "review-c", "review-d", "review-e"]);
-  assert.equal(config.roles.get("solution-f")!.profile, "gate-f");
-  assert.equal(config.roles.get("review-e")!.profile, "gate-g");
-  assert.equal("gate-f" in config.profiles, true);
-  assert.equal("gate-g" in config.profiles, true);
+  assert.deepEqual(solutions, [
+    "solution-a", "solution-b", "solution-c", "solution-d", "solution-e",
+    "solution-f", "solution-g", "solution-h", "solution-i",
+  ]);
+  assert.deepEqual(reviews, ["review-a", "review-b", "review-c"]);
+  for (const [index, id] of solutions.entries()) {
+    assert.equal(config.roles.get(id)!.profile, `gate-${String.fromCharCode(97 + index)}`);
+  }
+  for (const [index, id] of reviews.entries()) {
+    assert.equal(config.roles.get(id)!.profile, `gate-${String.fromCharCode(97 + index)}`);
+  }
+  for (const gate of ["gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "gate-f", "gate-g", "gate-h", "gate-i"]) {
+    assert.equal(gate in config.profiles, true, gate);
+  }
   // Every shipped role id resolves through the registry.
   for (const id of roleIds(config)) {
     const resolved: ResolvedRole = requireRole(config, id);
@@ -733,10 +719,12 @@ test("a temporary extra reviewer pins one exact route through a reason-required 
   const reviewA = requireRole(config, "review-a");
   assert.equal(roleIsReadOnly(reviewA), true);
   assert.equal(roleIsExclusive(reviewA), false);
-  // Without the override the reused role keeps its normal single-tier chain.
+  // Without the override the reused role keeps its normal Gate A Codex
+  // pool chain.
+  const canonicalA = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.6-sol:high`);
   assert.deepEqual(
     selectRoutes(config, "review-a", undefined, { random: () => 0 }).map(routeKey),
-    ["opencode-go/muse-spark-1.2-contributor:xhigh"],
+    canonicalA,
   );
 });
 
@@ -820,19 +808,19 @@ test("selected routes never carry whitespace-only provider or model ids", () => 
 
 test("no provider preference exists: the random primary keeps the stable fallback order", () => {
   const config = loadRoutingConfig();
-  // Gate D still groups one model across several providers. Nothing can
+  // Gate B still groups one model across several providers. Nothing can
   // promote a specific provider to primary: the draw alone picks it, and the
   // remaining providers keep their stable config order as the fallback.
-  const canonicalD = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.5:high`);
+  const canonicalB = CODEX_PROVIDERS.map((provider) => `${provider}/gpt-5.5:high`);
   let draws = 0;
-  const routes = selectRoutes(config, "solution-d", undefined, {
+  const routes = selectRoutes(config, "solution-b", undefined, {
     random: () => {
       draws += 1;
       return 0; // floor(0 * 9) = 0 -> openai-codex primary
     },
   });
   assert.equal(draws, 1);
-  assert.deepEqual(routes.map(routeKey), canonicalD);
+  assert.deepEqual(routes.map(routeKey), canonicalB);
 
   // Regression: the removed former parent-provider option can no longer
   // suppress the draw. The key is built dynamically so this regression file
@@ -847,24 +835,24 @@ test("no provider preference exists: the random primary keeps the stable fallbac
     },
   } as never;
   assert.deepEqual(
-    selectRoutes(config, "solution-d", undefined, formerParentOptions).map(routeKey),
-    canonicalD,
+    selectRoutes(config, "solution-b", undefined, formerParentOptions).map(routeKey),
+    canonicalB,
   );
   assert.equal(smuggledDraws, 1);
 
-  // Gate B pins DeepSeek V4 Flash to AgentRouter. The single-provider chain
-  // stays deterministic without a draw.
-  let bDraws = 0;
+  // Gate I pins DeepSeek to one provider per tier. The single-provider
+  // tiers stay deterministic without a draw and keep AgentRouter first.
+  let iDraws = 0;
   assert.deepEqual(
-    selectRoutes(config, "solution-b", undefined, {
+    selectRoutes(config, "solution-i", undefined, {
       random: () => {
-        bDraws += 1;
+        iDraws += 1;
         return 0.99;
       },
     }).map(routeKey),
-    ["agentrouter/deepseek-v4-flash:max"],
+    ["agentrouter/deepseek-v4-flash:max", "xkiro/deepseek/deepseek-v4-flash:high"],
   );
-  assert.equal(bDraws, 0);
+  assert.equal(iDraws, 0);
 });
 
 test("tiers concatenate in configured order with per-tier primaries", () => {
@@ -992,17 +980,22 @@ test("model-only overrides treat every capable provider as one pool at its defau
 
 test("provider-only overrides pin and filter the configured tiers", () => {
   const config = loadRoutingConfig();
-  // Pinning AgentRouter keeps the Gate B tier it serves.
+  // Pinning AgentRouter keeps the Gate I tier it serves; pinning xKiro
+  // keeps Gate I's DeepSeek fallback tier.
   assert.deepEqual(
-    selectRoutes(config, "solution-b", { provider: "agentrouter", reason: "user requested agentrouter" }).map(routeKey),
+    selectRoutes(config, "solution-i", { provider: "agentrouter", reason: "user requested agentrouter" }).map(routeKey),
     ["agentrouter/deepseek-v4-flash:max"],
   );
   assert.deepEqual(
-    selectRoutes(config, "solution-d", { provider: "openai-codex-cgpt4", reason: "user requested cgpt4" }).map(routeKey),
+    selectRoutes(config, "solution-i", { provider: "xkiro", reason: "user requested xkiro" }).map(routeKey),
+    ["xkiro/deepseek/deepseek-v4-flash:high"],
+  );
+  assert.deepEqual(
+    selectRoutes(config, "solution-b", { provider: "openai-codex-cgpt4", reason: "user requested cgpt4" }).map(routeKey),
     ["openai-codex-cgpt4/gpt-5.5:high"],
   );
   assert.deepEqual(
-    selectRoutes(config, "solution-e", { provider: "openai-codex-cgpt7", reason: "user requested cgpt7" }).map(routeKey),
+    selectRoutes(config, "solution-a", { provider: "openai-codex-cgpt7", reason: "user requested cgpt7" }).map(routeKey),
     ["openai-codex-cgpt7/gpt-5.6-sol:high"],
   );
   // A provider that cannot serve any configured tier is a bounded error.
@@ -1045,19 +1038,23 @@ test("provider plus model overrides are exact after capability validation", () =
 
 test("exclusion overrides filter providers inside every tier", () => {
   const config = loadRoutingConfig();
-  // Gate B's only tier is pinned to AgentRouter. Excluding that provider
-  // leaves no eligible route, not an empty run.
-  assert.throws(
-    () => selectRoutes(config, "solution-b", { excludeProviders: ["agentrouter"], reason: "agentrouter is down" }),
-    /routing produced no eligible route/,
+  // Excluding AgentRouter from Gate I leaves the xKiro DeepSeek fallback
+  // tier, not an empty run.
+  assert.deepEqual(
+    selectRoutes(config, "solution-i", { excludeProviders: ["agentrouter"], reason: "agentrouter is down" }).map(routeKey),
+    ["xkiro/deepseek/deepseek-v4-flash:high"],
   );
   assert.deepEqual(
-    selectRoutes(config, "solution-d", { excludeProviders: ["openai-codex", "openai-codex-zahlo", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-cgpt3", "openai-codex-cgpt4", "openai-codex-cgpt6", "openai-codex-cgpt7"], reason: "only cgpt5" }).map(routeKey),
+    selectRoutes(config, "solution-b", { excludeProviders: ["openai-codex", "openai-codex-zahlo", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-cgpt3", "openai-codex-cgpt4", "openai-codex-cgpt6", "openai-codex-cgpt7"], reason: "only cgpt5" }).map(routeKey),
     ["openai-codex-cgpt5/gpt-5.5:high"],
   );
   // Excluding every eligible provider is a bounded error, not an empty run.
   assert.throws(
     () => selectRoutes(config, "implementation", { excludeProviders: ["zai"], reason: "invalid" }),
+    /routing produced no eligible route/,
+  );
+  assert.throws(
+    () => selectRoutes(config, "solution-i", { excludeProviders: ["agentrouter", "xkiro"], reason: "both deepseek providers down" }),
     /routing produced no eligible route/,
   );
 });

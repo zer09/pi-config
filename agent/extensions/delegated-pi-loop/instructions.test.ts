@@ -199,8 +199,8 @@ test("the parent guidelines stay dynamic, compact, and tool-attributed", () => {
   assert.equal(guidelines.length, 15);
   assert.ok(guidelines.every((line) => line.startsWith("delegate_run ")));
   const text = guidelines.join("\n");
-  assert.match(text, /solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently/);
-  assert.match(text, /review-a, review-b, review-c, review-d, and review-e concurrently/);
+  assert.match(text, /solution-a, solution-b, solution-c, solution-d, solution-e, solution-f, solution-g, solution-h, and solution-i concurrently/);
+  assert.match(text, /review-a, review-b, and review-c concurrently/);
   assert.match(text, /wait for every role/);
   assert.match(text, /follow the user's next instruction/);
   assert.match(text, /continue, resume, or retry requires no special syntax/);

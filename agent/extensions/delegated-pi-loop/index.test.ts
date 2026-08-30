@@ -29,8 +29,8 @@ test("registration guidelines encode the compact automatic delegation policy wit
   assert.match(guidelines, /exactly one implementation delegate/);
   assert.match(guidelines, /contract for delegated implementation/);
 
-  assert.match(guidelines, /solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently/);
-  assert.match(guidelines, /review-a, review-b, review-c, review-d, and review-e concurrently/);
+  assert.match(guidelines, /solution-a, solution-b, solution-c, solution-d, solution-e, solution-f, solution-g, solution-h, and solution-i concurrently/);
+  assert.match(guidelines, /review-a, review-b, and review-c concurrently/);
   assert.match(guidelines, /wait for every role/);
   assert.match(guidelines, /follow the user's next instruction/);
   assert.match(guidelines, /continue, resume, or retry requires no special syntax/);
@@ -266,8 +266,8 @@ test("the registered availableSkills schema carries the description on the array
     // The dynamic guidelines resolve against the shipped snapshot and name
     // every configured solution and review role without redundant count words.
     const delegateRunGuidelines = (registrations[0]?.promptGuidelines ?? []).join("\n");
-    assert.match(delegateRunGuidelines, /solution-a, solution-b, solution-c, solution-d, solution-e, and solution-f concurrently/);
-    assert.match(delegateRunGuidelines, /review-a, review-b, review-c, review-d, and review-e concurrently/);
+    assert.match(delegateRunGuidelines, /solution-a, solution-b, solution-c, solution-d, solution-e, solution-f, solution-g, solution-h, and solution-i concurrently/);
+    assert.match(delegateRunGuidelines, /review-a, review-b, and review-c concurrently/);
     assert.match(delegateRunGuidelines, /wait for every role/);
     assert.match(delegateRunGuidelines, /repeat the full review gate until no blocking findings remain/);
     // No concrete route detail leaks into the generated guidance.
