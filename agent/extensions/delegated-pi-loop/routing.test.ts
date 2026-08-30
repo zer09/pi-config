@@ -28,7 +28,6 @@ const CODEX_PROVIDERS = [
   "openai-codex-cgpt4",
   "openai-codex-cgpt5",
   "openai-codex-cgpt6",
-  "openai-codex-cgpt7",
 ] as const;
 
 function syntheticConfig(overrides: {
@@ -605,7 +604,7 @@ test("gate A, gate B, and the oracle select their configured Codex pools", () =>
   const aRoutes = selectRoutes(config, "solution-a", undefined, {
     random: () => {
       draws += 1;
-      return 0.4; // floor(0.4 * 9) = 3 -> openai-codex-cgpt2
+      return 0.4; // floor(0.4 * 8) = 3 -> openai-codex-cgpt2
     },
   });
   assert.equal(draws, 1);
@@ -621,7 +620,7 @@ test("gate A, gate B, and the oracle select their configured Codex pools", () =>
     selectRoutes(config, "review-b", undefined, {
       random: () => {
         bDraws += 1;
-        return 0; // floor(0 * 9) = 0 -> openai-codex primary
+        return 0; // floor(0 * 8) = 0 -> openai-codex primary
       },
     }).map(routeKey),
     canonicalB,
@@ -636,10 +635,10 @@ test("gate A, gate B, and the oracle select their configured Codex pools", () =>
     },
   });
   assert.equal(oracleDraws, 1);
-  assert.equal(routeKey(oracleRoutes[0]!), "openai-codex-cgpt7/gpt-5.6-sol:high");
+  assert.equal(routeKey(oracleRoutes[0]!), "openai-codex-cgpt6/gpt-5.6-sol:high");
   assert.deepEqual(
     oracleRoutes.slice(1).map(routeKey),
-    canonicalA.filter((key) => key !== "openai-codex-cgpt7/gpt-5.6-sol:high"),
+    canonicalA.filter((key) => key !== "openai-codex-cgpt6/gpt-5.6-sol:high"),
   );
 
   // Cursor and every non-Codex provider stay excluded from the Gate A,
@@ -816,7 +815,7 @@ test("no provider preference exists: the random primary keeps the stable fallbac
   const routes = selectRoutes(config, "solution-b", undefined, {
     random: () => {
       draws += 1;
-      return 0; // floor(0 * 9) = 0 -> openai-codex primary
+      return 0; // floor(0 * 8) = 0 -> openai-codex primary
     },
   });
   assert.equal(draws, 1);
@@ -995,8 +994,8 @@ test("provider-only overrides pin and filter the configured tiers", () => {
     ["openai-codex-cgpt4/gpt-5.5:high"],
   );
   assert.deepEqual(
-    selectRoutes(config, "solution-a", { provider: "openai-codex-cgpt7", reason: "user requested cgpt7" }).map(routeKey),
-    ["openai-codex-cgpt7/gpt-5.6-sol:high"],
+    selectRoutes(config, "solution-a", { provider: "openai-codex-cgpt6", reason: "user requested cgpt6" }).map(routeKey),
+    ["openai-codex-cgpt6/gpt-5.6-sol:high"],
   );
   // A provider that cannot serve any configured tier is a bounded error.
   assert.throws(
@@ -1045,7 +1044,7 @@ test("exclusion overrides filter providers inside every tier", () => {
     ["xkiro/deepseek/deepseek-v4-flash:high"],
   );
   assert.deepEqual(
-    selectRoutes(config, "solution-b", { excludeProviders: ["openai-codex", "openai-codex-zahlo", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-cgpt3", "openai-codex-cgpt4", "openai-codex-cgpt6", "openai-codex-cgpt7"], reason: "only cgpt5" }).map(routeKey),
+    selectRoutes(config, "solution-b", { excludeProviders: ["openai-codex", "openai-codex-zahlo", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-cgpt3", "openai-codex-cgpt4", "openai-codex-cgpt6"], reason: "only cgpt5" }).map(routeKey),
     ["openai-codex-cgpt5/gpt-5.5:high"],
   );
   // Excluding every eligible provider is a bounded error, not an empty run.
