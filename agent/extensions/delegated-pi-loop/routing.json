@@ -17,6 +17,30 @@
         "agentrouter": { "thinking": ["low", "high", "max"], "default": "max" }
       }
     },
+    "deepseek/deepseek-v4-flash": {
+      "providers": {
+        "xkiro": {
+          "thinking": ["off", "minimal", "low", "medium", "high"],
+          "default": "high"
+        }
+      }
+    },
+    "minimax/minimax-m2.7-highspeed": {
+      "providers": {
+        "xkiro": {
+          "thinking": ["off", "minimal", "low", "medium", "high"],
+          "default": "high"
+        }
+      }
+    },
+    "qwen/qwen3.8-max:free": {
+      "providers": {
+        "xkiro": {
+          "thinking": ["off", "minimal", "low", "medium", "high"],
+          "default": "high"
+        }
+      }
+    },
     "hy3": {
       "providers": {
         "opencode-go": { "thinking": ["off", "low", "high"], "default": "high" }

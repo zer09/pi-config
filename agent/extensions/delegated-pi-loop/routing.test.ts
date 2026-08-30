@@ -108,14 +108,14 @@ test("the registration snapshot re-reads routing.json and derives the same roles
   assert.deepEqual([...snapshot.roles.keys()], [...loadRoutingConfig().roles.keys()]);
 });
 
-test("the shipped routing config contains no removed provider occurrence", async () => {
-  // Regression: removed providers disappear from the routing policy entirely,
+test("the shipped routing config contains no retired provider occurrence", async () => {
+  // Regression: retired providers disappear from the routing policy entirely,
   // rather than remaining as disabled capability or profile entries.
   const text = await readFile(new URL("./routing.json", import.meta.url), "utf8");
-  for (const provider of ["seekai", "tabitoken", "gorouter", "tokenreply", "agentrouter"]) {
+  for (const provider of ["seekai", "tabitoken", "gorouter", "tokenreply"]) {
     assert.equal(text.includes(provider), false, provider);
   }
-  // The removed AgentRouter Opus 4.8 model record is gone with its provider.
+  // The retired AgentRouter Opus 4.8 model record remains absent.
   assert.equal(text.includes("claude-opus-4-8"), false);
   // The obsolete Ox Alpha alias ids stay out of delegated routing: Ox Alpha
   // now runs under its official GLM-5.3-Flash model id, not an alias.
@@ -133,11 +133,15 @@ test("the shipped config pins delegate model thinking capabilities", () => {
     thinking: ["low", "high", "max"],
     default: "high",
   });
-  // AgentRouter is fully removed from delegated routing: neither its former
-  // Opus 4.8 capability record nor any agentrouter provider capability remains.
+  // The retired AgentRouter Opus routes remain absent. AgentRouter now serves
+  // DeepSeek V4 Flash, as declared by routing.json.
   assert.equal(config.models["claude-opus-4-8"], undefined);
   assert.equal(config.models["gpt-5.6-sol"]?.providers.agentrouter, undefined);
   assert.equal(config.models["claude-opus-5"], undefined);
+  assert.deepEqual(config.models["deepseek-v4-flash"]?.providers.agentrouter, {
+    thinking: ["low", "high", "max"],
+    default: "max",
+  });
   // Gate D runs gpt-5.5 at high across its full provider set; every
   // provider keeps its declared scale with high as the default.
   for (const provider of CODEX_PROVIDERS) {
@@ -557,16 +561,16 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
     "opencode-go/muse-spark-1.2-contributor:xhigh",
   ];
   const expectedB = [
-    "opencode-go/deepseek-v4-flash:max",
+    "agentrouter/deepseek-v4-flash:max",
   ];
   const expectedC = [
     "zai/glm-5.3-flash:high",
     "opencode-go/hy3:high",
   ];
   // Solution and review pairs share one profile and produce identical
-  // chains. Every A/B/C tier allowlists exactly one provider after the
-  // AgentRouter removal, so the chains are deterministic without a random
-  // draw; Gate C's restored GLM-5.3-Flash tier keeps its first-tier slot.
+  // chains. Every A/B/C tier allowlists exactly one provider, so the chains
+  // are deterministic without a random draw. Gate C's restored
+  // GLM-5.3-Flash tier keeps its first-tier slot.
   assert.deepEqual(keys("solution-a"), expectedA);
   assert.deepEqual(keys("review-a"), expectedA);
   assert.deepEqual(keys("solution-b"), expectedB);
@@ -848,9 +852,8 @@ test("no provider preference exists: the random primary keeps the stable fallbac
   );
   assert.equal(smuggledDraws, 1);
 
-  // Gate B's deepseek-v4-flash tier is single-provider after the AgentRouter
-  // removal: the chain stays deterministic without a draw, and no removed
-  // agentrouter route can reappear as a fallback.
+  // Gate B pins DeepSeek V4 Flash to AgentRouter. The single-provider chain
+  // stays deterministic without a draw.
   let bDraws = 0;
   assert.deepEqual(
     selectRoutes(config, "solution-b", undefined, {
@@ -859,7 +862,7 @@ test("no provider preference exists: the random primary keeps the stable fallbac
         return 0.99;
       },
     }).map(routeKey),
-    ["opencode-go/deepseek-v4-flash:max"],
+    ["agentrouter/deepseek-v4-flash:max"],
   );
   assert.equal(bDraws, 0);
 });
@@ -989,10 +992,10 @@ test("model-only overrides treat every capable provider as one pool at its defau
 
 test("provider-only overrides pin and filter the configured tiers", () => {
   const config = loadRoutingConfig();
-  // Pinning opencode-go keeps only the tiers opencode-go can serve.
+  // Pinning AgentRouter keeps the Gate B tier it serves.
   assert.deepEqual(
-    selectRoutes(config, "solution-b", { provider: "opencode-go", reason: "user requested opencode-go" }).map(routeKey),
-    ["opencode-go/deepseek-v4-flash:max"],
+    selectRoutes(config, "solution-b", { provider: "agentrouter", reason: "user requested agentrouter" }).map(routeKey),
+    ["agentrouter/deepseek-v4-flash:max"],
   );
   assert.deepEqual(
     selectRoutes(config, "solution-d", { provider: "openai-codex-cgpt4", reason: "user requested cgpt4" }).map(routeKey),
@@ -1042,10 +1045,10 @@ test("provider plus model overrides are exact after capability validation", () =
 
 test("exclusion overrides filter providers inside every tier", () => {
   const config = loadRoutingConfig();
-  // Gate B's only tier is the single-provider deepseek pool: excluding its
-  // provider leaves no eligible route, not an empty run.
+  // Gate B's only tier is pinned to AgentRouter. Excluding that provider
+  // leaves no eligible route, not an empty run.
   assert.throws(
-    () => selectRoutes(config, "solution-b", { excludeProviders: ["opencode-go"], reason: "opencode-go is down" }),
+    () => selectRoutes(config, "solution-b", { excludeProviders: ["agentrouter"], reason: "agentrouter is down" }),
     /routing produced no eligible route/,
   );
   assert.deepEqual(
