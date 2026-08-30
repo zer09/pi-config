@@ -3,10 +3,21 @@
     { "slug": "zahlo", "name": "OpenAI Codex Zahlo" },
     { "slug": "cgpt1", "name": "OpenAI Codex CGPT1" },
     { "slug": "cgpt2", "name": "OpenAI Codex CGPT2" },
-    { "slug": "cgpt3", "name": "OpenAI Codex CGPT3" },
-    { "slug": "cgpt4", "name": "OpenAI Codex CGPT4 K12" },
-    { "slug": "cgpt5", "name": "OpenAI Codex CGPT4 K12 - 2" },
-    { "slug": "cgpt6", "name": "OpenAI Codex CGPT4 K12 - 3" },
-    { "slug": "cgpt7", "name": "OpenAI Codex CGPT4 K12 - 4" }
+    {
+      "slug": "cgpt3",
+      "name": "OpenAI Codex CGPT3 K12 adrian.santos@shsgensan.onmicrosoft.com"
+    },
+    {
+      "slug": "cgpt4",
+      "name": "OpenAI Codex CGPT4 K12 elaine.alvarez@shsgensan.onmicrosoft.com"
+    },
+    {
+      "slug": "cgpt5",
+      "name": "OpenAI Codex CGPT5 K12 ethan.carter@cekinghs.org"
+    },
+    {
+      "slug": "cgpt6",
+      "name": "OpenAI Codex CGPT6 K12 emily.parker@cekinghs.org"
+    }
   ]
 }
