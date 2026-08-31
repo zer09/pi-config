@@ -432,7 +432,7 @@
             "cacheWrite": 0
           },
           "thinkingLevelMap": {
-            "off": "none",
+            "off": null,
             "minimal": "low",
             "low": "low",
             "medium": "medium",
@@ -479,18 +479,29 @@
           "contextWindow": 1000000,
           "maxTokens": 65536,
           "compat": {
+            "supportsReasoningEffort": false,
             "supportsStrictMode": true
           }
         },
         {
-          "id": "minimax/minimax-m2.7-highspeed",
-          "name": "MiniMax M2.7 Highspeed",
-          "api": "anthropic-messages",
-          "baseUrl": "https://api.xkiro.com",
+          "id": "minimax/minimax-m3",
+          "name": "MiniMax M3",
           "reasoning": true,
-          "input": ["text"],
-          "contextWindow": 204800,
-          "maxTokens": 131100
+          "input": ["text", "image"],
+          "contextWindow": 1000000,
+          "maxTokens": 65536,
+          "thinkingLevelMap": {
+            "off": "disabled",
+            "minimal": "adaptive",
+            "low": "adaptive",
+            "medium": "adaptive",
+            "high": "adaptive",
+            "xhigh": "adaptive",
+            "max": "adaptive"
+          },
+          "compat": {
+            "supportsReasoningEffort": true
+          }
         },
         {
           "id": "deepseek/deepseek-v4-flash",
@@ -498,7 +509,10 @@
           "reasoning": true,
           "input": ["text"],
           "contextWindow": 1048576,
-          "maxTokens": 65536
+          "maxTokens": 65536,
+          "compat": {
+            "supportsReasoningEffort": false
+          }
         }
       ]
     }
