@@ -390,7 +390,7 @@ The file is schema version 2: profiles of ordered model tiers plus an `assignmen
 | `solution-d` | `zai/glm-5.3-flash:high` |
 | `solution-e` | `opencode-go/muse-spark-1.2-contributor:xhigh` |
 | `solution-f` | `opencode-go/hy3:high` |
-| `solution-g` | `xkiro/minimax/minimax-m2.7-highspeed:high` |
+| `solution-g` | `xkiro/minimax/minimax-m3:free:high` |
 | `solution-h` | `xkiro/qwen/qwen3.8-max:free:high` |
 | `solution-i` | `agentrouter/deepseek-v4-flash:max`, then `xkiro/deepseek/deepseek-v4-flash:high` |
 | `oracle` | `gpt-5.6-sol:high` provider pool |

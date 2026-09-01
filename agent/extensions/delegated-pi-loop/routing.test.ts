@@ -561,7 +561,7 @@ test("selectRoutes preserves the ordered tier chains for the shipped gate profil
   const expectedD = ["zai/glm-5.3-flash:high"];
   const expectedE = ["opencode-go/muse-spark-1.2-contributor:xhigh"];
   const expectedF = ["opencode-go/hy3:high"];
-  const expectedG = ["xkiro/minimax/minimax-m3:high"];
+  const expectedG = ["xkiro/minimax/minimax-m3:free:high"];
   const expectedH = ["xkiro/qwen/qwen3.8-max:free:high"];
   // Gate I keeps DeepSeek on two ordered tiers because the provider model
   // ids differ: AgentRouter serves deepseek-v4-flash first, then xKiro
