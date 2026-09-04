@@ -21,8 +21,10 @@ The current `doctor` command probes the bare API root, so credential validation 
 klaviyo-pp-cli <resource> <read-command> \
   --json --compact --no-input --no-color \
   --data-source live --no-cache \
-  --select <required-fields>
+  --select data.id,data.attributes.<required-field>
 ```
+
+`--select` operates on the raw Klaviyo JSON:API response before the CLI adds its provenance wrapper. Select resource IDs through `data.id` and attributes through `data.attributes.<field>`.
 
 Add one command-specific page bound and sparse-field flag where available. Avoid `--all`. Do not replace the explicit flags with `--agent`.
 
@@ -36,7 +38,7 @@ klaviyo-pp-cli accounts get \
   --fields-account timezone \
   --json --compact --no-input --no-color \
   --data-source live --no-cache \
-  --select id,timezone
+  --select data.id,data.attributes.timezone
 
 # Email campaigns require a channel filter.
 klaviyo-pp-cli campaigns get \
@@ -44,52 +46,52 @@ klaviyo-pp-cli campaigns get \
   --fields-campaign name,status,created_at,updated_at \
   --json --compact --no-input --no-color \
   --data-source live --no-cache \
-  --select id,name,status,created_at,updated_at
+  --select data.id,data.attributes.name,data.attributes.status,data.attributes.created_at,data.attributes.updated_at
 
 klaviyo-pp-cli flows get \
   --page-size 10 --fields-flow name,status,trigger_type,created,updated \
   --json --compact --no-input --no-color \
   --data-source live --no-cache \
-  --select id,name,status,trigger_type,created,updated
+  --select data.id,data.attributes.name,data.attributes.status,data.attributes.trigger_type,data.attributes.created,data.attributes.updated
 
 # One API page, with sparse non-customer fields.
 klaviyo-pp-cli metrics get \
   --fields-metric name,created,updated,integration \
   --json --compact --no-input --no-color \
   --data-source live --no-cache \
-  --select id,name,created,updated,integration
+  --select data.id,data.attributes.name,data.attributes.created,data.attributes.updated,data.attributes.integration
 
 # Profiles commonly contain PII. Keep fields non-identifying unless the request requires an identifier.
 klaviyo-pp-cli profiles get \
   --page-size 5 --fields-profile created,updated \
   --json --compact --no-input --no-color \
   --data-source live --no-cache \
-  --select id,created,updated
+  --select data.id,data.attributes.created,data.attributes.updated
 
 # Events can contain profile data and arbitrary properties. Keep one small page.
 klaviyo-pp-cli events get \
   --page-size 10 --fields-event datetime,timestamp \
   --json --compact --no-input --no-color \
   --data-source live --no-cache \
-  --select id,datetime,timestamp
+  --select data.id,data.attributes.datetime,data.attributes.timestamp
 
 klaviyo-pp-cli lists get \
   --page-size 10 --fields-list name,created,updated \
   --json --compact --no-input --no-color \
   --data-source live --no-cache \
-  --select id,name,created,updated
+  --select data.id,data.attributes.name,data.attributes.created,data.attributes.updated
 
 klaviyo-pp-cli segments get \
   --page-size 10 --fields-segment name,created,updated \
   --json --compact --no-input --no-color \
   --data-source live --no-cache \
-  --select id,name,created,updated
+  --select data.id,data.attributes.name,data.attributes.created,data.attributes.updated
 
 klaviyo-pp-cli templates get \
   --page-size 10 --fields-template name,editor_type,created,updated \
   --json --compact --no-input --no-color \
   --data-source live --no-cache \
-  --select id,name,editor_type,created,updated
+  --select data.id,data.attributes.name,data.attributes.editor_type,data.attributes.created,data.attributes.updated
 ```
 
 Campaign, flow, form, segment, and metric report queries use POST but are read-only analytics operations. In this CLI release, report shortcut help does not document a query-body input flag. Inspect `campaign-values-reports --help`, `flow-values-reports --help`, and `metric-aggregates --help`; do not improvise or execute a report until runtime help exposes the exact query input.
