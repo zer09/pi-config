@@ -56,6 +56,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | ✓ | notion | Medium | 5 | make it slim | Installed as a compact combination of self-documenting official `ntn` CLI routing, hosted-service safety gates, and on-demand Notion workflow recipes. |
 | x | notion-cli | Medium | 5 | remove it | Standalone predecessor remains retired; superseded by the active combined `notion` skill. |
 | ✓ | postgres | Strong | 8 | make it slim | DB expertise is strong; keep only operational checklists. |
+| ✓ | pp-klaviyo | Medium | 5 | make it slim | Installed from Printing Press for exact Klaviyo CLI routing, customer-data controls, and hosted-service mutation gates. |
 | ✓ | pp-posthog | Medium | 5 | make it slim | Installed from Printing Press for exact PostHog CLI routing, local sync/search, and hosted-service safety gates. |
 | x | refine-linear-task | Very strong | 9 | remove it | Generic issue-writing task; no skill needed. |
 | ✓ | ruff | Strong | 8 | make it slim | Commands are simple; keep only preferred invocation. |

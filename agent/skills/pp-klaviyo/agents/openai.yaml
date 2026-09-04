@@ -1,0 +1,4 @@
+interface:
+  display_name: "Klaviyo CLI"
+  short_description: "Query Klaviyo safely with klaviyo-pp-cli"
+  default_prompt: "Use $pp-klaviyo to inspect Klaviyo data safely and summarize the result."
