@@ -17,7 +17,7 @@ Purpose: maintain the native TypeScript `delegate_run` extension that runs in th
 |---|---|
 | `agent/extensions/delegated-pi-loop/instructions.ts` | Canonical model-visible delegation instructions and builders: parent tool metadata and parameter descriptions, the parent workflow guidelines, the child role-family contracts, the base child assignment prompt with terminal-result contract and generic recursion prohibition, the fixed restart note, and the report-recovery prompt. |
 | `agent/extensions/delegated-pi-loop/index.ts` | Tool registration from one validated routing snapshot and the canonical instruction module, commands, child recursion suppression, and execute finalization. |
-| `agent/extensions/delegated-pi-loop/docsync.ts` | Documentation synchronization: renders the marked model-visible sections of `docs/delegated-pi-loop-agent-instructions.md` from the canonical exports and the routing snapshot, extracts them for checking, and rewrites them in place. |
+| `agent/extensions/delegated-pi-loop/docsync.ts` | Documentation synchronization: renders the marked model-visible sections of `docs/delegated-pi-loop-agent-instructions.md` from canonical exports, using policy-independent placeholders for dynamic role lists. |
 | `agent/extensions/delegated-pi-loop/render-instructions-doc.ts` | CLI entry (`npm run render:instructions-doc`) that regenerates the marked reference-document sections. No external dependencies. |
 | `agent/extensions/delegated-pi-loop/catalog.ts` | Read-only delegate model catalog search over the validated routing models catalog: query, provider, thinking, and limit filters with bounded deterministic output. |
 | `agent/extensions/delegated-pi-loop/protocol.ts` | Strict LF-framed RPC JSONL, prompt correlation, UI cancellation, and bounded provider-failure categories. |
@@ -25,8 +25,10 @@ Purpose: maintain the native TypeScript `delegate_run` extension that runs in th
 | `agent/extensions/delegated-pi-loop/liveness.ts` | Pure renewable-liveness watchdog reducer: maps the bounded liveness ages, active-tool age, and duplicate count to one stall-or-warn-or-run decision. No clocks, processes, or timers. |
 | `agent/extensions/delegated-pi-loop/supervisor.ts` | Persistent RPC child, liveness lease evaluation from the 100 ms ticker, cancellation, process groups, cleanup, progress, and private artifacts. |
 | `agent/extensions/delegated-pi-loop/runner.ts` | Catalog preflight, operational route fallback, restart-note application, and route attempts. No chain work budget exists. |
-| `agent/extensions/delegated-pi-loop/routing.json` | Extension-owned versioned routing policy: capabilities, profiles, tiers, version-2 family assignments (ordered solution/review arrays plus singleton profile strings), disabled providers, override policy. |
+| `agent/extensions/delegated-pi-loop/routing.json` | Tracked operator-owned routing policy: capabilities, profiles, tiers, version-2 family assignments, disabled providers, and override policy. Valid policy edits must not require test or documentation updates. |
+| `agent/extensions/delegated-pi-loop/routing.fixture.json` and `routing.test-fixture.ts` | Fictional test-only policy and loader for deterministic concrete routing tests. Runtime modules never load this fixture. |
 | `agent/extensions/delegated-pi-loop/routing.ts` | Strict routing config loader/validator, the normalized role registry, the one shared route selector, and the registration snapshot loader. |
+| `agent/extensions/delegated-pi-loop/check-routing.ts` | Read-only `npm run check:routing` validator and route-chain summary for the live `routing.json`. |
 | `agent/extensions/delegated-pi-loop/resources.json` | Extension-owned versioned delegated child resource policy: catalog and runtime extension allowlists plus the allowed and excluded skill sets. |
 | `agent/extensions/delegated-pi-loop/resources.ts` | Strict resource-policy loader/validator, skill-candidate resolution, and the catalog/runtime child argument builders. |
 | `agent/extensions/delegated-pi-loop/routes.ts` | Role classification (read-only and exclusive families), role labels, route keys, and the pre-spawn oracle guard. Prompt and contract text lives in `instructions.ts`. |
@@ -135,9 +137,9 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 - The parent tool registration loads one fresh snapshot: the `delegate_run` role enum, dynamic guidance listing configured solution and review roles, and `delegate_model_catalog` parameters derive from it, and the same instance flows into every execution so registration and runtime never drift. Routing changes take effect after extension reload or restart; delegated children register no parent orchestration or catalog tool.
 - `delegate_model_catalog` is a read-only lookup over the top-level routing models catalog: a required case-insensitive substring `query` on model ids, an optional exact `provider` filter, an optional configured `thinking` filter, and an optional integer `limit` (default 10, range 1..20). Output is concise, bounded, deterministic, and truncation-aware; models whose routes are all filtered out are omitted, disabled providers never appear, and a zero-match result never dumps the catalog. It never invokes `pi --list-models` and never enumerates model/provider/thinking combinations in the `delegate_run` schema or the permanent prompt.
 - One shared selector serves every role: per tier it derives eligible providers from capabilities, intersects allowlists, disabled providers, and override exclusions, draws one random primary for a multi-provider tier (single-provider tiers stay deterministic and consume no draw), appends the remaining providers in stable config order, and concatenates the tiers. No parent-provider preference exists; only the parent model id feeds Oracle self-review prevention.
-- Gate A runs Muse Spark alone; Gate B runs DeepSeek alone; Gate C runs `zai/glm-5.3-flash:high` (the official GLM-5.3-Flash reveal of Ox Alpha) then Hy3. AgentRouter, TokenReply, Tabitoken, and GoRouter have no capability or tier entries in delegated routing, and neither does any removed OpenRouter or TokenReply Ox Alpha alias. Every A/B/C/F tier allowlists exactly one provider and is deterministic without a random draw. Gate D runs `gpt-5.5` at thinking `high`; Solution E and the Oracle each run `gpt-5.6-sol` at thinking `high` on the nine eligible OpenAI Codex providers `openai-codex`, `openai-codex-zahlo`, and `openai-codex-cgpt1` through `openai-codex-cgpt7`; Cursor stays excluded. Solution F (`gate-f`) runs `zai/glm-5.3:max` only; Review E (`gate-g`) runs `zai/glm-5.3:max` then the same nine-provider `gpt-5.6-sol:high` chain. Inside those multi-provider chains the primary is exactly one random draw and the remaining providers follow in stable config order.
-- A temporary sixth reviewer needs no dedicated role or profile: it reuses an existing non-exclusive review role with a distinct prompt, and an optional reason-required one-run `routingOverride` such as `openai-codex-cgpt5/gpt-5.6-sol` at thinking `high` pins its distinct route for that run without changing role permissions or concurrency.
-- Implementation and remediation use only `zai/glm-5.3:max`; the removed `tokenreply/claude-fable-5` capability and tier must not return. Verification remains `openai-codex/gpt-5.6-sol:high`. The removed `agentrouter` capabilities, the `claude-opus-4-8` capability record, and the removed `openrouter` `stealth/ox-alpha` and `tokenreply` `ox-alpha` alias capabilities and tiers must not return to delegated routing; Gate C's Ox Alpha role runs only through the official `zai/glm-5.3-flash:high` route.
+- The current route matrix is operator policy, not a code or documentation contract. Run `npm run check:routing` after editing `routing.json`; the command validates the complete live policy and prints every derived role chain.
+- Concrete selection, fallback, pool, tier, and override tests use fictional models and providers from `routing.fixture.json`. Change that fixture only when the routing schema or selector behavior changes, not when the operator adds, removes, or replaces live models and providers.
+- Runner tests inject the same fictional fixture by default. A test may inject a smaller synthetic policy when it needs a special route shape.
 - The public tool schema has no routine backend parameter. The optional exceptional `routingOverride` carries `provider`, `model`, `thinking`, `excludeProviders`, and a mandatory non-empty `reason`; empty or no-op overrides are rejected, the Oracle rejects every override, and an override never changes role permissions or concurrency.
 - Guidance states routing is automatic and an override is valid only for an explicit user or project operational request; no default route matrix is model-visible.
 
@@ -156,7 +158,7 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 
 1. Read installed Pi `docs/rpc.md`, `docs/extensions.md`, `docs/json.md`, `docs/environment-variables.md`, and `docs/tui.md` completely.
 2. Read ADR 0007 through ADR 0017, this document, and every owned source file.
-3. Preserve `routing.json` route intent, role contracts (`instructions.ts`), manager IDs, cancellation, cleanup, deadlines, privacy, diagnostics, and recursive suppression.
+3. Preserve `routing.json` route intent unless the requested change explicitly modifies the operator policy. Preserve role contracts (`instructions.ts`), manager IDs, cancellation, cleanup, deadlines, privacy, diagnostics, and recursive suppression.
 4. Update tests with behavior changes.
 5. Update root `README.md`, ADR current-policy text, changelog, and context-cost accounting when the public tool contract changes; regenerate the reference document's generated sections with `npm run render:instructions-doc`. Never re-add delegation policy to `agent/AGENTS.md`.
 6. Do not run paid model inference without explicit authorization.
@@ -181,45 +183,19 @@ cd ~/.pi/agent/extensions/delegated-pi-loop
 npm run render:instructions-doc
 ```
 
-Validate extension loading without inference:
+Validate the complete live routing policy without inference:
 
 ```bash
-pi --list-models zai/glm-5.3
+cd ~/.pi/agent/extensions/delegated-pi-loop
+npm run check:routing
 ```
 
-Verify each route with the lean catalog resource profile, which loads only the alias extension and disables every discovery flag:
-
-```bash
-LEAN="--no-extensions -e ~/.pi/agent/extensions/openai-codex-aliases/index.ts --no-skills --no-prompt-templates --no-themes --no-context-files"
-pi $LEAN --list-models opencode-go/muse-spark-1.2-contributor
-pi $LEAN --list-models opencode-go/deepseek-v4-flash
-pi $LEAN --list-models opencode-go/hy3
-pi $LEAN --list-models zai/glm-5.3
-pi $LEAN --list-models zai/glm-5.3-flash
-pi $LEAN --list-models openai-codex/gpt-5.6-sol
-pi $LEAN --list-models openai-codex-zahlo/gpt-5.6-sol
-pi $LEAN --list-models openai-codex-cgpt1/gpt-5.6-sol
-pi $LEAN --list-models openai-codex-cgpt2/gpt-5.6-sol
-pi $LEAN --list-models openai-codex-cgpt3/gpt-5.6-sol
-pi $LEAN --list-models openai-codex-cgpt4/gpt-5.6-sol
-pi $LEAN --list-models openai-codex-cgpt5/gpt-5.6-sol
-pi $LEAN --list-models openai-codex-cgpt6/gpt-5.6-sol
-pi $LEAN --list-models openai-codex-cgpt7/gpt-5.6-sol
-pi $LEAN --list-models openai-codex/gpt-5.5
-pi $LEAN --list-models openai-codex-zahlo/gpt-5.5
-pi $LEAN --list-models openai-codex-cgpt1/gpt-5.5
-pi $LEAN --list-models openai-codex-cgpt2/gpt-5.5
-pi $LEAN --list-models openai-codex-cgpt3/gpt-5.5
-pi $LEAN --list-models openai-codex-cgpt4/gpt-5.5
-pi $LEAN --list-models openai-codex-cgpt5/gpt-5.5
-pi $LEAN --list-models openai-codex-cgpt6/gpt-5.5
-pi $LEAN --list-models openai-codex-cgpt7/gpt-5.5
-```
+If a live catalog probe is needed, derive its provider/model arguments from the current `check:routing` output. Use the lean catalog resource profile so the probe loads only the alias extension and disables discovery. Do not maintain a copied route command list in this guide.
 
 Also verify:
 
 - the complete parent delegation workflow reaches the model only through the active `delegate_run` promptGuidelines; `delegate_model_catalog` keeps only its concise lookup guidance; the delegated-child branch registers neither tool and returns before routing or resource loading; the child prompt keeps exactly one generic recursion prohibition that never names `delegate_run`;
-- `agent/AGENTS.md` stays free of delegation policy and duplicated workflow wording, every role family receives its centralized contract from `instructions.ts`, unknown families fail closed at the contract boundary, and the checked-in instruction document's generated sections match the canonical exports for the shipped routing snapshot (covered by `instructions.test.ts` and `docsync.test.ts`);
+- `agent/AGENTS.md` stays free of delegation policy and duplicated workflow wording, every role family receives its centralized contract from `instructions.ts`, unknown families fail closed at the contract boundary, and the checked-in instruction document's generated sections match the canonical exports with policy-independent role placeholders (covered by `instructions.test.ts` and `docsync.test.ts`);
 - `routing.json` passes the strict validator and a missing or invalid file fails closed with no compiled-route fallback; a version-1 document is rejected with the migration error; assignment validation rejects empty, oversized (beyond 26 per indexed family), malformed, blank, or unknown-profile entries, non-string singleton assignments, missing or extra family keys, and an oracle profile without the rejected override policy; duplicate profiles inside and across the solution/review arrays stay valid;
 - the normalized role registry derives ordered role ids with zero-based slots, the `delegate_run` role enum and dynamic role guidance regenerate from the snapshot, unknown role ids fail closed at the registry boundary before admission, artifacts, or spawn, and `delegate_model_catalog` query, provider, thinking, and limit filters, zero-match bounding, truncation flags, and disabled-provider exclusion behave as specified;
 - `resources.json` passes the strict validator, the shipped policy inventory matches the pinned allowed and excluded sets, and a missing, invalid, escaping, overlapping, or profile-violating policy fails closed before `delegate_run` registration with no broad-discovery fallback; the catalog and runtime lists must resolve to the exact canonical entry files in the exact canonical order (extra contained entries such as a listed `footer` extension, reordered fixed entries, and alternate same-directory entry files all fail closed); repeated keys are rejected in every object scope, including the nested `extensions.catalog`, `extensions.runtime`, `skills.allowed`, and `skills.excluded` containers, while key-like text inside string values stays accepted;
@@ -240,7 +216,7 @@ Also verify:
 - UI requests cannot block the child;
 - cancellation and natural completion remove descendants;
 - direct Claude route, backend, runner, supervisor, permission, plain-protocol, and fixture scans are empty;
-- delegated routing contains no AgentRouter capability or tier, no Claude-model route, and no obsolete Ox Alpha alias capability or tier; the encoded chains keep their tier order, with primary rotation only inside the Codex alias tiers;
+- runtime and checker modules never load `routing.fixture.json`; concrete routing and runner tests use the fictional fixture, while live-policy tests validate `routing.json` without pinning its current models, providers, profiles, or assignment counts;
 - unrelated dirty files remain untouched;
 - `git diff --check` passes;
 - the active model-visible context surfaces are recounted locally;

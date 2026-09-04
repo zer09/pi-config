@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 import { RESTART_AFTER_WORK_NOTE } from "./instructions.ts";
 import { buildDelegateResourceSelection, readResourcesFile } from "./resources.ts";
 import { validateRoutingConfig } from "./routing.ts";
+import { loadRoutingFixture } from "./routing.test-fixture.ts";
 import { finalizeDelegateRun } from "./result.ts";
 import { isOperationalFailureState, runDelegate } from "./runner.ts";
 import { terminationProbes } from "./supervisor.ts";
@@ -397,6 +398,7 @@ function baseOptions(
     progressStallMs: 4000,
     reportRecoveryIdleMs: 800,
     graceMs: 100,
+    routingConfig: loadRoutingFixture(),
     ...extra,
   };
 }
@@ -931,14 +933,14 @@ test("an exhausted operational chain ends as routes_unavailable", async () => {
 
 test("one route attempt can recover in the same session without fallback", async () => {
   const fixture = await fakePi(
-    ["opencode-go/muse-spark-1.2-contributor"],
+    ["provider-j/model-e"],
     {
-      "opencode-go/muse-spark-1.2-contributor": "missing-recover",
+      "provider-j/model-e": "missing-recover",
     },
   );
   await runAndFinalize(baseOptions(fixture, { role: "solution-e" }), async (result) => {
     assert.equal(result.state, "completed");
-    assert.equal(result.selectedRoute, "opencode-go/muse-spark-1.2-contributor:xhigh");
+    assert.equal(result.selectedRoute, "provider-j/model-e:xhigh");
     assert.equal(result.attempts.length, 1);
     assert.equal(result.progress.reportNudgeCount, 1);
     assert.equal(result.progress.reportRound, 2);
@@ -1025,15 +1027,15 @@ test("the restart note is private, sanitized, and never stacks across restarts",
 test("intentional BLOCKED and FAILED delegate outcomes stay terminal without fallback", async () => {
   for (const [behavior, expectedState] of [["blocked", "blocked"], ["failed", "delegate_failed"]] as const) {
     const fixture = await fakePi(
-      ["opencode-go/muse-spark-1.2-contributor"],
+      ["provider-j/model-e"],
       {
-        "opencode-go/muse-spark-1.2-contributor": behavior,
+        "provider-j/model-e": behavior,
       },
     );
     await runAndFinalize(baseOptions(fixture, { role: "solution-e" }), async (result) => {
       assert.equal(result.state, expectedState);
       assert.equal(result.attempts.length, 1);
-      assert.equal(result.selectedRoute, "opencode-go/muse-spark-1.2-contributor:xhigh");
+      assert.equal(result.selectedRoute, "provider-j/model-e:xhigh");
       assert.match(result.report, /DELEGATE_RESULT: (BLOCKED|FAILED)/);
       assert.equal(result.progress.restartAfterWorkCount, 0);
       // Legacy bare markers keep their terminal outcome with unspecified reason.
@@ -1053,9 +1055,9 @@ test("accepted reason codes propagate typed through result, progress, details, a
   ] as const;
   for (const [reportText, expectedState, outcome, reason, misuse] of cases) {
     const fixture = await fakePi(
-      ["opencode-go/muse-spark-1.2-contributor"],
+      ["provider-j/model-e"],
       {
-        "opencode-go/muse-spark-1.2-contributor": "custom",
+        "provider-j/model-e": "custom",
       },
       { reportText },
     );
@@ -1063,7 +1065,7 @@ test("accepted reason codes propagate typed through result, progress, details, a
       assert.equal(result.state, expectedState, reason);
       // The intentional outcome stays terminal: one attempt, no fallback.
       assert.equal(result.attempts.length, 1, reason);
-      assert.equal(result.selectedRoute, "opencode-go/muse-spark-1.2-contributor:xhigh", reason);
+      assert.equal(result.selectedRoute, "provider-j/model-e:xhigh", reason);
       assert.equal(result.delegateOutcome, outcome, reason);
       assert.equal(result.terminalReason, reason, reason);
       assert.equal(result.reasonStatus, "accepted", reason);
@@ -1091,9 +1093,9 @@ test("missing or rejected reasons never change BLOCKED and FAILED terminality or
   ] as const;
   for (const [reportText, expectedState, reasonStatus] of cases) {
     const fixture = await fakePi(
-      ["opencode-go/muse-spark-1.2-contributor"],
+      ["provider-j/model-e"],
       {
-        "opencode-go/muse-spark-1.2-contributor": "custom",
+        "provider-j/model-e": "custom",
       },
       { reportText },
     );
@@ -1111,8 +1113,8 @@ test("missing or rejected reasons never change BLOCKED and FAILED terminality or
 
 test("a COMPLETED-with-reason response follows invalid-result recovery on the same route", async () => {
   const fixture = await fakePi(
-    ["opencode-go/muse-spark-1.2-contributor"],
-    { "opencode-go/muse-spark-1.2-contributor": "custom" },
+    ["provider-j/model-e"],
+    { "provider-j/model-e": "custom" },
     {
       reportText: "Done.\n\nDELEGATE_REASON: budget_exhausted\nDELEGATE_RESULT: COMPLETED",
       recoveryReportText: "Recovered.\n\nDELEGATE_RESULT: COMPLETED",
@@ -1135,8 +1137,8 @@ test("a COMPLETED-with-reason response follows invalid-result recovery on the sa
 test("raw reason values never reach statuses, Markdown, or details; diagnostics persist them only inside the delegate report", async () => {
   const reportText = "Blocked.\n\nDELEGATE_REASON: /home/gc/SECRET-PATH/sk-RAWTOKEN99\nDELEGATE_RESULT: BLOCKED";
   const fixture = await fakePi(
-    ["opencode-go/muse-spark-1.2-contributor"],
-    { "opencode-go/muse-spark-1.2-contributor": "custom" },
+    ["provider-j/model-e"],
+    { "provider-j/model-e": "custom" },
     { reportText },
   );
   let persistedReport = "";
@@ -1180,7 +1182,7 @@ test("raw reason values never reach statuses, Markdown, or details; diagnostics 
 });
 
 test("an interrupted run stays terminal without attempts or fallback", async () => {
-  const fixture = await fakePi(["openai-codex/gpt-5.5"], { "openai-codex/gpt-5.5": "complete" });
+  const fixture = await fakePi(["provider-i/model-d"], { "provider-i/model-d": "complete" });
   const controller = new AbortController();
   controller.abort();
   await runAndFinalize(
@@ -1195,8 +1197,8 @@ test("an interrupted run stays terminal without attempts or fallback", async () 
 
 test("B draws one random primary per invocation and records the ordered chain", async () => {
   const fixture = await fakePi(
-    ["openai-codex/gpt-5.5"],
-    { "openai-codex/gpt-5.5": "complete" },
+    ["provider-a/model-b"],
+    { "provider-a/model-b": "complete" },
   );
   let randomCalls = 0;
   const toolResult = await runAndFinalize(
@@ -1205,18 +1207,18 @@ test("B draws one random primary per invocation and records the ordered chain", 
       // The injected draw picks the primary; no provider preference exists.
       random: () => {
         randomCalls += 1;
-        return 0.4; // floor(0.4 * 9) = 3 -> openai-codex-cgpt2 primary
+        return 0.4; // floor(0.4 * 8) = 3 -> provider-d primary
       },
     }),
     async (result, finalize) => {
       assert.equal(randomCalls, 1);
       assert.equal(result.state, "completed");
-      assert.equal(result.selectedRoute, "openai-codex/gpt-5.5:high");
+      assert.equal(result.selectedRoute, "provider-a/model-b:high");
       // The uncatalogued random primary is skipped by catalog preflight; the
       // selected and remaining routes return through the existing attempt chain.
       assert.deepEqual(result.attempts.map((attempt) => attempt.route), [
-        "openai-codex-cgpt2/gpt-5.5:high",
-        "openai-codex/gpt-5.5:high",
+        "provider-d/model-b:high",
+        "provider-a/model-b:high",
       ]);
       assert.equal(result.attempts[0]?.state, "catalog_unavailable");
       return finalize();
@@ -1227,17 +1229,17 @@ test("B draws one random primary per invocation and records the ordered chain", 
 
 test("an eligible former parent provider no longer pins the primary", async () => {
   const fixture = await fakePi(
-    ["openai-codex-cgpt4/gpt-5.5"],
-    { "openai-codex-cgpt4/gpt-5.5": "complete" },
+    ["provider-f/model-b"],
+    { "provider-f/model-b": "complete" },
   );
   let randomCalls = 0;
   await runAndFinalize(
     baseOptions(fixture, {
       role: "review-b",
       prompt: "Review only.",
-      // openai-codex-cgpt4 is eligible for the tier, but no parent-provider
+      // provider-f is eligible for the tier, but no parent-provider
       // preference exists: the draw alone picks the primary, so the pinned
-      // zero draw makes openai-codex the primary and cgpt4 is reached only
+      // zero draw makes provider-a primary and provider-f is reached only
       // through the stable fallback order.
       random: () => {
         randomCalls += 1;
@@ -1247,22 +1249,22 @@ test("an eligible former parent provider no longer pins the primary", async () =
     async (result) => {
       assert.equal(randomCalls, 1);
       assert.equal(result.state, "completed");
-      assert.equal(result.selectedRoute, "openai-codex-cgpt4/gpt-5.5:high");
-      assert.equal(result.attempts[0]?.route, "openai-codex/gpt-5.5:high");
+      assert.equal(result.selectedRoute, "provider-f/model-b:high");
+      assert.equal(result.attempts[0]?.route, "provider-a/model-b:high");
       assert.equal(result.attempts[0]?.state, "catalog_unavailable");
       // The chain reaches cgpt4 sixth: the drawn primary plus four skipped
       // uncatalogued fallbacks come first, proving no parent-preference shortcut.
       assert.equal(result.attempts.length, 6);
-      assert.equal(result.attempts[5]?.route, "openai-codex-cgpt4/gpt-5.5:high");
-      assert.match(result.report, /Completed on openai-codex-cgpt4\/gpt-5\.5/);
+      assert.equal(result.attempts[5]?.route, "provider-f/model-b:high");
+      assert.match(result.report, /Completed on provider-f\/model-b/);
     },
   );
 });
 
 test("oracle records its fallback chain", async () => {
   const fixture = await fakePi(
-    ["openai-codex/gpt-5.6-sol"],
-    { "openai-codex/gpt-5.6-sol": "complete" },
+    ["provider-a/model-a"],
+    { "provider-a/model-a": "complete" },
   );
   let randomCalls = 0;
   const toolResult = await runAndFinalize(
@@ -1271,32 +1273,32 @@ test("oracle records its fallback chain", async () => {
       prompt: "Review the draft contract without editing it.",
       random: () => {
         randomCalls += 1;
-        return 0.4; // floor(0.4 * 9) = 3 -> openai-codex-cgpt2 primary
+        return 0.4; // floor(0.4 * 8) = 3 -> provider-d primary
       },
     }),
     async (result, finalize) => {
       assert.equal(randomCalls, 1);
       assert.equal(result.label, "oracle");
       assert.equal(result.state, "completed");
-      assert.equal(result.selectedRoute, "openai-codex/gpt-5.6-sol:high");
+      assert.equal(result.selectedRoute, "provider-a/model-a:high");
       // The uncatalogued random primary is skipped by catalog preflight; the
       // remaining canonical routes return through the existing attempt chain.
       assert.deepEqual(result.attempts.map((attempt) => attempt.route), [
-        "openai-codex-cgpt2/gpt-5.6-sol:high",
-        "openai-codex/gpt-5.6-sol:high",
+        "provider-d/model-a:high",
+        "provider-a/model-a:high",
       ]);
       assert.equal(result.attempts[0]?.state, "catalog_unavailable");
-      assert.match(result.report, /Completed on openai-codex\/gpt-5\.6-sol/);
+      assert.match(result.report, /Completed on provider-a\/model-a/);
       return finalize();
     },
   );
   assert.match(toolResult.content[0]!.text, /## Delegate oracle completed/);
 });
 
-test("a main-Sol parent is rejected before any oracle child spawns on any provider", async () => {
+test("a parent using the oracle model is rejected before any oracle child spawns", async () => {
   const fixture = await fakePi(
-    ["openai-codex/gpt-5.6-sol"],
-    { "openai-codex/gpt-5.6-sol": "complete" },
+    ["provider-a/model-a"],
+    { "provider-a/model-a": "complete" },
   );
   const base = baseOptions(fixture, {
     role: "oracle",
@@ -1307,14 +1309,14 @@ test("a main-Sol parent is rejected before any oracle child spawns on any provid
     random: () => 0,
   });
   await assert.rejects(
-    () => runDelegate({ ...base, parentModelId: "gpt-5.6-sol" }),
+    () => runDelegate({ ...base, parentModelId: "model-a" }),
     (error: unknown) => {
-      assert.match((error as Error).message, /Skip the oracle role.*gpt-5\.6-sol.*finalize the solution contract directly/);
+      assert.match((error as Error).message, /Skip the oracle role.*model-a.*finalize the solution contract directly/);
       return true;
     },
   );
-  // A non-Sol parent model proceeds through the same invocation.
-  await runAndFinalize({ ...base, parentModelId: "gpt-5.5" }, async (result) => {
+  // A different parent model proceeds through the same invocation.
+  await runAndFinalize({ ...base, parentModelId: "model-b" }, async (result) => {
     assert.equal(result.state, "completed");
   });
 });
@@ -2270,14 +2272,14 @@ test("report recovery remains eligible after total elapsed time exceeds any form
 
 test("an oracle routing override is rejected before any child spawns", async () => {
   const fixture = await fakePi(
-    ["zai/glm-5.3", "openai-codex/gpt-5.6-sol"],
-    { "zai/glm-5.3": "complete", "openai-codex/gpt-5.6-sol": "complete" },
+    ["provider-i/model-c", "provider-a/model-a"],
+    { "provider-i/model-c": "complete", "provider-a/model-a": "complete" },
   );
   await assert.rejects(
     () => runDelegate(baseOptions(fixture, {
       role: "oracle",
       prompt: "Review only.",
-      routingOverride: { provider: "zai", model: "glm-5.3", reason: "explicit user request" },
+      routingOverride: { provider: "provider-i", model: "model-c", reason: "explicit user request" },
     })),
     /routingOverride is not allowed for the oracle role/,
   );
@@ -2285,18 +2287,18 @@ test("an oracle routing override is rejected before any child spawns", async () 
 
 test("an exceptional routing override pins an exact route for one run", async () => {
   const fixture = await fakePi(
-    ["openai-codex-cgpt5/gpt-5.6-sol"],
-    { "openai-codex-cgpt5/gpt-5.6-sol": "complete" },
+    ["provider-f/model-a"],
+    { "provider-f/model-a": "complete" },
   );
   await runAndFinalize(
     baseOptions(fixture, {
       role: "verification",
       prompt: "Verify only.",
-      routingOverride: { provider: "openai-codex-cgpt5", model: "gpt-5.6-sol", thinking: "high", reason: "explicit user request" },
+      routingOverride: { provider: "provider-f", model: "model-a", thinking: "high", reason: "explicit user request" },
     }),
     async (result) => {
       assert.equal(result.state, "completed");
-      assert.equal(result.selectedRoute, "openai-codex-cgpt5/gpt-5.6-sol:high");
+      assert.equal(result.selectedRoute, "provider-f/model-a:high");
       assert.equal(result.attempts.length, 1);
     },
   );
@@ -2304,8 +2306,8 @@ test("an exceptional routing override pins an exact route for one run", async ()
 
 test("a no-op routing override fails closed before any child spawns", async () => {
   const fixture = await fakePi(
-    ["zai/glm-5.3"],
-    { "zai/glm-5.3": "complete" },
+    ["provider-i/model-c"],
+    { "provider-i/model-c": "complete" },
   );
   await assert.rejects(
     () => runDelegate(baseOptions(fixture, {
@@ -2319,8 +2321,8 @@ test("a no-op routing override fails closed before any child spawns", async () =
 
 test("rejected routing overrides create no private artifact directory", async () => {
   const fixture = await fakePi(
-    ["zai/glm-5.3"],
-    { "zai/glm-5.3": "complete" },
+    ["provider-i/model-c"],
+    { "provider-i/model-c": "complete" },
   );
   const base = baseOptions(fixture, { role: "implementation", prompt: "Implement only." });
   // Route and override selection completes before createArtifactDir, so a
@@ -2337,7 +2339,7 @@ test("rejected routing overrides create no private artifact directory", async ()
   await assertCreatesNoArtifact(() => runDelegate({
     ...base,
     role: "oracle",
-    routingOverride: { provider: "zai", model: "glm-5.3", reason: "explicit user request" },
+    routingOverride: { provider: "provider-i", model: "model-c", reason: "explicit user request" },
   }));
   // A successful run keeps its artifact directory until finalizeDelegateRun.
   await runAndFinalize(base, async (result, finalize) => {
@@ -2350,8 +2352,8 @@ test("rejected routing overrides create no private artifact directory", async ()
 
 test("a throwing onProgress callback rejects after allocation without leaking the artifact", async () => {
   const fixture = await fakePi(
-    ["zai/glm-5.3"],
-    { "zai/glm-5.3": "complete" },
+    ["provider-i/model-c"],
+    { "provider-i/model-c": "complete" },
   );
   const base = baseOptions(fixture, { role: "implementation", prompt: "Implement only." });
   // The initial progress event fires only after prompt.md exists inside the
@@ -2383,8 +2385,8 @@ test("a throwing onProgress callback rejects after allocation without leaking th
 
 test("a supervisor-owned progress sink failure rejects through runDelegate without leaking the artifact", async () => {
   const fixture = await fakePi(
-    ["zai/glm-5.3"],
-    { "zai/glm-5.3": "complete" },
+    ["provider-i/model-c"],
+    { "provider-i/model-c": "complete" },
   );
   const sinkError = new Error("supervisor progress sink failed PRIVATE");
   // Chain-owned catalog_check events reach the sink directly and stay
@@ -2406,8 +2408,8 @@ test("a supervisor-owned progress sink failure rejects through runDelegate witho
 
 test("a successful run still retains its artifact until execute-level finalization", async () => {
   const fixture = await fakePi(
-    ["zai/glm-5.3"],
-    { "zai/glm-5.3": "complete" },
+    ["provider-i/model-c"],
+    { "provider-i/model-c": "complete" },
   );
   await runAndFinalize(baseOptions(fixture, { role: "implementation", prompt: "Implement only." }), async (result, finalize) => {
     assert.equal(result.state, "completed");
@@ -2423,8 +2425,8 @@ test("a successful run still retains its artifact until execute-level finalizati
 
 test("a read-only delegate that changes the Git tree still completes without invalidation", async () => {
   const fixture = await fakePi(
-    ["opencode-go/muse-spark-1.2-contributor"],
-    { "opencode-go/muse-spark-1.2-contributor": "mutate-existing" },
+    ["provider-j/model-e"],
+    { "provider-j/model-e": "mutate-existing" },
   );
   await execFileAsync("git", ["-C", fixture.root, "init", "-q"]);
   await writeFile(path.join(fixture.root, "existing-untracked.txt"), "before");
@@ -2435,7 +2437,7 @@ test("a read-only delegate that changes the Git tree still completes without inv
       // global fingerprint check no longer attributes the change to the
       // delegate: the completed report survives and no invalidation state exists.
       assert.equal(result.state, "completed");
-      assert.match(result.report, /Completed on opencode-go\/muse-spark-1\.2-contributor/);
+      assert.match(result.report, /Completed on provider-j\/model-e/);
       assert.notEqual(result.progress.lastEvent, "tree_fingerprint_changed");
       assert.equal("fingerprintBefore" in result, false);
       assert.equal("fingerprintAfter" in result, false);
@@ -2457,13 +2459,13 @@ test("a concurrently present foreign delegated-pi directory is never touched", a
   try {
     // A rejected run (which must create no artifact) and a completed,
     // finalized run both exercise cleanup while the foreign directory exists.
-    const rejecting = await fakePi(["zai/glm-5.3"], { "zai/glm-5.3": "complete" });
+    const rejecting = await fakePi(["provider-i/model-c"], { "provider-i/model-c": "complete" });
     await assertCreatesNoArtifact(() => runDelegate(baseOptions(rejecting, {
       role: "implementation",
       prompt: "Implement only.",
       routingOverride: { reason: "no fields set" },
     })));
-    const completing = await fakePi(["zai/glm-5.3"], { "zai/glm-5.3": "complete" });
+    const completing = await fakePi(["provider-i/model-c"], { "provider-i/model-c": "complete" });
     await runAndFinalize(baseOptions(completing, { role: "implementation", prompt: "Implement only." }), async () => {});
     // The foreign directory survived every owned-sandbox cleanup untouched.
     assert.equal(await readFile(path.join(foreign, "sentinel.txt"), "utf8"), "foreign-owned");
@@ -2475,11 +2477,11 @@ test("a concurrently present foreign delegated-pi directory is never touched", a
 
 test("the owned sandboxes are clean after success, rejection, and assertion failure", async () => {
   // Success: the run is finalized and the owned artifact sandbox is empty.
-  const fixture = await fakePi(["zai/glm-5.3"], { "zai/glm-5.3": "complete" });
+  const fixture = await fakePi(["provider-i/model-c"], { "provider-i/model-c": "complete" });
   await runAndFinalize(baseOptions(fixture, { role: "implementation", prompt: "Implement only." }), async () => {});
   await assertNoOwnedArtifacts("the owned artifact sandbox must be clean after success");
   // Rejection: a failed run leaves no artifact directory behind.
-  const rejecting = await fakePi(["zai/glm-5.3"], { "zai/glm-5.3": "complete" });
+  const rejecting = await fakePi(["provider-i/model-c"], { "provider-i/model-c": "complete" });
   await assertCreatesNoArtifact(() => runDelegate(baseOptions(rejecting, {
     role: "implementation",
     prompt: "Implement only.",
@@ -2488,7 +2490,7 @@ test("the owned sandboxes are clean after success, rejection, and assertion fail
   await assertNoOwnedArtifacts("the owned artifact sandbox must be clean after rejection");
   // Assertion failure: the finally still finalizes the received result, so a
   // failing assertion can never leak the artifact directory.
-  const failing = await fakePi(["zai/glm-5.3"], { "zai/glm-5.3": "complete" });
+  const failing = await fakePi(["provider-i/model-c"], { "provider-i/model-c": "complete" });
   let caught: unknown;
   try {
     await runAndFinalize(baseOptions(failing, { role: "implementation", prompt: "Implement only." }), async (result) => {
@@ -2717,8 +2719,8 @@ test("a vanished approved extension entry fails the run before artifact creation
   const { policyDir, extensionsRoot } = await fixtureResourcePolicy();
   const resourcePolicy = readResourcesFile(path.join(policyDir, "resources.json"));
   const fixture = await fakePi(
-    ["opencode-go/muse-spark-1.2-contributor"],
-    { "opencode-go/muse-spark-1.2-contributor": "complete" },
+    ["provider-j/model-e"],
+    { "provider-j/model-e": "complete" },
     { spawnMarker: true },
   );
   assert.ok(fixture.spawnMarkerPath, "the spawn marker path must be set");
@@ -2735,8 +2737,8 @@ test("a post-selection catalog-entry symlink swap fails the run before any spawn
     ["alpha"],
   );
   const fixture = await fakePi(
-    ["opencode-go/muse-spark-1.2-contributor"],
-    { "opencode-go/muse-spark-1.2-contributor": "complete" },
+    ["provider-j/model-e"],
+    { "provider-j/model-e": "complete" },
     { spawnMarker: true },
   );
   // Swap the alias entry (catalog and runtime) with an outside-root symlink
@@ -2758,8 +2760,8 @@ test("a post-selection runtime-entry symlink swap fails before the runtime spawn
     ["alpha"],
   );
   const fixture = await fakePi(
-    ["opencode-go/muse-spark-1.2-contributor"],
-    { "opencode-go/muse-spark-1.2-contributor": "complete" },
+    ["provider-j/model-e"],
+    { "provider-j/model-e": "complete" },
     { argvLog: true },
   );
   // Swap a runtime-only entry after selection: catalog preflights may still
@@ -2783,8 +2785,8 @@ test("a post-selection selected-skill symlink swap fails before any spawn", { sk
     ["alpha"],
   );
   const fixture = await fakePi(
-    ["opencode-go/muse-spark-1.2-contributor"],
-    { "opencode-go/muse-spark-1.2-contributor": "complete" },
+    ["provider-j/model-e"],
+    { "provider-j/model-e": "complete" },
     { argvLog: true, spawnMarker: true },
   );
   // Replace the selected alpha skill directory with an outside-root symlink
@@ -2808,8 +2810,8 @@ test("a post-selection selected-skill SKILL.md removal fails before any spawn", 
     ["alpha"],
   );
   const fixture = await fakePi(
-    ["opencode-go/muse-spark-1.2-contributor"],
-    { "opencode-go/muse-spark-1.2-contributor": "complete" },
+    ["provider-j/model-e"],
+    { "provider-j/model-e": "complete" },
     { argvLog: true, spawnMarker: true },
   );
   // Remove the selected alpha SKILL.md after selection: the catalog

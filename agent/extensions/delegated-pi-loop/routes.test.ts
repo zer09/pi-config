@@ -5,8 +5,9 @@ import {
   buildDelegatePrompt,
 } from "./instructions.ts";
 import { oracleGuard, roleIsExclusive, roleIsReadOnly, roleLabel, routeKey } from "./routes.ts";
-import { loadRoutingConfig, roleIds } from "./routing.ts";
+import { roleIds } from "./routing.ts";
 import type { ResolvedRole } from "./routing.ts";
+import { loadRoutingFixture } from "./routing.test-fixture.ts";
 
 /** Test fixture: build a registry-style resolved role from a known role id. */
 function role(id: string): ResolvedRole {
@@ -15,12 +16,12 @@ function role(id: string): ResolvedRole {
   return slot === undefined ? { id, family, profile: `${family}-profile` } : { id, family, profile: `${family}-profile`, slot };
 }
 
-const ORACLE_MODEL = "gpt-5.6-sol";
+const ORACLE_MODEL = "model-a";
 
 test("routeKey keeps the Pi-only provider/model:thinking format", () => {
   assert.equal(
-    routeKey({ provider: "openai-codex-cgpt4", model: "gpt-5.5", thinking: "medium" }),
-    "openai-codex-cgpt4/gpt-5.5:medium",
+    routeKey({ provider: "provider-d", model: "model-b", thinking: "medium" }),
+    "provider-d/model-b:medium",
   );
 });
 
@@ -47,15 +48,15 @@ test("classifies role permissions and sequential roles", () => {
 });
 
 test("exposes the oracle role in the derived model-visible role registry", () => {
-  const registry = loadRoutingConfig().roles;
+  const registry = loadRoutingFixture().roles;
   assert.ok(registry.has("oracle"));
   assert.equal([...registry.keys()].filter((id) => id === "oracle").length, 1);
   assert.equal(registry.get("oracle")!.family, "oracle");
   assert.equal(registry.get("oracle")!.slot, undefined);
 });
 
-test("the shipped snapshot derives nine solution roles and three review roles in canonical order", () => {
-  const ids = roleIds(loadRoutingConfig());
+test("the stable fixture derives nine solution roles and three review roles in canonical order", () => {
+  const ids = roleIds(loadRoutingFixture());
   const solutions = ids.filter((id) => id.startsWith("solution-"));
   const reviews = ids.filter((id) => id.startsWith("review-"));
   assert.deepEqual(solutions, [
@@ -82,18 +83,18 @@ test("main-Sol skip detection is exact, model-id based, and covers every configu
   assert.match(oracleGuard(role("oracle"), ORACLE_MODEL, models)?.message ?? "", /Skip the oracle role/);
   assert.match(
     oracleGuard(role("oracle"), ORACLE_MODEL, models)?.message ?? "",
-    /gpt-5\.6-sol.*finalize the solution contract directly/,
+    /model-a.*finalize the solution contract directly/,
   );
   // Lookalike and sibling model ids never trigger the skip.
-  assert.equal(oracleGuard(role("oracle"), "gpt-5.6-sol-latest", models), undefined);
-  assert.equal(oracleGuard(role("oracle"), "gpt-5.5", models), undefined);
+  assert.equal(oracleGuard(role("oracle"), "model-a-latest", models), undefined);
+  assert.equal(oracleGuard(role("oracle"), "model-b", models), undefined);
   assert.equal(oracleGuard(role("oracle"), undefined, models), undefined);
-  assert.equal(oracleGuard(role("oracle"), "claude-opus-5", models), undefined);
+  assert.equal(oracleGuard(role("oracle"), "model-c", models), undefined);
   // The guard only constrains the oracle role.
   assert.equal(oracleGuard(role("verification"), ORACLE_MODEL, models), undefined);
   // A differently configured oracle model set changes the skip target.
-  const alternates = new Set(["gpt-5.5"]);
-  assert.equal(oracleGuard(role("oracle"), "gpt-5.5", alternates) instanceof Error, true);
+  const alternates = new Set(["model-b"]);
+  assert.equal(oracleGuard(role("oracle"), "model-b", alternates) instanceof Error, true);
   assert.equal(oracleGuard(role("oracle"), ORACLE_MODEL, alternates), undefined);
   // Multi-tier oracle profiles: a parent matching any configured oracle
   // model is rejected, not only the first tier's model.

@@ -7,14 +7,16 @@ import {
   extractInstructionDocSections,
   renderInstructionDocSections,
 } from "./docsync.ts";
-import { loadRoutingSnapshot } from "./routing.ts";
 
 const DOC_URL = new URL("../../../docs/delegated-pi-loop-agent-instructions.md", import.meta.url);
 
 test("the checked-in instruction document sections match the canonical exports", async () => {
   const markdown = await readFile(DOC_URL, "utf8");
   const checked = extractInstructionDocSections(markdown);
-  const rendered = renderInstructionDocSections(loadRoutingSnapshot());
+  const rendered = renderInstructionDocSections();
+  const guidelines = rendered.get("delegate-run-guidelines") ?? "";
+  assert.match(guidelines, /`<all configured solution roles>`/);
+  assert.match(guidelines, /`<all configured review roles>`/);
   // Exactly the managed sections are present: none missing, none stale.
   assert.deepEqual(
     [...checked.keys()].sort(),
@@ -25,14 +27,14 @@ test("the checked-in instruction document sections match the canonical exports",
     assert.equal(
       checked.get(id),
       rendered.get(id),
-      `the checked-in "${id}" section must match the canonical exports for the shipped routing snapshot`,
+      `the checked-in "${id}" section must match the canonical instruction exports`,
     );
   }
 });
 
 test("applying the rendered sections is idempotent", async () => {
   const markdown = await readFile(DOC_URL, "utf8");
-  const rendered = renderInstructionDocSections(loadRoutingSnapshot());
+  const rendered = renderInstructionDocSections();
   const updated = applyInstructionDocSections(markdown, rendered);
   assert.equal(updated, markdown, "the checked-in document must already be regenerated");
   // A drifted section is repaired by apply and detected again by extract.

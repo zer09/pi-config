@@ -33,7 +33,7 @@ The delegated-child branch of the extension registers neither tool and returns b
 
 ### Mechanically synchronized reference document
 
-The model-visible sections of `docs/delegated-pi-loop-agent-instructions.md` are generated from the canonical exports and the shipped routing snapshot by `docsync.ts`, regenerated in place by `npm run render:instructions-doc`, and checked by `docsync.test.ts`. The mechanism manages only fixed, named sections marked with `pi-delegated-instructions` comments; it is not a general-purpose Markdown template language. The surrounding runtime explanation remains manually authored and cites stable exported symbol names rather than `path:line` ranges for moved prompt content.
+The model-visible sections of `docs/delegated-pi-loop-agent-instructions.md` are generated from canonical exports by `docsync.ts`, regenerated in place by `npm run render:instructions-doc`, and checked by `docsync.test.ts`. Dynamic routing role lists use explicit policy-independent placeholders, so operator changes to `routing.json` do not rewrite the reference document. The mechanism manages only fixed, named sections marked with `pi-delegated-instructions` comments; it is not a general-purpose Markdown template language. The surrounding runtime explanation remains manually authored and cites stable exported symbol names rather than `path:line` ranges for moved prompt content.
 
 ## Consequences
 

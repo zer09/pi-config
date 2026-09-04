@@ -8,11 +8,9 @@ import { pathToFileURL } from "node:url";
 
 test("registration guidelines encode the compact automatic delegation policy without route details", async () => {
   const { delegateRunPromptGuidelines } = await import("./instructions.ts");
-  const { loadRoutingSnapshot, roleIdsInFamily } = await import("./routing.ts");
-  const snapshot = loadRoutingSnapshot();
   const lines = delegateRunPromptGuidelines(
-    roleIdsInFamily(snapshot, "solution"),
-    roleIdsInFamily(snapshot, "review"),
+    ["solution-a", "solution-b", "solution-c"],
+    ["review-a", "review-b"],
   );
   assert.equal(lines.length, 15);
   assert.ok(lines.every((line) => line.startsWith("delegate_run ")));
@@ -29,8 +27,8 @@ test("registration guidelines encode the compact automatic delegation policy wit
   assert.match(guidelines, /exactly one implementation delegate/);
   assert.match(guidelines, /contract for delegated implementation/);
 
-  assert.match(guidelines, /solution-a, solution-b, solution-c, solution-d, solution-e, solution-f, solution-g, solution-h, and solution-i concurrently/);
-  assert.match(guidelines, /review-a, review-b, and review-c concurrently/);
+  assert.match(guidelines, /solution-a, solution-b, and solution-c concurrently/);
+  assert.match(guidelines, /review-a and review-b concurrently/);
   assert.match(guidelines, /wait for every role/);
   assert.match(guidelines, /follow the user's next instruction/);
   assert.match(guidelines, /continue, resume, or retry requires no special syntax/);
@@ -61,6 +59,13 @@ test("registration guidelines encode the compact automatic delegation policy wit
   const lowered = guidelines.toLowerCase();
   for (const routeDetail of ["gpt-5.5", "gpt-5.6", "codex", "cursor", "ox-alpha", "hy3", "opus", "deepseek", "muse-spark", "glm-", "backend", "z.ai", "zai"]) {
     assert.ok(!lowered.includes(routeDetail), `route detail "${routeDetail}" must not appear in prompt guidelines`);
+  }
+});
+
+test("runtime and routing checker sources never load the test-only routing fixture", async () => {
+  for (const file of ["index.ts", "routing.ts", "runner.ts", "check-routing.ts"]) {
+    const source = await readFile(new URL(`./${file}`, import.meta.url), "utf8");
+    assert.doesNotMatch(source, /routing\.(?:test-)?fixture/, `${file} must use routing.json, not the test fixture`);
   }
 });
 
@@ -263,11 +268,15 @@ test("the registered availableSkills schema carries the description on the array
     assert.equal(catalogParameters.properties.limit?.minimum, 1);
     assert.equal(catalogParameters.properties.limit?.maximum, 20);
     assert.equal(catalogParameters.required?.includes("limit"), false);
-    // The dynamic guidelines resolve against the shipped snapshot and name
-    // every configured solution and review role without redundant count words.
+    // The dynamic guidelines resolve against the operator snapshot and name
+    // every configured solution and review role without pinning their counts.
     const delegateRunGuidelines = (registrations[0]?.promptGuidelines ?? []).join("\n");
-    assert.match(delegateRunGuidelines, /solution-a, solution-b, solution-c, solution-d, solution-e, solution-f, solution-g, solution-h, and solution-i concurrently/);
-    assert.match(delegateRunGuidelines, /review-a, review-b, and review-c concurrently/);
+    for (const roleId of [
+      ...roleIdsInFamily(snapshot, "solution"),
+      ...roleIdsInFamily(snapshot, "review"),
+    ]) {
+      assert.ok(delegateRunGuidelines.includes(roleId), `generated guidance must name ${roleId}`);
+    }
     assert.match(delegateRunGuidelines, /wait for every role/);
     assert.match(delegateRunGuidelines, /repeat the full review gate until no blocking findings remain/);
     // No concrete route detail leaks into the generated guidance.

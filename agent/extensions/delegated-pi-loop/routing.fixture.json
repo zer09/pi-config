@@ -1,0 +1,121 @@
+{
+  "version": 2,
+  "thinkingLevels": ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+  "disabledProviders": [],
+  "models": {
+    "model-a": {
+      "providers": {
+        "provider-a": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" },
+        "provider-b": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" },
+        "provider-c": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" },
+        "provider-d": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" },
+        "provider-e": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" },
+        "provider-f": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" },
+        "provider-g": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" },
+        "provider-h": { "thinking": ["minimal", "medium", "high", "xhigh", "max"], "default": "high" }
+      }
+    },
+    "model-b": {
+      "providers": {
+        "provider-a": { "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"], "default": "high" },
+        "provider-b": { "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"], "default": "high" },
+        "provider-c": { "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"], "default": "high" },
+        "provider-d": { "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"], "default": "high" },
+        "provider-e": { "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"], "default": "high" },
+        "provider-f": { "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"], "default": "high" },
+        "provider-g": { "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"], "default": "high" },
+        "provider-h": { "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"], "default": "high" }
+      }
+    },
+    "model-c": {
+      "providers": {
+        "provider-i": { "thinking": ["low", "high", "max"], "default": "max" }
+      }
+    },
+    "model-d": {
+      "providers": {
+        "provider-i": { "thinking": ["low", "high", "max"], "default": "high" }
+      }
+    },
+    "model-e": {
+      "providers": {
+        "provider-j": { "thinking": ["minimal", "low", "medium", "high", "xhigh"], "default": "xhigh" }
+      }
+    },
+    "model-f": {
+      "providers": {
+        "provider-j": { "thinking": ["off", "low", "high"], "default": "high" }
+      }
+    },
+    "model-g": {
+      "providers": {
+        "provider-k": { "thinking": ["off", "minimal", "low", "medium", "high"], "default": "high" }
+      }
+    },
+    "model-h": {
+      "providers": {
+        "provider-k": { "thinking": ["off", "minimal", "low", "medium", "high"], "default": "high" }
+      }
+    },
+    "model-i": {
+      "providers": {
+        "provider-l": { "thinking": ["low", "high", "max"], "default": "max" }
+      }
+    },
+    "model-j": {
+      "providers": {
+        "provider-k": { "thinking": ["off", "minimal", "low", "medium", "high"], "default": "high" }
+      }
+    }
+  },
+  "profiles": {
+    "gate-a": {
+      "tiers": [{ "model": "model-a", "thinking": "high", "providers": ["provider-a", "provider-b", "provider-c", "provider-d", "provider-e", "provider-f", "provider-g", "provider-h"] }]
+    },
+    "gate-b": {
+      "tiers": [{ "model": "model-b", "thinking": "high", "providers": ["provider-a", "provider-b", "provider-c", "provider-d", "provider-e", "provider-f", "provider-g", "provider-h"] }]
+    },
+    "gate-c": {
+      "tiers": [{ "model": "model-c", "thinking": "max", "providers": ["provider-i"] }]
+    },
+    "gate-d": {
+      "tiers": [{ "model": "model-d", "thinking": "high", "providers": ["provider-i"] }]
+    },
+    "gate-e": {
+      "tiers": [{ "model": "model-e", "thinking": "xhigh", "providers": ["provider-j"] }]
+    },
+    "gate-f": {
+      "tiers": [{ "model": "model-f", "thinking": "high", "providers": ["provider-j"] }]
+    },
+    "gate-g": {
+      "tiers": [{ "model": "model-g", "thinking": "high", "providers": ["provider-k"] }]
+    },
+    "gate-h": {
+      "tiers": [{ "model": "model-h", "thinking": "high", "providers": ["provider-k"] }]
+    },
+    "gate-i": {
+      "tiers": [
+        { "model": "model-i", "thinking": "max", "providers": ["provider-l"] },
+        { "model": "model-j", "thinking": "high", "providers": ["provider-k"] }
+      ]
+    },
+    "oracle": {
+      "overridePolicy": "rejected",
+      "tiers": [{ "model": "model-a", "thinking": "high", "providers": ["provider-a", "provider-b", "provider-c", "provider-d", "provider-e", "provider-f", "provider-g", "provider-h"] }]
+    },
+    "implementation": {
+      "tiers": [{ "model": "model-c", "thinking": "max", "providers": ["provider-i"] }]
+    },
+    "verification": {
+      "tiers": [{ "model": "model-a", "thinking": "high", "providers": ["provider-a"] }]
+    }
+  },
+  "assignments": {
+    "solution": ["gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "gate-f", "gate-g", "gate-h", "gate-i"],
+    "review": ["gate-a", "gate-b", "gate-c"],
+    "implementation": "implementation",
+    "remediation": "implementation",
+    "verification": "verification",
+    "oracle": "oracle"
+  }
+}

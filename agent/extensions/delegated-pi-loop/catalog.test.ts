@@ -7,7 +7,8 @@ import {
   renderModelCatalogReport,
   searchModelCatalog,
 } from "./catalog.ts";
-import { loadRoutingConfig, validateRoutingConfig } from "./routing.ts";
+import { validateRoutingConfig } from "./routing.ts";
+import { loadRoutingFixture } from "./routing.test-fixture.ts";
 
 function syntheticCatalogConfig(mutate?: (document: Record<string, unknown>) => void) {
   const document: Record<string, unknown> = {
@@ -181,18 +182,18 @@ test("disabled providers never appear in catalog routes", () => {
   assert.equal(searchModelCatalog(config, { query: "gpt", provider: "openai-codex-alt" }).totalMatches, 0);
 });
 
-test("the shipped routing snapshot is searchable end to end", () => {
-  const config = loadRoutingConfig();
-  const report = searchModelCatalog(config, { query: "gpt-5.6-sol", provider: "openai-codex-cgpt5" });
+test("the stable routing fixture is searchable end to end", () => {
+  const config = loadRoutingFixture();
+  const report = searchModelCatalog(config, { query: "model-a", provider: "provider-f" });
   assert.equal(report.totalMatches, 1);
-  assert.equal(report.matches[0]?.model, "gpt-5.6-sol");
+  assert.equal(report.matches[0]?.model, "model-a");
   assert.deepEqual(
     report.matches[0]?.routes.map((route) => ({ provider: route.provider, default: route.default })),
-    [{ provider: "openai-codex-cgpt5", default: "high" }],
+    [{ provider: "provider-f", default: "high" }],
   );
   assert.match(report.matches[0]!.routes[0]!.thinking.join(","), /minimal/);
-  // A query matching several shipped models stays bounded by the default limit.
-  const broad = searchModelCatalog(config, { query: "gpt" });
+  // A query matching several fixture models stays bounded by the default limit.
+  const broad = searchModelCatalog(config, { query: "model-" });
   assert.ok(broad.totalMatches >= 2);
   assert.ok(broad.matches.length <= MODEL_CATALOG_DEFAULT_LIMIT);
 });

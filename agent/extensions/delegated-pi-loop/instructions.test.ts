@@ -13,13 +13,16 @@ import {
   delegateRunPromptGuidelines,
   roleFamilyContract,
 } from "./instructions.ts";
-import { ROLE_FAMILIES, loadRoutingSnapshot, roleIdsInFamily, type ResolvedRole, type RoleFamily } from "./routing.ts";
+import { ROLE_FAMILIES, type ResolvedRole, type RoleFamily } from "./routing.ts";
 import { BLOCKED_REASON_CODES, FAILED_REASON_CODES } from "./types.ts";
 
 /** Test fixture: build a registry-style resolved role for one family. */
 function familyRole(family: RoleFamily, id: string = family): ResolvedRole {
   return { id, family, profile: `${family}-profile` };
 }
+
+const SOLUTION_ROLE_FIXTURE = ["solution-a", "solution-b", "solution-c"];
+const REVIEW_ROLE_FIXTURE = ["review-a", "review-b"];
 
 test("prompt and instruction text is single-sourced in the canonical module", async () => {
   const routes = await readFile(new URL("./routes.ts", import.meta.url), "utf8");
@@ -178,12 +181,11 @@ test("no model or provider catalog enumeration enters permanent prompt content",
   ]) {
     assert.ok(!lowered.includes(routeDetail), `instruction text must not enumerate route detail "${routeDetail}"`);
   }
-  // Generated permanent prompt content stays route-free for every family and
-  // the shipped gate sizes.
-  const snapshot = loadRoutingSnapshot();
+  // Generated permanent prompt content stays route-free for representative
+  // gate sizes without depending on the operator's routing policy.
   const guidelines = delegateRunPromptGuidelines(
-    roleIdsInFamily(snapshot, "solution"),
-    roleIdsInFamily(snapshot, "review"),
+    SOLUTION_ROLE_FIXTURE,
+    REVIEW_ROLE_FIXTURE,
   ).join("\n");
   for (const routeDetail of ["gpt-5.5", "gpt-5.6", "codex", "glm-", "zai"]) {
     assert.ok(!guidelines.includes(routeDetail), `guidelines must not contain ${routeDetail}`);
@@ -191,16 +193,15 @@ test("no model or provider catalog enumeration enters permanent prompt content",
 });
 
 test("the parent guidelines stay dynamic, compact, and tool-attributed", () => {
-  const snapshot = loadRoutingSnapshot();
   const guidelines = delegateRunPromptGuidelines(
-    roleIdsInFamily(snapshot, "solution"),
-    roleIdsInFamily(snapshot, "review"),
+    SOLUTION_ROLE_FIXTURE,
+    REVIEW_ROLE_FIXTURE,
   );
   assert.equal(guidelines.length, 15);
   assert.ok(guidelines.every((line) => line.startsWith("delegate_run ")));
   const text = guidelines.join("\n");
-  assert.match(text, /solution-a, solution-b, solution-c, solution-d, solution-e, solution-f, solution-g, solution-h, and solution-i concurrently/);
-  assert.match(text, /review-a, review-b, and review-c concurrently/);
+  assert.match(text, /solution-a, solution-b, and solution-c concurrently/);
+  assert.match(text, /review-a and review-b concurrently/);
   assert.match(text, /wait for every role/);
   assert.match(text, /follow the user's next instruction/);
   assert.match(text, /continue, resume, or retry requires no special syntax/);

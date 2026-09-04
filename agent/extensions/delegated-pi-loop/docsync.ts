@@ -14,22 +14,24 @@ import {
   modelCatalogToolDescription,
   roleFamilyContract,
 } from "./instructions.ts";
-import { ROLE_FAMILIES, roleIdsInFamily, type RoutingConfig } from "./routing.ts";
+import { ROLE_FAMILIES } from "./routing.ts";
 
 /**
  * Documentation synchronization for the model-visible instruction sections of
  * `docs/delegated-pi-loop-agent-instructions.md`.
  *
  * Every marked section in that document is rendered from the canonical
- * exports of `instructions.ts` (plus the shipped routing snapshot for the
- * dynamic role lists), so the checked-in reference can never silently drift
- * from the prompts and guidelines Pi actually sends. `render-instructions-doc.ts`
+ * exports of `instructions.ts`. Dynamic role lists use documentation
+ * placeholders instead of the operator-owned routing policy, so routing edits
+ * never require a documentation rewrite. `render-instructions-doc.ts`
  * regenerates the marked regions in place; `docsync.test.ts` fails when the
  * checked-in content diverges. This is deliberately not a general-purpose
  * Markdown template language: only these fixed, named sections are managed.
  */
 
 const MARKER_PREFIX = "pi-delegated-instructions";
+const DOCUMENTED_SOLUTION_ROLES = ["`<all configured solution roles>`"];
+const DOCUMENTED_REVIEW_ROLES = ["`<all configured review roles>`"];
 
 /** Ordered section ids managed by the renderer. */
 export const INSTRUCTION_DOC_SECTION_IDS = [
@@ -66,9 +68,7 @@ function numberedList(lines: readonly string[]): string {
 }
 
 /** Renders one managed section from the canonical exports. */
-function renderSection(id: InstructionDocSectionId, routing: RoutingConfig): string {
-  const solutionRoleIds = roleIdsInFamily(routing, "solution");
-  const reviewRoleIds = roleIdsInFamily(routing, "review");
+function renderSection(id: InstructionDocSectionId): string {
   switch (id) {
     case "delegate-run-tool":
       return definitionList([
@@ -90,7 +90,7 @@ function renderSection(id: InstructionDocSectionId, routing: RoutingConfig): str
         ["`routingOverride.reason`", ROUTING_OVERRIDE_PARAMETER_DESCRIPTIONS.reason],
       ]);
     case "delegate-run-guidelines":
-      return numberedList(delegateRunPromptGuidelines(solutionRoleIds, reviewRoleIds));
+      return numberedList(delegateRunPromptGuidelines(DOCUMENTED_SOLUTION_ROLES, DOCUMENTED_REVIEW_ROLES));
     case "model-catalog-tool": {
       const descriptions = modelCatalogParameterDescriptions({
         default: MODEL_CATALOG_DEFAULT_LIMIT,
@@ -135,11 +135,11 @@ function renderSection(id: InstructionDocSectionId, routing: RoutingConfig): str
   }
 }
 
-/** Renders every managed section from the canonical exports and one snapshot. */
-export function renderInstructionDocSections(routing: RoutingConfig): ReadonlyMap<InstructionDocSectionId, string> {
+/** Renders every managed section without reading operator-owned configuration. */
+export function renderInstructionDocSections(): ReadonlyMap<InstructionDocSectionId, string> {
   const sections = new Map<InstructionDocSectionId, string>();
   for (const id of INSTRUCTION_DOC_SECTION_IDS) {
-    sections.set(id, renderSection(id, routing));
+    sections.set(id, renderSection(id));
   }
   return sections;
 }
