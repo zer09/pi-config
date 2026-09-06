@@ -17,30 +17,7 @@
         "agentrouter": { "thinking": ["low", "high", "max"], "default": "max" }
       }
     },
-    "deepseek/deepseek-v4-flash": {
-      "providers": {
-        "xkiro": {
-          "thinking": ["off", "minimal", "low", "medium", "high"],
-          "default": "high"
-        }
-      }
-    },
-    "minimax/minimax-m3:free": {
-      "providers": {
-        "xkiro": {
-          "thinking": ["off", "minimal", "low", "medium", "high"],
-          "default": "high"
-        }
-      }
-    },
-    "qwen/qwen3.8-max:free": {
-      "providers": {
-        "xkiro": {
-          "thinking": ["off", "minimal", "low", "medium", "high"],
-          "default": "high"
-        }
-      }
-    },
+
     "hy3": {
       "providers": {
         "opencode-go": { "thinking": ["off", "low", "high"], "default": "high" }
@@ -193,32 +170,9 @@
     "gate-g": {
       "tiers": [
         {
-          "model": "minimax/minimax-m3:free",
-          "thinking": "high",
-          "providers": ["xkiro"]
-        }
-      ]
-    },
-    "gate-h": {
-      "tiers": [
-        {
-          "model": "qwen/qwen3.8-max:free",
-          "thinking": "high",
-          "providers": ["xkiro"]
-        }
-      ]
-    },
-    "gate-i": {
-      "tiers": [
-        {
           "model": "deepseek-v4-flash",
           "thinking": "max",
           "providers": ["agentrouter"]
-        },
-        {
-          "model": "deepseek/deepseek-v4-flash",
-          "thinking": "high",
-          "providers": ["xkiro"]
         }
       ]
     },
@@ -264,9 +218,7 @@
       "gate-d",
       "gate-e",
       "gate-f",
-      "gate-g",
-      "gate-h",
-      "gate-i"
+      "gate-g"
     ],
     "review": [
       "gate-a",
