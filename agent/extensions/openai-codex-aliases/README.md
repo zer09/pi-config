@@ -3,12 +3,7 @@
 This extension registers named OpenAI Codex providers for separate ChatGPT Plus or Pro accounts.
 It leaves Pi's built-in `openai-codex` provider unchanged.
 
-Initial providers:
-
-| Account | Provider ID | Display name |
-|---|---|---|
-| Personal | `openai-codex-personal` | `OpenAI Codex Personal` |
-| Business | `openai-codex-business` | `OpenAI Codex Business` |
+Configured provider IDs are derived from `aliases.json`. The current account slugs are `zahlo` and `cgpt1` through `cgpt6`, producing `openai-codex-zahlo` and `openai-codex-cgpt1` through `openai-codex-cgpt6`. Display names also come from `aliases.json`; do not duplicate account labels in source code or tests.
 
 ## Architecture
 
@@ -22,10 +17,10 @@ Personal, Business, and canonical `openai-codex` credentials therefore remain in
 A session stores the selected alias provider ID and restores that alias when the session resumes.
 
 The stream adapter maps the active alias to canonical `openai-codex` only for the delegated built-in request.
-The adapter maps emitted assistant messages back to the visible alias.
+The adapter maps emitted assistant messages back to the visible alias while preserving usage, `endTurn`, raw stop reasons, provider-native thinking levels, response IDs, and additive message fields.
 Only history from the active alias receives canonical identity inside that request.
 History from canonical Codex, another alias, or another provider remains foreign.
-This rule prevents encrypted reasoning, native tool-call IDs, and related provider state from crossing accounts.
+This rule prevents encrypted reasoning, native tool-call IDs, and related provider state from crossing accounts. Request options pass through unchanged, so the Pi 0.85.1 `prompt_cache_options.ttl: "30m"` behavior for GPT-5.6+ Responses is inherited once from the canonical provider without alias-side payload injection.
 
 ## Configuration
 

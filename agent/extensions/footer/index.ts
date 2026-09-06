@@ -20,6 +20,7 @@ import {
 	createPromptTimerState,
 	markQueuedPromptStarted,
 	recordPendingPromptStart,
+	setWaitingForUser,
 	startPromptTimer,
 	stopPromptTimer,
 	takePendingPromptStart,
@@ -110,6 +111,14 @@ export default function footer(pi: ExtensionAPI): void {
 
 	pi.on("model_select", async () => {
 		requestFooterRender();
+	});
+
+	pi.on("ui_prompt_start", async () => {
+		setWaitingForUser(promptTimer, true);
+	});
+
+	pi.on("ui_prompt_end", async () => {
+		setWaitingForUser(promptTimer, false);
 	});
 
 	pi.on("agent_settled", async () => {

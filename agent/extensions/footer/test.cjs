@@ -551,6 +551,41 @@ async function runTests() {
 		const footer = await createFooter();
 		const originalNow = Date.now;
 		try {
+			let now = 200000;
+			Date.now = () => now;
+
+			await footer.emit("before_agent_start");
+			now += 2000;
+			await footer.emit("ui_prompt_start", { kind: "confirm", title: "private title" });
+			const waitingLine = footer.renderPlain();
+			assert.ok(waitingLine.includes("? waiting"), "an extension UI prompt should show a separate waiting state");
+			assert.ok(waitingLine.includes("\uf017 2.0s"), "waiting should not pause or redefine the wall-clock timer");
+			assert.ok(!waitingLine.includes("private title"), "the footer should not retain or render prompt titles");
+
+			await footer.emit("agent_settled");
+			const settledWaitingLine = footer.renderPlain();
+			assert.ok(settledWaitingLine.includes("? waiting"), "agent settlement should not fabricate prompt completion");
+			assert.ok(settledWaitingLine.includes("\uf00c 2.0s"), "agent settlement should keep its existing timer meaning");
+
+			await footer.emit("ui_prompt_end", { kind: "confirm", title: "private title" });
+			assert.ok(!footer.renderPlain().includes("? waiting"), "prompt end should clear the waiting state");
+		} finally {
+			Date.now = originalNow;
+		}
+	}
+
+	{
+		const footer = await createFooter();
+		await footer.emit("ui_prompt_start", { kind: "custom" });
+		assert.ok(footer.renderPlain().includes("? waiting"));
+		await footer.emit("session_shutdown");
+		assert.ok(!footer.renderPlain().includes("? waiting"), "session shutdown should clear stale waiting state");
+	}
+
+	{
+		const footer = await createFooter();
+		const originalNow = Date.now;
+		try {
 			let now = 300000;
 			Date.now = () => now;
 

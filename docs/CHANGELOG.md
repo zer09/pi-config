@@ -2,6 +2,17 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-09-06 — Upgrade Pi 0.84.1 to 0.85.1
+
+Details: [`docs/changelogs/pi-0.84.1-to-0.85.1-upgrade.md`](./changelogs/pi-0.84.1-to-0.85.1-upgrade.md)
+
+- Upgraded the Bun-global Pi core family to exact 0.85.1 after testing the published artifact, supported root SDK, bundled CLI, stdio RPC, in-run compaction, and bidirectional synthetic session readability. The 0.85.0 experimental client/plugin publication defect is absent; normal imports of those source-only subpaths fail as intended.
+- Replaced startup settings writes with a Windows-appearance-derived `--use-theme` default. Explicit user choices win, runtime `AppsUseLightTheme` polling remains, management/non-interactive invocations bypass selection, and normal startup preserves settings bytes, mtime, and mode. Theme retry/poll timers are unrefed so startup-benchmark and headless teardown can exit cleanly. ADR 0018 records the policy.
+- Added a privacy-safe footer `? waiting` state from Pi's UI-prompt events without changing the wall-clock timer, `agent_settled`, delegate liveness, headless prompt policy, or telemetry content. Kept Pi's default editor-border working indicator without a duplicate spinner.
+- Upgraded `pi-blackhole` 0.4.5 to 0.5.1, ported percentage compaction and nullable header patches, retained source entry loading, and set the new `retainedToolOutputMaxTokens` setting to `0` to preserve prior provider-visible output behavior. Upgraded CodeGraph SDK/CLI 1.5.0 to 1.6.0; the user later rebuilt the real index at extraction 25. Kept pi-btw 0.4.1 patched, Browser Harness 0.10.2 with `skills: []`, Claude Bridge 0.6.3 with AskClaude disabled, and context-mode 1.0.169. Merged the local Cursor checkout with upstream 0.5.1 at `c42ebcf6`, preserving local ancestry while making its source tree match upstream exactly.
+- Fixed the pre-existing Codex alias test's stale Personal/Business expectation and added coverage for provider thinking metadata, `endTurn`, raw stop reasons, response IDs, and additive fields. Current delegated routing now passes 489/489; the historical five expectation failures no longer reproduce.
+- Validation stayed local: all 13 active entrypoints and 60 tools loaded through the published target SDK, wrapper/theme/footer/alias suites passed, web-search passed 366/366, context-mode 216/216 plus typecheck/fuzz, CodeGraph 70/70, Cursor 440/440 plus lint/format/build and a live Proxy rotation/model-catalog smoke, BTW 5/5, and Blackhole 1,551/1,553 with the same two inactive optional-timeout Undici harness failures before and after patches. No live delegate, paid inference, browser, auth refresh, or original-session migration ran.
+
 ## 2026-08-30 — Install the locally adapted Impeccable skill
 
 - Installed the upstream Impeccable Pi payload as regular files under `agent/skills/impeccable/`, sourced from upstream commit `b0594c72d18006b5865c70eb3a97e8b04064e600` (generated skill `4.1.2`, package `3.6.1`, Apache-2.0). Classified it as `keep it` because its visual design playbooks, detector, live-mode helpers, comp gates, and image tooling are specialized and hard to reconstruct.

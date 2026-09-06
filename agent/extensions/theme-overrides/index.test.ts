@@ -10,9 +10,10 @@ process.env.PI_CODING_AGENT_DIR = testAgentDir
 writeFileSync(join(testAgentDir, "settings.json"), JSON.stringify({ theme: "dark" }))
 mock.module("@earendil-works/pi-coding-agent", () => ({ getAgentDir: () => testAgentDir }))
 
-const [{ applyOverride }, { default: themeOverridesExtension }] = await Promise.all([
+const [{ applyOverride }, { default: themeOverridesExtension }, { hasExplicitUseTheme }] = await Promise.all([
   import("./apply-override.ts"),
   import("./index.ts"),
+  import("./theme-state.ts"),
 ])
 
 afterAll(() => {
@@ -161,6 +162,34 @@ describe("theme override lifecycle", () => {
 })
 
 describe("applyOverride", () => {
+  test("distinguishes a user theme choice from the wrapper-injected default", () => {
+    expect(hasExplicitUseTheme(["--use-theme", "light"], false)).toBe(true)
+    expect(hasExplicitUseTheme(["--use-theme", "light"], true)).toBe(false)
+    expect(hasExplicitUseTheme(["--name", "--use-theme", "hello"], false)).toBe(false)
+    expect(hasExplicitUseTheme(["--", "--use-theme", "light"], false)).toBe(false)
+  })
+
+  test("does not undo an explicit per-run theme choice", async () => {
+    const originalArgv = process.argv
+    const originalMarker = process.env.PI_THEME_WRAPPER_INJECTED
+    const setTheme = mock(() => ({ success: true }))
+    const exec = mock(async () => validLightResult())
+    try {
+      process.argv = [originalArgv[0]!, originalArgv[1]!, "--use-theme", "dark"]
+      delete process.env.PI_THEME_WRAPPER_INJECTED
+      const controller = new AbortController()
+
+      await applyOverride({ exec } as unknown as ExtensionAPI, makeContext({ setTheme }), controller.signal, () => true)
+
+      expect(exec).toHaveBeenCalledTimes(0)
+      expect(setTheme).toHaveBeenCalledTimes(0)
+    } finally {
+      process.argv = originalArgv
+      if (originalMarker === undefined) delete process.env.PI_THEME_WRAPPER_INJECTED
+      else process.env.PI_THEME_WRAPPER_INJECTED = originalMarker
+    }
+  })
+
   test("rechecks lifecycle state after the async probe before reading ctx", async () => {
     const result = deferred<ReturnType<typeof validLightResult>>()
     const execStarted = deferred<AbortSignal | undefined>()

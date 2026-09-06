@@ -70,9 +70,11 @@ export default function themeOverridesExtension(
     retryTimers = APPLY_RETRY_DELAYS_MS.map((delay) =>
       setTimeout(() => void safeApply(ctx, activeGeneration, controller.signal), delay),
     )
+    for (const timer of retryTimers) timer.unref?.()
 
     if (interval) clearInterval(interval)
     interval = setInterval(() => void safeApply(ctx, activeGeneration, controller.signal), POLL_INTERVAL_MS)
+    interval.unref?.()
   })
 
   pi.on("session_shutdown", () => {

@@ -12,7 +12,7 @@
     ]
   },
   "dependencies": {
-    "@colbymchenry/codegraph": "1.5.0",
+    "@colbymchenry/codegraph": "1.6.0",
     "typebox": "^1.2.10"
   }
 }

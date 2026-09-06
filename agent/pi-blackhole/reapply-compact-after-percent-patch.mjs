@@ -66,8 +66,8 @@ replaceOnce(
 
 replaceOnce(
   "src/om/compaction-trigger.ts",
-  `  if (tokens < runtime.config.compactAfterTokens) {\n    // Pressure relieved (a compaction ran) — lift any failure suspension.\n`,
-  `  if (tokens < compactThreshold.tokens) {\n    // Pressure relieved (a compaction ran) — lift any failure suspension.\n`,
+  `  if (tokens < runtime.config.compactAfterTokens) {\n`,
+  `  if (tokens < compactThreshold.tokens) {\n`,
 );
 
 replaceOnce(
@@ -124,8 +124,8 @@ replaceOnce(
   `            : \` (triggers at \${formatCompactThreshold(compactThreshold)})\`),\n`,
 );
 
-// pi-blackhole 0.4.5 publishes both source and a prebuilt bundle. Pi must load
-// the patched source because local package changes do not rebuild dist/index.js.
+// Pi must load the patched source because local package changes do not rebuild
+// the published dist/index.js bundle. pi-blackhole 0.5.1 already selects source.
 replaceOnce(
   "package.json",
   `      "./dist/index.js"`,

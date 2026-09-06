@@ -2,8 +2,9 @@
 
 ## Recheck upstream package compatibility fixes
 
-Status: waiting for maintainers  
-Review on or after: **2026-08-19**, or earlier when either package publishes a new release
+Status: rechecked on 2026-09-06; remaining fixes are still not upstream.
+
+Review again when either package publishes a newer release.
 
 Do not open upstream issues or pull requests yet. First check the latest npm releases and maintainer source for fixes equivalent to the local patches.
 
@@ -23,7 +24,7 @@ Local reference:
 
 ### `pi-blackhole`
 
-Current local version: `0.4.5`
+Current local version: `0.5.1`
 
 Upstream 0.4.5 fixed public custom-provider discovery. Remaining local work is resolved when Blackhole:
 
@@ -38,8 +39,9 @@ Local reference:
 
 ### Latest review
 
-- 2026-08-09: `pi-blackhole@0.4.5` upstreamed public provider discovery, so that local patch is retired. Percentage compaction and nullable source types still need local patches.
-- 2026-08-09: `pi-btw@0.4.1` remains the latest release and still needs the local cancellation-aware `ModelRuntime` child-session patch.
+- 2026-09-06: `pi-blackhole@0.5.1` is the latest release. It adds Pi 0.85.1 bundled-runtime handling and `session_compact_failed` support, but still lacks percentage compaction and still narrows nullable provider headers. Both local patches were ported and pass against Pi 0.85.1. Its new retained tool-output budget is explicitly disabled to preserve current behavior.
+- 2026-09-06: `pi-btw@0.4.1` remains the latest release. Stock child sessions still pass the removed `modelRegistry` option, so the cancellation-aware native-provider `ModelRuntime` patch remains required for conversation and summarizer children.
+- Focused upstream issue/PR evidence is ready in the local helpers and tests. Do not create hosted issues or PRs without separate authorization.
 
 ### Review outcome
 

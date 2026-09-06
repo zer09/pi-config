@@ -58,6 +58,7 @@ export type PromptTimerState = {
 	startedAt: number | undefined;
 	lastDurationMs: number | undefined;
 	interval: ReturnType<typeof setInterval> | undefined;
+	waitingForUser: boolean;
 };
 
 /**

@@ -41,6 +41,7 @@ agent/cc-cli-logs/
 agent/cursor-debug.jsonl
 agent/cursor-model-cache.json
 agent/cursor-proxy.json
+agent/cursor-proxy-lifecycle.json
 
 # Local working dirs and logs
 agent/npm/

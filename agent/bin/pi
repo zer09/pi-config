@@ -2,37 +2,74 @@
 set -euo pipefail
 
 REAL_PI="$HOME/.bun/bin/pi"
-AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
-SETTINGS_FILE="$AGENT_DIR/settings.json"
+
+# Do not let an injected-default marker leak into a nested wrapper invocation.
+unset PI_THEME_WRAPPER_INJECTED
+
+run_real_pi() {
+  exec node --liftoff-only "$REAL_PI" "$@"
+}
 
 # Escape hatch if the wrapper ever gets in the way:
 #   PI_THEME_WRAPPER_DISABLE=1 pi ...
 if [[ "${PI_THEME_WRAPPER_DISABLE:-}" == "1" ]]; then
-  exec node --liftoff-only "$REAL_PI" "$@"
+  run_real_pi "$@"
 fi
 
-# Package/config commands and non-interactive modes do not render the TUI.
-# Bypass theme persistence so management commands cannot race Pi's settings writer
-# or dirty the tracked settings file merely to print metadata.
-should_sync_theme=1
-previous=""
-for argument in "$@"; do
+# Pi recognizes management commands only as argv[0]. Interactive theme selection
+# does not apply to these commands and must not affect prompt text with the same words.
+case "${1:-}" in
+  auth|update|install|remove|uninstall|config|list)
+    run_real_pi "$@"
+    ;;
+esac
+
+# Parse only supported flags before `--`. Skip option values so text such as
+# `--name --print` is not mistaken for a non-interactive mode flag.
+should_inject_theme=1
+explicit_use_theme=0
+arguments=("$@")
+index=0
+while (( index < ${#arguments[@]} )); do
+  argument="${arguments[$index]}"
   case "$argument" in
-    update|install|remove|uninstall|config|list|-v|--version|-h|--help|-p|--print|--list-models|--export)
-      should_sync_theme=0
+    --)
+      break
+      ;;
+    --use-theme)
+      explicit_use_theme=1
+      ((index += 2))
+      continue
+      ;;
+    -v|--version|-h|--help|-p|--print|--list-models|--export)
+      should_inject_theme=0
       ;;
     --mode=json|--mode=rpc)
-      should_sync_theme=0
+      should_inject_theme=0
       ;;
-    json|rpc)
-      if [[ "$previous" == "--mode" ]]; then should_sync_theme=0; fi
+    --mode)
+      next="${arguments[$((index + 1))]-}"
+      if [[ "$next" == "json" || "$next" == "rpc" ]]; then
+        should_inject_theme=0
+      fi
+      # Pi does not consume a missing or flag-looking mode value.
+      if [[ -n "$next" && "$next" != -* ]]; then
+        ((index += 2))
+      else
+        ((index += 1))
+      fi
+      continue
+      ;;
+    --provider|--model|--api-key|--thinking|--models|--name|-n|--session|--session-dir|--fork|--tools|-t|--exclude-tools|-xt|--extension|-e|--skill|--prompt-template|--theme|--system-prompt|--append-system-prompt|--tui-mode)
+      ((index += 2))
+      continue
       ;;
   esac
-  previous="$argument"
+  ((index += 1))
 done
 
-if [[ "$should_sync_theme" == "0" ]]; then
-  exec node --liftoff-only "$REAL_PI" "$@"
+if [[ "$should_inject_theme" == "0" || "$explicit_use_theme" == "1" ]]; then
+  run_real_pi "$@"
 fi
 
 detect_windows_theme() {
@@ -68,38 +105,10 @@ detect_windows_theme() {
 theme="$(detect_windows_theme || true)"
 
 if [[ "$theme" == "dark" || "$theme" == "light" ]]; then
-  mkdir -p "$AGENT_DIR"
-
-  node - "$theme" "$SETTINGS_FILE" <<'NODE'
-const fs = require("node:fs");
-const path = require("node:path");
-
-const theme = process.argv[2];
-const settingsFile = process.argv[3];
-
-let settings = {};
-try {
-  settings = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
-} catch (error) {
-  if (error.code !== "ENOENT") {
-    console.error(`pi theme wrapper: refusing to overwrite invalid settings.json: ${error.message}`);
-    process.exit(0);
-  }
-}
-
-// Back off if the user selected a custom non-managed theme.
-const current = settings.theme;
-const managed = current === undefined || current === "dark" || current === "light" || current === "light/dark";
-if (!managed) process.exit(0);
-
-if (current !== theme) {
-  settings.theme = theme;
-  const dir = path.dirname(settingsFile);
-  const tmp = path.join(dir, `.settings.json.${process.pid}.tmp`);
-  fs.writeFileSync(tmp, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
-  fs.renameSync(tmp, settingsFile);
-}
-NODE
+  # Prepend the default so every original argument remains byte-for-byte and in
+  # order. The marker tells theme-overrides that this flag came from the wrapper,
+  # so Windows appearance polling may continue after startup.
+  PI_THEME_WRAPPER_INJECTED=1 run_real_pi --use-theme "$theme" "$@"
 fi
 
-exec node --liftoff-only "$REAL_PI" "$@"
+run_real_pi "$@"

@@ -19,7 +19,7 @@ Behavior:
 
 - If the active session model exposes `contextWindow`, auto-compaction threshold is `floor(contextWindow * compactAfterPercent)`.
 - If no valid `contextWindow` is available, it falls back to `compactAfterTokens`.
-- On the patched `pi-blackhole@0.4.5`, the same effective threshold is used by both the safe `agent_end` path and the opt-in `turn_end` path.
+- On the patched `pi-blackhole@0.5.1`, the same effective threshold is used by both the safe `agent_end` path and the opt-in `turn_end` path.
 - Worker settings (`observeAfterTokens`, `observerChunkMaxTokens`, `reflectorInputMaxTokens`, `dropperInputMaxTokens`, etc.) remain hardcoded and are not percentage-scaled.
 - This configuration explicitly keeps `midRunCompaction: "off"`; `ctx.compact()` aborts the shared run signal, so `turn_end` compaction is unsafe with nested/background extension work.
 
@@ -29,7 +29,8 @@ Patched files:
 - `~/.pi/agent/npm/node_modules/pi-blackhole/src/om/compaction-budget.ts` (new helper)
 - `~/.pi/agent/npm/node_modules/pi-blackhole/src/om/compaction-trigger.ts`
 - `~/.pi/agent/npm/node_modules/pi-blackhole/src/commands/memory.ts`
-- `~/.pi/agent/npm/node_modules/pi-blackhole/package.json` (loads patched `index.ts` instead of the stock bundle)
+
+Stock `pi-blackhole@0.5.1` already loads `index.ts`. The helper verifies that source entrypoint instead of changing it, because the published `dist/index.js` does not contain local patches.
 
 Reapply helper:
 
@@ -46,7 +47,7 @@ Quick verification after an upgrade:
 rg --no-ignore "compactAfterPercent|effectiveCompactAfterTokens|compactThreshold\\.tokens" ~/.pi/agent/npm/node_modules/pi-blackhole/src ~/.pi/agent/pi-blackhole/pi-blackhole-config.json
 ```
 
-Expected result: matches in the config plus the patched source files above. On patched `pi-blackhole@0.4.5`, `handleTurnEnd()` and `handleAgentEnd()` both use `compactThreshold.tokens`. If the source matches disappear after an upgrade, reapply this patch or port the same logic to the new version.
+Expected result: matches in the config plus the patched source files above. On patched `pi-blackhole@0.5.1`, `handleTurnEnd()` and `handleAgentEnd()` both use `compactThreshold.tokens`. If the source matches disappear after an upgrade, reapply this patch or port the same logic to the new version.
 
 After reapplying, restart Pi or run `/reload`. Then `/blackhole-memory` should show compaction like `triggers at 650,000 = 65% of 1,000,000` when the active model has a 1M `contextWindow`.
 
@@ -55,6 +56,14 @@ After reapplying, restart Pi or run `/reload`. Then `/blackhole-memory` should s
 Pi 0.80.10's `ModelRegistry.getApiKeyAndHeaders()` compatibility facade now delegates to `ModelRuntime.getAuth()` and returns canonical provider auth, including ambient environment-backed credentials. The local fallback duplicated that resolution and was removed during the 0.80.10 upgrade.
 
 Retirement verification used a command-backed `models.json` credential, request-time credential switching and error redaction, an ambient `GEMINI_API_KEY`, and the compatibility facade. All checks passed. Do not reapply `reapply-om-auth-fallback-patch.mjs`; that helper has been removed.
+
+## 2026-09-06 — `pi-blackhole@0.5.1` port and behavior-preserving config
+
+Version 0.5.1 adds Pi 0.85.1 bundled-runtime adapter support, unified `session_compact_failed` handling, custom provider+API stream identity, and lazy loading. It also adds a provider-visible retained tool-output budget that defaults to 20,000 tokens. This configuration sets `retainedToolOutputMaxTokens: 0` so the package upgrade does not change the previous tool-output projection policy.
+
+Both local patches remain required in 0.5.1. The percentage helper was ported to the new source while the package's stock `index.ts` entrypoint is retained. The nullable-header helper also preserves the new worker `env` propagation while removing only the invalid header narrowing.
+
+The full upstream suite passes 1,551 of 1,553 tests under Node 24.18.0 before and after the local patches. The same two untouched optional positive `providerIdleTimeoutMs` dispatcher tests fail because of their Undici test harness; this config leaves `providerIdleTimeoutMs` unset, so that wrapper is inactive. Typecheck and build pass against Pi 0.85.1.
 
 ## 2026-08-09 — nullable provider headers for Pi 0.84.1+
 
@@ -91,7 +100,7 @@ Expected result: the runtime and three worker argument types use `ProviderHeader
 
 Why: `pi-blackhole@0.3.9` scanned the removed private `modelRegistry.registeredProviders` map during `agent_start`. Pi 0.80.8 replaced registry internals with `ModelRuntime`, so custom worker providers such as Claude Bridge could no longer be copied into Blackhole's cross-module stream bridge.
 
-Retirement: `pi-blackhole@0.4.5` includes public `getRegisteredProviderIds()` and `getRegisteredProviderConfig()` discovery in `src/om/provider-stream.ts`, plus the legacy private-map fallback. The helper now verifies upstream support and exits without editing.
+Retirement: `pi-blackhole@0.4.5` and `0.5.1` include public `getRegisteredProviderIds()` and `getRegisteredProviderConfig()` discovery in `src/om/provider-stream.ts`, plus the legacy private-map fallback. The helper now verifies upstream support and exits without editing.
 
 Behavior:
 
@@ -116,4 +125,4 @@ Quick verification after an upgrade:
 rg --no-ignore "getRegisteredProviderIds|getRegisteredProviderConfig" ~/.pi/agent/npm/node_modules/pi-blackhole/index.ts
 ```
 
-Expected result on `pi-blackhole@0.4.5`: the helper reports `upstream support present`, and `src/om/provider-stream.ts` contains the public registry facade plus the legacy fallback.
+Expected result on `pi-blackhole@0.5.1`: the helper reports `upstream support present`, and `src/om/provider-stream.ts` contains the public registry facade plus the legacy fallback.

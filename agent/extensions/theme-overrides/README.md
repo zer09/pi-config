@@ -9,7 +9,7 @@ This is a personal global Pi extension, so it intentionally has no external conf
 - Automatically switches Pi to `dark` or `light` when your system theme changes.
 - Uses the auto-discovered themes in `~/.pi/agent/themes/dark.json` and `~/.pi/agent/themes/light.json`.
 - Applies runtime theme changes in memory only; it does **not** write `~/.pi/agent/settings.json`.
-- Re-applies on startup and periodically checks for appearance changes.
+- Re-applies on startup and periodically checks for appearance changes; retry and polling timers are unrefed so teardown can exit cleanly.
 - Backs off when you choose a custom Pi theme other than `dark` or `light`.
 
 ## Files
@@ -25,7 +25,7 @@ This is a personal global Pi extension, so it intentionally has no external conf
 
 This setup has two parts:
 
-1. **Startup wrapper** fixes the first render and `pi --resume` by writing Pi's persisted theme before Pi starts.
+1. **Startup wrapper** fixes the first render and `pi --resume` by passing Pi's per-run `--use-theme` selection before Pi starts.
 2. **Runtime extension** keeps the active TUI theme synced after startup by polling system appearance.
 
 ### 1. Install the startup wrapper
@@ -66,15 +66,11 @@ pi is ~/.pi/agent/bin/pi
 pi is ~/.bun/bin/pi
 ```
 
-The wrapper detects Windows light/dark mode and updates `~/.pi/agent/settings.json` to a managed theme before Pi starts, for example:
+The wrapper detects Windows light/dark mode and prepends `--use-theme dark` or `--use-theme light` for an ordinary interactive run. Pi uses that theme for the first frame without saving it. The wrapper does not create, rewrite, rename, chmod, or otherwise touch `settings.json` during automatic startup.
 
-```json
-{
-  "theme": "dark"
-}
-```
+A user-supplied `--use-theme` always wins. The wrapper preserves the original argv and does not inject a second selection. The runtime extension also detects that explicit choice and backs off, even when saved settings still name another managed theme.
 
-This is intentional: explicit `"dark"` / `"light"` makes Pi load the correct theme immediately, before the TUI first renders.
+Management commands (`auth`, `update`, `install`, `remove`, `uninstall`, `config`, and `list`), metadata flags, print/JSON/RPC modes, and exports bypass theme injection. The wrapper parses option values and the `--` delimiter so prompt text containing command words or flag-looking text does not cause a false bypass.
 
 Escape hatch:
 
@@ -96,6 +92,8 @@ Do not set a custom theme name if you want automatic switching. The wrapper and 
 ### 3. Runtime switching
 
 If system appearance detection succeeds, the extension switches the active TUI theme after Pi starts. If detection fails, it leaves Pi's current/default theme alone.
+
+The runtime extension remains necessary because this configuration intentionally follows Windows `AppsUseLightTheme`. Pi's native `light/dark` pair follows terminal color-scheme reports instead, and those two appearance sources can disagree. The wrapper marks only its injected first-frame default so polling may continue; an explicit user selection is never marked.
 
 ## Fixed behavior
 

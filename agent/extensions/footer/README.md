@@ -23,6 +23,7 @@ Enabled segments are fixed in code:
 - git branch plus async dirty/ahead/behind state
 - cwd
 - extension statuses
+- notification-only `? waiting` state for blocking extension UI prompts
 - prompt timer
 - queued follow-up count
 - token totals and latest cache-hit rate
@@ -31,7 +32,7 @@ Enabled segments are fixed in code:
 - thinking glyph
 - experimental marker when `PI_EXPERIMENTAL=1`
 
-Narrow terminals use compact layouts before falling back to truncation: cwd basename, percent-only context, and shortened model names. Compact layout hides token totals and queued follow-up count first. Minimal layout keeps model, context usage, and thinking level while hiding prompt timer, queued follow-up count, and token totals.
+Narrow terminals use compact layouts before falling back to truncation: cwd basename, percent-only context, and shortened model names. Compact layout hides token totals and queued follow-up count first. Minimal layout keeps model, context usage, and thinking level while hiding waiting state, prompt timer, queued follow-up count, and token totals.
 
 Canonical Codex labels remain `codex/Sol` in full or compact layouts and `Sol` in minimal layouts.
 Valid Codex aliases retain account identity in every layout.
@@ -72,6 +73,7 @@ After adding or editing formatter files, run `/reload` in Pi.
 - Git branches stay compact but add useful state when available: `(main*)`, `(main +2)`, `(main -1)`, or `(main +2/-1*)`.
 - Git status is cached and refreshed asynchronously with a short TTL, so footer rendering does not run `git status` directly or block on slow repositories.
 - The prompt timer stops on Pi's session-level `agent_settled` event, after retries, compactions, and queued continuations drain; low-level `agent_end` events do not stop it.
+- Pi 0.84.4+ `ui_prompt_start` / `ui_prompt_end` events set and clear `? waiting`. The state stores no prompt title or text, does not pause the wall-clock timer, does not imply `agent_settled`, and clears on session shutdown.
 - When Pi experimental features are enabled with `PI_EXPERIMENTAL=1`, footer shows a red Nerd Font `\uf00d` marker at the end of the footer.
 
 ## Testing

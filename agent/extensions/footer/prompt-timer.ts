@@ -25,6 +25,7 @@ export function createPromptTimerState(): PromptTimerState {
 		startedAt: undefined,
 		lastDurationMs: undefined,
 		interval: undefined,
+		waitingForUser: false,
 	};
 }
 
@@ -117,7 +118,32 @@ export function clearPromptTimer(timer: PromptTimerState): void {
 	timer.queuedCount = 0;
 	timer.startedAt = undefined;
 	timer.lastDurationMs = undefined;
+	timer.waitingForUser = false;
 	clearPromptTimerInterval(timer);
+}
+
+/**
+ * Set the notification-only user-prompt state without changing elapsed time.
+ *
+ * @param timer - Prompt timer state.
+ * @param waiting - Whether Pi is waiting on an extension UI prompt.
+ */
+export function setWaitingForUser(timer: PromptTimerState, waiting: boolean): void {
+	if (timer.waitingForUser === waiting) return;
+	timer.waitingForUser = waiting;
+	requestFooterRender();
+}
+
+/**
+ * Format the waiting state separately from agent completion and prompt timing.
+ *
+ * @param timer - Prompt timer state.
+ * @param theme - Active Pi theme.
+ * @returns The waiting label, or `undefined` while no UI prompt is active.
+ */
+export function formatWaitingForUser(timer: PromptTimerState, theme: Theme): string | undefined {
+	if (!timer.waitingForUser) return undefined;
+	return theme.fg("warning", "? waiting");
 }
 
 /**
@@ -133,8 +159,9 @@ export function formatPromptTimer(
 	theme: Theme,
 	now = Date.now(),
 ): string | undefined {
-	const running = timer.startedAt !== undefined;
-	const durationMs = running ? now - timer.startedAt : timer.lastDurationMs;
+	const startedAt = timer.startedAt;
+	const running = startedAt !== undefined;
+	const durationMs = startedAt !== undefined ? now - startedAt : timer.lastDurationMs;
 	if (durationMs === undefined) return undefined;
 
 	const glyph = running ? TIMER_RUNNING_GLYPH : TIMER_DONE_GLYPH;

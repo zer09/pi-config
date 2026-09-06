@@ -162,14 +162,21 @@ function readGitStatus(cwd: string, fallbackBranch: string | null): Promise<GitS
 			return;
 		}
 
+		const stdout = child.stdout;
+		if (!stdout) {
+			child.kill();
+			finish(undefined);
+			return;
+		}
+
 		timeout = setTimeout(() => {
 			child.kill();
 			finish(undefined);
 		}, GIT_STATUS_TIMEOUT_MS);
 		(timeout as ReturnType<typeof setTimeout> & { unref?: () => void }).unref?.();
 
-		child.stdout.setEncoding("utf8");
-		child.stdout.on("data", (chunk: string) => {
+		stdout.setEncoding("utf8");
+		stdout.on("data", (chunk: string) => {
 			pendingLine += chunk;
 			let newlineIndex = pendingLine.indexOf("\n");
 			while (newlineIndex !== -1) {

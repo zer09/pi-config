@@ -202,10 +202,9 @@ async function collect(stream) {
 async function run() {
 	{
 		const aliases = loadOpenAICodexAliases();
-		assert.deepEqual(aliases, [
-			PERSONAL,
-			{ slug: "business", id: "openai-codex-business", name: "OpenAI Codex Business" },
-		]);
+		assert.ok(aliases.length > 0, "the deployed alias configuration should not be empty");
+		assert.equal(new Set(aliases.map((alias) => alias.id)).size, aliases.length, "provider IDs should stay unique");
+		assert.ok(aliases.every((alias) => alias.id === `openai-codex-${alias.slug}`));
 		assert.ok(Object.isFrozen(aliases), "the normalized alias list should be immutable");
 		assert.ok(aliases.every(Object.isFrozen), "normalized alias records should be immutable");
 	}
@@ -225,8 +224,8 @@ async function run() {
 		assert.deepEqual(loaded.errors, [], "Pi's real extension loader should load the alias extension");
 		assert.deepEqual(
 			loaded.providers,
-			["openai-codex-personal", "openai-codex-business"],
-			"Pi's real extension loader should register both initial aliases",
+			loadOpenAICodexAliases().map((alias) => alias.id),
+			"Pi's real extension loader should register every configured alias",
 		);
 	}
 
@@ -328,8 +327,12 @@ async function run() {
 				{ type: "toolCall", id: "call|fc_item", name: "read", arguments: {} },
 			],
 			stopReason: "pending",
+			providerThinkingLevel: "high",
+			rawStopReason: "in_progress",
+			responseId: "response-fixture",
+			providerExtensionMetadata: { future: true },
 		});
-		const sourceDone = { ...sourcePartial, stopReason: "stop" };
+		const sourceDone = { ...sourcePartial, stopReason: "stop", rawStopReason: "end_turn", endTurn: true };
 		const sourceEvents = [
 			{ type: "start", partial: sourcePartial },
 			{ type: "text_start", contentIndex: 0, partial: sourcePartial },
@@ -390,7 +393,13 @@ async function run() {
 		for (const event of outwardEvents) {
 			const message = event.type === "done" ? event.message : event.type === "error" ? event.error : event.partial;
 			assert.equal(message.provider, PERSONAL.id, `${event.type} should expose the alias provider`);
+			assert.equal(message.providerThinkingLevel, "high", `${event.type} should preserve provider thinking metadata`);
+			assert.deepEqual(message.providerExtensionMetadata, { future: true }, `${event.type} should preserve unknown fields`);
 		}
+		const outwardDone = outwardEvents.at(-1);
+		assert.equal(outwardDone.message.endTurn, true, "the terminal Codex end_turn signal should survive alias mapping");
+		assert.equal(outwardDone.message.rawStopReason, "end_turn", "the raw terminal reason should survive alias mapping");
+		assert.equal(outwardDone.message.responseId, "response-fixture", "the response ID should survive alias mapping");
 
 		assert.equal(calls.streamSimple.length, 1);
 		const call = calls.streamSimple[0];
@@ -448,11 +457,8 @@ async function run() {
 		);
 		assert.deepEqual(
 			registered.map(({ id, name }) => ({ id, name })),
-			[
-				{ id: "openai-codex-personal", name: "OpenAI Codex Personal" },
-				{ id: "openai-codex-business", name: "OpenAI Codex Business" },
-			],
-			"the initial aliases should register with exact provider IDs and names",
+			loadOpenAICodexAliases().map(({ id, name }) => ({ id, name })),
+			"the deployed aliases should register with exact provider IDs and names",
 		);
 	}
 

@@ -37,3 +37,7 @@ node --test ~/.pi/agent/pi-btw/reapply-model-runtime-patch.test.mjs
 Expected result: one `createBtwModelRuntime()` helper, native and legacy provider propagation, cancellation-aware runtime-only auth propagation, both child-session constructors passing `modelRuntime` rather than `modelRegistry`, and five passing regression tests.
 
 After reapplying, restart Pi or run `/reload`.
+
+## 2026-09-06 — Pi 0.85.1 review
+
+`pi-btw@0.4.1` remains the latest published release and still passes the removed `modelRegistry` option in both child constructors. The patch remains required. All five local regressions pass against the published Pi 0.85.1 bundle, including native provider registration, runtime-only key propagation with cancellation, and an offline child request. No upstream-equivalent release exists to retire the helper.

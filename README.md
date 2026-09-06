@@ -30,30 +30,39 @@ The tracked config root is `agent/`, which maps to the local Pi agent config dir
 
 Current defaults:
 
-| Setting                | Value              |
-| ---------------------- | ------------------ |
-| Default provider       | `openai-codex`     |
-| Default model          | `gpt-5.6-sol`      |
-| Default thinking level | `high`             |
-| Theme                  | `dark` tracked baseline; wrapper may persist the live OS theme |
-| Transport              | `websocket-cached` |
+| Setting                | Value                       |
+| ---------------------- | --------------------------- |
+| Default provider       | `openai-codex-cgpt3`        |
+| Default model          | `gpt-5.6-sol`               |
+| Default thinking level | `high`                      |
+| Theme                  | `dark` saved baseline; startup wrapper uses write-free `--use-theme` selection |
+| Transport              | `websocket-cached`          |
 
 Enabled models:
 
+- `agentrouter/deepseek-v4-flash`
+- `cursor/auto-smart`
 - `openai-codex/gpt-5.5`
 - `openai-codex/gpt-5.6-sol`
-- `openai-codex/gpt-5.6-terra`
-- `opencode-go/deepseek-v4-pro`
-- `cursor/auto-smart`
-- `claude-bridge/claude-opus-4-6`
+- `openai-codex-zahlo/gpt-5.6-sol`
+- `openai-codex-cgpt1/gpt-5.6-sol`
+- `openai-codex-cgpt2/gpt-5.6-sol`
+- `openai-codex-cgpt3/gpt-5.6-sol`
+- `openai-codex-cgpt4/gpt-5.6-sol`
+- `openai-codex-cgpt5/gpt-5.6-sol`
+- `openai-codex-cgpt6/gpt-5.6-sol`
+- `zai/glm-5.3`
+- `zai/glm-5.3-flash`
 
 Configured packages:
 
-- `npm:@schultzp2020/pi-cursor@0.5.0`
-- `npm:pi-blackhole@0.4.5`
+- `npm:pi-blackhole@0.5.1`
 - `npm:pi-btw@0.4.1`
-- `npm:pi-browser-harness@0.10.2`
+- object-form `npm:pi-browser-harness@0.10.2` with `skills: []`
 - `npm:pi-claude-bridge@0.6.3`
+- local `../../development/pi-extensions-cursor/packages/pi-cursor` (`@schultzp2020/pi-cursor@0.5.1`, merged from upstream at `c42ebcf6`)
+
+The local Cursor source is intentional. Do not replace it with the npm package. OpenAI Codex account aliases are configured separately under `agent/extensions/openai-codex-aliases/`; the canonical provider and every alias keep independent stored credentials.
 
 Keep this section in sync whenever `agent/settings.json` changes.
 
@@ -97,9 +106,10 @@ Local extensions live under `agent/extensions/`.
 | `context-mode/`    | Lean wrapper around upstream `context-mode`, exposing only `ctx_execute_file`, `ctx_batch_execute`, and `ctx_search` for large-output workflows.      |
 | `delegated-pi-loop/` | Native TypeScript `delegate_run` tool with persistent Pi RPC children, config-driven version-2 routing (role families derive from ordered `assignments` arrays in `routing.json`, with one normalized registry for validation, classification, contracts, and generated schemas/guidance), strict delegated child resource isolation, a read-only `delegate_model_catalog` lookup for exceptional one-run substitutions, renewable programmatic liveness with no total runtime ceiling (five-minute activity warning, ten-minute activity-idle stop, 15-minute structural-progress warning, and a renewable 45-minute gap between novel structural checkpoints), sequential operational fallback, bounded cleanup, schema 8 safe run telemetry (failure diagnostics that retain the exact final report bounded to 50 KiB with recognized terminal DELEGATE_REASON/DELEGATE_RESULT lines preserved plus best-effort metadata-only success records with `maxProgressIdleSeconds`, bounded to the newest 4,096 success files, plus a local read-only percentile analyzer), one same-session report recovery, and role isolation. Model-visible delegation text is centralized in `instructions.ts`: flat parent guidelines name their tool, children receive compact role prompts without parent workflow or mental time tracking, and failed attempts stop automatic advancement before the parent follows the user's ordinary next instruction without requesting special syntax. Direct Claude CLI delegation is removed; Claude-named models remain available through normal Pi providers. |
 | `web-search/`      | Provider-routed research tools: `web_search` (Gemini grounding with Parallel primary, Exa fallback, and a final Tavily direct-search fallback), `web_code_search` (Firecrawl Developer / Exa Code focus routing), and `fetch_contents` (Firecrawl Scrape primary with Exa Contents fallback). |
-| `footer/`          | Custom compact Pi TUI footer with git state, cwd, extension status, prompt timer, token/context usage, model, thinking glyph, and Fastlane indicator. |
+| `footer/`          | Custom compact Pi TUI footer with git state, cwd, extension status, user-prompt waiting state, wall-clock timer, token/context usage, model, thinking glyph, and Fastlane indicator. |
 | `fastlane/`        | Session toggle for eligible Codex Fast mode via `/fastlane`; publishes active state consumed by `footer`.                                             |
-| `theme-overrides/` | Auto-switches between local `dark` and `light` themes based on host system appearance.                                                                |
+| `openai-codex-aliases/` | Config-driven native provider aliases that keep separate Codex accounts, credentials, histories, and cached WebSocket identity. |
+| `theme-overrides/` | Auto-switches between local `dark` and `light` themes from Windows/OS appearance. The wrapper supplies a write-free first-frame `--use-theme` default; explicit user choices win. |
 
 Extension-specific docs live inside the extension directories where available. After editing a local extension, run its local checks and reload/restart Pi.
 
@@ -114,7 +124,7 @@ agent/themes/light.json
 
 The `theme-overrides` extension expects these themes to exist and switches between them when the host OS appearance changes.
 
-`agent/settings.json` should keep a normal startup/default theme value. Runtime theme switching is handled in memory by the extension and should not require writing settings during a session.
+`agent/settings.json` keeps a normal saved fallback. `agent/bin/pi` passes a detected managed theme through `--use-theme` for the first frame without writing settings. Runtime theme switching remains in memory because this configuration follows Windows `AppsUseLightTheme`, which can differ from terminal color-scheme reports. An explicit user `--use-theme` choice disables the automatic override for that run.
 
 ## Prompt templates
 
@@ -196,9 +206,11 @@ agent/pi-blackhole/LOCAL_PATCHES.md
 Active patch notes currently cover:
 
 - `compactAfterPercent` for auto-compaction thresholds
-- Pi 0.84.1 nullable provider-header preservation for Blackhole workers
+- Pi 0.84.1+ nullable provider-header preservation for Blackhole workers
 
-The public custom-provider stream patch is retired under `pi-blackhole@0.4.5` because upstream now uses Pi's public provider registry. The former OM worker auth fallback remains retired under Pi 0.80.10.
+`pi-blackhole@0.5.1` is configured with `retainedToolOutputMaxTokens: 0` so its new default projection budget does not change the previous provider-visible tool-output policy.
+
+The public custom-provider stream patch is retired under `pi-blackhole@0.5.1` because upstream uses Pi's public provider registry. The former OM worker auth fallback remains retired under Pi 0.80.10.
 
 `pi-btw@0.4.1` also needs a local Pi 0.80.8+ SDK migration so child sessions receive a `ModelRuntime` with the selected extension provider registration. Its patch and helper live under `agent/pi-btw/`.
 

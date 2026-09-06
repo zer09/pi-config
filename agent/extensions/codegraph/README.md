@@ -82,9 +82,9 @@ Use `codegraph_files` for indexed-file discovery only; use `codegraph_node` to r
 
 ## Install/update
 
-Current pinned SDK and CLI target: `1.4.1`.
+Current pinned SDK and CLI target: `1.6.0`.
 
-Version 1.4.1 advances the internal schema from 7 to 8 without changing extraction version 24. The active index therefore does not require a full reindex; `codegraph status` should report `builtWithVersion: 1.4.0`, current extraction 24, complete state, and `reindexRecommended: false` until the next normal index write records the newer package version.
+Version 1.6.0 advances the extraction version from 24 to 25. Existing 1.5.0 indexes remain readable, but `codegraph status` reports `reindexRecommended: true` until a full rebuild applies the new extraction and resolution fixes. The Pi 0.85.1 upgrade first validated 1.6.0 against a disposable copy; the user later rebuilt the real Pi configuration index, which now reports a complete extraction-25 index with no reindex recommendation.
 
 Run from this directory:
 

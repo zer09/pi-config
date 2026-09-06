@@ -15,7 +15,7 @@ import { formatGitBranch } from "./git-format";
 import { joinFooterSections, measureFooterParts } from "./layout";
 import { formatModelName } from "./model-format";
 import { formatCwd } from "./path-format";
-import { formatPromptQueue, formatPromptTimer } from "./prompt-timer";
+import { formatPromptQueue, formatPromptTimer, formatWaitingForUser } from "./prompt-timer";
 import { formatThinkingDot } from "./thinking-format";
 import { formatContextUsage, formatSessionTokenTotals } from "./token-format";
 import type {
@@ -105,6 +105,7 @@ function buildFooterParts(
 	]);
 	const middle = formatExtensionStatuses(snapshot.formattedStatuses, profile === "full" ? "full" : "active");
 	const right = joinSegments([
+		!minimal ? formatWaitingForUser(promptTimer, theme) : undefined,
 		!minimal ? formatPromptTimer(promptTimer, theme, snapshot.now) : undefined,
 		full ? formatPromptQueue(promptTimer, theme) : undefined,
 		full ? formatSessionTokenTotals(ctx, theme) : undefined,
