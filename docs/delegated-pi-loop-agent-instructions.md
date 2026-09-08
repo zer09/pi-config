@@ -70,9 +70,9 @@ These instructions are injected by `delegate_run` through `promptGuidelines`, ge
 <!-- pi-delegated-instructions:begin:delegate-run-guidelines -->
 1. delegate_run [Ownership]: Use implementation delegation for non-trivial repository implementation. The parent handles simple, mechanical, and low-risk tasks directly, including explicitly requested Git operations, small localized edits, typo fixes, and scalar configuration changes. Parent directly owns all planning and research deliverables, including repository artifacts classified by purpose. Pure planning or research runs no implementation, review, or remediation; later approval starts this workflow only when implementation is non-trivial.
 
-2. delegate_run [Role scope]: Never use implementation or remediation for research or plans. Implementation executes one parent-finalized contract for code, configuration, operational behavior, or accompanying docs. Remediation executes only verification-confirmed fixes.
+2. delegate_run [Role scope]: Never use implementation or remediation for research or plans. Implementation executes one parent-finalized increment of the task contract for code, configuration, operational behavior, or accompanying docs. Each increment is the smallest practical, independently reviewable change, with its regression tests and acceptance checks; leave the tree in a working state. Split broad increments further. Remediation executes only verification-confirmed fixes.
 
-3. delegate_run [Fast path]: For a simple task with an obvious established pattern, the parent finalizes the scope and executes the task directly without a delegate. For a non-trivial task with an accepted solution contract, skip solution and oracle and run exactly one implementation delegate.
+3. delegate_run [Fast path]: For a simple task with an obvious established pattern, the parent finalizes the scope and executes the task directly without a delegate. For a non-trivial task with an accepted solution contract, skip solution and oracle and follow the incremental execution and review flow. Splitting a non-trivial task does not make its increments parent-direct work. Do not repeat solution or oracle gates merely because another increment starts.
 
 4. delegate_run [Investigation]: If root cause, architecture, or approach needs investigation, run `<all configured solution roles>` concurrently with the same neutral assignment and wait for every role. They gather evidence and options; parent verifies, synthesizes, and solely authors the final deliverable and contract.
 
@@ -84,9 +84,9 @@ These instructions are injected by `delegate_run` through `promptGuidelines`, ge
 
 8. delegate_run [Oracle decision]: Oracle is advisory and returns VALID or REVISE; it never authors or saves the final plan. Parent verifies its claims, revises if warranted, finalizes the contract, and never loops automatically. A non-completed oracle stops automatic advancement; report it and follow the user's next instruction.
 
-9. delegate_run [Execution]: After finalizing a contract for delegated implementation, run one implementation delegate. Run only one implementation, remediation, or oracle at a time, and do not edit the working tree while it runs. After a non-completed implementation, inspect the current tree before any user-directed continuation.
+9. delegate_run [Execution]: Split a large finalized contract for delegated implementation into ordered increments. Before each run, inspect the current tree and assign only the current increment, relevant overall invariants, parent-verified prior evidence, and explicit exclusions for later work. Run exactly one fresh implementation delegate per increment. Run only one implementation, remediation, or oracle at a time, and do not edit the working tree while it runs. After a non-completed implementation, inspect the current tree before any user-directed continuation.
 
-10. delegate_run [Review]: Inspect the implementation diff and evidence, then run `<all configured review roles>` concurrently with the same neutral scope; wait for every role before automatic advancement.
+10. delegate_run [Review]: Inspect each increment's diff and check evidence, then run `<all configured review roles>` concurrently with the same neutral scope; wait for every role before automatic advancement. Review the current increment, integration with accepted prior work, and overall invariants; future increments are deferred scope, not defects. Complete review and any required verification and remediation with no unresolved blocking findings before assigning the next increment. On the final increment, review the accumulated diff against the whole task contract and run overall acceptance checks.
 
 11. delegate_run [Findings]: Consolidate exact duplicate blocking findings. Give each fresh verification exactly one finding and no sibling reports. Run independent verifications in batches of at most four, dependent findings sequentially, and overlap only verification with verification. Wait for the full batch; a non-completed verification leaves that finding unresolved without erasing completed siblings.
 
@@ -94,7 +94,7 @@ These instructions are injected by `delegate_run` through `promptGuidelines`, ge
 
 13. delegate_run [Routing]: Routing and operational fallback are automatic. Use delegate_model_catalog and routingOverride only for an explicit user or project one-run operational route request; never override oracle or change permissions or concurrency.
 
-14. delegate_run [Failure and authority]: Treat every non-completed state as a failed tool-error delegation and report it. Do not retry automatically beyond bounded fallback. Follow the user's ordinary next instruction; continue, resume, or retry requires no special syntax. Delegate completion never authorizes staging, committing, pushing, deploying, or hosted-service mutation; each requires separate explicit authorization.
+14. delegate_run [Failure and authority]: Treat every non-completed state as a failed tool-error delegation and report it. Any non-completed required role stops automatic advancement to the next increment. Do not retry automatically beyond bounded fallback. Follow the user's ordinary next instruction; continue, resume, or retry requires no special syntax. Delegate completion never authorizes staging, committing, pushing, deploying, or hosted-service mutation; each requires separate explicit authorization.
 
 15. delegate_run [Skills]: Pass only task-relevant pre-approved availableSkills. Selection exposes skills but never forces full loading.
 <!-- pi-delegated-instructions:end:delegate-run-guidelines -->
@@ -116,17 +116,25 @@ The parent may:
 - Verify the evidence itself.
 - Write and revise the final plan or research artifact itself.
 
-### Small implementation with an accepted or obvious solution
+### Simple, mechanical, low-risk tasks
 
-1. Finalize the narrow implementation contract.
-2. Run exactly one `implementation` delegate.
-3. Inspect the resulting diff and evidence.
-4. Run all configured review roles concurrently.
-5. Verify blocking findings.
-6. Run one remediation delegate if findings are confirmed.
-7. Repeat the full review gate until no blocking findings remain.
+The parent finalizes the scope and executes these tasks directly. Splitting a non-trivial task does not make its increments parent-direct work.
 
-### Complex or uncertain implementation
+### Non-trivial implementation with an accepted solution
+
+1. Divide a large finalized task contract into ordered implementation increments. A narrow contract can use one increment.
+2. Scope each increment as the smallest practical, independently reviewable change, including its regression tests and acceptance checks. Each increment must leave the tree in a working state. Divide broad increments further.
+3. Inspect the current tree before each run.
+4. Assign only the current increment to one fresh `implementation` delegate. Include relevant overall invariants, concise parent-verified prior evidence, and explicit exclusions for later increments.
+5. Inspect the resulting diff and check evidence.
+6. Run all configured review roles concurrently against the current increment, its integration with accepted prior work, and overall invariants. Future increments are deferred scope, not defects.
+7. Verify blocking findings. Run focused remediation only for confirmed findings, then repeat the full review gate until no blocking findings remain.
+8. Assign the next increment only after the current increment's checks and review gate pass. Any required non-completed role stops automatic advancement; report it and follow the user's next instruction.
+9. On the final increment, review the accumulated diff against the entire task contract and run overall acceptance checks.
+
+Do not repeat solution or oracle gates merely because another increment starts. New architectural uncertainty still follows the investigation flow below.
+
+### Implementation that needs investigation
 
 1. Run all configured solution roles concurrently with the same neutral assignment.
 2. Wait for every configured solution role before automatic advancement. If a role fails, report it and follow the user's ordinary next instruction without requesting special syntax.
@@ -135,12 +143,17 @@ The parent may:
 5. Run one oracle unless the parent model is an oracle-profile model.
 6. Verify the oracle's claims.
 7. Finalize the contract.
-8. Run one implementation delegate.
-9. Inspect the implementation.
-10. Run all configured review roles concurrently.
-11. Verify blocking findings in batches of four.
-12. Run focused remediation.
-13. Repeat the full review gate.
+8. Follow the incremental implementation and review flow above. Independent finding verifications retain the existing limit of four concurrent runs.
+
+### Small steps within an increment
+
+The child inspects the current tree and verifies the supplied prior-work summary. It uses small coherent edit-and-check steps, running the narrowest relevant check before continuing. It follows existing patterns and avoids speculative abstractions and unrelated cleanup.
+
+The child stops when the assigned increment's acceptance checks pass. `COMPLETED` means only that increment is finished, with no known unresolved in-scope regression. Later increments remain excluded. An assignment that is too broad or requires out-of-scope changes is reported as `BLOCKED` with `assignment_conflict`, rather than silently expanded.
+
+For example, first assign input validation and its regression tests, excluding API integration. Review that increment before assigning API integration and its tests. Do not defer all regression tests to the final increment.
+
+These are model instructions, not programmatic size limits. Each increment adds a fresh implementation run and review gate, which increases latency and cost. No file-count, line-count, or tool-call cap defines an increment. See [ADR 0019](adr/0019-delegated-incremental-implementation.md).
 
 ## 4. Exact generated child prompt
 
@@ -224,9 +237,14 @@ Each finding: severity; location; evidence; reproduction or interleaving; impact
 ### implementation
 
 ```text
-Implement only the assigned contract; preserve user-owned changes and stated invariants.
+Implement only the assigned increment; preserve user-owned changes and stated invariants.
+Inspect the current tree before editing; verify the supplied prior-work summary.
+Work in small coherent edit-and-check steps; run the narrowest relevant check after each step before continuing.
+Use the simplest repository-compatible change and existing patterns; avoid speculative abstractions.
+Do not implement later increments or silently widen scope. If the assignment is too broad or needs out-of-scope changes, stop and report BLOCKED with assignment_conflict.
+Stop when the increment's acceptance checks pass. COMPLETED means only this increment is finished, with no known unresolved in-scope regression; it does not mean the whole task is complete.
 Do not independently approve, perform unrelated cleanup, make Git or hosted transitions, or delegate.
-Report: changed paths; implementation summary; exact checks and results; remaining risks.
+Report: changed paths; implementation summary; exact checks and results; deferred scope; remaining risks.
 ```
 
 ### remediation
@@ -271,7 +289,7 @@ Restart: a prior route attempt may have changed the tree. Inspect current work f
 ```
 <!-- pi-delegated-instructions:end:restart-note -->
 
-The extension reconstructs the prompt from the original assignment, so this note appears at most once. See the restart handling in `agent/extensions/delegated-pi-loop/runner.ts` (`runDelegate`).
+The extension reconstructs the prompt from the original assignment, so this note appears at most once. For implementation, fallback retains the same assigned increment; it does not advance to the next increment. See the restart handling in `agent/extensions/delegated-pi-loop/runner.ts` (`runDelegate`).
 
 ## 7. Report-recovery prompt
 
@@ -413,7 +431,7 @@ Source: `agent/extensions/delegated-pi-loop/manager.ts`.
 Important distinction:
 
 - Concurrency, recursion suppression, routing, resource isolation, deadlines, and report parsing are machine-enforced.
-- Role read-only requirements and the parent's "do not edit while implementation runs" requirement are model instructions. The extension does not disable write tools by role.
+- Role read-only requirements, incremental implementation, simplicity, per-increment review, and the parent's "do not edit while implementation runs" requirement are model instructions. The extension does not disable write tools by role or enforce implementation size, acceptance checks, or increment advancement.
 
 ## 11. Child process and report lifecycle
 

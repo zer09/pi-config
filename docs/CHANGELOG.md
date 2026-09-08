@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-09-08: Require small reviewed implementation increments
+
+- Updated only model-visible instruction strings in `agent/extensions/delegated-pi-loop/instructions.ts`: the parent assigns one small, independently reviewable increment per fresh implementation delegate, with its regression tests, acceptance checks, prior evidence, invariants, and exclusions. Review and any required verification/remediation finish before the next increment. Final review covers the accumulated diff against the whole task.
+- Implementation children inspect current work, use small edit-and-check steps and the simplest existing patterns, stop at the assigned boundary, and report oversized or out-of-scope assignments as `BLOCKED` with `assignment_conflict`. Completion applies only to the current increment. Simple standalone tasks remain parent-direct; splitting non-trivial work does not bypass delegation.
+- Runtime logic, tool schemas, routing, concurrency, resources, supervision, liveness, fallback, recovery, report parsing, and diagnostics are unchanged. These are model instructions, not programmatic size or quality enforcement. Added ADR 0019, preserved historical ADR rationale with a current-policy note, regenerated the reference sections, and updated manual usage, README, maintenance guidance, and context-cost accounting. Local `o200k_base` deltas: +188 parent guideline tokens and +124 per implementation child prompt.
+- Added two instruction regressions and updated the registration and role-contract wording assertions. Both new regressions failed before the instruction edit. Validation: 491/491 tests passed with `--test-concurrency=1`; strict all-file TypeScript and documentation synchronization passed. A default-concurrency run had one intermittent failure in the unchanged 100 ms catalog-preflight timeout test; that test passed in isolation and in the serialized suite. No runtime/test-timeout adjustment was made. No live implementation smoke or provider calibration was run.
+
 ## 2026-09-06 — Upgrade Pi 0.84.1 to 0.85.1
 
 Details: [`docs/changelogs/pi-0.84.1-to-0.85.1-upgrade.md`](./changelogs/pi-0.84.1-to-0.85.1-upgrade.md)

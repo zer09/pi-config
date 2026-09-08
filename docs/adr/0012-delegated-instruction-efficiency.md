@@ -6,6 +6,8 @@ Accepted (2026-08-27). Extends ADR 0007 and ADR 0011. ADR 0013 supersedes this A
 
 Current-policy note (renewable liveness): the statement that the supervisor enforces a 45-minute productive-work deadline is superseded by ADR 0015. The supervisor still owns every wall-clock decision; the five-minute activity warning and ten-minute activity-idle termination are unchanged, and the 45-minute value is now a renewable maximum gap between novel structural checkpoints rather than a total-work ceiling. The recovery-eligibility phrase "with output and work budget remaining" is likewise superseded: recovery eligibility keeps the output cap, a running child, no prior recovery, no abort, and no begun liveness termination, but consults no work budget. No model-visible instruction changed.
 
+Current-policy note (incremental implementation): ADR 0019 replaces the canonical one-implementation-per-task wording with one small reviewed increment per fresh implementation delegate. The 15 tool-attributed guidelines and instruction/runtime boundary remain unchanged; the historical rationale below is preserved.
+
 ## Context
 
 ADR 0011 centralized every model-visible delegation instruction in `agent/extensions/delegated-pi-loop/instructions.ts` without changing its wording. The active parent surface still carried 24 long workflow guidelines, most of which did not name `delegate_run` even though Pi appends custom-tool guidelines as one flat ungrouped list. Solution and review waiver text repeated the same rules, schema descriptions repeated role lists already present in the generated enum and workflow, and runtime-enforced transport details consumed model context without helping the parent choose its next action.

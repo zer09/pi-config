@@ -113,7 +113,7 @@ test("role contracts are family-owned for every family including derived high sl
   assert.match(buildDelegatePrompt(reviewZ, "/tmp/project", "Review."), /independent neutral read-only implementation review/i);
   assert.match(buildDelegatePrompt(role("verification"), "/tmp/project", "Verify."), /read-only verification of one supplied finding/i);
   assert.match(buildDelegatePrompt(role("remediation"), "/tmp/project", "Fix."), /focused remediation contract/);
-  assert.match(buildDelegatePrompt(role("implementation"), "/tmp/project", "Implement."), /assigned contract/);
+  assert.match(buildDelegatePrompt(role("implementation"), "/tmp/project", "Implement."), /assigned increment/);
   // The task header carries the exact derived id.
   assert.match(buildDelegatePrompt(solutionZ, "/tmp/project", "Investigate."), /# Task: solution-z/);
   // Classification follows the family, never the id text.

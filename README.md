@@ -111,6 +111,8 @@ Local extensions live under `agent/extensions/`.
 | `openai-codex-aliases/` | Config-driven native provider aliases that keep separate Codex accounts, credentials, histories, and cached WebSocket identity. |
 | `theme-overrides/` | Auto-switches between local `dark` and `light` themes from Windows/OS appearance. The wrapper supplies a write-free first-frame `--use-theme` default; explicit user choices win. |
 
+Delegated implementation follows one small, independently reviewable increment per fresh delegate, with code and regression tests together. The parent checks and reviews each increment before assigning the next, then reviews the integrated task. Children use small edit-and-check steps and existing patterns. These are model instructions, not runtime size limits; routing, supervision, fallback, and report parsing are unchanged. See [ADR 0019](docs/adr/0019-delegated-incremental-implementation.md).
+
 Extension-specific docs live inside the extension directories where available. After editing a local extension, run its local checks and reload/restart Pi.
 
 ## Themes

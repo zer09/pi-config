@@ -5,7 +5,7 @@ Purpose: maintain the native TypeScript `delegate_run` extension that runs in th
 ## Classification and authority
 
 - Extension classification: **keep it**. Process supervision, fallback cutoffs, report recovery, shared-tree safety, and delegated child resource isolation are executable behavior.
-- Source of truth: this Pi config, ADR 0007 through ADR 0017, and installed Pi RPC/extension documentation.
+- Source of truth: this Pi config, ADR 0007 through ADR 0017, ADR 0019, and installed Pi RPC/extension documentation.
 - Route authority: `agent/extensions/delegated-pi-loop/routing.json`, strictly validated by `routing.ts` at load time and checked against Pi's live model catalog.
 - Child resource authority: `agent/extensions/delegated-pi-loop/resources.json`, strictly validated by `resources.ts` at parent-extension startup and rechecked at argument construction before every spawn.
 - Direct Claude Code authority: none. The extension has no direct Claude CLI backend and must not inspect, invoke, install, uninstall, or modify the user's Claude CLI.
@@ -53,6 +53,13 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 4. `agent/AGENTS.md` carries no delegation policy. The former detailed `## Delegated work` section was removed with instruction centralization (ADR 0011); do not reintroduce delegation policy there, because every delegated child loads `AGENTS.md` as a context file and must not pay for parent orchestration policy.
 5. The semantic role-family policy stays in the machine-policy modules: families and the normalized registry derive from `routing.ts`, and the instruction builders consume those types. An unknown runtime family value fails closed at the `roleFamilyContract` boundary.
 6. The marked model-visible sections of `docs/delegated-pi-loop-agent-instructions.md` are generated from the canonical exports by `docsync.ts`. After any instruction change, run `npm run render:instructions-doc`; `docsync.test.ts` fails when the checked-in content drifts. The surrounding runtime explanation stays manually authored, and the marker mechanism must stay a fixed named-section renderer, not a general-purpose Markdown template language.
+
+### Incremental implementation instructions
+
+1. Parent guidelines assign one small, independently reviewable increment per fresh implementation delegate. Each increment includes its code, regression tests, acceptance checks, overall invariants, verified prior evidence, and exclusions for later work. Splitting a non-trivial task does not make its increments parent-direct work.
+2. Implementation children inspect the current tree, use small edit-and-check steps and existing patterns, and stop at the assigned boundary. An oversized assignment or required scope expansion is reported as `BLOCKED` with `assignment_conflict`. Implementation `COMPLETED` means the increment's checks pass with no known unresolved in-scope regression, not that the whole task is complete.
+3. Parent inspection and the full review gate precede the next increment. Verification and remediation remain conditional on findings. Intermediate review includes integration with accepted prior work; future increments are deferred scope. Final review covers the accumulated diff against the whole task, followed by overall acceptance checks.
+4. These are model instructions only. No schema, increment state, numeric change-size cap, runtime gate, routing, fallback, or terminal parser change enforces them. Tests check instruction content and synchronization, not model compliance. ADR 0019 records this distinction and the extra latency and cost.
 
 ### Parent and child boundaries
 
@@ -157,7 +164,7 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 ## Update workflow
 
 1. Read installed Pi `docs/rpc.md`, `docs/extensions.md`, `docs/json.md`, `docs/environment-variables.md`, and `docs/tui.md` completely.
-2. Read ADR 0007 through ADR 0017, this document, and every owned source file.
+2. Read ADR 0007 through ADR 0017, ADR 0019, this document, and every owned source file.
 3. Preserve `routing.json` route intent unless the requested change explicitly modifies the operator policy. Preserve role contracts (`instructions.ts`), manager IDs, cancellation, cleanup, deadlines, privacy, diagnostics, and recursive suppression.
 4. Update tests with behavior changes.
 5. Update root `README.md`, ADR current-policy text, changelog, and context-cost accounting when the public tool contract changes; regenerate the reference document's generated sections with `npm run render:instructions-doc`. Never re-add delegation policy to `agent/AGENTS.md`.

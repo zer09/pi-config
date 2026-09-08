@@ -130,6 +130,51 @@ test("every supported role family receives its centralized contract from the reg
   assert.equal(new Set(contracts).size, ROLE_FAMILIES.length);
 });
 
+test("implementation prompts require small checked increments without expanding the assignment", () => {
+  const assignment = "Add input validation and its regression tests. API integration is excluded.";
+  const prompt = buildDelegatePrompt(familyRole("implementation"), "/tmp/project", assignment);
+  const contract = roleFamilyContract("implementation");
+  assert.ok(prompt.includes(`## Assignment\n\n${assignment}\n\n## Attempt limits`));
+  assert.ok(prompt.includes(contract));
+  assert.match(contract, /Implement only the assigned increment/);
+  assert.match(contract, /Inspect the current tree before editing/);
+  assert.match(contract, /small coherent edit-and-check steps/);
+  assert.match(contract, /narrowest relevant check after each step before continuing/);
+  assert.match(contract, /simplest repository-compatible change and existing patterns/);
+  assert.match(contract, /avoid speculative abstractions/);
+  assert.match(contract, /Do not implement later increments or silently widen scope/);
+  assert.match(contract, /too broad or needs out-of-scope changes, stop and report BLOCKED with assignment_conflict/);
+  assert.match(contract, /Stop when the increment's acceptance checks pass/);
+  assert.match(contract, /COMPLETED means only this increment is finished/);
+  assert.match(contract, /no known unresolved in-scope regression/);
+  assert.match(contract, /does not mean the whole task is complete/);
+  assert.match(contract, /preserve user-owned changes and stated invariants/);
+  assert.match(contract, /Do not independently approve, perform unrelated cleanup, make Git or hosted transitions, or delegate/);
+  for (const family of ROLE_FAMILIES.filter((family) => family !== "implementation")) {
+    assert.doesNotMatch(roleFamilyContract(family), /edit-and-check steps|COMPLETED means only this increment/);
+  }
+});
+
+test("parent guidelines scope and gate each increment before integrated final review", () => {
+  const guidelines = delegateRunPromptGuidelines(SOLUTION_ROLE_FIXTURE, REVIEW_ROLE_FIXTURE).join("\n");
+  assert.match(guidelines, /smallest practical, independently reviewable change, with its regression tests and acceptance checks/);
+  assert.match(guidelines, /leave the tree in a working state/);
+  assert.match(guidelines, /Split broad increments further/);
+  assert.match(guidelines, /Splitting a non-trivial task does not make its increments parent-direct work/);
+  assert.match(guidelines, /Do not repeat solution or oracle gates merely because another increment starts/);
+  assert.match(guidelines, /ordered increments/);
+  assert.match(guidelines, /Before each run, inspect the current tree and assign only the current increment/);
+  assert.match(guidelines, /overall invariants, parent-verified prior evidence, and explicit exclusions for later work/);
+  assert.match(guidelines, /exactly one fresh implementation delegate per increment/);
+  assert.match(guidelines, /Inspect each increment's diff and check evidence/);
+  assert.match(guidelines, /integration with accepted prior work/);
+  assert.match(guidelines, /future increments are deferred scope, not defects/);
+  assert.match(guidelines, /Complete review and any required verification and remediation with no unresolved blocking findings before assigning the next increment/);
+  assert.match(guidelines, /On the final increment, review the accumulated diff against the whole task contract and run overall acceptance checks/);
+  assert.match(guidelines, /Any non-completed required role stops automatic advancement to the next increment/);
+  assert.doesNotMatch(guidelines, /run exactly one implementation delegate\.|After finalizing a contract for delegated implementation, run one implementation delegate\./);
+});
+
 test("an unknown role family stays fail-closed at the contract boundary", () => {
   // A smuggled runtime family value must throw instead of falling through to
   // an implementation contract; the routing registry keeps rejecting unknown

@@ -24,7 +24,7 @@ test("registration guidelines encode the compact automatic delegation policy wit
   assert.match(guidelines, /Pure planning or research runs no implementation, review, or remediation/);
   assert.match(guidelines, /Never use implementation or remediation for research or plans/);
   assert.match(guidelines, /non-trivial task with an accepted solution contract/);
-  assert.match(guidelines, /exactly one implementation delegate/);
+  assert.match(guidelines, /exactly one fresh implementation delegate per increment/);
   assert.match(guidelines, /contract for delegated implementation/);
 
   assert.match(guidelines, /solution-a, solution-b, and solution-c concurrently/);

@@ -2,6 +2,8 @@
 
 Quantitative calibration date: 2026-07-01
 
+Delegated incremental-implementation instruction update: 2026-09-08 (parent guidelines assign one reviewed increment per fresh implementation delegate; implementation children use small edit-and-check steps and simple existing patterns. Local `o200k_base` attribution is below; provider calibration and the full extension/tool inventory were not rerun.)
+
 Structural inventory refresh: 2026-07-19 (Pi 0.80.10; `pi-browser-harness` 0.8.3; 57 registered tools, 54 active tools including 36 browser tools). Provider calibration was not rerun; current tool schema and guideline attribution was measured offline.
 
 Impeccable explicit-only skill installation: 2026-08-30 (added the locally adapted Impeccable runtime payload with `disable-model-invocation: true`; zero startup skill-catalog delta because Pi excludes explicit-only skills from automatic model routing; provider calibration and the full extension/tool inventory were not rerun)
@@ -210,6 +212,20 @@ pi "${COMMON[@]}" hi > /tmp/pi-full-hi.jsonl
 - Local `tiktoken` totals are not guaranteed to equal provider totals. Provider tokenization, Responses API framing, tool framing, and hidden/backend protocol all differ from plain local string counting.
 - Token counts are not always additive because BPE token boundaries change when sections are joined.
 - Prompt templates, extension command metadata, full `SKILL.md` files, tool results, and prior session history are not startup model context unless invoked/read/sent in a later turn.
+
+## 2026-09-08 delegated incremental-implementation attribution
+
+Measured offline with `tiktoken` `o200k_base`, before and after the instruction edit. Parent counts use `delegateRunPromptGuidelines` with the current six solution and three review role ids, joined with one newline. The complete implementation prompt uses `buildDelegatePrompt`, cwd `/tmp/project`, and assignment `Implement the assigned increment.` in both measurements.
+
+| Surface | Before | After | Delta | Loading behavior |
+|---|---:|---:|---:|---|
+| Parent `delegate_run` guidelines | 818 | 1,006 | +188 | Only while the parent tool is active |
+| Implementation role contract | 49 | 173 | +124 | Implementation children only |
+| Complete implementation prompt for the fixed assignment | 380 | 504 | +124 | Includes the role contract; do not add this row to the preceding row |
+
+The parent guidelines grow from 4,684 to 5,788 characters, below the existing 7,000-character regression budget, and remain 15 tool-attributed guidelines. Tool schemas, tool descriptions, catalog guidance, other child role contracts, shared child instructions, restart and recovery text, and `agent/AGENTS.md` are unchanged.
+
+These are local text counts, not provider-billed usage. Extra sequential implementation and review calls can increase total task cost beyond this per-prompt delta. Runtime enforcement is unchanged. No live model evaluation or provider calibration was run for this measurement; the full startup inventory remains historical.
 
 ## 2026-08-30 Impeccable explicit-only skill attribution
 
