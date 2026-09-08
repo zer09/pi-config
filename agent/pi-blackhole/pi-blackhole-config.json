@@ -9,7 +9,7 @@
   "observerModel": {
     "_comment": "OpenAI Codex GPT-5.6 Luna at xhigh; selected after a three-sample observer comparison showed better task retention and signal-to-noise than Cursor Grok 4.5 low or Luna max.",
     "provider": "openai-codex",
-    "id": "gpt-5.6-luna",
+    "id": "gpt-5.6-terra",
     "thinking": "xhigh",
     "cooldownHours": 1,
     "contextWindow": 272000
@@ -35,7 +35,7 @@
   "reflectorModel": {
     "_comment": "Default reflector outside globalswitchboard: OpenAI Codex GPT-5.6 Luna at high.",
     "provider": "openai-codex",
-    "id": "gpt-5.6-luna",
+    "id": "gpt-5.6-terra",
     "thinking": "high",
     "cooldownHours": 1,
     "contextWindow": 272000
@@ -61,7 +61,7 @@
   "dropperModel": {
     "_comment": "OpenAI Codex GPT-5.6 Luna at max; selected after a three-sample, six-model comparison for the safest conservative pruning under low budget pressure.",
     "provider": "openai-codex",
-    "id": "gpt-5.6-luna",
+    "id": "gpt-5.6-terra",
     "thinking": "max",
     "cooldownHours": 1,
     "contextWindow": 272000
@@ -107,7 +107,7 @@
     "midRunCompaction is explicitly off: turn_end compaction aborts the shared run signal and is unsafe with nested/background extensions. Compaction stays at agent_end.",
     "fullFoldAlways keeps observations/reflections eligible on the first compaction before a prior full-fold boundary exists.",
     "retainedToolOutputMaxTokens is explicitly 0 to preserve the pre-0.5.0 provider-visible tool-output policy; Blackhole 0.5.1 otherwise defaults this new projection budget to 20000.",
-    "Observer primary is openai-codex/gpt-5.6-luna at xhigh with 272K context; a three-sample comparison found it preserved the user's request in 3/3 chunks while cursor/grok-4.5 low missed it in 3/3, and Luna max was about 1.95x slower with 22% more memory output. Reflector and dropper primaries also use OpenAI Codex Luna. The largest worker input cap is 160K.",
+    "Observer primary is openai-codex/gpt-5.6-terra at xhigh with 272K context; a three-sample comparison found it preserved the user's request in 3/3 chunks while cursor/grok-4.5 low missed it in 3/3, and Luna max was about 1.95x slower with 22% more memory output. Reflector and dropper primaries also use OpenAI Codex Luna. The largest worker input cap is 160K.",
     "Fallbacks use providers different from the OpenAI Codex worker primaries.",
     "Final emergency fallback remains the session model because sessionFallback is true: openai-codex/gpt-5.6-sol.",
     "2026-06-12: Disabled debug/debugLog after transient Cursor proxy debugging; worker/fallback cooldownHours remain 1 hour.",
