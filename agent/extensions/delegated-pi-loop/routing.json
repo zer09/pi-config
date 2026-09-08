@@ -3,7 +3,7 @@
   "thinkingLevels": ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
   "disabledProviders": [],
   "models": {
-    "muse-spark-1.2-contributor": {
+    "muse-spark-1.3-contributor": {
       "providers": {
         "opencode-go": {
           "thinking": ["minimal", "low", "medium", "high", "xhigh"],
@@ -21,6 +21,27 @@
     "hy3": {
       "providers": {
         "opencode-go": { "thinking": ["off", "low", "high"], "default": "high" }
+      }
+    },
+    "hy4-preview": {
+      "providers": {
+        "opencode-go": { "thinking": ["off", "high"], "default": "high" }
+      }
+    },
+    "claude-opus-4-8": {
+      "providers": {
+        "agentrouter": {
+          "thinking": ["low", "high", "xhigh", "max"],
+          "default": "high"
+        }
+      }
+    },
+    "gpt-6-astra": {
+      "providers": {
+        "openai-codex": {
+          "thinking": ["medium", "high"],
+          "default": "high"
+        }
       }
     },
     "gpt-5.6-sol": {
@@ -144,9 +165,7 @@
       ]
     },
     "gate-c": {
-      "tiers": [
-        { "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }
-      ]
+      "tiers": [{ "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }]
     },
     "gate-d": {
       "tiers": [
@@ -156,7 +175,7 @@
     "gate-e": {
       "tiers": [
         {
-          "model": "muse-spark-1.2-contributor",
+          "model": "muse-spark-1.3-contributor",
           "thinking": "xhigh",
           "providers": ["opencode-go"]
         }
@@ -164,14 +183,18 @@
     },
     "gate-f": {
       "tiers": [
-        { "model": "hy3", "thinking": "high", "providers": ["opencode-go"] }
+        {
+          "model": "hy4-preview",
+          "thinking": "high",
+          "providers": ["opencode-go"]
+        }
       ]
     },
     "gate-g": {
       "tiers": [
         {
-          "model": "deepseek-v4-flash",
-          "thinking": "max",
+          "model": "claude-opus-4-8",
+          "thinking": "high",
           "providers": ["agentrouter"]
         }
       ]
@@ -196,8 +219,24 @@
       ]
     },
     "implementation": {
+      "tiers": [{ "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }]
+    },
+    "implementation-astra": {
       "tiers": [
-        { "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }
+        {
+          "model": "gpt-6-astra",
+          "thinking": "medium",
+          "providers": ["openai-codex"]
+        }
+      ]
+    },
+    "implementation-astra-high": {
+      "tiers": [
+        {
+          "model": "gpt-6-astra",
+          "thinking": "high",
+          "providers": ["openai-codex"]
+        }
       ]
     },
     "verification": {
@@ -215,18 +254,13 @@
       "gate-a",
       "gate-b",
       "gate-c",
-      "gate-d",
+      "implementation-astra-high",
       "gate-e",
-      "gate-f",
-      "gate-g"
+      "gate-f"
     ],
-    "review": [
-      "gate-a",
-      "gate-b",
-      "gate-c"
-    ],
-    "implementation": "implementation",
-    "remediation": "implementation",
+    "review": ["gate-a", "gate-b", "gate-c"],
+    "implementation": "implementation-astra",
+    "remediation": "implementation-astra",
     "verification": "verification",
     "oracle": "oracle"
   }
