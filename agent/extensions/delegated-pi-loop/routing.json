@@ -41,6 +41,34 @@
         "openai-codex": {
           "thinking": ["medium", "high"],
           "default": "high"
+        },
+        "openai-codex-zahlo": {
+          "thinking": ["medium", "high"],
+          "default": "high"
+        },
+        "openai-codex-cgpt1": {
+          "thinking": ["medium", "high"],
+          "default": "high"
+        },
+        "openai-codex-cgpt2": {
+          "thinking": ["medium", "high"],
+          "default": "high"
+        },
+        "openai-codex-cgpt3": {
+          "thinking": ["medium", "high"],
+          "default": "high"
+        },
+        "openai-codex-cgpt4": {
+          "thinking": ["medium", "high"],
+          "default": "high"
+        },
+        "openai-codex-cgpt5": {
+          "thinking": ["medium", "high"],
+          "default": "high"
+        },
+        "openai-codex-cgpt6": {
+          "thinking": ["medium", "high"],
+          "default": "high"
         }
       }
     },
@@ -203,7 +231,7 @@
       "overridePolicy": "rejected",
       "tiers": [
         {
-          "model": "gpt-5.6-sol",
+          "model": "gpt-6-astra",
           "thinking": "high",
           "providers": [
             "openai-codex",
