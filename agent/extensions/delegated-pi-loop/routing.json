@@ -237,7 +237,7 @@
       "tiers": [
         {
           "model": "gpt-6-astra",
-          "thinking": "high",
+          "thinking": "max",
           "providers": [
             "openai-codex",
             "openai-codex-zahlo",
@@ -304,6 +304,6 @@
     "implementation": "implementation-astra-max",
     "remediation": "implementation-astra-max",
     "verification": "verification",
-    "oracle": "implementation-astra-max"
+    "oracle": "oracle"
   }
 }
