@@ -39,35 +39,35 @@
     "gpt-6-astra": {
       "providers": {
         "openai-codex": {
-          "thinking": ["medium", "high"],
+          "thinking": ["medium", "high", "max"],
           "default": "high"
         },
         "openai-codex-zahlo": {
-          "thinking": ["medium", "high"],
+          "thinking": ["medium", "high", "max"],
           "default": "high"
         },
         "openai-codex-cgpt1": {
-          "thinking": ["medium", "high"],
+          "thinking": ["medium", "high", "max"],
           "default": "high"
         },
         "openai-codex-cgpt2": {
-          "thinking": ["medium", "high"],
+          "thinking": ["medium", "high", "max"],
           "default": "high"
         },
         "openai-codex-cgpt3": {
-          "thinking": ["medium", "high"],
+          "thinking": ["medium", "high", "max"],
           "default": "high"
         },
         "openai-codex-cgpt4": {
-          "thinking": ["medium", "high"],
+          "thinking": ["medium", "high", "max"],
           "default": "high"
         },
         "openai-codex-cgpt5": {
-          "thinking": ["medium", "high"],
+          "thinking": ["medium", "high", "max"],
           "default": "high"
         },
         "openai-codex-cgpt6": {
-          "thinking": ["medium", "high"],
+          "thinking": ["medium", "high", "max"],
           "default": "high"
         }
       }
@@ -263,12 +263,21 @@
         }
       ]
     },
-    "implementation-astra-high": {
+    "implementation-astra-max": {
       "tiers": [
         {
           "model": "gpt-6-astra",
-          "thinking": "high",
-          "providers": ["openai-codex"]
+          "thinking": "max",
+          "providers": [
+            "openai-codex",
+            "openai-codex-zahlo",
+            "openai-codex-cgpt1",
+            "openai-codex-cgpt2",
+            "openai-codex-cgpt3",
+            "openai-codex-cgpt4",
+            "openai-codex-cgpt5",
+            "openai-codex-cgpt6"
+          ]
         }
       ]
     },
@@ -287,14 +296,14 @@
       "gate-a",
       "gate-b",
       "gate-c",
-      "implementation-astra-high",
+      "implementation-astra-max",
       "gate-e",
       "gate-f"
     ],
     "review": ["gate-a", "gate-b", "gate-c"],
-    "implementation": "implementation-astra",
-    "remediation": "implementation-astra",
+    "implementation": "implementation-astra-max",
+    "remediation": "implementation-astra-max",
     "verification": "verification",
-    "oracle": "oracle"
+    "oracle": "implementation-astra-max"
   }
 }
