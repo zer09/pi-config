@@ -224,6 +224,11 @@
           "model": "claude-opus-4-8",
           "thinking": "high",
           "providers": ["agentrouter"]
+        },
+        {
+          "model": "deepseek-v4-flash",
+          "thinking": "high",
+          "providers": ["agentrouter"]
         }
       ]
     },
