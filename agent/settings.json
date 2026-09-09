@@ -11,7 +11,6 @@
     "../../development/pi-extensions-cursor/packages/pi-cursor"
   ],
   "enabledModels": [
-    "agentrouter/deepseek-v4-flash",
     "cursor/auto-smart",
     "openai-codex/gpt-5.5",
     "openai-codex/gpt-5.6-sol",

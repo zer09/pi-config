@@ -3,36 +3,32 @@
   "thinkingLevels": ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
   "disabledProviders": [],
   "models": {
-    "muse-spark-1.3-contributor": {
+    "meta/muse-spark-1.3-contributor": {
       "providers": {
-        "opencode-go": {
-          "thinking": ["minimal", "low", "medium", "high", "xhigh"],
+        "commandcode": {
+          "thinking": ["low", "medium", "high", "xhigh"],
           "default": "xhigh"
         }
       }
     },
-    "deepseek-v4-flash": {
+    "tencent/hy4-preview": {
       "providers": {
-        "opencode-go": { "thinking": ["low", "high", "max"], "default": "max" },
-        "agentrouter": { "thinking": ["low", "high", "max"], "default": "max" }
-      }
-    },
-
-    "hy3": {
-      "providers": {
-        "opencode-go": { "thinking": ["off", "low", "high"], "default": "high" }
-      }
-    },
-    "hy4-preview": {
-      "providers": {
-        "opencode-go": { "thinking": ["off", "high"], "default": "high" }
-      }
-    },
-    "claude-opus-4-8": {
-      "providers": {
-        "agentrouter": {
-          "thinking": ["low", "high", "xhigh", "max"],
+        "commandcode": {
+          "thinking": ["low", "medium", "high"],
           "default": "high"
+        }
+      }
+    },
+    "deepseek/deepseek-v4-flash-free": {
+      "providers": {
+        "orcarouter": { "thinking": ["high"], "default": "high" }
+      }
+    },
+    "xai/grok-4.6": {
+      "providers": {
+        "commandcode": {
+          "thinking": ["low", "medium", "high", "xhigh"],
+          "default": "xhigh"
         }
       }
     },
@@ -197,38 +193,37 @@
     },
     "gate-d": {
       "tiers": [
-        { "model": "glm-5.3-flash", "thinking": "high", "providers": ["zai"] }
+        {
+          "model": "meta/muse-spark-1.3-contributor",
+          "thinking": "xhigh",
+          "providers": ["commandcode"]
+        }
       ]
     },
     "gate-e": {
       "tiers": [
         {
-          "model": "muse-spark-1.3-contributor",
-          "thinking": "xhigh",
-          "providers": ["opencode-go"]
+          "model": "tencent/hy4-preview",
+          "thinking": "high",
+          "providers": ["commandcode"]
         }
       ]
     },
     "gate-f": {
       "tiers": [
         {
-          "model": "hy4-preview",
+          "model": "deepseek/deepseek-v4-flash-free",
           "thinking": "high",
-          "providers": ["opencode-go"]
+          "providers": ["orcarouter"]
         }
       ]
     },
     "gate-g": {
       "tiers": [
         {
-          "model": "claude-opus-4-8",
-          "thinking": "high",
-          "providers": ["agentrouter"]
-        },
-        {
-          "model": "deepseek-v4-flash",
-          "thinking": "high",
-          "providers": ["agentrouter"]
+          "model": "xai/grok-4.6",
+          "thinking": "xhigh",
+          "providers": ["commandcode"]
         }
       ]
     },
@@ -252,18 +247,6 @@
       ]
     },
     "implementation": {
-      "tiers": [{ "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }]
-    },
-    "implementation-astra": {
-      "tiers": [
-        {
-          "model": "gpt-6-astra",
-          "thinking": "medium",
-          "providers": ["openai-codex"]
-        }
-      ]
-    },
-    "implementation-astra-max": {
       "tiers": [
         {
           "model": "gpt-6-astra",
@@ -292,17 +275,10 @@
     }
   },
   "assignments": {
-    "solution": [
-      "gate-a",
-      "gate-b",
-      "gate-c",
-      "implementation-astra-max",
-      "gate-e",
-      "gate-f"
-    ],
-    "review": ["gate-a", "gate-b", "gate-c"],
-    "implementation": "implementation-astra-max",
-    "remediation": "implementation-astra-max",
+    "solution": ["gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "gate-f"],
+    "review": ["gate-a", "gate-b", "gate-g"],
+    "implementation": "implementation",
+    "remediation": "implementation",
     "verification": "verification",
     "oracle": "oracle"
   }
