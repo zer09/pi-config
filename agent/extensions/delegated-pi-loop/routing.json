@@ -253,19 +253,19 @@
     "gate-f": {
       "tiers": [
         {
-          "model": "deepseek/deepseek-v4-flash-free",
-          "thinking": "high",
-          "providers": ["orcarouter"]
+          "model": "deepseek/deepseek-v4.1-flash",
+          "thinking": "xhigh",
+          "providers": ["commandcode"]
         },
         {
-          "model": "deepseek-v4-flash",
-          "thinking": "high",
+          "model": "deepseek-flash",
+          "thinking": "xhigh",
           "providers": ["opencode-go"]
         },
         {
-          "model": "deepseek/deepseek-v4-flash",
+          "model": "deepseek/deepseek-v4-flash-free",
           "thinking": "high",
-          "providers": ["commandcode"]
+          "providers": ["orcarouter"]
         }
       ]
     },
