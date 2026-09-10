@@ -42,19 +42,24 @@
         "opencode-go": { "thinking": ["low", "high", "max"], "default": "max" }
       }
     },
-    "xai/grok-4.6": {
+    "deepseek/deepseek-v4-flash": {
       "providers": {
-        "commandcode": {
-          "thinking": ["low", "medium", "high", "xhigh"],
-          "default": "xhigh"
+        "commandcode": { "thinking": ["low", "high", "max"], "default": "max" }
+      }
+    },
+    "deepseek-flash": {
+      "providers": {
+        "opencode-go": {
+          "thinking": ["off", "low", "high", "xhigh", "max"],
+          "default": "high"
         }
       }
     },
-    "grok-4.6": {
+    "deepseek/deepseek-v4.1-flash": {
       "providers": {
-        "opencode-go": {
-          "thinking": ["low", "medium", "high", "xhigh"],
-          "default": "xhigh"
+        "commandcode": {
+          "thinking": ["off", "low", "high", "xhigh", "max"],
+          "default": "high"
         }
       }
     },
@@ -256,20 +261,25 @@
           "model": "deepseek-v4-flash",
           "thinking": "high",
           "providers": ["opencode-go"]
+        },
+        {
+          "model": "deepseek/deepseek-v4-flash",
+          "thinking": "high",
+          "providers": ["commandcode"]
         }
       ]
     },
     "gate-g": {
       "tiers": [
         {
-          "model": "xai/grok-4.6",
-          "thinking": "xhigh",
-          "providers": ["commandcode"]
-        },
-        {
-          "model": "grok-4.6",
+          "model": "deepseek-flash",
           "thinking": "xhigh",
           "providers": ["opencode-go"]
+        },
+        {
+          "model": "deepseek/deepseek-v4.1-flash",
+          "thinking": "xhigh",
+          "providers": ["commandcode"]
         }
       ]
     },
