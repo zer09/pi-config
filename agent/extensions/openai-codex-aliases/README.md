@@ -3,7 +3,7 @@
 This extension registers named OpenAI Codex providers for separate ChatGPT Plus or Pro accounts.
 It leaves Pi's built-in `openai-codex` provider unchanged.
 
-Configured provider IDs are derived from `aliases.json`. The current account slugs are `zahlo` and `cgpt1` through `cgpt6`, producing `openai-codex-zahlo` and `openai-codex-cgpt1` through `openai-codex-cgpt6`. Display names also come from `aliases.json`; do not duplicate account labels in source code or tests.
+Configured provider IDs are derived from `aliases.json`. The current account slugs are `cgpt1` through `cgpt6`, producing `openai-codex-cgpt1` through `openai-codex-cgpt6`. Display names also come from `aliases.json`; do not duplicate account labels in source code or tests.
 
 ## Architecture
 

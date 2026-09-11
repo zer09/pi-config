@@ -69,10 +69,6 @@
           "thinking": ["medium", "high", "max"],
           "default": "high"
         },
-        "openai-codex-zahlo": {
-          "thinking": ["medium", "high", "max"],
-          "default": "high"
-        },
         "openai-codex-cgpt1": {
           "thinking": ["medium", "high", "max"],
           "default": "high"
@@ -105,10 +101,6 @@
           "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
-        "openai-codex-zahlo": {
-          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
-          "default": "high"
-        },
         "openai-codex-cgpt1": {
           "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
@@ -138,10 +130,6 @@
     "gpt-5.5": {
       "providers": {
         "openai-codex": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
-          "default": "high"
-        },
-        "openai-codex-zahlo": {
           "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
           "default": "high"
         },
@@ -190,7 +178,6 @@
           "thinking": "high",
           "providers": [
             "openai-codex",
-            "openai-codex-zahlo",
             "openai-codex-cgpt1",
             "openai-codex-cgpt2",
             "openai-codex-cgpt3",
@@ -208,7 +195,6 @@
           "thinking": "high",
           "providers": [
             "openai-codex",
-            "openai-codex-zahlo",
             "openai-codex-cgpt1",
             "openai-codex-cgpt2",
             "openai-codex-cgpt3",
@@ -291,7 +277,6 @@
           "thinking": "max",
           "providers": [
             "openai-codex",
-            "openai-codex-zahlo",
             "openai-codex-cgpt1",
             "openai-codex-cgpt2",
             "openai-codex-cgpt3",
@@ -309,7 +294,6 @@
           "thinking": "max",
           "providers": [
             "openai-codex",
-            "openai-codex-zahlo",
             "openai-codex-cgpt1",
             "openai-codex-cgpt2",
             "openai-codex-cgpt3",
