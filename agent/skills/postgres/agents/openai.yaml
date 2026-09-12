@@ -1,4 +1,4 @@
 interface:
   display_name: "Postgres"
   short_description: "Tune and troubleshoot PostgreSQL"
-  default_prompt: "Use $postgres to design, review, optimize, or troubleshoot PostgreSQL schemas, queries, connections, operations, and performance issues."
+  default_prompt: "Use $postgres to review this PostgreSQL database design or diagnose its query, transaction, or operational issue."

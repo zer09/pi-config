@@ -2,13 +2,9 @@
 
 This guide walks you through using Cloud Firestore in your Android app using Kotlin.
 
-### Enable Firestore via CLI
+### Local SDK setup
 
-Before adding dependencies in your app, make sure you enable the Firestore service in your Firebase Project using the Firebase CLI:
-
-```bash
-npx -y firebase-tools@latest init firestore
-```
+Android dependency and SDK setup can proceed without backend provisioning or service enablement. Backend provisioning and service enablement are separate actions that require explicit user instruction for each exact action and target. Only when explicitly requested, follow the [Standard provisioning reference](provisioning.md).
 
  ---
 

@@ -3,7 +3,7 @@
 Consult this file when writing Flutter application code (Dart) that interacts with the SQL Connect backend.
 
 ### Best Practices for Agents
-- **Understand Operation Storage**: SQL Connect queries and mutations are stored on the server like Cloud Functions. **Whenever you update operations, you must regenerate the SDK and redeploy services** that use it to avoid breaking clients.
+- **Operation compatibility**: SQL Connect stores operations on the server. Regenerate affected SDKs after local operation changes and test against the emulator. Coordinate publication before clients use changed production operations, but deploy only with explicit user instruction for that exact action. Local work does not authorize redeployment.
 - **Resilient Enum Handling**: The generated SDK forces handling of unknown values for enumerations. Client code must unwrap the `EnumValue` object into either `Known` or `Unknown` to handle schema updates gracefully.
 - **Use Ref for Subscriptions**: Call `.ref()` on operation methods to get a `QueryRef` for advanced usage like subscriptions.
 - **Builder Pattern for Optionals**: Use the builder pattern for mutations with optional fields.

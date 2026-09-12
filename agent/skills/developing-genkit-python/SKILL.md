@@ -1,58 +1,39 @@
 ---
 name: developing-genkit-python
-description: "Develop AI-powered applications using Genkit in Python. Use when the user asks about Genkit, AI agents, flows, or tools in Python, or when encountering Genkit errors, import issues, or API problems."
+description: "Implement or debug Genkit Python generation, agents, flows, tools, and provider integrations. Use for Genkit Python SDK code, setup, import failures, or Python-specific API errors."
 ---
 
 # Genkit Python
 
-## Prerequisites
+## Safety and version checks
 
-- **Runtime**: Python **3.14+**, **`uv`** for deps ([install](https://docs.astral.sh/uv/getting-started/installation/)).
-- **CLI**: `genkit --version` — install via `npm install -g genkit-cli` if missing.
+- Local code edits and checks are allowed within the requested task. Firebase/GCP mutations, deployment, provider or secret changes, and live model/API calls require explicit user instruction for the exact action. A local flow or Dev UI can still call hosted services.
+- Never print, save, or commit API keys, tokens, or service credentials. Use environment variable names or `<api-key>` placeholders.
+- The Genkit Python runtime floor is **Python 3.10+**. Preserve a project's pinned newer Python version and dependency constraints. Inspect `pyproject.toml`, lockfiles, imports, and installed package versions; use the project's `uv` environment without upgrading dependencies unless requested.
+- Verify uncertain imports and APIs against installed source, the relevant reference, or current SDK documentation. [Setup](references/setup.md) records the runtime-floor evidence and bootstrap examples.
 
-**New projects:** [Setup](references/setup.md) (bootstrap + env). **Patterns and code samples:** [Examples](references/examples.md).
+## Python API guidance and references
 
-## Hello World
+Use provider-prefixed model IDs with the project's selected plugin. For Genkit-driven long-running apps, use `ai.run_main(main())`; see the entrypoint guidance in [Common errors](references/common-errors.md) rather than replacing an existing server's event loop blindly. Python tools use `@ai.tool()`; streaming has separate chunk and final-response handling.
 
-```python
-from genkit import Genkit
-from genkit.plugins.google_genai import GoogleAI
+Load only the reference relevant to the task:
 
-ai = Genkit(
-    plugins=[GoogleAI()],
-    model='googleai/gemini-flash-latest',
-)
+| Task | Reference |
+| --- | --- |
+| New setup, plugins, Hello World, optional CLI installation | [Setup](references/setup.md) |
+| Structured output, streaming, flows, tools, embeddings | [Examples](references/examples.md) |
+| Python SDK import, schema, decorator, streaming, or event-loop failures | [Common errors](references/common-errors.md) |
+| HTTP handlers and parallel flows | [FastAPI](references/fastapi.md) |
+| `.prompt` files and helpers | [Dotprompt](references/dotprompt.md) |
+| Requested evaluation implementation | [Evals](references/evals.md) |
+| Optional local tracing and Dev UI | [Development workflow](references/dev-workflow.md) |
 
-async def main():
-    response = await ai.generate(prompt='Tell me a joke about Python.')
-    print(response.text)
+## Validation and completion
 
-if __name__ == '__main__':
-    ai.run_main(main())
-```
+Run the relevant available project tests, lint, or type checks for affected code through `uv run`. Prefer mocked/local checks; live calls and model-based evaluations require exact authorization. Documentation-only work needs relevant link/example checks, not CLI startup or a full environment setup.
 
-## Critical: Do Not Trust Internal Knowledge
-
-The Python SDK changes often — verify imports and APIs against the references here or upstream docs. On **any** error, read [Common Errors](references/common-errors.md) first.
-
-## Development Workflow
-
-1. Default provider: **Google AI** (`GoogleAI()`), **`GEMINI_API_KEY`** in the environment.
-2. Model IDs: always prefixed, e.g. **`googleai/gemini-flash-latest`** (always-on-latest Flash alias; same pattern as other skills).
-3. Entrypoint: **`ai.run_main(main())`** for Genkit-driven apps (not `asyncio.run()` for long-lived servers started with `genkit start` — see [Common Errors](references/common-errors.md)).
-4. After generating code, follow [Dev Workflow](references/dev-workflow.md) for `genkit start` and the Dev UI.
-5. On errors: step 1 is always [Common Errors](references/common-errors.md).
-
-## References
-
-- [Examples](references/examples.md): Structured output, streaming, flows, tools, embeddings.
-- [Setup](references/setup.md): New project bootstrap and plugins.
-- [Common Errors](references/common-errors.md): Read first when something breaks.
-- [FastAPI](references/fastapi.md): HTTP, `genkit_fastapi_handler`, parallel flows.
-- [Dotprompt](references/dotprompt.md): `.prompt` files and helpers.
-- [Evals](references/evals.md): Evaluators and datasets.
-- [Dev Workflow](references/dev-workflow.md): `genkit start`, Dev UI, checklist.
+Finish with the requested deliverable, checks and results, and version assumptions or blocked checks. Fix in-scope regressions without expanding into dependency upgrades or hosted actions.
 
 ## Maintenance
 
-For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.
+For future updates, read the [Firebase skills update process](../../../docs/skills/firebase-skills-update-process.md).

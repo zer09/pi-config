@@ -2,9 +2,9 @@
 <!-- nlm-version: 0.9.6 -->
 ## NLM - Gemini Notebook (formerly Google NotebookLM) CLI Expert
 
-**Triggers:** "nlm", "notebooklm", "Gemini Notebook", "podcast", "audio overview", "research"
+Use for requested NotebookLM/Gemini Notebook operations or troubleshooting through the `nlm` CLI or MCP, not generic research, podcasts, or document critique.
 
-Expert assistant for Gemini Notebook automation via CLI. Use when users want to create/manage notebooks, add sources (URLs, YouTube, text, Google Drive), generate AI content (podcasts, reports, quizzes, flashcards, mind maps, slides, infographics, videos, data tables), conduct research, or chat with sources.
+Apply the [skill root](../SKILL.md) for tool choice and safety. These examples are optional recipes, not authorization to execute their mutation steps. Reads do not authorize writes. Every create/add/import/generate/rename/share/invite/export/sync/configure/tag/delete action requires an exact user request and target. An unambiguous create/generate request needs no extra approval; deletes still require explicit confirmation. Never print cookies, tokens, profile secrets, or raw auth headers. Keep output bounded and read the [remote MCP security reference](remote-mcp.md) before remote access.
 
 ### Quick Reference
 
@@ -23,10 +23,10 @@ nlm research start "query" --title "New Research"  # Create destination notebook
 2. **Do not treat `unverified` as expired**: Check connectivity or try an API call first
 3. **`--confirm` required** for generation/delete commands
 4. **Capture IDs from output** for subsequent operations
-5. **Use `nlm alias set`** to simplify UUIDs
+5. **Check existing aliases first**; use `nlm alias set` only when alias creation is requested
 6. **⚠️ NEVER auto-delete**: Always ask user before `nlm delete`
 7. **⚠️ NEVER use `nlm chat start`**: It's an interactive REPL. Use `nlm notebook query` instead
-8. **Use the configured MCP name**: Register this server as `gemini-notebook-mcp`; the executable remains `notebooklm-mcp` for compatibility.
+8. **Use the existing configured MCP name**: The executable remains `notebooklm-mcp`. Registration or configuration changes require an exact user request and target.
 9. **Never configure blindly**: `nlm setup` verifies the MCP executable and detected client profile before writing. User-level skills require the target tool to be detected; use `--level project` for an intentional project-local install.
 
 ### Common Workflows
@@ -66,7 +66,7 @@ nlm pipeline run ingest-and-podcast --notebook <id> --input-url "https://..."
 
 ### Full Documentation
 
-For complete command reference, troubleshooting, and workflows, install the full skill:
+Use the installed skill's [command reference](command_reference.md), [troubleshooting](troubleshooting.md), and [workflows](workflows.md). Installation commands below apply only when the user requests installation or update for the specified tool:
 
 ```bash
 # Install via uv

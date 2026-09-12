@@ -209,25 +209,9 @@ generate:
 
 ---
 
-## Firebase Init Commands
+## Firebase CLI Workflows
 
-```bash
-# Initialize SQL Connect in project
-npx -y firebase-tools@latest init dataconnect
-
-# Initialize with specific project
-npx -y firebase-tools@latest use <project-id>
-npx -y firebase-tools@latest init dataconnect
-
-# Start emulator for development
-npx -y firebase-tools@latest emulators:start --only dataconnect
-
-# Generate SDKs
-npx -y firebase-tools@latest dataconnect:sdk:generate
-
-# Deploy to production
-npx -y firebase-tools@latest deploy --only dataconnect
-```
+Use [Configuration and CLI](reference/config.md) for local initialization, compilation, emulation, SDK generation, and deployment commands. Local setup does not authorize provisioning. Deployment, Cloud SQL migration, and Firebase project mutations require explicit user instruction for each exact action; active-project changes require the user's request or agreement.
 
 ---
 

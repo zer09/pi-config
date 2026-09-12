@@ -1,4 +1,4 @@
 interface:
   display_name: "Directus Browser"
-  short_description: "Operate Directus Studio through Chrome"
-  default_prompt: "Use $directus-browser to inspect or manage a Directus Studio instance through the browser."
+  short_description: "Inspect or manage Directus Studio"
+  default_prompt: "Use $directus-browser to inspect Directus Studio after I complete and confirm this task's Browser Harness setup."

@@ -1,4 +1,4 @@
 interface:
   display_name: "Pi Browser Harness"
-  short_description: "Control the browser after explicit user setup"
-  default_prompt: "Use $pi-browser-harness to work in my browser after I complete the required setup."
+  short_description: "Control web pages with per-task browser consent"
+  default_prompt: "Use $pi-browser-harness to inspect a page after I complete and explicitly confirm this task's browser setup."

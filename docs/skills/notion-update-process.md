@@ -23,6 +23,14 @@ The narrower historical `notion-cli` skill remains retired; see `notion-cli-upda
 - Last workflow commit integrated: `9847f2aa1a15f25df35ed1fb7b4557dbb60cd651`
 - Runtime command source: installed `ntn --help` and subcommand help (`ntn 0.21.9` at the latest review).
 
+## Routing and proportional discovery
+
+Keep `notion` as `make it slim`. Activate it for Notion workspace reads or explicitly requested writes through official `ntn`, not a bare Notion mention in unrelated prose. Resolve exact targets and inspect only context, schemas, and allowed values that affect the operation. Load higher-level workflow recipes only for the selected task; a workflow name does not authorize companion writes.
+
+An exact read request stays read-only. An exact write request authorizes only that action and target without redundant confirmation unless destructive or materially ambiguous. Preserve page-fetch-before-replace, deletion confirmation, schema checks, the smallest operation, verification, and token secrecy.
+
+Missing tooling/authentication is a blocker, not permission to install or log in. Persistent CLI installation and login/logout require user request/agreement, separate from workspace read authority. Do not run a curl installer or start login automatically. Keep exactly one `$notion` token in the metadata prompt and preserve dependency metadata. A routing-only pass does not change source commits or the reviewed CLI version.
+
 ## Update workflow
 
 1. Read `docs/skills/README.md`, `local-skill-update-invariants.md`, and `skill-slimming-process.md`.
@@ -31,7 +39,7 @@ The narrower historical `notion-cli` skill remains retired; see `notion-cli-upda
 4. Inspect current local behavior with Context Mode: `ntn --version`, `ntn --help`, and help for changed subcommands. Use `ntn api <path> --spec` only for endpoint details needed by runtime instructions.
 5. Keep exact CLI discovery, authentication, destructive-edit warnings, database/data-source distinctions, and current commands. Remove stale syntax rather than preserving compatibility prose.
 6. Reconcile upstream workflow changes into `references/workflows.md`. Preserve capability while compressing repeated templates into short structures and selection rules.
-7. Preserve the external hosted-service mutation gate: creating/editing/trashing pages, changing properties/comments, uploading files, deploying/executing workers, login/logout, and every other Notion write require an exact explicit user request.
+7. Preserve the external hosted-service mutation gate: creating/editing/trashing pages, changing properties/comments, uploading files, deploying/executing workers, and every other Notion write require an exact explicit user request. Preserve the separate user request/agreement gate for persistent CLI installation and login/logout.
 8. Preserve the rule that `ntn pages edit` replaces page content: fetch first, retain unrequested content, and require confirmation before `--allow-deleting-content` or non-interactive trashing.
 9. Do not print or document token values. Refer to `NOTION_API_TOKEN` by name only.
 10. Keep `SKILL.md` frontmatter to `name` and `description`, retain `agents/openai.yaml`, and keep its default prompt aligned with `$notion`.

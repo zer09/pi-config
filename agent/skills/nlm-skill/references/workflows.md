@@ -4,6 +4,10 @@ This document provides end-to-end workflow sequences for common tasks with the `
 
 ## Critical AI Behavior Rules
 
+Apply the [root authorization boundary](../SKILL.md#safety-and-authorization) before selecting steps. These recipes are not permission to run every command. Each create/add/import/generate/rename/share/invite/export/sync/configure/tag/delete action requires the user's exact request and target. Reads do not imply writes, and a requested generation does not authorize its surrounding ingestion, sharing, export, or cleanup steps. Existing authorization is sufficient for an unambiguous create/generate action; deletes still require explicit confirmation.
+
+Local file edits and Git actions also need current user authorization. Never commit merely because a workflow mentions versioning. Keep output bounded and redact secrets under the root rules.
+
 ### Always Confirm Destructive Operations
 
 **Before executing ANY delete operation, ALWAYS ask the user for explicit confirmation.** Deletions are irreversible.
@@ -179,13 +183,8 @@ nlm notebook query <notebook-id> "What are the main themes across these sources?
 # Follow-up (maintains context)
 nlm notebook query <notebook-id> "Can you elaborate on the first theme?" --conversation-id <conv-id>
 
-# Option B: Interactive chat session
-nlm chat start <notebook-id>
-# In REPL:
-#   Type questions naturally
-#   /sources - see available sources
-#   /clear - reset conversation
-#   /exit - exit REPL
+# Agents must not use the interactive nlm chat start REPL.
+# Use one-shot queries and --conversation-id for follow-ups.
 ```
 
 ---
@@ -424,8 +423,8 @@ nlm alias delete <alias-name>
 NOTEBOOK_ID="abc123..."
 QUERY="latest AI news $(date +%Y-%m-%d)"
 
-# Ensure authenticated
-nlm login --check || nlm login
+# Check authentication. Run nlm login only for setup or confirmed stale credentials.
+nlm login --check
 
 # Research and import automatically. Use --json and a JSON parser when IDs or
 # fields must be captured; do not grep human-formatted output.
@@ -455,7 +454,7 @@ grounded but fallible critic (it only sees its sources) and never decides what i
 - Every critique MUST include a cited source passage. Discard any critique with no citation.
 - The agent adjudicates each surviving critique (ACCEPT / REJECT / DEFER + reason); only ACCEPTED BLOCKING/IMPORTANT items are applied.
 - If an item is high-impact **and** ambiguous (the citation doesn't settle it), do **not** auto-apply — surface it to the user and wait.
-- Cleanup deletes obsolete draft sources. Per **Critical AI Behavior Rules**, confirm with the user before any `nlm source delete`.
+- Cleanup is optional and requires a delete request plus explicit confirmation under **Critical AI Behavior Rules**. A critique request does not authorize deleting draft sources.
 - Stop on convergence (no BLOCKING/IMPORTANT), on **repeated or contradictory** feedback across rounds, or at `MAX_ITER`.
 
 ```bash
@@ -493,8 +492,8 @@ suggested fix | VERDICT (SHIP or REVISE). Only flag issues you can ground in a c
 # 3. Adjudicate (agent, not the CLI):
 #    - discard critiques without a citation
 #    - ACCEPT / REJECT / DEFER each, with a one-line reason
-#    - apply ACCEPTED BLOCKING/IMPORTANT edits to the local file
-#    [full] write draft_v2.md and git-commit the diff (auditable, reversible)
+#    - apply ACCEPTED BLOCKING/IMPORTANT edits only if local editing was requested
+#    [full] write draft_v2.md only within scope; commit only if separately requested
 
 # 4. Cleanup the now-obsolete draft  ——  CONFIRM WITH THE USER FIRST
 nlm source delete <DRAFT_ID> --confirm
@@ -503,13 +502,13 @@ sleep 2
 # 5. Re-add the revised draft and loop:
 #    nlm source add refactor --text "$(cat draft_v2.md)" --title "DRAFT v2"  -> re-query -> re-adjudicate
 #    [full] regression guard: if this round introduced issues the previous round
-#           did not have, revert to draft_v{i-1} and stop.
+#           did not have, report the regression and stop; do not revert user work.
 #    Stop when VERDICT is SHIP with no BLOCKING/IMPORTANT, when feedback repeats
 #    or contradicts itself, or at MAX_ITER.
 
 # --- Optional: Latin-American audio recap of the final version ---
 # Observed: es-US / es-419 -> Latin-American voice; es / es-ES -> Spain. NOTEBOOKLM_HL sets a default.
-nlm audio create refactor --format brief --language es-US
+nlm audio create refactor --format brief --language es-US --confirm
 ```
 
 **Outputs:** the final document; a per-iteration changelog; residual MINOR/subjective
@@ -539,8 +538,9 @@ To avoid hitting API rate limits:
 ### Pattern: Re-authentication on failure
 
 ```bash
-# Try command, re-auth if fails
-nlm notebook list || (nlm login && nlm notebook list)
+# Diagnose failure before re-authenticating.
+nlm notebook list
+# Run nlm login only for setup or confirmed stale credentials, not any API failure.
 ```
 
 ### Pattern: Retry with backoff

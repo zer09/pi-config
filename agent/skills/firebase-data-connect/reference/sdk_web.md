@@ -3,17 +3,20 @@
 Consult this file when writing client-side web code (TypeScript/JavaScript) that interacts with the SQL Connect backend.
 
 ### Best Practices for Agents
-- **Understand Operation Storage**: SQL Connect queries and mutations are stored on the server like Cloud Functions. **Whenever you update operations, you must regenerate the SDK and redeploy services** that use it to avoid breaking clients.
+- **Operation compatibility**: SQL Connect stores operations on the server. Regenerate affected SDKs after local operation changes and test against the emulator. Coordinate publication before clients use changed production operations, but deploy only with explicit user instruction for that exact action. Local work does not authorize redeployment.
 - **Resilient Enum Handling**: JavaScript/TypeScript does not enforce exhaustive checks on enums. Always add a `default` branch to `switch` statements or an `else` branch to handle unknown values gracefully when schemas evolve.
 - **TanStack Query vs. Native**: You can generate hooks for React/Angular using TanStack Query. Choose either TanStack or SQL Connect's built-in real-time and caching support, but do not use both in the same project. SQL Connect offers normalized caching and remote invalidation.
 - **Emulator Connection**: `connectDataConnectEmulator` is only required if connecting to the emulator. Otherwise, the generated SDK auto-creates the instance.
 
 ### Installation
 
+For a requested client dependency addition, preserve existing configuration and dependencies:
+
 ```bash
 npm install firebase
-firebase init dataconnect:sdk
 ```
+
+Consume an existing generated SDK directly, as shown below. Dependency installation does not require CLI initialization, backend provisioning, or service enablement. A missing workspace or backend configuration is a separate setup requirement, not implicit authorization to initialize or provision anything.
 
 ### Initialization
 
@@ -103,7 +106,21 @@ const unsubscribe = subscribe(queryRef, (result) => {
 ```
 
 ### TanStack Query Support (React)
-To use React hooks, re-run `firebase init dataconnect:sdk` after adding React.
+To generate React hooks, set `react: true` on the existing `generate.javascriptSdk` entry in `connector.yaml`. Preserve its output directory, package name, and other settings:
+
+```yaml
+generate:
+  javascriptSdk:
+    react: true
+```
+
+Use the installed or repository-pinned Firebase CLI to regenerate against the existing Data Connect configuration. If the CLI is absent, report it and ask before download/install.
+
+```bash
+firebase dataconnect:sdk:generate
+```
+
+If the workspace or backend configuration is missing, report that separate setup requirement. Do not initialize or provision a backend as part of React hook setup.
 
 #### Usage
 ```typescript

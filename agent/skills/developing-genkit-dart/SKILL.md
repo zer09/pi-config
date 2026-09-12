@@ -1,59 +1,42 @@
 ---
 name: developing-genkit-dart
-description: "Generates code and provides documentation for the Genkit Dart SDK. Use when the user asks to build AI agents in Dart, use Genkit flows, or integrate LLMs into Dart/Flutter applications."
+description: "Implement or debug Genkit Dart/Flutter generation, flows, tools, schemas, and provider integrations. Use for Genkit Dart SDK code, setup, or Dart-specific API errors."
 ---
 
 # Genkit Dart
 
-Genkit Dart is an AI SDK for Dart that provides a unified interface for code generation, structured outputs, tools, flows, and AI agents.
+## Safety and version checks
 
-## Core Features and Usage
-If you need help with initializing Genkit (`Genkit()`), Generation (`ai.generate`), Tooling (`ai.defineTool`), Flows (`ai.defineFlow`), Embeddings (`ai.embedMany`), streaming, or calling remote flow endpoints, please load the core framework reference: 
-[references/genkit.md](references/genkit.md)
+- Local code edits and checks are allowed within the requested task. Firebase/GCP mutations, deployment, provider or secret changes, and live model/API calls require explicit user instruction for the exact action. A local flow or Dev UI can still call hosted services.
+- Never print, save, or commit API keys, tokens, or service credentials. Use environment variable names or `<api-key>` placeholders.
+- Inspect `pubspec.yaml`, `pubspec.lock`, existing imports, and generated schemas. Preserve project versions; do not upgrade dependencies unless requested. Verify uncertain syntax against installed source, the relevant reference, or current [package documentation](https://pub.dev/packages/genkit).
 
-## Genkit CLI (recommended)
+## Selected references
 
-The Genkit CLI provides a local development UI for running Flow, tracing executions, playing with models, and evaluating outputs.
+Use Dart APIs rather than translating another Genkit SDK's syntax. Load only the relevant guide:
 
-check if the user has it installed: `genkit --version`
+| Task | Reference |
+| --- | --- |
+| Setup or optional CLI/Dev UI | [Getting started](references/getting-started.md) |
+| `Genkit()`, `generate`, `generateStream`, `embedMany`, tools, flows, remote clients | [Core framework](references/genkit.md) |
+| Schemantic schema mapping, `@Schema()`, generated `$schema` types | [Schemantic](references/schemantic.md) |
+| Gemini | [Google GenAI](references/genkit_google_genai.md) |
+| Claude | [Anthropic](references/genkit_anthropic.md) |
+| OpenAI or compatible endpoints | [OpenAI](references/genkit_openai.md) |
+| Agent middleware, filesystem, skills, approval interrupts | [Middleware](references/genkit_middleware.md) |
+| MCP client/server/host | [MCP](references/genkit_mcp.md) |
+| On-device Chrome Prompt API | [Chrome](references/genkit_chrome.md) |
+| HTTP flows through Shelf | [Shelf](references/genkit_shelf.md) |
+| Firebase AI provider | [Firebase AI](references/genkit_firebase_ai.md) |
 
-**Installation:**
-```bash
-curl -sL cli.genkit.dev | bash # Native CLI
-# OR
-npm install -g genkit-cli # Via npm
-```
+Genkit Dart schema mapping uses Schemantic. Regenerate affected schema files using the project's existing generator when definitions change; preserve generated-code conventions.
 
-**Usage:**
-Wrap your run command with `genkit start` to attach the Genkit developer UI and tracing:
-```bash
-genkit start -- dart run main.dart
-```
+## Validation and completion
 
-## Plugin Ecosystem
-Genkit relies on a large suite of plugins to perform generative AI actions, interface with external LLMs, or host web servers.
+Validate affected code with available project checks, such as `dart analyze`, Flutter analysis, and focused tests. Documentation-only changes need relevant link/example checks, not an unrelated analyzer run. Use the Genkit CLI only when the task benefits from tracing, flow inspection, or the Dev UI; do not run live calls as a validation shortcut.
 
-When asked to use any given plugin, always verify usage by referring to its corresponding reference below. You should load the reference when you need to know the specific initialization arguments, tools, models, and usage patterns for the plugin:
-
-| Plugin Name | Reference Link | Description |
-| ---- | ---- | ---- |
-| `genkit_google_genai` | [references/genkit_google_genai.md](references/genkit_google_genai.md) | Load for Google Gemini plugin interface usage. |
-| `genkit_anthropic` | [references/genkit_anthropic.md](references/genkit_anthropic.md) | Load for Anthropic plugin interface for Claude models. |
-| `genkit_openai` | [references/genkit_openai.md](references/genkit_openai.md) | Load for OpenAI plugin interface for GPT models, Groq, and custom compatible endpoints. |
-| `genkit_middleware` | [references/genkit_middleware.md](references/genkit_middleware.md) | Load for Tooling for specific agentic behavior: `filesystem`, `skills`, and `toolApproval` interrupts. |
-| `genkit_mcp` | [references/genkit_mcp.md](references/genkit_mcp.md) | Load for Model Context Protocol integration (Server, Host, and Client capabilities). |
-| `genkit_chrome` | [references/genkit_chrome.md](references/genkit_chrome.md) | Load for Running Gemini Nano locally inside the Chrome browser using the Prompt API. |
-| `genkit_shelf` | [references/genkit_shelf.md](references/genkit_shelf.md) | Load for Integrating Genkit Flow actions over HTTP using Dart Shelf. |
-| `genkit_firebase_ai` | [references/genkit_firebase_ai.md](references/genkit_firebase_ai.md) | Load for Firebase AI plugin interface (Gemini API via Vertex AI). |
-
-## External Dependencies
-Whenever you define schemas mapping inside of Tools, Flows, and Prompts, you must use the [schemantic](https://pub.dev/packages/schemantic) library. 
-To learn how to use schemantic, ensure you read [references/schemantic.md](references/schemantic.md) for how to implement type safe generated Dart code. This is particularly relevant when you encounter symbols like `@Schema()`, `SchemanticType`, or classes with the `$` prefix. Genkit Dart uses schemantic for all of its data models so it's a CRITICAL skill to understand for using Genkit Dart.
-
-## Best Practices
-- Always check that code cleanly compiles using `dart analyze` before generating the final response.
-- Always use the Genkit CLI for local development and debugging.
+Finish with the requested deliverable, checks and results, and version assumptions or blocked checks. Fix in-scope regressions without expanding into dependency upgrades or hosted actions.
 
 ## Maintenance
 
-For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.
+For future updates, read the [Firebase skills update process](../../../docs/skills/firebase-skills-update-process.md).

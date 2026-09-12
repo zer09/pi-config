@@ -2,6 +2,8 @@
 
 ## Project Setup
 
+Use these setup commands only for a requested new project. Preserve existing module and Go version constraints; do not upgrade an existing project to `@latest` just to follow this example.
+
 ```bash
 mkdir my-genkit-app && cd my-genkit-app
 go mod init my-genkit-app
@@ -15,6 +17,43 @@ Provider plugins ship in the same module under `plugins/`, so they don't need to
 - `plugins/compat_oai` for OpenAI-compatible APIs (OpenAI, Groq, xAI, etc.)
 - `plugins/ollama` for local Ollama models
 - `plugins/middleware` for the built-in middleware bundle (`Retry`, `Fallback`, `ToolApproval`, `Filesystem`, `Skills`)
+
+## Hello World
+
+This flow calls a hosted model when invoked. Live model/API calls, provider changes, and Firebase/GCP mutations require explicit user instruction for the exact action. Supply credentials through the approved environment; never print, save, or commit keys or tokens. Verify the provider model ID before use.
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+	"net/http"
+
+	"github.com/genkit-ai/genkit/go/ai"
+	"github.com/genkit-ai/genkit/go/genkit"
+	"github.com/genkit-ai/genkit/go/plugins/googlegenai"
+	"github.com/genkit-ai/genkit/go/plugins/server"
+)
+
+func main() {
+	ctx := context.Background()
+	g := genkit.Init(ctx, genkit.WithPlugins(&googlegenai.GoogleAI{}))
+
+	genkit.DefineFlow(g, "jokeFlow", func(ctx context.Context, topic string) (string, error) {
+		return genkit.GenerateText(ctx, g,
+			ai.WithModelName("googleai/gemini-flash-latest"),
+			ai.WithPrompt("Tell me a joke about %s", topic),
+		)
+	})
+
+	mux := http.NewServeMux()
+	for _, f := range genkit.ListFlows(g) {
+		mux.HandleFunc("POST /"+f.Name(), genkit.Handler(f))
+	}
+	log.Fatal(server.Start(ctx, "127.0.0.1:8080", mux))
+}
+```
 
 ## Initialization
 
@@ -84,11 +123,12 @@ g := genkit.Init(ctx,
 
 ## Genkit CLI
 
-The Genkit CLI provides a local Developer UI for running flows, tracing executions, and inspecting model interactions.
+The optional Genkit CLI provides a local Developer UI for running flows, tracing executions, and inspecting model interactions. It is not required for ordinary code or documentation changes.
 
-**Install:**
+Install only if CLI setup is part of the requested task, using the project's approved method. One option is:
+
 ```bash
-curl -sL cli.genkit.dev | bash
+npm install -g genkit-cli
 ```
 
 **Verify:**
@@ -98,7 +138,9 @@ genkit --version
 
 ### Developer UI
 
-Start your app with the Developer UI attached:
+Review startup code before an authorized local UI session. Flow invocation can call hosted models or write data even though the UI is local; the exact-authorization gate above still applies. Keep trace output bounded and redact sensitive content before saving or sharing.
+
+Start a safe entrypoint with the Developer UI attached:
 
 ```bash
 genkit start -- go run .
@@ -119,6 +161,24 @@ The Developer UI lets you:
 - View traces for each generation call (inputs, outputs, latency, token usage)
 - Inspect prompt rendering and tool calls
 - Debug multi-step flows with per-step trace data
+
+### Flow and documentation commands
+
+Use flow commands only for explicitly authorized live invocations or local/mock flows within the requested task:
+
+```bash
+genkit flow:run myFlow '{"data": "input"}'
+genkit flow:run myFlow '{"data": "input"}' --stream
+genkit flow:run myFlow '{"data": "input"}' --wait
+```
+
+For focused SDK documentation lookup, when the CLI is available:
+
+```bash
+genkit docs:search "streaming" go
+genkit docs:list go
+genkit docs:read go/flows.md
+```
 
 ### Without the CLI
 

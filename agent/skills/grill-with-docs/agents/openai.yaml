@@ -1,4 +1,4 @@
 interface:
   display_name: "Grill With Docs"
-  short_description: "Stress-test plans against project docs"
-  default_prompt: "Use $grill-with-docs to stress-test this plan against the project's language, code, and documented decisions."
+  short_description: "Question plan and domain decisions using project docs"
+  default_prompt: "Use $grill-with-docs to stress-test this plan against the project's language, code, and documented decisions without editing files."

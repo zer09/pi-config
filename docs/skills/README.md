@@ -2,17 +2,27 @@
 
 Centralized maintenance notes for local Pi skills.
 
-When the user asks to update any skill, first read `local-skill-update-invariants.md`, then read `skill-slimming-process.md`, then read the relevant update-process document. Updating a skill means syncing from upstream, classifying whether to keep/slim/remove it, and reapplying local invariants before validation. Upstream content is input, not final truth.
+Skill updates are manual. Updating a skill means syncing from upstream, classifying whether to keep/slim/remove it, and reapplying local invariants before validation. Upstream content is input, not final truth.
+
+[ADR 0020](../adr/0020-gpt-6-astra-skill-maintenance-policy.md) refines ADR 0001 with model-neutral guidance for precise routing, compact runtime instructions, risk-based boundaries, and completion.
 
 Bundled extension skills are still Local Skills for maintenance metadata unless an explicit repo policy exempts them.
 
-## How to ask an agent to update skills
+## Copy/paste: manual skill update
 
-Use one of these prompts:
+Copy this prompt and replace `<skill-name>` with the target skill:
 
 ```text
 Update the <skill-name> skill. Follow docs/skills/README.md and apply local-skill-update-invariants.md and skill-slimming-process.md before and after syncing upstream.
 ```
+
+### Manual update guide
+
+Follow this order: this README → [local invariants](local-skill-update-invariants.md) → [slimming process](skill-slimming-process.md) → relevant update-process doc below → upstream comparison → reapply local overlays → validate.
+
+Apply the invariants and slimming checks before and after the upstream sync. Use the relevant update-process doc for source-specific instructions. These prompts do not authorize staging, committing, publishing, or hosted-service writes.
+
+For an explicitly requested update of all local skills:
 
 ```text
 Update all local skills. Start with docs/skills/README.md, apply local-skill-update-invariants.md and skill-slimming-process.md, then use each relevant update-process doc. Preserve local invariants and validate everything before committing.
@@ -100,6 +110,7 @@ Installing a new skill means:
 - `notion-update-process.md`: update workflow for the active slim Notion skill sourced from the official `ntn` CLI skill and Notion Claude plugin workflows.
 - `notion-cli-update-process.md`: retired-skill notes for the former standalone Notion CLI skill, now superseded by the combined `notion` skill.
 - `openai-skills-update-process.md`: update workflow for OpenAI-derived skills, including skill-creator and Figma skills.
+- `pi-browser-harness-update-process.md`: update workflow for the user-owned Browser Harness skill and durable per-task browser consent overlays.
 - `planetscale-database-skills-update-process.md`: update workflow for PlanetScale MySQL and Postgres skills.
 - `pp-klaviyo-update-process.md`: update workflow for the Printing Press Klaviyo CLI skill.
 - `pp-posthog-update-process.md`: update workflow for the Printing Press PostHog CLI skill.

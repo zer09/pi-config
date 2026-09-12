@@ -2,6 +2,8 @@
 
 Quantitative calibration date: 2026-07-01
 
+Offline skill-catalog refresh: 2026-09-12 (installed Pi 0.85.1; installed Browser Harness package `pi-browser-harness` 0.10.2; refreshed only `## Skills` from the current local roots after the final MySQL/PostgreSQL/uv/Notion routing pass. Provider calibration and the full tool-schema/structural inventory were not rerun. All other measured totals and the 0.6.0/0.8.3 Browser Harness tool data remain historical.)
+
 Delegated incremental-implementation instruction update: 2026-09-08 (parent guidelines assign one reviewed increment per fresh implementation delegate; implementation children use small edit-and-check steps and simple existing patterns. Local `o200k_base` attribution is below; provider calibration and the full extension/tool inventory were not rerun.)
 
 Structural inventory refresh: 2026-07-19 (Pi 0.80.10; `pi-browser-harness` 0.8.3; 57 registered tools, 54 active tools including 36 browser tools). Provider calibration was not rerun; current tool schema and guideline attribution was measured offline.
@@ -110,7 +112,7 @@ Pi version for quantitative calibration: `0.80.2`
 
 Pi version for the historical structural inventory: `0.80.10`
 
-Current tracked upgrade target: `0.84.1` (full structural inventory not rerun)
+Current installed Pi: `0.85.1` (historical tracked upgrade target: `0.84.1`; full structural inventory not rerun)
 
 Model/provider calibrated against: `openai-codex/gpt-5.5`, thinking `xhigh`
 
@@ -1000,46 +1002,54 @@ The historical token table immediately below remains the 2026-07-01 measurement 
 
 ## Skills
 
-Startup includes only the XML skill catalog: name, description, and location. Full `SKILL.md` content is an on-demand cost after the agent reads a matching skill. Skill rows were refreshed on 2026-07-09 for the `directus-browser` install without rerunning provider calibration.
+Startup includes only the XML skill catalog: name, description, and location. Full `SKILL.md` content is an on-demand cost after the agent reads a matching skill. This table measures the current working tree offline on 2026-09-12 with installed Pi 0.85.1 and local `tiktoken` `o200k_base`; provider calibration was not rerun.
+
+The catalog contains 35 visible Local Skills, all from `user/global skills`. Explicit-only `crit` and `impeccable` have `disable-model-invocation: true`; both are excluded from startup catalog totals and load only through explicit invocation. Enumerate the current `agent/skills/*/SKILL.md` roots alphabetically, exclude those explicit-only skills, and use each current frontmatter name and description unchanged. All locations are `/home/gc/.pi/agent/skills/<name>/SKILL.md`. In particular, Browser Harness uses `/home/gc/.pi/agent/skills/pi-browser-harness/SKILL.md`, not an npm package skill copy.
+
+Serialization follows installed Pi 0.85.1's `formatSkillsForPrompt(skills, "read")` in `/home/gc/.bun/install/global/node_modules/@earendil-works/pi-coding-agent/dist/core/skills.js:275-302`. Preserve its three exact header sentences, blank line, `<available_skills>` wrapper, XML escaping, and two-space/four-space entry indentation. Join lines with `\n`, including the initial `\n\n`, with no trailing newline. The full catalog uses alphabetical skill order; table rows use descending isolated `Catalog entry` count with an alphabetical name tie-break.
+
+Each `Catalog entry` counts its isolated exact `<skill>...</skill>` block, including both tag lines and the three field lines, without a trailing newline. `Description` and `Path` count their unescaped strings in isolation. `Full SKILL.md if loaded` counts the complete current root file, including frontmatter. `Skill entry subtotal` sums the row `Catalog entry` values. `Available skills catalog block` counts the full canonical formatter output over all 35 skills. `Catalog wrapper/header overhead` is the exact full-block count minus the row subtotal; this residual intentionally includes header/wrapper tokens and cross-entry BPE boundary effects.
 
 | Origin | Skill | Catalog entry | Description | Path | Full `SKILL.md` if loaded |
 |---|---|---:|---:|---:|---:|
-| user/global skills | `session-handoff` | 204 | 136 | 16 | 1,520 |
-| user/global skills | `nlm-skill` | 165 | 116 | 17 | 1,155 |
-| user/global skills | `crit-cli` | 151 | 103 | 16 | 2,013 |
-| user/global skills | `directus-browser` | 143 | 96 | 16 | 1,165 |
-| user/global skills | `figma-create-design-system-rules` | 133 | 63 | 21 | 1,892 |
-| user/global skills | `figma-implement-design` | 128 | 76 | 19 | 2,785 |
-| npm package: `pi-browser-harness@0.6.0` | `pi-browser-harness` | 118 | 60 | 24 | 927 |
-| user/global skills | `firebase-data-connect` | 117 | 70 | 16 | 1,851 |
-| user/global skills | `pp-posthog` | 115 | 67 | 17 | 830 |
-| user/global skills | `improve-codebase-architecture` | 114 | 61 | 19 | 1,181 |
-| user/global skills | `developing-genkit-go` | 106 | 54 | 19 | 1,223 |
+| user/global skills | `pp-posthog` | 115 | 67 | 17 | 848 |
+| user/global skills | `firebase-app-hosting-basics` | 107 | 54 | 19 | 544 |
 | user/global skills | `developing-genkit-js` | 106 | 54 | 19 | 556 |
-| user/global skills | `firebase-firestore` | 106 | 59 | 16 | 807 |
-| user/global skills | `grill-with-docs` | 104 | 51 | 18 | 842 |
-| user/global skills | `gh-cli` | 103 | 57 | 16 | 604 |
-| user/global skills | `figma` | 102 | 56 | 16 | 802 |
-| user/global skills | `linear-cli` | 101 | 55 | 16 | 1,142 |
-| user/global skills | `mysql` | 101 | 58 | 14 | 849 |
-| user/global skills | `crit` | 98 | 54 | 15 | 1,309 |
-| user/global skills | `firebase-basics` | 98 | 51 | 16 | 573 |
-| user/global skills | `developing-genkit-dart` | 95 | 41 | 20 | 895 |
-| user/global skills | `developing-genkit-python` | 95 | 43 | 19 | 611 |
+| user/global skills | `gh-cli` | 105 | 59 | 16 | 608 |
+| user/global skills | `linear-cli` | 103 | 57 | 16 | 1,527 |
+| user/global skills | `skill-creator` | 102 | 55 | 17 | 2,220 |
+| user/global skills | `pp-klaviyo` | 101 | 51 | 18 | 882 |
+| user/global skills | `firebase-hosting-basics` | 96 | 45 | 18 | 444 |
+| user/global skills | `firebase-security-rules-auditor` | 96 | 41 | 20 | 375 |
+| user/global skills | `firebase-basics` | 95 | 48 | 16 | 591 |
 | user/global skills | `intent-layer` | 95 | 49 | 16 | 784 |
-| user/global skills | `firebase-ai-logic-basics` | 94 | 41 | 19 | 518 |
-| user/global skills | `firebase-hosting-basics` | 91 | 40 | 18 | 439 |
-| user/global skills | `firebase-security-rules-auditor` | 87 | 33 | 20 | 847 |
-| user/global skills | `skill-creator` | 85 | 36 | 17 | 4,026 |
+| user/global skills | `firebase-ai-logic-basics` | 94 | 41 | 19 | 606 |
+| user/global skills | `improve-codebase-architecture` | 94 | 41 | 19 | 1,120 |
+| user/global skills | `outpour-mcp` | 93 | 44 | 17 | 789 |
+| user/global skills | `figma-implement-design` | 92 | 40 | 19 | 797 |
+| user/global skills | `firebase-firestore` | 91 | 44 | 16 | 803 |
+| user/global skills | `developing-genkit-dart` | 90 | 36 | 20 | 618 |
+| user/global skills | `developing-genkit-python` | 89 | 37 | 19 | 585 |
+| user/global skills | `grill-with-docs` | 88 | 35 | 18 | 901 |
+| user/global skills | `developing-genkit-go` | 87 | 35 | 19 | 614 |
+| user/global skills | `figma-create-design-system-rules` | 83 | 27 | 21 | 866 |
+| user/global skills | `firebase-data-connect` | 83 | 36 | 16 | 791 |
+| user/global skills | `nlm-skill` | 83 | 34 | 17 | 905 |
+| user/global skills | `session-handoff` | 82 | 36 | 16 | 679 |
 | user/global skills | `firebase-auth-basics` | 78 | 29 | 17 | 475 |
-| user/global skills | `firebase-app-hosting-basics` | 77 | 24 | 19 | 514 |
+| user/global skills | `notion` | 78 | 33 | 15 | 787 |
+| user/global skills | `pi-browser-harness` | 78 | 27 | 17 | 765 |
+| user/global skills | `figma` | 76 | 30 | 16 | 326 |
+| user/global skills | `crit-cli` | 75 | 29 | 16 | 911 |
 | user/global skills | `ty` | 75 | 31 | 15 | 416 |
+| user/global skills | `uv` | 73 | 29 | 15 | 624 |
 | user/global skills | `ruff` | 72 | 28 | 15 | 473 |
-| user/global skills | `uv` | 71 | 27 | 15 | 497 |
-| user/global skills | `postgres` | 68 | 24 | 15 | 864 |
-| **Skill entry subtotal** | — | **3,496** | — | — | — |
-| Catalog wrapper/header overhead | — | **73** | — | — | — |
-| **Available skills catalog block** | — | **3,569** | — | — | — |
+| user/global skills | `directus-browser` | 71 | 24 | 16 | 1,239 |
+| user/global skills | `mysql` | 68 | 25 | 14 | 854 |
+| user/global skills | `postgres` | 66 | 22 | 15 | 932 |
+| **Skill entry subtotal** | — | **3,080** | — | — | — |
+| Catalog wrapper/header overhead | — | **74** | — | — | — |
+| **Available skills catalog block** | — | **3,154** | — | — | — |
 
 ## Prompt templates
 

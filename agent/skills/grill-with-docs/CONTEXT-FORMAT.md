@@ -1,5 +1,7 @@
 # CONTEXT.md Format
 
+Use this format for explicitly requested documentation changes. In review-only sessions, discuss proposed terms and context maps in chat without creating or updating files. Agreement on a term alone does not authorize a write.
+
 ## Structure
 
 ```md
@@ -72,6 +74,6 @@ The skill infers which structure applies:
 
 - If `CONTEXT-MAP.md` exists, read it to find contexts
 - If only a root `CONTEXT.md` exists, single context
-- If neither exists, create a root `CONTEXT.md` lazily when the first term is resolved
+- If neither exists and the user explicitly requested that documentation write, create a root `CONTEXT.md` lazily when the first term is resolved
 
 When multiple contexts exist, infer which one the current topic relates to. If unclear, ask.

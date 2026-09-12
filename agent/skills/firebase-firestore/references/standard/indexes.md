@@ -107,7 +107,10 @@ Your indexes should be defined in `firestore.indexes.json` (pointed to by
 }
 ```
 
-### CLI Commands
+### Explicitly authorized deployment
 
-Deploy indexes only: `bash npx -y firebase-tools@latest deploy --only
-firestore:indexes`
+Index deployment requires explicit user instruction for that exact action. Verify the project and database first; a missing target does not authorize database creation. For local work, validate the index configuration without deployment.
+
+```bash
+firebase deploy --only firestore:indexes --project <project-id>
+```

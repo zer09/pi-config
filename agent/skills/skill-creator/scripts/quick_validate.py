@@ -109,10 +109,14 @@ def validate_links(skill_path: Path, profile: str) -> list[str]:
     )
     local_skills_root = root.parent
     for markdown_path in sorted(skill_path.rglob("*.md")):
+        # An ignored ancestor outside the skill must not hide the skill's own links.
+        relative_md = markdown_path.relative_to(skill_path)
+        if any(
+            part in {".git", "__pycache__", "node_modules"} for part in relative_md.parts
+        ):
+            continue
         if markdown_path.is_symlink():
             errors.append(f"Symlinked Markdown file is not allowed: {markdown_path}")
-            continue
-        if any(part in {".git", "__pycache__"} for part in markdown_path.parts):
             continue
         if not stat.S_ISREG(markdown_path.lstat().st_mode):
             errors.append(f"Markdown path must be a regular file: {markdown_path}")
@@ -126,7 +130,6 @@ def validate_links(skill_path: Path, profile: str) -> list[str]:
             if not target or any(marker in target for marker in ("<", ">", "{", "}")):
                 continue
             target_path = Path(target)
-            relative_md = markdown_path.relative_to(skill_path)
             if target_path.is_absolute():
                 errors.append(f"Absolute local link in {relative_md}: {raw}")
                 continue

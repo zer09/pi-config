@@ -1,11 +1,11 @@
 ---
 name: firebase-basics
-description: Provides foundational setup, authentication, and project management workflows for Firebase using the Firebase CLI. Use when checking Firebase CLI version, initializing a Firebase environment, authenticating, setting active projects, or setting up google-services.json or GoogleService-Info.plist files.
+description: "Configure Firebase CLI login, project selection, local initialization, and app config files. Use for CLI setup or google-services.json / GoogleService-Info.plist configuration, not application user sign-in; use firebase-auth-basics for app authentication."
 ---
 
 # Firebase Basics
 
-Use this skill for Firebase CLI setup, project selection, local initialization, app config files, and cross-product setup routing.
+Use this skill for Firebase CLI setup and login, project selection, local initialization, app config files, and cross-product setup routing. Authentication here means CLI login, not application user sign-in.
 
 ## Hosted service safety
 
@@ -37,7 +37,7 @@ firebase use
 
 ## Routing reminders
 
-- Use `firebase-auth-basics` for Authentication flows.
+- Use `firebase-auth-basics` for application user sign-in and Firebase Authentication flows.
 - Use `firebase-firestore` for Firestore databases, rules, queries, and indexes.
 - Use `firebase-hosting-basics` for Hosting Classic.
 - Use `firebase-app-hosting-basics` for App Hosting.

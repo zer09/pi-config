@@ -1,5 +1,11 @@
 # Configuration Reference
 
+## Hosted service safety
+
+Reads and requested local edits, compile, SDK generation, and emulation are allowed. Deployment, Cloud SQL migration, database creation, data writes, service enablement, and Firebase project mutations require explicit user instruction for each exact action and target. Initialization can offer provisioning; stop before any unrequested hosted action. Login or active-project changes require the user's request or agreement. Never print, save, or commit credentials or tokens.
+
+Use the project's available Firebase CLI in the examples below. Do not install or upgrade it automatically. These commands are alternatives for the selected task, not a sequence to run in full.
+
 ## Contents
 - [Project Structure](#project-structure)
 - [dataconnect.yaml](#dataconnectyaml)
@@ -101,52 +107,31 @@ generate:
 
 ### Initialize SQL Connect
 
-```bash
-# Interactive setup
-npx -y firebase-tools@latest init dataconnect
+Inspect existing files before an authorized local initialization. Select only the needed service, connector, and SDK configuration. Do not accept Cloud SQL creation, service enablement, or other hosted mutation prompts without explicit user instruction for that exact action. Validate the local template and generated SDK after initialization.
 
-# Set project
-npx -y firebase-tools@latest use <project-id>
+```bash
+firebase init dataconnect --project <project-id>
+```
+
+Changing the active project is optional and requires the user's request or agreement:
+
+```bash
+firebase use <project-id>
 ```
 
 ### Local Development
 
-```bash
-# Start emulator
-npx -y firebase-tools@latest emulators:start --only dataconnect
+Write the schema and authorized operations, compile them, generate the affected SDKs, and build the consuming app as the task requires. Emulator setup is described below.
 
-# Start with database seed data
-npx -y firebase-tools@latest emulators:start --only dataconnect --import=./seed-data
+```bash
+# Validate schema and operations
+firebase dataconnect:compile
 
 # Generate SDKs
-npx -y firebase-tools@latest dataconnect:sdk:generate
+firebase dataconnect:sdk:generate
 
-# Watch for schema changes (auto-regenerate)
-npx -y firebase-tools@latest dataconnect:sdk:generate --watch
-```
-
-### Schema Management
-
-```bash
-# Compare local schema to production
-npx -y firebase-tools@latest dataconnect:sql:diff
-
-
-# Apply migration
-npx -y firebase-tools@latest dataconnect:sql:migrate
-```
-
-### Deployment
-
-```bash
-# Deploy SQL Connect service
-npx -y firebase-tools@latest deploy --only dataconnect
-
-# Deploy specific connector
-npx -y firebase-tools@latest deploy --only dataconnect:connector-id
-
-# Deploy with schema migration
-npx -y firebase-tools@latest deploy --only dataconnect --force
+# Watch only when iterative generation is needed
+firebase dataconnect:sdk:generate --watch
 ```
 
 ---
@@ -156,7 +141,7 @@ npx -y firebase-tools@latest deploy --only dataconnect --force
 ### Start Emulator
 
 ```bash
-npx -y firebase-tools@latest emulators:start --only dataconnect
+firebase emulators:start --only dataconnect
 ```
 
 Default ports:
@@ -197,36 +182,39 @@ Create seed data files and import:
 
 ```bash
 # Export current emulator data
-npx -y firebase-tools@latest emulators:export ./seed-data
+firebase emulators:export ./seed-data
 
 # Start with seed data
-npx -y firebase-tools@latest emulators:start --only dataconnect --import=./seed-data
+firebase emulators:start --only dataconnect --import=./seed-data
 ```
 
 ---
 
 ## Deployment
 
-### Deploy Workflow
+### Explicit Authorization and Target
 
-1. **Test locally** with emulator
-2. **Generate SQL diff**: `npx -y firebase-tools@latest dataconnect:sql:diff`
-3. **Review migration**: Check breaking changes
-4. **Deploy**: `npx -y firebase-tools@latest deploy --only dataconnect`
+Deployment and Cloud SQL migration require explicit user instruction for each exact action. Confirm the project, service, connector, database, and requested scope. Read-only schema comparison is not migration permission. Local implementation can finish with deployment deferred.
+
+Test locally and review the production SQL diff for breaking changes before any authorized deployment:
+
+```bash
+# Read-only comparison against the selected live target
+firebase dataconnect:sql:diff --project <project-id>
+
+# Deploy the service only when that exact deployment is authorized
+firebase deploy --only dataconnect --project <project-id>
+
+# Or deploy only the authorized connector
+firebase deploy --only dataconnect:connector-id --project <project-id>
+```
 
 ### Schema Migrations
 
-SQL Connect auto-generates PostgreSQL migrations:
+SQL Connect generates PostgreSQL migrations. Apply a migration only after explicit user instruction for that exact migration and review of its SQL diff:
 
 ```bash
-# Preview migration
-npx -y firebase-tools@latest dataconnect:sql:diff
-
-# Apply migration (interactive)
-npx -y firebase-tools@latest dataconnect:sql:migrate
-
-# Force migration (non-interactive)
-npx -y firebase-tools@latest dataconnect:sql:migrate --force
+firebase dataconnect:sql:migrate --project <project-id>
 ```
 
 ### Breaking Changes
@@ -236,15 +224,22 @@ Some schema changes require special handling:
 - Changing field types
 - Removing tables
 
-Use `--force` flag to acknowledge breaking changes during deploy.
+Do not use `--force` as a validation fix or default. It bypasses confirmation of breaking changes. Only when the user explicitly authorizes the exact breaking migration or deployment and its consequences, the selected command can include `--force`:
+
+```bash
+firebase dataconnect:sql:migrate --project <project-id> --force
+# Alternative for an explicitly authorized deployment with breaking changes
+firebase deploy --only dataconnect --project <project-id> --force
+```
 
 ### CI/CD Integration
 
+Adding or running a deployment job requires explicit user instruction for that exact automation or hosted action. Use the CI system's protected approval and credential configuration. Do not print tokens or put credentials in source. This example assumes an available authenticated CLI and an explicitly configured target:
+
 ```yaml
-# GitHub Actions example
+# GitHub Actions example for an authorized deployment job
 - name: Deploy SQL Connect
-  run: |
-    npx -y firebase-tools@latest deploy --only dataconnect --token ${{ secrets.FIREBASE_TOKEN }} --force
+  run: firebase deploy --only dataconnect --project <project-id>
 ```
 
 ---

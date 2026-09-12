@@ -4,6 +4,8 @@
 
 **Audience:** AI agents (Claude Code, Cursor, Codex, etc.) invoking Studio on behalf of users.
 
+Apply the [root authorization boundary](../SKILL.md#safety-and-authorization) first. Fast track requires a generation request and a known target. It does not authorize creating a notebook, adding/importing sources, configuring a persona, sharing, exporting, syncing, or deleting. Cross-artifact recipes and recovery options require authorization for each action and target.
+
 Research basis: Dec 2025 – Jun 2026 (Google Help, practitioner guides, community workflows).
 
 **Companion file:** [studio-prompt-examples.md](studio-prompt-examples.md) — fast-track minimal prompts + guided templates.
@@ -74,7 +76,7 @@ Use when quality would suffer without a pause, or the user opts in.
 ```
 User requests Studio artifact
   → Classify: fast track or guided? (cinematic → always guided)
-  → If notebook empty: stop, add sources first (only hard blocker)
+  → If notebook empty: stop and report missing sources; add/import only when requested
   → Silently infer context (user message → notebook title → notebook_describe if needed)
   → If 5+ sources and focused topic: pass source_ids (no question — infer from request)
   → Pick format/style from decision tree
@@ -106,7 +108,7 @@ Use in order — **call without asking the user**:
 | 5 | `source_ids` scoping | User named a chapter, source, or topic matching source titles |
 
 **Two prompt layers:**
-- **Notebook persona** (`chat_configure` with `goal=custom`) — shapes all Studio outputs; set once for repeat/branded work
+- **Notebook persona** (`chat_configure` with `goal=custom`) shapes all Studio outputs; configure only when the user requests that change on the target notebook
 - **Per-artifact prompt** — `focus_prompt`, `custom_prompt`, or `description`
 
 **Retrieve successful prompts:** `studio_status` returns `custom_instructions` per artifact for reuse.

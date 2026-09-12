@@ -2,6 +2,8 @@
 
 This document provides detailed solutions for common issues when using the `nlm` CLI.
 
+Apply the [root safety and authorization rules](../SKILL.md#safety-and-authorization) before any repair. Errors do not authorize imports, forced research, sync, profile deletion, configuration changes, or process termination. Ask for explicit confirmation before every delete. Bound and redact diagnostic output; never print cookies, tokens, or auth headers. Auth status `unverified` and transient failures alone do not authorize login.
+
 ## Quick Diagnosis
 
 | Symptom | Likely Cause | Quick Fix |
@@ -11,9 +13,9 @@ This document provides detailed solutions for common issues when using the `nlm`
 | "Notebook not found" | Invalid/stale ID | `nlm notebook list` |
 | "Source not found" | Invalid source ID | `nlm source list <nb-id>` |
 | Browser doesn't open | Port conflict | Close existing browser, retry |
-| "Research already in progress" | Pending task | `--force` or import existing |
+| "Research already in progress" | Pending task | Read research status; force/import only when requested |
 | "nodename nor servname" | Network blocked | See [Sandbox Users](#sandbox-environments) |
-| Commands hang forever | Network/auth issue | Ctrl+C, `nlm login` |
+| Commands hang forever | Network/auth issue | Stop the hanging command; diagnose before login |
 
 ---
 
@@ -35,10 +37,10 @@ usable for weeks, so do not re-authenticate solely because time has passed.
 nlm login
 ```
 
-**Prevention:** For long-running scripts, implement periodic re-authentication:
+**Prevention:** Check auth when useful, not on a forced login schedule:
 ```bash
-# Check auth before critical operations
-nlm login --check || nlm login
+nlm login --check
+# Run nlm login only for first-time setup or confirmed stale credentials.
 ```
 
 ### Browser Doesn't Launch

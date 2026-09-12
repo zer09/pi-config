@@ -1,25 +1,27 @@
 ---
 name: postgres
-description: "PostgreSQL best practices, query optimization, connection troubleshooting, and performance improvement. Load when working with Postgres databases."
+description: "Design, tune, or diagnose PostgreSQL schemas, queries, indexes, transactions, migrations, and database operations."
 ---
 
 # PostgreSQL
 
-Use this skill for PostgreSQL schema design, indexes, query tuning, partitioning, MVCC/VACUUM behavior, replication, backup/recovery, connection pooling, and PlanetScale Postgres operations.
+Use this skill for PostgreSQL schema design, indexes, query tuning, partitioning, MVCC/VACUUM behavior, replication, backup/recovery, connection pooling, and PlanetScale Postgres operations. An incidental PostgreSQL mention or ordinary application code that uses PostgreSQL is not enough.
+
+MySQL work does not belong here. Firebase Data Connect connector, schema, and SDK tasks belong to that product workflow unless PostgreSQL-level design or diagnosis is needed.
 
 ## Safety
 
 - Reads, schema review, query analysis, local tests, and dry-run planning are allowed.
 - Destructive operations require explicit user instruction for the exact action: `DROP`, `TRUNCATE`, production `DELETE`/`UPDATE`, destructive migrations, replication/failover changes, privilege changes, and data backfills that write production data.
-- Do not invent PostgreSQL version, extensions, table size, cardinality, query plan, isolation level, hosting platform, or production constraints. Ask or inspect.
+- Do not invent PostgreSQL version, extensions, table size, cardinality, query plan, isolation level, hosting platform, or production constraints. State version/workload assumptions.
 - For production changes, include rollback, rollout order, and post-deploy verification.
 
 ## Workflow
 
-1. Define workload and constraints: read/write mix, latency target, data volume, Postgres version, extensions, hosting platform, and maintenance window.
+1. Inspect or ask only for inputs that materially affect the answer: version/extensions, workload, latency target, scale, hosting, or maintenance window. A narrow conceptual question does not require the full checklist.
 2. Read only the reference files relevant to the question.
 3. Propose the smallest measurable change and state trade-offs.
-4. Validate with evidence: `EXPLAIN (ANALYZE, BUFFERS)`, `pg_stat_statements`, `pg_stat_*` views, lock/connection metrics, vacuum stats, or replica lag.
+4. For tuning or operational changes, validate with relevant evidence: `EXPLAIN (ANALYZE, BUFFERS)`, `pg_stat_statements`, `pg_stat_*` views, lock/connection metrics, vacuum stats, or replica lag.
 5. Prefer safe rollout patterns: concurrent indexes when appropriate, staged deploys, bounded batches, lock-timeout settings, and monitoring.
 
 ## Fast guidance

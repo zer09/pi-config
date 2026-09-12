@@ -7,7 +7,7 @@ and efficiency.
 
 ## 1. Initialization
 
-Initialize the SDK and Firestore instance:
+Replace `my-database-id` with the verified/configured Enterprise database ID. Initialize the SDK and that Firestore instance, then reuse `db` in later operations:
 
 ```javascript
 import { initializeApp } from "firebase/app";
@@ -18,7 +18,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db = getFirestore(app, "my-database-id");
 ```
 
 --------------------------------------------------------------------------------

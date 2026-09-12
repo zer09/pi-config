@@ -1,6 +1,6 @@
 # Native SQL Operations
 
-Always default to Native GraphQL. Use Native SQL **only** when you need database-specific features not available in GraphQL (e.g., PostGIS, Window Functions, Complex Aggregations, or specific DML CTEs).
+Prefer generated GraphQL operations for schema and type safety. Use Native SQL when the task requires database-specific features not available through those operations, such as PostGIS, window functions, complex aggregations, or specific DML CTEs. Technical necessity does not require the user to name Native SQL explicitly. Executing a hosted write still requires explicit user instruction for that exact action.
 
 ## Core Agent Constraints
 
@@ -91,7 +91,13 @@ Use these root fields in `query` or `mutation` operations:
 
 Native SQL allows you to directly query and utilize PostgreSQL extensions, such as `PostGIS`, without needing to map complex geometry types into your GraphQL schema or alter your underlying tables (e.g., using JSON operators to extract values and pass them into `ST_MakePoint`). 
 
-*Note: You must enable the extension on your underlying Cloud SQL instance by connecting as the `postgres` user and running `CREATE EXTENSION IF NOT EXISTS ...;`*
+Without authorization, complete the local code and report extension enablement as deferred.
+
+Optional admin action: enabling PostGIS is a hosted Cloud SQL mutation requiring explicit authorization for the exact action and target project, instance, and database. Only with that authorization, connect to the identified database as `postgres` and run:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS postgis;
+```
 
 *(See `examples.md` for a full `GetNearbyActiveRestaurants` implementation).*
 

@@ -1,179 +1,54 @@
 ---
 name: crit-cli
-description: Use when an agent needs to author or reply to crit inline comments programmatically (including multi-agent workflows commenting on shared code/plans/docs/proposals), publish or unpublish a crit review with crit share, sync a crit review to or from a GitHub PR, or read/interpret a crit review JSON file. Covers crit comment, crit share, crit unpublish, crit pull, crit push, review file format, and resolution workflow. Not for invoking an interactive review loop — that's the `crit` skill.
+description: "Use for local Crit review data, programmatic comments and replies, sharing, or GitHub sync. Interactive foreground review belongs to explicit $crit."
 ---
 
-# Crit CLI Reference
+# Crit CLI
 
-> If a plan was just written and the user said "crit" or "review", use the `$crit` skill instead — it covers the full review loop. This skill covers CLI operations like `crit comment`, `crit pull/push`, and `crit share`.
+## Action boundary
 
-Comments have three scopes:
+Reading a review does not authorize changing it. Classify the requested action before choosing a command:
 
-- **Line comments** (`scope: "line"`) — tied to specific lines, stored in `files.<path>.comments`
-- **File comments** (`scope: "file"`) — about a file overall, stored in `files.<path>.comments` with `start_line: 0`
-- **Review comments** (`scope: "review"`) — general feedback, stored in the top-level `review_comments` array
+| Action | Required authorization |
+|---|---|
+| Read local review JSON, `crit status`, `crit comments` | Read-only. Do not add replies, resolve comments, or sync as a side effect. |
+| `crit comment`, including replies | Mutates local review state. Require the user to request that comment write or reply. |
+| Resolution with `--resolve` or JSON `resolve` | Mutates local review state. Never resolve without an explicit user request, even after fixing the issue. |
+| `crit pull` | Reads GitHub but updates the local review file. Require a user request for that sync and its PR/review target. |
+| `crit push` | Posts to GitHub. Require explicit user instruction for that exact hosted action, PR target, and review event. |
+| `crit share` | Publishes files and included comments. Require explicit user instruction for that publication, target, and visibility. |
+| `crit unpublish` | Deletes remote shared state. Require explicit user instruction to unpublish the exact shared review/files. |
 
-The review file path is shown by `crit status`.
+`crit push --dry-run` previews a push; it does not authorize a later push. A request to pull does not authorize posting back to GitHub. Clarify missing targets or visibility before hosted writes. Do not expose credentials or persisted delete tokens.
 
-## Reading comments
+Interactive foreground review is the explicit `$crit` workflow, not a CLI side effect. A generic request to "review" does not authorize launching it.
 
-Use `crit comments` for unresolved comments and `crit comments --json` for structured agent input. Add `--all` to include resolved comments or `--plan <slug>` for a plan review. Review-level comments appear first.
+## Task routing
 
-When multiple sessions match the current directory and branch, headless commands refuse to guess. Use `crit status --json`, select the intended session, then pass `--session <id>` to `comment`, `comments`, `share`, `pull`, or `push`.
+Load only the needed section of [commands and review data](references/commands-and-review-data.md):
 
-## Review file format
+| Task | Reference section |
+|---|---|
+| Read comments or interpret JSON | [Reading comments](references/commands-and-review-data.md#reading-comments) and [review file format](references/commands-and-review-data.md#review-file-format) |
+| Write requested comments or replies | [Authoring](references/commands-and-review-data.md#authoring-comments); [bulk JSON](references/commands-and-review-data.md#bulk-commenting-3-comments) for 3+ comments |
+| Select the correct reply or plan | [Multi-file disambiguation](references/commands-and-review-data.md#multi-file-disambiguation) and [plan-mode comments](references/commands-and-review-data.md#plan-mode-comments) |
+| Sync with a PR | [GitHub PR integration](references/commands-and-review-data.md#github-pr-integration) |
+| Publish or unpublish | [Sharing](references/commands-and-review-data.md#sharing) |
 
-```json
-{
-  "review_comments": [
-    {
-      "id": "r_f1e2d3",
-      "body": "Overall the architecture looks good",
-      "scope": "review",
-      "author": "User Name",
-      "resolved": false,
-      "replies": [
-        { "id": "rp_b4a5c6", "body": "Thanks, addressed the minor issues", "author": "Pi" }
-      ]
-    }
-  ],
-  "files": {
-    "path/to/file.go": {
-      "comments": [
-        {
-          "id": "c_a1b2c3",
-          "start_line": 5,
-          "end_line": 10,
-          "body": "Comment text",
-          "quote": "the specific words selected",
-          "anchor": "The sessions table needs a complete rewrite...",
-          "author": "User Name",
-          "resolved": false,
-          "replies": [
-            { "id": "rp_c7d8e9", "body": "Fixed by extracting to helper", "author": "Pi" }
-          ]
-        }
-      ]
-    }
-  }
-}
-```
+## Key correctness rules
 
-Field rules:
-- `resolved`: `false` or **missing** — both mean unresolved. Only `true` means resolved.
-- `quote` (optional): the specific text the reviewer selected — narrows scope within the line range. Focus changes on the quoted text rather than the entire range.
-- `anchor` (line comments): full text of the commented lines when placed. When edits shift line numbers, locate content by anchor rather than trusting `start_line`/`end_line`.
-- `drifted: true`: original content was removed or heavily rewritten — line numbers are approximate at best.
-- Unresolved comments may have `replies` — read them before acting.
+- Use `crit status --json` when multiple sessions match. Select the intended session and pass `--session <id>` to `comment`, `comments`, `share`, `pull`, or `push`; do not guess.
+- Use `--plan <slug>` for plan reviews. Without it, comments target the project review instead.
+- Pass `--author 'Pi'` for agent-authored comments and replies. Single-quote CLI bodies; use a JSON file for multi-paragraph bulk bodies.
+- Use file-on-disk line numbers (1-indexed), not diff positions. Preserve line, file, and review scope; do not turn general feedback into a line comment.
+- Read existing replies and selected `quote` text. Missing or false `resolved` means unresolved. Use `anchor` when lines shift; `drifted: true` means line numbers are approximate.
+- Use atomic `--json` for 3+ comments. The resolution gate also applies to each bulk entry.
+- Organization shares default to members-only `organization` visibility. Do not silently widen visibility; follow the authorized scope.
 
-## Authoring comments
+## Completion
 
-```bash
-# Review-level (general feedback)
-crit comment --author 'Pi' '<body>'
-
-# File-level (whole file, no line numbers)
-crit comment --author 'Pi' <path> '<body>'
-
-# Line (single line or range)
-crit comment --author 'Pi' <path>:<line> '<body>'
-crit comment --author 'Pi' <path>:<start>-<end> '<body>'
-
-# Reply to an existing comment
-crit comment --reply-to <id> --author 'Pi' '<body>'
-```
-
-Hard rules:
-- **Always pass `--author 'Pi'`** so comments are attributed correctly.
-- **Always single-quote the body** — double quotes break on backticks and shell metachars.
-- **Line numbers reference the file on disk** (1-indexed), not diff line numbers.
-- **Reply bodies support markdown** — use code fences and inline code where helpful.
-- **Only pass `--resolve` when the user explicitly asks.** Never resolve proactively. Same rule applies to the `resolve` field in `--json` mode.
-
-## Bulk commenting (3+ comments)
-
-Use `--json` for atomicity (single write, no partial state) and speed (one process). The JSON can come from stdin or `--file <path>`:
-
-```bash
-# stdin — fine for short, single-line bodies:
-echo '[
-  {"body": "overall feedback", "scope": "review"},
-  {"path": "session.go", "body": "restructure", "scope": "file"},
-  {"file": "src/auth.go", "line": 42, "body": "Missing null check"},
-  {"file": "src/auth.go", "line": "50-55", "body": "Extract to helper"},
-  {"reply_to": "c_a1b2c3", "body": "Fixed — added null check"},
-  {"reply_to": "r_f1e2d3", "body": "Done"}
-]' | crit comment --json --author 'Pi'
-```
-
-**For multi-paragraph bodies, prefer `--file`.** A literal newline inside a `"body"` string breaks JSON parsing, and shell-quoted heredocs make this easy to introduce by accident. Write the JSON to a temp file (use your file-edit tool), then:
-
-```bash
-crit comment --json --file /tmp/crit-bulk.json --author 'Pi'
-```
-
-`--file -` is an explicit "read stdin" if you ever need it.
-
-Per-entry schema:
-
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `file` / `path` | string | line/file comments | Relative path. `path` alone (no `line`) → file-level. |
-| `line` | int/string | line comments | `42` or `"45-47"` |
-| `end_line` | int | optional | Defaults to `line` |
-| `body` | string | always | |
-| `author` | string | optional | Per-entry override; falls back to `--author` |
-| `scope` | string | optional | `"review"` / `"file"` — usually inferred |
-| `reply_to` | string | replies | Comment ID (`c_…` or `r_…`) |
-| `resolve` | bool | optional | Only when user explicitly asks |
-
-Scope inference (when `scope` omitted): has `reply_to` → reply; no `file`/`path` and no `line` → review-level; `path` but no `line` → file-level; `file`/`path` + `line` → line.
-
-## Multi-file disambiguation
-
-Comment IDs are unique per session, but the same ID can collide across files. If `crit comment` errors with "comment found in multiple files", disambiguate with `--path`:
-
-```bash
-crit comment --reply-to c_a1b2c3 --path src/auth.go --author 'Pi' 'Fixed the null check'
-```
-
-In `--json` mode, set the `file` field on the entry. Review-level IDs (`r_…`) are globally unique and never need this.
-
-## Plan-mode comments
-
-Plan reviews (via `crit plan` or the ExitPlanMode hook) store the review file in `~/.crit/plans/<slug>/`. **Always pass `--plan <slug>`** — without it, `crit comment` looks in the project root and won't find the comments. The slug is shown in the review feedback prompt.
-
-```bash
-crit comment --plan my-plan-2026-03-23 --reply-to c_a1b2c3 --author 'Pi' 'Updated the plan'
-```
-
-## GitHub PR Integration
-
-```bash
-crit pull [pr-number]                                    # Fetch PR review comments into the review file
-crit push [--dry-run] [--event <type>] [-m <msg>] [pr]   # Post review comments as a GitHub PR review
-```
-
-Requires `gh` CLI installed and authenticated. PR number is auto-detected from the current branch.
-
-`--event` values: `comment` (default), `approve`, `request-changes`. `-m` adds a review-level body message.
-
-## Sharing
-
-```bash
-crit share <file> [file...]                          # Upload and print URL
-crit share --qr <file>                               # Also print QR code (terminal only)
-crit share --org <slug> <file>                       # Share under an organization
-crit share --org <slug> --visibility unlisted <file> # Org share with explicit visibility
-crit unpublish [file...]                              # Remove shared review
-```
-
-- **Always relay the output** — copy the URL (and QR if used) into your response. Don't make the user dig through tool output.
-- **`--qr` is terminal-only** — skip in mobile apps, web chat UIs, or anywhere Unicode block characters won't render correctly.
-- **`--org <slug>`** shares under an organization. Visibility defaults to `organization` (members only). Override with `--visibility` (`organization`, `unlisted`, `public`).
-- If a review file exists, comments for the shared files are included automatically.
-- **Unpublish uses the persisted delete token** in the review file — no extra args needed.
+Report the requested read result or completed operation and its target. Relay command output, including a share URL and QR when used; QR is terminal-only. Redact secrets. Confirm requested local writes with a read-only check. Stop if the session, target, authorization, or required CLI/authentication is unavailable; do not substitute a broader action.
 
 ## Maintenance
 
-For future updates to this Crit CLI skill, read `../../../docs/skills/crit-update-process.md`.
+For local overlays and future updates, read the [Crit update process](../../../docs/skills/crit-update-process.md).

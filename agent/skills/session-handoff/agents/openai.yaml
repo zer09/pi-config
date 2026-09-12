@@ -1,4 +1,4 @@
 interface:
   display_name: "Session Handoff"
-  short_description: "Create session handoff docs"
-  default_prompt: "Use $session-handoff to create a concise handoff document that lets a future agent resume this work without ambiguity."
+  short_description: "Create or verify project handoffs"
+  default_prompt: "Use $session-handoff to save this work in a project-local handoff for a future session."

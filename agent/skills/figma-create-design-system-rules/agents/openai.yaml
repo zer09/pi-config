@@ -1,7 +1,7 @@
 interface:
   display_name: "Create Design System Rules"
-  short_description: "Generate design system rules for your codebase"
-  default_prompt: "Use $figma-create-design-system-rules to generate project-specific Figma design system rules and prepare an AGENTS.md section."
+  short_description: "Author reusable project Figma-to-code rules"
+  default_prompt: "Use $figma-create-design-system-rules to author reusable Figma-to-code conventions in this project's existing rule format and location."
 
 dependencies:
   tools:

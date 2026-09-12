@@ -1,54 +1,26 @@
 ---
 name: firebase-security-rules-auditor
-description: Audit Firestore and Cloud Storage security rules for privilege escalation, ownership bypasses, create/update inconsistencies, resource exhaustion, type errors, and unsafe field validation. Use for security reviews, red-team assessments, or rules changes.
+description: "Audit Cloud Firestore Security Rules for privilege escalation, ownership bypasses, create/update gaps, resource abuse, and unsafe field validation. Use for Firestore rules reviews or security assessments, not Cloud Storage rules."
 ---
 
-# Overview
+# Cloud Firestore Security Rules Auditor
 
-## Hosted service safety
+## Audit boundaries
 
-This skill is for auditing rules. Do not deploy, publish, or modify Firebase rules or hosted resources unless the user explicitly asks for that exact action.
+Audit requests are read-only. Inspect rules, relevant data models, access requirements, and existing tests without editing files or hosted state. Rule modification, publication, deployment, or other Firebase mutations require explicit user instruction for each exact action. Recommendations do not authorize fixes or deployment. Never print, save, or commit credentials, tokens, private keys, or sensitive user data.
 
-This skill acts as an auditor for Firebase Security Rules, evaluating them against a rigorous set of criteria to ensure they are secure, robust, and correctly implemented.
+This checklist covers Cloud Firestore Security Rules, not Cloud Storage rules. Use [firebase-firestore](../firebase-firestore/SKILL.md) for explicitly requested implementation; keep a rules audit separate from rule changes.
 
-# Scoring Criteria
-## Assessment: Security Validator (Red Team Edition)
-You are a Senior Security Auditor and Penetration Tester specializing in Firestore. Your goal is to find "the hole in the wall." Do not assume a rule is secure because it looks complex; instead, actively try to find a sequence of operations to bypass it.
+## Review and findings
 
-### Mandatory Audit Checklist:
-1. **The Update Bypass:** Compare 'create' and 'update' rules. Can a user create a valid document and then 'update' it into an invalid or malicious state (e.g., changing their role, bypassing size limits, or corrupting data types)?
-2. **Authority Source:** Does the security rely on user-provided data (request.resource.data) for sensitive fields like 'role', 'isAdmin', or 'ownerId'? Carefully consider the source for that authority.
-3. **Business Logic vs. Rules:** Does the rule set actually support the app's purpose? (e.g., In a collaboration app, can collaborators actually read the data? If not, the rules are "broken" or will force insecure workarounds).
-4. **Storage Abuse:** Are there string length or array size limits? If not, label it as a "Resource Exhaustion/DoS" risk.
-5. **Type Safety:** Are fields checked with 'is string', 'is int', or 'is timestamp'?
-6. **Field-Level vs. Identity-Level Security:** Be careful with rules that use \`hasOnly()\` or \`diff()\`. While these restrict *which* fields can be updated, they do NOT restrict *who* can update them unless an ownership check (e.g., \`resource.data.uid == request.auth.uid\`) is also present. If a rule allows any authenticated user to update fields on another user's document without a corresponding ownership check, it is a data integrity vulnerability.
+Read the [audit checklist and scoring format](references/audit-checklist.md) for the selected rules. Trace create/update paths, authority sources, intended access, field limits/types, and ownership checks. Use concrete bypass sequences and distinguish observed vulnerabilities from missing application context.
 
-### Admin Bootstrapping & Privileges:
-The admin bootstrapping process is limited in this app. If the rules use a single hardcoded admin email (e.g., checking request.auth.token.email == 'admin@example.com'), this should NOT count against the score as long as:
-- email_verified is also checked (request.auth.token.email_verified == true).
-- It is implemented in a way that does not allow additional admins to add themselves or leave an escalation risk open.
+Treat a hardcoded admin email as a conditional design choice, not a global exception. Verify the application's bootstrap requirements, verified-email check, and escalation protections before accepting it.
 
-### Scoring Criteria (1-5):
-- **1 (Critical):** Unauthorized data access (leaks), privilege escalation, or total validation bypass.
-- **2 (Major):** Broken business logic, self-assigned roles, bypass of controls.
-- **3 (Moderate):** PII exposure (e.g., public emails), Inconsistent validation (create vs update) on critical fields
-- **4 (Minor):** Problems that result in self-data corruption like update bypasses that only impact the user's own data, lack of size limits, missing minor type checks or over-permissive read access on non-sensitive fields.
-- **5 (Secure):** Comprehensive validation, strict ownership, and role-based access via secure ACLs.
+## Completion
 
-Return your assessment in JSON format using the following structure:
-{
-  "score": 1-5,
-  "summary": "overall assessment",
-  "findings": [
-    {
-      "check": "checklist item",
-      "severity": "critical|major|moderate|minor",
-      "issue": "description",
-      "recommendation": "fix"
-    }
-  ]
-}
+Return the structured JSON assessment from the reference with rule locations, evidence, and recommendations. State assumptions, untested paths, and missing requirements in the assessment. A clean result covers only the inspected scope; it is not a security guarantee. Do not create tests, modify rules, deploy, or exercise a live bypass as part of an audit-only request.
 
 ## Maintenance
 
-For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.
+For future updates, read the [Firebase skills update process](../../../docs/skills/firebase-skills-update-process.md).

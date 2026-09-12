@@ -1,6 +1,6 @@
 # Figma MCP config reference
 
-Use this snippet to register the Figma MCP server as a streamable HTTP server with bearer auth pulled from your env.
+This TOML example applies to hosts using `[mcp_servers]` configuration. Use the active host's MCP schema and configuration location. The example registers streamable HTTP with bearer auth read from the environment.
 
 ```toml
 [mcp_servers.figma]
@@ -19,7 +19,7 @@ http_headers = { "X-Figma-Region" = "us-east-1" }
 ## Env var setup
 
 - One-time set for current shell: `export FIGMA_OAUTH_TOKEN="<token>"`
-- Persist for future sessions: add the export line to your shell profile, then restart the shell or your IDE.
+- For future sessions, use the host's supported secret mechanism or inject the variable from a credential manager. Do not save literal tokens in rule files or configuration examples.
 - Verify before launching the agent: confirm `FIGMA_OAUTH_TOKEN` is non-empty without printing the token value into logs or chat.
 
 ## Setup and verification checklist
@@ -30,11 +30,11 @@ http_headers = { "X-Figma-Region" = "us-east-1" }
 
 ## Troubleshooting
 
-- Token not picked up: export `FIGMA_OAUTH_TOKEN` in the same shell that launches the agent, or add it to your shell profile and restart.
+- Token not picked up: make `FIGMA_OAUTH_TOKEN` available in the environment that launches the agent, then restart the agent.
 - OAuth errors: verify the RMCP client setting is enabled if required and that the bearer token is valid. Tokens copied from Figma should not include surrounding quotes.
 - Network or headers: keep the `X-Figma-Region` header; if your org uses another region, update the header consistently across config and requests.
 
 ## Usage reminders
 
-- The server is link-based: copy the Figma frame or layer link, then ask the MCP client to implement that URL. The client extracts the node ID from the link; it does not browse the page.
-- If output feels generic, restate the project-specific rules from the main skill and ensure you follow the required flow: `get_design_context`, optionally `get_metadata`, then `get_screenshot`.
+- Remote requests use a frame or layer link to identify the target; supported desktop requests can use the current selection. See [tools and prompt patterns](figma-tools-and-prompts.md) for context-only requests.
+- For code deliverables, use [figma-implement-design](../../figma-implement-design/SKILL.md), which owns the required context workflow and project integration decisions.

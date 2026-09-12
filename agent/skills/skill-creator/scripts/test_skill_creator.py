@@ -568,6 +568,61 @@ class SkillCreatorTests(unittest.TestCase):
         self.assertIsNone(trigger_result["results"][0]["passed"])
         self.assertEqual(trigger_result["summary"]["unscored_due_to_errors"], 1)
 
+    def test_validator_ignores_node_modules_but_checks_skill_markdown(self) -> None:
+        for parent, relative_path, expected_valid in [
+            (".", "node_modules/package/README.md", True),
+            (".", "scripts/node_modules/package/README.md", True),
+            (".", ".git/README.md", True),
+            (".", "scripts/.git/README.md", True),
+            (".", "__pycache__/README.md", True),
+            (".", "scripts/__pycache__/README.md", True),
+            (".", "references/guide.md", False),
+            (".", ".hidden/guide.md", False),
+            (".", "vendor/guide.md", False),
+            (".", "node_modules-owned/guide.md", False),
+            ("node_modules", "SKILL.md", False),
+            (".git", "SKILL.md", False),
+            ("__pycache__", "SKILL.md", False),
+        ]:
+            with (
+                self.subTest(parent=parent, path=relative_path),
+                tempfile.TemporaryDirectory() as temp,
+            ):
+                root = Path(temp) / parent / "sample-skill"
+                (root / "agents").mkdir(parents=True)
+                (root / "SKILL.md").write_text(
+                    "---\nname: sample-skill\ndescription: A useful sample skill.\n---\n\n"
+                    "# Sample\n"
+                )
+                (root / "agents" / "openai.yaml").write_text(
+                    "interface:\n  display_name: Sample Skill\n"
+                    "  short_description: Help with sample skill workflows\n"
+                    "  default_prompt: Use $sample-skill correctly.\n"
+                )
+                markdown_path = root / relative_path
+                markdown_path.parent.mkdir(parents=True, exist_ok=True)
+                with markdown_path.open("a") as handle:
+                    handle.write("[missing](missing.md)\n")
+
+                valid, message = validate_skill(root)
+                self.assertEqual(valid, expected_valid, message)
+                if not expected_valid:
+                    self.assertIn(
+                        f"Broken local link in {relative_path}: missing.md", message
+                    )
+
+                if relative_path != "SKILL.md" and hasattr(os, "symlink"):
+                    with self.subTest(symlink=True):
+                        markdown_path.unlink()
+                        markdown_path.symlink_to(root / "SKILL.md")
+                        valid, message = validate_skill(root)
+                        self.assertEqual(valid, expected_valid, message)
+                        if not expected_valid:
+                            self.assertIn(
+                                f"Symlinked Markdown file is not allowed: {markdown_path}",
+                                message,
+                            )
+
     def test_validator_inline_code_exact_token_and_portable_profile(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "sample-skill"

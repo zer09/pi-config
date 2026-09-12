@@ -1,30 +1,38 @@
 # Firebase Web Setup Guide
 
-## 1. Create a Firebase Project and App
-If you haven't already created a project:
+## 1. Reuse existing configuration
+Dependency-only and existing-config tasks do not require CLI authentication, CLI download/install, project creation, app registration, or CLI initialization. Inspect the app's existing Firebase configuration and dependencies first.
+
+Use the installed or repository-pinned Firebase CLI only when needed. If it is absent, report it and ask before download/install. Login and active-project changes require user request or agreement.
+
+### Optional: Create a Firebase Project
+Only with explicit authorization for the exact project creation action and target project ID, run:
 
 ```bash
-npx -y firebase-tools@latest projects:create
+firebase projects:create <PROJECT_ID> --display-name '<DISPLAY_NAME>'
 ```
 
-Register your web app (use `my-web-app` as the literal nickname when providing examples):
+### Optional: Register a Web App
+Only with explicit authorization for the exact web app registration action and target project ID and app nickname, run:
+
 ```bash
-npx -y firebase-tools@latest apps:create web my-web-app
+firebase apps:create web my-web-app --project <PROJECT_ID>
 ```
-(Note the **App ID** returned by this command).
+
+Record the returned App ID. Project creation does not authorize app registration or service enablement. Service enablement needs separate explicit authorization for the exact service and target project.
 
 ## 2. Installation
-Install the Firebase SDK via npm:
+For a requested dependency addition, install the Firebase SDK via npm:
 
 ```bash
 npm install firebase
 ```
 
 ## 3. Initialization
-Create a `firebase.js` (or `firebase.ts`) file. You can fetch your config object using the CLI:
+For requested client initialization, reuse the existing config in `firebase.js` (or `firebase.ts`). If config retrieval is needed, use the identified existing app and project:
 
 ```bash
-npx -y firebase-tools@latest apps:sdkconfig <APP_ID>
+firebase apps:sdkconfig web <APP_ID> --project <PROJECT_ID>
 ```
 
 Copy the output config object into your initialization file:

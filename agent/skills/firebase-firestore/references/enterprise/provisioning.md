@@ -1,12 +1,15 @@
 # Provisioning Firestore Enterprise Native Mode
 
+## Hosted service safety
+
+Database creation and rule/index deployment require explicit user instruction for each exact action and target. A local setup request or missing database does not authorize provisioning. Select Enterprise, native access, and location explicitly; do not treat them as defaults. Inspect and preserve existing configuration. Use the project's available Firebase CLI.
+
 ## Manual Initialization
 
 Initialize the following firebase configuration files manually. Do not use `npx
 -y firebase-tools@latest init`, as it expects interactive inputs.
 
-1.  **Create a Firestore Enterprise Database**: Create a Firestore Enterprise
-    database using the Firebase CLI.
+1.  **Identify the target**: Use an existing database, or create one only under the explicit creation gate below. Skip hosted steps for local-only work.
 2.  **Create `firebase.json`**: This file contains database configuration for
     the Firebase CLI.
 3.  **Create `firestore.rules`**: This file contains your security rules.
@@ -15,24 +18,9 @@ Initialize the following firebase configuration files manually. Do not use `npx
 
 ### 1. Create a Firestore Enterprise Database
 
-If the user needs to create a new database, ask the user what location to use.
-Run `npx -y firebase-tools@latest firestore:locations` to get the list of options.
-Suggest colocating with other resources if applicable.
+Only after the user explicitly requests creation of this database, establish its project, ID, Enterprise edition, native access mode, and location. Run `firebase firestore:locations --project <project-id>` if location options are needed. Suggest colocation where relevant, but leave the provisioning decision explicit.
 
-Use the following command to create a Firestore Enterprise database:
-
-```bash
-firebase firestore:databases:create my-database-id \
-  --location="<selected-location>" \
-  --edition="enterprise" \
-  --firestore-data-access="ENABLED" \
-  --mongodb-compatible-data-access="DISABLED"
-```
-
-This will create an enterprise database in the selected location with native mode enabled. A
-database id is required to create an enterprise database and the database id
-must not be `(default)`. To enable realtime-updates feature, use
-`--realtime-updates` flag.
+For that authorized target:
 
 ```bash
 firebase firestore:databases:create my-database-id \
@@ -40,13 +28,27 @@ firebase firestore:databases:create my-database-id \
   --edition="enterprise" \
   --firestore-data-access="ENABLED" \
   --mongodb-compatible-data-access="DISABLED" \
-  --realtime-updates="ENABLED"
+  --project <project-id>
+```
+
+This will create an enterprise database in the selected location with native mode enabled. A
+database id is required to create an enterprise database and the database id
+must not be `(default)`. If realtime updates are part of the explicitly selected provisioning configuration, use the `--realtime-updates` flag instead of the preceding command:
+
+```bash
+firebase firestore:databases:create my-database-id \
+  --location="<selected-location>" \
+  --edition="enterprise" \
+  --firestore-data-access="ENABLED" \
+  --mongodb-compatible-data-access="DISABLED" \
+  --realtime-updates="ENABLED" \
+  --project <project-id>
 ```
 
 ### 2. Create `firebase.json`
 
 Create a file named `firebase.json` in your project root with the following
-content (edit `database` and `location` to match the ones you created above). If this file already exists, instead append to the existing JSON:
+content (match `database` and `location` to the selected target). For local-only work, configuration does not create a hosted database. If this file already exists, merge the needed fields without replacing existing settings:
 
 ```json
 {
@@ -92,17 +94,19 @@ start:
 
 *See [indexes.md](indexes.md) for how to configure indexes.*
 
-## Deploy rules and indexes
+## Explicitly authorized deployment
+
+Deploy only when the user explicitly requests the exact rule/index deployment. Confirm the project and database and select only the authorized resources. If the database is missing, stop unless its creation is separately authorized. Local validation does not require deployment.
 
 ```bash
-# To deploy all rules and indexes
-firebase deploy --only firestore
+# Rules and indexes, only if both are authorized
+firebase deploy --only firestore --project <project-id>
 
-# To deploy just rules
-firebase deploy --only firestore:rules
+# Rules only
+firebase deploy --only firestore:rules --project <project-id>
 
-# To deploy just indexes
-firebase deploy --only firestore:indexes
+# Indexes only
+firebase deploy --only firestore:indexes --project <project-id>
 ```
 
 ## Local Emulation

@@ -2,7 +2,7 @@
 
 ADRs live in `docs/adr/` and use sequential numbering: `0001-slug.md`, `0002-slug.md`, etc.
 
-Create the `docs/adr/` directory lazily — only when the first ADR is needed.
+Creating an ADR requires explicit user instruction to record it; agreement on the decision or an offer alone is not authorization. Create the `docs/adr/` directory lazily, only when the first authorized ADR is ready. In review-only sessions, keep proposed decisions in chat.
 
 ## Template
 

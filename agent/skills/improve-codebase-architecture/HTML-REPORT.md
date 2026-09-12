@@ -1,6 +1,6 @@
 # HTML Report Format
 
-Use this when an architecture review needs visual comparison. Render a single self-contained HTML file in the OS temp directory, not in the repository. Tailwind and Mermaid may come from CDNs. Mermaid handles graph-shaped diagrams; hand-built divs and inline SVG handle editorial visuals such as mass diagrams and cross-sections. Mix the two.
+Use this when the user requests a visual architecture report. Otherwise, keep the review in chat without generating files. Render a single self-contained HTML file in the OS temp directory; writing a report in the repository requires explicit repository-change instruction. Tailwind and Mermaid may come from CDNs. Mermaid handles graph-shaped diagrams; hand-built divs and inline SVG handle editorial visuals such as mass diagrams and cross-sections. Mix the two.
 
 ## Scaffold
 

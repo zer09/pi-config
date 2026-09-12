@@ -1,6 +1,6 @@
 # Handoff Template
 
-Use this template structure when creating handoff documents. The smart scaffold script will pre-fill metadata sections; complete the remaining sections based on session context.
+Use this template for a requested handoff document. The smart scaffold pre-fills metadata; complete the remaining sections from verified session context. Record next steps as proposals, not authorization for a future agent to act.
 
 ## Table of Contents
 

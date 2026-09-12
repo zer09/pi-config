@@ -1,6 +1,6 @@
-# Common Errors — Genkit Python
+# Common Errors: Genkit Python
 
-## Before anything else: read this file when you hit any error.
+Use the matching section for a Genkit Python import, schema, API, or runtime failure. Check the installed versions and project code before applying a fix; unrelated errors do not require this reference.
 
 ---
 

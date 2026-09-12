@@ -1,92 +1,63 @@
 ---
 name: grill-with-docs
-description: Grilling session that challenges your plan against the existing domain model, sharpens terminology, and updates documentation (CONTEXT.md, ADRs) inline as decisions crystallise. Use when user wants to stress-test a plan against their project's language and documented decisions.
+description: "Guide a plan and domain decision session using the project's language, code, and documented decisions. Use to stress-test a plan or clarify terminology; documentation writes require an explicit request."
 ---
 
-<what-to-do>
+# Grill With Docs
 
-Interview me relentlessly about every aspect of this plan until we reach a shared understanding. Walk down each branch of the design tree, resolving dependencies between decisions one-by-one. For each question, provide your recommended answer.
+## Review-only boundary
 
-Ask the questions one at a time, waiting for feedback on each question before continuing.
+Challenge the requested plan and domain decisions without changing repository files by default. Do not create or update `CONTEXT.md`, `CONTEXT-MAP.md`, or ADRs unless the user explicitly requests those repository changes. Agreement on a term or decision during conversation is not authorization to write it.
 
-If a question can be answered by exploring the codebase, explore the codebase instead.
+This is a grilling and planning skill, not an implementation workflow. Keep source unchanged and do not automatically hand off to implementation.
 
-</what-to-do>
+## Bounded conversation
 
-<supporting-info>
+Ask one material question at a time and wait for feedback. Include a recommended answer and its reason. Prefer code/docs evidence when the repository can answer a question; use CodeGraph first for source exploration.
 
-## Domain awareness
+Focus on decisions needed for the requested plan, including dependencies between those decisions. Stop when those decisions are resolved or remaining uncertainties are explicit. Do not exhaust every possible design branch.
 
-During codebase exploration, also look for existing documentation:
+## Domain grounding
 
-### File structure
+Read existing domain documentation and relevant ADRs before questioning terminology or decisions:
 
-Most repos have a single context:
+- A single-context repo usually has root `CONTEXT.md` and `docs/adr/`.
+- A root `CONTEXT-MAP.md` points to multiple contexts. Read the relevant context's `CONTEXT.md` and `docs/adr/`, plus system-wide ADRs in root `docs/adr/`.
+- If the topic's context is unclear, ask. Missing documentation is not permission to create it.
 
-```
-/
-├── CONTEXT.md
-├── docs/
-│   └── adr/
-│       ├── 0001-event-sourced-orders.md
-│       └── 0002-postgres-for-write-model.md
-└── src/
-```
+Use [CONTEXT-FORMAT.md](CONTEXT-FORMAT.md) for glossary and context-map conventions when needed. Read [ADR-FORMAT.md](ADR-FORMAT.md) when evaluating or recording an ADR-worthy decision.
 
-If a `CONTEXT-MAP.md` exists at the root, the repo has multiple contexts. The map points to where each one lives:
+## Challenge the plan
 
-```
-/
-├── CONTEXT-MAP.md
-├── docs/
-│   └── adr/                          ← system-wide decisions
-├── src/
-│   ├── ordering/
-│   │   ├── CONTEXT.md
-│   │   └── docs/adr/                 ← context-specific decisions
-│   └── billing/
-│       ├── CONTEXT.md
-│       └── docs/adr/
-```
+- **Check vocabulary against the glossary.** If "cancellation" means X in the glossary but Y in the plan, surface the conflict.
+- **Sharpen fuzzy language.** Propose one canonical term. For example, distinguish **Customer** from **User** instead of overloading "account."
+- **Test concrete scenarios.** Use relevant edge cases to clarify relationships and distinctions between domain concepts.
+- **Compare claims with code.** If code cancels entire Orders but the plan assumes partial cancellation, identify the discrepancy and ask which behaviour is intended.
 
-Create files lazily — only when you have something to write. If no `CONTEXT.md` exists, create one when the first term is resolved. If no `docs/adr/` exists, create it when the first ADR is needed.
+Keep these questions tied to material plan decisions. Do not ask the user to rediscover facts available in code or docs.
 
-## During the session
+## Documentation when authorized
 
-### Challenge against the glossary
+If the user explicitly requests documentation changes, record resolved terms and decisions within that scope as the session progresses. Do not ask for repeated approval for already-authorized writes. A request to update a glossary does not authorize unrelated ADRs or source changes.
 
-When the user uses a term that conflicts with the existing language in `CONTEXT.md`, call it out immediately. "Your glossary defines 'cancellation' as X, but you seem to mean Y — which is it?"
+- Keep `CONTEXT.md` a domain glossary only, using [CONTEXT-FORMAT.md](CONTEXT-FORMAT.md). Exclude implementation details, specs, scratch notes, and implementation decisions.
+- Create files lazily, only when authorized content is ready. Create `CONTEXT.md` at the first resolved term, and `docs/adr/` at the first authorized ADR. Do not create placeholders.
+- Follow an existing context map. If an authorized documentation task requires multiple contexts, use the map conventions in the format reference; clarify uncertain context ownership before writing.
 
-### Sharpen fuzzy language
+## Offer ADRs sparingly
 
-When the user uses vague or overloaded terms, propose a precise canonical term. "You're saying 'account' — do you mean the Customer or the User? Those are different things."
+Offer an ADR only when all three are true:
 
-### Discuss concrete scenarios
+1. **Hard to reverse**: changing the decision later has meaningful cost.
+2. **Surprising without context**: a future reader would wonder why.
+3. **The result of a real trade-off**: genuine alternatives existed and there were specific reasons to choose one.
 
-When domain relationships are being discussed, stress-test them with specific scenarios. Invent scenarios that probe edge cases and force the user to be precise about the boundaries between concepts.
+If any condition is missing, skip the ADR. An offer or conversational agreement is not permission to create it; require explicit instruction to record it. Use [ADR-FORMAT.md](ADR-FORMAT.md) for an authorized write.
 
-### Cross-reference with code
+## Completion
 
-When the user states how something works, check whether the code agrees. If you find a contradiction, surface it: "Your code cancels entire Orders, but you just said partial cancellation is possible — which is right?"
-
-### Update CONTEXT.md inline
-
-When a term is resolved, update `CONTEXT.md` right there. Don't batch these up — capture them as they happen. Use the format in [CONTEXT-FORMAT.md](./CONTEXT-FORMAT.md).
-
-`CONTEXT.md` should be totally devoid of implementation details. Do not treat `CONTEXT.md` as a spec, a scratch pad, or a repository for implementation decisions. It is a glossary and nothing else.
-
-### Offer ADRs sparingly
-
-Only offer to create an ADR when all three are true:
-
-1. **Hard to reverse** — the cost of changing your mind later is meaningful
-2. **Surprising without context** — a future reader will wonder "why did they do it this way?"
-3. **The result of a real trade-off** — there were genuine alternatives and you picked one for specific reasons
-
-If any of the three is missing, skip the ADR. Use the format in [ADR-FORMAT.md](./ADR-FORMAT.md).
-
-</supporting-info>
+Summarize resolved plan decisions, canonical terms, and remaining uncertainties. In review-only mode, leave proposed documentation changes in chat. If writes were authorized, report changed paths and check glossary format, context-map links, and ADR numbering as applicable. Stop at the requested planning deliverable, not implementation.
 
 ## Maintenance
 
-For future updates to this Matt Pocock-derived skill, read `../../../docs/skills/mattpocock-skills-update-process.md`.
+For local overlays and future updates, read the [Matt Pocock update process](../../../docs/skills/mattpocock-skills-update-process.md).

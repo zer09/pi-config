@@ -2,13 +2,9 @@
 
 This guide walks you through using the Cloud Firestore SDK in your Android app using Kotlin. The SDK for Firestore Enterprise Native Mode is the same as the standard Cloud Firestore SDK.
 
-### Enable Firestore via CLI
+### Local SDK setup
 
-Before adding dependencies in your app, make sure you enable the Firestore service in your Firebase Project using the Firebase CLI:
-
-```bash
-npx -y firebase-tools@latest init firestore
-```
+Android dependency and SDK setup can proceed without backend provisioning or service enablement. Backend provisioning and service enablement are separate actions that require explicit user instruction for each exact action and target. Only when explicitly requested, follow the [Enterprise provisioning reference](provisioning.md).
 
  ---
  
@@ -30,12 +26,12 @@ dependencies {
 
 ### 2. Initialize Firestore
 
+In both examples, replace `my-database-id` with the verified/configured Enterprise database ID. Initialize `db` for that database and reuse it in later operations.
+
 In your Activity or Fragment, initialize the `FirebaseFirestore` instance:
 
 ```kotlin
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.ktx.Firebase
 
 class MainActivity : AppCompatActivity() {
 
@@ -43,7 +39,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val db = Firebase.firestore
+        db = FirebaseFirestore.getInstance("my-database-id")
         
         setContent {
             MaterialTheme {
@@ -64,13 +60,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import com.google.firebase.Firebase
-import com.google.firebase.firestore.firestore
+import com.google.firebase.firestore.FirebaseFirestore
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val db = Firebase.firestore
+        val db = FirebaseFirestore.getInstance("my-database-id")
         
         setContent {
             MaterialTheme {

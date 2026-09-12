@@ -1,4 +1,4 @@
 interface:
-  display_name: "Firebase Rules Auditor"
-  short_description: "Audit Firebase security rules"
-  default_prompt: "Use $firebase-security-rules-auditor to review Firestore or Cloud Storage rules for robust access control and unsafe patterns."
+  display_name: "Cloud Firestore Rules Auditor"
+  short_description: "Audit Cloud Firestore Security Rules"
+  default_prompt: "Use $firebase-security-rules-auditor to audit Cloud Firestore Security Rules for access-control and validation flaws without modifying rules or hosted state."

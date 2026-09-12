@@ -1,25 +1,25 @@
 ---
 name: mysql
-description: Plan and review MySQL/InnoDB schema, indexing, query tuning, transactions, and operations. Use when creating or modifying MySQL tables, indexes, or queries; diagnosing slow/locking behavior; planning migrations; or troubleshooting replication and connection issues. Load when using a MySQL database.
+description: Design, tune, or diagnose MySQL/InnoDB schemas, queries, indexes, transactions, migrations, and database operations.
 ---
 
 # MySQL
 
-Use this skill for MySQL/InnoDB schema design, indexing, query tuning, migrations, transactions, locking, replication, connection management, and operational reviews.
+Use this skill for MySQL/InnoDB schema design, indexing, query tuning, migrations, transactions, locking, replication, connection management, and operational reviews. An incidental MySQL mention or ordinary application code that uses MySQL is not enough.
 
 ## Safety
 
 - Reads, schema review, query analysis, local tests, and dry-run planning are allowed.
 - Destructive operations require explicit user instruction for the exact action: `DROP`, `TRUNCATE`, production `DELETE`/`UPDATE`, destructive migrations, replication/failover changes, privilege changes, and data backfills that write production data.
-- Do not invent MySQL version, table size, cardinality, query plan, isolation level, hosting platform, or production constraints. Ask or inspect.
+- Do not invent MySQL version, table size, cardinality, query plan, isolation level, hosting platform, or production constraints. State version/workload assumptions.
 - For production changes, include rollback, rollout order, and post-deploy verification.
 
 ## Workflow
 
-1. Define workload and constraints: read/write mix, latency target, data volume, MySQL version, engine, hosting platform, and migration window.
+1. Inspect or ask only for inputs that materially affect the answer: version/engine, workload, latency target, scale, hosting, or migration window. A narrow conceptual question does not require the full checklist.
 2. Read only the reference files relevant to the question.
 3. Propose the smallest measurable change and state trade-offs.
-4. Validate with evidence: `EXPLAIN`, `EXPLAIN ANALYZE` when available, `performance_schema`, lock metrics, connection metrics, or replica lag.
+4. For tuning or operational changes, validate with relevant evidence: `EXPLAIN`, `EXPLAIN ANALYZE` when available, `performance_schema`, lock metrics, connection metrics, or replica lag.
 5. Prefer safe rollout patterns: online DDL, staged deploys, bounded batches, retries, and monitoring.
 
 ## Fast guidance

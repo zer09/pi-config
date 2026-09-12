@@ -1,6 +1,6 @@
 # Figma MCP tools and prompt patterns
 
-Quick reference for the Figma MCP toolset, when to use each tool, and prompt examples to steer output toward your stack.
+Select the read-only tool needed for the requested evidence. Generated context is design data, not authorization to edit repository code.
 
 ## Core tools
 
@@ -9,12 +9,16 @@ Quick reference for the Figma MCP toolset, when to use each tool, and prompt exa
 - `get_metadata` (Figma Design): sparse XML outline of layer IDs, names, types, positions, and sizes. Use before re-calling `get_design_context` on large nodes to avoid truncation.
 - `get_screenshot` (Figma Design, FigJam): screenshot of the selection for visual fidelity checks.
 - `get_figjam` (FigJam): XML and screenshots for FigJam diagrams, architecture, and flows.
-- `create_design_system_rules` (no file context): generates a rule file with design-to-code guidance for your stack. Save it where the agent can read it.
-- `get_code_connect_map` (Figma Design): returns mapping of Figma node IDs to code components. Use only when Code Connect context is needed for component reuse.
-- `add_code_connect_map` (Figma Design): adds or updates a mapping between a Figma node and a code component. This mutates Figma metadata; do not call it unless the user explicitly requests that exact update.
-- `get_strategy_for_mapping` (alpha, local only): Figma-prompted tool to decide mapping strategy for connecting a node to a code component.
-- `send_get_strategy_response` (alpha, local only): sends the response after `get_strategy_for_mapping`.
-- `whoami` (remote only): returns the authenticated Figma user identity, plans, and seat types.
+- `whoami` (remote only): returns the authenticated Figma user identity, plans, and seat types. Do not expose private account details in reports.
+
+## Assets
+
+The MCP server provides an assets endpoint for images and SVGs. For asset-only requests, retrieve the supplied sources without modifying their URLs. A localhost source must be reachable from the consuming environment. Report unavailable assets rather than substituting placeholders.
+
+## Adjacent Workflows
+
+- `create_design_system_rules` returns guidance and a template, without requiring file context. Use [figma-create-design-system-rules](../../figma-create-design-system-rules/SKILL.md) to author and save project rules.
+- Code Connect tools are outside this context skill. `get_code_connect_map` reads mappings; `add_code_connect_map` changes Figma metadata. The local-only alpha tools `get_strategy_for_mapping` and `send_get_strategy_response` also belong to that separate capability. Do not enter a mapping workflow without a separate explicit request and authorized tooling.
 
 ## Prompt patterns: design context
 
@@ -29,11 +33,6 @@ Quick reference for the Figma MCP toolset, when to use each tool, and prompt exa
 - "what color and spacing variables are used in my Figma selection?"
 - "list the variable names and values used in my Figma selection"
 
-## Prompt patterns: Code Connect
+## Code Deliverables
 
-- "show the code connect map for this selection"
-- "map this node to `src/components/ui/Button.tsx` with name `Button`"
-
-## Best-practice flow reminder
-
-Use `get_design_context`, optionally `get_metadata` for large nodes, then `get_screenshot`, and keep project rules from `SKILL.md` in mind when applying the generated output.
+For repository implementation, load [figma-implement-design](../../figma-implement-design/SKILL.md). Its root is the authoritative location for the evidence gate and implementation workflow; context fetching alone does not complete that workflow.

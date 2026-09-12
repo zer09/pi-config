@@ -26,6 +26,14 @@ These skills are intentionally slim. Keep `SKILL.md` focused on triggers, destru
 
 Preserve relative links to local `references/` files so the runtime skill remains usable without fetching raw GitHub URLs.
 
+## Routing and proportional discovery
+
+Both skills remain `make it slim`. Route MySQL/InnoDB database design, query/index/transaction tuning, and operational diagnosis to `mysql`; route PostgreSQL database work to `postgres`. An incidental database mention or ordinary application code using a database does not activate either specialist skill. Firebase Data Connect connector, schema, and SDK work stays in its product workflow unless PostgreSQL-level design or diagnosis is needed.
+
+Inspect or ask only for version, workload, scale, hosting, and change-window inputs that materially affect the answer. A conceptual question does not require an operational checklist. Preserve stated assumptions, selected references, evidence-driven checks for proposed changes, exact production/destructive gates, rollback, rollout order, and verification.
+
+Keep each metadata prompt aligned with exactly one matching `$mysql` or `$postgres` token. A local routing-only pass does not change the upstream SHA.
+
 ## Update workflow
 
 1. Load `skill-creator`, `gh-cli`, and the relevant database skill, then read this file.

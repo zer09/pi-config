@@ -16,22 +16,30 @@ Assume the consuming agent is capable. Include only knowledge, constraints, tool
 Use progressive disclosure:
 
 1. `name` and `description` route the request.
-2. `SKILL.md` carries the core workflow.
-3. `references/`, `scripts/`, and `assets/` are loaded or used only when needed.
+2. `SKILL.md` carries the core workflow or a minimal router for multiple workflows, with shared constraints and task-specific pointers.
+3. `references/`, `scripts/`, and `assets/` are loaded or used only when the selected workflow needs them.
 
-Keep `SKILL.md` under 500 lines where practical. Move long examples, command catalogs, schemas, troubleshooting, and variant-specific guidance into directly linked references.
+Keep `SKILL.md` under 500 lines where practical. Move long examples, command catalogs, schemas, troubleshooting, and variant-specific guidance into directly linked references. Keep long content in one authoritative location; do not duplicate it in the root.
 
 ### Match freedom to risk
 
 - Use flexible prose for judgment-heavy tasks with many valid approaches.
-- Use ordered workflows or pseudocode when a preferred pattern matters.
+- Use ordered workflows or pseudocode when correctness, safety, or compatibility depends on a particular sequence.
 - Use deterministic scripts and strict checks for fragile, repetitive, security-sensitive, or format-sensitive work.
+
+Remove model-era handholding that no longer protects a real requirement. Preserve mixed-model and cross-harness compatibility; one model's capability does not justify removing a local safeguard.
 
 Explain why important constraints exist. Use rigid `ALWAYS` or `NEVER` rules only when violating them would create a real correctness, safety, or compatibility failure.
 
+Distinguish already-authorized, reversible local work from actions requiring clarification or approval. Avoid repeated approval within the user's authorization; preserve hosted-service mutation gates, secret handling, and scope boundaries.
+
+### Define completion
+
+Where early stopping is likely, specify the agreed deliverable, relevant checks, and fixes for failures caused by the change. State real blockers such as missing authority, evidence, or dependencies. Completion never authorizes broader scope or bypasses a safety gate.
+
 ### Prove value
 
-A plausible `SKILL.md` is not evidence that a skill helps. For objectively testable or high-risk skills, compare realistic runs with the skill against a baseline. Use human review for subjective quality and programmatic checks for deterministic outcomes.
+A plausible or shorter `SKILL.md` is not evidence that a skill helps. Review intended triggers, adjacent-skill near misses, workflow selection, boundaries, and completion. For objectively testable or high-risk skills, compare realistic runs with the skill against a baseline. Use human review for subjective quality and programmatic checks for deterministic outcomes.
 
 Do not overfit instructions to a few examples. Generalize from failures and retain an untouched regression set for mature skills.
 
@@ -49,9 +57,11 @@ skill-name/
 
 Do not add auxiliary files such as `README.md`, changelogs, installation guides, or process notes to the skill folder. Keep long-lived maintenance documentation in the host repository's documentation area and link to it from a short `## Maintenance` section.
 
-## Workflow
+## Authoring and maintenance
 
-### 1. Determine the request type
+Use the sections relevant to the request, not a mandatory creation itinerary. Preserve required host-policy and safety checks.
+
+### Determine the request type
 
 Classify the task before editing:
 
@@ -60,9 +70,9 @@ Classify the task before editing:
 - **Evaluate**: test behavior or trigger quality without redesigning prematurely.
 - **Repair**: fix validation, routing, resource, or execution failures.
 
-For updates, read the host repository's skill-maintenance policy and the skill's maintenance pointer before copying upstream content. Treat upstream as input, not automatic final truth.
+For updates, read the host repository's skill-maintenance policy and the skill's maintenance pointer before copying upstream content. Treat upstream as input, not automatic final truth. Reapply local overlays after syncing, then check routing, runtime shape, decision boundaries, and completion against the prior behavior.
 
-### 2. Capture the skill contract
+### Capture the skill contract
 
 Derive answers from the conversation and existing workflow before asking the user. Clarify only gaps that materially affect implementation.
 
@@ -78,7 +88,7 @@ Establish:
 
 Collect concrete examples. Include happy paths, meaningful edge cases, and near-miss triggers. Do not overwhelm the user with a long questionnaire when safe assumptions are available.
 
-### 3. Research before drafting
+### Research before drafting
 
 Inspect:
 
@@ -90,7 +100,7 @@ Inspect:
 
 Prefer adapting established local patterns over inventing a second convention.
 
-### 4. Plan reusable contents
+### Plan reusable contents
 
 For each concrete example, consider how an agent would execute it from scratch. Identify repeated or fragile work:
 
@@ -101,7 +111,7 @@ For each concrete example, consider how an agent would execute it from scratch. 
 
 Do not create resource directories without a real use.
 
-### 5. Initialize
+### Initialize
 
 For a new skill, run from this skill directory:
 
@@ -119,7 +129,7 @@ Generate human-facing `display_name`, `short_description`, and `default_prompt` 
 
 Skip initialization when editing an existing skill.
 
-### 6. Implement the runtime resources first
+### Implement runtime resources
 
 Build necessary scripts, references, and assets before finalizing `SKILL.md`. Test changed scripts with representative inputs. Remove all placeholders and unused example files.
 
@@ -133,7 +143,7 @@ Write instructions for another agent instance, not as user documentation. Use im
 
 Avoid speculative features, duplicated explanations, and broad tutorials.
 
-### 7. Write routing metadata
+### Write routing metadata
 
 For Local Skills, use `name` and `description` by default:
 
@@ -150,9 +160,9 @@ Portable Agent Skills may also use the standard optional fields `license`, `comp
 
 The description is the primary trigger. Include both capability and usage contexts there; do not rely on a body section called “When to use,” because the body is unavailable before triggering.
 
-Make the description broad enough to catch implicit but relevant requests and narrow enough to avoid adjacent skills. Describe user intent rather than internal implementation.
+Use the shortest sufficient description of activating user intent. Include implicit requests only when they belong to the skill's workflow; disambiguate adjacent skills with concrete scope boundaries. Keep procedures, command catalogs, and reference lists out of descriptions. Do not impose an arbitrary local character cap.
 
-### 8. Validate
+### Validate
 
 Run:
 
@@ -162,7 +172,7 @@ uv run --with pyyaml python scripts/quick_validate.py <path-to-skill>
 
 Fix all reported structural, metadata, placeholder, and local-link errors. Then test changed helper scripts and inspect the final skill tree for unnecessary or sensitive files.
 
-### 9. Evaluate proportionally
+### Evaluate proportionally
 
 Use lightweight manual checks for simple or subjective skills. Use comparative evaluations when outputs are objectively verifiable, the workflow is fragile, the skill is foundational, or the user asks for benchmarking.
 
@@ -178,7 +188,7 @@ Read [references/evaluation.md](references/evaluation.md) before running evaluat
 
 Do not run prompts that could mutate hosted services or real user data. Use local fixtures and explicit evaluation sandboxes.
 
-### 10. Improve from evidence
+### Improve from evidence
 
 When a run fails, identify the causal layer:
 
@@ -190,9 +200,9 @@ When a run fails, identify the causal layer:
 
 Inspect transcripts as well as final outputs. Repeated helper code across runs is a signal to bundle a script. Repeated ignored instructions are a signal to simplify or restructure them.
 
-Rerun the affected cases and the untouched regression set. Stop when the user is satisfied, all meaningful checks pass, or further changes no longer produce meaningful gains.
+Rerun the affected cases and the untouched regression set. Continue through the agreed completion criteria, including relevant checks and in-scope fixes. If blocked, report incomplete work rather than claiming completion.
 
-### 11. Finalize
+### Finalize
 
 Before reporting completion:
 
@@ -207,4 +217,4 @@ Report changed paths and checks run. Do not package, install, commit, or publish
 
 ## Maintenance
 
-This is a locally unified skill derived from OpenAI and Anthropic skill-creator workflows. For future synchronization, provenance rules, and source-specific update steps, read `../../../docs/skills/skill-creator-update-process.md`.
+This is a locally unified skill derived from OpenAI and Anthropic skill-creator workflows. For manual updates, start with the [maintenance README](../../../docs/skills/README.md). Follow its policy order and the [skill-creator update process](../../../docs/skills/skill-creator-update-process.md), which preserves the local capable-model policy across both upstream sources.

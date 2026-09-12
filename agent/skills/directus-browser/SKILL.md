@@ -1,6 +1,6 @@
 ---
 name: directus-browser
-description: "Operate Directus Studio through pi-browser-harness instead of Directus MCP/API credentials. Use when asked to access, inspect, automate, or manage a Directus instance in the browser: content/items, files/assets, data model collections/fields/relationships, users, roles, policies/permissions/access control, flows/automation, AI/MCP settings, or Directus Studio troubleshooting. Loads Directus-specific navigation, safety, UI, read-only API, and script-execution guidance."
+description: "Inspect or manage Directus Studio through the user-authorized Pi Browser Harness. Use for Directus tasks in the browser."
 ---
 
 # Directus Browser
@@ -8,6 +8,12 @@ description: "Operate Directus Studio through pi-browser-harness instead of Dire
 Use `pi-browser-harness` as a browser-operated Directus Studio driver. This skill supplies the Directus Studio mental model; the browser snapshot supplies the exact current UI.
 
 For schema, permissions, flows, API/script use, or uncertain navigation, read `references/directus-studio.md` first, then the specific referenced file (`data-model.md`, `schema-api-mutations.md`, `access-control.md`, `flows.md`, `api-browser-probes.md`, or `security.md`).
+
+## Browser consent boundary
+
+Before the operating loop, load and apply [$pi-browser-harness](../pi-browser-harness/SKILL.md), including its Required User Setup Gate for every task. Stop until the user starts a supported browser, enables debugging if needed, runs `/browser-setup`, and explicitly confirms completion. Do not call `browser_setup` or probe browser/daemon/socket/tabs/page state before confirmation; repeat the gate after disconnect.
+
+Directus access does not bypass Browser Harness consent, the chosen profile/account, manual login, or its safety rules. Apply this boundary to navigation, same-origin GET probes, and scripts as well as UI actions.
 
 ## Operating loop
 
@@ -45,7 +51,7 @@ For schema, permissions, flows, API/script use, or uncertain navigation, read `r
 
 Default to UI-first operation for mutations.
 
-Allowed by default:
+After Browser Harness confirmation, allowed for read-only tasks:
 
 - Small `browser_execute_js` snippets for DOM reads.
 - Same-origin, logged-in, read-only Directus `GET` requests from the browser context using `credentials: "include"`.
@@ -87,4 +93,4 @@ For any schema update, ask whether to use Studio UI or authenticated API unless 
 
 ## Maintenance
 
-Update this custom local skill through `docs/skills/directus-browser-update-process.md`; preserve the browser-first safety gates and read-only API defaults.
+Follow the [Directus update process](../../../docs/skills/directus-browser-update-process.md). Preserve inherited Browser Harness consent, UI-first mutation gates, and read-only API defaults.

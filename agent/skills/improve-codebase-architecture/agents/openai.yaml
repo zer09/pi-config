@@ -1,4 +1,4 @@
 interface:
   display_name: "Improve Codebase Architecture"
-  short_description: "Find deepening opportunities in code"
-  default_prompt: "Use $improve-codebase-architecture to find architecture deepening opportunities informed by the project's CONTEXT.md and ADRs."
+  short_description: "Assess architecture and explore deepening candidates"
+  default_prompt: "Use $improve-codebase-architecture to assess this codebase and present deepening candidates without editing files."

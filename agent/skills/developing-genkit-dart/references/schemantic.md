@@ -4,11 +4,11 @@ Schemantic is a general-purpose Dart library used for defining strongly typed da
 
 ## Core Concepts
 
-Always use `schemantic` when strongly typed JSON parsing or programmatic schema validation is required. 
+Use `schemantic` for Genkit Dart's typed schema mapping. Preserve the project's existing parsing approach for unrelated Dart code.
 
 - Annotate your abstract classes with `@Schema()`.
 - Use the `$` prefix for abstract schema class names (e.g., `abstract class $User`).
-- Always run `dart run build_runner build` to generate the `.g.dart` schema files.
+- When schema definitions change, regenerate affected `.g.dart` files with the project's generator command, commonly `dart run build_runner build`.
 
 ## Installation
 

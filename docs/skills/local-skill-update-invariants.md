@@ -6,7 +6,7 @@ Canonical update meaning: sync from the relevant upstream source, then reapply l
 
 Canonical install meaning: add the skill as a Local Skill, treat upstream content as input when applicable, document future maintenance in `docs/skills/`, then apply these invariants before validation and commit.
 
-Read this file before and after using any skill update-process document.
+Read this file before and after using any skill update-process document. [ADR 0020](../adr/0020-gpt-6-astra-skill-maintenance-policy.md) refines ADR 0001 with model-neutral routing, runtime, and completion policy for manual updates. All existing safety and compatibility rules remain mandatory.
 
 ## Update contract
 
@@ -54,6 +54,13 @@ When installing a new Local Skill:
 - Keep durable installed-skill decisions in `docs/skills/installed-skills-trim-verdict.md`, not in `scratch/`.
 - Skill folders should contain runtime instructions, runtime references, scripts, assets, and lightweight maintenance pointers only.
 
+## Routing invariants
+
+- Use the shortest sufficient description that states the capability and activating user intent. Do not add an arbitrary local character cap.
+- Distinguish adjacent skills with precise scope boundaries. Include implicit requests only when they belong to the skill's actual workflow.
+- Keep procedures, command catalogs, and reference lists out of descriptions; they belong in runtime instructions or linked resources.
+- Check intended triggers and near-miss requests against adjacent installed skills before and after syncing upstream.
+
 ## Safety invariants
 
 - Preserve hosted-service mutation gates. External hosted services are read-only by default.
@@ -84,9 +91,20 @@ When installing a new Local Skill:
 - Keep `SKILL.md` under 500 lines where practical.
 - Apply `docs/skills/skill-slimming-process.md` during every update or install.
 - Move examples, troubleshooting, command catalogs, API details, and long reference material into `references/` files.
-- Keep core workflow, safety gates, and reference navigation in `SKILL.md`.
-- Avoid duplicating the same long content in both `SKILL.md` and references.
+- Keep core workflow, safety gates, and reference navigation in `SKILL.md`. For multi-workflow skills, use a minimal router root with shared constraints and task-specific pointers.
+- Use progressive disclosure: load details only for the selected workflow, with safety gates visible before the actions they govern.
+- Keep long content in one authoritative location; avoid duplication across roots, references, and maintenance docs.
 - Do not reinstall retired orchestration skills such as `context-watcher` unless the user explicitly asks; keep foundational routing in global/project instructions instead.
+
+## Runtime and completion invariants
+
+- Remove rigid itineraries and model-era handholding unless correctness, safety, or compatibility depends on them. Preserve exact commands and necessary ordering.
+- Preserve mixed-model and cross-harness compatibility. A capable model is not a reason to weaken a local safety invariant.
+- Make decision boundaries proportional to risk. Distinguish already-authorized, reversible local work from actions requiring clarification or explicit approval.
+- Do not require repeated approval for work already within the user's authorization. Never use this rule to bypass hosted-service mutation gates or broaden scope.
+- Define completion where early stopping is likely: the agreed deliverable, relevant checks, and fixes for failures caused by the change.
+- State real stop conditions such as missing authority, evidence, or dependencies. Report blocked or incomplete work instead of treating a first draft as completion.
+- Validate useful behavior rather than optimizing context size alone. Use representative cases and baseline comparisons when the change or risk warrants them.
 
 ## Runtime artifact invariants
 
@@ -104,6 +122,16 @@ for skill_dir in ~/.pi/agent/skills/*; do
   uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py "$skill_dir" || exit 1
 done
 ```
+
+Review changed skills semantically as well as structurally:
+
+- Intended requests activate the skill; adjacent-skill near misses do not. The description contains no procedure or reference list.
+- The root selects the relevant workflow without requiring unrelated references. Long content has one authoritative location.
+- Any retained itinerary or extra scaffolding has a correctness, safety, or compatibility reason.
+- Authorized local work can continue without repeated approval; gated or ambiguous actions still stop at the required boundary.
+- Completion covers the agreed deliverable and relevant checks without premature success or unauthorized scope expansion.
+- Representative cases preserve required outputs, tool routing, safety behavior, and supported-model compatibility. Record what was reviewed or tested and any behavior not exercised.
+- Line and character counts are diagnostics, not proof of routing quality or task success.
 
 Then verify:
 

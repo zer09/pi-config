@@ -1,6 +1,8 @@
 # Using grill-with-docs
 
-Use `grill-with-docs` as a guided discovery session before implementation, architecture changes, or domain-heavy planning. It is not a blind documentation generator.
+Use `grill-with-docs` as a guided planning and domain decision session. Review-only is the default: the agent compares the plan with code/docs and asks one material question at a time, with a recommendation. It stops when the requested plan decisions are resolved or remaining uncertainties are explicit.
+
+Agreement on a term or decision does not authorize a repository write. Explicitly request documentation changes when you want them; the initialization prompts below do so. This skill does not implement the plan.
 
 ## Initialize CONTEXT.md in another repo
 
@@ -28,8 +30,8 @@ Inspect the repo structure first. Recommend the setup, ask me to confirm unclear
 2. Ask the agent to use `grill-with-docs` with a concrete plan, feature idea, or initialization request.
 3. Let the agent inspect existing docs and code.
 4. Answer one question at a time.
-5. Let the agent update `CONTEXT.md` only when terms are resolved.
-6. Create ADRs only when a decision is hard to reverse, surprising without context, and the result of a real trade-off.
+5. Keep resolved terms and proposed documentation changes in chat unless you explicitly requested repository changes. When authorized, update `CONTEXT.md` only for resolved terms within that scope.
+6. Consider an ADR only when a decision is hard to reverse, surprising without context, and the result of a real trade-off. Explicitly request recording it before the agent creates it; a glossary-write request does not authorize unrelated ADRs.
 
 ## What belongs in CONTEXT.md
 
@@ -66,7 +68,7 @@ That is implementation detail, not domain language.
 
 ## ADR guidance
 
-Do not create placeholder ADRs. Create `docs/adr/` lazily only when the first real ADR is needed.
+Do not create placeholder ADRs. Create `docs/adr/` lazily only when the first real ADR is ready and its creation is explicitly requested. Passing the test below makes an ADR worth offering, not automatically authorized.
 
 An ADR is appropriate only when all three are true:
 

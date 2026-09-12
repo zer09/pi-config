@@ -1,12 +1,12 @@
 # Flutter & Firebase Setup Guide
 
-This guide covers the initial setup of Flutter and its integration with Firebase using the FlutterFire CLI.
+This guide covers local Flutter dependencies and optional Firebase configuration. Dependency-only and existing-config tasks do not require CLI authentication, CLI download/install, project creation, app registration, or CLI initialization. Reuse existing `lib/firebase_options.dart` and platform config files.
 
 ## Prerequisites
 
-1. **Flutter SDK**: Ensure Flutter is installed and available in the PATH.
-   
-   **Standard Setup (Manual):**
+1. **Flutter SDK**: Use the existing SDK for requested Flutter work. If it is absent, report it and ask before download/install.
+
+   **Optional installation, only after user agreement:**
    1. **Determine Architecture**: Check if you are on Intel (`x64`) or Apple Silicon (`arm64`) using `uname -m`.
    2. **Download SDK**: Fetch the latest stable SDK from the [Flutter Archive](https://docs.flutter.dev/install/archive?tab=macos).
    3. **Extract**: Unzip the SDK to a permanent directory (e.g., `~/development/flutter`).
@@ -17,39 +17,31 @@ This guide covers the initial setup of Flutter and its integration with Firebase
       ```
    5. **Verify**: Run `flutter doctor` to ensure the SDK is correctly linked and initialized.
 
-2. **Firebase CLI**: Ensure the Firebase CLI is available.
-   - Run `npx -y firebase-tools@latest --version`.
-   - Login with `npx -y firebase-tools@latest login`.
+2. **Firebase CLI**: Needed only for tasks that use the CLI, not client dependency work. Use the installed or repository-pinned Firebase CLI. If it is absent, report it and ask before download/install.
+   - Check the available version with `firebase --version` only when needed.
+   - Login and active-project changes require user request or agreement.
 
-3. **FlutterFire CLI**: Install the official FlutterFire CLI globally.
-   - Run `dart pub global activate flutterfire_cli`.
-   - **Note**: Ensure `~/.pub-cache/bin` is also in your PATH if `flutterfire` is not found.
+3. **FlutterFire CLI**: Needed only for the optional configuration branch below. Use an existing installed or repository-pinned CLI. If it is absent, report it and ask before download/install.
+   - Only after the user requests or agrees to this CLI installation, run `dart pub global activate flutterfire_cli`.
+   - For an existing installation, check whether `~/.pub-cache/bin` is in PATH before changing shell configuration.
 
 ## Step 1: Create a Flutter Project
-If you don't have a project yet, create one:
+Only for a requested new local Flutter project, run:
 ```bash
 flutter create my_awesome_app
 cd my_awesome_app
 ```
 
-## Step 2: Configure Firebase
-> [!IMPORTANT]
-> **For Agents:** Before running the configuration command, you MUST pause and ask the developer if they prefer to:
-> 1. Create a new Firebase project, or
-> 2. Provide an existing Firebase Project ID.
+## Step 2: Optional Firebase configuration and app registration
+Reuse existing configuration for the identified apps. An existing project ID alone does not authorize app registration. If a Firebase project must be created, handle that separately through the gated branch in [Web setup](web_setup.md).
 
-- If the developer provides an existing Project ID, run:
-  ```bash
-  flutterfire configure --project=<project_id>
-  ```
-- If the developer prefers to create a new project interactively, run:
-  ```bash
-  flutterfire configure
-  ```
+This command can register apps and generate `lib/firebase_options.dart`. Require explicit authorization for the exact configuration and app registration actions and target project, platforms, and app identifiers (Android package name, iOS bundle ID, or web app). Only then run:
 
-This tool automates:
-- Registering your apps (iOS, Android, Web, etc.) with a Firebase project.
-- Generating the `lib/firebase_options.dart` file.
+```bash
+flutterfire configure --project=<PROJECT_ID> --platforms=<PLATFORMS>
+```
+
+Limit platform selection to the authorized targets. Project creation and service enablement require separate explicit authorization for each exact action and target. Stop before prompts for unapproved hosted changes. Without authorization, complete local dependency/code work and report missing configuration or registration as deferred.
 
 
 ## Step 3: Initialize Firebase in Code
@@ -76,16 +68,16 @@ void main() async {
 ```
 
 ## Step 4: Add Firebase Services
-To add specific services (Firestore, Auth, etc.), follow the "Pub Add & Configure" pattern:
+For a requested client dependency addition:
 
-1. Add the service: `flutter pub add cloud_firestore`
-2. **Crucial**: Re-run `flutterfire configure` to sync platform configurations.
+1. Add the service package: `flutter pub add cloud_firestore`
+2. Reuse existing platform configuration. Adding a dependency does not authorize app registration or service enablement; handle required configuration changes through the optional branch above.
 3. Import and use the package in your code.
 
 ## Step 5: Important Gotchas & Platform Specifics
 
-### 1. Re-running `flutterfire configure` Upon Renaming
-When creating a new project, developers often change the bundle identifier (iOS) or `applicationId` (Android) after the fact. If the package names change, `flutterfire configure` **must** be re-run to update the respective Google service files and `firebase_options.dart`.
+### 1. Changed App Identifiers
+A changed iOS bundle identifier or Android `applicationId` can require different platform config files and `firebase_options.dart`. Reuse configuration for the intended app identity where available. If registration is required, use the separately authorized optional branch above; a local rename does not authorize hosted changes.
 
 ### 2. Platform-Specific Build Requirements
 - **Android**: Adding Firebase often requires a higher `minSdkVersion` (commonly `21` or `23`) than the platform default. Be prepared to update `android/app/build.gradle` automatically when installing certain plugins.

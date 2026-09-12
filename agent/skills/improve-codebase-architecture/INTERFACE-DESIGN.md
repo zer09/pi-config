@@ -1,6 +1,6 @@
 # Interface Design
 
-When the user wants to explore alternative interfaces for a chosen deepening candidate, use this parallel `reader` delegate pattern. Based on "Design It Twice" (Ousterhout) — your first idea is unlikely to be the best.
+Use this for read-only exploration of alternative interfaces after the user chooses a deepening candidate. Based on "Design It Twice" (Ousterhout): compare alternatives rather than treating the first idea as final. Develop designs directly; use `reader` delegates only if the user or project workflow explicitly requests delegation. Candidate selection does not authorize repository writes or implementation.
 
 Uses the vocabulary in [LANGUAGE.md](LANGUAGE.md) — **module**, **interface**, **seam**, **adapter**, **leverage**.
 
@@ -8,28 +8,26 @@ Uses the vocabulary in [LANGUAGE.md](LANGUAGE.md) — **module**, **interface**,
 
 ### 1. Frame the problem space
 
-Before launching reader delegates, write a user-facing explanation of the problem space for the chosen candidate:
+Before comparing alternatives, explain the problem space for the chosen candidate in chat:
 
 - The constraints any new interface would need to satisfy
 - The dependencies it would rely on, and which category they fall into (see [DEEPENING.md](DEEPENING.md))
 - A rough illustrative code sketch to ground the constraints — not a proposal, just a way to make the constraints concrete
 
-Show this to the user, then immediately proceed to Step 2. The user reads and thinks while the reader delegates work in parallel.
+Surface any missing material constraint before comparing designs. Keep the selected exploration read-only.
 
-### 2. Launch reader delegates
+### 2. Develop alternatives
 
-Launch 3 reader delegates in parallel using the `reader` tool. Each must produce a **radically different** interface for the deepened module.
+Compare materially different interfaces for the deepened module. Use the file paths, coupling details, dependency category from [DEEPENING.md](DEEPENING.md), and what sits behind the seam to ground each design. Choose useful contrasting constraints:
 
-Prompt each reader delegate with a separate technical brief (file paths, coupling details, dependency category from [DEEPENING.md](DEEPENING.md), what sits behind the seam). The brief is independent of the user-facing problem-space explanation in Step 1. Give each delegate a different design constraint:
+- Minimize the interface, aiming for 1–3 entry points and high leverage per entry point.
+- Maximise flexibility for varied use cases and extension.
+- Optimise for the most common caller, making the default case simple.
+- Design around ports & adapters for cross-seam dependencies when applicable.
 
-- Agent 1: "Minimize the interface — aim for 1–3 entry points max. Maximise leverage per entry point."
-- Agent 2: "Maximise flexibility — support many use cases and extension."
-- Agent 3: "Optimise for the most common caller — make the default case trivial."
-- Agent 4 (if applicable): "Design around ports & adapters for cross-seam dependencies."
+Use both [LANGUAGE.md](LANGUAGE.md) vocabulary and CONTEXT.md vocabulary. If delegation is explicitly requested, give each reader a separate technical brief and design constraint with the same read-only scope.
 
-Include both [LANGUAGE.md](LANGUAGE.md) vocabulary and CONTEXT.md vocabulary in the brief so each reader delegate names things consistently with the architecture language and the project's domain language.
-
-Each reader delegate outputs:
+Each design includes:
 
 1. Interface (types, methods, params — plus invariants, ordering, error modes)
 2. Usage example showing how callers use it
@@ -41,4 +39,4 @@ Each reader delegate outputs:
 
 Present designs sequentially so the user can absorb each one, then compare them in prose. Contrast by **depth** (leverage at the interface), **locality** (where change concentrates), and **seam placement**.
 
-After comparing, give your own recommendation: which design you think is strongest and why. If elements from different designs would combine well, propose a hybrid. Be opinionated — the user wants a strong read, not a menu.
+After comparing, recommend a design and explain why. If elements combine well, propose a hybrid. Stop when the selected design decisions are resolved or remaining uncertainties are explicit. Do not implement the design or record documentation without explicit user instruction for those changes.

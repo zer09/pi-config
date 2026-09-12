@@ -4,6 +4,8 @@ Purpose: maintain `agent/skills/skill-creator` as a Pi-native synthesis of OpenA
 
 The local skill keeps the public name `skill-creator`. It is not a verbatim mirror of either upstream. Upstream content is evidence and input; the local runtime contract wins when behavior conflicts.
 
+[ADR 0020](../adr/0020-gpt-6-astra-skill-maintenance-policy.md) defines the local capable-model policy, informed by OpenAI's Astra post but applicable across supported models. The [local invariants](local-skill-update-invariants.md) make it mandatory for manual updates from either upstream. This policy is a local overlay, not a claim that the provenance commits below include it.
+
 ## Current provenance
 
 | Source | Repository | Upstream path | Reviewed checkout commit | Last path-specific commit observed |
@@ -29,6 +31,7 @@ Use this map to avoid replacing local files blindly.
 | Local area | Primary influence | Local rule |
 | --- | --- | --- |
 | Skill anatomy, progressive disclosure, degrees of freedom | OpenAI | Preserve concise scaffolding and reusable-resource guidance |
+| Descriptions, router roots, decision boundaries, completion | Local policy informed by OpenAI | Preserve ADR 0020 across both upstream syncs: precise intent, adjacent-skill disambiguation, selective loading, proportional boundaries, and explicit completion where useful |
 | `scripts/init_skill.py` | OpenAI plus local extensions | Rebase useful upstream changes; preserve `uv`, default UI metadata, and optional eval scaffolding |
 | `scripts/generate_openai_yaml.py` and `references/openai_yaml.md` | OpenAI | Preserve local requirement that generated `default_prompt` mentions `$skill-name` |
 | Evaluation methodology and schemas | Anthropic | Port concepts, not Claude-specific command/subagent mechanics |
@@ -38,7 +41,7 @@ Use this map to avoid replacing local files blindly.
 | `scripts/aggregate_benchmark.py` | Local rewrite of Anthropic concept | Keep expected-job manifests, matched-pair deltas, null/missing semantics, and prominent critical failures |
 | `scripts/generate_review.py` | Local rewrite of Anthropic concept | Keep symlink-safe output reads, atomic feedback, free ports, safe JSON, offline operation, size limits, and structurally blind client data |
 | `scripts/quick_validate.py` | OpenAI plus Agent Skills and Pi docs | Keep strict Local Skill frontmatter with the intentional Pi explicit-invocation extension; keep the portable profile aligned with standard Agent Skills frontmatter |
-| Runtime `SKILL.md` | Unified | Keep under 500 lines and route details into references |
+| Runtime `SKILL.md` | Unified | Keep under 500 lines, route task-specific details into references, and avoid mandatory itineraries unless correctness, safety, or compatibility requires them |
 
 ## Known upstream behavior not to reintroduce
 
@@ -72,6 +75,16 @@ Do not reintroduce these OpenAI/local scaffold regressions:
 - Generated `agents/openai.yaml` without a `$skill-name` default prompt
 - Validators that accept empty names, empty descriptions, or unresolved starter placeholders
 
+Do not reintroduce these instruction regressions from either upstream:
+
+- Overbroad topic triggers, adjacent-skill collisions, or procedures and reference lists in descriptions
+- Roots that duplicate long references or require unrelated workflows to be loaded
+- Rigid itineraries or model-era handholding without a correctness, safety, or compatibility reason
+- Repeated approval for already-authorized, reversible local work, or weakened local mutation and scope gates
+- First-draft handoffs before agreed completion checks, or open-ended persistence that exceeds the user's scope
+- One-model assumptions that break mixed-model or cross-harness compatibility
+- Context-size reduction treated as proof of useful behavior without semantic validation
+
 ## Update workflow
 
 1. Read `docs/skills/README.md`.
@@ -91,7 +104,7 @@ Do not reintroduce these OpenAI/local scaffold regressions:
    - **Adapt**: valuable behavior that needs Pi commands, local safety, or local schemas.
    - **Reject**: Claude/Codex-specific behavior, duplication, regression, or excessive runtime context.
 8. Apply changes according to the ownership map. Never replace the unified folder wholesale.
-9. Keep `SKILL.md` compact. Put evaluation details in `references/evaluation.md`, schemas in `references/eval-schemas.md`, and durable provenance here.
+9. Reapply the capable-model policy and all local overlays. Recheck description precision, adjacent-skill collisions, root/router shape, itinerary burden, decision boundaries, and completion against the pre-sync skill. Put evaluation details in `references/evaluation.md`, schemas in `references/eval-schemas.md`, and durable provenance here.
 10. Update this document's commits and ownership notes when the integration changes.
 11. Update `docs/skills/openai-skills-update-process.md` if the OpenAI source commit changes.
 12. Update `docs/skills/installed-skills-trim-verdict.md` only if classification or rationale changes.
@@ -134,7 +147,9 @@ The suite covers protected workspace replacement, path traversal, symlinks, fixt
 
 Test evaluation utilities with synthetic fake-Pi fixtures. Spend model tokens only when runner or routing semantics changed enough to justify a small real-Pi smoke test.
 
-Then validate all Local Skills using the command in `local-skill-update-invariants.md`. Also verify:
+Then validate all Local Skills using the command in `local-skill-update-invariants.md`. Apply that document's semantic checklist as well: review representative triggers and near misses, selective loading, authorized versus gated actions, and completion. Use behavioral comparisons when warranted by the change or risk; record any behavior not exercised. Line counts alone cannot establish improvement.
+
+Also verify:
 
 - Every local `agents/openai.yaml` parses.
 - No changed markdown links are broken.
@@ -144,4 +159,4 @@ Then validate all Local Skills using the command in `local-skill-update-invarian
 
 ## Merge philosophy
 
-The OpenAI source is strongest at constructing a compact, compatible skill. The Anthropic source is strongest at testing whether the skill adds value. Pi provides the actual execution and isolation model. Future updates should preserve this separation rather than allowing one upstream's harness assumptions to dominate the unified implementation.
+The OpenAI source is strongest at constructing a compact, compatible skill. The Anthropic source is strongest at testing whether the skill adds value. Pi provides the actual execution and isolation model. Future updates should preserve this separation rather than allowing one upstream's harness assumptions to dominate the unified implementation. The local capable-model policy governs the synthesis; neither upstream can replace it or weaken local safety invariants.

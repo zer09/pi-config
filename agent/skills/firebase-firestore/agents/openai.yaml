@@ -1,4 +1,4 @@
 interface:
   display_name: "Firebase Firestore"
-  short_description: "Work with Cloud Firestore"
-  default_prompt: "Use $firebase-firestore to design Firestore data models, rules, queries, indexes, databases, or client SDK access."
+  short_description: "Design and inspect Cloud Firestore"
+  default_prompt: "Use $firebase-firestore to design models, queries, rules, or indexes, inspect databases, or provision an explicitly requested database."

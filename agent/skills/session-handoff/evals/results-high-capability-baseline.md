@@ -4,6 +4,8 @@ Date: 2025-11-27
 Model tier: high-capability
 Skill version: session-handoff v1.0
 
+Historical results only. The scores and observations below describe the old workflow, not current acceptance criteria. Proactive handoff suggestions and automatic continuation are no longer allowed. Use [current scenarios](test-scenarios.md) and [capability expectations](model-expectations.md) for future, explicitly authorized evaluations. This maintenance pass did not rerun these evaluations.
+
 ## Script Verification Tests
 
 All scripts executed successfully against test environment:
@@ -70,7 +72,7 @@ Sample handoffs: 3 (fresh, stale, incomplete)
 
 1. Set up test environment:
    ```bash
-   uv run python ~/.pi/agent/skills/session-handoff/evals/setup_test_env.py
+   uv run python "<skill-root>/evals/setup_test_env.py"
    ```
 
 2. Start a fresh agent session with the desired model or model tier.

@@ -19,14 +19,34 @@ When using SwiftUI, you **MUST** ensure `FirebaseApp.configure()` is called **BE
 
 Failing to follow this will result in a fatal crash: `Default FirebaseApp is not configured`.
 
-## 1. Create a Firebase Project and App (Automated)
-Do not use the Firebase Console. Use the CLI to automate setup:
+## 1. Reuse existing configuration
+Dependency-only and existing-config tasks do not require CLI authentication, CLI download/install, project creation, app registration, or CLI initialization. Read the Xcode project (`.pbxproj` or `Info.plist`) to identify the bundle ID and reuse its existing `GoogleService-Info.plist`.
 
-1. Create the project: `npx -y firebase-tools@latest projects:create`
-2. Action: Read the Xcode project (`.pbxproj` or `Info.plist`) to determine the iOS bundle ID.
-3. Register the iOS app: `npx -y firebase-tools@latest apps:create IOS <bundle-id>`
-4. Fetch the config: `npx -y firebase-tools@latest apps:sdkconfig IOS <App-ID>`
-5. Save the output as `GoogleService-Info.plist` in your Xcode project folder. Ensure you remove any non-XML CLI output headers, and ensure the file is linked to the main application target.
+Use the installed or repository-pinned Firebase CLI only when needed. If it is absent, report it and ask before download/install. Login and active-project changes require user request or agreement.
+
+For requested config retrieval, use the identified existing App ID and project ID:
+
+```bash
+firebase apps:sdkconfig IOS <APP_ID> --project <PROJECT_ID>
+```
+
+Save the requested config as `GoogleService-Info.plist` in the Xcode project folder. Remove non-XML CLI output headers and link the file to the main application target. Preserve existing configuration unless its replacement is requested.
+
+### Optional: Create a Firebase Project
+Only with explicit authorization for the exact project creation action and target project ID, run:
+
+```bash
+firebase projects:create <PROJECT_ID> --display-name '<DISPLAY_NAME>'
+```
+
+### Optional: Register the iOS App
+Only with explicit authorization for the exact app registration action and target project ID and iOS bundle ID, run:
+
+```bash
+firebase apps:create IOS '<APP_DISPLAY_NAME>' --bundle-id '<BUNDLE_ID>' --project <PROJECT_ID>
+```
+
+Project creation does not authorize app registration or service enablement. Service enablement needs separate explicit authorization for the exact service and target project.
 
 ## 2. Installation (Automated via Swift Package Manager CLI)
 Do not use raw text parsing, sed, or Ruby scripts (like `xcodeproj` gem) to modify `.pbxproj` files directly.

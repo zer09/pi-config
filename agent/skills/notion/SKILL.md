@@ -1,6 +1,6 @@
 ---
 name: notion
-description: "Operate Notion workspaces with the official `ntn` CLI: search and read content; create, edit, or trash pages; query databases/data sources; create or update rows and tasks; upload files; manage workers; and turn conversations, research, meetings, specs, or code changes into linked documentation and tracked work. Use whenever a request mentions Notion, a Notion URL/page/database/task/board, workspace search, knowledge capture, meeting prep, or Notion workers."
+description: "Read Notion workspace content or perform explicitly requested Notion writes through the official ntn CLI. A bare Notion mention in unrelated prose is not a workspace operation."
 ---
 
 # Notion
@@ -9,7 +9,7 @@ Use the official `ntn` CLI. Treat it as self-documenting; discover current synta
 
 ## Guardrails
 
-- Keep read-only requests read-only. Mutate Notion only when the user explicitly requests the hosted-service write.
+- Default to read-only. Every hosted mutation, including page, property, comment, file, and worker writes, requires an exact explicit user request. That request authorizes only that action and target; do not ask again unless destructive or materially ambiguous.
 - Resolve the exact page, parent, database, data source, or worker before writing. Ask if matches, destinations, or property mappings are materially ambiguous.
 - Check for an exact-title sibling before creating a page; ask whether to reuse it or create another.
 - Fetch a page before editing it. `ntn pages edit` replaces its body; preserve existing content unless a rewrite was requested.
@@ -19,8 +19,8 @@ Use the official `ntn` CLI. Treat it as self-documenting; discover current synta
 
 ## Setup and discovery
 
-1. Check `command -v ntn`. If absent, ask before installing with `curl -fsSL https://ntn.dev | bash`.
-2. Check authentication with `ntn whoami`. Prefer an existing `NOTION_API_TOKEN`; otherwise use `ntn login`. If a pages/API command still requires an integration token, ask the user to configure one and share the target content with that integration.
+1. Check `command -v ntn`. If absent, report the blocker. Persistent CLI installation requires user request/agreement; do not run a curl installer automatically.
+2. Check existing authentication with `ntn whoami`; prefer an already configured `NOTION_API_TOKEN`. If authentication or integration access is missing, report the blocker and ask the user to configure access. Login/logout alter local/account state and require user request/agreement; do not start `ntn login` merely to satisfy a read request.
 3. Minimize context while discovering syntax:
    - `ntn <command> --help`
    - `ntn api ls`
@@ -41,7 +41,7 @@ Use the official `ntn` CLI. Treat it as self-documenting; discover current synta
 ## Execution loop
 
 1. Parse a Notion URL/ID directly when supplied; otherwise search and resolve the target.
-2. Fetch enough context and schema to avoid assumptions.
+2. Fetch only context and schema that materially affect the requested operation.
 3. Ask only for ambiguity that affects the result or safety.
 4. Execute the smallest requested operation.
 5. Verify from the response or re-fetch, then report the title, parent/database, key changed properties, and URL/ID.

@@ -3,7 +3,7 @@
 Consult this file when writing Android application code (Kotlin) that interacts with the SQL Connect backend.
 
 ### Best Practices for Agents
-- **Understand Operation Storage**: SQL Connect queries and mutations are stored on the server like Cloud Functions. **Whenever you update operations, you must regenerate the SDK and redeploy services** that use it to avoid breaking clients.
+- **Operation compatibility**: SQL Connect stores operations on the server. Regenerate affected SDKs after local operation changes and test against the emulator. Coordinate publication before clients use changed production operations, but deploy only with explicit user instruction for that exact action. Local work does not authorize redeployment.
 - **Resilient Enum Handling**: The generated SDK forces handling of unknown values by wrapping them in `EnumValue`. You must unwrap it into `EnumValue.Known` or `EnumValue.Unknown` to handle schema updates gracefully.
 - **Flow Behavior**: While you can collect a Flow from a query, note that **this Flow is not updated in real-time automatically** by default. It only produces a result when a new query result is retrieved using a call to the query's `execute()` method.
 - **Leverage Coroutines**: Call `.execute()` within a coroutine scope for asynchronous operations.

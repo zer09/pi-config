@@ -1,68 +1,49 @@
 ---
 name: firebase-firestore
-description: "Sets up, manages, and executes queries against Cloud Firestore database instances. You MUST unconditionally activate this skill if you plan to use Firestore in any way. Use when listing or creating Firestore databases, configuring security rules, designing data models, writing client SDK queries, or checking indexes."
+description: "Design Cloud Firestore models, client queries, rules, and indexes; inspect databases or provision an explicitly requested database. Use for Firestore implementation and database operations. Use firebase-security-rules-auditor for rules audits."
 ---
 
 # Cloud Firestore Database and Operations
 
 ## Hosted service safety
 
-Firestore and Firebase actions can mutate hosted project state. List, inspect, and query metadata freely, but only create databases, write data, deploy indexes or rules, delete resources, or modify remote resources when the user explicitly asks for that exact action.
+- Read-only inspection, local code/config edits, and emulation are allowed within the requested task. Database creation, data writes, rule/index deployment, deletion, and other hosted mutations require explicit user instruction for that exact action.
+- A missing database is not permission to create one. Code, rules, modeling, and read-only tasks can finish without provisioning or deployment.
+- Never print, save, or commit credentials, tokens, service account keys, or private keys.
 
-Before setting up dependencies, writing data models, or configuring security
-rules, you MUST always identify the Firestore instance edition.
+## Target and edition
 
-## 1. Instance Selection and Edition Detection
+Inspect `firebase.json`, `.firebaserc`, SDK initialization, and existing rules/indexes first. For guidance where edition does not affect the answer, state assumptions and continue without live CLI discovery.
 
-Run the following command to list current Firestore databases: `bash npx -y
-firebase-tools@latest firestore:databases:list`
+When the live target or edition affects provisioning, rules, indexes, or query behavior, identify the project, database ID, edition, and relevant access mode from existing configuration and, when needed, read-only CLI metadata. Ask only if the material choice remains ambiguous. Use the project's available Firebase CLI; do not install or upgrade it just for discovery.
 
-### A. Instance Found
+```bash
+firebase firestore:databases:list --project <project-id>
+firebase firestore:databases:get <database-id> --project <project-id>
+```
 
-1.  For each database found, inspect its edition and details: `bash npx -y
-    firebase-tools@latest firestore:databases:get <database-id>`
-2.  Ask the user which database instance they wish to target or if they would
-    prefer to create a new instance.
-3.  Once the target instance is established:
-    -   If the **`edition`** is `STANDARD`, follow the guides under
-        `references/standard/`.
-    -   If the **`edition`** is `ENTERPRISE` or native mode, follow the guides
-        under `references/enterprise/`.
+Route by the reported `STANDARD` or `ENTERPRISE` edition. Native access mode alone does not establish the edition. The Enterprise references below cover native access; verify support before applying them to another access mode.
 
-### B. No Instance Found (or New Requested)
+If no database exists, report that finding and continue the authorized local task. Only after an explicit database-creation request, establish the database ID, edition, access mode, and location as a separate provisioning decision. Do not default to Enterprise. Use `firebase firestore:locations --project <project-id>` when location options are needed, then follow the selected provisioning reference.
 
-If no databases exist or the user requests a new one, default to provisioning an **Enterprise** edition database
-and ask the user what location to use.
-Run `npx -y firebase-tools@latest firestore:locations` to get the list of options.
-Suggest colocating with other resources if applicable.
+## Selected references
 
-Once the location is determined, create the database:
-`bash npx -y firebase-tools@latest firestore:databases:create <database-id> --edition="enterprise" --location="<selected-location>"`
+Load only the task and edition references needed:
 
-Proceed with using the guides under `references/enterprise/`.
+| Task | Standard edition | Enterprise edition with native access |
+| --- | --- | --- |
+| Local setup or explicitly authorized provisioning | [Provisioning](references/standard/provisioning.md) | [Provisioning](references/enterprise/provisioning.md) |
+| Security Rules | [Rules](references/standard/security_rules.md) | [Rules](references/enterprise/security_rules.md) |
+| Data model | Existing project model and SDK guide | [Data model](references/enterprise/data_model.md) |
+| Client SDK | [Web](references/standard/web_sdk_usage.md), [Android](references/standard/android_sdk_usage.md), [iOS](references/standard/ios_setup.md), [Flutter](references/standard/flutter_setup.md) | [Web](references/enterprise/web_sdk_usage.md), [Python](references/enterprise/python_sdk_usage.md), [Android](references/enterprise/android_sdk_usage.md), [iOS](references/enterprise/ios_setup.md), [Flutter](references/enterprise/flutter_setup.md) |
+| Indexes | [Indexes](references/standard/indexes.md) | [Indexes](references/enterprise/indexes.md) |
 
---------------------------------------------------------------------------------
+## Validation and completion
 
-## 2. Specialized Guides
+For code changes, run the relevant available project checks. For rules, test allowed and denied paths with local rules tests or supported emulation. For indexes, validate config and query compatibility; emulator success does not prove production index behavior or edition parity. Do not deploy as a validation shortcut.
 
-Based on the identified or created instance edition, open and read the
-corresponding reference guides:
-
-### Standard Edition (`references/standard/`)
-
--   **Provisioning**: Read [provisioning.md](references/standard/provisioning.md)
--   **Security Rules**: Read [security_rules.md](references/standard/security_rules.md)
--   **SDK Usage**: Read [web_sdk_usage.md](references/standard/web_sdk_usage.md), [android_sdk_usage.md](references/standard/android_sdk_usage.md), [ios_setup.md](references/standard/ios_setup.md), or [flutter_setup.md](references/standard/flutter_setup.md)
--   **Indexes**: Read [indexes.md](references/standard/indexes.md)
-
-### Enterprise Edition / Native Mode (`references/enterprise/`)
-
--   **Provisioning**: Read [provisioning.md](references/enterprise/provisioning.md)
--   **Data Model**: Read [data_model.md](references/enterprise/data_model.md)
--   **Security Rules**: Read [security_rules.md](references/enterprise/security_rules.md)
--   **SDK Usage**: Read [web_sdk_usage.md](references/enterprise/web_sdk_usage.md), [python_sdk_usage.md](references/enterprise/python_sdk_usage.md), [android_sdk_usage.md](references/enterprise/android_sdk_usage.md), [ios_setup.md](references/enterprise/ios_setup.md), or [flutter_setup.md](references/enterprise/flutter_setup.md)
--   **Indexes**: Read [indexes.md](references/enterprise/indexes.md)
+Finish with the requested guidance or local changes, checks and results, target/edition assumptions, and any unverified behavior. Fix failures caused by the change within scope. Report missing evidence or tooling without provisioning a service to unblock local work.
 
 ## Maintenance
 
-For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.
+For future updates, read the [Firebase skills update process](../../../docs/skills/firebase-skills-update-process.md).

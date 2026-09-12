@@ -29,6 +29,14 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 
 These skills are intentionally slim. Keep `SKILL.md` focused on triggers, preferred invocation, safety/scoping rules, core commands, docs links, and the maintenance pointer. Do not restore long migration tables or broad command catalogs unless the user explicitly asks for a more detailed runtime skill.
 
+## uv routing and proportional discovery
+
+Keep `uv` as `make it slim`. Activate it for uv commands, configuration, dependencies, environments, or package-manager work, and for Python execution/dependency handling in a uv-configured project. Generic Python code, a Python mention, or `pyproject.toml` alone is not enough.
+
+Inspect only manager/configuration inputs that affect the task. Preserve uv project detection and existing Poetry/PDM ownership; do not migrate managers without a request. The project Python execution policy remains unchanged even when the uv skill is not needed.
+
+Read-only advice does not authorize `uv init`, `uv add/remove/sync`, or other project/environment writes. Keep read-only checks in an existing environment without unrequested synchronization. Persistent tool installation requires an explicit request. Preserve `uv run`/`uvx` invocation conventions and exactly one `$uv` token in its metadata prompt. A routing-only pass does not change the source SHA or reviewed CLI versions.
+
 ## Update workflow
 
 1. Load `skill-creator` and `gh-cli`, then read this file.

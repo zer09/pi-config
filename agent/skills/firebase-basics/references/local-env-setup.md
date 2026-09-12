@@ -1,10 +1,10 @@
 # Firebase Local Environment Setup
 
-This skill documents the bare minimum setup required for a full Firebase experience for the agent. Before starting to use any Firebase features, you MUST verify that each of the following steps has been completed.
+Inspect existing project tools and configuration first. Dependency-only and existing-config tasks do not require CLI authentication, CLI download/install, project creation, app registration, or CLI initialization.
 
-## 1. Verify Node.js
-- **Action**: Run `node --version`.
-- **Handling**: Ensure Node.js is installed and the version is `>= 20`. If Node.js is missing or `< v20`, install it based on the operating system:
+## 1. Verify Node.js only when needed
+- **Action**: Run `node --version` only when the requested task needs Node.js.
+- **Handling**: Match the repository's Node.js requirements. If Node.js is missing or incompatible, report it and ask before download/install. Follow the installation options below only after the user agrees:
 
   **Recommended: Use a Node Version Manager**
   This avoids permission issues when installing global packages.
@@ -40,17 +40,20 @@ This skill documents the bare minimum setup required for a full Firebase experie
   1. Guide the user to download and install the LTS version from [nodejs.org](https://nodejs.org/en/download).
   2. Request the user to manually install Node.js and reply when finished. **Stop and wait** for the user's confirmation.
 
-## 2. Verify Firebase CLI
-- **Command**: `npx -y firebase-tools@latest --version`
-- **Expected**: Successfully outputs a version string.
+## 2. Verify Firebase CLI only when needed
+Use the installed or repository-pinned Firebase CLI. Resolve a pinned CLI through the repository's existing script or local binary; do not use a runner that downloads a package automatically. If the CLI is absent, report it and ask before download/install.
 
-## 3. Verify Firebase Authentication
-You must be authenticated to manage Firebase projects.
-- **Action**: Run `npx -y firebase-tools@latest login`.
-- **Handling**: If the environment is remote or restricted (no browser access), run `npx -y firebase-tools@latest login --no-localhost` instead.
+```bash
+firebase --version
+```
 
-## 4. Install Agent Skills and MCP Server
-To fully manage Firebase, the agent needs specific skills and the Firebase MCP server installed. Refer to the main `SKILL.md` for direct links to the installation instructions specific to your agent environment.
+## 3. Optional CLI login and project selection
+Login and active-project changes require user request or agreement. Inspect existing configuration first; use read-only CLI state checks only when needed for the task.
 
----
-**CRITICAL AGENT RULE:** Do NOT proceed with any other Firebase tasks until EVERY step above has been successfully verified and completed.
+Only after the user requests or agrees to login, run:
+
+```bash
+firebase login
+```
+
+For an authorized login without local browser access, use `firebase login --no-localhost` instead. Keep local dependency and configuration work independent of login or optional agent tooling setup.

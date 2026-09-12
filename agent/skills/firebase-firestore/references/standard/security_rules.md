@@ -550,9 +550,7 @@ Once devil's advocate testing passes, repeat until rules pass validation.
     'isOwner', 'uidUnchanged', 'uidNotModified') AND domain validators
     ('isValidUser', etc.)
 3.  **MUST document assumed data models** at the beginning of the rules file
-4.  **Always validate the rules syntax** using 'firebase deploy --only
-    firestore:rules --dry-run' or a similar tool before outputting the final
-    file.
+4.  **Validate rules locally** with the project's rules tests or supported emulator checks. Do not use deployment as a syntax check. Rule publishing requires explicit user instruction for that exact action; report unavailable local checks instead of deploying.
 5.  **Provide complete, runnable code** - no placeholders or TODOs
 6.  **Document all assumptions** about data structure or access patterns
 7.  **Always run the devil's advocate attack** after any modification of the

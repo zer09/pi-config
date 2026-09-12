@@ -3,7 +3,7 @@
 Consult this file when writing server-side code (e.g., Cloud Functions) that needs elevated privileges or needs to impersonate specific users.
 
 ### Best Practices for Agents
-- **Understand Operation Storage**: SQL Connect queries and mutations are stored on the server like Cloud Functions. Clients do not submit the raw operations. Therefore, **whenever you update operations, you must regenerate the SDK and redeploy services** that use it.
+- **Operation compatibility**: SQL Connect stores operations on the server; clients do not submit raw operations. Regenerate affected SDKs after local changes and test against the emulator. Coordinate publication before clients use changed production operations, but deploy only with explicit user instruction for that exact action. Local work does not authorize redeployment.
 - **Follow Least Privilege**: Admin SDKs have unrestricted access by default. Always use impersonation when possible to limit access.
 - **Impersonation**: Use the `impersonate` parameter to run operations as a specific user or as an unauthenticated user.
 - **Impersonation Variables**: If you call an operation with optional variables and want to pass impersonation options but without variables, you **MUST** pass `undefined` as the first argument (variables) to clearly indicate no variables are being provided.
@@ -25,11 +25,15 @@ generate:
 
 ### Generation
 
-Run the generation command:
+Use an installed or repository-pinned compatible Firebase CLI. If unavailable, report the missing tool and ask before installing or downloading.
+
+Run local SDK generation within the requested task:
 
 ```bash
-npx -y firebase-tools@latest dataconnect:sdk:generate
+firebase dataconnect:sdk:generate
 ```
+
+Local generation does not authorize deployment, login, project selection, or hosted mutations.
 
 ### Usage Examples
 

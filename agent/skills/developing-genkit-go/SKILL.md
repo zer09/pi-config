@@ -1,101 +1,40 @@
 ---
 name: developing-genkit-go
-description: "Develop AI-powered applications using Genkit in Go. Use when the user asks to build AI features, agents, flows, or tools in Go using Genkit, or when working with Genkit Go code involving generation, prompts, streaming, tool calling, or model providers."
+description: "Implement or debug Genkit Go generation, flows, tools, prompts, streaming, and providers. Use for Genkit Go SDK code, setup, or Go-specific API errors."
 ---
 
 # Genkit Go
 
-Genkit Go is an AI SDK for Go that provides generation, structured output, streaming, tool calling, prompts, and flows with a unified interface across model providers.
+## Safety and version checks
 
-## Hello World
+- Local code edits and checks are allowed within the requested task. Firebase/GCP mutations, deployment, provider or secret changes, and live model/API calls require explicit user instruction for the exact action. A local flow or Dev UI can still call hosted services.
+- Never print, save, or commit API keys, tokens, or service credentials. Use environment variable names or `<api-key>` placeholders.
+- Inspect `go.mod`, `go.sum`, existing imports, and the selected provider. Preserve project versions; do not upgrade dependencies unless requested. Verify uncertain APIs against installed source, relevant references, or current SDK/provider documentation. Check provider model IDs before using them.
 
-```go
-package main
+## Go API guidance and references
 
-import (
-	"context"
-	"fmt"
-	"log"
-	"net/http"
+Pass the `*Genkit` registry returned by `genkit.Init` explicitly through the call chain. Use flows when tracing or HTTP exposure is needed. Describe tool inputs and structured fields, including `jsonschema:"description=..."` tags where appropriate.
 
-	"github.com/genkit-ai/genkit/go/ai"
-	"github.com/genkit-ai/genkit/go/genkit"
-	"github.com/genkit-ai/genkit/go/plugins/googlegenai"
-	"github.com/genkit-ai/genkit/go/plugins/server"
-)
+Load only the reference needed for the task:
 
-func main() {
-	ctx := context.Background()
-	g := genkit.Init(ctx, genkit.WithPlugins(&googlegenai.GoogleAI{}))
+| Task | Reference |
+| --- | --- |
+| Initialization, Hello World, optional CLI/Dev UI | [Getting started](references/getting-started.md) |
+| `Generate`, `GenerateText`, `GenerateData`, streaming and output formats | [Generation](references/generation.md) |
+| `DefinePrompt`, `DefineDataPrompt`, `.prompt` files and schemas | [Prompts](references/prompts.md) |
+| `DefineTool`, interrupts, `RestartWith`/`RespondWith` | [Tools](references/tools.md) |
+| `ai.WithUse`, hooks, retry/fallback, approval and filesystem middleware | [Middleware](references/middleware.md) |
+| `DefineFlow`, `DefineStreamingFlow`, `genkit.Handler`, HTTP serving | [Flows and HTTP](references/flows-and-http.md) |
+| Google AI, Vertex AI, Anthropic, OpenAI-compatible APIs, Ollama | [Providers](references/providers.md) |
 
-	genkit.DefineFlow(g, "jokeFlow", func(ctx context.Context, topic string) (string, error) {
-		return genkit.GenerateText(ctx, g,
-			ai.WithModelName("googleai/gemini-flash-latest"),
-			ai.WithPrompt("Tell me a joke about %s", topic),
-		)
-	})
+Prefer existing middleware when it fits. For custom middleware, allocate per-call state in closures captured by `New` and guard state mutated by `WrapTool`, because tools can run concurrently.
 
-	mux := http.NewServeMux()
-	for _, f := range genkit.ListFlows(g) {
-		mux.HandleFunc("POST /"+f.Name(), genkit.Handler(f))
-	}
-	log.Fatal(server.Start(ctx, "127.0.0.1:8080", mux))
-}
-```
+## Validation and completion
 
-## Core Features
+Validate affected Go packages with the project's available formatting, build, and test checks. Use mocked/local providers for offline tests; do not install tools or make live calls to satisfy a check. The Genkit CLI is optional for tasks that benefit from tracing or interactive flow inspection.
 
-Load the appropriate reference based on what you need:
-
-| Feature | Reference | When to load |
-| --- | --- | --- |
-| Initialization | [references/getting-started.md](references/getting-started.md) | Setting up `genkit.Init`, plugins, the `*Genkit` instance pattern |
-| Generation | [references/generation.md](references/generation.md) | `Generate`, `GenerateText`, `GenerateData`, streaming, output formats |
-| Prompts | [references/prompts.md](references/prompts.md) | `DefinePrompt`, `DefineDataPrompt`, `.prompt` files, schemas |
-| Tools | [references/tools.md](references/tools.md) | `DefineTool`, tool interrupts, `RestartWith`/`RespondWith` |
-| Middleware | [references/middleware.md](references/middleware.md) | `ai.Middleware`, `ai.WithUse`, `Hooks` (Generate/Model/Tool), built-ins (`Retry`, `Fallback`, `ToolApproval`, `Filesystem`, `Skills`) |
-| Flows & HTTP | [references/flows-and-http.md](references/flows-and-http.md) | `DefineFlow`, `DefineStreamingFlow`, `genkit.Handler`, HTTP serving |
-| Model Providers | [references/providers.md](references/providers.md) | Google AI, Vertex AI, Anthropic, OpenAI-compatible, Ollama setup |
-
-## Genkit CLI
-
-Check if installed: `genkit --version`
-
-**Installation:**
-```bash
-curl -sL cli.genkit.dev | bash
-```
-
-**Key commands:**
-
-```bash
-# Start app with Developer UI (tracing, flow testing) at http://localhost:4000
-genkit start -- go run .
-genkit start -o -- go run .   # also opens browser
-
-# Run a flow directly from the CLI
-genkit flow:run myFlow '{"data": "input"}'
-genkit flow:run myFlow '{"data": "input"}' --stream   # with streaming
-genkit flow:run myFlow '{"data": "input"}' --wait      # wait for completion
-
-# Look up Genkit documentation
-genkit docs:search "streaming" go
-genkit docs:list go
-genkit docs:read go/flows.md
-```
-
-See [references/getting-started.md](references/getting-started.md) for full CLI and Developer UI details.
-
-## Key Guidance
-
-- **Pass `g` explicitly.** The `*Genkit` instance returned by `genkit.Init` is the central registry. Pass it to all Genkit functions rather than storing it as a global. This is a core pattern throughout the SDK.
-- **Wrap AI logic in flows.** Flows give you tracing, observability, HTTP deployment via `genkit.Handler`, and the ability to test from the Developer UI and CLI. Any generation call worth keeping should live in a flow.
-- **Use `jsonschema:"description=..."` struct tags on output types.** The model uses these descriptions to understand what each field should contain. Without them, structured output quality drops significantly.
-- **Write good tool descriptions.** The model decides which tools to call based on their description string. Vague descriptions lead to missed or incorrect tool calls.
-- **Use `.prompt` files for complex prompts.** They separate prompt content from Go code, support Handlebars templating, and can be iterated on without recompilation. Code-defined prompts are better for simple, single-line cases.
-- **Reach for built-in middleware before writing one.** `Retry`, `Fallback`, `ToolApproval`, `Filesystem`, and `Skills` cover the common cross-cutting needs and compose with each other via `ai.WithUse`. See [references/middleware.md](references/middleware.md). When you do write custom middleware, allocate per-call state in closures captured by `New`, and guard anything that `WrapTool` mutates because tools may run concurrently.
-- **Look up the latest model IDs.** Model names change frequently. Check provider documentation for current model IDs rather than relying on hardcoded names. See [references/providers.md](references/providers.md).
+Finish with the requested deliverable, relevant checks and results, and version assumptions or blocked checks. Fix failures caused by the change within scope. Documentation-only work does not require starting an app or model.
 
 ## Maintenance
 
-For future updates to this source, read `../../../docs/skills/firebase-skills-update-process.md`.
+For future updates, read the [Firebase skills update process](../../../docs/skills/firebase-skills-update-process.md).

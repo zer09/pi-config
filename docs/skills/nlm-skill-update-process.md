@@ -20,7 +20,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 
 ## Local file model
 
-- `agent/skills/nlm-skill/SKILL.md`: compact trigger, safety, tool-selection, quick workflows, and reference map. Keep it under 500 lines.
+- `agent/skills/nlm-skill/SKILL.md`: intent-specific trigger, read/write boundary, tool choice, task routing, key correctness, and completion. Classify as `make it slim`; keep command catalogs and workflow recipes in selected references, not duplicated in the root.
 - `agent/skills/nlm-skill/references/command_reference.md`: full command signatures and options from upstream.
 - `agent/skills/nlm-skill/references/workflows.md`: full workflow sequences from upstream.
 - `agent/skills/nlm-skill/references/troubleshooting.md`: troubleshooting from upstream.
@@ -28,7 +28,19 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 - `agent/skills/nlm-skill/references/studio-prompting-guide.md`: Studio prompting guidance from upstream.
 - `agent/skills/nlm-skill/references/studio-prompt-examples.md`: Studio prompt examples from upstream.
 - `agent/skills/nlm-skill/references/agents-section.md`: upstream AGENTS.md snippet adapted for local formatting.
-- `agent/skills/nlm-skill/agents/openai.yaml`: UI metadata only. Regenerate if the skill trigger intent changes.
+- `agent/skills/nlm-skill/agents/openai.yaml`: UI metadata plus the intentional NotebookLM MCP dependency. Update descriptions and the exact `$nlm-skill` prompt when intent changes; preserve dependency metadata.
+
+## Durable local overlays
+
+- Route to requested NotebookLM/Gemini Notebook CLI or MCP operations, not generic research, podcast creation, or document critique.
+- Preserve MCP-first detection and direct-operation preference, CLI-specific routing, and interface clarification when account/profile, format, or repeatability differs.
+- Reads never imply writes. Every create/add/import/generate/rename/share/invite/export/sync/configure/tag/delete action requires an exact user request and target. Apply scope rules to local aliases, profiles, configuration, and file exports too.
+- An unambiguous create/generate request is sufficient authorization for that action, not adjacent workflow steps. Deletes still require explicit confirmation, and Studio generation retains CLI `--confirm` or MCP confirmation without batch/pipeline bypasses.
+- Keep auth recovery proportionate: login only for setup or confirmed stale credentials; elapsed time or `unverified` alone is not expiry. Preserve safe connectivity checks, transient retries, and CLI automatic recovery.
+- Preserve secret redaction, bounded output, compact status/quiet IDs/parsed JSON selection, research destination requirements, and checking aliases before creating another.
+- Never use interactive `nlm chat start`; use one-shot notebook queries. Never expose remote MCP directly to the public internet; retain loopback, authenticated HTTPS gateway, single-account isolation, and server-host file-path guidance.
+- Reference examples are optional, authorized steps, not permissions. Keep AGENTS triggers, workflow auth recovery, Studio source/persona handling, deletion, and local/Git mutation boundaries consistent with the root.
+- Completion distinguishes submitted/pending/completed/failed results and verifies the requested target without automatic cleanup.
 
 ## Update workflow for a future agent
 
@@ -39,7 +51,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 5. Keep local safety rules in `SKILL.md`: NotebookLM and Google hosted changes are external hosted service mutations, deletes require explicit confirmation, secrets/cookies must not be printed, and `nlm chat start` must not be used by agents.
 6. Copy upstream command/reference changes into `references/` when they are runtime-relevant. Keep long command signatures out of `SKILL.md`.
 7. Keep `agents/openai.yaml` deterministic and minimal: `display_name`, `short_description`, `default_prompt`, and the NotebookLM MCP dependency are enough.
-8. Update the source version in this file when upstream changes.
+8. Update the source version only after an upstream sync. Local routing or overlay edits do not change the recorded version or SHA.
 9. Validate with `uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/nlm-skill`.
 10. Run a local scan for accidental extra frontmatter fields, literal home paths, and secret values.
 
@@ -55,4 +67,8 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 - `agent/skills/nlm-skill/references/studio-prompt-examples.md` exists.
 - `agent/skills/nlm-skill/references/agents-section.md` exists.
 - `agent/skills/nlm-skill/agents/openai.yaml` exists.
-- No file contains a literal local home path or secret value.
+- No changed file contains a literal local home path or secret value.
+- Target and all Local Skill validators pass; changed YAML parses, short UI descriptions satisfy the shared metadata contract, and links/anchors resolve.
+- Static near misses remain read-only: listing sources does not sync stale sources, reading research status does not import results, and checking a notebook does not create, generate, or delete anything.
+- A requested generation on a clear target needs no repeated prompt; missing sources do not authorize ingestion, and deletes still stop for explicit confirmation.
+- Do not use live NotebookLM/Google operations or model evaluations as maintenance validation unless separately authorized.

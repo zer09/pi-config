@@ -1,6 +1,8 @@
 # Notion workflow recipes
 
-Apply only the section matching the request. Search before creating, preserve source links, and use the workspace's existing structure and terminology.
+Apply only the section matching the request and the root's guardrails. Search before creating, preserve source links, and use the workspace's existing structure and terminology.
+
+Prepare drafts and recommendations in the response unless the user explicitly requests the exact Notion write. Each recipe's page, task, status, comment, and link writes are conditional on that authorization. A workflow name or a request to read a spec does not authorize companion writes; skip unrequested mutations.
 
 ## Knowledge capture
 
@@ -23,7 +25,7 @@ Apply only the section matching the request. Search before creating, preserve so
 
 ## Meeting intelligence
 
-1. Gather topic, purpose, date, attendees, audience, desired decisions, and related project.
+1. Use the supplied meeting context. Inspect or ask only for missing topic, purpose, date, audience, or project details that materially affect preparation.
 2. Search project pages, previous notes, tasks, specs, recent updates, and metrics; fetch only high-value sources.
 3. For important meetings, prepare:
    - Internal pre-read: background, status, evidence, risks, open questions, desired outcomes.
@@ -40,7 +42,7 @@ Apply only the section matching the request. Search before creating, preserve so
 
 ## Task-board agent mode
 
-Use this only when the user asks to plan/build through a Notion board.
+Use this only when the user asks to plan/build through a Notion board. Apply only explicitly requested board writes below; otherwise return the plan or status recommendation without changing the board.
 
 - Expected concepts: Status plus optional `Agent status` text and `Agent blocked` checkbox. Map to the board's actual schema; do not create or rename fields/options unless requested.
 - Planning: mark Planning → write a brief activity status → append a `Plan` section → mark Ready after ambiguities are resolved.
@@ -50,7 +52,7 @@ Use this only when the user asks to plan/build through a Notion board.
 
 ## Code-change explanation
 
-When asked to document a diff, inspect the actual surrounding code and verification evidence, then create a linked page with:
+When asked to document a diff in Notion, inspect the actual surrounding code and verification evidence. Create a linked page only when that write is explicitly requested; otherwise draft the content in the response:
 
 1. Background (beginner context, then change-specific context)
 2. Intuition (concrete example; Mermaid diagram only if it clarifies flow)

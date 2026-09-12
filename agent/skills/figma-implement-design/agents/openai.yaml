@@ -1,7 +1,7 @@
 interface:
   display_name: "Figma Implement Design"
-  short_description: "Turn Figma designs into production-ready code"
-  default_prompt: "Use $figma-implement-design to implement this Figma design in this codebase, matching layout, states, and responsive behavior."
+  short_description: "Implement repository UI from Figma designs"
+  default_prompt: "Use $figma-implement-design to implement this Figma node or desktop selection in the repository, matching its look, behavior, and responsive states."
 
 dependencies:
   tools:

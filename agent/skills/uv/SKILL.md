@@ -1,11 +1,11 @@
 ---
 name: uv
-description: "Guide for using uv, the Python package and project manager. Use this when working with Python projects, scripts, packages, or tools."
+description: "Use for uv commands, configuration, dependencies, environments, and package-manager work, or Python execution/dependency handling in a uv-configured project."
 ---
 
 # uv
 
-Use uv for Python project, script, package, dependency, and tool workflows unless the repo clearly uses another manager.
+Use this skill for uv work, not generic Python code. The project's Python execution policy still applies even when this skill is not needed.
 
 ## Routing
 
@@ -19,6 +19,14 @@ Do not override an existing Poetry or PDM project unless the user asks to migrat
 
 - `poetry.lock` means use Poetry conventions.
 - `pdm.lock` means use PDM conventions.
+
+Inspect manager/configuration only when it affects the task. Generic Python code or a `pyproject.toml` alone does not establish uv ownership.
+
+## Mutation boundaries
+
+Read-only advice does not authorize project mutation. Run `uv init`, `uv add`/`uv remove` (including script dependencies), `uv sync`, or other project/environment writes only when the user's requested local change authorizes them.
+
+For read-only checks in a prepared environment, use `uv run --no-sync ...` to avoid unrequested synchronization. Missing setup is not permission to create or sync it; ask before changing it.
 
 ## Commands
 

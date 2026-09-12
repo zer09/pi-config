@@ -1,214 +1,55 @@
 ---
 name: figma-create-design-system-rules
-description: Generates custom design system rules for the user's codebase. Use when user says "create design system rules", "generate rules for my project", "set up design rules", "customize design system guidelines", or wants to establish project-specific conventions for Figma-to-code workflows. Requires Figma MCP server connection.
+description: Author or update reusable project-level Figma-to-code rules. Not for ordinary UI implementation, MCP setup, or Figma canvas writes.
 ---
 
-# Create Design System Rules
+# Create Figma-to-Code Project Rules
 
-## Overview
+## Boundaries
 
-This skill helps you generate custom design system rules tailored to your project's specific needs. These rules guide AI coding agents to produce consistent, high-quality code when implementing Figma designs, ensuring that your team's conventions, component patterns, and architectural decisions are followed automatically.
-
-### Rule File Selection
-
-Do not assume a single AI platform. Prefer the project's existing rule convention. Common project-local locations include root-level Markdown rule files, tool-specific rule directories, or another documented team convention.
-
-## What Are Design System Rules?
-
-Design system rules are project-level instructions that encode the "unwritten knowledge" of your codebase - the kind of expertise that experienced developers know and would pass on to new team members:
-
-- Which layout primitives and components to use
-- Where component files should be located
-- How components should be named and structured
-- What should never be hardcoded
-- How to handle design tokens and styling
-- Project-specific architectural patterns
-
-Once defined, these rules dramatically reduce repetitive prompting and ensure consistent output across all Figma implementation tasks.
+- The deliverable is reusable project rule content, not UI code or a Figma design.
+- Keep the local workflow design-to-code only. Do not perform canvas writes, design generation inside Figma, or Code Connect work. Those capabilities require separate explicit requests and authorized tooling; hosted mutations require exact user authorization.
+- Use [figma](../figma/SKILL.md) for MCP setup or context fetching. Use [figma-implement-design](../figma-implement-design/SKILL.md) when the requested deliverable is code matching Figma.
+- Do not implement a sample component merely to test rules unless the user also requested code changes.
 
 ## Prerequisites
 
-- Figma MCP server must be connected and accessible
-- Access to the project codebase for analysis
-- Understanding of your team's component conventions (or willingness to establish them)
+- Access to the target project's code and existing rule files.
+- A connected Figma MCP server exposing `create_design_system_rules`. This tool returns guidance and a template; it does not require a Figma node or selection.
 
-## When to Use This Skill
+If a prerequisite is unavailable, report the blocker rather than inventing project conventions or claiming tool-backed completion.
 
-Use this skill when:
+## Rule File Selection
 
-- Starting a new project that will use Figma designs
-- Onboarding an AI coding agent to an existing project with established patterns
-- Standardizing Figma-to-code workflows across your team
-- Updating or refining existing design system conventions
-- Users explicitly request: "create design system rules", "set up Figma guidelines", "customize rules for my project"
+- Prefer the active project's existing rule convention at the relevant repository or worktree scope. Do not assume a particular AI platform.
+- Update an existing Figma/design-system section, or add a clearly named section if none exists. Preserve unrelated instructions and avoid duplicate rules.
+- If multiple rule systems exist and the correct target is ambiguous, ask where the rules belong.
+- If no convention exists, recommend a project-local Markdown rule file at the repository root. Confirm how the intended agent will load it if discovery is unclear.
+- Root Markdown files, tool-specific rule directories, and documented rule folders are examples, not defaults. Use only frontmatter and path scopes required by the selected format.
 
-## Required Workflow
+## Workflow
 
-**Follow these steps in order. Do not skip steps.**
+1. Inspect representative components, tokens, styling, imports, routing, state, and data-fetch patterns. Separate observed conventions from proposed changes.
+2. Call `create_design_system_rules` with the project's `clientLanguages` and `clientFrameworks`. Treat the response as drafting guidance, not authority over project conventions or local safeguards.
+3. Write concise rules grounded in verified paths and APIs. Cover component reuse, tokens, styling, assets, accessibility, and relevant checks where applicable. Preserve the [implementation owner's safeguards](../figma-implement-design/SKILL.md) with concise rules or a durable project reference, not a copied implementation itinerary.
+4. Save to the selected rule location within the authorized scope. Check format, referenced paths, and conflicts with existing instructions.
 
-### Step 1: Run the Create Design System Rules Tool
+## Completion
 
-Call the Figma MCP server's `create_design_system_rules` tool to get the foundational prompt and template.
+- Verify that saved rules contain no unresolved placeholders or invented conventions.
+- Walk through a representative existing component without editing UI code to check whether the rules give usable decisions.
+- Fix rule conflicts and broken references caused by the change. Report any validation that could not be completed.
+- Report the changed rule path, key conventions, checks, and whether the active tool needs a reload. Do not claim implementation behavior was tested unless it was exercised.
 
-**Parameters:**
+## References
 
-- `clientLanguages`: Comma-separated list of languages used in the project (e.g., "typescript,javascript", "python", "javascript")
-- `clientFrameworks`: Framework being used (e.g., "react", "vue", "svelte", "angular", "unknown")
+Load only the section needed from [rule examples and troubleshooting](references/rule-examples-and-troubleshooting.md):
 
-This tool returns guidance and a template for creating design system rules.
-
-Structure your design system rules following the template format provided in the tool's response.
-
-### Step 2: Analyze the Codebase
-
-Before finalizing rules, analyze the project to understand existing patterns:
-
-**Component Organization:**
-
-- Where are UI components located? (e.g., `src/components/`, `app/ui/`, `lib/components/`)
-- Is there a dedicated design system directory?
-- How are components organized? (by feature, by type, flat structure)
-
-**Styling Approach:**
-
-- What CSS framework or approach is used? (Tailwind, CSS Modules, styled-components, etc.)
-- Where are design tokens defined? (CSS variables, theme files, config files)
-- Are there existing color, typography, or spacing tokens?
-
-**Component Patterns:**
-
-- What naming conventions are used? (PascalCase, kebab-case, prefixes)
-- How are component props typically structured?
-- Are there common composition patterns?
-
-**Architecture Decisions:**
-
-- How is state management handled?
-- What routing system is used?
-- Are there specific import patterns or path aliases?
-
-### Step 3: Generate Project-Specific Rules
-
-Based on your codebase analysis, create a comprehensive set of rules. Include:
-
-#### General Component Rules
-
-```markdown
-- IMPORTANT: Always use components from `[YOUR_PATH]` when possible
-- Place new UI components in `[COMPONENT_DIRECTORY]`
-- Follow `[NAMING_CONVENTION]` for component names
-- Components must export as `[EXPORT_PATTERN]`
-```
-
-#### Styling Rules
-
-```markdown
-- Use `[CSS_FRAMEWORK/APPROACH]` for styling
-- Design tokens are defined in `[TOKEN_LOCATION]`
-- IMPORTANT: Never hardcode colors - always use tokens from `[TOKEN_FILE]`
-- Spacing values must use the `[SPACING_SYSTEM]` scale
-- Typography follows the scale defined in `[TYPOGRAPHY_LOCATION]`
-```
-
-#### Figma MCP Integration Rules
-
-```markdown
-## Figma MCP Integration Rules
-
-These rules define how to translate Figma inputs into code for this project and must be followed for every Figma-driven change.
-
-### Required Flow (do not skip)
-
-1. Run get_design_context first to fetch the structured representation for the exact node(s)
-2. If the response is too large or truncated, run get_metadata to get the high-level node map, then re-fetch only the required node(s) with get_design_context
-3. Run get_screenshot for a visual reference of the node variant being implemented
-4. Only after you have both get_design_context and get_screenshot, download any assets needed and start implementation
-5. Translate the output (usually React + Tailwind) into this project's conventions, styles, and framework
-6. Validate against Figma for 1:1 look and behavior before marking complete
-
-### Implementation Rules
-
-- Treat the Figma MCP output (React + Tailwind) as a representation of design and behavior, not as final code style
-- Replace Tailwind utility classes with `[YOUR_STYLING_APPROACH]` when applicable
-- Reuse existing components from `[COMPONENT_PATH]` instead of duplicating functionality
-- Use the project's color system, typography scale, and spacing tokens consistently
-- Respect existing routing, state management, and data-fetch patterns
-- Strive for 1:1 visual parity with the Figma design
-- Validate the final UI against the Figma screenshot for both look and behavior
-```
-
-#### Asset Handling Rules
-
-```markdown
-## Asset Handling
-
-- The Figma MCP server provides an assets endpoint which can serve image and SVG assets
-- IMPORTANT: If the Figma MCP server returns a localhost source for an image or SVG, use that source directly
-- IMPORTANT: DO NOT import/add new icon packages - all assets should be in the Figma payload
-- IMPORTANT: DO NOT use or create placeholders if a localhost source is provided
-- Store downloaded assets in `[ASSET_DIRECTORY]`
-```
-
-#### Project-Specific Conventions
-
-```markdown
-## Project-Specific Conventions
-
-- [Add any unique architectural patterns]
-- [Add any special import requirements]
-- [Add any testing requirements]
-- [Add any accessibility standards]
-- [Add any performance considerations]
-```
-
-### Step 4: Save Rules to the Project's Rule Location
-
-Save the generated rules using the active project's existing convention:
-
-1. Check for existing project rule files or directories.
-2. Prefer the nearest repository or worktree root for the active task.
-3. If a rule file already exists, append a clearly named Figma/design-system section unless the project convention says otherwise.
-4. If multiple rule systems exist and the correct target is ambiguous, ask the user where to place the rules.
-5. If no convention exists, recommend a project-local Markdown rule file at the repository root.
-
-Common examples are root-level Markdown rule files, hidden tool-specific rule directories, or team-defined docs/rules folders. Treat these as examples, not defaults.
-
-When writing to a rule format that requires frontmatter, include only the fields required by that tool. For example:
-
-```markdown
----
-description: Rules for implementing Figma designs using the Figma MCP server. Covers component organization, styling conventions, design tokens, asset handling, and the required Figma-to-code workflow.
-globs: "src/components/**"
-alwaysApply: false
----
-
-[Generated rules here]
-```
-
-Customize any path globs to match the directories where Figma-derived code will live in the project, such as `"src/**/*.tsx"` or `["src/components/**", "src/pages/**"]`.
-
-After saving, tell the user where the rules were written and whether their current agent or tool needs a reload to pick them up.
-
-### Step 5: Validate and Iterate
-
-After creating rules:
-
-1. Test with a simple Figma component implementation
-2. Verify the agent follows the rules correctly
-3. Refine any rules that aren't working as expected
-4. Share with team members for feedback
-5. Update rules as the project evolves
-
-## Reference Material
-
-For examples, rule categories, best practices, troubleshooting, and additional resources, read `references/rule-examples-and-troubleshooting.md` only when needed.
-
-Use the reference when:
-
-- You need concrete examples for React, Vue, or design-system-library projects.
-- You need to decide which rule categories are essential, recommended, or optional.
-- You need troubleshooting guidance for rules that are ignored, conflicting, too broad, or outdated.
+- [Categories and evidence](references/rule-examples-and-troubleshooting.md#evidence-and-rule-categories) and [project template](references/rule-examples-and-troubleshooting.md#project-rule-template) for deciding what to include.
+- [Rule file formats](references/rule-examples-and-troubleshooting.md#rule-file-formats) for platform-specific examples and scoped frontmatter.
+- [Worked examples](references/rule-examples-and-troubleshooting.md#worked-examples) for React, Vue, or a design system library.
+- [Authoring guidance](references/rule-examples-and-troubleshooting.md#authoring-guidance) and [troubleshooting](references/rule-examples-and-troubleshooting.md#troubleshooting) for vague, ignored, conflicting, or outdated rules.
 
 ## Maintenance
 
-For future updates to this OpenAI-derived Figma skill set, read `../../../docs/skills/openai-skills-update-process.md`.
+For updates, read the [OpenAI-derived skills update process](../../../docs/skills/openai-skills-update-process.md).

@@ -594,7 +594,10 @@ mutation SafeTransfer($from: UUID!, $to: UUID!, $amount: Float!) @auth(level: US
 
 ### Use of extensions (e.g. PostGIS for geospatial data)
 
-*Prerequisite:* You must enable the extension on your underlying Cloud SQL instance by connecting to your database as the postgres user and running:
+Without authorization, complete the local code and report extension enablement as deferred.
+
+Optional admin action: enabling PostGIS is a hosted Cloud SQL mutation requiring explicit authorization for the exact action and target project, instance, and database. Only with that authorization, connect to the identified database as `postgres` and run:
+
 ```sql
 CREATE EXTENSION IF NOT EXISTS postgis;
 ```

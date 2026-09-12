@@ -1,4 +1,4 @@
 interface:
-  display_name: "Firebase Data Connect"
-  short_description: "Build Firebase SQL backends"
-  default_prompt: "Use $firebase-data-connect to design Firebase Data Connect schemas, authorized queries and mutations, realtime updates, and type-safe SDKs."
+  display_name: "Firebase SQL Connect"
+  short_description: "Build Firebase Data Connect / SQL Connect"
+  default_prompt: "Use $firebase-data-connect to implement Firebase Data Connect / SQL Connect schemas, authorized operations, realtime updates, and generated SDK integrations."
