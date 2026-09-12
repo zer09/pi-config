@@ -1,4 +1,5 @@
 import { createHmac, randomBytes } from "node:crypto";
+import { truncateUtf8 } from "./artifacts.ts";
 import { classifyProviderFailure } from "./protocol.ts";
 import {
   BLOCKED_REASON_CODES,
@@ -9,6 +10,7 @@ import {
   type DelegateTerminalReasonValue,
 } from "./types.ts";
 import type {
+  ActiveBashCommand,
   DelegateState,
   MonitorSnapshot,
   ProviderFailureCategory,
@@ -60,8 +62,10 @@ interface ActiveTool {
   readonly name: string;
   readonly startedMonotonic: number;
   readonly sequence: number;
-  /** Bounded domain-separated digest of the normalized start arguments; the raw args value is never retained. */
+  /** Bounded domain-separated digest of the normalized start arguments; the args object is never retained. */
   argsDigest: string | undefined;
+  /** Only the bounded bash command text survives for private failure diagnosis. */
+  bashCommand: ActiveBashCommand | undefined;
   /** Most recent novel-update time; an identical accumulated update never moves it. */
   lastNovelUpdateMonotonic: number;
   /** Ephemeral digest of the last seen accumulated update, never serialized. */
@@ -82,6 +86,8 @@ const MAX_MESSAGE_CONTENT_ITEMS = MAX_DIGEST_NODES;
 export const DIGEST_STRING_CHUNK_UNITS = 4096;
 /** Fixed cap on concurrently active tool executions inside one attempt. */
 const MAX_ACTIVE_TOOLS = 64;
+/** Exact command prefix retained per active bash tool: at most 4 KiB of UTF-8 text. */
+export const ACTIVE_BASH_COMMAND_MAX_BYTES = 4 * 1024;
 /** Key-namespace marker for a tool created without a tool-call id. */
 const ANONYMOUS_TOOL_KEY_PREFIX = "anonymous:";
 /** Fixed cap on distinct checkpoint digests retained by one turn or agent summary. */
@@ -816,7 +822,7 @@ export class PiRpcMonitor {
     this.progressWarningCountValue += 1;
   }
 
-  /** Drops the ephemeral HMAC keys and every retained digest for this attempt. */
+  /** Drops the ephemeral HMAC keys, digests, and retained bash commands for this attempt. */
   clearEphemeralState(): void {
     this.novelty.clear();
     this.toolUpdateKey = undefined;
@@ -832,6 +838,7 @@ export class PiRpcMonitor {
     for (const tool of this.activeTools.values()) {
       tool.argsDigest = undefined;
       tool.lastUpdateDigest = undefined;
+      tool.bashCommand = undefined;
     }
   }
 
@@ -882,6 +889,7 @@ export class PiRpcMonitor {
     readonly activeToolElapsedSeconds?: number;
     readonly activeToolIdleSeconds?: number;
     readonly activeToolLastNovelUpdateMonotonic?: number;
+    readonly activeBashCommand?: ActiveBashCommand;
   } {
     if (this.activeTools.size === 0) return { activeToolCount: 0 };
     const now = this.monotonicNow();
@@ -908,6 +916,7 @@ export class PiRpcMonitor {
       activeToolElapsedSeconds: Math.round((now - selected.startedMonotonic) / 100) / 10,
       activeToolIdleSeconds: Math.round((now - selected.lastNovelUpdateMonotonic) / 100) / 10,
       activeToolLastNovelUpdateMonotonic: selected.lastNovelUpdateMonotonic,
+      ...(selected.bashCommand === undefined ? {} : { activeBashCommand: selected.bashCommand }),
     };
   }
 
@@ -931,9 +940,9 @@ export class PiRpcMonitor {
    * Accepts one tool start into the bounded active-tool map. A duplicate
    * key or a start beyond the fixed active-tool cap is one bounded stream
    * error before any insertion, tool count, or activity credit. An
-   * accepted start retains only a domain-separated digest of the
-   * normalized arguments under the ephemeral per-attempt key, never the
-   * raw `event.args` value.
+   * accepted start digests the normalized arguments under the ephemeral
+   * per-attempt key. Only bash's string command is also kept, bounded for
+   * private failure diagnosis; the raw `event.args` object is never kept.
    */
   private startTool(event: Record<string, unknown>): boolean {
     const name = this.toolName(event);
@@ -949,12 +958,19 @@ export class PiRpcMonitor {
     this.activeToolSequence += 1;
     this.toolExecutionCountValue += 1;
     const now = this.monotonicNow();
+    let bashCommand: ActiveBashCommand | undefined;
+    if (name === "bash" && isRecord(event.args) && typeof event.args.command === "string") {
+      const command = event.args.command;
+      const { text, truncatedBytes } = truncateUtf8(command, ACTIVE_BASH_COMMAND_MAX_BYTES);
+      bashCommand = { text, totalBytes: Buffer.byteLength(command, "utf8"), truncatedBytes };
+    }
     this.activeTools.set(key, {
       key,
       name,
       startedMonotonic: now,
       sequence: this.activeToolSequence,
       argsDigest: this.toolArgsDigest(event.args),
+      bashCommand,
       lastNovelUpdateMonotonic: now,
       lastUpdateDigest: undefined,
     });

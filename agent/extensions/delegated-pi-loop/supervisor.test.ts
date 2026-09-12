@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { writeFileSync } from "node:fs";
-import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createPrivateDirectory } from "./artifacts.ts";
@@ -132,6 +132,34 @@ async function run(script: string, overrides: Partial<Parameters<typeof supervis
   });
   return { status, progress, attemptDir, root: built.root };
 }
+
+test("active bash command stays in memory outside status artifacts and progress", async () => {
+  const command = "printf 'COMMAND-SENTINEL'\n\nprintf '終'";
+  const { status, progress, attemptDir } = await run(eventScript([[
+    { type: "agent_start" },
+    { type: "tool_execution_start", toolCallId: "bash", toolName: "bash", args: { command, env: { X: "ARG-SENTINEL" } } },
+  ]]));
+  assert.equal(status.state, "stalled");
+  assert.equal(status.stallCause, "active_tool_idle");
+  assert.equal(status.activeToolName, "bash");
+  assert.deepEqual(status.activeBashCommand, { text: command, totalBytes: Buffer.byteLength(command), truncatedBytes: 0 });
+  assert.doesNotMatch(JSON.stringify(progress), /COMMAND-SENTINEL|ARG-SENTINEL|activeBashCommand/);
+  const persisted = await readFile(path.join(attemptDir, "status.json"), "utf8");
+  assert.doesNotMatch(persisted, /COMMAND-SENTINEL|ARG-SENTINEL|activeBashCommand/);
+  assert.deepEqual((await readdir(attemptDir)).sort(), ["status.json", "stderr.log"]);
+});
+
+test("a successful supervisor result does not carry an active bash command", async () => {
+  const { status, progress } = await run(eventScript([[
+    { type: "agent_start" },
+    { type: "tool_execution_start", toolCallId: "bash", toolName: "bash", args: { command: "COMMAND-SENTINEL" } },
+    ...completed().slice(1),
+  ]]));
+  assert.equal(status.state, "completed");
+  assert.equal(status.activeToolName, "bash");
+  assert.equal(Object.hasOwn(status, "activeBashCommand"), false);
+  assert.doesNotMatch(JSON.stringify(progress), /COMMAND-SENTINEL|activeBashCommand/);
+});
 
 test("runtime child argv follows the fixed resource-argument ordering", async () => {
   const extensions = ["/x/delegated-pi-loop/index.ts", "/x/openai-codex-aliases/index.ts", "/x/web-search/index.ts", "/x/context-mode/src/index.ts", "/x/codegraph/index.ts"];

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { randomBytes } from "node:crypto";
 import {
+  ACTIVE_BASH_COMMAND_MAX_BYTES,
   boundedDigest,
   DIGEST_STRING_CHUNK_UNITS,
   hasExactlyOneDelegateResultMarker,
@@ -995,6 +996,100 @@ test("repeated turn cycles inside a repeated agent stay duplicates end to end", 
   // whole repeated cycle is duplicates with no lease renewal.
   assert.equal(snapshot.lastStructuralProgressMonotonic, firstAt);
   assert.equal(snapshot.duplicateCheckpointCount, 3);
+});
+
+test("active bash captures exact multiline command text without retaining other arguments or results", () => {
+  const { monitor: instance } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  const command = "  printf '%s\\n' 'café'\r\n\n# second line\nprintf '終'\n";
+  const args = { command, timeout: 42, env: { SENTINEL: "EXTRA-ARGUMENT" }, other: "UNRELATED-ARG" };
+  consume(instance, 1, { type: "tool_execution_start", toolCallId: "bash", toolName: "bash", args });
+  args.command = "MUTATED-ARGUMENT";
+  consume(instance, 1, {
+    type: "tool_execution_update", toolCallId: "bash", toolName: "bash",
+    args: { command: "UPDATE-COMMAND" }, partialResult: { content: "PRIVATE-OUTPUT" },
+  });
+  const snapshot = instance.snapshot();
+  assert.deepEqual(snapshot.activeBashCommand, { text: command, totalBytes: Buffer.byteLength(command), truncatedBytes: 0 });
+  assert.doesNotMatch(JSON.stringify(snapshot), /EXTRA-ARGUMENT|UNRELATED-ARG|MUTATED-ARGUMENT|UPDATE-COMMAND|PRIVATE-OUTPUT/);
+  const active = [...(instance as unknown as { activeTools: Map<string, unknown> }).activeTools.values()];
+  assert.doesNotMatch(JSON.stringify(active), /EXTRA-ARGUMENT|UNRELATED-ARG|MUTATED-ARGUMENT|UPDATE-COMMAND|PRIVATE-OUTPUT/);
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "bash", toolName: "bash", result: "PRIVATE-RESULT" });
+  assert.equal(instance.snapshot().activeBashCommand, undefined);
+  assert.doesNotMatch(JSON.stringify(instance.snapshot()), /café|PRIVATE-RESULT/);
+});
+
+test("active bash uses a 4 KiB UTF-8-safe prefix with exact byte metadata", () => {
+  assert.equal(ACTIVE_BASH_COMMAND_MAX_BYTES, 4096);
+  for (const command of ["", "x".repeat(4096), "x".repeat(4097), "é".repeat(2048), `${"x".repeat(4095)}€tail`, `${"x".repeat(4094)}😀tail`]) {
+    const { monitor: instance } = monitor();
+    instance.acceptPrompt(1);
+    consume(instance, 1, { type: "agent_start" });
+    consume(instance, 1, { type: "tool_execution_start", toolName: "bash", args: { command } });
+    const captured = instance.snapshot().activeBashCommand!;
+    assert.ok(Buffer.byteLength(captured.text) <= 4096);
+    assert.ok(command.startsWith(captured.text));
+    assert.equal(captured.totalBytes, Buffer.byteLength(command));
+    assert.equal(captured.truncatedBytes, Buffer.byteLength(command) - Buffer.byteLength(captured.text));
+    assert.equal(captured.text.includes("\uFFFD"), false);
+    assert.equal(captured.text, command.replace(/[€😀]tail$/u, "").slice(0, 4096));
+    instance.clearEphemeralState();
+    assert.equal(instance.snapshot().activeBashCommand, undefined);
+  }
+});
+
+test("only an exact sanitized bash name with a string command is captured", () => {
+  for (const toolName of ["read", "ctx_batch_execute", "Bash", " bash", "bash ", "unknown", undefined]) {
+    const { monitor: instance } = monitor();
+    instance.acceptPrompt(1);
+    consume(instance, 1, { type: "agent_start" });
+    consume(instance, 1, { type: "tool_execution_start", toolName, args: { command: "NOT-BASH" } });
+    assert.equal(Object.hasOwn(instance.snapshot(), "activeBashCommand"), false);
+  }
+  for (const args of [undefined, null, [], "command", {}, { command: null }, { command: 42 }, { command: ["text"] }, { command: { text: "text" } }]) {
+    const { monitor: instance } = monitor();
+    instance.acceptPrompt(1);
+    consume(instance, 1, { type: "agent_start" });
+    consume(instance, 1, { type: "tool_execution_start", toolName: "bash", args });
+    assert.equal(Object.hasOwn(instance.snapshot(), "activeBashCommand"), false);
+  }
+});
+
+test("active bash command follows the selected tool across idle updates, ties, and completion", () => {
+  const { monitor: instance, tick } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  consume(instance, 1, { type: "tool_execution_start", toolCallId: "a", toolName: "bash", args: { command: "first" } });
+  tick();
+  consume(instance, 1, { type: "tool_execution_start", toolCallId: "b", toolName: "bash", args: { command: "second" } });
+  assert.equal(instance.snapshot().activeBashCommand?.text, "first");
+  consume(instance, 1, { type: "tool_execution_update", toolCallId: "a", partialResult: "new" });
+  assert.equal(instance.snapshot().activeBashCommand?.text, "second", "ties select the newest start");
+  tick();
+  consume(instance, 1, { type: "tool_execution_start", toolCallId: "c", toolName: "read", args: { command: "not bash" } });
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "b" });
+  assert.equal(instance.snapshot().activeBashCommand?.text, "first");
+  consume(instance, 1, { type: "tool_execution_update", toolCallId: "a", partialResult: "newer" });
+  assert.equal(instance.snapshot().activeToolName, "read");
+  assert.equal(Object.hasOwn(instance.snapshot(), "activeBashCommand"), false);
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "c" });
+  assert.equal(instance.snapshot().activeBashCommand?.text, "first");
+});
+
+test("bash novelty still uses full argument digests, not the retained command prefix", () => {
+  const { monitor: instance, tick } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  const prefix = "x".repeat(ACTIVE_BASH_COMMAND_MAX_BYTES);
+  for (const [index, suffix] of ["a", "a", "b"].entries()) {
+    tick();
+    consume(instance, 1, { type: "tool_execution_start", toolCallId: String(index), toolName: "bash", args: { command: prefix + suffix } });
+    assert.equal(instance.snapshot().activeBashCommand?.text, prefix);
+    consume(instance, 1, { type: "tool_execution_end", toolCallId: String(index), result: { ok: true } });
+    assert.equal(instance.snapshot().structuralProgressCount, index === 0 ? 2 : index + 1);
+  }
+  assert.equal(instance.snapshot().duplicateCheckpointCount, 1);
 });
 
 test("the watchdog surface identifies the stalest active tool", () => {

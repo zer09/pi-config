@@ -10,6 +10,7 @@ import { PiRpcMonitor } from "./monitor.ts";
 import { RpcJsonlProtocol, type ProtocolRecord } from "./protocol.ts";
 import { routeKey } from "./routes.ts";
 import type {
+  ActiveBashCommand,
   AttemptStatus,
   CleanupFailureReason,
   DeadlineCause,
@@ -375,7 +376,7 @@ function progressFromMonitor(
   };
 }
 
-export async function supervisePi(options: SupervisePiOptions): Promise<AttemptStatus> {
+export async function supervisePi(options: SupervisePiOptions): Promise<AttemptStatus & { readonly activeBashCommand?: ActiveBashCommand }> {
   const started = performance.now();
   const startedAt = isoNow();
   // Productive work has no total deadline: renewable liveness leases are the
@@ -870,6 +871,10 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     await atomicWriteJson(statusPath, status);
     emitProgress(true);
     if (progressSinkFailed) throw progressSinkError;
+    // Carry the command only in memory to the run diagnostic, never status.json or progress.
+    if (state !== "completed" && snapshot.activeBashCommand !== undefined) {
+      return { ...status, activeBashCommand: snapshot.activeBashCommand };
+    }
     return status;
   } finally {
     // Timers, the abort listener, child listeners, and the ephemeral

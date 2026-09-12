@@ -4,13 +4,42 @@
 
 Accepted (2026-08-29). Extends ADR 0016 (schema-7 maximum progress-gap telemetry). Supersedes ADR 0016's schema-7 version for newly written records only. Historical schema 3 through schema 7 files remain valid historical records and are never migrated, rewritten, or deleted. Every lease threshold, liveness decision, routing, role policy, recovery, cleanup, retention bound, analyzer statistic, and model-visible instruction is unchanged.
 
-## Context
+## Amendment (2026-09-13): Schema 9 selected active bash command
+
+This amendment is current policy. It supersedes the schema-8 write version, success prefix, and analyzer eligibility below. It also narrows earlier raw-argument and command-line persistence prohibitions, including ADR 0015, only for the failure-only field defined here. The schema-8 sections below remain historical evidence; the report truncation rules still apply unchanged.
+
+Every newly written run-telemetry record uses `schemaVersion: 9`. Success records use the exact `success-v9-` prefix and retain the newest 4,096 writer-owned regular files under the existing no-follow checks, ordering, and serialization. Historical schema 3-8 records, including `success-v8-` files, are not migrated, rewritten, or pruned. The read-only analyzer accepts only schema-9 completed invocations and keeps all existing aggregate statistics and the 1 MiB scan-input cap.
+
+### One failure-only command object
+
+The existing unsuccessful-run diagnostic JSON may contain one top-level `activeBashCommand` object with exactly `{ text, totalBytes, truncatedBytes }`. No separate forensic file or command log exists.
+
+- At an accepted tool start, capture only a string `event.args.command` when the sanitized tool name is exactly `bash`. Missing and non-string commands are omitted; an empty string is retained with zero byte counts.
+- `text` preserves the exact command, including multiline formatting, up to 4,096 UTF-8 bytes (`ACTIVE_BASH_COMMAND_MAX_BYTES`). Oversized commands keep the longest whole-character prefix within the bound. `totalBytes` is the original UTF-8 size; `truncatedBytes` is the number of omitted bytes, zero for an uncut command.
+- The object belongs to the same tool that `activeToolFields()` selects: the stalest active tool, with ties resolved by most recent start. If that selected tool is not bash or has no string command, omit the object even if another active bash has a command.
+- The bounded active-tool map keeps commands only until their tool ends or the attempt is cleared. The final selection travels in memory beside the supervisor result, outside `AttemptStatus` and its temporary `status.json`. It never enters attempts, progress, ToolResult content/details, failure Markdown, TUI rendering, success telemetry, or any automatically model-visible output.
+- Fallback never accumulates command history. A two-route failure records only the final selected active bash command, matching the diagnosed status; a later catalog-only status or non-bash selection omits it.
+- No other arguments, tool results, environment, stdout/stderr, or command history are captured by this field. Full argument HMAC digests still determine novelty independently of the command prefix; keys and digests remain ephemeral.
+
+### Accepted private-local privacy risk
+
+Like `delegateReport`, exact command text can contain secrets, paths, task content, or embedded provider data. This amendment intentionally accepts that risk; these two bounded failure-only objects are exceptions to the earlier metadata-only exclusions. There is no heuristic redaction, which could miss secrets and give false confidence.
+
+The existing failure writer remains the only persistence path: `${PI_CODING_AGENT_DIR:-~/.pi/agent}/logs/delegated-pi-loop`, a 0700 directory, and 0600 atomic files. Writes remain best-effort and never change the run outcome. Permissions do not protect against the same local account or privileged readers. The extension does not upload these fields; operators must review and redact diagnostics before sharing them. Other raw content remains excluded outside these two explicit objects.
+
+No model-visible instruction, tool schema, routing policy, resource policy, or liveness decision changes. No always-loaded or model-visible surface changes, so context-cost accounting needs no recount.
+
+### Schema-9 validation
+
+Monitor, supervisor, runner, diagnostics, rendering, and analyzer regressions cover exact multiline capture, safe byte bounds and metadata, selected-tool correlation, omission cases, digest novelty, fallback isolation, 0700/0600 containment, historical-file immunity, and all public-surface exclusions. Required gates are the full extension suite, documented transient-config strict TypeScript, routing validation, instruction synchronization/idempotence, stale-policy searches, and `git diff --check`. No provider inference is authorized.
+
+## Historical context (schema 8)
 
 Schema-7 run telemetry is metadata-only: when a delegate ended BLOCKED, FAILED, or in any supervision failure state, the failure diagnostic kept bounded typed fields but discarded the final report. The parent receives only the fixed sanitized failure Markdown, so the exact delegate-authored terminal evidence existed only in the supervision session and was lost when the process ended. Debugging an `invalid_result`, a rejected reason line, or a delegate that misused BLOCKED required rerunning the work.
 
 The report is delegate-authored free text and can contain anything the child wrote, including task content, paths, or secrets the assignment itself referenced. Persisting it is a local privacy risk that the metadata-only invariant avoided.
 
-## Decision
+## Historical decision (schema 8)
 
 ### Schema 8
 
@@ -44,14 +73,14 @@ Failure-diagnostic persistence remains best-effort: a create, write, chmod, or r
 
 The read-only `analyze:progress-gaps` analyzer (agent/extensions/delegated-pi-loop/analyze-progress-gaps.ts) keeps its aggregate-only statistics and remains eligible only for schema version exactly 8 records of completed invocations, using the completed supervised attempt's finite non-negative maximum. Schema 3 through 7 records are ignored as historical; failure records with their report objects are never in the eligible sample because eligibility requires a completed invocation. The 1 MiB scan-input cap stays, with the failure record staying under the 50 KiB report bound.
 
-## Consequences
+## Historical consequences (schema 8)
 
 - An unsuccessful run leaves its exact final report, terminal lines included, in a private local log for human debugging, with byte-exact truncation metadata.
 - Terminal evidence survives the 50 KiB cut for parser-valid terminal forms (completed, accepted-reason, and genuine missing-reason terminals); invalid or reason-rejected terminal tails lose the tail to prefix truncation, and their typed outcome fields still record the rejection.
 - Local disk now holds delegate-authored failure text next to the metadata; a compromised local account reads it. The metadata-only invariant survives everywhere else: success records, model-visible surfaces, the parent ToolResult, and analyzer output.
 - Rollback may stop writing the report object and restore schema 7 for new writes without deleting or rewriting already written schema-8 files.
 
-## Validation
+## Historical validation (schema 8)
 
 - Diagnostics tests pin byte-for-byte preservation under the limit, exact terminal-suffix preservation with a UTF-8-safe body prefix for oversized parser-valid terminals (completed, accepted-reason, and genuine missing-reason forms across LF and CRLF, including a multibyte prefix boundary one byte below the limit), prefix truncation for oversized text without a recognized suffix (including misplaced, duplicate, malformed, Unicode, and COMPLETED-paired reason lines, duplicate-marker reports whose earlier marker is either cut away or kept in the prefix, and indented or case-mismatched look-alike controls that keep exact suffix preservation), byte-exact `totalBytes`/`truncatedBytes` metadata, the parent ToolResult exclusion, and the success-record omission.
 - The full delegated-pi-loop suite, strict all-file TypeScript, `git diff --check`, and current-policy stale-text searches must pass; no model-visible instruction text changes, so the instruction reference document needs no regeneration.

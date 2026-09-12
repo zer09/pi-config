@@ -9,7 +9,7 @@ import {
   isSuccessTelemetryName,
   retentionProbes,
   SCHEMA_VERSION,
-  schemaEightRecord,
+  schemaNineRecord,
   SUCCESS_FILE_PREFIX,
   SUCCESS_RECORD_LIMIT,
   writeFailureDiagnostic,
@@ -126,7 +126,7 @@ test("diagnostic content is bounded and sanitized except the exact bounded deleg
     const content = await readFile(filePath, "utf8");
     const parsed = JSON.parse(content) as Record<string, unknown>;
 
-    assert.equal(parsed.schemaVersion, 8);
+    assert.equal(parsed.schemaVersion, 9);
     assert.equal(parsed.state, "invalid_stream");
     assert.equal(parsed.role, "implementation");
     assert.equal(parsed.deadlineCause, "idle_deadline");
@@ -205,7 +205,7 @@ test("diagnostic content is bounded and sanitized except the exact bounded deleg
   });
 });
 
-test("schema 8 records typed terminal reason fields for non-completed outcomes without raw reason text", async () => {
+test("schema 9 records typed terminal reason fields for non-completed outcomes without raw reason text", async () => {
   await withDiagnosticsRoot(async () => {
     const report = "SECRET-REPORT-BODY\n\nDELEGATE_REASON: finding_reported\nDELEGATE_RESULT: BLOCKED";
     const accepted = await writeFailureDiagnostic(blockedResult({
@@ -214,7 +214,7 @@ test("schema 8 records typed terminal reason fields for non-completed outcomes w
     }));
     const acceptedContent = await readFile(accepted, "utf8");
     const acceptedParsed = JSON.parse(acceptedContent) as Record<string, unknown>;
-    assert.equal(acceptedParsed.schemaVersion, 8);
+    assert.equal(acceptedParsed.schemaVersion, 9);
     assert.equal(acceptedParsed.delegateOutcome, "blocked");
     assert.equal(acceptedParsed.terminalReason, "finding_reported");
     assert.equal(acceptedParsed.reasonStatus, "accepted");
@@ -248,6 +248,28 @@ function blockedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunR
     ...overrides,
   });
 }
+
+test("failure diagnostics persist only the selected active bash command object in the existing file", async () => {
+  await withDiagnosticsRoot(async (root) => {
+    const text = "printf 'COMMAND-SENTINEL'\n\nprintf '終'";
+    const activeBashCommand = { text, totalBytes: Buffer.byteLength(text), truncatedBytes: 0, extra: "ARG-SENTINEL" };
+    const result = failedResult({
+      report: "",
+      progress: { ...failedResult().progress, activeToolName: "bash" },
+      activeBashCommand,
+    });
+    const filePath = await writeFailureDiagnostic(result);
+    const record = JSON.parse(await readFile(filePath, "utf8"));
+    assert.deepEqual(record.activeBashCommand, { text, totalBytes: Buffer.byteLength(text), truncatedBytes: 0 });
+    assert.equal(record.activeToolName, "bash");
+    assert.doesNotMatch(JSON.stringify(record.attempts), /COMMAND-SENTINEL|activeBashCommand/);
+    assert.doesNotMatch(JSON.stringify(record), /ARG-SENTINEL/);
+    assert.deepEqual(await diagnosticPermissions(filePath), { directory: 0o700, file: 0o600 });
+    assert.deepEqual(await readdir(path.join(root, "logs", "delegated-pi-loop")), [path.basename(filePath)]);
+    assert.equal(Object.hasOwn(failureDiagnostic({ ...result, activeBashCommand: undefined }), "activeBashCommand"), false);
+    assert.equal(Object.hasOwn(failureDiagnostic({ ...result, progress: { ...result.progress, activeToolName: "read" } }), "activeBashCommand"), false);
+  });
+});
 
 test("failure diagnostics persist the exact delegate report with its terminal markers", async () => {
   await withDiagnosticsRoot(async () => {
@@ -996,7 +1018,7 @@ test("truncated attempt histories retain the terminal attempt within the attempt
       maxProgressIdleSeconds: 321.5,
     },
   ];
-  const record = schemaEightRecord(failedResult({ attempts }));
+  const record = schemaNineRecord(failedResult({ attempts }));
   const serialized = record.attempts as Record<string, unknown>[];
   assert.equal(serialized.length, 10);
   assert.deepEqual(
@@ -1013,14 +1035,14 @@ test("truncated attempt histories retain the terminal attempt within the attempt
     { route: "provider/one:max", state: "stalled" as const, elapsedSeconds: 1 },
     { route: "provider/two:max", state: "completed" as const, elapsedSeconds: 2, maxProgressIdleSeconds: 5.5 },
   ];
-  const shortRecord = schemaEightRecord(failedResult({ attempts: shortHistory }));
+  const shortRecord = schemaNineRecord(failedResult({ attempts: shortHistory }));
   assert.deepEqual(
     (shortRecord.attempts as Record<string, unknown>[]).map((attempt) => attempt.state),
     ["stalled", "completed"],
   );
 });
 
-test("schema 8 rejects seeded paths, credentials, payloads, signals, pids, digests, and raw errors", () => {
+test("schema 9 rejects seeded paths, credentials, payloads, signals, pids, digests, and raw errors", () => {
   const forbidden = "/home/gc/PRIVATE_PATH sk-SECRET_TOKEN SIGKILL pid=4242 provider-body tool-argument tool-result raw-error 4f2a9c1b8e7d";
   const result = failedResult({
     label: forbidden,
@@ -1061,7 +1083,7 @@ test("schema 8 rejects seeded paths, credentials, payloads, signals, pids, diges
   assert.ok(Buffer.byteLength(content) < 16 * 1024, `diagnostic must stay bounded: ${Buffer.byteLength(content)}`);
 });
 
-test("schema 8 attempt records drop malformed non-finite supervised values", () => {
+test("schema 9 attempt records drop malformed non-finite supervised values", () => {
   const result = failedResult({
     attempts: [{
       route: "zai/glm-5.3:max",
@@ -1101,7 +1123,7 @@ test("schema 8 attempt records drop malformed non-finite supervised values", () 
   }
 });
 
-test("schema 8 omits invalid provider categories and keeps every valid category", async () => {
+test("schema 9 omits invalid provider categories and keeps every valid category", async () => {
   await withDiagnosticsRoot(async () => {
     for (const invalid of [
       "/home/gc/PRIVATE_PATH/provider",
@@ -1209,18 +1231,19 @@ async function successEntries(directory: string): Promise<string[]> {
   return regular;
 }
 
-test("schema version is exactly 8 and the maximum field has the bounded shape", async () => {
+test("schema version is exactly 9 and the maximum field has the bounded shape", async () => {
   await withDiagnosticsRoot(async () => {
-    assert.equal(SCHEMA_VERSION, 8);
+    assert.equal(SCHEMA_VERSION, 9);
+    assert.equal(SUCCESS_FILE_PREFIX, "success-v9-");
     assert.equal(SUCCESS_RECORD_LIMIT, 4096);
     const record = failureDiagnostic(failedResult());
-    assert.equal(record.schemaVersion, 8);
+    assert.equal(record.schemaVersion, 9);
     assert.equal(record.maxProgressIdleSeconds, 431.2);
     assert.equal((record.attempts as Record<string, unknown>[])[0]!.maxProgressIdleSeconds, 431.2);
   });
 });
 
-test("completed and unsuccessful records share the same safe schema-8 shape except the failure-only delegate report", async () => {
+test("completed and unsuccessful records share the same safe schema-9 shape except failure-only evidence", async () => {
   await withDiagnosticsRoot(async () => {
     const completedPath = await writeSuccessTelemetry(completedResult());
     const completed = JSON.parse(await readFile(completedPath, "utf8")) as Record<string, unknown>;
@@ -1231,16 +1254,19 @@ test("completed and unsuccessful records share the same safe schema-8 shape exce
       stallCause: undefined,
       cleanupFailureReason: undefined,
       interruptionSource: undefined,
-      progress: { ...failedResult().progress, reportRecoveryReason: undefined },
+      progress: { ...failedResult().progress, activeToolName: "bash", reportRecoveryReason: undefined },
+      activeBashCommand: { text: "COMMAND-SENTINEL", totalBytes: 16, truncatedBytes: 0 },
     })));
-    // The failure view adds exactly one key: the bounded delegate report.
+    // Only the failure view adds the bounded report and selected active bash.
     assert.deepEqual(
-      Object.keys(unsuccessful).filter((key) => key !== "delegateReport").sort(),
+      Object.keys(unsuccessful).filter((key) => key !== "delegateReport" && key !== "activeBashCommand").sort(),
       Object.keys(completed).sort(),
     );
     assert.equal("delegateReport" in unsuccessful, true);
     assert.equal("delegateReport" in completed, false);
-    assert.equal(completed.schemaVersion, 8);
+    assert.equal("activeBashCommand" in unsuccessful, true);
+    assert.equal("activeBashCommand" in completed, false);
+    assert.equal(completed.schemaVersion, 9);
     assert.equal(completed.state, "completed");
     assert.equal(completed.maxProgressIdleSeconds, 300.4);
     assert.equal((completed.attempts as Record<string, unknown>[])[0]!.maxProgressIdleSeconds, 300.4);
@@ -1251,7 +1277,12 @@ test("success records contain no delegate report, prompt, path, or provider text
   await withDiagnosticsRoot(async (root) => {
     // A label outside the bounded identifier alphabet is omitted entirely;
     // the bounded record itself never carries report or prompt material.
-    const result = completedResult({ label: "SECRET LABEL /PRIVATE report" });
+    const result = completedResult({
+      label: "SECRET LABEL /PRIVATE report",
+      progress: { ...completedResult().progress, activeToolName: "bash" },
+      activeBashCommand: { text: "COMMAND-SENTINEL", totalBytes: 16, truncatedBytes: 0 },
+    });
+    assert.equal(Object.hasOwn(failureDiagnostic(result), "activeBashCommand"), false);
     const completedPath = await writeSuccessTelemetry(result);
     const content = await readFile(completedPath, "utf8");
     assert.ok(path.basename(completedPath).startsWith(SUCCESS_FILE_PREFIX));
@@ -1259,7 +1290,9 @@ test("success records contain no delegate report, prompt, path, or provider text
     // Successful telemetry never gains the failure-only delegate report.
     const parsed = JSON.parse(content) as Record<string, unknown>;
     assert.equal("delegateReport" in parsed, false);
+    assert.equal("activeBashCommand" in parsed, false);
     for (const forbidden of [
+      "COMMAND-SENTINEL",
       "SECRET",
       "PRIVATE",
       "DELEGATE_RESULT",
@@ -1275,7 +1308,7 @@ test("success records contain no delegate report, prompt, path, or provider text
 });
 
 test("top-level and attempt maxima survive when valid, including zero", () => {
-  const record = schemaEightRecord(completedResult({
+  const record = schemaNineRecord(completedResult({
     progress: { ...completedResult().progress, maxProgressIdleSeconds: 0 },
     attempts: [{ route: "zai/glm-5.3:max", state: "completed", elapsedSeconds: 1, maxProgressIdleSeconds: 0 }],
   }));
@@ -1285,7 +1318,7 @@ test("top-level and attempt maxima survive when valid, including zero", () => {
 
 test("invalid top-level and attempt maximum values fail closed by omission", () => {
   for (const invalid of [-1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
-    const record = serializedRecord(schemaEightRecord(completedResult({
+    const record = serializedRecord(schemaNineRecord(completedResult({
       progress: { ...completedResult().progress, maxProgressIdleSeconds: invalid },
       attempts: [{ route: "zai/glm-5.3:max", state: "completed", elapsedSeconds: 1, maxProgressIdleSeconds: invalid }],
     })));
@@ -1294,15 +1327,15 @@ test("invalid top-level and attempt maximum values fail closed by omission", () 
   }
 });
 
-test("catalog-only attempts omit the maximum in schema-8 records", () => {
-  const record = serializedRecord(schemaEightRecord(completedResult({
+test("catalog-only attempts omit the maximum in schema-9 records", () => {
+  const record = serializedRecord(schemaNineRecord(completedResult({
     attempts: [{ route: "zai/glm-5.3:max", state: "catalog_unavailable", elapsedSeconds: 0.4 }],
   })));
   const attempt = (record.attempts as Record<string, unknown>[])[0]!;
   assert.equal("maxProgressIdleSeconds" in attempt, false);
 });
 
-test("historical schema 3-7 files are never rewritten or pruned", async () => {
+test("historical schema 3-8 files are never rewritten or pruned", async () => {
   await withDiagnosticsRoot(async (root) => {
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const historicalAt = new Date(Date.now() - 3_600_000);
@@ -1313,11 +1346,12 @@ test("historical schema 3-7 files are never rewritten or pruned", async () => {
       "unknown-file.json",
       "success-v6-implementation-1000-3-3.json",
       "success-v7x-implementation-1000-4-4.json",
-      // A genuine old-writer schema-7 success name: historical files stay
-      // unmigrated and are never pruning candidates for the v8 writer.
+      // Genuine old-writer names stay outside schema-9 retention.
       "success-v7-implementation-1000-5-5.json",
+      "success-v8-implementation-1000-6-6.json",
     ];
     assert.equal(isSuccessTelemetryName("success-v7-implementation-1000-5-5.json"), false);
+    assert.equal(isSuccessTelemetryName("success-v8-implementation-1000-6-6.json"), false);
     for (let index = 0; index < names.length; index += 1) {
       await seedSuccessFile(directory, names[index]!, new Date(historicalAt.getTime() + index * 1000));
     }
@@ -1325,9 +1359,8 @@ test("historical schema 3-7 files are never rewritten or pruned", async () => {
       const filePath = path.join(directory, name);
       return { name, content: await readFile(filePath, "utf8"), mtime: (await stat(filePath)).mtimeMs };
     }));
-    // Retention limit 1: with the correct v8-only matcher the single new
-    // record is the only candidate, so nothing is pruned; a matcher that
-    // wrongly accepted the historical v7 name would prune it as the oldest.
+    // Retention limit 1: only the new v9 record qualifies. Historical v7/v8
+    // names would be pruned first if the matcher accepted them.
     await writeSuccessTelemetry(completedResult(), 1);
     await writeFailureDiagnostic(failedResult());
     for (const entry of before) {
@@ -1370,22 +1403,22 @@ test("success telemetry is refused for unsuccessful runs and quietly isolated on
   }
 });
 
-test("retention keeps the newest records and prunes only exact success-v8 files", async () => {
+test("retention keeps the newest records and prunes only exact success-v9 files", async () => {
   await withDiagnosticsRoot(async (root) => {
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const base = Date.now() - 3_600_000;
     const seeded = [
-      "success-v8-implementation-1000-1-1.json",
-      "success-v8-implementation-1000-1-2.json",
-      "success-v8-implementation-1000-1-3.json",
+      "success-v9-implementation-1000-1-1.json",
+      "success-v9-implementation-1000-1-2.json",
+      "success-v9-implementation-1000-1-3.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
     }
     // Pruning candidates with success-looking names that must never be
     // deleted: a symlink, a directory, a failure, and an unknown name.
-    await symlink(path.join(directory, seeded[0]!), path.join(directory, "success-v8-symlink.json"));
-    await mkdir(path.join(directory, "success-v8-directory.json"));
+    await symlink(path.join(directory, seeded[0]!), path.join(directory, "success-v9-symlink.json"));
+    await mkdir(path.join(directory, "success-v9-directory.json"));
     await writeFile(path.join(directory, "failure-implementation-1000-9-9.json"), "{}\n", { mode: 0o600 });
     await writeFile(path.join(directory, "other.json"), "{}\n", { mode: 0o600 });
     // Retention limit 2: the oldest seeded success file is pruned, the two
@@ -1397,8 +1430,8 @@ test("retention keeps the newest records and prunes only exact success-v8 files"
     assert.ok(!remaining.includes(seeded[0]!), "the oldest success record must be pruned");
     // Non-record entries survive untouched (no-follow checks: the symlink
     // itself must survive even though its pruned target is gone).
-    assert.ok((await lstat(path.join(directory, "success-v8-symlink.json"))).isSymbolicLink());
-    assert.ok((await lstat(path.join(directory, "success-v8-directory.json"))).isDirectory());
+    assert.ok((await lstat(path.join(directory, "success-v9-symlink.json"))).isSymbolicLink());
+    assert.ok((await lstat(path.join(directory, "success-v9-directory.json"))).isDirectory());
     await stat(path.join(directory, "failure-implementation-1000-9-9.json"));
     await stat(path.join(directory, "other.json"));
   });
@@ -1409,8 +1442,8 @@ test("nothing is pruned while the exact-name candidate count is at or under the 
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const base = Date.now() - 3_600_000;
     const seeded = [
-      "success-v8-implementation-1000-1-1.json",
-      "success-v8-implementation-1000-1-2.json",
+      "success-v9-implementation-1000-1-1.json",
+      "success-v9-implementation-1000-1-2.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
@@ -1434,9 +1467,9 @@ test("retention order is deterministic by write time with a filename tie-breaker
     // pid, and counter segments) because only writer-owned names are candidates.
     const sameTime = new Date(base);
     const names = [
-      "success-v8-implementation-1000-1-1.json",
-      "success-v8-implementation-1000-1-2.json",
-      "success-v8-implementation-1000-1-3.json",
+      "success-v9-implementation-1000-1-1.json",
+      "success-v9-implementation-1000-1-2.json",
+      "success-v9-implementation-1000-1-3.json",
     ];
     for (const name of names) await seedSuccessFile(directory, name, sameTime);
     const written = await writeSuccessTelemetry(completedResult(), 2);
@@ -1445,28 +1478,28 @@ test("retention order is deterministic by write time with a filename tie-breaker
     // lexicographically smallest seeded names; the newest seeded name and
     // the freshly written record (newest mtime) survive.
     assert.equal(remaining.length, 2);
-    assert.ok(remaining.includes("success-v8-implementation-1000-1-3.json"));
-    assert.ok(!remaining.includes("success-v8-implementation-1000-1-1.json"));
-    assert.ok(!remaining.includes("success-v8-implementation-1000-1-2.json"));
+    assert.ok(remaining.includes("success-v9-implementation-1000-1-3.json"));
+    assert.ok(!remaining.includes("success-v9-implementation-1000-1-1.json"));
+    assert.ok(!remaining.includes("success-v9-implementation-1000-1-2.json"));
     assert.ok(remaining.includes(path.basename(written)));
   });
 });
 
-test("near-miss success-v8-looking names are never pruning candidates and survive retention", async () => {
+test("near-miss success-v9-looking names are never pruning candidates and survive retention", async () => {
   await withDiagnosticsRoot(async (root) => {
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const base = Date.now() - 3_600_000;
     // Regular files whose names only look extension-owned: too few segments,
     // a non-numeric timestamp/pid/counter segment, empty numeric segments.
     const foreign = [
-      "success-v8-not-owned.json",
-      "success-v8-abc.json",
-      "success-v8-label-notatime-123-4.json",
-      "success-v8-label-123-x-4.json",
-      "success-v8-label-123-4-x.json",
-      "success-v8-label--123-4.json",
-      "success-v8-label-123--4.json",
-      "success-v8-label-123-4-.json",
+      "success-v9-not-owned.json",
+      "success-v9-abc.json",
+      "success-v9-label-notatime-123-4.json",
+      "success-v9-label-123-x-4.json",
+      "success-v9-label-123-4-x.json",
+      "success-v9-label--123-4.json",
+      "success-v9-label-123--4.json",
+      "success-v9-label-123-4-.json",
     ];
     for (const name of foreign) assert.equal(isSuccessTelemetryName(name), false, name);
     // The foreign files are seeded as the oldest regular files: under a
@@ -1478,11 +1511,11 @@ test("near-miss success-v8-looking names are never pruning candidates and surviv
       foreignBefore.push({ name: foreign[index]!, mtimeMs: (await stat(filePath)).mtimeMs });
     }
     const seeded = [
-      "success-v8-implementation-1000-1-1.json",
-      "success-v8-implementation-1000-1-2.json",
-      "success-v8-implementation-1000-1-3.json",
-      "success-v8-implementation-1000-1-4.json",
-      "success-v8-implementation-1000-1-5.json",
+      "success-v9-implementation-1000-1-1.json",
+      "success-v9-implementation-1000-1-2.json",
+      "success-v9-implementation-1000-1-3.json",
+      "success-v9-implementation-1000-1-4.json",
+      "success-v9-implementation-1000-1-5.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
@@ -1509,16 +1542,16 @@ test("a writer-shaped name with a 65-character label is not writer-owned and nev
     const base = Date.now() - 3_600_000;
     // `safeLabel` always truncates to 64 characters, so a 65-character label
     // remainder cannot be writer-owned regardless of its characters.
-    const overLength = `success-v8-${"a".repeat(65)}-1000-1-1.json`;
+    const overLength = `success-v9-${"a".repeat(65)}-1000-1-1.json`;
     assert.equal(isSuccessTelemetryName(overLength), false);
     // Seeded as the oldest regular file: under an unbounded label check it
     // would be the first pruning victim.
     await seedSuccessFile(directory, overLength, new Date(base - 60_000));
     const seeded = [
-      "success-v8-implementation-1000-1-1.json",
-      "success-v8-implementation-1000-1-2.json",
-      "success-v8-implementation-1000-1-3.json",
-      "success-v8-implementation-1000-1-4.json",
+      "success-v9-implementation-1000-1-1.json",
+      "success-v9-implementation-1000-1-2.json",
+      "success-v9-implementation-1000-1-3.json",
+      "success-v9-implementation-1000-1-4.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
@@ -1538,8 +1571,8 @@ test("label remainders safeLabel can never emit are rejected by the name matcher
   // safeLabel strips leading [-.]+ before its slice, so writer output can
   // never start with - or .
   const rejected = [
-    "success-v8--foreign-1000-1-1.json",
-    "success-v8-.foreign-1000-1-1.json",
+    "success-v9--foreign-1000-1-1.json",
+    "success-v9-.foreign-1000-1-1.json",
   ];
   for (const name of rejected) assert.equal(isSuccessTelemetryName(name), false, name);
 });
@@ -1552,8 +1585,8 @@ test("foreign leading-punctuation files survive an over-limit sweep", async () =
     // emission shape, seeded as the oldest regular files so an over-broad
     // matcher would delete them first.
     const foreign = [
-      "success-v8--foreign-1000-1-1.json",
-      "success-v8-.foreign-1000-1-1.json",
+      "success-v9--foreign-1000-1-1.json",
+      "success-v9-.foreign-1000-1-1.json",
     ];
     for (const name of foreign) assert.equal(isSuccessTelemetryName(name), false, name);
     const foreignBefore: { name: string; mtimeMs: number }[] = [];
@@ -1563,11 +1596,11 @@ test("foreign leading-punctuation files survive an over-limit sweep", async () =
       foreignBefore.push({ name: foreign[index]!, mtimeMs: (await stat(filePath)).mtimeMs });
     }
     const seeded = [
-      "success-v8-implementation-1000-1-1.json",
-      "success-v8-implementation-1000-1-2.json",
-      "success-v8-implementation-1000-1-3.json",
-      "success-v8-implementation-1000-1-4.json",
-      "success-v8-implementation-1000-1-5.json",
+      "success-v9-implementation-1000-1-1.json",
+      "success-v9-implementation-1000-1-2.json",
+      "success-v9-implementation-1000-1-3.json",
+      "success-v9-implementation-1000-1-4.json",
+      "success-v9-implementation-1000-1-5.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
@@ -1593,9 +1626,9 @@ test("exact-64 label remainders ending in - or . are writer-emittable and accept
     // slice(0, 64) can cut right after a - or ., so a trailing - or . is
     // writer-emittable exactly at the 64-character bound; rejecting these
     // names would silently disable retention for genuine writer output.
-    const hyphenEnd = `success-v8-${"a".repeat(63)}--1000-1-1.json`;
-    const dotEnd = `success-v8-${"a".repeat(63)}.-1000-1-1.json`;
-    const alnumEnd = `success-v8-${"a".repeat(64)}-1000-1-1.json`;
+    const hyphenEnd = `success-v9-${"a".repeat(63)}--1000-1-1.json`;
+    const dotEnd = `success-v9-${"a".repeat(63)}.-1000-1-1.json`;
+    const alnumEnd = `success-v9-${"a".repeat(64)}-1000-1-1.json`;
     assert.equal(isSuccessTelemetryName(hyphenEnd), true);
     assert.equal(isSuccessTelemetryName(dotEnd), true);
     assert.equal(isSuccessTelemetryName(alnumEnd), true);
@@ -1618,7 +1651,7 @@ test("every writer-generated success filename matches the name filter across var
     // 64-character slice bound.
     const labels = [
       "implementation",
-      "schema-8-fix",
+      "schema-9-fix",
       "progress.gap.telemetry",
       "fix.7 schema v2",
       "/// ??? !!!",
@@ -1656,7 +1689,7 @@ test("files disappearing mid-prune never fail the delegate result", async () => 
     const base = Date.now() - 3_600_000;
     const seeded: string[] = [];
     for (let index = 0; index < 40; index += 1) {
-      const name = `success-v8-implementation-1000-1-${String(index).padStart(4, "0")}.json`;
+      const name = `success-v9-implementation-1000-1-${String(index).padStart(4, "0")}.json`;
       seeded.push(name);
       await seedSuccessFile(directory, name, new Date(base + index * 1000));
     }
@@ -1698,9 +1731,9 @@ test("a symlink replacement between validation and deletion survives untouched",
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const base = Date.now() - 3_600_000;
     const seeded = [
-      "success-v8-implementation-3000-1-1.json",
-      "success-v8-implementation-3000-1-2.json",
-      "success-v8-implementation-3000-1-3.json",
+      "success-v9-implementation-3000-1-1.json",
+      "success-v9-implementation-3000-1-2.json",
+      "success-v9-implementation-3000-1-3.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
@@ -1740,9 +1773,9 @@ test("a foreign regular-file replacement survives the dev/ino identity check", a
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const base = Date.now() - 3_600_000;
     const seeded = [
-      "success-v8-implementation-3100-1-1.json",
-      "success-v8-implementation-3100-1-2.json",
-      "success-v8-implementation-3100-1-3.json",
+      "success-v9-implementation-3100-1-1.json",
+      "success-v9-implementation-3100-1-2.json",
+      "success-v9-implementation-3100-1-3.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));
@@ -1790,9 +1823,9 @@ test("a candidate vanishing before the deletion check is skipped without failing
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const base = Date.now() - 3_600_000;
     const seeded = [
-      "success-v8-implementation-3200-1-1.json",
-      "success-v8-implementation-3200-1-2.json",
-      "success-v8-implementation-3200-1-3.json",
+      "success-v9-implementation-3200-1-1.json",
+      "success-v9-implementation-3200-1-2.json",
+      "success-v9-implementation-3200-1-3.json",
     ];
     for (let index = 0; index < seeded.length; index += 1) {
       await seedSuccessFile(directory, seeded[index]!, new Date(base + index * 1000));

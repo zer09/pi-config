@@ -7,12 +7,12 @@ import { parseDelegateTerminal } from "./monitor.ts";
 import { BLOCKED_REASON_CODES, DELEGATE_REASON_UNSPECIFIED, FAILED_REASON_CODES, PROVIDER_FAILURE_CATEGORY_SET } from "./types.ts";
 import type { ChainAttempt, DelegateRunResult } from "./types.ts";
 
-/** Schema version for every newly written run-telemetry record (failure and success). Historical schema 3-7 files are never migrated. */
-export const SCHEMA_VERSION = 8;
-/** Maximum number of exact extension-owned `success-v8-*.json` records retained. */
+/** Schema version for every newly written run-telemetry record (failure and success). Historical schema 3-8 files are never migrated. */
+export const SCHEMA_VERSION = 9;
+/** Maximum number of exact extension-owned `success-v9-*.json` records retained. */
 export const SUCCESS_RECORD_LIMIT = 4096;
-/** Exact filename prefix for successful-run schema-8 telemetry records. */
-export const SUCCESS_FILE_PREFIX = "success-v8-";
+/** Exact filename prefix for successful-run schema-9 telemetry records. */
+export const SUCCESS_FILE_PREFIX = "success-v9-";
 
 /** Concurrent lstat calls per batch while gathering retention metadata. */
 const RETENTION_LSTAT_BATCH_SIZE = 64;
@@ -89,16 +89,16 @@ export function diagnosticsDirectory(): string {
 }
 
 /**
- * Sanitized bounded schema-8 run record, shared by failure diagnostics and
+ * Sanitized bounded schema-9 run record, shared by failure diagnostics and
  * best-effort successful-run telemetry. Excludes prompts, raw stdout/stderr,
  * tool arguments and results, checkpoint digests and HMAC keys, Git state,
  * credentials, provider bodies, delegate-authored reason text, and every
  * file path. Only the failure view (failureDiagnostic) adds the bounded
- * exact delegate report; successful-run telemetry never carries it.
+ * exact delegate report and selected active bash command; success never carries either.
  * Temporary supervision artifacts are removed by the caller after this
  * record is persisted.
  */
-export function schemaEightRecord(result: DelegateRunResult): Record<string, unknown> {
+export function schemaNineRecord(result: DelegateRunResult): Record<string, unknown> {
   return {
     schemaVersion: SCHEMA_VERSION,
     writtenAt: new Date().toISOString(),
@@ -291,13 +291,21 @@ function failureDelegateReport(result: DelegateRunResult): { text: string; total
 }
 
 /**
- * Failure-specific view of the shared schema-8 record builder for
- * unsuccessful runs only: the sanitized telemetry plus the bounded exact
- * delegate report when one exists.
+ * Failure-specific view of the shared schema-9 record builder. Exact report
+ * and command text can contain secrets; only this private local view keeps them.
  */
 export function failureDiagnostic(result: DelegateRunResult): Record<string, unknown> {
   const delegateReport = failureDelegateReport(result);
-  return { ...schemaEightRecord(result), ...(delegateReport === undefined ? {} : { delegateReport }) };
+  const command = result.state !== "completed" && result.progress.activeToolName === "bash"
+    ? result.activeBashCommand
+    : undefined;
+  return {
+    ...schemaNineRecord(result),
+    ...(delegateReport === undefined ? {} : { delegateReport }),
+    ...(command === undefined ? {} : {
+      activeBashCommand: { text: command.text, totalBytes: command.totalBytes, truncatedBytes: command.truncatedBytes },
+    }),
+  };
 }
 
 /** Writes the failure diagnostic with a 0700 directory and a 0600 atomic file. */
@@ -310,7 +318,7 @@ export async function writeFailureDiagnostic(result: DelegateRunResult): Promise
 
 /**
  * Shared record writer for one terminal run. The failure name carries the
- * bounded delegate report; both names stay bounded and carry no prompt
+ * bounded delegate report and active bash command; both names carry no prompt
  * content.
  */
 async function writeRunDiagnostic(kind: "failure" | "success", result: DelegateRunResult): Promise<string> {
@@ -321,7 +329,7 @@ async function writeRunDiagnostic(kind: "failure" | "success", result: DelegateR
   const prefix = kind === "success" ? SUCCESS_FILE_PREFIX : "failure-";
   const fileName = `${prefix}${safeLabel(result.label)}-${Date.now()}-${process.pid}-${writeCounter}.json`;
   const filePath = path.join(directory, fileName);
-  await atomicWriteJson(filePath, kind === "failure" ? failureDiagnostic(result) : schemaEightRecord(result));
+  await atomicWriteJson(filePath, kind === "failure" ? failureDiagnostic(result) : schemaNineRecord(result));
   return filePath;
 }
 
@@ -348,13 +356,13 @@ const DIGIT_SEGMENT = /^[0-9]+$/;
 
 /**
  * True only for the complete writer-generated success-telemetry filename
- * shape `success-v8-<label>-<timestamp>-<pid>-<counter>.json` produced by
+ * shape `success-v9-<label>-<timestamp>-<pid>-<counter>.json` produced by
  * writeRunDiagnostic. `safeLabel` output may itself contain hyphens, so the
  * three numeric segments are anchored from the right: the final three
  * hyphen-separated segments before `.json` must each be one or more ASCII
  * digits, and the label remainder must fit `SAFE_LABEL_SHAPE`. Every other
- * `success-v8-*.json`-looking name (including historical `success-v7-`
- * files) is not writer-owned and is never a pruning candidate; a foreign
+ * `success-v9-*.json`-looking name (including historical `success-v7-` and
+ * `success-v8-` files) is not writer-owned or a pruning candidate; a foreign
  * file that exactly mimics one possible writer output remains
  * indistinguishable by name.
  */
@@ -398,8 +406,8 @@ export const retentionProbes: {
 };
 
 /**
- * Prunes the oldest exact `success-v8-*.json` regular files beyond the
- * retention limit. Never touches failures, historical schema 3-7 success
+ * Prunes the oldest exact `success-v9-*.json` regular files beyond the
+ * retention limit. Never touches failures, historical schema 3-8 success
  * files, unknown names, directories, or symlinks: candidates pass a no-follow
  * `lstat` regular-file check immediately before deletion, and deletion is
  * bound to the batched entry's `dev`/`ino` identity as re-verified by a
@@ -483,7 +491,7 @@ async function pruneSuccessTelemetry(directory: string, limit: number): Promise<
 }
 
 /**
- * Writes one metadata-only schema-8 record for a completed invocation, then
+ * Writes one metadata-only schema-9 record for a completed invocation, then
  * prunes to the newest `limit` exact success files. The retention limit is
  * injectable only so tests can exercise pruning without 4,097 physical
  * files; production always passes `SUCCESS_RECORD_LIMIT`.

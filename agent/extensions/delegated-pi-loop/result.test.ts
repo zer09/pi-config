@@ -504,7 +504,7 @@ test("finalizeDelegateRun assembles the completed result, writes success telemet
     const artifactDir = await tempArtifactDir();
     const toolResult = await finalizeDelegateRun({ ...completedResult("Done\n\nDELEGATE_RESULT: COMPLETED"), artifactDir });
     assert.match(toolResult.content[0]!.text, /## Delegate solution-a completed/);
-    assert.doesNotMatch(toolResult.content[0]!.text, /delegate-finalize-test|diagnostic log|success-v8/);
+    assert.doesNotMatch(toolResult.content[0]!.text, /delegate-finalize-test|diagnostic log|success-v9/);
     assert.equal("diagnosticPath" in (toolResult.details ?? {}), false);
     // The best-effort success record exists under the owned root, its path
     // never reaches ToolResult content or details, and it carries no
@@ -512,11 +512,11 @@ test("finalizeDelegateRun assembles the completed result, writes success telemet
     const directory = path.join(root, "logs", "delegated-pi-loop");
     const entries = await readdir(directory);
     assert.equal(entries.length, 1);
-    assert.ok(entries[0]!.startsWith("success-v8-"), entries[0]);
+    assert.ok(entries[0]!.startsWith("success-v9-"), entries[0]);
     const successRecord = JSON.parse(await readFile(path.join(directory, entries[0]!), "utf8")) as Record<string, unknown>;
-    assert.equal(successRecord.schemaVersion, 8);
+    assert.equal(successRecord.schemaVersion, 9);
     assert.equal("delegateReport" in successRecord, false);
-    assert.doesNotMatch(JSON.stringify(toolResult.details ?? {}), /success-v8/);
+    assert.doesNotMatch(JSON.stringify(toolResult.details ?? {}), /success-v9/);
     await assert.rejects(() => stat(artifactDir), enoent);
   });
 });
@@ -571,7 +571,7 @@ test("finalizeDelegateRun persists a routes_unavailable report in the diagnostic
     // The parent-facing ToolResult content and details exclude the report.
     assert.doesNotMatch(toolResult.content[0]!.text, /SECRET-REPORT-BODY|DELEGATE_RESULT/);
     assert.doesNotMatch(JSON.stringify(toolResult.details ?? {}), /SECRET-REPORT-BODY/);
-    // The private schema-8 failure diagnostic persists the bounded exact report.
+    // The private schema-9 failure diagnostic persists the bounded exact report.
     const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
     assert.equal(diagnostic.state, "routes_unavailable");
     assert.equal(diagnostic.selectedRoute, undefined);
@@ -674,7 +674,7 @@ test("a successful telemetry write failure never changes the completed output", 
   }
   assert.match(toolResult.content[0]!.text, /## Delegate solution-a completed/);
   assert.equal("diagnosticPath" in (toolResult.details ?? {}), false);
-  assert.doesNotMatch(JSON.stringify(toolResult.details ?? {}), /success-v8|not-a-directory/);
+  assert.doesNotMatch(JSON.stringify(toolResult.details ?? {}), /success-v9|not-a-directory/);
   // Cleanup still ran after the failed telemetry write.
   await assert.rejects(() => stat(artifactDir), enoent);
 });

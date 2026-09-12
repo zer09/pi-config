@@ -2,7 +2,7 @@
 
 ## Status
 
-Status note (2026-08-29, after completion): this plan was implemented and its decisions are historical. New writes moved from schema 7 to schema 8 under `docs/adr/0017-delegated-schema-8-diagnostic-report-persistence.md` (ADR 0017), which adds the failure-only bounded `delegateReport` object; every other schema-7 decision here (the `maxProgressIdleSeconds` measurement, metadata-only success records, retention, and the analyzer) remains current policy as amended by ADR 0017. Historical schema-7 files remain valid and untouched. The body below is preserved unchanged as historical evidence.
+Status note (2026-08-29, after completion; amended 2026-09-13): this plan was implemented. New writes now use schema 9 under ADR 0017 (`docs/adr/0017-delegated-schema-8-diagnostic-report-persistence.md`), with bounded failure-only `delegateReport` and `activeBashCommand` objects, an explicit private-local secret risk, the exact `success-v9-` prefix, and schema-9 completed-sample analyzer eligibility. The maximum-gap measurement, metadata-only success policy, retention bound, and analyzer statistics remain unchanged. Historical schema 3-8 files, including `success-v8-` files, stay untouched. The body below is preserved unchanged as historical evidence.
 
 Ready for implementation by a fresh agent. Not yet implemented.
 

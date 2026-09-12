@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
+import type { DelegateRunResult } from "./types.ts";
 
 test("registration guidelines encode the compact automatic delegation policy without route details", async () => {
   const { delegateRunPromptGuidelines } = await import("./instructions.ts");
@@ -152,6 +153,50 @@ function findInstalledPiPackageRoot(): string | undefined {
   }
   return undefined;
 }
+
+test("active bash command never enters ToolResult details or compact, expanded, and progress rendering", async () => {
+  const piRoot = findInstalledPiPackageRoot();
+  assert.ok(piRoot);
+  const hooksDir = mkdtempSync(path.join(tmpdir(), "pi-delegate-render-"));
+  const hooksPath = path.join(hooksDir, "resolve-hooks.mjs");
+  writeFileSync(hooksPath, PI_RESOLVE_HOOKS_SOURCE, "utf8");
+  const { register } = await import("node:module");
+  register(pathToFileURL(hooksPath).href + "?root=" + encodeURIComponent(piRoot));
+  try {
+    const { finalToolResult } = await import("./result.ts");
+    const { renderDelegateResult } = await import("./render.ts");
+    const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
+    for (const state of ["stalled", "completed"] as const) {
+      const result: DelegateRunResult = {
+        label: "implementation", role: "implementation", state,
+        report: "Done\n\nDELEGATE_RESULT: COMPLETED", artifactDir: "/tmp/not-read",
+        activeBashCommand: { text: "COMMAND-SENTINEL", totalBytes: 16, truncatedBytes: 0 },
+        attempts: [], startedAt: "2026-01-01T00:00:00.000Z", endedAt: "2026-01-01T00:00:01.000Z",
+        elapsedSeconds: 1, streamErrors: [],
+        progress: {
+          label: "implementation", role: "implementation", state, protocol: "pi-rpc", attempt: 1,
+          phase: "tool", lastEvent: "tool_execution_start", lastEventDetail: "bash",
+          lastEventAt: "2026-01-01T00:00:00.000Z", activityIdleSeconds: 1, elapsedSeconds: 1,
+          toolExecutionCount: 1, activityWarningCount: 0, progressWarningCount: 0,
+          activityEventCount: 1, structuralProgressCount: 1, duplicateCheckpointCount: 0,
+          restartAfterWorkCount: 0, reportNudgeCount: 0, reportRound: 1,
+          activeToolCount: 1, activeToolName: "bash",
+        },
+      };
+      const toolResult = finalToolResult(result);
+      assert.doesNotMatch(JSON.stringify(toolResult), /COMMAND-SENTINEL|activeBashCommand/);
+      for (const expanded of [false, true]) {
+        for (const isPartial of [false, true]) {
+          const rendered = renderDelegateResult(toolResult, { expanded, isPartial }, theme, {}).render(120).join("\n");
+          assert.match(rendered, /implementation/);
+          assert.doesNotMatch(rendered, /COMMAND-SENTINEL|activeBashCommand/);
+        }
+      }
+    }
+  } finally {
+    rmSync(hooksDir, { recursive: true, force: true });
+  }
+});
 
 test("the registered availableSkills schema carries the description on the array property, not the item", async () => {
   const piRoot = findInstalledPiPackageRoot();

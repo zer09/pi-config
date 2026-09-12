@@ -6,7 +6,7 @@
  *
  * Scans the delegated-pi-loop diagnostics directory (resolved from the same
  * `PI_CODING_AGENT_DIR` rules as the writer), selects the default eligible
- * sample (schema-8 records of completed invocations, using the completed
+ * sample (schema-9 records of completed invocations, using the completed
  * supervised attempt; fallback attempts are ignored), and reports aggregate
  * nearest-rank p50/p95/p99 statistics plus threshold exceedance counts.
  *
@@ -27,9 +27,9 @@ export const P99_MINIMUM_SAMPLES = 100;
 export const THRESHOLD_MINUTES: readonly number[] = [5, 10, 15, 20, 30, 45];
 
 /**
- * Scan-input safety cap in bytes: a success schema-8 record is a few KB and
- * a failure record stays under the 50 KiB report bound, so a regular file
- * larger than this 1 MiB cap is skipped rather than read.
+ * Scan-input safety cap in bytes: success records are metadata-only; failure
+ * records add at most 50 KiB of report text and 4 KiB of command text before
+ * JSON escaping. Files above this 1 MiB cap are skipped rather than read.
  */
 export const SCAN_MAX_RECORD_BYTES = 1024 * 1024;
 
@@ -121,7 +121,7 @@ function emptyIgnored(): Record<IgnoredReason, number> {
 
 /**
  * Classifies one parsed diagnostic record for the default eligible sample:
- * schema version exactly 8, completed invocation, one completed supervised
+ * schema version exactly 9, completed invocation, one completed supervised
  * attempt (fallback and catalog-only attempts are ignored), and a finite
  * non-negative `maxProgressIdleSeconds` on that attempt.
  */
@@ -131,10 +131,10 @@ export function eligibleGap(record: unknown): { status: "eligible"; value: numbe
   }
   const candidate = record as Record<string, unknown>;
   const schemaVersion = candidate.schemaVersion;
-  if (typeof schemaVersion === "number" && schemaVersion >= 3 && schemaVersion <= 7) {
+  if (typeof schemaVersion === "number" && schemaVersion >= 3 && schemaVersion <= 8) {
     return { status: "ignored", reason: "historicalSchema" };
   }
-  if (schemaVersion !== 8) return { status: "ignored", reason: "unknownSchemaVersion" };
+  if (schemaVersion !== 9) return { status: "ignored", reason: "unknownSchemaVersion" };
   const attempts = Array.isArray(candidate.attempts) ? candidate.attempts : [];
   // A catalog-only history (attempts exist and every one is a catalog
   // preflight skip) carries no supervised evidence at all, so it forms its
@@ -248,7 +248,7 @@ export function formatProgressGapAnalysis(analysis: ProgressGapAnalysis): string
     "delegated structural-progress gap analysis",
     `records scanned: ${analysis.recordsScanned}`,
     `eligible samples: ${analysis.eligibleCount}`,
-    `ignored: historical schema 3-7 ${analysis.ignored.historicalSchema}`
+    `ignored: historical schema 3-8 ${analysis.ignored.historicalSchema}`
       + `, malformed ${analysis.ignored.malformedJson}`
       + `, unknown schema ${analysis.ignored.unknownSchemaVersion}`
       + `, unsuccessful ${analysis.ignored.unsuccessfulRecords}`

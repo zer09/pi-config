@@ -182,6 +182,13 @@ export interface DelegateProgress {
   readonly activeToolIdleSeconds?: number;
 }
 
+/** Private failure-diagnostic evidence only; never progress, attempts, or ToolResult data. */
+export interface ActiveBashCommand {
+  readonly text: string;
+  readonly totalBytes: number;
+  readonly truncatedBytes: number;
+}
+
 export interface MonitorSnapshot {
   readonly phase: string;
   readonly lastEvent: string;
@@ -216,6 +223,7 @@ export interface MonitorSnapshot {
   readonly activeToolElapsedSeconds?: number;
   readonly activeToolIdleSeconds?: number;
   readonly activeToolLastNovelUpdateMonotonic?: number;
+  readonly activeBashCommand?: ActiveBashCommand;
   readonly routeUnavailableSeen: boolean;
   readonly providerFailureCategory?: ProviderFailureCategory;
   readonly reportRound: 1 | 2;
@@ -325,6 +333,8 @@ export interface DelegateRunResult {
   readonly role: DelegateRole;
   readonly state: DelegateState;
   readonly report: string;
+  /** Final selected active bash only, for the private failure diagnostic. */
+  readonly activeBashCommand?: ActiveBashCommand;
   readonly artifactDir: string;
   readonly selectedRoute?: string;
   readonly attempts: readonly ChainAttempt[];

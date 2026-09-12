@@ -444,6 +444,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     const piInvocation = options.piInvocation ?? resolvePiInvocation();
     let selectedRoute: string | undefined;
     let report = "";
+    let activeBashCommand: DelegateRunResult["activeBashCommand"];
     let finalState: DelegateState = "routes_unavailable";
     let finalProgress = initialProgress(label, options);
     let restartAfterWorkCount = 0;
@@ -466,6 +467,8 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       }
       const route = routes[index]!;
 
+      // The next catalog status diagnoses no active tool from the previous route.
+      activeBashCommand = undefined;
       finalProgress = catalogCheckProgress(
         label,
         options.role,
@@ -560,6 +563,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         runtimeResourceArgs: resourceSelection.runtimeArgs,
         verifyRuntimeResources: resourceSelection.verifyRuntimeSpawn,
       });
+      activeBashCommand = attemptStatus.activeBashCommand;
       terminalStreamErrors = attemptStatus.streamErrors;
       attempts.push({
         route: routeKey(route),
@@ -627,7 +631,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         // An exhausted operational chain keeps the existing safe outcome.
         finalState = "routes_unavailable";
         // Diagnostic-only capture of the final supervised attempt's report:
-        // it reaches only the private schema-8 failure diagnostic that
+        // it reaches only the private schema-9 failure diagnostic that
         // finalizeDelegateRun persists before artifact removal, never the
         // model-visible ToolResult. Only the final attempt's report is
         // read; an earlier fallback attempt's report was never kept, and a
@@ -664,7 +668,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     const elapsed = roundedSeconds(performance.now() - started);
     const endedAt = new Date().toISOString();
     // All outcome data travels in memory; no chain-level report.md or status.json
-    // is written. The caller persists the schema-8 run telemetry (failure
+    // is written. The caller persists the schema-9 run telemetry (failure
     // diagnostic or best-effort success record), assembles the tool result,
     // and then removes the artifact directory.
     finalProgress = {
@@ -683,6 +687,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       role: options.role,
       state: finalState,
       report,
+      ...(activeBashCommand === undefined ? {} : { activeBashCommand }),
       artifactDir,
       selectedRoute,
       attempts,

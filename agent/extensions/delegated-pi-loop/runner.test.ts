@@ -30,6 +30,7 @@ type Behavior =
   | "thinking-active"
   | "tool-active"
   | "tool-silent"
+  | "bash-silent"
   | "invalid-stream"
   | "custom"
   | "novel-long"
@@ -307,6 +308,10 @@ if (args.includes("--list-models")) {
       }
       if (behavior === "invalid-stream") {
         process.stdout.write("{malformed\\n");
+        continue;
+      }
+      if (behavior === "bash-silent") {
+        emit({ type: "tool_execution_start", toolCallId: "bash", toolName: "bash", args: { command: "COMMAND-SENTINEL " + route + "\\nprintf '終'", env: { X: "ARG-SENTINEL" } } });
         continue;
       }
       if (behavior === "thinking-active" || behavior === "tool-active" || behavior === "tool-silent") {
@@ -1167,7 +1172,7 @@ test("raw reason values never reach statuses, Markdown, or details; diagnostics 
   const diagnosticPath = toolResult.details?.diagnosticPath;
   assert.equal(typeof diagnosticPath, "string");
   const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
-  assert.equal(diagnostic.schemaVersion, 8);
+  assert.equal(diagnostic.schemaVersion, 9);
   assert.equal(diagnostic.delegateOutcome, "blocked");
   assert.equal(diagnostic.terminalReason, "unspecified");
   assert.equal(diagnostic.reasonStatus, "rejected");
@@ -1468,6 +1473,48 @@ test("meaningful thinking and tool activity continue beyond the old one-ninth bo
   }
 });
 
+test("only the final selected active bash command survives fallback in memory", async () => {
+  for (const last of ["bash-silent", "tool-silent", "complete", "catalog-only"] as const) {
+    const catalog = ["prov-a/model-x"];
+    if (last !== "catalog-only") catalog.push("prov-b/model-y");
+    const fixture = await fakePi(catalog, {
+      "prov-a/model-x": "bash-silent",
+      "prov-b/model-y": last === "catalog-only" ? "complete" : last,
+    });
+    const updates: DelegateProgress[] = [];
+    await runAndFinalize(baseOptions(fixture, {
+      routingConfig: twoTierRoutingConfig(),
+      activityWarningMs: 80,
+      activityIdleMs: 300,
+      onProgress: (progress) => updates.push(progress),
+    }), async (result, finalize) => {
+      assert.equal(result.attempts.length, 2);
+      assert.equal(result.attempts[0]?.state, "stalled");
+      assert.equal(result.attempts[0]?.restartAfterWork, true);
+      if (last === "bash-silent") {
+        assert.equal(result.progress.activeToolName, "bash");
+        const command = "COMMAND-SENTINEL prov-b/model-y\nprintf '終'";
+        assert.deepEqual(result.activeBashCommand, { text: command, totalBytes: Buffer.byteLength(command), truncatedBytes: 0 });
+      } else {
+        assert.equal(Object.hasOwn(result, "activeBashCommand"), false, last);
+      }
+      assert.doesNotMatch(JSON.stringify(updates), /COMMAND-SENTINEL|ARG-SENTINEL|activeBashCommand/);
+      assert.doesNotMatch(JSON.stringify(result.attempts), /COMMAND-SENTINEL|ARG-SENTINEL|activeBashCommand/);
+      const toolResult = await finalize();
+      assert.doesNotMatch(JSON.stringify(toolResult), /COMMAND-SENTINEL|ARG-SENTINEL|activeBashCommand/);
+      if (last !== "complete") {
+        const diagnostic = JSON.parse(await readFile(toolResult.details?.diagnosticPath as string, "utf8"));
+        assert.equal(diagnostic.schemaVersion, 9);
+        assert.deepEqual(diagnostic.activeBashCommand, result.activeBashCommand);
+        assert.doesNotMatch(JSON.stringify(diagnostic.attempts), /COMMAND-SENTINEL|ARG-SENTINEL|activeBashCommand/);
+        const { activeBashCommand, ...metadata } = diagnostic;
+        assert.doesNotMatch(JSON.stringify(metadata), /COMMAND-SENTINEL|ARG-SENTINEL/);
+        if (activeBashCommand !== undefined) assert.ok(!activeBashCommand.text.includes("prov-a/model-x"));
+      }
+    });
+  }
+});
+
 test("a silent active tool propagates per-attempt idle telemetry through attempts and details", async () => {
   const fixture = await fakePi(["prov-1/model-x"], { "prov-1/model-x": "tool-silent" });
   await runAndFinalize(baseOptions(fixture, {
@@ -1635,7 +1682,7 @@ test("an exhausted operational chain persists full per-attempt liveness evidence
         assert.ok(Number.isFinite(attempt[key] as number), key);
       }
     }
-    // The exhausted chain persists the schema-8 diagnostic with the same
+    // The exhausted chain persists the schema-9 diagnostic with the same
     // per-attempt evidence on every attempt record.
     const toolResult = await finalize();
     const diagnosticPath = toolResult.details?.diagnosticPath as string;
@@ -1686,11 +1733,11 @@ test("an exhausted single-route invalid_result chain captures the final report f
   assert.match(toolResult.content[0]!.text, /## Delegate solution-a failed: routes_unavailable/);
   assert.doesNotMatch(toolResult.content[0]!.text, /Ran out of budget|DELEGATE_RESULT/);
   assert.doesNotMatch(JSON.stringify(toolResult.details ?? {}), /Ran out of budget|DELEGATE_RESULT/);
-  // The private schema-8 failure diagnostic persists the bounded exact report.
+  // The private schema-9 failure diagnostic persists the bounded exact report.
   const diagnosticPath = toolResult.details?.diagnosticPath;
   assert.equal(typeof diagnosticPath, "string");
   const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
-  assert.equal(diagnostic.schemaVersion, 8);
+  assert.equal(diagnostic.schemaVersion, 9);
   assert.equal(diagnostic.state, "routes_unavailable");
   const delegateReport = diagnostic.delegateReport as { text: string; totalBytes: number; truncatedBytes: number };
   assert.equal(delegateReport.text, `${reportText}\n`);
@@ -1789,7 +1836,7 @@ test("an exhausted chain keeps routes_unavailable when the final report vanishes
   const diagnosticPath = toolResult.details?.diagnosticPath;
   assert.equal(typeof diagnosticPath, "string");
   const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
-  assert.equal(diagnostic.schemaVersion, 8);
+  assert.equal(diagnostic.schemaVersion, 9);
   assert.equal(diagnostic.state, "routes_unavailable");
   assert.equal("delegateReport" in diagnostic, false);
   assert.doesNotMatch(JSON.stringify(diagnostic), /Ran out of budget|DELEGATE_RESULT/);
@@ -1830,7 +1877,7 @@ test("an exhausted chain keeps routes_unavailable when the final report is repla
   const diagnosticPath = toolResult.details?.diagnosticPath;
   assert.equal(typeof diagnosticPath, "string");
   const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8")) as Record<string, unknown>;
-  assert.equal(diagnostic.schemaVersion, 8);
+  assert.equal(diagnostic.schemaVersion, 9);
   assert.equal(diagnostic.state, "routes_unavailable");
   assert.equal("delegateReport" in diagnostic, false);
   assert.doesNotMatch(JSON.stringify(diagnostic), /Ran out of budget|DELEGATE_RESULT|OUTSIDE-REPORT-CONTENT/);
@@ -2994,7 +3041,7 @@ test("a catalog-only final route leaves no prior supervised telemetry in top-lev
       assert.equal(key in result.progress, false, key);
     }
     // The same omission holds in the sanitized ToolResult details.progress
-    // and in the schema-8 failure record's top-level telemetry.
+    // and in the schema-9 failure record's top-level telemetry.
     const toolResult = await finalize();
     const details = toolResult.details as { progress?: Record<string, unknown>; diagnosticPath?: string };
     const sanitizedProgress = details.progress!;
