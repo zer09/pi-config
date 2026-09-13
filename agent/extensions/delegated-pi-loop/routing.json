@@ -19,7 +19,7 @@
         }
       }
     },
-    "tencent/hy4-preview": {
+    "MiniMaxAI/MiniMax-M3": {
       "providers": {
         "commandcode": {
           "thinking": ["low", "medium", "high"],
@@ -27,7 +27,7 @@
         }
       }
     },
-    "hy4-preview": {
+    "minimax-m3": {
       "providers": {
         "opencode-go": { "thinking": ["off", "high"], "default": "high" }
       }
@@ -225,12 +225,12 @@
     "gate-e": {
       "tiers": [
         {
-          "model": "tencent/hy4-preview",
+          "model": "MiniMaxAI/MiniMax-M3",
           "thinking": "high",
           "providers": ["commandcode"]
         },
         {
-          "model": "hy4-preview",
+          "model": "minimax-m3",
           "thinking": "high",
           "providers": ["opencode-go"]
         }

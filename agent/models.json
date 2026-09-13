@@ -228,12 +228,12 @@
           }
         },
         {
-          "id": "tencent/hy4-preview",
-          "name": "Tencent Hy4 Preview (Command Code)",
+          "id": "MiniMaxAI/MiniMax-M3",
+          "name": "MiniMax M3 (Command Code)",
           "reasoning": true,
-          "input": ["text"],
-          "contextWindow": 1048576,
-          "maxTokens": 65536,
+          "input": ["text", "image"],
+          "contextWindow": 1000000,
+          "maxTokens": 131072,
           "thinkingLevelMap": {
             "minimal": null,
             "low": "low",
@@ -243,9 +243,9 @@
             "max": null
           },
           "cost": {
-            "input": 0.834,
-            "output": 2.501,
-            "cacheRead": 0.042,
+            "input": 0.3,
+            "output": 1.2,
+            "cacheRead": 0.06,
             "cacheWrite": 0
           }
         },
