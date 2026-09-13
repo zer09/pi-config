@@ -239,6 +239,11 @@
     "gate-f": {
       "tiers": [
         {
+          "model": "deepseek/deepseek-v4-flash-free",
+          "thinking": "high",
+          "providers": ["orcarouter"]
+        },
+        {
           "model": "deepseek-flash",
           "thinking": "xhigh",
           "providers": ["opencode-go"]
