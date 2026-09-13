@@ -4,19 +4,43 @@
     { "slug": "cgpt2", "name": "OpenAI Codex CGPT2" },
     {
       "slug": "cgpt3",
-      "name": "OpenAI Codex CGPT3 K12 adrian.santos@shsgensan.onmicrosoft.com"
+      "name": "adrian"
     },
     {
       "slug": "cgpt4",
-      "name": "OpenAI Codex CGPT4 K12 elaine.alvarez@shsgensan.onmicrosoft.com"
+      "name": "elaine"
     },
     {
       "slug": "cgpt5",
-      "name": "OpenAI Codex CGPT5 K12 ethan.carter@cekinghs.org"
+      "name": "ethan"
     },
     {
       "slug": "cgpt6",
-      "name": "OpenAI Codex CGPT6 K12 emily.parker@cekinghs.org"
+      "name": "emily"
+    },
+    {
+      "slug": "cgpt7",
+      "name": "dominic"
+    },
+    {
+      "slug": "cgpt8",
+      "name": "danielle"
+    },
+    {
+      "slug": "cgpt9",
+      "name": "elijah"
+    },
+    {
+      "slug": "cgpt10",
+      "name": "joanna"
+    },
+    {
+      "slug": "cgpt11",
+      "name": "regina"
+    },
+    {
+      "slug": "cgpt12",
+      "name": "danielle"
     }
   ]
 }
