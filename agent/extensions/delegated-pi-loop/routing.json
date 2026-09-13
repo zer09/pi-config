@@ -239,25 +239,6 @@
     "gate-f": {
       "tiers": [
         {
-          "model": "deepseek/deepseek-v4.1-flash",
-          "thinking": "xhigh",
-          "providers": ["commandcode"]
-        },
-        {
-          "model": "deepseek-flash",
-          "thinking": "xhigh",
-          "providers": ["opencode-go"]
-        },
-        {
-          "model": "deepseek/deepseek-v4-flash-free",
-          "thinking": "high",
-          "providers": ["orcarouter"]
-        }
-      ]
-    },
-    "gate-g": {
-      "tiers": [
-        {
           "model": "deepseek-flash",
           "thinking": "xhigh",
           "providers": ["opencode-go"]
@@ -316,7 +297,7 @@
   },
   "assignments": {
     "solution": ["gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "gate-f"],
-    "review": ["gate-a", "gate-b", "gate-g"],
+    "review": ["gate-a", "gate-b", "gate-c"],
     "implementation": "implementation",
     "remediation": "implementation",
     "verification": "verification",
