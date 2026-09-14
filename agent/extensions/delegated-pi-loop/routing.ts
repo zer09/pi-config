@@ -375,26 +375,14 @@ interface ProviderEntry {
   readonly thinking: ThinkingLevel;
 }
 
-function poolPrimary(providers: readonly string[], selection: RouteSelectionOptions): string {
-  if (providers.length === 1) return providers[0]!;
-  const snapshot = selection.codexUsageSnapshot;
-  if (snapshot === undefined || !providers.every(isOpenAICodexProviderId)) {
-    return randomPrimary(providers, selection.random);
-  }
-
+function poolPrimary(providers: readonly string[], selection: RouteSelectionOptions): string | undefined {
   let bestScore = 0;
   let healthiest: string[] = [];
-  const unknown: string[] = [];
   for (const provider of providers) {
-    const usage = snapshot[provider];
-    if (usage === undefined) {
-      unknown.push(provider);
-      continue;
-    }
-    if (!usage.allowed) continue;
-    // The tighter window limits usable quota. An absent window adds no limit.
-    // getFreshSnapshot already validates windows and owns all freshness checks.
-    const score = Math.min(usage.primary?.remainingPercent ?? 100, usage.secondary?.remainingPercent ?? 100);
+    const usage = selection.codexUsageSnapshot?.[provider];
+    if (usage === undefined || !usage.allowed || usage.primary === undefined) continue;
+    // Only 5-hour capacity decides the primary. The snapshot owns freshness.
+    const score = usage.primary.remainingPercent;
     if (score <= 0) continue;
     if (score > bestScore) {
       bestScore = score;
@@ -405,19 +393,33 @@ function poolPrimary(providers: readonly string[], selection: RouteSelectionOpti
   }
   if (healthiest.length === 1) return healthiest[0]!;
   if (healthiest.length > 1) return randomPrimary(healthiest, selection.random);
-  // Unknown quota can still be usable. If every provider is exhausted, keep
-  // the legacy random primary rather than removing any fallback route.
-  return randomPrimary(unknown.length > 0 ? unknown : providers, selection.random);
 }
 
 function poolRoutes(model: string, entries: readonly ProviderEntry[], selection: RouteSelection): PiRoute[] {
   if (entries.length === 0) return [];
   const providers = entries.map((entry) => entry.provider);
-  const primary = poolPrimary(providers, selection);
+  const snapshot = selection.codexUsageSnapshot;
+  let primary: string | undefined;
+  let fallbackOrder = providers;
+  if (providers.length > 1 && snapshot !== undefined && providers.every(isOpenAICodexProviderId)) {
+    const standard = providers.filter((provider) => snapshot[provider]?.planType !== "prolite");
+    const premium = providers.filter((provider) => snapshot[provider]?.planType === "prolite");
+    const unknown = standard.filter((provider) => {
+      const usage = snapshot[provider];
+      return usage === undefined || (usage.allowed && usage.primary === undefined);
+    });
+    primary = poolPrimary(standard, selection);
+    // Try unknown standard capacity before spending a known Pro Lite reserve.
+    if (primary === undefined && unknown.length > 0) primary = randomPrimary(unknown, selection.random);
+    primary ??= poolPrimary(premium, selection);
+    if (primary !== undefined) fallbackOrder = [...standard, ...premium];
+  }
+  // With no usable or unknown candidate, preserve the entire legacy random chain.
+  primary ??= providers.length === 1 ? providers[0]! : randomPrimary(providers, selection.random);
   const thinkingOf = new Map(entries.map((entry) => [entry.provider, entry.thinking] as const));
   return [
     primary,
-    ...providers.filter((provider) => provider !== primary),
+    ...fallbackOrder.filter((provider) => provider !== primary),
   ].map((provider) => ({ kind: "pi" as const, provider, model, thinking: thinkingOf.get(provider)! }));
 }
 
@@ -564,9 +566,10 @@ export function roleIdsInFamily(config: RoutingConfig, family: RoleFamily): read
  * One shared selector for every role: per tier, derive eligible providers from
  * capabilities, intersect allowlists, disabled providers, and override
  * exclusions, then choose a usage-aware primary for all-Codex pools when a
- * snapshot is supplied, or a random primary otherwise. Single-provider tiers
- * consume no draw. Append all remaining providers in stable config order and
- * concatenate the tiers without reordering them.
+ * fresh snapshot is supplied, reserving known Pro Lite providers until standard
+ * and unknown capacity cannot serve as primary. Otherwise use a random primary.
+ * Single-provider tiers consume no draw. Keep fallback config order within the
+ * standard/unknown and Pro Lite groups, and concatenate tiers without reordering.
  */
 export function selectRoutes(
   config: RoutingConfig,
