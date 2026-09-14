@@ -213,6 +213,7 @@ async function fakePi(
     reportText?: string;
     recoveryReportText?: string;
     routeReportText?: Readonly<Record<string, string>>;
+    providerErrorText?: string;
   } = {},
 ): Promise<{
   root: string;
@@ -231,6 +232,7 @@ const behaviors = ${JSON.stringify(behaviors)};
 const customReportText = ${JSON.stringify(options.reportText ?? null)};
 const recoveryReportText = ${JSON.stringify(options.recoveryReportText ?? null)};
 const routeReportText = ${JSON.stringify(options.routeReportText ?? null)};
+const providerErrorText = ${JSON.stringify(options.providerErrorText ?? null)};
 const catalogDelayMs = ${options.catalogDelayMs ?? 0};
 const catalogDelayRoute = ${JSON.stringify(options.catalogDelayRoute ?? null)};
 const spawnMarkerPath = ${JSON.stringify(spawnMarkerPath ?? null)};
@@ -359,7 +361,7 @@ if (args.includes("--list-models")) {
       if (behavior === "unavailable" || behavior === "credit" || behavior === "tool-unavailable" || (behavior === "missing-provider" && round === 2)) {
         emit({ type: "message_update", assistantMessageEvent: {
           type: "error",
-          errorMessage: behavior === "credit" ? "credit balance depleted PRIVATE" : "503 Service unavailable",
+          errorMessage: providerErrorText ?? (behavior === "credit" ? "credit balance depleted PRIVATE" : "503 Service unavailable"),
         } });
         emit({ type: "agent_end", willRetry: false });
         emit({ type: "agent_settled" });
@@ -844,6 +846,42 @@ test("classifies exactly the operational failure states as fallback-eligible", (
   for (const state of ["completed", "blocked", "delegate_failed", "timed_out", "interrupted", "catalog_unavailable", "cleanup_failed"]) {
     assert.equal(isOperationalFailureState(state as never), false, state);
   }
+});
+
+test("forwards the Codex usage snapshot once and selects one primary for the entire fallback chain", async () => {
+  const providers = ["openai-codex", "openai-codex-a", "openai-codex-b", "openai-codex-c"];
+  const routingConfig = validateRoutingConfig({
+    version: 2,
+    thinkingLevels: ["high"],
+    disabledProviders: [],
+    models: { "model-x": { providers: Object.fromEntries(providers.map((provider) => [
+      provider, { thinking: ["high"], default: "high" },
+    ])) } },
+    profiles: { pool: { overridePolicy: "rejected", tiers: [{ model: "model-x", thinking: "high" }] } },
+    assignments: uniformAssignments("pool"),
+  });
+  const snapshot = Object.freeze(Object.fromEntries(["openai-codex-b", "openai-codex-c"].map((providerId) => [
+    providerId, Object.freeze({
+      providerId, fetchedAt: 0, allowed: true, primary: Object.freeze({ remainingPercent: 80 }),
+    }),
+  ])));
+  // Empty catalog visits every fallback without starting a runtime child.
+  const fixture = await fakePi([], {});
+  let snapshotReads = 0;
+  let draws = 0;
+  await runAndFinalize({
+    ...baseOptions(fixture, { routingConfig }),
+    get codexUsageSnapshot() { snapshotReads += 1; return snapshot; },
+    random: () => { draws += 1; return 0; },
+  }, async (result) => {
+    assert.equal(result.state, "routes_unavailable");
+    assert.deepEqual(result.attempts.map((attempt) => attempt.route), [
+      "openai-codex-b/model-x:high", "openai-codex/model-x:high",
+      "openai-codex-a/model-x:high", "openai-codex-c/model-x:high",
+    ]);
+    assert.equal(snapshotReads, 1);
+    assert.equal(draws, 1, "the highest-score tie must draw only once for the whole chain");
+  });
 });
 
 test("skips an uncatalogued primary and completes on a fresh fallback route", async () => {
@@ -1414,6 +1452,44 @@ function providerCountRoutingConfig(count: number) {
     assignments: uniformAssignments("counted"),
   });
 }
+
+test("provider tracking includes supervised attempts but excludes catalog-only and unvisited routes", async () => {
+  const fixture = await fakePi(["prov-2/model-x", "prov-3/model-x"], { "prov-2/model-x": "unavailable" });
+  const progress: DelegateProgress[] = [];
+  await runAndFinalize(baseOptions(fixture, {
+    routingConfig: providerCountRoutingConfig(4), random: () => 0,
+    onProgress: (update) => progress.push(update),
+  }), async (result, finalize) => {
+    assert.equal(result.state, "completed");
+    assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["catalog_unavailable", "provider_failed", "completed"]);
+    assert.deepEqual(result.supervisedProviderIds, ["prov-2", "prov-3"]);
+    assert.deepEqual(result.quotaFailedProviderIds, []);
+    assert.doesNotMatch(JSON.stringify(progress), /supervisedProviderIds|quotaFailedProviderIds/);
+    assert.doesNotMatch(JSON.stringify(await finalize()), /supervisedProviderIds|quotaFailedProviderIds/);
+  });
+});
+
+test("provider tracking records every quota category even when a later provider succeeds", async () => {
+  for (const [category, errorText, quotaFailed] of [
+    ["quota_exhausted", "quota exhausted", true],
+    ["credits_exhausted", "credit balance depleted", true],
+    ["billing_limit", "billing limit", true],
+    ["usage_limit", "usage limit", true],
+    ["rate_limit", "429 rate limit", true],
+    ["authentication", "401 unauthorized", false],
+    ["provider_unavailable", "503 Service unavailable", false],
+  ] as const) {
+    const fixture = await fakePi(["prov-a/model-x", "prov-b/model-y"], { "prov-a/model-x": "unavailable" }, {
+      providerErrorText: errorText,
+    });
+    await runAndFinalize(baseOptions(fixture, { routingConfig: twoTierRoutingConfig() }), async (result) => {
+      assert.equal(result.state, "completed", category);
+      assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["provider_failed", "completed"], category);
+      assert.deepEqual(result.supervisedProviderIds, ["prov-a", "prov-b"], category);
+      assert.deepEqual(result.quotaFailedProviderIds, quotaFailed ? ["prov-a"] : [], category);
+    });
+  }
+});
 
 test("a delayed catalog preflight consumes no shared work budget", async () => {
   const fixture = await fakePi(

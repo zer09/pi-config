@@ -1,5 +1,5 @@
 import type { Component } from "@earendil-works/pi-tui";
-import type { RoutingConfig } from "./routing.ts";
+import type { RouteSelectionOptions, RoutingConfig } from "./routing.ts";
 
 export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
@@ -338,6 +338,10 @@ export interface DelegateRunResult {
   readonly artifactDir: string;
   readonly selectedRoute?: string;
   readonly attempts: readonly ChainAttempt[];
+  /** Private cache lifecycle only: providers that reached supervisePi, never catalog-only checks. */
+  readonly supervisedProviderIds?: readonly string[];
+  /** Private cache lifecycle only: supervised providers with a quota, credit, billing, usage, or rate limit failure. */
+  readonly quotaFailedProviderIds?: readonly string[];
   readonly startedAt: string;
   readonly endedAt: string;
   readonly elapsedSeconds: number;
@@ -396,6 +400,11 @@ export interface ExtensionContext {
   readonly hasUI?: boolean;
   /** Parent session's active model; supplies the selected provider and model id. */
   readonly model?: { readonly provider: string; readonly id?: string };
+  readonly modelRegistry: {
+    getProviderAuth(providerId: string): Promise<{
+      readonly auth: { readonly apiKey?: string };
+    } | undefined>;
+  };
   readonly ui?: ExtensionUI;
 }
 
@@ -461,6 +470,8 @@ export interface RunOptions {
   readonly parentModelId?: string;
   /** Deterministic injection point for random primary selection inside multi-provider tiers. */
   readonly random?: () => number;
+  /** Internal, already-fresh Codex usage snapshot for this run's primary selection. */
+  readonly codexUsageSnapshot?: RouteSelectionOptions["codexUsageSnapshot"];
   readonly onProgress?: (progress: DelegateProgress) => void;
   /** Internal test seam for the five-minute accepted-activity warning. */
   readonly activityWarningMs?: number;

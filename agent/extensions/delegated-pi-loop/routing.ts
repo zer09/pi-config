@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { isOpenAICodexProviderId } from "../openai-codex-aliases/provider-id.ts";
+import type { CodexUsageRecord } from "./codex-usage-cache.ts";
 import { THINKING_LEVELS } from "./types.ts";
 import type { DelegateRole, PiRoute, RoutingOverride, ThinkingLevel } from "./types.ts";
 
@@ -95,6 +97,8 @@ export interface RoutingConfig {
 export interface RouteSelectionOptions {
   /** Injected randomness so tests pin random primaries without flakiness. */
   readonly random?: () => number;
+  /** Already-fresh records from getFreshSnapshot, keyed by provider ID. */
+  readonly codexUsageSnapshot?: Readonly<Partial<Record<string, CodexUsageRecord>>>;
 }
 
 const OVERRIDE_POLICIES: readonly OverridePolicy[] = ["allowed", "rejected"];
@@ -361,8 +365,7 @@ function randomPrimary(eligible: readonly string[], random?: () => number): stri
   return eligible[index]!;
 }
 
-interface RouteSelection {
-  readonly random?: () => number;
+interface RouteSelection extends RouteSelectionOptions {
   readonly pinnedProvider?: string;
   readonly excluded: ReadonlySet<string>;
 }
@@ -372,12 +375,45 @@ interface ProviderEntry {
   readonly thinking: ThinkingLevel;
 }
 
+function poolPrimary(providers: readonly string[], selection: RouteSelectionOptions): string {
+  if (providers.length === 1) return providers[0]!;
+  const snapshot = selection.codexUsageSnapshot;
+  if (snapshot === undefined || !providers.every(isOpenAICodexProviderId)) {
+    return randomPrimary(providers, selection.random);
+  }
+
+  let bestScore = 0;
+  let healthiest: string[] = [];
+  const unknown: string[] = [];
+  for (const provider of providers) {
+    const usage = snapshot[provider];
+    if (usage === undefined) {
+      unknown.push(provider);
+      continue;
+    }
+    if (!usage.allowed) continue;
+    // The tighter window limits usable quota. An absent window adds no limit.
+    // getFreshSnapshot already validates windows and owns all freshness checks.
+    const score = Math.min(usage.primary?.remainingPercent ?? 100, usage.secondary?.remainingPercent ?? 100);
+    if (score <= 0) continue;
+    if (score > bestScore) {
+      bestScore = score;
+      healthiest = [provider];
+    } else if (score === bestScore) {
+      healthiest.push(provider);
+    }
+  }
+  if (healthiest.length === 1) return healthiest[0]!;
+  if (healthiest.length > 1) return randomPrimary(healthiest, selection.random);
+  // Unknown quota can still be usable. If every provider is exhausted, keep
+  // the legacy random primary rather than removing any fallback route.
+  return randomPrimary(unknown.length > 0 ? unknown : providers, selection.random);
+}
+
 function poolRoutes(model: string, entries: readonly ProviderEntry[], selection: RouteSelection): PiRoute[] {
   if (entries.length === 0) return [];
   const providers = entries.map((entry) => entry.provider);
-  // One random primary spreads load across providers; single-provider
-  // pools stay deterministic without consuming a draw.
-  const primary = providers.length === 1 ? providers[0]! : randomPrimary(providers, selection.random);
+  const primary = poolPrimary(providers, selection);
   const thinkingOf = new Map(entries.map((entry) => [entry.provider, entry.thinking] as const));
   return [
     primary,
@@ -397,7 +433,7 @@ function tierRoutes(config: RoutingConfig, tier: RoutingTier, selection: RouteSe
 function modelPoolRoutes(config: RoutingConfig, model: string, selection: RouteSelection): PiRoute[] {
   // A model-only override treats every capable provider as one logical
   // pool: disabled and excluded providers drop out first, then the shared
-  // single/random primary selection orders one chain in which each
+  // usage-aware or random primary selection orders one chain in which each
   // provider runs at its own configured default thinking level.
   const capability = config.models[model]!.providers;
   const entries = Object.keys(capability)
@@ -527,10 +563,10 @@ export function roleIdsInFamily(config: RoutingConfig, family: RoleFamily): read
 /**
  * One shared selector for every role: per tier, derive eligible providers from
  * capabilities, intersect allowlists, disabled providers, and override
- * exclusions, draw one random primary for a multi-provider tier
- * (single-provider tiers stay deterministic and consume no draw), then
- * append the remaining providers in stable config order and concatenate
- * the tiers.
+ * exclusions, then choose a usage-aware primary for all-Codex pools when a
+ * snapshot is supplied, or a random primary otherwise. Single-provider tiers
+ * consume no draw. Append all remaining providers in stable config order and
+ * concatenate the tiers without reordering them.
  */
 export function selectRoutes(
   config: RoutingConfig,
@@ -553,6 +589,7 @@ export function selectRoutes(
   const validatedOverride = override === undefined ? undefined : validateOverrideShape(override);
   const selection: RouteSelection = {
     random: options.random,
+    codexUsageSnapshot: options.codexUsageSnapshot,
     pinnedProvider: validatedOverride?.provider,
     excluded: new Set(validatedOverride?.excludeProviders ?? []),
   };

@@ -420,11 +420,12 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
   }
 
   // Route selection happens exactly once per invocation through the shared
-  // selector, which also fixes each tier's single random primary draw. It
+  // selector, which also fixes each tier's primary once. It
   // completes before any private artifact exists, so a rejected config or
   // override leaves no artifact directory behind.
   const routes = selectRoutes(routing, options.role, options.routingOverride, {
     random: options.random,
+    codexUsageSnapshot: options.codexUsageSnapshot,
   });
 
   // The child resource selection is built (and its extension and skill
@@ -455,6 +456,8 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     await chmod(promptPath, 0o600);
 
     const attempts: ChainAttempt[] = [];
+    const supervisedProviderIds = new Set<string>();
+    const quotaFailedProviderIds = new Set<string>();
     const piInvocation = options.piInvocation ?? resolvePiInvocation();
     let selectedRoute: string | undefined;
     let report = "";
@@ -606,6 +609,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         },
       };
       const attemptStarted = performance.now();
+      supervisedProviderIds.add(route.provider);
       const attemptStatus = await supervisePi({
         ...common,
         route,
@@ -632,6 +636,10 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         retainOnFailure: index < routes.length - 1,
       }, retained);
       retained = attemptStatus.retainedSession;
+      if (["quota_exhausted", "credits_exhausted", "billing_limit", "usage_limit", "rate_limit"]
+        .includes(attemptStatus.providerFailureCategory ?? "")) {
+        quotaFailedProviderIds.add(route.provider);
+      }
       activeBashCommand = attemptStatus.activeBashCommand;
       terminalStreamErrors = attemptStatus.streamErrors;
       attempts.push({
@@ -758,6 +766,8 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       artifactDir,
       selectedRoute,
       attempts,
+      supervisedProviderIds: [...supervisedProviderIds],
+      quotaFailedProviderIds: [...quotaFailedProviderIds],
       startedAt,
       endedAt,
       elapsedSeconds: elapsed,
