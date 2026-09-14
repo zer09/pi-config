@@ -862,7 +862,7 @@ test("forwards the Codex usage snapshot once and selects one primary for the ent
   });
   const snapshot = Object.freeze(Object.fromEntries(["openai-codex-b", "openai-codex-c"].map((providerId) => [
     providerId, Object.freeze({
-      providerId, fetchedAt: 0, allowed: true, primary: Object.freeze({ remainingPercent: 80 }),
+      providerId, planType: "plus", fetchedAt: 0, allowed: true, primary: Object.freeze({ remainingPercent: 80 }),
     }),
   ])));
   // Empty catalog visits every fallback without starting a runtime child.

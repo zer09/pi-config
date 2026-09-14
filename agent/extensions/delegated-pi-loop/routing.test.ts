@@ -117,6 +117,7 @@ function usageSnapshot(records: Readonly<Record<string, {
     providerId,
     Object.freeze({
       providerId,
+      planType: "plus",
       fetchedAt: 0,
       allowed: usage.allowed ?? true,
       ...(usage.primary === undefined ? {} : { primary: Object.freeze({ remainingPercent: usage.primary, resetAt: 1 }) }),

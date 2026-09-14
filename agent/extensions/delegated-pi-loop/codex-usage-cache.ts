@@ -16,6 +16,7 @@ export interface CodexUsageWindow {
 
 export interface CodexUsageRecord {
   readonly providerId: string;
+  readonly planType: string;
   readonly fetchedAt: number;
   readonly allowed: boolean;
   readonly primary?: CodexUsageWindow;
@@ -58,12 +59,22 @@ function parseWindow(value: unknown): CodexUsageWindow | undefined {
   });
 }
 
+function normalizePlanType(value: unknown): string | undefined {
+  // Reject long values instead of truncating them into a different plan label.
+  if (typeof value !== "string" || value.length > 64) return;
+  const planType = value.trim();
+  if (!/^[a-z][a-z0-9_-]*$/i.test(planType)) return;
+  return planType.toLowerCase();
+}
+
 function parseRecord(value: unknown): CodexUsageRecord | undefined {
   if (
     !isObject(value)
     || typeof value.providerId !== "string" || !value.providerId.trim()
     || !isNonNegative(value.fetchedAt) || typeof value.allowed !== "boolean"
   ) return;
+  const planType = normalizePlanType(value.planType);
+  if (!planType || planType !== value.planType) return;
   const primary = parseWindow(value.primary);
   const secondary = parseWindow(value.secondary);
   if (Object.hasOwn(value, "primary") && !primary) return;
@@ -71,6 +82,7 @@ function parseRecord(value: unknown): CodexUsageRecord | undefined {
   if (!primary && !secondary) return;
   return Object.freeze({
     providerId: value.providerId,
+    planType,
     fetchedAt: value.fetchedAt,
     allowed: value.allowed,
     ...(primary ? { primary } : {}),
@@ -81,7 +93,9 @@ function parseRecord(value: unknown): CodexUsageRecord | undefined {
 function parseUsage(providerId: string, fetchedAt: number, payload: unknown): CodexUsageRecord | undefined {
   if (!isObject(payload) || !isObject(payload.rate_limit)) return;
   const rateLimit = payload.rate_limit;
-  const record: Record<string, unknown> = { providerId, fetchedAt, allowed: rateLimit.allowed };
+  const record: Record<string, unknown> = {
+    providerId, planType: normalizePlanType(payload.plan_type), fetchedAt, allowed: rateLimit.allowed,
+  };
   for (const [source, target] of [["primary_window", "primary"], ["secondary_window", "secondary"]]) {
     if (!Object.hasOwn(rateLimit, source)) continue;
     const window = rateLimit[source];
@@ -103,7 +117,7 @@ function isFresh(record: CodexUsageRecord, now: number): boolean {
 async function loadRecords(cachePath: string): Promise<Map<string, CodexUsageRecord>> {
   try {
     const document: unknown = JSON.parse(await readFile(cachePath, "utf8"));
-    if (!isObject(document) || document.version !== 1 || !Array.isArray(document.entries)) return new Map();
+    if (!isObject(document) || document.version !== 2 || !Array.isArray(document.entries)) return new Map();
     const records = new Map<string, CodexUsageRecord>();
     for (const value of document.entries) {
       const record = parseRecord(value);
@@ -126,7 +140,7 @@ async function persistRecords(cachePath: string, records: Map<string, CodexUsage
   try {
     try {
       await handle.chmod(0o600);
-      await handle.writeFile(`${JSON.stringify({ version: 1, entries: [...records.values()] }, null, 2)}\n`, "utf8");
+      await handle.writeFile(`${JSON.stringify({ version: 2, entries: [...records.values()] }, null, 2)}\n`, "utf8");
       await handle.sync();
     } finally {
       await handle.close();
@@ -214,7 +228,7 @@ async function fetchRecord(
 export async function createCodexUsageCache(options: CodexUsageCacheOptions): Promise<CodexUsageCache> {
   const cachePath = options.cachePath ?? path.join(
     process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent"),
-    "cache", "delegated-pi-loop", "codex-usage-v1.json",
+    "cache", "delegated-pi-loop", "codex-usage-v2.json",
   );
   const now = options.now ?? Date.now;
   const fetchUsage = options.fetch ?? fetch;

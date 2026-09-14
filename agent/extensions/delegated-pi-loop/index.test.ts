@@ -509,7 +509,7 @@ test("the parent lazily shares one cache and first execute auth context, forward
   await Promise.all([first, second]);
   assert.equal(forwarded[0], snapshot);
   assert.equal(forwarded[1], snapshot);
-  snapshot = Object.freeze({ "openai-codex": { providerId: "openai-codex", fetchedAt: 1, allowed: true, primary: { remainingPercent: 80 } } });
+  snapshot = Object.freeze({ "openai-codex": { providerId: "openai-codex", planType: "plus", fetchedAt: 1, allowed: true, primary: { remainingPercent: 80 } } });
   await tool.execute("third", params, undefined, undefined, { cwd: root, modelRegistry: otherRegistry });
   assert.equal(forwarded[2], snapshot, "each run reads the current fresh snapshot");
   assert.equal(creates, 1);

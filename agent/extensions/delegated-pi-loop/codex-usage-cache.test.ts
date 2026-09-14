@@ -21,6 +21,7 @@ async function resolveAuth(providerId: string) {
 
 function usage(usedPercent = 25) {
   return {
+    plan_type: "plus",
     rate_limit: {
       allowed: true,
       primary_window: { used_percent: usedPercent, reset_at: NOW / 1000 + 3600 },
@@ -30,13 +31,13 @@ function usage(usedPercent = 25) {
 }
 
 function record(providerId = "codex-a", fetchedAt = NOW): CodexUsageRecord {
-  return { providerId, fetchedAt, allowed: true, primary: { remainingPercent: 75 } };
+  return { providerId, planType: "plus", fetchedAt, allowed: true, primary: { remainingPercent: 75 } };
 }
 
 async function sandbox(t: TestContext) {
   const root = await mkdtemp(path.join(os.tmpdir(), "codex-usage-test-"));
   t.after(() => rm(root, { recursive: true, force: true }));
-  return { root, cachePath: path.join(root, "cache", "delegated-pi-loop", "codex-usage-v1.json") };
+  return { root, cachePath: path.join(root, "cache", "delegated-pi-loop", "codex-usage-v2.json") };
 }
 
 function cacheAt(cachePath: string, options: Partial<CodexUsageCacheOptions> = {}) {
@@ -51,7 +52,7 @@ function cacheAt(cachePath: string, options: Partial<CodexUsageCacheOptions> = {
 
 async function seed(cachePath: string, entries: readonly unknown[]) {
   await mkdir(path.dirname(cachePath), { recursive: true, mode: 0o700 });
-  await writeFile(cachePath, JSON.stringify({ version: 1, entries }), { mode: 0o600 });
+  await writeFile(cachePath, JSON.stringify({ version: 2, entries }), { mode: 0o600 });
 }
 
 async function stored(cachePath: string): Promise<{ version: number; entries: CodexUsageRecord[] }> {
@@ -86,13 +87,54 @@ test("valid usage uses only the fixed endpoint and required auth headers", async
       return Response.json(usage());
     },
   });
+  assert.equal(calls, 0, "creation and snapshots must not fetch usage");
+  assert.deepEqual(Object.keys(cache.getFreshSnapshot()), []);
   await cache.refresh({ candidateProviderIds: ["codex-a"] });
   assert.equal(calls, 1);
   assert.deepEqual(cache.getFreshSnapshot()["codex-a"], {
-    providerId: "codex-a", fetchedAt: NOW, allowed: true,
+    providerId: "codex-a", planType: "plus", fetchedAt: NOW, allowed: true,
     primary: { remainingPercent: 75, resetAt: NOW / 1000 + 3600 },
     secondary: { remainingPercent: 49.5, resetAt: NOW / 1000 + 7200 },
   });
+});
+
+test("plan labels normalize from WHAM independently of provider IDs and round-trip through v2", async (t) => {
+  const { cachePath } = await sandbox(t);
+  let planType = "";
+  const cache = await cacheAt(cachePath, { fetch: async () => Response.json({ ...usage(), plan_type: planType }) });
+  const providers = ["openai-codex", "openai-codex-pro"];
+  for (const [raw, normalized] of [
+    [" ProLiTe ", "prolite"], ["PRO", "pro"], [" PLUS ", "plus"], ["Team", "team"],
+    ["Pro-Lite", "pro-lite"], ["Pro_Lite", "pro_lite"], ["Future-Plan_2", "future-plan_2"],
+    ["A".repeat(64), "a".repeat(64)],
+  ]) {
+    planType = raw;
+    await cache.refresh({ forcedProviderIds: providers });
+    const snapshot = cache.getFreshSnapshot();
+    for (const providerId of providers) assert.equal(snapshot[providerId]?.planType, normalized);
+    assert.deepEqual(await stored(cachePath), { version: 2, entries: providers.map((providerId) => snapshot[providerId]) });
+    assert.deepEqual((await cacheAt(cachePath)).getFreshSnapshot(), snapshot);
+  }
+});
+
+test("missing or malformed plan_type cannot publish a record or replace a previous plan", async (t) => {
+  const { cachePath } = await sandbox(t);
+  const previous = { ...record(), planType: "prolite" };
+  await seed(cachePath, [previous]);
+  let planType: unknown;
+  const cache = await cacheAt(cachePath, {
+    fetch: async () => Response.json({ ...usage(), plan_type: planType, planType: "prolite" }),
+  });
+  for (const value of [
+    undefined, null, true, 42, {}, ["prolite"], "", "   ", "pro lite", "prolite\nplus", "prolite\u0000",
+    "prolite!", "pro.lite", "prolite/plus", "123", "_prolite", "prólite", "synthetic@example.invalid",
+    "https://example.invalid", "A".repeat(65), "prolite".padEnd(65),
+  ]) {
+    planType = value;
+    await cache.refresh({ forcedProviderIds: ["codex-a", "openai-codex-pro"] });
+    assert.deepEqual(Object.values(cache.getFreshSnapshot()), [previous]);
+    assert.deepEqual((await stored(cachePath)).entries, [previous]);
+  }
 });
 
 test("one-window payloads support either window, absent resets, and exhausted allowed records", async (t) => {
@@ -101,15 +143,15 @@ test("one-window payloads support either window, absent resets, and exhausted al
   const cache = await cacheAt(cachePath, { fetch: async () => Response.json(payload) });
   for (const [field, storedField] of [["primary_window", "primary"], ["secondary_window", "secondary"]] as const) {
     for (const usedPercent of [0, 100, 125]) {
-      payload = { rate_limit: { allowed: true, [field]: { used_percent: usedPercent } } };
+      payload = { plan_type: "plus", rate_limit: { allowed: true, [field]: { used_percent: usedPercent } } };
       await cache.refresh({ forcedProviderIds: ["codex-a"] });
       assert.deepEqual(cache.getFreshSnapshot()["codex-a"], {
-        providerId: "codex-a", fetchedAt: NOW, allowed: true,
+        providerId: "codex-a", planType: "plus", fetchedAt: NOW, allowed: true,
         [storedField]: { remainingPercent: Math.max(0, 100 - usedPercent) },
       });
     }
   }
-  payload = { rate_limit: { allowed: false, primary_window: { used_percent: 10 } } };
+  payload = { plan_type: "plus", rate_limit: { allowed: false, primary_window: { used_percent: 10 } } };
   await cache.refresh({ forcedProviderIds: ["codex-a"] });
   assert.equal(cache.getFreshSnapshot()["codex-a"]?.allowed, false);
 });
@@ -122,11 +164,12 @@ test("malformed present windows and invalid rate limits preserve the previous re
   const invalidWindows: unknown[] = [null, [], {}, "window", { used_percent: "20" }, { used_percent: -1 },
     { used_percent: null }, { used_percent: 10, reset_at: null }, { used_percent: 10, reset_at: 0 },
     { used_percent: 10, reset_at: -1 }, { used_percent: 10, reset_at: "1800000000" }];
-  const payloads: unknown[] = [null, {}, [], { rate_limit: null }, { rate_limit: {} },
-    { rate_limit: { allowed: true } }, { rate_limit: { allowed: "true", primary_window: valid } }];
+  const payloads: unknown[] = [null, {}, [], { plan_type: "plus", rate_limit: null }, { plan_type: "plus", rate_limit: {} },
+    { plan_type: "plus", rate_limit: { allowed: true } },
+    { plan_type: "plus", rate_limit: { allowed: "true", primary_window: valid } }];
   for (const window of invalidWindows) {
-    payloads.push({ rate_limit: { allowed: true, primary_window: window, secondary_window: valid } });
-    payloads.push({ rate_limit: { allowed: true, primary_window: valid, secondary_window: window } });
+    payloads.push({ plan_type: "plus", rate_limit: { allowed: true, primary_window: window, secondary_window: valid } });
+    payloads.push({ plan_type: "plus", rate_limit: { allowed: true, primary_window: valid, secondary_window: window } });
   }
   let body = "";
   const cache = await cacheAt(cachePath, { fetch: async () => new Response(body) });
@@ -136,7 +179,7 @@ test("malformed present windows and invalid rate limits preserve the previous re
     assert.deepEqual(cache.getFreshSnapshot()["codex-a"], previous);
   }
   for (const window of ['{"used_percent":1e400}', '{"used_percent":1,"reset_at":1e400}']) {
-    body = `{"rate_limit":{"allowed":true,"primary_window":${window}}}`;
+    body = `{"plan_type":"plus","rate_limit":{"allowed":true,"primary_window":${window}}}`;
     await cache.refresh({ forcedProviderIds: ["codex-a"] });
     assert.deepEqual(cache.getFreshSnapshot()["codex-a"], previous);
   }
@@ -174,20 +217,25 @@ test("missing, malformed, and unsupported cache files load as empty", async (t) 
   const { cachePath } = await sandbox(t);
   assert.deepEqual(Object.keys((await cacheAt(cachePath)).getFreshSnapshot()), []);
   await mkdir(path.dirname(cachePath), { recursive: true });
+  const legacyRecord = { providerId: "codex-a", fetchedAt: NOW, allowed: true, primary: { remainingPercent: 75 } };
   const malformed = [
-    "{", "null", "[]", JSON.stringify({ version: 2, entries: [record()] }),
-    JSON.stringify({ entries: [record()] }), JSON.stringify({ version: 1, entries: {} }),
+    "{", "null", "[]", JSON.stringify({ version: 1, entries: [legacyRecord] }),
+    JSON.stringify({ version: 1, entries: [record()] }), JSON.stringify({ version: 3, entries: [record()] }),
+    JSON.stringify({ entries: [record()] }), JSON.stringify({ version: 2, entries: {} }),
+    ...[undefined, null, 42, {}, ["plus"], "", "ProLite", " plus ", "plus\n", "pro lite", "prolite!", "a".repeat(65)]
+      .map((planType) => JSON.stringify({ version: 2, entries: [record("valid"), { ...record(), planType }] })),
     ...[null, {}, { ...record(), fetchedAt: "now" }, { ...record(), fetchedAt: -1 },
       { ...record(), allowed: 1 }, { ...record(), providerId: "" },
       { ...record(), primary: null }, { ...record(), secondary: {} },
       { ...record(), primary: { remainingPercent: 101 } },
       { ...record(), primary: { remainingPercent: -1 } },
       { ...record(), primary: { remainingPercent: 10, resetAt: 0 } },
-    ].map((entry) => JSON.stringify({ version: 1, entries: [record("valid"), entry] })),
+    ].map((entry) => JSON.stringify({ version: 2, entries: [record("valid"), entry] })),
   ];
   for (const content of malformed) {
     await writeFile(cachePath, content);
     assert.deepEqual(Object.keys((await cacheAt(cachePath)).getFreshSnapshot()), []);
+    assert.equal(await readFile(cachePath, "utf8"), content, "loading must not delete or rewrite rejected documents");
   }
   assert.deepEqual(Object.keys((await cacheAt(path.dirname(cachePath))).getFreshSnapshot()), []);
 });
@@ -202,6 +250,7 @@ test("loading happens once and snapshots are deeply immutable and detached from 
   assert.ok(Object.isFrozen(snapshot["codex-a"]?.primary));
   assert.throws(() => Object.assign(snapshot, { other: record() }), TypeError);
   assert.throws(() => Object.assign(snapshot["codex-a"]!, { allowed: false }), TypeError);
+  assert.throws(() => Object.assign(snapshot["codex-a"]!, { planType: "prolite" }), TypeError);
   assert.throws(() => Object.assign(snapshot["codex-a"]!.primary!, { remainingPercent: 1 }), TypeError);
   await seed(cachePath, [record("external")]);
   assert.deepEqual(Object.keys(cache.getFreshSnapshot()), ["codex-a"]);
@@ -222,10 +271,18 @@ test("default paths honor the agent directory and fall back to the home director
   for (const directory of [path.join(root, "override"), undefined, ""]) {
     if (directory === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = directory;
+    const expected = path.join(directory || path.join(root, ".pi", "agent"), "cache", "delegated-pi-loop", "codex-usage-v2.json");
+    const legacyPath = path.join(path.dirname(expected), "codex-usage-v1.json");
+    const legacyRecord = { providerId: "legacy", fetchedAt: NOW, allowed: true, primary: { remainingPercent: 75 } };
+    const legacy = JSON.stringify({ version: 1, entries: [legacyRecord] });
+    await mkdir(path.dirname(expected), { recursive: true });
+    await writeFile(legacyPath, legacy);
     const cache = await createCodexUsageCache({ now: () => NOW, resolveAuth, fetch: async () => Response.json(usage()) });
+    assert.equal(cache.getFreshSnapshot().legacy, undefined, "v1 must not seed the new cache");
     await cache.refresh({ candidateProviderIds: ["codex-a"] });
-    const expected = path.join(directory || path.join(root, ".pi", "agent"), "cache", "delegated-pi-loop", "codex-usage-v1.json");
-    assert.equal((await stored(expected)).version, 1);
+    assert.equal((await stored(expected)).version, 2);
+    assert.deepEqual((await stored(expected)).entries.map((entry) => entry.providerId), ["codex-a"]);
+    assert.equal(await readFile(legacyPath, "utf8"), legacy, "the v1 file must remain untouched");
   }
 });
 
@@ -479,17 +536,17 @@ test("equal fetchedAt keeps the later-started response when an earlier request f
   const newer = cache.refresh({ forcedProviderIds: ["codex-a"] });
   await nextTurn();
   assert.equal(calls, 2);
-  responses[1].resolve(Response.json(usage(10)));
+  responses[1].resolve(Response.json({ ...usage(10), plan_type: "ProLite" }));
   await newer;
   responses[0].resolve(Response.json(usage(90)));
   await older;
   const expected = {
-    providerId: "codex-a", fetchedAt: NOW, allowed: true,
+    providerId: "codex-a", planType: "prolite", fetchedAt: NOW, allowed: true,
     primary: { remainingPercent: 90, resetAt: NOW / 1000 + 3600 },
     secondary: { remainingPercent: 49.5, resetAt: NOW / 1000 + 7200 },
   };
   assert.deepEqual(cache.getFreshSnapshot()["codex-a"], expected);
-  assert.deepEqual(await stored(cachePath), { version: 1, entries: [expected] });
+  assert.deepEqual(await stored(cachePath), { version: 2, entries: [expected] });
 });
 
 test("invalidation immediately removes an entry and rejects a response already in flight", async (t) => {
@@ -572,14 +629,14 @@ test("persisted JSON contains only schema fields, including after loading extra 
     primary: { remainingPercent: 75, extra: "synthetic-window-metadata" },
   }]);
   const payload = { ...usage(), account_id: "synthetic-response-account", email: "synthetic@example.invalid",
-    plan_type: "synthetic-plan", raw_response: "synthetic-raw-response", error: "synthetic-error" };
+    plan_type: " ProLite ", raw_response: "synthetic-raw-response", error: "synthetic-error" };
   const cache = await cacheAt(cachePath, { fetch: async () => Response.json(payload) });
   await cache.refresh({ candidateProviderIds: ["fetched"] });
   const json = await readFile(cachePath, "utf8");
   const document = JSON.parse(json);
   assert.deepEqual(Object.keys(document), ["version", "entries"]);
   assert.deepEqual(document.entries, [record("loaded"), {
-    providerId: "fetched", fetchedAt: NOW, allowed: true,
+    providerId: "fetched", planType: "prolite", fetchedAt: NOW, allowed: true,
     primary: { remainingPercent: 75, resetAt: NOW / 1000 + 3600 },
     secondary: { remainingPercent: 49.5, resetAt: NOW / 1000 + 7200 },
   }]);
