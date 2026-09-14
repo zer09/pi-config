@@ -2,6 +2,8 @@ import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
+import { isOpenAICodexProviderId } from "../openai-codex-aliases/provider-id.ts";
+import { createCodexUsageCache, type CodexUsageCache } from "./codex-usage-cache.ts";
 import { MODEL_CATALOG_DEFAULT_LIMIT, MODEL_CATALOG_MAX_LIMIT, modelCatalogToolResult, type ModelCatalogToolParams } from "./catalog.ts";
 import {
   DELEGATE_MODEL_CATALOG_TOOL,
@@ -17,9 +19,9 @@ import {
 import { activeDelegateLabel, combinedSignal, DelegateManager } from "./manager.ts";
 import { renderDelegateCall, renderDelegateResult } from "./render.ts";
 import { allowedDelegateSkillNames, buildDelegateResourceSelection, loadDelegateResources } from "./resources.ts";
-import { delegateToolResultPatch, finalizeDelegateRun } from "./result.ts";
-import { runDelegate } from "./runner.ts";
-import { loadRoutingSnapshot, requireRole, roleIds, roleIdsInFamily } from "./routing.ts";
+import { delegateToolResultPatch, finalizeDelegateRun as finalizeDelegateRunDefault } from "./result.ts";
+import { runDelegate as runDelegateDefault } from "./runner.ts";
+import { loadRoutingSnapshot as loadRoutingSnapshotDefault, requireRole, roleIds, roleIdsInFamily } from "./routing.ts";
 import type { RoutingConfig } from "./routing.ts";
 import type {
   DelegateProgress,
@@ -116,7 +118,21 @@ function finalResult(delegateId: number, result: ToolResult): ToolResult {
   };
 }
 
-export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
+export default function delegatedPiLoopExtension(
+  pi: ExtensionAPI,
+  // Keep lifecycle tests independent of child processes, real auth, and network requests.
+  {
+    createUsageCache = createCodexUsageCache,
+    runDelegate = runDelegateDefault,
+    finalizeDelegateRun = finalizeDelegateRunDefault,
+    loadRoutingSnapshot = loadRoutingSnapshotDefault,
+  }: {
+    createUsageCache?: typeof createCodexUsageCache;
+    runDelegate?: typeof runDelegateDefault;
+    finalizeDelegateRun?: typeof finalizeDelegateRunDefault;
+    loadRoutingSnapshot?: typeof loadRoutingSnapshotDefault;
+  } = {},
+): void {
   // Delegated children load this extension explicitly from the resource
   // policy for the parent watchdog and recursion suppression only. The
   // child branch below stays minimal and must never parse the parent
@@ -166,6 +182,11 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
   const DelegateParameters = delegateParameters(allowedDelegateSkillNames(delegateResources), routingSnapshot);
 
   const manager = new DelegateManager();
+  let usageCachePromise: Promise<CodexUsageCache> | undefined;
+  const candidateProviderIds = [...new Set([
+    ...routingSnapshot.disabledProviders,
+    ...Object.values(routingSnapshot.models).flatMap((model) => Object.keys(model.providers)),
+  ])].filter(isOpenAICodexProviderId);
 
   pi.registerCommand("delegate:list", {
     description: "Show active delegates and prefill a targeted stop command.",
@@ -236,6 +257,10 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
     parameters: DelegateParameters as unknown as Record<string, unknown>,
 
     async execute(toolCallId, params, signal, onUpdate, ctx) {
+      // Share the first execute context's registry and one file load across concurrent runs.
+      const usageCache = await (usageCachePromise ??= createUsageCache({
+        resolveAuth: (providerId) => ctx.modelRegistry.getProviderAuth(providerId),
+      }));
       // Registry-owned runtime role validation before admission: the schema
       // enum comes from the same snapshot, but execution stays authoritative
       // and an unknown role can never fall through to a default contract.
@@ -259,6 +284,7 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
           prompt: params.prompt,
           cwd,
           resourceSelection,
+          codexUsageSnapshot: usageCache.getFreshSnapshot(),
           // The oracle main-model skip reads the parent model id through
           // native extension context, never by inspecting the environment;
           // delegate providers come from routing.json alone.
@@ -274,7 +300,20 @@ export default function delegatedPiLoopExtension(pi: ExtensionAPI): void {
         // in details for the TUI renderer, or one best-effort metadata-only
         // success record), assemble the raw-Markdown ToolResult, then remove
         // the temporary supervision artifacts for every terminal outcome.
-        return finalResult(handle.id, await finalizeDelegateRun(result));
+        const finalized = await finalizeDelegateRun(result);
+        try {
+          for (const providerId of result.quotaFailedProviderIds ?? []) {
+            if (isOpenAICodexProviderId(providerId)) await usageCache.invalidate(providerId);
+          }
+          // Await the service's five-second bound so the next run sees updated usage.
+          await usageCache.refresh({
+            forcedProviderIds: [...new Set(result.supervisedProviderIds ?? [])].filter(isOpenAICodexProviderId),
+            candidateProviderIds,
+          });
+        } catch {
+          // Cache failures never change the finalized result or expose provider errors.
+        }
+        return finalResult(handle.id, finalized);
       } finally {
         runSignal.dispose();
         manager.finish(toolCallId);

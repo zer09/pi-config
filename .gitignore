@@ -2,6 +2,7 @@
 agent/sessions/
 agent/delegate-sessions/
 agent/subagent-sessions/
+agent/cache/delegated-pi-loop/
 agent/intercom/
 agent/handoff/
 handoffs/

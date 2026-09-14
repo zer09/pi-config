@@ -34,6 +34,16 @@ Usable verified history preserves acknowledgement and sends the exact continuati
 
 This amendment supersedes fresh-child-only fallback and unconditional post-work restart-note descriptions below. Route selection, resource arguments, role isolation, and separate authorization boundaries are unchanged.
 
+## Current policy: cached Codex usage
+
+The parent lazily loads one file-backed schema-v1 cache at `~/.pi/agent/cache/delegated-pi-loop/codex-usage-v1.json` on its first `delegate_run` execute. `PI_CODING_AGENT_DIR` can relocate the agent directory. The extension factory stays synchronous; children never initialize or load this cache. Records expire at one hour or the first recorded window reset, whichever occurs first. Selection reads only a fresh in-memory snapshot, with no pre-selection network request; a cold, missing, or stale cache preserves legacy random selection for that run.
+
+After finalization removes the private run artifacts, the parent invalidates supervised providers with quota, credit, billing, usage, or rate-limit failures. It then awaits one best-effort refresh within the service's five-second bound. All actually supervised Codex providers receive forced refresh; all distinct Codex providers configured anywhere in the routing snapshot are candidates, refreshed only when missing or stale. Catalog-only checks never count as supervised attempts. Invalidation advances an in-memory generation immediately, so older in-flight responses cannot restore invalidated entries.
+
+Usage changes only the primary within an all-Codex pool. Healthy providers compete by their highest bottleneck remaining percentage: the minimum across their available windows. Ties are random. Without a healthy provider, unknown usage is preferred; an entirely exhausted pool retains random selection. Every remaining provider stays in the stable fallback tail. Eligibility filters, explicit pins, Oracle safety and override rejection, and non-Codex or mixed pools remain unchanged.
+
+Cache failures never alter the finalized ToolResult or delegate outcome. Persistence contains only provider IDs, timestamps, allowed flags, and normalized usage windows, never secrets, tokens, account IDs, or raw responses. Attempt tracking remains private to the cache lifecycle, outside diagnostics, telemetry, progress, reports, and rendered content. Coordination covers one parent process only; there is no cross-process lock, so separate parents can overwrite each other's cache updates.
+
 ## Context
 
 ADR 0007 defined the delegated role routes and ADR 0008 moved them into native TypeScript arrays and provider lists inside `routes.ts`. Every route change since then edited executable TypeScript, and the routing policy — ordered fallback chains, eligible provider sets, per-model thinking support, and role-to-route mapping — lived as code that only a developer could safely inspect.

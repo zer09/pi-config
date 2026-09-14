@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
+import { setImmediate as nextTurn } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
-import type { DelegateRunResult } from "./types.ts";
+import type { CodexUsageCache, CodexUsageCacheOptions } from "./codex-usage-cache.ts";
+import type { DelegateRunResult, DelegateToolParams, RunOptions, ToolDefinition, ToolResult } from "./types.ts";
 
 test("registration guidelines encode the compact automatic delegation policy without route details", async () => {
   const { delegateRunPromptGuidelines } = await import("./instructions.ts");
@@ -164,6 +166,7 @@ test("active bash command never enters ToolResult details or compact, expanded, 
   register(pathToFileURL(hooksPath).href + "?root=" + encodeURIComponent(piRoot));
   try {
     const { finalToolResult } = await import("./result.ts");
+    const { failureDiagnostic, schemaNineRecord } = await import("./diagnostics.ts");
     const { renderDelegateResult } = await import("./render.ts");
     const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
     for (const state of ["stalled", "completed"] as const) {
@@ -171,6 +174,7 @@ test("active bash command never enters ToolResult details or compact, expanded, 
         label: "implementation", role: "implementation", state,
         report: "Done\n\nDELEGATE_RESULT: COMPLETED", artifactDir: "/tmp/not-read",
         activeBashCommand: { text: "COMMAND-SENTINEL", totalBytes: 16, truncatedBytes: 0 },
+        supervisedProviderIds: ["TRACKING-SUPERVISED"], quotaFailedProviderIds: ["TRACKING-QUOTA"],
         attempts: [], startedAt: "2026-01-01T00:00:00.000Z", endedAt: "2026-01-01T00:00:01.000Z",
         elapsedSeconds: 1, streamErrors: [],
         progress: {
@@ -184,12 +188,15 @@ test("active bash command never enters ToolResult details or compact, expanded, 
         },
       };
       const toolResult = finalToolResult(result);
-      assert.doesNotMatch(JSON.stringify(toolResult), /COMMAND-SENTINEL|activeBashCommand/);
+      assert.doesNotMatch(JSON.stringify(toolResult), /COMMAND-SENTINEL|activeBashCommand|TRACKING|supervisedProviderIds|quotaFailedProviderIds/);
+      for (const surface of [failureDiagnostic(result), schemaNineRecord(result), result.progress, result.report]) {
+        assert.doesNotMatch(JSON.stringify(surface), /TRACKING|supervisedProviderIds|quotaFailedProviderIds/);
+      }
       for (const expanded of [false, true]) {
         for (const isPartial of [false, true]) {
           const rendered = renderDelegateResult(toolResult, { expanded, isPartial }, theme, {}).render(120).join("\n");
           assert.match(rendered, /implementation/);
-          assert.doesNotMatch(rendered, /COMMAND-SENTINEL|activeBashCommand/);
+          assert.doesNotMatch(rendered, /COMMAND-SENTINEL|activeBashCommand|TRACKING|supervisedProviderIds|quotaFailedProviderIds/);
         }
       }
     }
@@ -388,10 +395,227 @@ test("the model catalog guidance stays concise and keeps overrides exceptional",
   for (const workflow of ["waive", "solution gate", "review gate", "implementation delegate", "availableSkills", "oracle review of the draft solution contract"]) {
     assert.ok(!catalogGuidelines.includes(workflow), `catalog guidance must stay workflow-free (found ${workflow})`);
   }
+  // Import paths can name provider helpers without enumerating concrete routes.
+  const implementation = source.replace(/^import .* from .*;$/gm, "");
   // No model/provider/thinking combination is enumerated in either module.
   for (const forbidden of ["gpt-5.5", "gpt-5.6-sol", "glm-5.3", "openai-codex", "zai", "opencode-go"]) {
-    assert.ok(!source.includes(forbidden), `index.ts must not enumerate concrete models or providers (found ${forbidden})`);
+    assert.ok(!implementation.includes(forbidden), `index.ts must not enumerate concrete models or providers (found ${forbidden})`);
     assert.ok(!instructions.includes(forbidden), `instructions.ts must not enumerate concrete models or providers (found ${forbidden})`);
+  }
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+async function loadExtensionForTest(t: TestContext) {
+  const piRoot = findInstalledPiPackageRoot();
+  assert.ok(piRoot);
+  const root = mkdtempSync(path.join(tmpdir(), "pi-delegate-lifecycle-"));
+  const hooksPath = path.join(root, "resolve-hooks.mjs");
+  writeFileSync(hooksPath, PI_RESOLVE_HOOKS_SOURCE, "utf8");
+  const { register } = await import("node:module");
+  register(pathToFileURL(hooksPath).href + "?root=" + encodeURIComponent(piRoot));
+  const savedChildFlag = process.env.PI_DELEGATED_CHILD;
+  const savedAgentDir = process.env.PI_CODING_AGENT_DIR;
+  delete process.env.PI_DELEGATED_CHILD;
+  process.env.PI_CODING_AGENT_DIR = root;
+  t.after(() => {
+    if (savedChildFlag === undefined) delete process.env.PI_DELEGATED_CHILD;
+    else process.env.PI_DELEGATED_CHILD = savedChildFlag;
+    if (savedAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = savedAgentDir;
+    rmSync(root, { recursive: true, force: true });
+  });
+  return { root, extension: (await import("./index.ts")).default };
+}
+
+function lifecycleResult(artifactDir: string): DelegateRunResult {
+  return {
+    label: "solution-a", role: "solution-a", state: "completed", artifactDir,
+    report: "Done\n\nDELEGATE_RESULT: COMPLETED", attempts: [], streamErrors: [],
+    startedAt: "2026-01-01T00:00:00.000Z", endedAt: "2026-01-01T00:00:01.000Z", elapsedSeconds: 1,
+    progress: {
+      label: "solution-a", role: "solution-a", state: "completed", protocol: "pi-rpc", attempt: 1,
+      phase: "settled", lastEvent: "agent_settled", lastEventAt: "2026-01-01T00:00:01.000Z",
+      activityIdleSeconds: 0, elapsedSeconds: 1, toolExecutionCount: 0,
+      activityWarningCount: 0, progressWarningCount: 0, activityEventCount: 1,
+      structuralProgressCount: 1, duplicateCheckpointCount: 0, restartAfterWorkCount: 0,
+      reportNudgeCount: 0, reportRound: 1,
+    },
+  };
+}
+
+test("the synchronous child factory never initializes the usage cache or loads routing", async (t) => {
+  const { extension } = await loadExtensionForTest(t);
+  process.env.PI_DELEGATED_CHILD = "1";
+  const events: string[] = [];
+  const returned = extension({
+    on: (event) => { events.push(event); },
+    registerCommand: () => assert.fail("no child commands"),
+    registerTool: () => assert.fail("no child tools"),
+  }, {
+    createUsageCache: () => assert.fail("child must not create or load the cache"),
+    loadRoutingSnapshot: () => assert.fail("child must not load routing"),
+  });
+  assert.equal(returned, undefined);
+  assert.deepEqual(events, ["session_start", "session_shutdown"]);
+});
+
+test("the parent lazily shares one cache and first execute auth context, forwarding fresh snapshots", async (t) => {
+  const { root, extension } = await loadExtensionForTest(t);
+  let tool: ToolDefinition<DelegateToolParams> | undefined;
+  const initialization = deferred<CodexUsageCache>();
+  let cacheOptions: CodexUsageCacheOptions | undefined;
+  let creates = 0;
+  let refreshes = 0;
+  const forwarded: RunOptions["codexUsageSnapshot"][] = [];
+  let snapshot: ReturnType<CodexUsageCache["getFreshSnapshot"]> = Object.freeze({});
+  const cache: CodexUsageCache = {
+    getFreshSnapshot: () => snapshot,
+    invalidate: async () => assert.fail("no quota failures"),
+    refresh: async () => { refreshes += 1; },
+  };
+  const registered = extension({
+    on: () => {}, registerCommand: () => {},
+    registerTool: (config: { name: string }) => {
+      if (config.name === "delegate_run") tool = config as ToolDefinition<DelegateToolParams>;
+    },
+  }, {
+    createUsageCache: (options) => { creates += 1; cacheOptions = options; return initialization.promise; },
+    runDelegate: async (options) => { forwarded.push(options.codexUsageSnapshot); return lifecycleResult(root); },
+    finalizeDelegateRun: async () => ({ content: [{ type: "text", text: "finalized" }] }),
+  });
+  assert.equal(registered, undefined, "parent registration remains synchronous");
+  assert.equal(creates, 0, "registration must not create or load a cache");
+  assert.ok(tool);
+  const authCalls: string[] = [];
+  const firstRegistry = {
+    name: "first",
+    async getProviderAuth(providerId: string) { authCalls.push(`${this.name}:${providerId}`); return { auth: {} }; },
+  };
+  const otherRegistry = { getProviderAuth: async () => assert.fail("only the first execute context resolves auth") };
+  const params = { role: "solution-a", prompt: "test" };
+  const first = tool.execute("first", params, undefined, undefined, { cwd: root, modelRegistry: firstRegistry });
+  const second = tool.execute("second", params, undefined, undefined, { cwd: root, modelRegistry: otherRegistry });
+  assert.equal(creates, 1, "concurrent executes share the pending initialization");
+  assert.deepEqual(forwarded, [], "no run starts before the file load completes");
+  assert.equal(refreshes, 0, "no pre-selection refresh");
+  await cacheOptions!.resolveAuth("openai-codex");
+  assert.deepEqual(authCalls, ["first:openai-codex"]);
+  initialization.resolve(cache);
+  await Promise.all([first, second]);
+  assert.equal(forwarded[0], snapshot);
+  assert.equal(forwarded[1], snapshot);
+  snapshot = Object.freeze({ "openai-codex": { providerId: "openai-codex", fetchedAt: 1, allowed: true, primary: { remainingPercent: 80 } } });
+  await tool.execute("third", params, undefined, undefined, { cwd: root, modelRegistry: otherRegistry });
+  assert.equal(forwarded[2], snapshot, "each run reads the current fresh snapshot");
+  assert.equal(creates, 1);
+  assert.equal(refreshes, 3);
+});
+
+test("usage refresh follows finalization and invalidation, uses all candidates, and cannot change ToolResult", async (t) => {
+  const { root, extension } = await loadExtensionForTest(t);
+  const { validateRoutingConfig } = await import("./routing.ts");
+  const { finalizeDelegateRun } = await import("./result.ts");
+  const capability = { thinking: ["high"], default: "high" };
+  const routing = validateRoutingConfig({
+    version: 2, thinkingLevels: ["high"],
+    disabledProviders: ["openai-codex-disabled", "openai-codex-disabled-only"],
+    models: {
+      current: { providers: { "openai-codex-a": capability, other: capability } },
+      spare: { providers: { "openai-codex": capability, "openai-codex-a": capability, "openai-codex-b": capability,
+        "openai-codex-disabled": capability, "openai-codex-": capability } },
+      unused: { providers: { "openai-codex-unused": capability } },
+    },
+    profiles: {
+      current: { overridePolicy: "allowed", tiers: [{ model: "current", thinking: "high", providers: ["openai-codex-a"] }] },
+      oracle: { overridePolicy: "rejected", tiers: [{ model: "spare", thinking: "high", providers: ["openai-codex-b"] }] },
+    },
+    assignments: { solution: ["current"], review: ["current"], implementation: "current", remediation: "current", verification: "current", oracle: "oracle" },
+  });
+  for (const refreshFails of [false, true]) {
+    await t.test(refreshFails ? "refresh rejection" : "refresh success", async () => {
+      const events: string[] = [];
+      const finalizationStarted = deferred<void>();
+      const finishFinalization = deferred<void>();
+      const refreshStarted = deferred<void>();
+      const finishRefresh = deferred<void>();
+      const artifactDir = mkdtempSync(path.join(root, "artifacts-"));
+      writeFileSync(path.join(artifactDir, "private.txt"), "test artifact");
+      const result: DelegateRunResult = {
+        ...lifecycleResult(artifactDir),
+        attempts: [{ route: "openai-codex-b/spare:high", state: "catalog_unavailable", elapsedSeconds: 0 }],
+        supervisedProviderIds: ["openai-codex-a", "openai-codex", "openai-codex-a", "other", "openai-codex-"],
+        quotaFailedProviderIds: ["openai-codex-a", "other", "openai-codex-"],
+      };
+      let tool: ToolDefinition<DelegateToolParams> | undefined;
+      let finalized: ToolResult | undefined;
+      let refreshRequest: Parameters<CodexUsageCache["refresh"]>[0];
+      let artifactExistsOnInvalidate: boolean | undefined;
+      const cache: CodexUsageCache = {
+        getFreshSnapshot: () => { events.push("snapshot"); return Object.freeze({}); },
+        invalidate: async (providerId) => {
+          artifactExistsOnInvalidate = existsSync(artifactDir);
+          events.push(`invalidate:${providerId}`);
+          await Promise.resolve();
+          events.push("invalidated");
+        },
+        refresh: async (request) => {
+          events.push("refresh");
+          refreshRequest = request;
+          refreshStarted.resolve();
+          await finishRefresh.promise;
+          events.push("refreshed");
+          if (refreshFails) throw new Error("synthetic-private-refresh-error");
+        },
+      };
+      extension({
+        on: () => {}, registerCommand: () => {},
+        registerTool: (config: { name: string }) => {
+          if (config.name === "delegate_run") tool = config as ToolDefinition<DelegateToolParams>;
+        },
+      }, {
+        loadRoutingSnapshot: () => routing,
+        createUsageCache: async () => cache,
+        runDelegate: async (options) => { assert.equal(options.routingConfig, routing); events.push("run"); return result; },
+        finalizeDelegateRun: async (run) => {
+          events.push("finalize");
+          finalizationStarted.resolve();
+          await finishFinalization.promise;
+          finalized = await finalizeDelegateRun(run);
+          events.push("finalized");
+          return finalized;
+        },
+      });
+      assert.ok(tool);
+      let returned = false;
+      const pending = tool.execute("run", { role: "solution-a", prompt: "test" }, undefined, undefined, {
+        cwd: root, modelRegistry: { getProviderAuth: async () => assert.fail("fake cache never resolves auth") },
+      }).then((value) => { returned = true; return value; });
+      await finalizationStarted.promise;
+      assert.deepEqual(events, ["snapshot", "run", "finalize"]);
+      assert.equal(existsSync(artifactDir), true);
+      finishFinalization.resolve();
+      await refreshStarted.promise;
+      await nextTurn();
+      assert.equal(artifactExistsOnInvalidate, false, "finalization removes artifacts before invalidation");
+      assert.deepEqual(events, ["snapshot", "run", "finalize", "finalized", "invalidate:openai-codex-a", "invalidated", "refresh"]);
+      assert.equal(returned, false, "execute awaits the bounded refresh");
+      assert.deepEqual(refreshRequest?.forcedProviderIds, ["openai-codex-a", "openai-codex"]);
+      assert.deepEqual([...(refreshRequest?.candidateProviderIds ?? [])].sort(), [
+        "openai-codex", "openai-codex-a", "openai-codex-b", "openai-codex-disabled", "openai-codex-disabled-only", "openai-codex-unused",
+      ]);
+      finishRefresh.resolve();
+      const toolResult = await pending;
+      assert.ok(finalized);
+      assert.deepEqual(toolResult, { ...finalized, details: { ...finalized.details, delegateId: 1 } });
+      assert.equal(result.state, "completed");
+      assert.doesNotMatch(JSON.stringify(toolResult), /synthetic-private-refresh-error|supervisedProviderIds|quotaFailedProviderIds/);
+      assert.equal(events.at(-1), "refreshed");
+    });
   }
 });
 
