@@ -73,6 +73,19 @@ Minimal layouts use `personal/Sol` and `business/Sol`.
 Aliases share upstream quotas only when the aliases use the same upstream ChatGPT account.
 Different upstream accounts keep their own quotas.
 
+## Usage status
+
+Run the extension command to fetch current quota for the canonical provider and every authenticated alias:
+
+```text
+/codex-usage
+```
+
+The command labels the quota windows as 5-hour and weekly, shows their reset times in Philippine time, and includes the routing score used to compare available accounts.
+It also shows the general credit balance when the same usage response returns one; no additional request is made for credits.
+It uses Pi's managed provider authentication, does not read `agent/auth.json`, and does not start an LLM turn or consume model tokens.
+Usage failures remain isolated to their provider row, and configured aliases without authentication appear only in the summary count.
+
 ## Remove an alias
 
 Run `/logout` for the alias before deleting its JSON entry.

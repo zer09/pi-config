@@ -40,6 +40,7 @@ function requirePiDependency(name) {
 }
 
 const { createJiti } = requirePiDependency("jiti");
+const { visibleWidth } = requirePiDependency("@earendil-works/pi-tui");
 const extensionPath = path.join(__dirname, "index.ts");
 
 function createTestAssistantMessageEventStream() {
@@ -92,11 +93,13 @@ const jiti = createJiti(extensionPath, {
 const providerIdModule = jiti(path.join(__dirname, "provider-id.ts"));
 const configModule = jiti(path.join(__dirname, "config.ts"));
 const adapterModule = jiti(path.join(__dirname, "provider-adapter.ts"));
+const usageCommandModule = jiti(path.join(__dirname, "usage-command.ts"));
 const indexModule = jiti(extensionPath);
 
 const { getOpenAICodexAliasSlug, isOpenAICodexProviderId } = providerIdModule;
 const { loadOpenAICodexAliases, validateOpenAICodexAliasConfig } = configModule;
 const { createOpenAICodexAliasProvider } = adapterModule;
+const { formatCodexUsageReport, registerCodexUsageCommand } = usageCommandModule;
 const { registerOpenAICodexAliases } = indexModule;
 
 const PERSONAL = Object.freeze({
@@ -104,6 +107,37 @@ const PERSONAL = Object.freeze({
 	id: "openai-codex-personal",
 	name: "OpenAI Codex Personal",
 });
+
+function accessToken(accountId, marker = "token") {
+	const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+	return `${encode({ alg: "none" })}.${encode({ "https://api.openai.com/auth": { chatgpt_account_id: accountId } })}.${marker}`;
+}
+
+function usageResponse({
+	allowed = true,
+	plan = "plus",
+	primaryUsed = 25,
+	primaryReset = 1_789_381_800,
+	secondaryUsed = 50,
+	secondaryReset = 1_789_468_800,
+	credits = 0,
+	applicableCredits = 0,
+} = {}) {
+	return Response.json({
+		plan_type: plan,
+		rate_limit: {
+			allowed,
+			primary_window: { used_percent: primaryUsed, reset_at: primaryReset },
+			secondary_window: secondaryUsed === null
+				? null
+				: { used_percent: secondaryUsed, reset_at: secondaryReset },
+		},
+		rate_limit_reset_credits: {
+			available_count: credits,
+			applicable_available_count: applicableCredits,
+		},
+	});
+}
 
 function cloneJson(value) {
 	return JSON.parse(JSON.stringify(value));
@@ -491,6 +525,346 @@ async function run() {
 		);
 		assert.equal(providers.length, 3);
 		assert.ok(registered.every((provider) => provider.getModels().every((model) => model.provider === provider.id)));
+	}
+
+	{
+		const aliases = [
+			PERSONAL,
+			{ slug: "business", id: "openai-codex-business", name: "OpenAI Codex Business" },
+			{ slug: "missing", id: "openai-codex-missing", name: "OpenAI Codex Missing" },
+		];
+		const tokens = {
+			"openai-codex": accessToken("account-main", "main-secret"),
+			"openai-codex-personal": accessToken("account-personal", "personal-secret"),
+			"openai-codex-business": accessToken("account-business", "business-secret"),
+		};
+		const calls = [];
+		const commands = [];
+		registerCodexUsageCommand(
+			{ registerCommand(name, definition) { commands.push({ name, definition }); } },
+			aliases,
+			{
+				now: () => Date.UTC(2026, 8, 14, 5, 23),
+				fetch: async (url, init) => {
+					const headers = new Headers(init.headers);
+					calls.push({ url, init, headers });
+					const accountId = headers.get("ChatGPT-Account-Id");
+					if (accountId === "account-main") {
+						return usageResponse({
+							plan: "prolite",
+							primaryUsed: 84,
+							primaryReset: Date.UTC(2026, 8, 19, 8, 10) / 1000,
+							secondaryUsed: null,
+						});
+					}
+					if (accountId === "account-personal") {
+						return usageResponse({
+							allowed: false,
+							plan: "k12",
+							primaryUsed: 0,
+							primaryReset: Date.UTC(2026, 8, 14, 10, 23) / 1000,
+							secondaryUsed: 100,
+							secondaryReset: Date.UTC(2026, 8, 14, 12, 42) / 1000,
+							credits: 2,
+						});
+					}
+					return new Response("server-secret-detail", { status: 503 });
+				},
+			},
+		);
+		assert.equal(commands.length, 1);
+		assert.equal(commands[0].name, "codex-usage");
+		assert.match(commands[0].definition.description, /without using the model/);
+		const notices = [];
+		await commands[0].definition.handler("", {
+			hasUI: true,
+			modelRegistry: {
+				async getProviderAuth(providerId) {
+					return tokens[providerId] ? { auth: { apiKey: tokens[providerId] } } : undefined;
+				},
+			},
+			ui: { notify(text, level) { notices.push({ text, level }); } },
+		});
+		assert.equal(calls.length, 3, "providers without auth must not start a usage request");
+		for (const call of calls) {
+			assert.equal(call.url, "https://chatgpt.com/backend-api/wham/usage");
+			assert.equal(call.init.redirect, "manual");
+			assert.equal(call.headers.get("User-Agent"), "codex-cli");
+			assert.match(call.headers.get("Authorization"), /^Bearer /);
+			assert.ok(call.headers.get("ChatGPT-Account-Id"));
+		}
+		assert.deepEqual(notices.map(({ level }) => level), ["info"]);
+		const output = notices[0].text;
+		const lines = output.split("\n");
+		assert.match(lines[0], /Codex usage at Sep 14, 2026, 1:23 PM PHT \(Asia\/Manila\)/);
+		assert.match(lines[1], /^Provider\s+Plan\s+Status\s+5h\s+5-hour reset\s+Weekly\s+Weekly reset\s+Score\s+Credits$/);
+		assert.ok(lines.slice(1).every((line) => !line.includes("|")), "plain-text output must not use Markdown table separators");
+		assert.ok(lines.slice(1, 6).every((line) => visibleWidth(line) === visibleWidth(lines[1])), "headers, separator, and rows must align");
+		assert.match(lines[3], /^codex\s+Pro Lite\s+Available\s+16%\s+Sep 19, 4:10 PM\s+—\s+—\s+16%\s+0\s*$/);
+		assert.match(lines[4], /^codex-personal\s+K-12\s+Blocked\s+100%\s+Sep 14, 6:23 PM\s+0%\s+Sep 14, 8:42 PM\s+0%\s+2\s*$/);
+		assert.match(lines[5], /^codex-business\s+—\s+Unavailable\s+—\s+—\s+—\s+—\s+0%\s+—\s*$/);
+		assert.equal(lines[6], "Authenticated 3  Available 1  Quota-blocked 1  Unavailable 1  Missing auth 1");
+		assert.equal(lines[7], "Best provider: codex at 16%");
+		for (const secret of ["account-main", "account-personal", "account-business", "main-secret", "personal-secret", "business-secret", "server-secret-detail"]) {
+			assert.ok(!output.includes(secret), `output must not expose ${secret}`);
+		}
+	}
+
+	{
+		const commands = [];
+		let capturedSignal;
+		registerCodexUsageCommand(
+			{ registerCommand(name, definition) { commands.push({ name, definition }); } },
+			[],
+			{
+				timeoutMs: 10,
+				fetch: async (_url, init) => {
+					capturedSignal = init.signal;
+					return new Promise(() => {});
+				},
+			},
+		);
+		const notices = [];
+		await commands[0].definition.handler("", {
+			hasUI: true,
+			modelRegistry: {
+				async getProviderAuth() {
+					return { auth: { apiKey: accessToken("timeout-account", "timeout-secret") } };
+				},
+			},
+			ui: { notify(text, level) { notices.push({ text, level }); } },
+		});
+		assert.equal(notices.length, 1, "the shared deadline must complete the command");
+		assert.match(notices[0].text, /^codex\s+—\s+Unavailable/m);
+		assert.match(notices[0].text, /Authenticated 1 .* Unavailable 1/);
+		assert.ok(!notices[0].text.includes("timeout-account"));
+		assert.ok(!notices[0].text.includes("timeout-secret"));
+		assert.equal(capturedSignal?.aborted, true, "the shared deadline must abort the usage request");
+	}
+
+	{
+		const commands = [];
+		let cancelCalled = false;
+		registerCodexUsageCommand(
+			{ registerCommand(name, definition) { commands.push({ name, definition }); } },
+			[],
+			{
+				timeoutMs: 10,
+				fetch: async () => new Response(new ReadableStream({
+					pull() { return new Promise(() => {}); },
+					cancel() {
+						cancelCalled = true;
+						return new Promise(() => {});
+					},
+				})),
+			},
+		);
+		const notices = [];
+		const handler = commands[0].definition.handler("", {
+			hasUI: true,
+			modelRegistry: {
+				async getProviderAuth() {
+					return { auth: { apiKey: accessToken("stream-account", "stream-secret") } };
+				},
+			},
+			ui: { notify(text, level) { notices.push({ text, level }); } },
+		});
+		const outcome = await Promise.race([
+			handler.then(() => "settled"),
+			new Promise((resolve) => setTimeout(() => resolve("watchdog"), 250)),
+		]);
+		assert.equal(outcome, "settled", "non-settling stream cancellation must not extend the deadline");
+		assert.equal(cancelCalled, true, "stream cleanup should still be attempted");
+		assert.equal(notices.length, 1);
+		assert.match(notices[0].text, /^codex\s+—\s+Unavailable/m);
+		assert.ok(!notices[0].text.includes("stream-account"));
+		assert.ok(!notices[0].text.includes("stream-secret"));
+	}
+
+	{
+		const commands = [];
+		let cancelCalls = 0;
+		registerCodexUsageCommand(
+			{ registerCommand(name, definition) { commands.push({ name, definition }); } },
+			[],
+			{
+				timeoutMs: 20,
+				fetch: async () => new Response(new ReadableStream({
+					pull() { return new Promise(() => {}); },
+					cancel() {
+						cancelCalls += 1;
+						return new Promise(() => {});
+					},
+				}), { status: 503 }),
+			},
+		);
+		const notices = [];
+		const handler = commands[0].definition.handler("", {
+			hasUI: true,
+			modelRegistry: {
+				async getProviderAuth() {
+					return { auth: { apiKey: accessToken("error-stream-account", "error-stream-secret") } };
+				},
+			},
+			ui: { notify(text, level) { notices.push({ text, level }); } },
+		});
+		const outcome = await Promise.race([
+			handler.then(() => "settled"),
+			new Promise((resolve) => setTimeout(() => resolve("watchdog"), 250)),
+		]);
+		assert.equal(outcome, "settled", "non-OK stream cancellation must not delay the command");
+		assert.equal(cancelCalls, 1, "a non-OK response body must receive one cancellation attempt");
+		assert.equal(notices.length, 1);
+		assert.match(notices[0].text, /^codex\s+—\s+Unavailable/m);
+		assert.ok(!notices[0].text.includes("error-stream-account"));
+		assert.ok(!notices[0].text.includes("error-stream-secret"));
+	}
+
+	{
+		const aliases = [PERSONAL];
+		const commands = [];
+		registerCodexUsageCommand(
+			{ registerCommand(name, definition) { commands.push({ name, definition }); } },
+			aliases,
+			{
+				now: () => Date.UTC(2026, 8, 14, 5, 23),
+				fetch: async (_url, init) => {
+					const accountId = new Headers(init.headers).get("ChatGPT-Account-Id");
+					if (accountId === "malformed-reset-account") {
+						return usageResponse({ primaryReset: Number.MAX_VALUE, secondaryUsed: null });
+					}
+					return usageResponse({
+						primaryReset: Date.UTC(2026, 8, 14, 7, 0) / 1000,
+						secondaryReset: Date.UTC(2026, 8, 19, 8, 0) / 1000,
+					});
+				},
+			},
+		);
+		const notices = [];
+		await commands[0].definition.handler("", {
+			hasUI: true,
+			modelRegistry: {
+				async getProviderAuth(providerId) {
+					const accountId = providerId === "openai-codex" ? "malformed-reset-account" : "valid-reset-account";
+					return { auth: { apiKey: accessToken(accountId) } };
+				},
+			},
+			ui: { notify(text, level) { notices.push({ text, level }); } },
+		});
+		assert.equal(notices.length, 1, "one malformed reset must not suppress valid provider rows");
+		assert.match(notices[0].text, /^codex\s+—\s+Unavailable/m);
+		assert.match(notices[0].text, /^codex-personal\s+Plus\s+Available/m);
+		assert.match(notices[0].text, /Authenticated 2  Available 1  Quota-blocked 0  Unavailable 1/);
+	}
+
+	{
+		const commands = [];
+		registerCodexUsageCommand(
+			{ registerCommand(name, definition) { commands.push({ name, definition }); } },
+			[],
+			{ fetch: async () => new Response("x".repeat(64 * 1024 + 1)) },
+		);
+		const notices = [];
+		await commands[0].definition.handler("", {
+			hasUI: true,
+			modelRegistry: {
+				async getProviderAuth() {
+					return { auth: { apiKey: accessToken("oversized-account", "oversized-secret") } };
+				},
+			},
+			ui: { notify(text, level) { notices.push({ text, level }); } },
+		});
+		assert.match(notices[0].text, /^codex\s+—\s+Unavailable/m);
+		assert.ok(!notices[0].text.includes("oversized-account"));
+		assert.ok(!notices[0].text.includes("oversized-secret"));
+	}
+
+	{
+		const commands = [];
+		let authCalls = 0;
+		registerCodexUsageCommand(
+			{ registerCommand(name, definition) { commands.push({ name, definition }); } },
+			[PERSONAL],
+			{ fetch: async () => { throw new Error("fetch must not run without UI"); } },
+		);
+		await commands[0].definition.handler("", {
+			hasUI: false,
+			modelRegistry: { async getProviderAuth() { authCalls += 1; return undefined; } },
+			ui: { notify() { throw new Error("notify must not run without UI"); } },
+		});
+		assert.equal(authCalls, 0, "non-UI mode must return before resolving credentials");
+	}
+
+	{
+		const output = formatCodexUsageReport([
+			{
+				kind: "usage",
+				provider: { id: "openai-codex-safe", name: "Safe|Name\nInjected" },
+				usage: {
+					plan: "plus|injected",
+					allowed: true,
+					primary: { remainingPercent: 75 },
+					secondary: { remainingPercent: 50 },
+					credits: 0,
+				},
+			},
+		], Date.UTC(2026, 8, 14, 5, 23));
+		const plainOutput = output.replace(/\x1b\[[0-9;]*m/g, "");
+		assert.match(plainOutput, /^codex-safe\/Name Injected\s+Plus In…\s+Available/m);
+		assert.ok(!plainOutput.includes("|"));
+		assert.match(plainOutput, /Best provider: codex-safe\/Name Injected at 50%/);
+	}
+
+	{
+		const [boundaryAlias] = validateOpenAICodexAliasConfig({
+			aliases: [{ slug: "boundary", name: `${"\u0301".repeat(79)}😀` }],
+		}, "unicode-fixture.json");
+		const unicodeResults = [
+			{ id: "openai-codex-emoji", name: `OpenAI Codex emoji ${"a".repeat(24)}😀b`, score: 50 },
+			{ id: "openai-codex-cjk", name: `OpenAI Codex cjk ${"界".repeat(18)}`, score: 50 },
+			{ id: "openai-codex-combining", name: `OpenAI Codex combining ${"e\u0301".repeat(24)}`, score: 50 },
+			{ ...boundaryAlias, score: 90 },
+		].map(({ score, ...provider }) => ({
+			kind: "usage",
+			provider,
+			usage: {
+				plan: "plus",
+				allowed: true,
+				primary: { remainingPercent: score },
+				secondary: { remainingPercent: score },
+				credits: 0,
+			},
+		}));
+		const lines = formatCodexUsageReport(unicodeResults, Date.UTC(2026, 8, 14, 5, 23)).split("\n");
+		const tableWidth = visibleWidth(lines[1]);
+		assert.ok(lines.slice(1, 3 + unicodeResults.length).every((line) => visibleWidth(line) === tableWidth));
+		const hasUnpairedSurrogate = lines.some((line) => Array.from(line).some((character) => {
+			if (character.length !== 1) return false;
+			const code = character.charCodeAt(0);
+			return code >= 0xd800 && code <= 0xdfff;
+		}));
+		assert.equal(hasUnpairedSurrogate, false, "terminal-width truncation must preserve Unicode characters");
+	}
+
+	{
+		const duplicateNameResults = [
+			{ id: "openai-codex-alpha", remainingPercent: 20 },
+			{ id: "openai-codex-beta", remainingPercent: 80 },
+		].map(({ id, remainingPercent }) => ({
+			kind: "usage",
+			provider: { id, name: "OpenAI Codex Shared" },
+			usage: {
+				plan: "plus",
+				allowed: true,
+				primary: { remainingPercent },
+				secondary: { remainingPercent },
+				credits: 0,
+			},
+		}));
+		const output = formatCodexUsageReport(duplicateNameResults, Date.UTC(2026, 8, 14, 5, 23));
+		assert.match(output, /^codex-alpha\/Shared\s+Plus\s+Available/m);
+		assert.match(output, /^codex-beta\/Shared\s+Plus\s+Available/m);
+		assert.match(output, /Best provider: codex-beta\/Shared at 80%/);
 	}
 
 	console.log("openai-codex-aliases tests passed");
