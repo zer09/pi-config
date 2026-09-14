@@ -92,6 +92,30 @@
         "openai-codex-cgpt6": {
           "thinking": ["medium", "high", "max"],
           "default": "high"
+        },
+        "openai-codex-cgpt7": {
+          "thinking": ["medium", "high", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt8": {
+          "thinking": ["medium", "high", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt9": {
+          "thinking": ["medium", "high", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt10": {
+          "thinking": ["medium", "high", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt11": {
+          "thinking": ["medium", "high", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt12": {
+          "thinking": ["medium", "high", "max"],
+          "default": "high"
         }
       }
     },
@@ -122,6 +146,30 @@
           "default": "high"
         },
         "openai-codex-cgpt6": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt7": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt8": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt9": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt10": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt11": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt12": {
           "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         }
@@ -156,6 +204,30 @@
         "openai-codex-cgpt6": {
           "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
           "default": "high"
+        },
+        "openai-codex-cgpt7": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "openai-codex-cgpt8": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "openai-codex-cgpt9": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "openai-codex-cgpt10": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "openai-codex-cgpt11": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "openai-codex-cgpt12": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
         }
       }
     },
@@ -183,7 +255,13 @@
             "openai-codex-cgpt3",
             "openai-codex-cgpt4",
             "openai-codex-cgpt5",
-            "openai-codex-cgpt6"
+            "openai-codex-cgpt6",
+            "openai-codex-cgpt7",
+            "openai-codex-cgpt8",
+            "openai-codex-cgpt9",
+            "openai-codex-cgpt10",
+            "openai-codex-cgpt11",
+            "openai-codex-cgpt12"
           ]
         }
       ]
@@ -200,7 +278,13 @@
             "openai-codex-cgpt3",
             "openai-codex-cgpt4",
             "openai-codex-cgpt5",
-            "openai-codex-cgpt6"
+            "openai-codex-cgpt6",
+            "openai-codex-cgpt7",
+            "openai-codex-cgpt8",
+            "openai-codex-cgpt9",
+            "openai-codex-cgpt10",
+            "openai-codex-cgpt11",
+            "openai-codex-cgpt12"
           ]
         }
       ]
@@ -268,7 +352,13 @@
             "openai-codex-cgpt3",
             "openai-codex-cgpt4",
             "openai-codex-cgpt5",
-            "openai-codex-cgpt6"
+            "openai-codex-cgpt6",
+            "openai-codex-cgpt7",
+            "openai-codex-cgpt8",
+            "openai-codex-cgpt9",
+            "openai-codex-cgpt10",
+            "openai-codex-cgpt11",
+            "openai-codex-cgpt12"
           ]
         }
       ]
@@ -285,7 +375,13 @@
             "openai-codex-cgpt3",
             "openai-codex-cgpt4",
             "openai-codex-cgpt5",
-            "openai-codex-cgpt6"
+            "openai-codex-cgpt6",
+            "openai-codex-cgpt7",
+            "openai-codex-cgpt8",
+            "openai-codex-cgpt9",
+            "openai-codex-cgpt10",
+            "openai-codex-cgpt11",
+            "openai-codex-cgpt12"
           ]
         }
       ]
