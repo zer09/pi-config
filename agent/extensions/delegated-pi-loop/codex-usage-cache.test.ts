@@ -186,7 +186,7 @@ test("malformed present windows and invalid rate limits preserve the previous re
   assert.deepEqual((await stored(cachePath)).entries, [previous]);
 });
 
-test("snapshots expire at one hour or the first recorded reset, without deleting stored entries", async (t) => {
+test("snapshots expire at five minutes or the first recorded reset, without deleting stored entries", async (t) => {
   const { cachePath } = await sandbox(t);
   const entries = [
     record("ttl"),
@@ -206,7 +206,7 @@ test("snapshots expire at one hour or the first recorded reset, without deleting
   assert.ok(cache.getFreshSnapshot().secondary);
   timestamp = NOW + 20_000;
   assert.equal(cache.getFreshSnapshot().secondary, undefined);
-  timestamp = NOW + 3_599_999;
+  timestamp = NOW + 299_999;
   assert.ok(cache.getFreshSnapshot().ttl);
   timestamp += 1;
   assert.deepEqual(Object.keys(cache.getFreshSnapshot()), []);
@@ -312,7 +312,7 @@ test("persistence creates private paths and atomically replaces the cache withou
 
 test("forced providers always refresh and ordinary candidates refresh only when missing or stale", async (t) => {
   const { cachePath } = await sandbox(t);
-  await seed(cachePath, [record("fresh"), record("forced"), record("ttl", NOW - 3_600_000),
+  await seed(cachePath, [record("fresh"), record("forced"), record("ttl", NOW - 300_000),
     { ...record("reset"), primary: { remainingPercent: 50, resetAt: NOW / 1000 } }]);
   const resolved: string[] = [];
   const cache = await cacheAt(cachePath, {
@@ -328,7 +328,52 @@ test("forced providers always refresh and ordinary candidates refresh only when 
   assert.equal(resolved.length, 4);
 });
 
-test("one refresh starts auth and fetch concurrently and gives every request the same signal", async (t) => {
+test("six concurrent cold-cache refreshes coalesce 13 sequential delayed providers", async (t) => {
+  const { cachePath } = await sandbox(t);
+  const providers = Array.from({ length: 13 }, (_value, index) => `codex-${index}`);
+  const authCalls = new Map<string, number>();
+  const fetchCalls = new Map<string, number>();
+  let activeFetches = 0;
+  let maxActiveFetches = 0;
+  const cache = await cacheAt(cachePath, {
+    resolveAuth: async (providerId) => {
+      authCalls.set(providerId, (authCalls.get(providerId) ?? 0) + 1);
+      return resolveAuth(providerId);
+    },
+    fetch: async (_url, init) => {
+      const accountId = new Headers(init?.headers).get("ChatGPT-Account-Id");
+      assert.ok(accountId && accountId.startsWith("test-"));
+      const providerId = accountId.slice("test-".length);
+      fetchCalls.set(providerId, (fetchCalls.get(providerId) ?? 0) + 1);
+      activeFetches += 1;
+      maxActiveFetches = Math.max(maxActiveFetches, activeFetches);
+      await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      activeFetches -= 1;
+      return Response.json(usage());
+    },
+  });
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const refreshes = Array.from({ length: 6 }, () => cache.refresh({ candidateProviderIds: providers }));
+  await nextTurn();
+  assert.equal([...authCalls.values()].reduce((sum, count) => sum + count, 0), 1);
+  assert.equal([...fetchCalls.values()].reduce((sum, count) => sum + count, 0), 1);
+  assert.equal(activeFetches, 1);
+  for (let index = 0; index < providers.length; index += 1) {
+    t.mock.timers.tick(500);
+    await nextTurn();
+  }
+  await Promise.all(refreshes);
+  for (const providerId of providers) {
+    assert.equal(authCalls.get(providerId), 1, `${providerId} auth must resolve once`);
+    assert.equal(fetchCalls.get(providerId), 1, `${providerId} usage must fetch once`);
+  }
+  assert.equal(maxActiveFetches, 1);
+  assert.equal(activeFetches, 0);
+  assert.deepEqual(Object.keys(cache.getFreshSnapshot()).sort(), [...providers].sort());
+  assert.deepEqual((await stored(cachePath)).entries.map((entry) => entry.providerId).sort(), [...providers].sort());
+});
+
+test("one refresh runs provider pipelines sequentially with the same deadline signal", async (t) => {
   const { cachePath } = await sandbox(t);
   const authGate = deferred<void>();
   const responseGate = deferred<void>();
@@ -344,60 +389,57 @@ test("one refresh starts auth and fetch concurrently and gives every request the
     },
   });
   const refresh = cache.refresh({ candidateProviderIds: ["a", "b", "c"] });
-  assert.deepEqual(authStarted, ["a", "b", "c"]);
+  assert.deepEqual(authStarted, ["a"]);
   authGate.resolve();
   await nextTurn();
+  assert.deepEqual(authStarted, ["a"]);
+  assert.equal(signals.length, 1);
+  responseGate.resolve();
+  await refresh;
+  assert.deepEqual(authStarted, ["a", "b", "c"]);
   assert.equal(signals.length, 3);
   assert.equal(signals[0], signals[1]);
   assert.equal(signals[1], signals[2]);
-  responseGate.resolve();
-  await refresh;
   assert.deepEqual((await stored(cachePath)).entries.map((entry) => entry.providerId).sort(), ["a", "b", "c"]);
 });
 
-test("the default overall deadline bounds auth, uncooperative fetch, and body waits together", async (t) => {
+test("the default overall deadline publishes completed work and cancels active and queued pipelines", async (t) => {
   const { cachePath } = await sandbox(t);
   await seed(cachePath, [record("auth"), record("fetch"), record("body")]);
-  const lateAuth = deferred<Awaited<ReturnType<typeof resolveAuth>>>();
   const fetchStarted: string[] = [];
   const signals: AbortSignal[] = [];
-  let bodyCancelled = false;
+  let queuedAuthStarted = false;
   const cache = await cacheAt(cachePath, {
-    resolveAuth: (providerId) => providerId === "auth" ? lateAuth.promise : resolveAuth(providerId),
+    resolveAuth: (providerId) => {
+      if (providerId === "auth") queuedAuthStarted = true;
+      return resolveAuth(providerId);
+    },
     fetch: async (_url, init) => {
       const provider = new Headers(init?.headers).get("ChatGPT-Account-Id")!;
       fetchStarted.push(provider);
       signals.push(init!.signal!);
       if (provider === "test-fetch") return new Promise<Response>(() => {});
-      if (provider === "test-body") {
-        return new Response(new ReadableStream<Uint8Array>({
-          start(controller) { controller.enqueue(Buffer.from('{"rate_limit":')); },
-          cancel() { bodyCancelled = true; return new Promise<void>(() => {}); },
-        }));
-      }
+      assert.equal(provider, "test-fast");
       return Response.json(usage());
     },
   });
   t.mock.timers.enable({ apis: ["setTimeout"] });
   let settled = false;
-  const refresh = cache.refresh({ forcedProviderIds: ["auth", "fetch", "body", "fast"] }).then(() => { settled = true; });
+  const refresh = cache.refresh({ forcedProviderIds: ["fast", "fetch", "body", "auth"] }).then(() => { settled = true; });
   await nextTurn();
-  assert.deepEqual(fetchStarted, ["test-fetch", "test-body", "test-fast"]);
-  t.mock.timers.tick(4999);
+  assert.deepEqual(fetchStarted, ["test-fast", "test-fetch"]);
+  t.mock.timers.tick(9999);
   await nextTurn();
   assert.equal(settled, false);
   t.mock.timers.tick(1);
   await refresh;
   await nextTurn();
   assert.ok(signals.every((signal) => signal === signals[0] && signal.aborted));
-  assert.equal(bodyCancelled, true);
+  assert.equal(queuedAuthStarted, false, "queued auth must not start after the deadline");
   assert.deepEqual(cache.getFreshSnapshot().auth, record("auth"));
   assert.deepEqual(cache.getFreshSnapshot().fetch, record("fetch"));
   assert.deepEqual(cache.getFreshSnapshot().body, record("body"));
   assert.ok(cache.getFreshSnapshot().fast);
-  lateAuth.resolve(await resolveAuth("auth"));
-  await nextTurn();
-  assert.equal(fetchStarted.length, 3, "late auth must not start a request after the deadline");
   await cache.invalidate("absent");
   assert.equal((await stored(cachePath)).entries.length, 4);
 });
@@ -497,56 +539,88 @@ test("transport, redirect, JSON, and oversized body failures preserve cached dat
   assert.ok(atLimit.getFreshSnapshot()["codex-a"]?.secondary, "a body exactly at the limit is valid");
 });
 
-test("an older request finishing last cannot replace a newer fetchedAt record", async (t) => {
+test("overlapping forced refreshes coalesce their request and persistence", async (t) => {
   const { cachePath } = await sandbox(t);
-  let timestamp = NOW;
-  const responses = [deferred<Response>(), deferred<Response>()];
-  let calls = 0;
+  const response = deferred<Response>();
+  let authCalls = 0;
+  let fetchCalls = 0;
+  let persistenceCalls = 0;
   const cache = await cacheAt(cachePath, {
-    now: () => timestamp,
-    fetch: async () => responses[calls++].promise,
+    now: () => NOW + 1000,
+    resolveAuth: async (providerId) => {
+      authCalls += 1;
+      return resolveAuth(providerId);
+    },
+    fetch: async () => {
+      fetchCalls += 1;
+      return response.promise;
+    },
+    persist: async (target, records) => {
+      persistenceCalls += 1;
+      await seed(target, [...records.values()]);
+    },
   });
-  const older = cache.refresh({ forcedProviderIds: ["codex-a"] });
+  const first = cache.refresh({ forcedProviderIds: ["codex-a"] });
   await nextTurn();
-  assert.equal(calls, 1);
-  timestamp += 1000;
-  const newer = cache.refresh({ forcedProviderIds: ["codex-a"] });
+  const second = cache.refresh({ forcedProviderIds: ["codex-a"] });
   await nextTurn();
-  assert.equal(calls, 2);
-  responses[1].resolve(Response.json(usage(10)));
-  await newer;
-  responses[0].resolve(Response.json(usage(90)));
-  await older;
-  assert.equal(cache.getFreshSnapshot()["codex-a"]?.fetchedAt, NOW + 1000);
-  assert.equal(cache.getFreshSnapshot()["codex-a"]?.primary?.remainingPercent, 90);
-  assert.deepEqual((await stored(cachePath)).entries, [cache.getFreshSnapshot()["codex-a"]]);
-});
-
-test("equal fetchedAt keeps the later-started response when an earlier request finishes last", async (t) => {
-  const { cachePath } = await sandbox(t);
-  const responses = [deferred<Response>(), deferred<Response>()];
-  let calls = 0;
-  const cache = await cacheAt(cachePath, {
-    now: () => NOW,
-    fetch: async () => responses[calls++].promise,
-  });
-  const older = cache.refresh({ forcedProviderIds: ["codex-a"] });
-  await nextTurn();
-  assert.equal(calls, 1);
-  const newer = cache.refresh({ forcedProviderIds: ["codex-a"] });
-  await nextTurn();
-  assert.equal(calls, 2);
-  responses[1].resolve(Response.json({ ...usage(10), plan_type: "ProLite" }));
-  await newer;
-  responses[0].resolve(Response.json(usage(90)));
-  await older;
+  assert.equal(authCalls, 1);
+  assert.equal(fetchCalls, 1);
+  response.resolve(Response.json({ ...usage(10), plan_type: "ProLite" }));
+  await Promise.all([first, second]);
   const expected = {
-    providerId: "codex-a", planType: "prolite", fetchedAt: NOW, allowed: true,
+    providerId: "codex-a", planType: "prolite", fetchedAt: NOW + 1000, allowed: true,
     primary: { remainingPercent: 90, resetAt: NOW / 1000 + 3600 },
     secondary: { remainingPercent: 49.5, resetAt: NOW / 1000 + 7200 },
   };
+  assert.equal(persistenceCalls, 1);
   assert.deepEqual(cache.getFreshSnapshot()["codex-a"], expected);
   assert.deepEqual(await stored(cachePath), { version: 2, entries: [expected] });
+});
+
+test("a later forced refresh does not reuse a settled provider from an older open batch", async (t) => {
+  const { cachePath } = await sandbox(t);
+  let timestamp = NOW;
+  const firstA = deferred<Response>();
+  const responseB = deferred<Response>();
+  const secondA = deferred<Response>();
+  const bStarted = deferred<void>();
+  const requests = new Map<string, number>();
+  const cache = await cacheAt(cachePath, {
+    now: () => timestamp,
+    fetch: async (_url, init) => {
+      const accountId = new Headers(init?.headers).get("ChatGPT-Account-Id");
+      assert.ok(accountId && accountId.startsWith("test-"));
+      const providerId = accountId.slice("test-".length);
+      const count = (requests.get(providerId) ?? 0) + 1;
+      requests.set(providerId, count);
+      if (providerId === "b") {
+        bStarted.resolve();
+        return responseB.promise;
+      }
+      return count === 1 ? firstA.promise : secondA.promise;
+    },
+  });
+  const first = cache.refresh({ forcedProviderIds: ["a", "b"] });
+  await nextTurn();
+  assert.equal(requests.get("a"), 1);
+  firstA.resolve(Response.json(usage(90)));
+  await bStarted.promise;
+  await nextTurn();
+  timestamp += 1000;
+  const second = cache.refresh({ forcedProviderIds: ["a"] });
+  await nextTurn();
+  assert.equal(requests.get("a"), 1, "the new request waits behind provider b");
+  responseB.resolve(Response.json(usage()));
+  await nextTurn();
+  assert.equal(requests.get("a"), 2, "settled provider work must not satisfy a later forced refresh");
+  secondA.resolve(Response.json(usage(10)));
+  await Promise.all([first, second]);
+  assert.equal(requests.get("b"), 1);
+  assert.equal(cache.getFreshSnapshot().a?.fetchedAt, NOW + 1000);
+  assert.equal(cache.getFreshSnapshot().a?.primary?.remainingPercent, 90);
+  assert.ok(cache.getFreshSnapshot().b);
+  assert.deepEqual((await stored(cachePath)).entries, Object.values(cache.getFreshSnapshot()));
 });
 
 test("invalidation immediately removes an entry and rejects a response already in flight", async (t) => {
@@ -567,41 +641,80 @@ test("invalidation immediately removes an entry and rejects a response already i
   assert.deepEqual((await stored(cachePath)).entries, [record("keep")]);
 });
 
-test("a forced refresh after invalidation publishes but an older auth wait cannot restore its generation", async (t) => {
+test("a candidate refresh after invalidation bypasses freshness and rejects the older response", async (t) => {
   const { cachePath } = await sandbox(t);
-  const authGate = deferred<void>();
+  await seed(cachePath, [record(), record("keep")]);
+  let timestamp = NOW;
+  const responses = [deferred<Response>(), deferred<Response>()];
   let authCalls = 0;
   let fetchCalls = 0;
   const cache = await cacheAt(cachePath, {
+    now: () => timestamp,
     resolveAuth: async (providerId) => {
       authCalls += 1;
-      if (authCalls === 1) await authGate.promise;
       return resolveAuth(providerId);
     },
-    fetch: async () => Response.json(usage(++fetchCalls === 1 ? 10 : 90)),
+    fetch: async () => responses[fetchCalls++].promise,
   });
   const older = cache.refresh({ forcedProviderIds: ["codex-a"] });
-  assert.equal(authCalls, 1);
-  // Invalidate even a missing entry, and do not wait for its queued persistence.
+  await nextTurn();
+  assert.equal(fetchCalls, 1);
   const invalidation = cache.invalidate("codex-a");
-  await cache.refresh({ forcedProviderIds: ["codex-a"] });
-  assert.equal(cache.getFreshSnapshot()["codex-a"]?.primary?.remainingPercent, 90);
-  authGate.resolve();
-  await Promise.all([invalidation, older]);
-  assert.equal(fetchCalls, 2);
-  assert.equal(cache.getFreshSnapshot()["codex-a"]?.primary?.remainingPercent, 90);
-  assert.deepEqual((await stored(cachePath)).entries, [cache.getFreshSnapshot()["codex-a"]]);
+  assert.equal(cache.getFreshSnapshot()["codex-a"], undefined);
+  timestamp += 1000;
+  const newer = cache.refresh({ candidateProviderIds: ["codex-a"] });
+  await nextTurn();
+  assert.equal(authCalls, 1, "the new generation waits for the single provider slot");
+  assert.equal(fetchCalls, 1);
+  responses[0].resolve(Response.json(usage(90)));
+  await older;
+  await nextTurn();
+  assert.equal(authCalls, 2, "the new generation must resolve auth independently");
+  assert.equal(fetchCalls, 2, "the new generation must start a distinct request");
+  assert.equal(cache.getFreshSnapshot()["codex-a"], undefined, "the old response cannot restore the invalidated record");
+  responses[1].resolve(Response.json(usage(10)));
+  await newer;
+  const current = cache.getFreshSnapshot()["codex-a"];
+  assert.equal(current?.fetchedAt, NOW + 1000);
+  assert.equal(current?.primary?.remainingPercent, 90);
+  await invalidation;
+  assert.deepEqual(cache.getFreshSnapshot()["codex-a"], current);
+  assert.deepEqual((await stored(cachePath)).entries, [record("keep"), current]);
 });
 
-test("overlapping refreshes and invalidations serialize merges without losing other providers", async (t) => {
+test("overlapping refresh batches serialize snapshots without losing other providers", async (t) => {
   const { cachePath } = await sandbox(t);
   await seed(cachePath, [record("remove"), record("keep")]);
-  const cache = await cacheAt(cachePath);
-  await Promise.all([
-    cache.refresh({ forcedProviderIds: ["a", "b"] }),
-    cache.invalidate("remove"),
-    cache.refresh({ forcedProviderIds: ["c", "d"] }),
-  ]);
+  const providerIds = ["a", "b", "c", "d"];
+  const responses = new Map(providerIds.map((providerId) => [providerId, deferred<Response>()]));
+  const starts = new Map(providerIds.map((providerId) => [providerId, deferred<void>()]));
+  const started: string[] = [];
+  const cache = await cacheAt(cachePath, {
+    fetch: async (_url, init) => {
+      const accountId = new Headers(init?.headers).get("ChatGPT-Account-Id");
+      assert.ok(accountId && accountId.startsWith("test-"));
+      const providerId = accountId.slice("test-".length);
+      started.push(providerId);
+      starts.get(providerId)!.resolve();
+      return responses.get(providerId)!.promise;
+    },
+  });
+  const first = cache.refresh({ forcedProviderIds: ["a", "b"] });
+  const second = cache.refresh({ forcedProviderIds: ["c", "d"] });
+  await starts.get("a")!.promise;
+  assert.deepEqual(started, ["a"]);
+  const invalidation = cache.invalidate("remove");
+  responses.get("a")!.resolve(Response.json(usage()));
+  await starts.get("b")!.promise;
+  assert.deepEqual(started, ["a", "b"]);
+  responses.get("b")!.resolve(Response.json(usage()));
+  await starts.get("c")!.promise;
+  assert.deepEqual(started, ["a", "b", "c"]);
+  responses.get("c")!.resolve(Response.json(usage()));
+  await starts.get("d")!.promise;
+  assert.deepEqual(started, providerIds);
+  responses.get("d")!.resolve(Response.json(usage()));
+  await Promise.all([first, second, invalidation]);
   assert.deepEqual(Object.keys(cache.getFreshSnapshot()).sort(), ["a", "b", "c", "d", "keep"]);
   const reloaded = await cacheAt(cachePath);
   assert.deepEqual(reloaded.getFreshSnapshot(), cache.getFreshSnapshot());

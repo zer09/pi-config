@@ -187,6 +187,36 @@ export default function delegatedPiLoopExtension(
     ...routingSnapshot.disabledProviders,
     ...Object.values(routingSnapshot.models).flatMap((model) => Object.keys(model.providers)),
   ])].filter(isOpenAICodexProviderId);
+  const pendingCandidateProviderIds = new Set<string>();
+  let usageRefreshPending = false;
+  let usageRefreshPromise: Promise<boolean> | undefined;
+
+  async function refreshUsageIfIdle(usageCache: CodexUsageCache): Promise<void> {
+    while (manager.listActive().length === 0 && (usageRefreshPending || usageRefreshPromise)) {
+      let refresh = usageRefreshPromise;
+      if (!refresh) {
+        usageRefreshPending = false;
+        const pendingProviderIds = [...pendingCandidateProviderIds];
+        pendingCandidateProviderIds.clear();
+        const refreshCandidateProviderIds = [...new Set([...candidateProviderIds, ...pendingProviderIds])];
+        refresh = (async () => {
+          try {
+            // The transition to no active delegates owns one cache-respecting refresh batch.
+            await usageCache.refresh({ candidateProviderIds: refreshCandidateProviderIds });
+            return true;
+          } catch {
+            for (const providerId of pendingProviderIds) pendingCandidateProviderIds.add(providerId);
+            usageRefreshPending = true;
+            return false;
+          }
+        })();
+        usageRefreshPromise = refresh;
+      }
+      const completed = await refresh;
+      if (usageRefreshPromise === refresh) usageRefreshPromise = undefined;
+      if (!completed) return;
+    }
+  }
 
   pi.registerCommand("delegate:list", {
     description: "Show active delegates and prefill a targeted stop command.",
@@ -301,22 +331,26 @@ export default function delegatedPiLoopExtension(
         // success record), assemble the raw-Markdown ToolResult, then remove
         // the temporary supervision artifacts for every terminal outcome.
         const finalized = await finalizeDelegateRun(result);
-        try {
-          for (const providerId of result.quotaFailedProviderIds ?? []) {
-            if (isOpenAICodexProviderId(providerId)) await usageCache.invalidate(providerId);
+        usageRefreshPending = true;
+        for (const providerId of result.supervisedProviderIds ?? []) {
+          if (isOpenAICodexProviderId(providerId)) pendingCandidateProviderIds.add(providerId);
+        }
+        for (const providerId of result.quotaFailedProviderIds ?? []) {
+          if (!isOpenAICodexProviderId(providerId)) continue;
+          pendingCandidateProviderIds.add(providerId);
+          try {
+            await usageCache.invalidate(providerId);
+          } catch {
+            // Cache failures never change the finalized result or expose provider errors.
           }
-          // Await the service's five-second bound so the next run sees updated usage.
-          await usageCache.refresh({
-            forcedProviderIds: [...new Set(result.supervisedProviderIds ?? [])].filter(isOpenAICodexProviderId),
-            candidateProviderIds,
-          });
-        } catch {
-          // Cache failures never change the finalized result or expose provider errors.
         }
         return finalResult(handle.id, finalized);
       } finally {
         runSignal.dispose();
+        // Remove this delegate before the idle check. The delete and check share one JS turn,
+        // so simultaneous completions cannot both miss the transition to zero active delegates.
         manager.finish(toolCallId);
+        await refreshUsageIfIdle(usageCache);
       }
     },
 

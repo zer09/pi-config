@@ -516,6 +516,154 @@ test("the parent lazily shares one cache and first execute auth context, forward
   assert.equal(refreshes, 3);
 });
 
+test("seven concurrent delegates refresh once after the transition to idle", async (t) => {
+  const { root, extension } = await loadExtensionForTest(t);
+  const providerIds = ["openai-codex-gate-a", "openai-codex-gate-b", "openai-codex-gate-c",
+    "openai-codex-gate-d", "openai-codex-gate-e", "openai-codex-gate-f", "openai-codex-gate-g"];
+  const completions = providerIds.map(() => deferred<DelegateRunResult>());
+  const starts = providerIds.map(() => deferred<void>());
+  const refreshStarted = deferred<void>();
+  const finishRefresh = deferred<void>();
+  const invalidated: string[] = [];
+  const refreshRequests: Array<Parameters<CodexUsageCache["refresh"]>[0]> = [];
+  let runCount = 0;
+  const cache: CodexUsageCache = {
+    getFreshSnapshot: () => Object.freeze({}),
+    invalidate: async (providerId) => { invalidated.push(providerId); },
+    refresh: async (request) => {
+      refreshRequests.push(request);
+      refreshStarted.resolve();
+      await finishRefresh.promise;
+    },
+  };
+  let tool: ToolDefinition<DelegateToolParams> | undefined;
+  extension({
+    on: () => {}, registerCommand: () => {},
+    registerTool: (config: { name: string }) => {
+      if (config.name === "delegate_run") tool = config as ToolDefinition<DelegateToolParams>;
+    },
+  }, {
+    createUsageCache: async () => cache,
+    runDelegate: async () => {
+      const index = runCount++;
+      starts[index].resolve();
+      return completions[index].promise;
+    },
+    finalizeDelegateRun: async () => ({ content: [{ type: "text", text: "finalized" }] }),
+  });
+  assert.ok(tool);
+  const executions: Array<Promise<ToolResult>> = [];
+  for (let index = 0; index < providerIds.length; index += 1) {
+    executions.push(tool.execute(
+      `run-${index}`,
+      { role: "solution-a", prompt: "test" },
+      undefined,
+      undefined,
+      { cwd: root, modelRegistry: { getProviderAuth: async () => assert.fail("fake cache never resolves auth") } },
+    ));
+    await starts[index].promise;
+  }
+  assert.equal(runCount, 7);
+  for (let index = 0; index < 6; index += 1) {
+    completions[index].resolve({
+      ...lifecycleResult(root),
+      supervisedProviderIds: [providerIds[index], providerIds[index]],
+      ...(index % 3 === 0 ? { quotaFailedProviderIds: [providerIds[index]] } : {}),
+    });
+    await executions[index];
+    assert.equal(refreshRequests.length, 0, "a completed delegate must not refresh while another remains active");
+  }
+  let lastReturned = false;
+  void executions[6].then(() => { lastReturned = true; });
+  completions[6].resolve({
+    ...lifecycleResult(root),
+    supervisedProviderIds: [providerIds[6]],
+    quotaFailedProviderIds: [providerIds[6]],
+  });
+  await refreshStarted.promise;
+  assert.equal(lastReturned, false, "the final delegate awaits the bounded refresh");
+  assert.equal(refreshRequests.length, 1);
+  assert.equal(refreshRequests[0]?.forcedProviderIds, undefined);
+  for (const providerId of providerIds) {
+    assert.ok(refreshRequests[0]?.candidateProviderIds?.includes(providerId));
+  }
+  assert.deepEqual(invalidated, [providerIds[0], providerIds[3], providerIds[6]]);
+  finishRefresh.resolve();
+  await executions[6];
+  assert.equal(lastReturned, true);
+});
+
+test("simultaneous completions across role families refresh once on the transition to idle", async (t) => {
+  const { root, extension } = await loadExtensionForTest(t);
+  const providerIds = ["openai-codex-solution", "openai-codex-review"];
+  const completions = providerIds.map(() => deferred<DelegateRunResult>());
+  const starts = providerIds.map(() => deferred<void>());
+  const allFinalizing = deferred<void>();
+  const refreshStarted = deferred<void>();
+  const finishRefresh = deferred<void>();
+  const refreshRequests: Array<Parameters<CodexUsageCache["refresh"]>[0]> = [];
+  let runCount = 0;
+  let finalizingCount = 0;
+  const cache: CodexUsageCache = {
+    getFreshSnapshot: () => Object.freeze({}),
+    invalidate: async () => assert.fail("no quota failures"),
+    refresh: async (request) => {
+      refreshRequests.push(request);
+      refreshStarted.resolve();
+      await finishRefresh.promise;
+    },
+  };
+  let tool: ToolDefinition<DelegateToolParams> | undefined;
+  extension({
+    on: () => {}, registerCommand: () => {},
+    registerTool: (config: { name: string }) => {
+      if (config.name === "delegate_run") tool = config as ToolDefinition<DelegateToolParams>;
+    },
+  }, {
+    createUsageCache: async () => cache,
+    runDelegate: async () => {
+      const index = runCount++;
+      starts[index].resolve();
+      return completions[index].promise;
+    },
+    finalizeDelegateRun: async () => {
+      finalizingCount += 1;
+      if (finalizingCount === providerIds.length) allFinalizing.resolve();
+      await allFinalizing.promise;
+      return { content: [{ type: "text", text: "finalized" }] };
+    },
+  });
+  assert.ok(tool);
+  const roles = ["solution-a", "review-a"];
+  const executions: Array<Promise<ToolResult>> = [];
+  for (let index = 0; index < roles.length; index += 1) {
+    executions.push(tool.execute(
+      `simultaneous-${index}`,
+      { role: roles[index], prompt: "test" },
+      undefined,
+      undefined,
+      { cwd: root, modelRegistry: { getProviderAuth: async () => assert.fail("fake cache never resolves auth") } },
+    ));
+    await starts[index].promise;
+  }
+  for (let index = 0; index < completions.length; index += 1) {
+    completions[index].resolve({ ...lifecycleResult(root), supervisedProviderIds: [providerIds[index]] });
+  }
+  const outcome = await Promise.race([
+    refreshStarted.promise.then(() => "refresh" as const),
+    Promise.all(executions).then(() => "returned" as const),
+  ]);
+  assert.equal(outcome, "refresh", "simultaneous finalizers must not both miss the idle transition");
+  assert.equal(refreshRequests.length, 1);
+  assert.equal(refreshRequests[0]?.forcedProviderIds, undefined);
+  for (const providerId of providerIds) {
+    assert.ok(refreshRequests[0]?.candidateProviderIds?.includes(providerId));
+  }
+  finishRefresh.resolve();
+  await Promise.all(executions);
+  assert.equal(refreshRequests.length, 1);
+});
+
 test("usage refresh follows finalization and invalidation, uses all candidates, and cannot change ToolResult", async (t) => {
   const { root, extension } = await loadExtensionForTest(t);
   const { validateRoutingConfig } = await import("./routing.ts");
@@ -604,7 +752,7 @@ test("usage refresh follows finalization and invalidation, uses all candidates, 
       assert.equal(artifactExistsOnInvalidate, false, "finalization removes artifacts before invalidation");
       assert.deepEqual(events, ["snapshot", "run", "finalize", "finalized", "invalidate:openai-codex-a", "invalidated", "refresh"]);
       assert.equal(returned, false, "execute awaits the bounded refresh");
-      assert.deepEqual(refreshRequest?.forcedProviderIds, ["openai-codex-a", "openai-codex"]);
+      assert.equal(refreshRequest?.forcedProviderIds, undefined);
       assert.deepEqual([...(refreshRequest?.candidateProviderIds ?? [])].sort(), [
         "openai-codex", "openai-codex-a", "openai-codex-b", "openai-codex-disabled", "openai-codex-disabled-only", "openai-codex-unused",
       ]);
