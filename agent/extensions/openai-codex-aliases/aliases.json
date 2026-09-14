@@ -4,43 +4,43 @@
     { "slug": "cgpt2", "name": "OpenAI Codex CGPT2" },
     {
       "slug": "cgpt3",
-      "name": "adrian"
+      "name": "cgpt3 adrian"
     },
     {
       "slug": "cgpt4",
-      "name": "elaine"
+      "name": "cgpt4 elaine"
     },
     {
       "slug": "cgpt5",
-      "name": "ethan"
+      "name": "cgpt5 ethan"
     },
     {
       "slug": "cgpt6",
-      "name": "emily"
+      "name": "cgpt6 emily"
     },
     {
       "slug": "cgpt7",
-      "name": "dominic"
+      "name": "cgpt7 dominic"
     },
     {
       "slug": "cgpt8",
-      "name": "danielle"
+      "name": "cgpt8 danielle"
     },
     {
       "slug": "cgpt9",
-      "name": "elijah"
+      "name": "cgpt9 elijah"
     },
     {
       "slug": "cgpt10",
-      "name": "joanna"
+      "name": "cgpt10 joanna"
     },
     {
       "slug": "cgpt11",
-      "name": "regina"
+      "name": "cgpt11 regina"
     },
     {
       "slug": "cgpt12",
-      "name": "danielle"
+      "name": "cgpt12 danielle"
     }
   ]
 }
