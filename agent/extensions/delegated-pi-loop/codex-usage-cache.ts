@@ -3,7 +3,7 @@ import { chmod, mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-const MAX_AGE_MS = 5 * 60 * 1000;
+const MAX_AGE_MS = 15 * 60 * 1000;
 const REFRESH_TIMEOUT_MS = 10_000;
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const MAX_ACTIVE_PROVIDER_REFRESHES = 1;

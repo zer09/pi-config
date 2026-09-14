@@ -186,7 +186,7 @@ test("malformed present windows and invalid rate limits preserve the previous re
   assert.deepEqual((await stored(cachePath)).entries, [previous]);
 });
 
-test("snapshots expire at five minutes or the first recorded reset, without deleting stored entries", async (t) => {
+test("snapshots expire at fifteen minutes or the first recorded reset, without deleting stored entries", async (t) => {
   const { cachePath } = await sandbox(t);
   const entries = [
     record("ttl"),
@@ -206,7 +206,7 @@ test("snapshots expire at five minutes or the first recorded reset, without dele
   assert.ok(cache.getFreshSnapshot().secondary);
   timestamp = NOW + 20_000;
   assert.equal(cache.getFreshSnapshot().secondary, undefined);
-  timestamp = NOW + 299_999;
+  timestamp = NOW + 899_999;
   assert.ok(cache.getFreshSnapshot().ttl);
   timestamp += 1;
   assert.deepEqual(Object.keys(cache.getFreshSnapshot()), []);
@@ -312,7 +312,7 @@ test("persistence creates private paths and atomically replaces the cache withou
 
 test("forced providers always refresh and ordinary candidates refresh only when missing or stale", async (t) => {
   const { cachePath } = await sandbox(t);
-  await seed(cachePath, [record("fresh"), record("forced"), record("ttl", NOW - 300_000),
+  await seed(cachePath, [record("fresh"), record("forced"), record("ttl", NOW - 900_000),
     { ...record("reset"), primary: { remainingPercent: 50, resetAt: NOW / 1000 } }]);
   const resolved: string[] = [];
   const cache = await cacheAt(cachePath, {
