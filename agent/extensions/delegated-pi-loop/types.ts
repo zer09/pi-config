@@ -479,6 +479,8 @@ export interface RunOptions {
   readonly cleanupTimeoutMs?: number;
   /** Internal test seam for the fixed 15-second catalog preflight cap. */
   readonly catalogTimeoutMs?: number;
+  /** Internal test seam for the fixed five-second administrative route switch. */
+  readonly liveSwitchTimeoutMs?: number;
   readonly piInvocation?: PiInvocation;
   /** Optional pre-validated routing config: the registration snapshot injected by the tool, or a deterministic test seam for alternate assignments. */
   readonly routingConfig?: RoutingConfig;

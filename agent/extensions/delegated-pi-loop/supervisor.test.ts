@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { writeFileSync } from "node:fs";
+import { lstatSync, writeFileSync } from "node:fs";
 import { chmod, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createPrivateDirectory } from "./artifacts.ts";
 import { REPORT_RECOVERY_PROMPT } from "./instructions.ts";
+import { createPersistedPiSession } from "./persisted-session.ts";
 import {
   DEFAULT_PROGRESS_STALL_MS,
   DEFAULT_PROGRESS_WARNING_MS,
@@ -295,6 +296,41 @@ test("a failed pre-spawn resource verification rejects before any child spawns",
     (error: unknown) => (error as NodeJS.ErrnoException).code === "ENOENT",
   );
 });
+
+for (const mutation of ["resource", "session"] as const) {
+  test(`async prompt preparation cannot bypass the final ${mutation} spawn guard`, async () => {
+    const built = await fixture(eventScript([completed()]));
+    const session = await createPersistedPiSession(built.root);
+    const resource = path.join(built.root, "approved-entry.ts");
+    await writeFile(resource, "export {};", { mode: 0o600 });
+    const order: string[] = [];
+    const verification = new Error("fixture resource validation failed");
+    const attemptDir = path.join(built.root, "attempt");
+    await createPrivateDirectory(attemptDir);
+    await assert.rejects(supervisePi({
+      label: "test", role: "review-a", attempt: 1, cwd: built.root, artifactDir: attemptDir,
+      promptPath: built.promptPath, route: ROUTE, piInvocation: built.invocation,
+      runtimeResourceArgs: RUNTIME_RESOURCE_ARGS,
+      verifyRuntimeResources() {
+        order.push("resource");
+        if ((lstatSync(resource).mode & 0o777) !== 0o600) throw verification;
+      },
+      persistedSession: { ...session, verifySpawn() { order.push("session"); session.verifySpawn(); } },
+      async prepareFreshPrompt() {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        await chmod(mutation === "resource" ? resource : session.args[3]!, 0o640);
+        order.push("prepared");
+        return { prompt: "selected assignment", restartAfterWorkCount: 0 };
+      },
+      activityWarningMs: 100, activityIdleMs: 500, progressWarningMs: 900, progressStallMs: 4000,
+      reportRecoveryIdleMs: 400, maxOutputBytes: 1024 * 1024, graceMs: 100,
+    }), mutation === "resource" ? (error: unknown) => error === verification : { message: "Delegated session validation failed" });
+    assert.deepEqual(order, mutation === "resource"
+      ? ["resource", "session", "prepared", "resource"] : ["resource", "session", "prepared", "resource", "session"]);
+    await assert.rejects(stat(path.join(built.root, "args.json")), { code: "ENOENT" });
+    await assert.rejects(stat(path.join(built.root, "commands.jsonl")), { code: "ENOENT" });
+  });
+}
 
 test("uses Pi RPC arguments and one prompt for normal success", async () => {
   const events = [

@@ -5,6 +5,7 @@ import {
   CHILD_ATTEMPT_BUDGET,
   CHILD_RECURSION_PROHIBITION,
   CHILD_TERMINAL_RESULT_INSTRUCTIONS,
+  LIVE_CONTINUATION_PROMPT,
   MODEL_CATALOG_PROMPT_GUIDELINES,
   REPORT_RECOVERY_PROMPT,
   RESTART_AFTER_WORK_NOTE,
@@ -35,7 +36,8 @@ test("prompt and instruction text is single-sourced in the canonical module", as
   assert.ok(!protocol.includes("The previous response lacked a valid final report"), "protocol.ts must not carry the recovery prompt");
   // The runtime consumes the centralized builders and text directly.
   assert.match(runner, /import \{ buildDelegatePrompt \} from "\.\/instructions\.ts";/);
-  assert.match(supervisor, /import \{ REPORT_RECOVERY_PROMPT \} from "\.\/instructions\.ts";/);
+  assert.match(supervisor, /import \{ LIVE_CONTINUATION_PROMPT, REPORT_RECOVERY_PROMPT \} from "\.\/instructions\.ts";/);
+  assert.ok(!supervisor.includes("Continue the existing delegated assignment from this session"));
   assert.match(supervisor, /protocol\.beginPrompt\(2, REPORT_RECOVERY_PROMPT\)/);
 });
 
@@ -45,6 +47,11 @@ test("the restart note stays byte-exact and generic", () => {
     "Restart: a prior route attempt may have changed the tree. Inspect current work first; treat it as authoritative, continue from it, and do not repeat irreversible actions.",
   );
   assert.ok(!RESTART_AFTER_WORK_NOTE.includes("://"));
+});
+
+test("the live continuation prompt stays byte-exact and never replays an assignment", () => {
+  assert.equal(LIVE_CONTINUATION_PROMPT, "Continue the existing delegated assignment from this session's current context and workspace. A prior route failed. Treat completed messages, completed tool results, and current files as authoritative. Continue from the next unfinished step. Do not repeat completed or irreversible actions. Do not rely on partial or failed assistant output. Finish with the required final report and terminal protocol.");
+  assert.doesNotMatch(LIVE_CONTINUATION_PROMPT, /## Assignment|Restart:|:\/\//);
 });
 
 test("the report-recovery prompt stays byte-exact and marker-focused", () => {
@@ -78,6 +85,22 @@ test("the child owns semantic attempt limits while the supervisor owns time", ()
   assert.match(CHILD_ATTEMPT_BUDGET, /Repeat only when new evidence justifies it/);
   assert.match(CHILD_ATTEMPT_BUDGET, /report BLOCKED/);
   assert.doesNotMatch(CHILD_ATTEMPT_BUDGET, /minute|hour|clock|time/i);
+});
+
+test("child evidence rules distinguish optional independent checks from required evidence exactly", () => {
+  const expected = "For each required proof or gate, make at most two materially equivalent attempts. Repeat only when new evidence justifies it. Parent-supplied verified evidence satisfies a check unless the assignment explicitly requires independent reproduction. Report an unavailable optional independent check as a limit; it does not justify BLOCKED. If explicitly required evidence or access remains unavailable and you cannot finish the assigned role, stop unrelated work and report BLOCKED.";
+  assert.equal(CHILD_ATTEMPT_BUDGET, expected);
+  for (const family of ROLE_FAMILIES) {
+    const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
+    assert.ok(prompt.includes(`## Attempt limits\n\n${expected}\n\n## Final protocol`));
+  }
+});
+
+test("finished reviews complete with or without findings and with optional-check limits exactly", () => {
+  const expected = "Use one matching code with no prose, path, or details. DELEGATE_RESULT appears once as the final nonblank line; DELEGATE_REASON appears once directly above it. COMPLETED has no reason. COMPLETED means this role finished; reviews with findings use COMPLETED. A review that finishes its analysis returns COMPLETED with or without findings and with optional-check limits. After BLOCKED or FAILED, stop.";
+  assert.equal(CHILD_TERMINAL_RESULT_INSTRUCTIONS.split("\n\n").at(-1), expected);
+  const prompt = buildDelegatePrompt(familyRole("review"), "/tmp/project", "Review the assigned increment.");
+  assert.ok(prompt.endsWith(`${expected}\n`));
 });
 
 test("terminal instructions derive every closed reason code and keep three exact forms", () => {

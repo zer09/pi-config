@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Native TypeScript delegated Pi RPC orchestration with config-driven routing, operational fallback, and same-session report recovery.",
   "scripts": {
-    "test": "node --test artifacts.test.ts protocol.test.ts monitor.test.ts liveness.test.ts routing.test.ts routes.test.ts manager.test.ts resources.test.ts supervisor.test.ts runner.test.ts result.test.ts diagnostics.test.ts catalog.test.ts instructions.test.ts docsync.test.ts index.test.ts analyze-progress-gaps.test.ts",
+    "test": "node --test artifacts.test.ts persisted-session.test.ts session-resume.test.ts protocol.test.ts live-route-switch.test.ts monitor.test.ts liveness.test.ts routing.test.ts routes.test.ts manager.test.ts resources.test.ts supervisor.test.ts runner.test.ts live-fallback.test.ts result.test.ts diagnostics.test.ts catalog.test.ts instructions.test.ts docsync.test.ts index.test.ts analyze-progress-gaps.test.ts typecheck.test.ts",
+    "typecheck": "node typecheck.ts",
     "check:routing": "node check-routing.ts",
     "analyze:progress-gaps": "node analyze-progress-gaps.ts",
     "render:instructions-doc": "node render-instructions-doc.ts"
@@ -16,6 +17,6 @@
     ]
   },
   "engines": {
-    "node": ">=22.5.0"
+    "node": ">=22.19.0"
   }
 }

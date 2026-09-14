@@ -253,6 +253,8 @@ if (args.includes("--list-models")) {
   if (catalogDelayMs > 0 && (catalogDelayRoute === null || route === catalogDelayRoute)) setTimeout(respond, catalogDelayMs);
   else respond();
 } else {
+  const { createFixtureSession } = await import(${JSON.stringify(new URL("./persisted-session.fixture.ts", import.meta.url).href)});
+  const persistPrompt = createFixtureSession(args);
   const provider = args[args.indexOf("--provider") + 1];
   const model = args[args.indexOf("--model") + 1];
   const route = provider + "/" + model;
@@ -269,9 +271,13 @@ if (args.includes("--list-models")) {
       buffer = buffer.slice(newline + 1);
       if (!line) continue;
       const command = JSON.parse(line);
-      if (command.type !== "prompt") continue;
+      if (command.type !== "prompt") {
+        if (command.id) emit({ id: command.id, type: "response", command: command.type, success: false, error: "Fixture has no live route switch" });
+        continue;
+      }
       round += 1;
       emit({ id: command.id, type: "response", command: "prompt", success: true });
+      persistPrompt(command.message);
       emit({ type: "agent_start" });
       if (behavior === "hang") continue;
       if (behavior === "missing-long" && round === 2) {
@@ -403,6 +409,7 @@ function baseOptions(
     progressStallMs: 4000,
     reportRecoveryIdleMs: 800,
     graceMs: 100,
+    liveSwitchTimeoutMs: 100,
     routingConfig: loadRoutingFixture(),
     ...extra,
   };
@@ -587,6 +594,8 @@ if (args.includes("--list-models")) {
   const provider = args[args.indexOf("--provider") + 1];
   const model = args[args.indexOf("--model") + 1];
   const route = provider + "/" + model;
+  const { createFixtureSession } = await import(${JSON.stringify(new URL("./persisted-session.fixture.ts", import.meta.url).href)});
+  const persistPrompt = createFixtureSession(args);
   const emit = (event) => console.log(JSON.stringify(event));
   if (route === ${JSON.stringify(options.supervisionHangRoute ?? null)}) {
     hangResistently();
@@ -601,6 +610,7 @@ if (args.includes("--list-models")) {
         const command = JSON.parse(line);
         if (command.type !== "prompt") continue;
         emit({ id: command.id, type: "response", command: "prompt", success: true });
+        persistPrompt(command.message);
         emit({ type: "agent_start" });
         // Hang with no further lifecycle events.
       }
@@ -952,7 +962,7 @@ test("one route attempt can recover in the same session without fallback", async
   });
 });
 
-test("operational failure after accepted report recovery falls back with the restart note", async () => {
+test("operational failure after accepted report recovery preserves context without a restart note", async () => {
   const fixture = await fakePi(
     ["prov-a/model-x", "prov-b/model-y"],
     {
@@ -965,16 +975,16 @@ test("operational failure after accepted report recovery falls back with the res
     assert.equal(result.selectedRoute, "prov-b/model-y:high");
     assert.equal(result.attempts.length, 2);
     assert.equal(result.attempts[0]?.state, "provider_failed");
-    // Recovery was accepted on the first route, so the restart note was applied.
-    assert.equal(result.attempts[0]?.restartAfterWork, true);
-    assert.equal(result.progress.restartAfterWorkCount, 1);
+    // Accepted recovery stays in the persisted conversation across replacement.
+    assert.equal(result.attempts[0]?.restartAfterWork, undefined);
+    assert.equal(result.progress.restartAfterWorkCount, 0);
     assert.match(result.report, /Completed on prov-b\/model-y/);
     const prompt = await readFile(path.join(result.artifactDir, "prompt.md"), "utf8");
-    assert.equal(prompt.split(RESTART_AFTER_WORK_NOTE).length - 1, 1);
+    assert.equal(prompt.split(RESTART_AFTER_WORK_NOTE).length - 1, 0);
   });
 });
 
-test("operational failure after tool execution falls back with the restart note", async () => {
+test("operational failure after tool execution preserves context without a restart note", async () => {
   const fixture = await fakePi(
     ["prov-a/model-x", "prov-b/model-y"],
     {
@@ -987,8 +997,8 @@ test("operational failure after tool execution falls back with the restart note"
     assert.equal(result.selectedRoute, "prov-b/model-y:high");
     assert.equal(result.attempts.length, 2);
     assert.equal(result.attempts[0]?.state, "provider_failed");
-    assert.equal(result.attempts[0]?.restartAfterWork, true);
-    assert.equal(result.progress.restartAfterWorkCount, 1);
+    assert.equal(result.attempts[0]?.restartAfterWork, undefined);
+    assert.equal(result.progress.restartAfterWorkCount, 0);
     assert.match(result.report, /Completed on prov-b\/model-y/);
     // Failure data returns in memory: no chain-level status.json exists and the
     // temporary artifacts survive until execute-level finalization.
@@ -997,7 +1007,7 @@ test("operational failure after tool execution falls back with the restart note"
   });
 });
 
-test("the restart note is private, sanitized, and never stacks across restarts", async () => {
+test("persisted replacement leaves the original private assignment unchanged", async () => {
   const catalog = [
     "prov-a/model-x",
     "prov-b/model-y",
@@ -1010,21 +1020,19 @@ test("the restart note is private, sanitized, and never stacks across restarts",
   await runAndFinalize(baseOptions(fixture, { role: "solution-c", routingConfig: twoTierRoutingConfig() }), async (result) => {
     assert.equal(result.state, "completed");
     assert.equal(result.attempts.length, 2);
-    assert.equal(result.attempts[0]?.restartAfterWork, true);
+    assert.equal(result.attempts[0]?.restartAfterWork, undefined);
     assert.equal(result.attempts[1]?.restartAfterWork, undefined);
-    assert.equal(result.progress.restartAfterWorkCount, 1);
+    assert.equal(result.progress.restartAfterWorkCount, 0);
     const prompt = await readFile(path.join(result.artifactDir, "prompt.md"), "utf8");
-    // One advance happened, but the note is rebuilt from the original
-    // assignment and appears exactly once.
-    assert.equal(prompt.split(RESTART_AFTER_WORK_NOTE).length - 1, 1);
-    // The rewritten private prompt never carries provider errors, raw output,
+    assert.equal(prompt.split(RESTART_AFTER_WORK_NOTE).length - 1, 0);
+    // The original private prompt never carries provider errors, raw output,
     // failed route identity, tool payloads, or diagnostics text beyond the
     // standard terminal marker contract every delegate prompt already has.
     for (const forbidden of [
       "503", "PRIVATE", "Service unavailable", "credit", "muse-spark", "agentrouter",
       "provider_failed", "tool_execution",
     ]) {
-      assert.ok(!prompt.includes(forbidden), `restart prompt must not contain "${forbidden}"`);
+      assert.ok(!prompt.includes(forbidden), `assignment prompt must not contain "${forbidden}"`);
     }
   });
 });
@@ -1490,7 +1498,7 @@ test("only the final selected active bash command survives fallback in memory", 
     }), async (result, finalize) => {
       assert.equal(result.attempts.length, 2);
       assert.equal(result.attempts[0]?.state, "stalled");
-      assert.equal(result.attempts[0]?.restartAfterWork, true);
+      assert.equal(result.attempts[0]?.restartAfterWork, undefined);
       if (last === "bash-silent") {
         assert.equal(result.progress.activeToolName, "bash");
         const command = "COMMAND-SENTINEL prov-b/model-y\nprintf '終'";
@@ -1624,7 +1632,7 @@ test("route-one supervised liveness evidence survives a completed final-route fa
     assert.ok(stalled.activityEventCount !== undefined && stalled.activityEventCount >= 1, "activity counter evidence");
     assert.ok(stalled.structuralProgressCount !== undefined && stalled.structuralProgressCount >= 1, "progress counter evidence");
     assert.equal(stalled.duplicateCheckpointCount, 0);
-    assert.equal(stalled.activityWarningCount, 1);
+    assert.ok(stalled.activityWarningCount !== undefined && stalled.activityWarningCount >= 1);
     assert.equal(stalled.progressWarningCount, 0);
     assert.ok(stalled.activeToolIdleSeconds !== undefined && stalled.activeToolIdleSeconds >= 0.2, "active tool idle evidence");
     // The completed attempt carries its own settled supervised telemetry.
@@ -1650,7 +1658,7 @@ test("route-one supervised liveness evidence survives a completed final-route fa
     assert.equal(sanitizedStalled.activityEventCount, stalled.activityEventCount);
     assert.equal(sanitizedStalled.structuralProgressCount, stalled.structuralProgressCount);
     assert.equal(sanitizedStalled.duplicateCheckpointCount, 0);
-    assert.equal(sanitizedStalled.activityWarningCount, 1);
+    assert.equal(sanitizedStalled.activityWarningCount, stalled.activityWarningCount);
     assert.equal(sanitizedStalled.progressWarningCount, 0);
     assert.equal(sanitizedStalled.activeToolIdleSeconds, stalled.activeToolIdleSeconds);
   });
@@ -1757,9 +1765,9 @@ test("an exhausted multi-route chain keeps only the final attempt's report", asy
     async (result, finalize) => {
       assert.equal(result.state, "routes_unavailable");
       assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["invalid_result", "invalid_result"]);
-      // The earlier failed attempt accepted report recovery, so the restart note applied.
-      assert.equal(result.attempts[0]?.restartAfterWork, true);
-      assert.equal(result.progress.restartAfterWorkCount, 1);
+      // Persisted context keeps accepted recovery without a restart note.
+      assert.equal(result.attempts[0]?.restartAfterWork, undefined);
+      assert.equal(result.progress.restartAfterWorkCount, 0);
       // The chain report is the final attempt's report, never the earlier one.
       assert.equal(result.report, `${finalReport}\n`);
       return finalize();
@@ -1980,7 +1988,7 @@ test("spawn failure and invalid stream fall back with actual remaining work", as
   }
 });
 
-test("the activity warning fires once and a silent route falls back with rpc_silent", async () => {
+test("the activity warning fires once per renewable lease and a silent route falls back with rpc_silent", async () => {
   const fixture = await fakePi(
     ["prov-a/model-x", "prov-a/model-y"],
     { "prov-a/model-x": "hang", "prov-a/model-y": "complete" },
@@ -1996,9 +2004,12 @@ test("the activity warning fires once and a silent route falls back with rpc_sil
     assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["stalled", "completed"]);
     assert.equal(result.attempts[0]?.deadlineCause, "idle_deadline");
     assert.equal(result.attempts[0]?.stallCause, "rpc_silent");
-    const warnings = updates.filter((progress) => progress.route === "prov-a/model-x:high" && progress.activityWarningCount === 1);
+    const routeUpdates = updates.filter((progress) => progress.route === "prov-a/model-x:high");
+    const warnings = routeUpdates.filter((progress, index) =>
+      progress.activityWarningCount > (routeUpdates[index - 1]?.activityWarningCount ?? 0));
     assert.ok(warnings.length >= 1);
-    assert.ok(updates.every((progress) => progress.activityWarningCount <= 1));
+    assert.ok(warnings.every((warning, index) => warning.activityWarningCount === index + 1
+      && (index === 0 || warning.activityEventCount > warnings[index - 1]!.activityEventCount)));
   });
 });
 
@@ -2283,8 +2294,7 @@ test("fallback starts after arbitrary elapsed time with no remaining-work predic
     assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["provider_failed", "completed"]);
     assert.ok(result.elapsedSeconds >= 1.5, `route one must outlive any former ceiling analog, got ${result.elapsedSeconds}s`);
     assert.ok(result.attempts.every((attempt) => !("remainingWorkSecondsAtAttemptStart" in attempt)));
-    // Route one executed no tools and accepted no recovery, so no restart
-    // note was applied to route two's private prompt.
+    // Persisted replacement does not apply a restart note.
     assert.equal(result.attempts[0]?.restartAfterWork, undefined);
     assert.equal(result.progress.restartAfterWorkCount, 0);
     const spawned = (await readFile(path.join(fixture.root, "supervision-routes.jsonl"), "utf8")).trim().split("\n");
@@ -2757,9 +2767,11 @@ test("every fallback attempt receives byte-for-byte identical runtime resource a
   const argv = runtimeArgv[0]!;
   const modeIndex = argv.indexOf("--mode");
   assert.deepEqual(argv.slice(modeIndex), [
-    "--mode", "rpc", "--no-session", "--approve",
+    "--mode", "rpc", "--session-dir", argv[modeIndex + 3], "--session", argv[modeIndex + 5], "--approve",
     "--provider", "prov-a", "--model", "model-x", "--thinking", "high",
   ]);
+  assert.equal(argv[modeIndex + 5], path.join(argv[modeIndex + 3]!, "session.jsonl"));
+  assert.equal(runtimeArgv[1]![modeIndex + 5], argv[modeIndex + 5]);
 });
 
 test("a vanished approved extension entry fails the run before artifact creation and spawn", async () => {
@@ -3062,7 +3074,7 @@ test("a catalog-only final route leaves no prior supervised telemetry in top-lev
   });
 });
 
-test("restart-after-work behavior is unchanged and both supervised attempts keep their maxima", async () => {
+test("persisted replacement avoids restart-after-work and both supervised attempts keep their maxima", async () => {
   const fixture = await fakePi(["prov-a/model-x", "prov-b/model-y"], {
     "prov-a/model-x": "tool-unavailable",
     "prov-b/model-y": "complete",
@@ -3070,8 +3082,8 @@ test("restart-after-work behavior is unchanged and both supervised attempts keep
   await runAndFinalize(baseOptions(fixture, { routingConfig: twoTierRoutingConfig() }), async (result) => {
     assert.equal(result.state, "completed");
     assert.equal(result.attempts[0]?.state, "provider_failed");
-    assert.equal(result.attempts[0]?.restartAfterWork, true);
-    assert.equal(result.progress.restartAfterWorkCount, 1);
+    assert.equal(result.attempts[0]?.restartAfterWork, undefined);
+    assert.equal(result.progress.restartAfterWorkCount, 0);
     assert.ok(Number.isFinite(result.attempts[0]?.maxProgressIdleSeconds));
     assert.ok(Number.isFinite(result.attempts[1]?.maxProgressIdleSeconds));
     assert.ok(Number.isFinite(result.progress.maxProgressIdleSeconds));

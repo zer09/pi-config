@@ -11,6 +11,7 @@ import {
 } from "./artifacts.ts";
 import { interruptionSource } from "./manager.ts";
 import { buildDelegatePrompt } from "./instructions.ts";
+import { createPersistedPiSession } from "./persisted-session.ts";
 import { oracleGuard, roleLabel, routeKey } from "./routes.ts";
 import { loadRoutingConfig, oracleModelIds, requireRole, selectRoutes } from "./routing.ts";
 import { buildDelegateResourceSelection, loadDelegateResources } from "./resources.ts";
@@ -20,6 +21,7 @@ import {
   DEFAULT_CATALOG_TIMEOUT_MS,
   DEFAULT_CLEANUP_TIMEOUT_MS,
   DEFAULT_LEADER_EXIT_SETTLEMENT_MS,
+  DEFAULT_LIVE_SWITCH_TIMEOUT_MS,
   DEFAULT_MAX_OUTPUT_BYTES,
   DEFAULT_PROGRESS_STALL_MS,
   DEFAULT_PROGRESS_WARNING_MS,
@@ -30,6 +32,7 @@ import {
   resolvePiInvocation,
   supervisePi,
   terminateProcessGroup,
+  type RetainedPiSession,
   type TerminationOutcome,
 } from "./supervisor.ts";
 import type {
@@ -396,6 +399,10 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
   const graceMs = options.graceMs ?? DEFAULT_TERMINATION_GRACE_MS;
   const cleanupTimeoutMs = options.cleanupTimeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS;
   const catalogTimeoutMs = options.catalogTimeoutMs ?? DEFAULT_CATALOG_TIMEOUT_MS;
+  const liveSwitchTimeoutMs = options.liveSwitchTimeoutMs ?? DEFAULT_LIVE_SWITCH_TIMEOUT_MS;
+  if (!Number.isFinite(liveSwitchTimeoutMs) || liveSwitchTimeoutMs <= 0 || liveSwitchTimeoutMs > DEFAULT_LIVE_SWITCH_TIMEOUT_MS) {
+    throw new Error("live switch timeout must be between 1 ms and 5 seconds");
+  }
   if (cleanupTimeoutMs <= 0 || cleanupTimeoutMs > DEFAULT_CLEANUP_TIMEOUT_MS) {
     throw new Error("cleanup timeout must be between 1 ms and 10 seconds");
   }
@@ -434,9 +441,16 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
   // then persists the run diagnostic, assembles the tool result, and
   // removes the directory through finalizeDelegateRun.
   const artifactDir = await createArtifactDir(label);
+  // The runner owns a retained handle until the next supervisor returns, or
+  // until positive cleanup completes. No fresh execution spawn bypasses it.
+  let retained: RetainedPiSession | undefined;
   try {
+    // Every production execution shares this run-owned session, never global storage.
+    const persistedSession = await createPersistedPiSession(artifactDir);
     const promptPath = path.join(artifactDir, "prompt.md");
     const prompt = buildDelegatePrompt(role, options.cwd, options.prompt);
+    const restartPrompt = buildDelegatePrompt(role, options.cwd, options.prompt, { restartAfterWork: true });
+    let assignmentPrompt = prompt;
     await atomicWriteText(promptPath, prompt);
     await chmod(promptPath, 0o600);
 
@@ -448,6 +462,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     let finalState: DelegateState = "routes_unavailable";
     let finalProgress = initialProgress(label, options);
     let restartAfterWorkCount = 0;
+    let priorAcknowledgedAttempt: number | undefined;
     let terminalStreamErrors: readonly string[] = [];
     let delegateOutcome: DelegateOutcome | undefined;
     let terminalReason: DelegateTerminalReasonValue | undefined;
@@ -466,6 +481,15 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         break;
       }
       const route = routes[index]!;
+      if (retained !== undefined && !retained.isAlive()) {
+        const cleanup = await retained.terminate();
+        retained = undefined;
+        if (!cleanup.ok) {
+          finalState = "cleanup_failed";
+          cleanupFailureReason = cleanup.reason;
+          break;
+        }
+      }
 
       // The next catalog status diagnoses no active tool from the previous route.
       activeBashCommand = undefined;
@@ -488,7 +512,18 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         catalogTimeoutMs,
         options.signal,
       );
-      if (catalog.outcome === "interrupted" || options.signal?.aborted) {
+      // Idle output or leader exit may have invalidated the retained child
+      // during preflight. Consume its cleanup proof even when this route skips.
+      if (retained !== undefined && !retained.isAlive()) {
+        const cleanup = await retained.terminate();
+        retained = undefined;
+        if (!cleanup.ok) {
+          finalState = "cleanup_failed";
+          cleanupFailureReason = cleanup.reason;
+          break;
+        }
+      }
+      if (catalog.outcome !== "cleanup_failed" && (catalog.outcome === "interrupted" || options.signal?.aborted)) {
         attempts.push({
           route: routeKey(route),
           state: "interrupted",
@@ -531,6 +566,21 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         continue;
       }
 
+      if (retained !== undefined && !await retained.switchRoute(route, liveSwitchTimeoutMs)) {
+        const cleanup = await retained.terminate();
+        retained = undefined;
+        if (!cleanup.ok) {
+          finalState = "cleanup_failed";
+          cleanupFailureReason = cleanup.reason;
+          break;
+        }
+        if (options.signal?.aborted) {
+          finalState = "interrupted";
+          interruptionSourceValue = interruptionSource(options.signal.reason);
+          break;
+        }
+      }
+
       const attemptDir = path.join(artifactDir, `attempt-${String(index + 1).padStart(2, "0")}`);
       await createPrivateDirectory(attemptDir);
       const common = {
@@ -560,9 +610,28 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         ...common,
         route,
         piInvocation,
+        persistedSession,
         runtimeResourceArgs: resourceSelection.runtimeArgs,
         verifyRuntimeResources: resourceSelection.verifyRuntimeSpawn,
-      });
+        // The runner has consumed positive cleanup before any fresh execution reaches this callback.
+        prepareFreshPrompt: async () => {
+          if (persistedSession.assignmentAccepted) {
+            const readiness = await persistedSession.historyReadiness(prompt, restartPrompt);
+            if (readiness === "invalid") throw new Error("Delegated session history validation failed");
+            if (readiness === "assignment_absent") {
+              // Acknowledgement can precede persistence. Only proven missing assignment context permits replay.
+              persistedSession.assignmentAccepted = false;
+              // Rejection must not remove the warning from later unaccepted attempts.
+              assignmentPrompt = restartPrompt;
+              restartAfterWorkCount += 1;
+              attempts[priorAcknowledgedAttempt!] = { ...attempts[priorAcknowledgedAttempt!]!, restartAfterWork: true };
+            }
+          }
+          return { prompt: assignmentPrompt, restartAfterWorkCount };
+        },
+        retainOnFailure: index < routes.length - 1,
+      }, retained);
+      retained = attemptStatus.retainedSession;
       activeBashCommand = attemptStatus.activeBashCommand;
       terminalStreamErrors = attemptStatus.streamErrors;
       attempts.push({
@@ -587,6 +656,8 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         activeToolElapsedSeconds: attemptStatus.activeToolElapsedSeconds,
         activeToolIdleSeconds: attemptStatus.activeToolIdleSeconds,
       });
+
+      if (attemptStatus.sessionSeen) priorAcknowledgedAttempt = attempts.length - 1;
 
       if (attemptStatus.state === "completed") {
         selectedRoute = routeKey(route);
@@ -649,19 +720,15 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         }
         break;
       }
+    }
 
-      if (attemptStatus.toolExecutionCount > 0 || attemptStatus.reportRecoveryAccepted) {
-        // The failed attempt may already have changed the working tree: rewrite
-        // the next private prompt from the original assignment plus the fixed
-        // sanitized restart note. Rebuilding from the original keeps the note
-        // from stacking across repeated restarts.
-        restartAfterWorkCount += 1;
-        attempts[attempts.length - 1] = { ...attempts[attempts.length - 1]!, restartAfterWork: true };
-        await atomicWriteText(
-          promptPath,
-          buildDelegatePrompt(role, options.cwd, options.prompt, { restartAfterWork: true }),
-        );
-        await chmod(promptPath, 0o600);
+    if (retained !== undefined) {
+      const cleanup = await retained.terminate();
+      retained = undefined;
+      if (!cleanup.ok) {
+        finalState = "cleanup_failed";
+        cleanupFailureReason = cleanup.reason;
+        report = "";
       }
     }
 
@@ -708,10 +775,12 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
   } catch (error) {
     // A throw before the successful return (for example a throwing
     // onProgress callback) rejects without a DelegateRunResult, so
-    // finalizeDelegateRun never cleans this run up. Remove the private
-    // prompt artifact best-effort, then rethrow the original exception:
-    // removeDirectory swallows its own errors, so it cannot replace it.
+    // finalizeDelegateRun never cleans this run up. Terminate any retained
+    // child and remove artifacts before rethrowing. Cleanup uncertainty wins
+    // over the original exception and never permits another spawn.
+    const cleanup = await retained?.terminate();
     await removeDirectory(artifactDir);
+    if (cleanup !== undefined && !cleanup.ok) throw new Error("Delegated child cleanup failed");
     throw error;
   }
 }

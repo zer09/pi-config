@@ -4,10 +4,12 @@ import { chmod, stat } from "node:fs/promises";
 import path from "node:path";
 import { atomicWriteJson, atomicWriteText, readPrivateText } from "./artifacts.ts";
 import { interruptionSource } from "./manager.ts";
-import { REPORT_RECOVERY_PROMPT } from "./instructions.ts";
+import { LIVE_CONTINUATION_PROMPT, REPORT_RECOVERY_PROMPT } from "./instructions.ts";
+import { LiveRouteSwitch } from "./live-route-switch.ts";
 import { evaluateLiveness } from "./liveness.ts";
 import { PiRpcMonitor } from "./monitor.ts";
-import { RpcJsonlProtocol, type ProtocolRecord } from "./protocol.ts";
+import type { PersistedPiSession } from "./persisted-session.ts";
+import { RpcJsonlProtocol, type ControlResult, type ProtocolRecord } from "./protocol.ts";
 import { routeKey } from "./routes.ts";
 import type {
   ActiveBashCommand,
@@ -35,6 +37,7 @@ export const DEFAULT_PROGRESS_WARNING_MS = 15 * 60 * 1000;
 export const DEFAULT_PROGRESS_STALL_MS = 45 * 60 * 1000;
 export const DEFAULT_REPORT_RECOVERY_IDLE_MS = 5 * 60 * 1000;
 export const DEFAULT_CATALOG_TIMEOUT_MS = 15_000;
+export const DEFAULT_LIVE_SWITCH_TIMEOUT_MS = 5_000;
 export const DEFAULT_CLEANUP_TIMEOUT_MS = 10_000;
 export const DEFAULT_TERMINATION_GRACE_MS = 5_000;
 /** Fixed upper bound on stream settlement after a recorded leader exit. */
@@ -71,7 +74,7 @@ interface SuperviseBaseOptions {
   readonly cwd: string;
   readonly artifactDir: string;
   readonly promptPath: string;
-  /** Chain-level count of advances after an attempt that had executed tools or accepted recovery. */
+  /** Chain-level count of deliberate context-free replays after acknowledged work. */
   readonly restartAfterWorkCount?: number;
   readonly signal?: AbortSignal;
   readonly activityWarningMs: number;
@@ -86,6 +89,12 @@ interface SuperviseBaseOptions {
 }
 
 export interface SupervisePiOptions extends SuperviseBaseOptions {
+  /** Runner-only ownership transfer. Direct supervision always cleans up by default. */
+  readonly retainOnFailure?: boolean;
+  /** Required by every runDelegate path. Omission is a context-free direct-test seam only. */
+  readonly persistedSession?: PersistedPiSession;
+  /** Runner-only selection after prior cleanup and early validation, before the final synchronous spawn guards. */
+  readonly prepareFreshPrompt?: () => Promise<{ prompt: string; restartAfterWorkCount: number }>;
   readonly route: PiRoute;
   readonly piInvocation: PiInvocation;
   /**
@@ -97,8 +106,8 @@ export interface SupervisePiOptions extends SuperviseBaseOptions {
   readonly runtimeResourceArgs: readonly string[];
   /**
    * Fail-closed pre-spawn re-verification from `resources.ts`. Runs
-   * immediately before the child command line is spawned, once per route
-   * attempt including fallbacks, and re-resolves canonical identity,
+   * immediately before each fresh execution spawn, including fallback.
+   * Reuse starts no process. Fresh spawns re-resolve canonical identity,
    * containment, and file-type invariants for every approved runtime
    * extension entry and selected skill, so a post-validation symlink swap
    * fails the attempt before any child process exists.
@@ -376,7 +385,161 @@ function progressFromMonitor(
   };
 }
 
-export async function supervisePi(options: SupervisePiOptions): Promise<AttemptStatus & { readonly activeBashCommand?: ActiveBashCommand }> {
+/** Owns an idle execution process between route attempts, including catalog waits. */
+export class RetainedPiSession {
+  readonly child: ChildProcess;
+  readonly protocol: RpcJsonlProtocol;
+  readonly assignmentPrompt: string;
+  assignmentAccepted = false;
+  ordinal = 1;
+  private route: PiRoute;
+  private readonly graceMs: number;
+  private readonly cleanupTimeoutMs: number;
+  private readonly signal: AbortSignal | undefined;
+  private parked = false;
+  private parkedBytes = 0;
+  private outputLimit = 0;
+  private termination: Promise<TerminationOutcome> | undefined;
+  private signalStopped!: () => void;
+  private readonly stopped = new Promise<undefined>((resolve) => { this.signalStopped = () => resolve(undefined); });
+
+  constructor(child: ChildProcess, protocol: RpcJsonlProtocol, prompt: string, options: SupervisePiOptions) {
+    this.child = child;
+    this.protocol = protocol;
+    this.assignmentPrompt = prompt;
+    this.assignmentAccepted = options.persistedSession?.assignmentAccepted ?? false;
+    this.route = options.route;
+    this.graceMs = options.graceMs;
+    this.cleanupTimeoutMs = options.cleanupTimeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS;
+    this.signal = options.signal;
+  }
+
+  isAlive(): boolean {
+    if (this.termination !== undefined || this.signal?.aborted || this.child.pid === undefined
+      || !processIsRunning(this.child) || this.child.stdin?.destroyed) return false;
+    try {
+      // A control acknowledgement is not leader-liveness proof.
+      process.kill(this.child.pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  park(maxOutputBytes: number): void {
+    this.parked = true;
+    this.parkedBytes = 0;
+    this.outputLimit = maxOutputBytes;
+    this.child.stdout?.on("data", this.onStdout);
+    this.child.stderr?.on("data", this.onStderr);
+    this.child.once("exit", this.stop);
+    this.child.once("close", this.stop);
+    this.child.once("error", this.stop);
+    this.child.stdin?.on("error", this.stop);
+    this.signal?.addEventListener("abort", this.stop, { once: true });
+    if (!this.isAlive()) this.stop();
+  }
+
+  activate(): number {
+    this.detach();
+    // Idle and administrative bytes count against the next route, not a new unmetered channel.
+    return this.parkedBytes;
+  }
+
+  private detach(): void {
+    this.parked = false;
+    this.child.stdout?.removeListener("data", this.onStdout);
+    this.child.stderr?.removeListener("data", this.onStderr);
+    this.child.removeListener("exit", this.stop);
+    this.child.removeListener("close", this.stop);
+    this.child.removeListener("error", this.stop);
+    this.child.stdin?.removeListener("error", this.stop);
+    this.signal?.removeEventListener("abort", this.stop);
+  }
+
+  private readonly stop = (): void => { void this.terminate(); };
+
+  private account(bytes: number): boolean {
+    this.parkedBytes += bytes;
+    if (this.parkedBytes > this.outputLimit) this.stop();
+    return this.isAlive();
+  }
+
+  private write(line: string): boolean {
+    if (!this.account(Buffer.byteLength(line))) return false;
+    try {
+      this.child.stdin!.write(line);
+      return true;
+    } catch {
+      this.stop();
+      return false;
+    }
+  }
+
+  private readonly onRecord = (record: ProtocolRecord): void => {
+    if (record.kind === "ui_response") this.write(record.line);
+    else if (record.kind !== "ui_activity") this.stop();
+  };
+
+  private readonly onStdout = (chunk: Buffer): void => {
+    if (this.account(chunk.byteLength)) this.protocol.feed(chunk, this.onRecord);
+  };
+
+  private readonly onStderr = (chunk: Buffer): void => {
+    // Administrative stderr is counted but never retained as control-error text.
+    this.account(chunk.byteLength);
+  };
+
+  async switchRoute(next: PiRoute, timeoutMs = DEFAULT_LIVE_SWITCH_TIMEOUT_MS): Promise<boolean> {
+    if (!this.parked || !this.isAlive()) return false;
+    const switching = new LiveRouteSwitch(this.ordinal + 1, this.route, next);
+    const timer = setTimeout(this.stop, timeoutMs);
+    try {
+      let update = switching.start();
+      while (update.status === "command") {
+        if (!this.isAlive()) return false;
+        let receive!: (result: ControlResult) => void;
+        const response = new Promise<ControlResult>((resolve) => { receive = resolve; });
+        const line = this.protocol.beginControl(update.id, update.command, receive);
+        if (!this.write(line)) return false;
+        const result = await Promise.race([response, this.stopped]);
+        // Drain the response chunk before another control or prompt. A duplicate,
+        // trailing partial record, or leader exit must not cross that boundary.
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        if (result === undefined || !this.isAlive()) return false;
+        update = switching.consume(result);
+      }
+      // No later control guards the final response boundary. Check it without consuming a prompt cycle.
+      if (update.status !== "completed" || !this.isAlive()
+        || !this.protocol.canBeginFallbackPromptCycle(this.ordinal + 1)) return false;
+      this.route = next;
+      return true;
+    } catch {
+      // Protocol guards and transport failures expose no raw control payload.
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  terminate(deadline?: number): Promise<TerminationOutcome> {
+    if (this.termination !== undefined) return this.termination;
+    this.detach();
+    this.signalStopped();
+    const cleanupDeadline = deadline ?? performance.now() + this.cleanupTimeoutMs
+      - Math.min(FINAL_CLEANUP_ALLOWANCE_MS, Math.max(1, Math.floor(this.cleanupTimeoutMs / 5)));
+    this.termination = terminateProcessGroup(this.child, this.graceMs, cleanupDeadline)
+      .catch((): TerminationOutcome => ({ ok: false, reason: "group_alive" }));
+    return this.termination;
+  }
+}
+
+type SupervisedAttempt = AttemptStatus & {
+  readonly activeBashCommand?: ActiveBashCommand;
+  readonly retainedSession?: RetainedPiSession;
+};
+
+export async function supervisePi(options: SupervisePiOptions, retained?: RetainedPiSession): Promise<SupervisedAttempt> {
   const started = performance.now();
   const startedAt = isoNow();
   // Productive work has no total deadline: renewable liveness leases are the
@@ -386,7 +549,6 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     options.cleanupTimeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS,
     DEFAULT_CLEANUP_TIMEOUT_MS,
   );
-  const terminationGraceMs = Math.min(options.graceMs, DEFAULT_TERMINATION_GRACE_MS);
   const finalCleanupAllowanceMs = Math.min(
     FINAL_CLEANUP_ALLOWANCE_MS,
     Math.max(1, Math.floor(cleanupTimeoutMs / 5)),
@@ -409,12 +571,17 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   const reportPath = path.join(options.artifactDir, "report.md");
   const stderrPath = path.join(options.artifactDir, "stderr.log");
   const statusPath = path.join(options.artifactDir, "status.json");
-  const stderrStream = createWriteStream(stderrPath, { flags: "wx", mode: 0o600 });
   const prompt = await readPrivateText(options.promptPath);
-  const protocol = new RpcJsonlProtocol();
-  const initialCommand = protocol.beginPrompt(1, prompt);
+  let freshPrompt = prompt;
+  const stderrStream = createWriteStream(stderrPath, { flags: "wx", mode: 0o600 });
+  const protocol = retained?.protocol ?? new RpcJsonlProtocol();
   const monitor = new PiRpcMonitor(started, startedAt, () => performance.now(), isoNow, () => emitProgress(false));
   let outputBytes = 0;
+  let retentionRequested = false;
+  let ownershipTransferred = false;
+  let promptRejected = false;
+  let signalRetentionReady!: () => void;
+  const retentionReady = new Promise<void>((resolve) => { signalRetentionReady = resolve; });
   let state: DelegateState = "running";
   let completionCleanupPerformed = false;
   let activityWarningIssued = false;
@@ -504,7 +671,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     ...options.runtimeResourceArgs,
     "--mode",
     "rpc",
-    "--no-session",
+    ...(options.persistedSession?.args ?? ["--no-session"]),
     "--approve",
     "--provider",
     options.route.provider,
@@ -513,22 +680,36 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     "--thinking",
     options.route.thinking,
   ];
-  // Fail-closed boundary recheck immediately before this spawn: canonical
-  // identity, containment, and file-type invariants are re-resolved for
-  // every approved runtime extension entry and selected skill, so a
-  // post-validation symlink swap can never reach a child command line. The
-  // stderr stream is the only resource open at this point; close it before
-  // rethrowing so the rejected attempt leaks no file handle.
+  let child: ChildProcess;
   try {
-    options.verifyRuntimeResources();
+    if (retained !== undefined) {
+      child = retained.child;
+    } else {
+      if (options.prepareFreshPrompt !== undefined) {
+        options.verifyRuntimeResources();
+        options.persistedSession?.verifySpawn();
+        const prepared = await options.prepareFreshPrompt();
+        freshPrompt = prepared.prompt;
+        options = { ...options, restartAfterWorkCount: prepared.restartAfterWorkCount };
+      }
+      const spawnOptions = { cwd: options.cwd, env: delegateEnvironment() };
+      // Preparation can yield while resources or session metadata change.
+      // Keep these final guards synchronous and adjacent to the actual spawn.
+      options.verifyRuntimeResources();
+      options.persistedSession?.verifySpawn();
+      try {
+        child = spawnDetached(options.piInvocation.command, args, spawnOptions);
+      } catch {
+        // Spawn errors can include argv, including the private session path.
+        throw new Error("Delegated child spawn failed");
+      }
+    }
   } catch (error) {
     stderrStream.close();
     throw error;
   }
-  const child = spawnDetached(options.piInvocation.command, args, {
-    cwd: options.cwd,
-    env: delegateEnvironment(),
-  });
+  const execution = retained ?? new RetainedPiSession(child, protocol, freshPrompt, options);
+  if (retained !== undefined) outputBytes = retained.activate();
 
   function emitProgress(force: boolean): void {
     const now = performance.now();
@@ -573,11 +754,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     // recorded, any later termination anchors at that instant, so a
     // settlement window plus cleanup together stay inside the fixed budget.
     cleanupDeadline = newCleanupDeadline();
-    terminationPromise = terminateProcessGroup(
-      child,
-      terminationGraceMs,
-      terminationDeadlineFor(cleanupDeadline),
-    );
+    terminationPromise = execution.terminate(terminationDeadlineFor(cleanupDeadline));
     signalTerminationStarted();
   }
 
@@ -596,8 +773,22 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     }
   }
 
+  function settleRoute(nextState: DelegateState): void {
+    const snapshot = monitor.snapshot();
+    if (options.retainOnFailure && execution.isAlive() && !terminalRequested
+      && snapshot.errors.length === 0 && snapshot.activeToolCount === 0
+      && (snapshot.agentSettledSeen || promptRejected)
+      && ["provider_failed", "missing_report", "invalid_result", "prompt_rejected"].includes(nextState)) {
+      state = nextState;
+      retentionRequested = true;
+      signalRetentionReady();
+    } else {
+      requestTermination(nextState, nextState === "completed");
+    }
+  }
+
   function evaluateRound(): void {
-    if (terminalRequested) return;
+    if (terminalRequested || retentionRequested) return;
     const snapshot = monitor.snapshot();
     if (snapshot.errors.length > 0) {
       requestTermination("invalid_stream");
@@ -610,7 +801,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
       return;
     }
     if (roundState === "completed" || roundState === "provider_failed") {
-      requestTermination(roundState, roundState === "completed");
+      settleRoute(roundState);
       return;
     }
     if (roundState !== "missing_report" && roundState !== "invalid_result") {
@@ -618,7 +809,7 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
       return;
     }
     if (snapshot.reportRound === 2) {
-      requestTermination(roundState);
+      settleRoute(roundState);
       return;
     }
     if (
@@ -660,7 +851,8 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     // duplicate, and out-of-order records fail earlier and never reach here.
     monitor.recordValidRpc();
     if (record.kind === "prompt_rejected") {
-      requestTermination("prompt_rejected");
+      promptRejected = true;
+      settleRoute("prompt_rejected");
       return;
     }
     if (record.kind === "ui_response") {
@@ -672,6 +864,13 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
       return;
     }
     if (record.kind === "prompt_accepted") {
+      // Acknowledgement survives rejection and exit, but fresh replacement must separately verify durable history.
+      execution.assignmentAccepted = true;
+      if (options.persistedSession !== undefined) options.persistedSession.assignmentAccepted = true;
+      if (retained !== undefined && !execution.isAlive()) {
+        requestTermination("child_failed");
+        return;
+      }
       monitor.acceptPrompt(record.round);
       if (record.round === 2) reportRecoveryAccepted = true;
       evaluateRound();
@@ -734,11 +933,28 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
   child.stdin?.on("error", ignoreStdinError);
   child.stdout?.on("data", onStdoutData);
   child.stderr?.on("data", onStderrData);
-  writeProtocol(initialCommand);
-
   const abort = () => requestTermination("interrupted");
   if (options.signal?.aborted) abort();
   else options.signal?.addEventListener("abort", abort, { once: true });
+
+  if (!terminalRequested) {
+    try {
+      let initialCommand: string;
+      if (retained === undefined) {
+        initialCommand = protocol.beginPrompt(1, execution.assignmentAccepted ? LIVE_CONTINUATION_PROMPT : freshPrompt);
+      } else {
+        initialCommand = protocol.beginFallbackPromptCycle(
+          execution.ordinal + 1,
+          execution.assignmentAccepted ? LIVE_CONTINUATION_PROMPT : execution.assignmentPrompt,
+        );
+        execution.ordinal += 1;
+      }
+      if (retained !== undefined && !execution.isAlive()) requestTermination("child_failed");
+      else if (!writeProtocol(initialCommand) && child.pid !== undefined) requestTermination("child_failed");
+    } catch {
+      requestTermination("invalid_stream");
+    }
+  }
 
   // The ticker is the only wall-clock authority for productive work. It
   // evaluates the pure renewable-liveness reducer each tick; total elapsed
@@ -824,10 +1040,33 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     // starts, only its bounded promise is awaited, so a negative outcome is
     // consumed and mapped to cleanup_failed without an unbounded close wait;
     // a natural close keeps the sweep-only path below.
-    await Promise.race([closePromise, terminationStarted]);
+    await Promise.race([closePromise, terminationStarted, retentionReady]);
+    if (retentionRequested && !terminalRequested) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const snapshot = monitor.snapshot();
+      if (execution.isAlive() && snapshot.errors.length === 0 && snapshot.activeToolCount === 0) {
+        // Transfer listeners without an await gap. The handle guards idle output,
+        // cancellation, and descendants while the runner preflights later routes.
+        clearInterval(ticker);
+        removeChildListeners();
+        options.signal?.removeEventListener("abort", abort);
+        execution.park(options.maxOutputBytes);
+        await finishWriteStream(stderrStream, finalCleanupAllowanceMs);
+        await chmod(stderrPath, 0o600);
+        const finalReport = monitor.finalReport(snapshot.reportRound);
+        if (finalReport !== undefined) await atomicWriteText(reportPath, finalReport);
+        const status = buildStatus(state, null, snapshot, Boolean(finalReport?.trim()));
+        await atomicWriteJson(statusPath, { ...status, liveReused: retained !== undefined && snapshot.sessionSeen });
+        emitProgress(true);
+        if (progressSinkFailed) throw progressSinkError;
+        ownershipTransferred = true;
+        return { ...status, retainedSession: execution };
+      }
+      requestTermination(snapshot.errors.length > 0 ? "invalid_stream" : "child_failed");
+    }
     if (cleanupDeadline === undefined) cleanupDeadline = newCleanupDeadline();
     const cleanupOutcome = await (terminationPromise
-      ?? terminateProcessGroup(child, terminationGraceMs, terminationDeadlineFor(cleanupDeadline)));
+      ?? execution.terminate(terminationDeadlineFor(cleanupDeadline)));
     // A negative proof can leave a noisy child alive. Detach it before ending
     // stderr and settling artifacts so later output cannot reach closed state.
     removeChildListeners();
@@ -868,7 +1107,8 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     if (finalReport !== undefined) await atomicWriteText(reportPath, finalReport);
     const reportPresent = Boolean(finalReport?.trim());
     const status = buildStatus(state, child.exitCode, snapshot, reportPresent);
-    await atomicWriteJson(statusPath, status);
+    // Private test/inspection telemetry only. Public attempts, progress, and schema-9 diagnostics are unchanged.
+    await atomicWriteJson(statusPath, { ...status, liveReused: retained !== undefined && snapshot.sessionSeen });
     emitProgress(true);
     if (progressSinkFailed) throw progressSinkError;
     // Carry the command only in memory to the run diagnostic, never status.json or progress.
@@ -884,6 +1124,10 @@ export async function supervisePi(options: SupervisePiOptions): Promise<AttemptS
     options.signal?.removeEventListener("abort", abort);
     removeChildListeners();
     monitor.clearEphemeralState();
+    if (!ownershipTransferred) {
+      await execution.terminate(terminationDeadlineFor(cleanupDeadline ?? newCleanupDeadline()));
+      if (!stderrStream.writableFinished) await finishWriteStream(stderrStream, finalCleanupAllowanceMs);
+    }
   }
 }
 

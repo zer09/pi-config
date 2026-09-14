@@ -3,6 +3,7 @@ import {
   DELEGATE_MODEL_CATALOG_TOOL,
   DELEGATE_RUN_PARAMETER_DESCRIPTIONS,
   DELEGATE_RUN_TOOL,
+  LIVE_CONTINUATION_PROMPT,
   MODEL_CATALOG_PROMPT_GUIDELINES,
   REPORT_RECOVERY_PROMPT,
   RESTART_AFTER_WORK_NOTE,
@@ -42,6 +43,7 @@ export const INSTRUCTION_DOC_SECTION_IDS = [
   "child-prompt-template",
   "role-family-contracts",
   "restart-note",
+  "live-continuation-prompt",
   "report-recovery-prompt",
 ] as const;
 
@@ -130,6 +132,8 @@ function renderSection(id: InstructionDocSectionId): string {
         .join("\n\n");
     case "restart-note":
       return fenced(RESTART_AFTER_WORK_NOTE);
+    case "live-continuation-prompt":
+      return fenced(LIVE_CONTINUATION_PROMPT);
     case "report-recovery-prompt":
       return fenced(REPORT_RECOVERY_PROMPT);
   }

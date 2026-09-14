@@ -8,11 +8,12 @@ Every model-visible delegation instruction is centralized in one canonical TypeS
 
 `agent/extensions/delegated-pi-loop/instructions.ts`
 
-It provides the `delegate_run` tool, the read-only `delegate_model_catalog` lookup tool, and two interactive commands. Three instruction layers affect delegation:
+It provides the `delegate_run` tool, the read-only `delegate_model_catalog` lookup tool, and two interactive commands. Four instruction layers affect delegation:
 
 1. Parent-facing `delegate_run` tool metadata, parameter descriptions, and workflow guidelines. This layer is tool-scoped: Pi includes it only while `delegate_run` is active, so the parent receives the complete delegation workflow exactly once.
 2. The generated child assignment prompt with its role-family contract, attempt budget, generic recursion prohibition, and terminal-result contract.
 3. The fixed report-recovery prompt for RPC round 2.
+4. The fixed continuation prompt after live reuse or private persisted-session replacement.
 
 `agent/AGENTS.md` carries no delegation policy. The former detailed `## Delegated work` section was removed when instruction centralization landed, so the global context file no longer duplicates the tool-scoped workflow. This also saves child context: delegated children load `AGENTS.md` as a normal context file but no longer pay for parent orchestration policy they must not follow.
 
@@ -187,7 +188,7 @@ Never expose credentials, tokens, cookies, or private keys.
 
 ## Attempt limits
 
-For each required proof or gate, make at most two materially equivalent attempts. Repeat only when new evidence justifies it. If a required result remains unavailable, stop unrelated work and report BLOCKED.
+For each required proof or gate, make at most two materially equivalent attempts. Repeat only when new evidence justifies it. Parent-supplied verified evidence satisfies a check unless the assignment explicitly requires independent reproduction. Report an unavailable optional independent check as a limit; it does not justify BLOCKED. If explicitly required evidence or access remains unavailable and you cannot finish the assigned role, stop unrelated work and report BLOCKED.
 
 ## Final protocol
 
@@ -208,7 +209,7 @@ DELEGATE_RESULT: FAILED
 BLOCKED codes: evidence_inaccessible, user_decision_required, assignment_conflict, policy_restriction, budget_exhausted, external_dependency, finding_reported.
 FAILED codes: execution_failure, verification_failure, internal_inconsistency, policy_violation.
 
-Use one matching code with no prose, path, or details. DELEGATE_RESULT appears once as the final nonblank line; DELEGATE_REASON appears once directly above it. COMPLETED has no reason. COMPLETED means this role finished even when a review found defects; reviews with findings use COMPLETED. After BLOCKED or FAILED, stop.
+Use one matching code with no prose, path, or details. DELEGATE_RESULT appears once as the final nonblank line; DELEGATE_REASON appears once directly above it. COMPLETED has no reason. COMPLETED means this role finished; reviews with findings use COMPLETED. A review that finishes its analysis returns COMPLETED with or without findings and with optional-check limits. After BLOCKED or FAILED, stop.
 
 ```
 <!-- pi-delegated-instructions:end:child-prompt-template -->
@@ -281,7 +282,7 @@ The result means that the review completed, not that the implementation passed. 
 
 ## 6. Restart-after-work instruction
 
-If one route fails operationally after executing tools or accepting report recovery, the next route gets this additional instruction (generated from `RESTART_AFTER_WORK_NOTE` in `instructions.ts`):
+The following note serves the only production context-free replay fail-safe. After positive cleanup, an acknowledged fresh replacement uses it only when valid persisted active history lacks the complete assignment (generated from `RESTART_AFTER_WORK_NOTE` in `instructions.ts`):
 
 <!-- pi-delegated-instructions:begin:restart-note -->
 ```text
@@ -289,11 +290,21 @@ Restart: a prior route attempt may have changed the tree. Inspect current work f
 ```
 <!-- pi-delegated-instructions:end:restart-note -->
 
-The extension reconstructs the prompt from the original assignment, so this note appears at most once. For implementation, fallback retains the same assigned increment; it does not advance to the next increment. See the restart handling in `agent/extensions/delegated-pi-loop/runner.ts` (`runDelegate`).
+The fail-safe rebuilds the original assignment plus this canonical note on the same selected route, so the note cannot stack. It clears acknowledgement for that fresh process, increments `restartAfterWorkCount` once, and marks the prior acknowledged supervised attempt `restartAfterWork: true`. Later rejected or catalog-only attempts receive no attribution. Every later unaccepted live or fresh fallback resends the same selected restart prompt with exactly one note, without another count increment. Invalid, unsafe, unreadable, or oversized history fails closed before spawn, never into replay. For implementation, fallback retains the same assigned increment; it does not advance to the next increment.
+
+### Live continuation prompt
+
+Accepted in-memory context continues with this exact prompt after live reuse. Fresh replacement additionally requires positive durable active-history verification after cleanup. The check builds the root-to-leaf active path and applies only its latest compaction. Legacy boundaries retain pre-compaction messages only when they resolve to earlier entries on that path. A materialized `retainedTail` replaces raw ancestry; post-compaction messages remain eligible. A user string or array containing only text blocks must concatenate exactly to the immutable original built assignment or canonical restart-note form. Images, non-user summaries, and compacted-away assignments do not prove availability. Valid history without that assignment uses the fail-safe above instead. If acknowledgement is false, live and fresh fallback resend the selected complete assignment prompt, either the base assignment or its canonical restart-note form, without another increment or attribution. A later rejection does not erase earlier acknowledgement unless deliberate degradation cleared it. Prompt preparation and history I/O finish before the final synchronous resource-then-session guards immediately before spawn; retained reuse runs no spawn guards.
+
+<!-- pi-delegated-instructions:begin:live-continuation-prompt -->
+```text
+Continue the existing delegated assignment from this session's current context and workspace. A prior route failed. Treat completed messages, completed tool results, and current files as authoritative. Continue from the next unfinished step. Do not repeat completed or irreversible actions. Do not rely on partial or failed assistant output. Finish with the required final report and terminal protocol.
+```
+<!-- pi-delegated-instructions:end:live-continuation-prompt -->
 
 ## 7. Report-recovery prompt
 
-If round 1 settles without a report or has an invalid terminal marker, the extension sends one recovery prompt (generated from `REPORT_RECOVERY_PROMPT` in `instructions.ts`) in the same child session.
+If round 1 of a route cycle settles without a report or has an invalid terminal marker, the extension sends one recovery prompt (generated from `REPORT_RECOVERY_PROMPT` in `instructions.ts`) in the same child session.
 
 <!-- pi-delegated-instructions:begin:report-recovery-prompt -->
 ```text
@@ -308,7 +319,7 @@ Follow the original Final protocol. Include exactly one DELEGATE_RESULT line as 
 It is sent only when:
 
 - Round 1 is `missing_report` or `invalid_result`.
-- No recovery has already occurred.
+- No recovery has already occurred on this route.
 - The child is still running.
 - The run is not cancelled.
 - The cumulative output stays under the 50 MiB cap.
@@ -435,9 +446,9 @@ Important distinction:
 
 ## 11. Child process and report lifecycle
 
-Each route attempt starts Pi approximately as:
+Each fresh execution child starts Pi approximately as:
 
-`pi [resource flags] --mode rpc --no-session --approve --provider <provider> --model <model> --thinking <level>`
+`pi [resource flags] --mode rpc --session-dir <private-dir> --session <private-file> --approve --provider <provider> --model <model> --thinking <level>`
 
 Source: `agent/extensions/delegated-pi-loop/supervisor.ts`.
 
@@ -452,6 +463,7 @@ Key limits:
 | Report-recovery idle lease | 5 minutes |
 | Output limit | 50 MiB per route attempt |
 | Catalog preflight cap | 15 seconds, independent per route |
+| Live route-switch cap | 5 seconds for all four controls |
 | Graceful termination | 5 seconds |
 | Cleanup allowance | 10 seconds |
 
@@ -479,7 +491,25 @@ Operational states eligible for automatic fallback are:
 
 Source: `OPERATIONAL_FAILURE_STATES` in `agent/extensions/delegated-pi-loop/runner.ts`.
 
-Fallback has no remaining-work-time predicate: every operational failure, including `stalled` with any stall cause, advances to the next route after positive cleanup proof, regardless of total elapsed time.
+Fallback has no remaining-work-time predicate. One logical assignment spans the route chain; a route switch never advances to another assignment or implementation increment.
+
+A settled `provider_failed`, final `missing_report`, final `invalid_result`, or `prompt_rejected` can retain a healthy idle child. Missing/invalid round-1 reports still get their one report-recovery prompt before route fallback. Provider failure during recovery is eligible after settlement.
+
+Retention requires a nonfailed RPC protocol, a running execution leader, `agent_settled` or a rejected prompt, zero monitored active tools, and no cancellation or cleanup start. After the next route's on-demand catalog preflight, four correlated controls run sequentially: `get_state`, `set_model`, `set_thinking_level`, `get_state`. Both state checks require exact provider/model/thinking identity and no streaming, compaction, or queued messages. Leader probes verify liveness between controls and before continuation; an acknowledgement alone is insufficient.
+
+Successful reuse sends the canonical continuation prompt above when acknowledgement remains true. If acknowledgement is false, it resends the selected complete assignment prompt: the base assignment before degradation, or the same canonical restart prompt afterward. Process-local route ordinals produce `route-N:prompt-1` and `route-N:prompt-2`; skipped catalog routes consume no ordinal. Each route resets monitor state, liveness, report selection, output limits, and its one-recovery allowance. The conversation and process-wide protocol guards remain in memory.
+
+`RetainedPiSession` owns the idle process during catalog skips/timeouts. Only the isolated catalog child can coexist with it. Cancellation, callback/resource exceptions, catalog cleanup failure, or route exhaustion terminate the retained group. A failed switch can resume a replacement on the same currently selected route only after positive group cleanup; cleanup uncertainty is terminal `cleanup_failed`. This creates no synthetic attempt and consumes no extra route.
+
+Stalled/active output, `invalid_stream`, `output_limit`, child exit/failure, and spawn failure use persisted replacement after positive cleanup. Interruption and cleanup uncertainty never reuse a child or fall back. Persisted replacement sends the same canonical continuation only after positive durable active-history verification. That continuation does not mark `restartAfterWork`, increment `restartAfterWorkCount`, or append the restart note; only the proven-unavailable fail-safe above does. Its process-local protocol IDs start again at `prompt-1`; per-route recovery and accounting reset normally.
+
+The private attempt `status.json` includes only a `liveReused` boolean for continuity inspection. It is true when the reused child accepted that route's initial prompt. Public schemas and schema-9 diagnostics are unchanged. Deliberate replay uses the existing per-attempt restart flag and restart count. Idle/control output is bounded and charged to the next live attempt; administrative stderr is counted but discarded.
+
+Live reuse remains primary. Before the first execution, `runDelegate` creates one empty regular 0600 session file under its existing 0700 artifact directory. Pi 0.85.1 initializes and flushes the header before any assistant response, but emits RPC prompt success before the user message append. Acknowledgement alone therefore proves no durable assignment context. Every execution receives the same official `--session-dir` and exact `--session` path. Catalog children receive no session flags. No session-ID lookup or global storage inspection occurs.
+
+For acknowledged fresh replacements, prompt preparation privately checks history after positive prior group cleanup. Prompt preparation and history I/O finish before the final synchronous runtime-resource and session-metadata checks, in that order, immediately before every fresh execution spawn. Metadata validation checks the original private directory identity, exact basename, regular non-symlink single-link file, and 0700/0600 modes. Retained reuse runs no spawn guards. The read-only readiness method skips blank/malformed JSONL records, requires the first parsed record to be a valid version-3 session header, pins that identity, validates tree entries, and applies only the latest compaction on the root-to-leaf active path as described in section 6. A malformed tail does not invalidate earlier valid active history. Headers, custom/non-user messages, off-branch assignments, partial JSON, and continuation-only history do not prove assignment availability. Fixed bounds are 64 MiB per session, 4 MiB per physical line, and 100,000 physical records, including blank/malformed records. Only a closed enum leaves the method. Invalid/unsafe/oversized history fails closed before spawn with `Delegated session history validation failed`; existing cleanup removes run artifacts and retained children. Session JSONL is sensitive: it is never read into reports, diagnostics, status, progress, or ToolResult data; neither its path nor ID is exposed. Finalization deletes this ephemeral run-scoped session with the artifact directory.
+
+Cross-provider transfer of the same logical conversation is intentional. Interrupted side effects have no exactly-once guarantee. Only proven unavailable assignment context in otherwise valid history permits the deliberate replay fail-safe. A later acknowledged and persisted replay can establish usable history for another replacement. Direct context-free supervisor tests remain the only persistence-omission seam; production replay still uses the same private session file.
 
 These outcomes are terminal and do not trigger route fallback:
 

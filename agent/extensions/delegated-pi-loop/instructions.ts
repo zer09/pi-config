@@ -7,7 +7,7 @@ import { BLOCKED_REASON_CODES, FAILED_REASON_CODES } from "./types.ts";
  * This file owns instruction text and instruction builders only: parent tool
  * metadata, the parent workflow guidelines, the child role-family contracts,
  * the base child assignment prompt with its terminal-result contract, the
- * fixed restart note, and the report-recovery prompt. Enforcement stays in
+ * fixed restart note, live continuation, and report-recovery prompt. Enforcement stays in
  * the machine-policy modules: routing validation and selection in
  * `routing.ts`, concurrency in `manager.ts`, process lifecycle in
  * `runner.ts`/`supervisor.ts`, RPC protocol state in `protocol.ts`, report
@@ -209,7 +209,7 @@ Never expose credentials, tokens, cookies, or private keys.`;
 
 /** Fixed semantic attempt-budget instructions; the supervisor owns wall-clock limits. */
 export const CHILD_ATTEMPT_BUDGET =
-  "For each required proof or gate, make at most two materially equivalent attempts. Repeat only when new evidence justifies it. If a required result remains unavailable, stop unrelated work and report BLOCKED.";
+  "For each required proof or gate, make at most two materially equivalent attempts. Repeat only when new evidence justifies it. Parent-supplied verified evidence satisfies a check unless the assignment explicitly requires independent reproduction. Report an unavailable optional independent check as a limit; it does not justify BLOCKED. If explicitly required evidence or access remains unavailable and you cannot finish the assigned role, stop unrelated work and report BLOCKED.";
 
 const BLOCKED_REASON_CODE_LIST = BLOCKED_REASON_CODES.join(", ");
 const FAILED_REASON_CODE_LIST = FAILED_REASON_CODES.join(", ");
@@ -232,17 +232,19 @@ DELEGATE_RESULT: FAILED
 BLOCKED codes: ${BLOCKED_REASON_CODE_LIST}.
 FAILED codes: ${FAILED_REASON_CODE_LIST}.
 
-Use one matching code with no prose, path, or details. DELEGATE_RESULT appears once as the final nonblank line; DELEGATE_REASON appears once directly above it. COMPLETED has no reason. COMPLETED means this role finished even when a review found defects; reviews with findings use COMPLETED. After BLOCKED or FAILED, stop.`;
+Use one matching code with no prose, path, or details. DELEGATE_RESULT appears once as the final nonblank line; DELEGATE_REASON appears once directly above it. COMPLETED has no reason. COMPLETED means this role finished; reviews with findings use COMPLETED. A review that finishes its analysis returns COMPLETED with or without findings and with optional-check limits. After BLOCKED or FAILED, stop.`;
 
 /**
- * Fixed sanitized restart note appended to the next route attempt's private
- * prompt after an operational failure on an attempt that had already executed
- * tools or accepted report recovery. It is deliberately generic: it never
- * carries provider errors, raw output, tool payloads, reports, paths, or
- * credentials.
+ * Fixed restart note for the one context-free replay fail-safe: acknowledged
+ * work whose valid persisted active history lacks the assignment. It never
+ * carries provider errors, raw output, tool payloads, reports, paths, or credentials.
  */
 export const RESTART_AFTER_WORK_NOTE =
   "Restart: a prior route attempt may have changed the tree. Inspect current work first; treat it as authoritative, continue from it, and do not repeat irreversible actions.";
+
+/** Sent after accepted live context or positive durable active-history verification for a fresh replacement. */
+export const LIVE_CONTINUATION_PROMPT =
+  "Continue the existing delegated assignment from this session's current context and workspace. A prior route failed. Treat completed messages, completed tool results, and current files as authoritative. Continue from the next unfinished step. Do not repeat completed or irreversible actions. Do not rely on partial or failed assistant output. Finish with the required final report and terminal protocol.";
 
 /** Inputs for the shared child prompt composition; placeholders stay literal. */
 export interface ComposedDelegatePromptInput {
