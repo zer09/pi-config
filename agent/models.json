@@ -52,6 +52,29 @@
       },
       "models": [
         {
+          "id": "google/gemini-3.8-flash",
+          "name": "Gemini 3.8 Flash (Command Code)",
+          "reasoning": true,
+          "input": ["text", "image"],
+          "contextWindow": 1000000,
+          "maxTokens": 65536,
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": null
+          },
+          "cost": {
+            "input": 1.5,
+            "output": 7.5,
+            "cacheRead": 0.15,
+            "cacheWrite": 0
+          }
+        },
+        {
           "id": "zai-org/GLM-5.3",
           "name": "GLM-5.3 (Command Code)",
           "reasoning": true,
