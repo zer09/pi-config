@@ -48,3 +48,13 @@ Use Pi 0.85.0's default editor-border working indicator as shipped. This configu
 - Theme extension tests cover explicit-choice backoff, wrapper-injected continuation, session shutdown, and stale-context protection.
 - Footer tests cover waiting start/end, timer independence, `agent_settled` separation, prompt-title exclusion, and session-shutdown clearing.
 - Pi 0.85.1 source and published-artifact tests establish light-first/dark-second pair ordering, per-run non-persistence, and default-editor indicator placement. Real terminal appearance remains a manual visual check after starting a fresh process.
+
+## Amendment (2026-09-15): Use one persistent WSL appearance watcher
+
+History above is preserved unchanged. This amendment changes the WSL runtime process model without changing the selected appearance source or first-frame policy.
+
+A live incident on WSL 2.7.12 showed three Pi sessions each launching `reg.exe` every three seconds. The affected Windows-side `wsl.exe` relay accumulated ready or running workers at the same three-second cadence, with most CPU time in kernel mode while Linux remained idle. The polling implementation had been unchanged since June. WSL 2.7.12 was installed in August, and no same-day extension or WSL update explained the onset. The incident was therefore a latent WSL interop relay failure triggered and amplified by frequent short-lived registry commands, multiple Pi sessions, and a transient interop slowdown. The 1.5-second command timeout made abrupt endpoint closure more likely once the relay degraded.
+
+Under WSL, replace recurring `pi.exec("reg.exe", ...)` probes with one session-scoped Windows PowerShell process. The helper reads `AppsUseLightTheme` through `[Microsoft.Win32.Registry]::GetValue`, polls inside that process, and writes only `dark` or `light` changes to its existing stdout pipe. The extension aborts and stops the helper during `session_shutdown`. Native Windows, macOS, Linux, and OrbStack keep their existing one-shot command probes and interval behavior. The startup wrapper keeps its single registry query so the first frame remains correct.
+
+This design keeps live Windows appearance switching while crossing the WSL process boundary once per Pi session instead of once every three seconds. It adds one idle PowerShell process per interactive WSL Pi session. Focused tests cover single-process startup, output parsing, shutdown, stale callbacks, and the absence of recurring `pi.exec` probes. A live seven-cycle smoke test observed one persistent helper, zero `reg.exe` polling children, correct initial appearance, clean shutdown, and zero measured CPU from the remaining WSL relays.

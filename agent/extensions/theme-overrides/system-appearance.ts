@@ -105,6 +105,7 @@ export async function detectDarwinAppearance(
 export async function detectSystemAppearance(pi: ExtensionAPI, signal?: AbortSignal): Promise<ThemeKind | undefined> {
   switch (detectOS()) {
     case "WSL":
+      // One-shot fallback. The extension lifecycle uses the persistent watcher instead.
       return detectWindowsAppearance(pi, QUERY_TIMEOUT_MS, true, signal)
 
     case "Windows_NT":

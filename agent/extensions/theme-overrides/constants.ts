@@ -9,10 +9,10 @@ import { join } from "node:path"
 import { getAgentDir } from "@earendil-works/pi-coding-agent"
 import type { ThemeKind } from "./types.ts"
 
-/** Polling cadence for re-checking system appearance. */
+/** Polling cadence inside the persistent WSL watcher and for non-WSL probes. */
 export const POLL_INTERVAL_MS = 3_000
 
-/** Timeout for each system appearance query. */
+/** Timeout for each one-shot appearance query. */
 export const QUERY_TIMEOUT_MS = 1_500
 
 /** Startup retry delays used after Pi finishes its own delayed theme initialization. */

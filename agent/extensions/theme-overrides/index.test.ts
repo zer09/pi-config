@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent"
+import type { WindowsAppearanceWatcherOptions } from "./windows-appearance-watcher.ts"
 
 const originalAgentDir = process.env.PI_CODING_AGENT_DIR
 const testAgentDir = mkdtempSync(join(tmpdir(), "theme-overrides-"))
@@ -69,6 +70,8 @@ async function flushDetachedWork(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+const detectLinux = (): "Linux" => "Linux"
+
 describe("theme override lifecycle", () => {
   test("aborts an in-flight probe and never touches stale UI after shutdown", async () => {
     const handlers = new Map<string, Handler>()
@@ -98,7 +101,7 @@ describe("theme override lifecycle", () => {
       }),
     } as unknown as ExtensionAPI
 
-    themeOverridesExtension(pi)
+    themeOverridesExtension(pi, applyOverride, undefined, detectLinux)
 
     handlers.get("session_start")?.({ type: "session_start" }, ctx)
     const signal = await execStarted.promise
@@ -125,7 +128,7 @@ describe("theme override lifecycle", () => {
 
     themeOverridesExtension(pi, async () => {
       throw new Error("missing theme")
-    })
+    }, undefined, detectLinux)
 
     handlers.get("session_start")?.({ type: "session_start" }, ctx)
     await flushDetachedWork()
@@ -150,7 +153,7 @@ describe("theme override lifecycle", () => {
 
     themeOverridesExtension(pi, async () => {
       throw new Error("missing theme")
-    })
+    }, undefined, detectLinux)
 
     handlers.get("session_start")?.({ type: "session_start" }, ctx)
     await flushDetachedWork()
@@ -158,6 +161,47 @@ describe("theme override lifecycle", () => {
 
     expect(warning).toHaveBeenCalledTimes(1)
     warning.mockRestore()
+  })
+
+  test("uses one persistent Windows watcher in WSL without recurring exec probes", async () => {
+    const handlers = new Map<string, Handler>()
+    const setTheme = mock(() => ({ success: true }))
+    const exec = mock(async () => validLightResult())
+    const stopWatcher = mock(() => undefined)
+    let watcherOptions: WindowsAppearanceWatcherOptions | undefined
+
+    const startWatcher = mock((options: WindowsAppearanceWatcherOptions) => {
+      watcherOptions = options
+      return stopWatcher
+    })
+    const pi = {
+      on(event: string, handler: Handler) {
+        handlers.set(event, handler)
+      },
+      exec,
+    } as unknown as ExtensionAPI
+    const ctx = makeContext({ setTheme })
+
+    themeOverridesExtension(pi, applyOverride, startWatcher, () => "WSL")
+    handlers.get("session_start")?.({ type: "session_start" }, ctx)
+
+    expect(startWatcher).toHaveBeenCalledTimes(1)
+    expect(exec).toHaveBeenCalledTimes(0)
+    expect(watcherOptions?.signal.aborted).toBe(false)
+
+    watcherOptions?.onAppearance("light")
+    await flushDetachedWork()
+
+    expect(exec).toHaveBeenCalledTimes(0)
+    expect(setTheme).toHaveBeenCalledTimes(1)
+
+    handlers.get("session_shutdown")?.({ type: "session_shutdown" }, ctx)
+    expect(watcherOptions?.signal.aborted).toBe(true)
+    expect(stopWatcher).toHaveBeenCalledTimes(1)
+
+    watcherOptions?.onAppearance("dark")
+    await flushDetachedWork()
+    expect(setTheme).toHaveBeenCalledTimes(1)
   })
 })
 

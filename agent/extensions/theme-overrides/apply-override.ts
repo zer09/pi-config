@@ -9,6 +9,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { THEME_PATHS } from "./constants.ts"
 import { detectSystemAppearance } from "./system-appearance.ts"
 import { currentThemeInfo, isThemeOverrideAllowed } from "./theme-state.ts"
+import type { ThemeKind } from "./types.ts"
 
 /**
  * Apply the matching dark/light runtime theme if it is currently safe.
@@ -18,12 +19,13 @@ export async function applyOverride(
   ctx: ExtensionContext,
   signal: AbortSignal,
   isActive: () => boolean,
+  detectedKind?: ThemeKind,
 ): Promise<void> {
   if (signal.aborted || !isActive()) return
   if (ctx.mode !== "tui") return
   if (!isThemeOverrideAllowed(ctx)) return
 
-  const kind = await detectSystemAppearance(pi, signal)
+  const kind = detectedKind ?? await detectSystemAppearance(pi, signal)
   // Nothing below awaits, so this check keeps all later ctx access in the active session.
   if (signal.aborted || !isActive() || !kind) return
   if (!isThemeOverrideAllowed(ctx)) return
