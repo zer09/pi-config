@@ -32,19 +32,17 @@ Current defaults:
 
 | Setting                | Value                       |
 | ---------------------- | --------------------------- |
-| Default provider       | `openai-codex-cgpt3`        |
-| Default model          | `gpt-5.6-sol`               |
+| Default provider       | `orcarouter`                         |
+| Default model          | `deepseek/deepseek-v4-flash-free`    |
 | Default thinking level | `high`                      |
 | Theme                  | `dark` saved baseline; startup wrapper uses write-free `--use-theme` selection |
 | Transport              | `websocket-cached`          |
 
 Enabled models:
 
-- `agentrouter/deepseek-v4-flash`
 - `cursor/auto-smart`
 - `openai-codex/gpt-5.5`
 - `openai-codex/gpt-5.6-sol`
-- `openai-codex-zahlo/gpt-5.6-sol`
 - `openai-codex-cgpt1/gpt-5.6-sol`
 - `openai-codex-cgpt2/gpt-5.6-sol`
 - `openai-codex-cgpt3/gpt-5.6-sol`
@@ -53,6 +51,17 @@ Enabled models:
 - `openai-codex-cgpt6/gpt-5.6-sol`
 - `zai/glm-5.3`
 - `zai/glm-5.3-flash`
+- `commandcode/zai-org/GLM-5.3`
+- `commandcode/z-ai/glm-5.3-flash`
+- `commandcode/gpt-5.6-luna`
+- `commandcode/gpt-5.6-sol`
+- `commandcode/gpt-5.6-terra`
+- `commandcode/xai/grok-4.6`
+- `commandcode/meta/muse-spark-1.3-contributor`
+- `commandcode/Qwen/Qwen3.8-Max-0902`
+- `commandcode/MiniMaxAI/MiniMax-M3`
+- `orcarouter/deepseek/deepseek-v4-flash-free`
+- `orcarouter/z-ai/glm-5.3-flash-free`
 
 Configured packages:
 
@@ -104,7 +113,7 @@ Local extensions live under `agent/extensions/`.
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `codegraph/`       | Native Pi CodeGraph tools for source exploration, symbol lookup, callers/callees, impact analysis, indexed file discovery, and graph status.          |
 | `context-mode/`    | Lean wrapper around upstream `context-mode`, exposing only `ctx_execute_file`, `ctx_batch_execute`, and `ctx_search` for large-output workflows.      |
-| `delegated-pi-loop/` | Native TypeScript `delegate_run` tool with persistent Pi RPC children, config-driven version-2 routing (role families derive from ordered `assignments` arrays in `routing.json`, with one normalized registry for validation, classification, contracts, and generated schemas/guidance), strict delegated child resource isolation, a read-only `delegate_model_catalog` lookup for exceptional one-run substitutions, renewable programmatic liveness with no total runtime ceiling (five-minute activity warning, ten-minute activity-idle stop, 15-minute structural-progress warning, and a renewable 45-minute gap between novel structural checkpoints), sequential operational fallback, bounded cleanup, schema 9 private run telemetry (failure diagnostics retain the exact final report up to 50 KiB with recognized terminal lines preserved and the watchdog-selected active `bash` command up to 4 KiB in `activeBashCommand`; both can contain secrets and stay local under 0700/0600 permissions, never in ToolResult data or rendering; metadata-only success records use `success-v9-` with 4,096-record retention, historical schema 3-8 files stay untouched, and the read-only percentile analyzer uses schema-9 completed samples), one same-session report recovery, and role isolation. Model-visible delegation text is centralized in `instructions.ts`: flat parent guidelines name their tool, children receive compact role prompts without parent workflow or mental time tracking, and failed attempts stop automatic advancement before the parent follows the user's ordinary next instruction without requesting special syntax. Direct Claude CLI delegation is removed; Claude-named models remain available through normal Pi providers. |
+| `delegated-pi-loop/` | Native TypeScript `delegate_run` tool with persistent Pi RPC children, config-driven version-2 routing (role families derive from ordered `assignments` arrays in `routing.json`, with one normalized registry for validation, classification, contracts, and generated schemas/guidance), strict delegated child resource isolation, a read-only `delegate_model_catalog` lookup for exceptional one-run substitutions, renewable programmatic liveness with no total runtime ceiling (five-minute activity warning, ten-minute activity-idle stop, 15-minute structural-progress warning, and a renewable 45-minute gap between novel structural checkpoints), sequential operational fallback with live same-child continuation first and private persisted-session replacement for unusable children, bounded cleanup, schema 9 private run telemetry (failure diagnostics retain the exact final report up to 50 KiB with recognized terminal lines preserved and the watchdog-selected active `bash` command up to 4 KiB in `activeBashCommand`; both can contain secrets and stay local under 0700/0600 permissions, never in ToolResult data or rendering; metadata-only success records use `success-v9-` with 4,096-record retention, historical schema 3-8 files stay untouched, and the read-only percentile analyzer uses schema-9 completed samples), one same-session report recovery per route, and role isolation. Model-visible delegation text is centralized in `instructions.ts`: flat parent guidelines name their tool, children receive compact role prompts without parent workflow or mental time tracking, and failed attempts stop automatic advancement before the parent follows the user's ordinary next instruction without requesting special syntax. Direct Claude CLI delegation is removed; Claude-named models remain available through normal Pi providers. |
 | `web-search/`      | Provider-routed research tools: `web_search` (Gemini grounding with Parallel primary, Exa fallback, and a final Tavily direct-search fallback), `web_code_search` (Firecrawl Developer / Exa Code focus routing), and `fetch_contents` (Firecrawl Scrape primary with Exa Contents fallback). |
 | `footer/`          | Custom compact Pi TUI footer with git state, cwd, extension status, user-prompt waiting state, wall-clock timer, token/context usage, model, thinking glyph, and Fastlane indicator. |
 | `fastlane/`        | Session toggle for eligible Codex Fast mode via `/fastlane`; publishes active state consumed by `footer`.                                             |
@@ -112,6 +121,8 @@ Local extensions live under `agent/extensions/`.
 | `theme-overrides/` | Auto-switches between local `dark` and `light` themes from Windows/OS appearance. The wrapper supplies a write-free first-frame `--use-theme` default; explicit user choices win. |
 
 Delegated implementation follows one small, independently reviewable increment per fresh delegate, with code and regression tests together. The parent checks and reviews each increment before assigning the next, then reviews the integrated task. Children use small edit-and-check steps and existing patterns. These are model instructions, not runtime size limits; routing, supervision, fallback, and report parsing are unchanged. See [ADR 0019](docs/adr/0019-delegated-incremental-implementation.md).
+
+Delegated fallback preserves one conversation across providers intentionally. Live reuse is primary. After positive cleanup of an unusable child, the selected route resumes the same private Pi session with `--session-dir` and an exact `--session` file. The run precreates an empty 0600 file under its 0700 artifact directory. Prompt preparation and history I/O finish before the final synchronous runtime-resource and session-metadata checks, in that order, immediately before every execution spawn. Finalization deletes this ephemeral run-scoped session. Session contents, path, and ID never enter telemetry or ToolResult data. Prompt success acknowledges acceptance, not persistence. After cleanup, an acknowledged replacement requires positive durable active-history verification before spawn. The check applies only the latest compaction on the root-to-leaf active path, honoring a valid earlier legacy boundary or exact `retainedTail` messages plus post-compaction entries. A user string or array of only text blocks must concatenate exactly to the original built assignment or its canonical restart-note form; compacted-away ancestry and mixed image content do not count. Verified history selects the exact canonical continuation with no restart count. Valid history without the assignment uses the one context-free replay fail-safe on the same selected route: original assignment plus one restart note, cleared acknowledgement, one count increment, and attribution to the prior acknowledged supervised attempt. Unacknowledged live and fresh fallback resend the selected assignment prompt: the base assignment before degradation, or the same restart prompt with exactly one note after degradation. Rejection adds no increment or attribution. Invalid identity, unsafe structure, or history beyond fixed 64 MiB file, 4 MiB line, or 100,000 physical-record limits fails closed before spawn with a fixed sanitized error. Continuity does not guarantee exactly-once execution of interrupted side effects.
 
 Extension-specific docs live inside the extension directories where available. After editing a local extension, run its local checks and reload/restart Pi.
 
