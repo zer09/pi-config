@@ -2,7 +2,7 @@
  * Shared type definitions for the theme-overrides extension.
  */
 
-/** The Pi theme names this extension auto-switches between. */
+/** The Pi theme names managed by manual synchronization. */
 export type ThemeKind = "dark" | "light"
 
 /** Operating-system categories used for appearance detection. */
@@ -30,7 +30,7 @@ export interface CommandOutput {
 export interface CommandOutputOptions {
   /** When true, non-zero exit codes still return captured output. */
   readonly allowNonZero?: boolean
-  /** Cancels an in-flight appearance probe when its Pi session shuts down. */
+  /** Optional cancellation signal for an in-flight appearance probe. */
   readonly signal?: AbortSignal
   /** Optional timeout in milliseconds passed to Pi's exec helper. */
   readonly timeout?: number

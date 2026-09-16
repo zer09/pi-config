@@ -1,12 +1,12 @@
-import { afterAll, describe, expect, mock, spyOn, test } from "bun:test"
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { afterAll, afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
+import * as childProcess from "node:child_process"
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
+import * as os from "node:os"
 import { join } from "node:path"
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent"
-import type { WindowsAppearanceWatcherOptions } from "./windows-appearance-watcher.ts"
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent"
 
 const originalAgentDir = process.env.PI_CODING_AGENT_DIR
-const testAgentDir = mkdtempSync(join(tmpdir(), "theme-overrides-"))
+const testAgentDir = mkdtempSync(join(os.tmpdir(), "theme-overrides-"))
 process.env.PI_CODING_AGENT_DIR = testAgentDir
 writeFileSync(join(testAgentDir, "settings.json"), JSON.stringify({ theme: "dark" }))
 mock.module("@earendil-works/pi-coding-agent", () => ({ getAgentDir: () => testAgentDir }))
@@ -23,7 +23,15 @@ afterAll(() => {
   rmSync(testAgentDir, { force: true, recursive: true })
 })
 
-type Handler = (event: unknown, ctx: ExtensionContext) => unknown
+beforeEach(() => {
+  spyOn(os, "release").mockReturnValue("6.6.0-microsoft-standard-WSL2")
+})
+
+afterEach(() => {
+  mock.restore()
+})
+
+type Command = Parameters<ExtensionAPI["registerCommand"]>[1]
 
 type Deferred<T> = {
   promise: Promise<T>
@@ -48,164 +56,217 @@ function validLightResult(): { stdout: string; stderr: string; code: number; kil
 }
 
 function makeContext(options?: {
+  mode?: ExtensionContext["mode"]
+  theme?: { name: string; sourcePath?: string }
   getTheme?: () => unknown
   notify?: (message: string, level: string) => void
   setTheme?: (theme: unknown) => void
-}): ExtensionContext {
+}): ExtensionCommandContext {
   const ui = {
-    theme: { name: "dark", sourcePath: undefined },
+    theme: options?.theme ?? { name: "dark", sourcePath: undefined },
     getTheme: options?.getTheme ?? (() => ({ name: "light", sourcePath: undefined })),
     notify: options?.notify ?? (() => undefined),
     setTheme: options?.setTheme ?? (() => ({ success: true })),
   }
 
   return {
-    mode: "tui",
+    mode: options?.mode ?? "tui",
     ui,
-  } as unknown as ExtensionContext
+  } as unknown as ExtensionCommandContext
 }
 
-async function flushDetachedWork(): Promise<void> {
-  await Promise.resolve()
-  await new Promise((resolve) => setTimeout(resolve, 0))
+function makePi() {
+  const commands = new Map<string, Command>()
+  const registerCommand = mock((name: string, command: Command) => {
+    commands.set(name, command)
+  })
+  const on = mock(() => undefined)
+  const exec = mock(async (_command: string, _args: string[], _options?: { signal?: AbortSignal; timeout?: number }) => validLightResult())
+  const pi = { registerCommand, on, exec } as unknown as ExtensionAPI
+  return { pi, commands, registerCommand, on, exec }
 }
 
-const detectLinux = (): "Linux" => "Linux"
+describe("/theme-sync", () => {
+  test("only registers the command, without startup hooks or background work", async () => {
+    const { pi, commands, registerCommand, on, exec } = makePi()
+    const runOverride = mock(async () => undefined)
+    const interval = spyOn(globalThis, "setInterval")
+    const timeout = spyOn(globalThis, "setTimeout")
+    const spawn = spyOn(childProcess, "spawn")
 
-describe("theme override lifecycle", () => {
-  test("aborts an in-flight probe and never touches stale UI after shutdown", async () => {
-    const handlers = new Map<string, Handler>()
-    const execStarted = deferred<AbortSignal | undefined>()
+    themeOverridesExtension(pi, runOverride)
+    await Promise.resolve()
+
+    expect(registerCommand).toHaveBeenCalledTimes(1)
+    expect([...commands.keys()]).toEqual(["theme-sync"])
+    expect(commands.get("theme-sync")?.description).toContain("once")
+    expect(on).not.toHaveBeenCalled()
+    expect(runOverride).not.toHaveBeenCalled()
+    expect(exec).not.toHaveBeenCalled()
+    expect(interval).not.toHaveBeenCalled()
+    expect(timeout).not.toHaveBeenCalled()
+    expect(spawn).not.toHaveBeenCalled()
+  })
+
+  test("awaits one WSL registry probe and applies the runtime theme without writing settings", async () => {
+    const { pi, commands, exec } = makePi()
     const result = deferred<ReturnType<typeof validLightResult>>()
-    let stale = false
-    let staleUiReads = 0
+    exec.mockImplementation(() => result.promise)
+    const selectedTheme = { name: "light", sourcePath: join(testAgentDir, "themes", "light.json") }
+    const setTheme = mock(() => ({ success: true }))
+    const ctx = makeContext({ getTheme: () => selectedTheme, setTheme })
+    const settingsPath = join(testAgentDir, "settings.json")
+    const before = { bytes: readFileSync(settingsPath), stat: statSync(settingsPath) }
+    const interval = spyOn(globalThis, "setInterval")
+    const timeout = spyOn(globalThis, "setTimeout")
+    const spawn = spyOn(childProcess, "spawn")
+    themeOverridesExtension(pi)
+    let completed = false
 
-    const ctx = {
-      mode: "tui",
-      get ui() {
-        if (stale) {
-          staleUiReads += 1
-          throw new Error("stale ctx")
-        }
-        return makeContext().ui
-      },
-    } as unknown as ExtensionContext
-
-    const pi = {
-      on(event: string, handler: Handler) {
-        handlers.set(event, handler)
-      },
-      exec: mock((_command: string, _args: string[], options?: { signal?: AbortSignal }) => {
-        execStarted.resolve(options?.signal)
-        return result.promise
-      }),
-    } as unknown as ExtensionAPI
-
-    themeOverridesExtension(pi, applyOverride, undefined, detectLinux)
-
-    handlers.get("session_start")?.({ type: "session_start" }, ctx)
-    const signal = await execStarted.promise
-    expect(signal?.aborted).toBe(false)
-
-    handlers.get("session_shutdown")?.({ type: "session_shutdown" }, ctx)
-    stale = true
-    expect(signal?.aborted).toBe(true)
+    const syncing = commands.get("theme-sync")!.handler("", ctx).then(() => {
+      completed = true
+    })
+    await Promise.resolve()
+    expect(completed).toBe(false)
+    expect(setTheme).not.toHaveBeenCalled()
+    expect(exec).toHaveBeenCalledTimes(1)
+    const [command, args, options] = exec.mock.calls[0]!
+    expect(command).toMatch(/(^|\/)reg\.exe$/i)
+    expect(args).toEqual([
+      "Query", "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", "/v", "AppsUseLightTheme",
+    ])
+    expect(options?.timeout).toBe(1_500)
+    expect(options?.signal?.aborted).toBe(false)
 
     result.resolve(validLightResult())
-    await flushDetachedWork()
-    expect(staleUiReads).toBe(0)
+    await syncing
+
+    expect(completed).toBe(true)
+    expect(exec).toHaveBeenCalledTimes(1)
+    expect(setTheme).toHaveBeenCalledTimes(1)
+    expect(setTheme).toHaveBeenCalledWith(selectedTheme)
+    expect(interval).not.toHaveBeenCalled()
+    expect(timeout).not.toHaveBeenCalled()
+    expect(spawn).not.toHaveBeenCalled()
+    expect(readFileSync(settingsPath)).toEqual(before.bytes)
+    const after = statSync(settingsPath)
+    expect(after.mtimeMs).toBe(before.stat.mtimeMs)
+    expect(after.mode).toBe(before.stat.mode)
+    expect(after.ino).toBe(before.stat.ino)
   })
 
-  test("reports an active failure once", async () => {
-    const handlers = new Map<string, Handler>()
-    const notifications: string[] = []
-    const ctx = makeContext({ notify: (message) => notifications.push(message) })
-    const pi = {
-      on(event: string, handler: Handler) {
-        handlers.set(event, handler)
-      },
-    } as unknown as ExtensionAPI
+  test.each(["rpc", "json", "print"] as const)("does nothing in %s mode", async (mode) => {
+    const { pi, commands, exec } = makePi()
+    const runOverride = mock(async () => undefined)
+    const notify = mock(() => undefined)
+    themeOverridesExtension(pi, runOverride)
 
-    themeOverridesExtension(pi, async () => {
+    await commands.get("theme-sync")!.handler("", makeContext({ mode, notify }))
+
+    expect(runOverride).not.toHaveBeenCalled()
+    expect(exec).not.toHaveBeenCalled()
+    expect(notify).not.toHaveBeenCalled()
+  })
+
+  test("leaves the theme alone when detection fails, without retrying", async () => {
+    const { pi, commands, exec } = makePi()
+    exec.mockRejectedValue(new Error("registry unavailable"))
+    const setTheme = mock(() => ({ success: true }))
+    const notify = mock(() => undefined)
+    const interval = spyOn(globalThis, "setInterval")
+    const timeout = spyOn(globalThis, "setTimeout")
+    themeOverridesExtension(pi)
+
+    await commands.get("theme-sync")!.handler("", makeContext({ setTheme, notify }))
+
+    expect(exec).toHaveBeenCalledTimes(1)
+    expect(setTheme).not.toHaveBeenCalled()
+    expect(notify).not.toHaveBeenCalled()
+    expect(interval).not.toHaveBeenCalled()
+    expect(timeout).not.toHaveBeenCalled()
+  })
+
+  test("contains and reports a failure on each manual invocation", async () => {
+    const { pi, commands } = makePi()
+    const notify = mock(() => undefined)
+    const runOverride = mock(async () => {
       throw new Error("missing theme")
-    }, undefined, detectLinux)
+    })
+    themeOverridesExtension(pi, runOverride)
+    const ctx = makeContext({ notify })
 
-    handlers.get("session_start")?.({ type: "session_start" }, ctx)
-    await flushDetachedWork()
-    handlers.get("session_shutdown")?.({ type: "session_shutdown" }, ctx)
+    await expect(commands.get("theme-sync")!.handler("", ctx)).resolves.toBeUndefined()
+    expect(runOverride).toHaveBeenCalledTimes(1)
+    expect(notify).toHaveBeenCalledTimes(1)
+    expect(notify).toHaveBeenCalledWith("Theme sync failed: missing theme", "warning")
 
-    expect(notifications).toEqual(["Theme override failed: missing theme"])
+    await expect(commands.get("theme-sync")!.handler("", ctx)).resolves.toBeUndefined()
+    expect(runOverride).toHaveBeenCalledTimes(2)
+    expect(notify).toHaveBeenCalledTimes(2)
   })
 
-  test("contains notification failures instead of rejecting detached work", async () => {
-    const handlers = new Map<string, Handler>()
+  test("contains notification failures instead of rejecting the command", async () => {
+    const { pi, commands } = makePi()
     const warning = spyOn(console, "warn").mockImplementation(() => undefined)
+    const error = new Error("missing theme")
+    const notificationError = new Error("notification failed")
     const ctx = makeContext({
       notify: () => {
-        throw new Error("notification failed")
+        throw notificationError
       },
     })
-    const pi = {
-      on(event: string, handler: Handler) {
-        handlers.set(event, handler)
-      },
-    } as unknown as ExtensionAPI
-
     themeOverridesExtension(pi, async () => {
-      throw new Error("missing theme")
-    }, undefined, detectLinux)
+      throw error
+    })
 
-    handlers.get("session_start")?.({ type: "session_start" }, ctx)
-    await flushDetachedWork()
-    handlers.get("session_shutdown")?.({ type: "session_shutdown" }, ctx)
+    await expect(commands.get("theme-sync")!.handler("", ctx)).resolves.toBeUndefined()
 
     expect(warning).toHaveBeenCalledTimes(1)
-    warning.mockRestore()
-  })
-
-  test("uses one persistent Windows watcher in WSL without recurring exec probes", async () => {
-    const handlers = new Map<string, Handler>()
-    const setTheme = mock(() => ({ success: true }))
-    const exec = mock(async () => validLightResult())
-    const stopWatcher = mock(() => undefined)
-    let watcherOptions: WindowsAppearanceWatcherOptions | undefined
-
-    const startWatcher = mock((options: WindowsAppearanceWatcherOptions) => {
-      watcherOptions = options
-      return stopWatcher
-    })
-    const pi = {
-      on(event: string, handler: Handler) {
-        handlers.set(event, handler)
-      },
-      exec,
-    } as unknown as ExtensionAPI
-    const ctx = makeContext({ setTheme })
-
-    themeOverridesExtension(pi, applyOverride, startWatcher, () => "WSL")
-    handlers.get("session_start")?.({ type: "session_start" }, ctx)
-
-    expect(startWatcher).toHaveBeenCalledTimes(1)
-    expect(exec).toHaveBeenCalledTimes(0)
-    expect(watcherOptions?.signal.aborted).toBe(false)
-
-    watcherOptions?.onAppearance("light")
-    await flushDetachedWork()
-
-    expect(exec).toHaveBeenCalledTimes(0)
-    expect(setTheme).toHaveBeenCalledTimes(1)
-
-    handlers.get("session_shutdown")?.({ type: "session_shutdown" }, ctx)
-    expect(watcherOptions?.signal.aborted).toBe(true)
-    expect(stopWatcher).toHaveBeenCalledTimes(1)
-
-    watcherOptions?.onAppearance("dark")
-    await flushDetachedWork()
-    expect(setTheme).toHaveBeenCalledTimes(1)
+    expect(warning).toHaveBeenCalledWith("[theme-overrides] failed to report theme sync error", error, notificationError)
   })
 })
 
 describe("applyOverride", () => {
+  test("backs off for a persisted non-managed theme", async () => {
+    const { pi, exec } = makePi()
+    const setTheme = mock(() => ({ success: true }))
+    const settingsPath = join(testAgentDir, "settings.json")
+    const originalSettings = readFileSync(settingsPath)
+    try {
+      writeFileSync(settingsPath, JSON.stringify({ theme: "custom" }))
+
+      await applyOverride(pi, makeContext({ setTheme }), new AbortController().signal, () => true)
+
+      expect(exec).not.toHaveBeenCalled()
+      expect(setTheme).not.toHaveBeenCalled()
+    } finally {
+      writeFileSync(settingsPath, originalSettings)
+    }
+  })
+
+  test("backs off for an active non-managed theme", async () => {
+    const { pi, exec } = makePi()
+    const setTheme = mock(() => ({ success: true }))
+    const ctx = makeContext({ theme: { name: "custom" }, setTheme })
+
+    await applyOverride(pi, ctx, new AbortController().signal, () => true)
+
+    expect(exec).not.toHaveBeenCalled()
+    expect(setTheme).not.toHaveBeenCalled()
+  })
+
+  test.each([undefined, join(testAgentDir, "themes", "light.json")])("skips an already-active theme with source %s", async (sourcePath) => {
+    const { pi, exec } = makePi()
+    const selectedTheme = { name: "light", sourcePath }
+    const setTheme = mock(() => ({ success: true }))
+    const ctx = makeContext({ theme: selectedTheme, getTheme: () => selectedTheme, setTheme })
+
+    await applyOverride(pi, ctx, new AbortController().signal, () => true)
+
+    expect(exec).toHaveBeenCalledTimes(1)
+    expect(setTheme).not.toHaveBeenCalled()
+  })
+
   test("distinguishes a user theme choice from the wrapper-injected default", () => {
     expect(hasExplicitUseTheme(["--use-theme", "light"], false)).toBe(true)
     expect(hasExplicitUseTheme(["--use-theme", "light"], true)).toBe(false)

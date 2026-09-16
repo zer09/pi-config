@@ -1,16 +1,16 @@
 # theme-overrides
 
-Auto-switch Pi's runtime theme between the local `dark` and `light` themes based on host system appearance.
+Select Pi's first-frame theme with the startup wrapper, then synchronize the runtime theme manually with `/theme-sync`.
 
 This is a personal global Pi extension, so it intentionally has no external config file. Edit the TypeScript constants or the theme JSON files directly when changing behavior.
 
 ## What it does
 
-- Automatically switches Pi to `dark` or `light` when your system theme changes.
+- Synchronizes at exactly two points: once in the startup wrapper and once per manual `/theme-sync` invocation.
 - Uses the auto-discovered themes in `~/.pi/agent/themes/dark.json` and `~/.pi/agent/themes/light.json`.
 - Applies runtime theme changes in memory only; it does **not** write `~/.pi/agent/settings.json`.
-- Re-applies on startup and watches for appearance changes; WSL uses one session-scoped PowerShell process instead of recurring interop commands.
-- Backs off when you choose a custom Pi theme other than `dark` or `light`.
+- Keeps the extension dormant until `/theme-sync`: no session-start check, retries, timers, polling, watcher, or background process.
+- Restricts manual synchronization to the TUI, respects explicit/non-managed theme choices, and skips an already-active theme.
 
 ## Files
 
@@ -25,8 +25,8 @@ This is a personal global Pi extension, so it intentionally has no external conf
 
 This setup has two parts:
 
-1. **Startup wrapper** fixes the first render and `pi --resume` by passing Pi's per-run `--use-theme` selection before Pi starts.
-2. **Runtime extension** keeps the active TUI theme synced after startup. Under WSL, one persistent PowerShell helper polls the registry internally.
+1. **Startup wrapper** detects Windows appearance once and passes `--use-theme` before Pi starts, including for the first frame of `pi --resume`.
+2. **Manual command** detects system appearance once when you run `/theme-sync` and immediately applies the matching runtime theme.
 
 ### 1. Install the startup wrapper
 
@@ -87,44 +87,45 @@ The custom theme files must be named and declared as Pi's managed theme names:
 ~/.pi/agent/themes/light.json  # "name": "light"
 ```
 
-Do not set a custom theme name if you want automatic switching. The wrapper and extension intentionally back off for non-managed theme names.
+Use `dark` or `light` for manual synchronization. The extension backs off for persisted or active non-managed themes. The wrapper honors an explicit `--use-theme`; it does not inspect saved theme choices.
 
-### 3. Runtime switching
+### 3. Manual runtime synchronization
 
-If system appearance detection succeeds, the extension switches the active TUI theme after Pi starts. If detection fails, it leaves Pi's current/default theme alone.
+After changing system appearance, run `/theme-sync` in the TUI. The command awaits the existing TypeScript `applyOverride` → `detectSystemAppearance` path. It does not invoke the startup wrapper.
 
-The runtime extension remains necessary because this configuration intentionally follows Windows `AppsUseLightTheme`. Pi's native `light/dark` pair follows terminal color-scheme reports instead, and those two appearance sources can disagree. The wrapper marks only its injected first-frame default so watching may continue; an explicit user selection is never marked.
+If detection succeeds and the theme policy permits a change, the command applies the matching theme immediately. If detection fails or the matching theme is already active, the command leaves the theme alone. Apply failures produce a warning.
+
+No automatic synchronization runs at session start, reload, resume, or later in the session. Launching `pi --resume` through the wrapper still selects the first-frame theme before Pi starts.
+
+On Windows and WSL, this configuration follows Windows `AppsUseLightTheme`. Pi's native `light/dark` pair follows terminal color-scheme reports instead, and those two appearance sources can disagree. The wrapper marks only its injected first-frame default so manual synchronization remains allowed; an explicit user selection is never marked.
 
 ### WSL process safety
 
-The WSL runtime starts one PowerShell process per active Pi session. PowerShell reads `AppsUseLightTheme` through .NET and emits only appearance changes. Pi stops the helper during session shutdown.
-
-Do not replace this watcher with a recurring `pi.exec("reg.exe", ...)` call. Repeated short-lived Windows interop commands can trigger a WSL 2.7 relay failure where closed command pipes leave `wsl.exe` worker threads spinning in kernel mode.
+Each `/theme-sync` invocation uses one one-shot `reg.exe` query through Windows interop. The extension does not keep a PowerShell process or launch recurring Windows interop commands.
 
 ## Fixed behavior
 
 Runtime constants live in `constants.ts`:
 
-| Constant           | Value  | Description                                               |
-| ------------------ | ------ | --------------------------------------------------------- |
-| `POLL_INTERVAL_MS` | `3000` | Poll cadence inside the persistent WSL watcher and for non-WSL probes. |
-| `QUERY_TIMEOUT_MS` | `1500` | Timeout for each one-shot non-watcher appearance command.              |
+| Constant | Value | Description |
+| --- | --- | --- |
+| `QUERY_TIMEOUT_MS` | `1500` | Timeout in milliseconds for each manual one-shot appearance command. |
 
 ## Appearance detection
 
-The extension executes small local commands through Pi's extension API:
+Only `/theme-sync` executes these one-shot local probes through Pi's extension API:
 
 | Platform      | Probe                                                                                                        |
 | ------------- | ------------------------------------------------------------------------------------------------------------ |
 | macOS         | `defaults read -g AppleInterfaceStyle`                                                                       |
 | Linux         | `dbus-send` against `org.freedesktop.portal.Desktop` / `org.freedesktop.appearance color-scheme`             |
 | Windows       | `reg.exe Query HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize /v AppsUseLightTheme` |
-| WSL           | One persistent PowerShell process reads `AppsUseLightTheme` through `[Microsoft.Win32.Registry]::GetValue`          |
+| WSL           | The same one-shot Windows `reg.exe` query through Windows interop                                            |
 | OrbStack      | `mac defaults read -g AppleInterfaceStyle`                                                                   |
 
 ## Troubleshooting
 
-- **Theme does not change:** make sure Pi's selected theme is `dark` or `light`; the extension backs off for other theme names.
+- **Theme does not change:** run `/theme-sync`; system changes no longer trigger automatic runtime updates. Make sure the active and saved themes are managed, and no explicit `--use-theme` was supplied.
 - **Linux does not switch:** ensure a DBus session and `xdg-desktop-portal` are available.
-- **WSL does not switch:** ensure Windows PowerShell is available at `/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe` or on PATH.
-- **Theme flickers or keeps changing:** make sure you are not loading another auto-theme extension at the same time.
+- **WSL does not switch:** ensure `reg.exe` is available at `/mnt/c/Windows/System32/reg.exe` or on PATH.
+- **Theme changes without `/theme-sync`:** check for another auto-theme extension or Pi's terminal-following theme selection.

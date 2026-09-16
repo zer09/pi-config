@@ -31,7 +31,7 @@ export function readConfiguredTheme(): string | undefined {
 
 /**
  * Detect a user-supplied per-run theme selection. The wrapper marks only its own
- * injected default so runtime Windows appearance polling can continue.
+ * injected default so /theme-sync can update it later.
  */
 export function hasExplicitUseTheme(
   args: readonly string[] = process.argv.slice(2),
