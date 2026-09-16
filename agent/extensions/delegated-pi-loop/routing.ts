@@ -375,6 +375,11 @@ interface ProviderEntry {
   readonly thinking: ThinkingLevel;
 }
 
+const CODEX_PRIMARY_SCORE_BONUS: Readonly<Record<string, number>> = Object.freeze({
+  "openai-codex-cgpt1": 30,
+  "openai-codex-cgpt2": 30,
+});
+
 function poolPrimary(providers: readonly string[], selection: RouteSelectionOptions): string | undefined {
   let bestScore = 0;
   let healthiest: string[] = [];
@@ -382,8 +387,10 @@ function poolPrimary(providers: readonly string[], selection: RouteSelectionOpti
     const usage = selection.codexUsageSnapshot?.[provider];
     if (usage === undefined || !usage.allowed || usage.primary === undefined) continue;
     // Only 5-hour capacity decides the primary. The snapshot owns freshness.
-    const score = usage.primary.remainingPercent;
-    if (score <= 0) continue;
+    const remainingPercent = usage.primary.remainingPercent;
+    if (remainingPercent <= 0) continue;
+    // Temporarily favor these accounts without reviving exhausted capacity.
+    const score = remainingPercent + (CODEX_PRIMARY_SCORE_BONUS[provider] ?? 0);
     if (score > bestScore) {
       bestScore = score;
       healthiest = [provider];

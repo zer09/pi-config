@@ -865,6 +865,49 @@ test("Codex usage selects the unique highest score without a draw and keeps the 
   assert.equal(snapshot["openai-codex-b"]!.primary!.remainingPercent, 90);
 });
 
+test("cgpt1 and cgpt2 receive an additive 30-point primary score bonus", () => {
+  const providers = [
+    "openai-codex", "openai-codex-cgpt1", "openai-codex-cgpt2", "openai-codex-a",
+  ] as const;
+  for (const boosted of ["openai-codex-cgpt1", "openai-codex-cgpt2"] as const) {
+    const other = boosted === "openai-codex-cgpt1" ? "openai-codex-cgpt2" : "openai-codex-cgpt1";
+    const routes = selectRoutes(providerPoolConfig(providers), "solution-a", undefined, {
+      codexUsageSnapshot: usageSnapshot({
+        "openai-codex": { primary: 79 },
+        [boosted]: { primary: 50 },
+        [other]: { primary: 10 },
+        "openai-codex-a": { primary: 1 },
+      }),
+      random: () => assert.fail("50 plus the 30-point bonus must uniquely beat 79"),
+    });
+    assert.deepEqual(routes.map((route) => route.provider), [
+      boosted, ...providers.filter((provider) => provider !== boosted),
+    ]);
+  }
+});
+
+test("cgpt score bonuses do not apply without fresh usable usage", () => {
+  const providers = ["openai-codex", "openai-codex-cgpt1", "openai-codex-cgpt2"] as const;
+  for (const [value, primary] of [[0, "openai-codex"], [0.99, "openai-codex-cgpt2"]] as const) {
+    let draws = 0;
+    const routes = selectRoutes(providerPoolConfig(providers), "solution-a", undefined, {
+      random: () => { draws += 1; return value; },
+    });
+    assert.equal(draws, 1);
+    assert.equal(routes[0]!.provider, primary);
+  }
+
+  const routes = selectRoutes(providerPoolConfig(providers), "solution-a", undefined, {
+    codexUsageSnapshot: usageSnapshot({
+      "openai-codex": { primary: 1 },
+      "openai-codex-cgpt1": { primary: 0 },
+      "openai-codex-cgpt2": { allowed: false, primary: 100 },
+    }),
+    random: () => assert.fail("the only provider with usable capacity must win"),
+  });
+  assert.equal(routes[0]!.provider, "openai-codex");
+});
+
 test("Codex usage ranks only 5-hour remaining, ignoring weekly remaining and credits", () => {
   for (const secondary of [0, 10, 100]) {
     const snapshot = usageSnapshot({
