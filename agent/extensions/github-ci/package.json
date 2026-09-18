@@ -1,0 +1,19 @@
+{
+  "name": "pi-github-ci-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Compact, read-only GitHub Actions run waiting for Pi.",
+  "scripts": {
+    "test": "node --import ./test-host.ts --test *.test.ts",
+    "typecheck": "node typecheck.mjs"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}
