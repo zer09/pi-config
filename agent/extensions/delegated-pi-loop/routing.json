@@ -116,6 +116,14 @@
         "openai-codex-cgpt12": {
           "thinking": ["medium", "high", "max"],
           "default": "high"
+        },
+        "openai-codex-cgpt13": {
+          "thinking": ["medium", "high", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt14": {
+          "thinking": ["medium", "high", "max"],
+          "default": "high"
         }
       }
     },
@@ -170,6 +178,14 @@
           "default": "high"
         },
         "openai-codex-cgpt12": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt13": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt14": {
           "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         }
@@ -228,6 +244,14 @@
         "openai-codex-cgpt12": {
           "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
           "default": "high"
+        },
+        "openai-codex-cgpt13": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "openai-codex-cgpt14": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
         }
       }
     },
@@ -277,7 +301,9 @@
             "openai-codex-cgpt9",
             "openai-codex-cgpt10",
             "openai-codex-cgpt11",
-            "openai-codex-cgpt12"
+            "openai-codex-cgpt12",
+            "openai-codex-cgpt13",
+            "openai-codex-cgpt14"
           ]
         }
       ]
@@ -300,7 +326,9 @@
             "openai-codex-cgpt9",
             "openai-codex-cgpt10",
             "openai-codex-cgpt11",
-            "openai-codex-cgpt12"
+            "openai-codex-cgpt12",
+            "openai-codex-cgpt13",
+            "openai-codex-cgpt14"
           ]
         }
       ]
@@ -345,7 +373,9 @@
             "openai-codex-cgpt9",
             "openai-codex-cgpt10",
             "openai-codex-cgpt11",
-            "openai-codex-cgpt12"
+            "openai-codex-cgpt12",
+            "openai-codex-cgpt13",
+            "openai-codex-cgpt14"
           ]
         }
       ]
@@ -368,7 +398,9 @@
             "openai-codex-cgpt9",
             "openai-codex-cgpt10",
             "openai-codex-cgpt11",
-            "openai-codex-cgpt12"
+            "openai-codex-cgpt12",
+            "openai-codex-cgpt13",
+            "openai-codex-cgpt14"
           ]
         }
       ]
@@ -391,7 +423,9 @@
             "openai-codex-cgpt9",
             "openai-codex-cgpt10",
             "openai-codex-cgpt11",
-            "openai-codex-cgpt12"
+            "openai-codex-cgpt12",
+            "openai-codex-cgpt13",
+            "openai-codex-cgpt14"
           ]
         }
       ]
