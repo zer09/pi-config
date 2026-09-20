@@ -848,7 +848,7 @@ test("classifies exactly the operational failure states as fallback-eligible", (
   }
 });
 
-test("forwards the Codex usage snapshot once and selects one primary for the entire fallback chain", async () => {
+test("forwards the Codex usage snapshot once and ranks the entire fallback chain", async () => {
   const providers = ["openai-codex", "openai-codex-a", "openai-codex-b", "openai-codex-c"];
   const routingConfig = validateRoutingConfig({
     version: 2,
@@ -876,8 +876,8 @@ test("forwards the Codex usage snapshot once and selects one primary for the ent
   }, async (result) => {
     assert.equal(result.state, "routes_unavailable");
     assert.deepEqual(result.attempts.map((attempt) => attempt.route), [
-      "openai-codex-b/model-x:high", "openai-codex/model-x:high",
-      "openai-codex-a/model-x:high", "openai-codex-c/model-x:high",
+      "openai-codex-b/model-x:high", "openai-codex-c/model-x:high",
+      "openai-codex/model-x:high", "openai-codex-a/model-x:high",
     ]);
     assert.equal(snapshotReads, 1);
     assert.equal(draws, 1, "the highest-score tie must draw only once for the whole chain");

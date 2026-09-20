@@ -375,15 +375,20 @@ interface ProviderEntry {
   readonly thinking: ThinkingLevel;
 }
 
+function poolScore(provider: string, selection: RouteSelectionOptions): number | undefined {
+  const usage = selection.codexUsageSnapshot?.[provider];
+  if (usage === undefined || !usage.allowed || usage.primary === undefined) return undefined;
+  // Only 5-hour capacity decides route ranking. The snapshot owns freshness.
+  const score = usage.primary.remainingPercent;
+  return score > 0 ? score : undefined;
+}
+
 function poolPrimary(providers: readonly string[], selection: RouteSelectionOptions): string | undefined {
   let bestScore = 0;
   let healthiest: string[] = [];
   for (const provider of providers) {
-    const usage = selection.codexUsageSnapshot?.[provider];
-    if (usage === undefined || !usage.allowed || usage.primary === undefined) continue;
-    // Only 5-hour capacity decides the primary. The snapshot owns freshness.
-    const score = usage.primary.remainingPercent;
-    if (score <= 0) continue;
+    const score = poolScore(provider, selection);
+    if (score === undefined) continue;
     if (score > bestScore) {
       bestScore = score;
       healthiest = [provider];
@@ -393,6 +398,20 @@ function poolPrimary(providers: readonly string[], selection: RouteSelectionOpti
   }
   if (healthiest.length === 1) return healthiest[0]!;
   if (healthiest.length > 1) return randomPrimary(healthiest, selection.random);
+}
+
+function rankedProviders(providers: readonly string[], selection: RouteSelectionOptions): string[] {
+  return providers
+    .map((provider, index) => ({ provider, index, score: poolScore(provider, selection) }))
+    .sort((left, right) => {
+      if (left.score !== undefined && right.score !== undefined) {
+        return right.score - left.score || left.index - right.index;
+      }
+      if (left.score !== undefined) return -1;
+      if (right.score !== undefined) return 1;
+      return left.index - right.index;
+    })
+    .map(({ provider }) => provider);
 }
 
 function poolRoutes(model: string, entries: readonly ProviderEntry[], selection: RouteSelection): PiRoute[] {
@@ -412,7 +431,9 @@ function poolRoutes(model: string, entries: readonly ProviderEntry[], selection:
     // Try unknown standard capacity before spending a known Pro Lite reserve.
     if (primary === undefined && unknown.length > 0) primary = randomPrimary(unknown, selection.random);
     primary ??= poolPrimary(premium, selection);
-    if (primary !== undefined) fallbackOrder = [...standard, ...premium];
+    if (primary !== undefined) {
+      fallbackOrder = [...rankedProviders(standard, selection), ...rankedProviders(premium, selection)];
+    }
   }
   // With no usable or unknown candidate, preserve the entire legacy random chain.
   primary ??= providers.length === 1 ? providers[0]! : randomPrimary(providers, selection.random);
@@ -567,9 +588,10 @@ export function roleIdsInFamily(config: RoutingConfig, family: RoleFamily): read
  * capabilities, intersect allowlists, disabled providers, and override
  * exclusions, then choose a usage-aware primary for all-Codex pools when a
  * fresh snapshot is supplied, reserving known Pro Lite providers until standard
- * and unknown capacity cannot serve as primary. Otherwise use a random primary.
- * Single-provider tiers consume no draw. Keep fallback config order within the
- * standard/unknown and Pro Lite groups, and concatenate tiers without reordering.
+ * and unknown capacity cannot serve as primary. Rank usable fallbacks by the same
+ * 5-hour capacity within the standard and Pro Lite groups; keep config order for
+ * unranked providers. Otherwise use a random primary. Single-provider tiers consume
+ * no draw. Concatenate tiers without reordering.
  */
 export function selectRoutes(
   config: RoutingConfig,

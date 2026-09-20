@@ -844,7 +844,7 @@ test("without a usage snapshot, the random primary keeps the stable fallback ord
   assert.equal(tierDraws, 0);
 });
 
-test("Codex usage selects the unique highest score without a draw and keeps the fallback tail in config order", () => {
+test("Codex usage ranks the primary and fallback tail by 5-hour remaining", () => {
   const config = providerPoolConfig();
   const before = structuredClone(config);
   const snapshot = usageSnapshot({
@@ -859,7 +859,7 @@ test("Codex usage selects the unique highest score without a draw and keeps the 
     random: () => assert.fail("a unique highest score must not draw"),
   });
   assert.deepEqual(routes.map((route) => route.provider), [
-    "openai-codex-b", "openai-codex", "openai-codex-a", "openai-codex-c",
+    "openai-codex-b", "openai-codex-c", "openai-codex", "openai-codex-a",
   ]);
   assert.deepEqual(config, before);
   assert.equal(snapshot["openai-codex-b"]!.primary!.remainingPercent, 90);
@@ -915,8 +915,9 @@ test("Codex usage breaks exact highest-score ties with one draw over only tied s
       random: () => { draws += 1; return value; },
     });
     assert.equal(draws, 1);
+    const tiedFallback = primary === "openai-codex" ? "openai-codex-b" : "openai-codex";
     assert.deepEqual(routes.map((route) => route.provider), [
-      primary, ...CODEX_PROVIDERS.filter((provider) => provider !== primary),
+      primary, tiedFallback, "openai-codex-a", "openai-codex-c",
     ]);
   }
 });
@@ -971,7 +972,7 @@ test("only exact prolite planType is reserved, independently of provider IDs", (
   }
 });
 
-test("usable standard primaries keep every standard and unknown fallback before stable Pro Lite reserves", () => {
+test("usable standard routes rank by capacity before unknown fallbacks and Pro Lite reserves", () => {
   const providers = [...CODEX_PROVIDERS, "openai-codex-d", "openai-codex-e", "openai-codex-f"];
   const config = providerPoolConfig(providers);
   const before = structuredClone(config);
@@ -989,7 +990,7 @@ test("usable standard primaries keep every standard and unknown fallback before 
       random: () => assert.fail("the highest usable standard must win without a draw"),
     });
     assert.deepEqual(routes.map((route) => route.provider), [
-      "openai-codex-e", "openai-codex-a", "openai-codex-b", "openai-codex-d", "openai-codex-f",
+      "openai-codex-e", "openai-codex-f", "openai-codex-d", "openai-codex-a", "openai-codex-b",
       "openai-codex", "openai-codex-c",
     ]);
   }
@@ -1061,9 +1062,11 @@ test("Pro Lite promotion randomizes only highest 5-hour ties, including all-Pro-
         random: () => { draws += 1; return value; },
       });
       assert.equal(draws, 1);
-      assert.deepEqual(routes.map((route) => route.provider), [
-        primary, ...CODEX_PROVIDERS.filter((provider) => provider !== primary),
-      ]);
+      const tiedFallback = primary === "openai-codex-a" ? "openai-codex-b" : "openai-codex-a";
+      const expected = planType === "plus"
+        ? [primary, "openai-codex", tiedFallback, "openai-codex-c"]
+        : [primary, tiedFallback, "openai-codex-c", "openai-codex"];
+      assert.deepEqual(routes.map((route) => route.provider), expected);
     }
   }
 });
