@@ -1,44 +1,5 @@
 {
   "providers": {
-    "opencode-go": {
-      "apiKey": "!cat /home/gc/.pi/agent/secrets/opencode-go-active",
-      "models": [
-        {
-          "id": "deepseek-flash",
-          "name": "DeepSeek V4.1 Flash",
-          "reasoning": true,
-          "input": ["text", "image"],
-          "contextWindow": 1048576,
-          "maxTokens": 384000,
-          "thinkingLevelMap": {
-            "off": "none",
-            "minimal": null,
-            "low": "low",
-            "medium": null,
-            "high": "high",
-            "xhigh": "xhigh",
-            "max": "max"
-          },
-          "cost": {
-            "input": 0.15,
-            "output": 0.6,
-            "cacheRead": 0.003,
-            "cacheWrite": 0
-          },
-          "compat": {
-            "requiresReasoningContentOnAssistantMessages": true,
-            "thinkingFormat": "deepseek"
-          }
-        }
-      ],
-      "modelOverrides": {
-        "glm-5.2": {
-          "compat": {
-            "supportsLongCacheRetention": false
-          }
-        }
-      }
-    },
     "commandcode": {
       "name": "Command Code",
       "baseUrl": "https://api.commandcode.ai/provider/v1",
@@ -229,6 +190,32 @@
           }
         },
         {
+          "id": "xiaomi/mimo-v2.5-pro",
+          "name": "MiMo V2.5 Pro (Command Code)",
+          "reasoning": true,
+          "input": ["text"],
+          "contextWindow": 1000000,
+          "maxTokens": 131072,
+          "thinkingLevelMap": {
+            "off": "none",
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": null,
+            "max": null
+          },
+          "cost": {
+            "input": 0.435,
+            "output": 0.87,
+            "cacheRead": 0.0036,
+            "cacheWrite": 0
+          },
+          "compat": {
+            "requiresReasoningContentOnAssistantMessages": true
+          }
+        },
+        {
           "id": "Qwen/Qwen3.8-Max-0902",
           "name": "Qwen 3.8 Max 0902 (Command Code)",
           "reasoning": true,
@@ -304,6 +291,32 @@
           "name": "DeepSeek V4 Flash (Command Code)",
           "reasoning": true,
           "input": ["text"],
+          "contextWindow": 1000000,
+          "maxTokens": 65536,
+          "thinkingLevelMap": {
+            "minimal": null,
+            "low": "low",
+            "medium": null,
+            "high": "high",
+            "xhigh": null,
+            "max": "max"
+          },
+          "cost": {
+            "input": 0.15,
+            "output": 0.6,
+            "cacheRead": 0.003,
+            "cacheWrite": 0
+          },
+          "compat": {
+            "requiresReasoningContentOnAssistantMessages": true,
+            "thinkingFormat": "deepseek"
+          }
+        },
+        {
+          "id": "deepseek/deepseek-v4-flash-vision-exp",
+          "name": "DeepSeek V4 Flash Vision (exp) (Command Code)",
+          "reasoning": true,
+          "input": ["text", "image"],
           "contextWindow": 1000000,
           "maxTokens": 65536,
           "thinkingLevelMap": {

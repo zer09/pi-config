@@ -231,6 +231,22 @@
         }
       }
     },
+    "deepseek-v4-flash-vision-exp": {
+      "providers": {
+        "opencode-go": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+          "default": "max"
+        }
+      }
+    },
+    "xiaomi/mimo-v2.5-pro": {
+      "providers": {
+        "commandcode": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+          "default": "max"
+        }
+      }
+    },
     "glm-5.3": {
       "providers": {
         "zai": { "thinking": ["low", "high", "max"], "default": "max" }
@@ -295,46 +311,17 @@
     "gate-d": {
       "tiers": [
         {
-          "model": "muse-spark-1.3-contributor",
-          "thinking": "xhigh",
+          "model": "deepseek-v4-flash-vision-exp",
+          "thinking": "max",
           "providers": ["opencode-go"]
-        },
-        {
-          "model": "meta/muse-spark-1.3-contributor",
-          "thinking": "xhigh",
-          "providers": ["commandcode"]
         }
       ]
     },
     "gate-e": {
       "tiers": [
         {
-          "model": "MiniMaxAI/MiniMax-M3",
-          "thinking": "high",
-          "providers": ["commandcode"]
-        },
-        {
-          "model": "minimax-m3",
-          "thinking": "high",
-          "providers": ["opencode-go"]
-        }
-      ]
-    },
-    "gate-f": {
-      "tiers": [
-        {
-          "model": "deepseek/deepseek-v4-flash-free",
-          "thinking": "high",
-          "providers": ["orcarouter"]
-        },
-        {
-          "model": "deepseek-flash",
-          "thinking": "xhigh",
-          "providers": ["opencode-go"]
-        },
-        {
-          "model": "deepseek/deepseek-v4.1-flash",
-          "thinking": "xhigh",
+          "model": "xiaomi/mimo-v2.5-pro",
+          "thinking": "max",
           "providers": ["commandcode"]
         }
       ]
@@ -411,7 +398,7 @@
     }
   },
   "assignments": {
-    "solution": ["gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "gate-f"],
+    "solution": ["gate-a", "gate-b", "gate-c", "gate-d", "gate-e"],
     "review": ["gate-a", "gate-b", "gate-c"],
     "implementation": "implementation",
     "remediation": "implementation",
