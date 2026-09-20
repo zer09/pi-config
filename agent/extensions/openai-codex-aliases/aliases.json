@@ -24,7 +24,7 @@
     },
     {
       "slug": "cgpt8",
-      "name": "cgpt8 danielle"
+      "name": "cgpt8 danielle.s"
     },
     {
       "slug": "cgpt9",
@@ -40,7 +40,15 @@
     },
     {
       "slug": "cgpt12",
-      "name": "cgpt12 danielle"
+      "name": "cgpt12 danielle.v"
+    },
+    {
+      "slug": "cgpt13",
+      "name": "cgpt13 michell.h"
+    },
+    {
+      "slug": "cgpt14",
+      "name": "cgpt14 david.m"
     }
   ]
 }
