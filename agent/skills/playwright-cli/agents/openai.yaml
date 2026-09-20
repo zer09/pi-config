@@ -1,0 +1,4 @@
+interface:
+  display_name: "Playwright CLI"
+  short_description: "Isolated browser sessions and Playwright tests"
+  default_prompt: "Use $playwright-cli to reproduce this flow in an isolated browser session and verify the requested outcome."

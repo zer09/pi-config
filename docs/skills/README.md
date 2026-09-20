@@ -112,6 +112,7 @@ Installing a new skill means:
 - `openai-skills-update-process.md`: update workflow for OpenAI-derived skills, including skill-creator and Figma skills.
 - `pi-browser-harness-update-process.md`: update workflow for the user-owned Browser Harness skill and durable per-task browser consent overlays.
 - `planetscale-database-skills-update-process.md`: update workflow for PlanetScale MySQL and Postgres skills.
+- `playwright-cli-update-process.md`: update workflow for the package-derived Playwright CLI skill, isolated-session routing, and local openSUSE compatibility overlay.
 - `pp-klaviyo-update-process.md`: update workflow for the Printing Press Klaviyo CLI skill.
 - `pp-posthog-update-process.md`: update workflow for the Printing Press PostHog CLI skill.
 - `refine-linear-task-update-process.md`: retired-skill notes and reinstall checklist for the former Linear task refinement skill.

@@ -56,6 +56,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 | ✓ | notion | Medium | 5 | make it slim | Slimmed to official `ntn` workspace intent, read-only defaults, exact write authority, separate install/auth gates, and selected workflow recipes; bare mentions and companion writes do not expand scope. |
 | x | notion-cli | Medium | 5 | remove it | Standalone predecessor remains retired; superseded by the active combined `notion` skill. |
 | ✓ | pi-browser-harness | Weak | 3 | make it slim | Slimmed to per-task user setup consent, profile/account and login boundaries, tool routing, and completion; tool catalogs, diagnostics, and script APIs live in references, with screenshots visual-only. |
+| ✓ | playwright-cli | Medium | 5 | make it slim | Installed from the bundled CLI skill with a compact router and selective session, snapshot, mocking, recording, and test-debug references; preserves Browser Harness ownership and local openSUSE limits. |
 | ✓ | postgres | Strong | 8 | make it slim | Slimmed to PostgreSQL database design, tuning, and operations with proportional discovery and production safety; ordinary app code and Data Connect product work do not imply PostgreSQL diagnosis. |
 | ✓ | pp-klaviyo | Medium | 5 | make it slim | Installed from Printing Press for exact Klaviyo CLI routing, customer-data controls, and hosted-service mutation gates. |
 | ✓ | pp-posthog | Medium | 5 | make it slim | Installed from Printing Press for exact PostHog CLI routing, local sync/search, and hosted-service safety gates. |
