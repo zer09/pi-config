@@ -226,11 +226,40 @@ export function completedMarkdown(result: DelegateRunResult): string {
 }
 
 /**
- * Model-visible Markdown for an unsuccessful run: a compact sanitized status
- * header and fields the parent can act on without reading any diagnostics.
- * Never includes the report, raw output, prompts, or any file paths.
+ * Model-visible Markdown for an unsuccessful run. Intentional terminal
+ * outcomes include the bounded report; operational failures stay sanitized.
+ * Diagnostic paths travel only in ToolResult details.
  */
 export function failureMarkdown(result: DelegateRunResult): string {
+  if ((result.state === "blocked" && result.delegateOutcome === "blocked")
+    || (result.state === "delegate_failed" && result.delegateOutcome === "failed")) {
+    const status = result.state === "blocked" ? "blocked" : "reported failure";
+    const lines = [
+      `## Delegate ${result.label} ${status}`,
+      "",
+      `- state: ${result.state}`,
+      `- role: ${result.role}`,
+      `- route: ${safeRoute(result.selectedRoute) ?? "unknown"}`,
+      `- elapsed: ${result.elapsedSeconds.toFixed(1)}s`,
+    ];
+    const reasonBullet = terminalReasonBullet(result.terminalReason, result.reasonStatus);
+    if (reasonBullet !== undefined) lines.push(reasonBullet);
+    lines.push("", safeSummary(result.state));
+    const reasonSummary = terminalReasonSummary(result.terminalReason, result.reasonStatus);
+    if (reasonSummary !== undefined) lines.push(reasonSummary);
+    const header = lines.join("\n");
+    // The supervisor validated the outcome. Reason lines, including rejected
+    // ones, stay out of the body because the fixed metadata above replaces them.
+    const body = result.report.trim()
+      .replace(/(?:^|\n)DELEGATE_RESULT:\s*(?:BLOCKED|FAILED)\s*$/, "")
+      .replace(/^[^\S\r\n]*DELEGATE_REASON:[^\r\n]*(?:\r?\n|$)/gm, "")
+      .trimEnd();
+    if (!body) return `${header}\n\n(No report body beyond the terminal marker.)`;
+    const { text, truncatedBytes } = truncateUtf8(body, DELEGATE_TOOL_OUTPUT_LIMIT - HEADER_RESERVE_BYTES);
+    const truncation = truncatedBytes > 0 ? `\n\n[Report truncated: ${truncatedBytes} bytes omitted.]` : "";
+    return `${header}\n\n${text}${truncation}`;
+  }
+
   const lines = [
     `## Delegate ${result.label} failed: ${result.state}`,
     "",

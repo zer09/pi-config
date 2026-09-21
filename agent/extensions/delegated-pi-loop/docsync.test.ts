@@ -7,6 +7,7 @@ import {
   extractInstructionDocSections,
   renderInstructionDocSections,
 } from "./docsync.ts";
+import { CHILD_ATTEMPT_BUDGET, DELEGATE_RUN_TOOL } from "./instructions.ts";
 
 const DOC_URL = new URL("../../../docs/delegated-pi-loop-agent-instructions.md", import.meta.url);
 
@@ -17,6 +18,8 @@ test("the checked-in instruction document sections match the canonical exports",
   const guidelines = rendered.get("delegate-run-guidelines") ?? "";
   assert.match(guidelines, /`<all configured solution roles>`/);
   assert.match(guidelines, /`<all configured review roles>`/);
+  assert.ok(rendered.get("delegate-run-tool")?.includes(`- **Description:** ${DELEGATE_RUN_TOOL.description}`));
+  assert.ok(rendered.get("child-prompt-template")?.includes(`## Attempt limits\n\n${CHILD_ATTEMPT_BUDGET}\n\n## Final protocol`));
   // Exactly the managed sections are present: none missing, none stale.
   assert.deepEqual(
     [...checked.keys()].sort(),

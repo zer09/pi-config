@@ -44,7 +44,7 @@ Because the policy is tool-scoped, tool-scoped prompt content is absent when `de
 <!-- pi-delegated-instructions:begin:delegate-run-tool -->
 - **Name:** `delegate_run`
 - **Label:** Delegate Run
-- **Description:** Run one fresh bounded isolated Pi delegate for one role. Routing and operational fallback are automatic. Returns a completed Markdown report; every other terminal state is a sanitized tool error. The parent remains sole orchestrator.
+- **Description:** Run one fresh bounded isolated Pi delegate for one role. Routing and operational fallback are automatic. Returns completed and valid intentional BLOCKED/FAILED Markdown reports; operational failures remain sanitized tool errors. The parent remains sole orchestrator.
 - **Prompt snippet:** Run one fresh isolated delegated role
 <!-- pi-delegated-instructions:end:delegate-run-tool -->
 
@@ -188,7 +188,12 @@ Never expose credentials, tokens, cookies, or private keys.
 
 ## Attempt limits
 
-For each required proof or gate, make at most two materially equivalent attempts. Repeat only when new evidence justifies it. Parent-supplied verified evidence satisfies a check unless the assignment explicitly requires independent reproduction. Report an unavailable optional independent check as a limit; it does not justify BLOCKED. If explicitly required evidence or access remains unavailable and you cannot finish the assigned role, stop unrelated work and report BLOCKED.
+For each required proof or gate, make at most two materially equivalent attempts. An equivalent retry repeats the same proof or gate without a relevant material change to source, configuration, environment, or evidence. A rerun after a targeted material change justified by new evidence is not an equivalent retry and remains allowed, even for the same command.
+Parent-supplied verified evidence satisfies a check unless the assignment explicitly requires independent reproduction. Report an unavailable optional independent check as a limit; it does not justify BLOCKED. If explicitly required evidence or access remains unavailable and you cannot finish the assigned role, stop unrelated work and report BLOCKED.
+Implementation and remediation delegates: do not report BLOCKED for an ordinary compile/test failure you can still investigate and repair within scope. Such failures are not inaccessible evidence.
+Reserve BLOCKED for inability to proceed, such as unavailable required evidence or access, an external dependency, a policy or assignment conflict, or a required user decision.
+If assigned work is otherwise complete but required verification still fails after bounded evidence-driven repair, use DELEGATE_REASON: verification_failure with DELEGATE_RESULT: FAILED, not BLOCKED or budget_exhausted.
+Use budget_exhausted only when a real fixed external, assignment, or tool-enforced attempt quota prevents a required result. Your own count of changed test runs is not such a quota.
 
 ## Final protocol
 
@@ -209,10 +214,14 @@ DELEGATE_RESULT: FAILED
 BLOCKED codes: evidence_inaccessible, user_decision_required, assignment_conflict, policy_restriction, budget_exhausted, external_dependency, finding_reported.
 FAILED codes: execution_failure, verification_failure, internal_inconsistency, policy_violation.
 
+For BLOCKED or FAILED, write a complete self-contained handoff report before the terminal pair. Do not return only the terminal pair. Include: work completed; changed paths, or state that no paths changed; the exact blocker or failed requirement; supporting evidence and exact checks and results; current repository or task state; remaining work; and the specific action needed to unblock or safely continue. Never include secrets.
+
 Use one matching code with no prose, path, or details. DELEGATE_RESULT appears once as the final nonblank line; DELEGATE_REASON appears once directly above it. COMPLETED has no reason. COMPLETED means this role finished; reviews with findings use COMPLETED. A review that finishes its analysis returns COMPLETED with or without findings and with optional-check limits. After BLOCKED or FAILED, stop.
 
 ```
 <!-- pi-delegated-instructions:end:child-prompt-template -->
+
+The attempt policy is semantic guidance. Runtime code does not count test-command retries or infer command equivalence.
 
 ## 5. Role-specific child contracts
 
@@ -537,7 +546,7 @@ Source: `parseDelegateTerminal` in `agent/extensions/delegated-pi-loop/monitor.t
 
 The extension extracts the final assistant `message_end` text from the RPC stream. It classifies the run only after the child's agent lifecycle settles.
 
-Every final state other than `completed` is returned to the parent as a Pi tool error, with sanitized diagnostics. The child's raw stderr and private supervision artifacts are not sent to the model.
+Completed reports and valid intentional `BLOCKED`/`FAILED` report bodies are returned to the parent with bounded output. Intentional reports remain Pi tool errors, with fixed terminal metadata replacing protocol lines. Operational failures return sanitized tool errors without report bodies. The child's raw stderr and private supervision artifacts are not sent to the model.
 
 ## 13. Interactive commands
 

@@ -3,6 +3,8 @@ import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { DELEGATE_TOOL_OUTPUT_LIMIT } from "./artifacts.ts";
+import { parseDelegateTerminal } from "./monitor.ts";
 import {
   completedMarkdown,
   delegateToolResultPatch,
@@ -125,6 +127,125 @@ test("truncation notice omits paths", () => {
   const text = completedMarkdown(completedResult(body));
   assert.match(text, /\[Report truncated: \d+ bytes omitted\.\]$/);
   assert.doesNotMatch(text, /delegated-pi-solution-a-abc|report\.md/);
+});
+
+for (const { state, delegateOutcome, terminalReason, status, summary } of [
+  {
+    state: "blocked", delegateOutcome: "blocked", terminalReason: "budget_exhausted", status: "blocked",
+    summary: "The attempt budget was exhausted before a required result was available.",
+  },
+  {
+    state: "delegate_failed", delegateOutcome: "failed", terminalReason: "verification_failure", status: "reported failure",
+    summary: "A required verification did not pass.",
+  },
+] as const) {
+  test(`${state} exposes its intentional report with fixed metadata and remains a tool error`, () => {
+    const body = "# Findings\n\nObserved the defect at `src/app.ts:12`.\n\n## Next action\n\nResolve the failed prerequisite.";
+    const report = `${body}\n\nDELEGATE_REASON: ${terminalReason}\nDELEGATE_RESULT: ${delegateOutcome.toUpperCase()}`;
+    assert.deepEqual(parseDelegateTerminal(report), {
+      outcome: delegateOutcome, reason: { status: "accepted", code: terminalReason },
+    });
+    const result = failedResult({ state, delegateOutcome, terminalReason, reasonStatus: "accepted", report });
+    const diagnosticPath = "/private/logs/delegated-pi-loop/failure.json";
+    const toolResult = finalToolResult(result, diagnosticPath);
+    const text = toolResult.content[0]!.text;
+    assert.equal(text, [
+      `## Delegate solution-a ${status}`,
+      "",
+      `- state: ${state}`,
+      "- role: solution-a",
+      "- route: opencode-go/muse-spark-1.2-contributor:xhigh",
+      "- elapsed: 612.4s",
+      `- terminal reason: ${terminalReason}`,
+      "",
+      `The delegate ended with DELEGATE_RESULT: ${delegateOutcome.toUpperCase()}.`,
+      summary,
+      "",
+      body,
+    ].join("\n"));
+    assert.equal(failureMarkdown(result), text);
+    assert.doesNotMatch(text, /^DELEGATE_REASON:|^DELEGATE_RESULT:/m);
+    assert.equal(text.includes(diagnosticPath), false);
+    assert.doesNotMatch(text, /delegated-pi-solution-a-abc|report\.md|status\.json/);
+    assert.equal(toolResult.details?.diagnosticPath, diagnosticPath);
+    assert.equal(toolResult.details?.state, state);
+    assert.equal(toolResult.details?.delegateOutcome, delegateOutcome);
+    assert.doesNotMatch(JSON.stringify(toolResult.details), /Observed the defect/);
+    assert.deepEqual(delegateToolResultPatch({ toolName: "delegate_run", details: toolResult.details }), { isError: true });
+  });
+
+  test(`${state} strips protocol lines with LF and CRLF, including missing and rejected reasons`, () => {
+    for (const eol of ["\n", "\r\n"]) {
+      for (const reasonLines of [
+        [` \tDELEGATE_REASON:  ${terminalReason}\t`],
+        [],
+        ["DELEGATE_REASON: raw-rejected-reason"],
+        [`DELEGATE_REASON: ${terminalReason}`, "DELEGATE_REASON: raw-rejected-reason"],
+      ]) {
+        const body = `# Findings${eol}${eol}Keep *Markdown* and \`code\` intact.`;
+        const report = [body, "", ...reasonLines, `DELEGATE_RESULT:  ${delegateOutcome.toUpperCase()}\t`, "", ""].join(eol);
+        const terminal = parseDelegateTerminal(report);
+        assert.equal(terminal.outcome, delegateOutcome);
+        const reason = terminal.reason;
+        assert.ok(reason);
+        const result = failedResult({
+          state, delegateOutcome, report,
+          terminalReason: reason.status === "accepted" ? reason.code : "unspecified",
+          reasonStatus: reason.status,
+        });
+        const text = failureMarkdown(result);
+        assert.ok(text.endsWith(`\n\n${body}`));
+        assert.doesNotMatch(text, /^\s*DELEGATE_REASON:|^\s*DELEGATE_RESULT:|raw-rejected-reason/m);
+        assert.match(text, /- terminal reason:/);
+      }
+    }
+    const markerOnly = failureMarkdown(failedResult({
+      state, delegateOutcome, terminalReason, reasonStatus: "accepted",
+      report: `DELEGATE_REASON: ${terminalReason}\nDELEGATE_RESULT: ${delegateOutcome.toUpperCase()}`,
+    }));
+    assert.match(markerOnly, /\(No report body beyond the terminal marker\.\)$/);
+  });
+
+  test(`${state} bounds report bytes with the existing reserve and preserves UTF-8`, () => {
+    const body = "界".repeat(20 * 1024);
+    const report = `${body}\n\nDELEGATE_REASON: ${terminalReason}\nDELEGATE_RESULT: ${delegateOutcome.toUpperCase()}`;
+    const text = finalToolResult(failedResult({
+      state, delegateOutcome, terminalReason, reasonStatus: "accepted", report,
+    })).content[0]!.text;
+    const retainedBody = "界".repeat(Math.floor((DELEGATE_TOOL_OUTPUT_LIMIT - 1024) / 3));
+    const omittedBytes = Buffer.byteLength(body) - Buffer.byteLength(retainedBody);
+    assert.ok(text.endsWith(`\n\n${retainedBody}\n\n[Report truncated: ${omittedBytes} bytes omitted.]`));
+    assert.ok(Buffer.byteLength(text) <= DELEGATE_TOOL_OUTPUT_LIMIT);
+    assert.doesNotMatch(text, /\uFFFD|^DELEGATE_REASON:|^DELEGATE_RESULT:|report\.md|diagnostic/m);
+  });
+}
+
+test("operational failures suppress reports even with a captured intentional terminal outcome", () => {
+  for (const state of [
+    "provider_failed", "stalled", "output_limit", "prompt_rejected", "invalid_result", "invalid_stream",
+    "missing_report", "child_failed", "spawn_failed", "routes_unavailable", "cleanup_failed", "interrupted", "timed_out",
+  ] as const) {
+    for (const delegateOutcome of ["blocked", "failed"] as const) {
+      const toolResult = finalToolResult(failedResult({
+        state, delegateOutcome,
+        report: `RAW-PARTIAL-REPORT\n\nDELEGATE_REASON: budget_exhausted\nDELEGATE_RESULT: ${delegateOutcome.toUpperCase()}`,
+      }), "/private/logs/delegated-pi-loop/failure.json");
+      const text = toolResult.content[0]!.text;
+      assert.match(text, new RegExp(`^## Delegate solution-a failed: ${state}\\n`));
+      assert.doesNotMatch(text, /RAW-PARTIAL-REPORT|DELEGATE_REASON:|DELEGATE_RESULT: (?:BLOCKED|FAILED)|\/private\/logs/);
+      assert.deepEqual(delegateToolResultPatch({ toolName: "delegate_run", details: toolResult.details }), { isError: true });
+    }
+  }
+});
+
+test("intentional report visibility requires a matching state and delegate outcome", () => {
+  for (const state of ["blocked", "delegate_failed"] as const) {
+    for (const delegateOutcome of [undefined, "completed", state === "blocked" ? "failed" : "blocked"] as const) {
+      const text = finalToolResult(failedResult({ state, delegateOutcome })).content[0]!.text;
+      assert.doesNotMatch(text, /SECRET-REPORT-BODY/);
+      assert.match(text, new RegExp(`^## Delegate solution-a failed: ${state}\\n`));
+    }
+  }
 });
 
 test("failure Markdown is exact, sanitized, and acts without diagnostics", () => {
@@ -413,6 +534,12 @@ function blockedRun(
   return failedResult({
     state: "blocked",
     delegateOutcome: "blocked",
+    report: [
+      "Blocked report body.",
+      "",
+      ...(reason.reasonStatus === "missing" ? [] : [`DELEGATE_REASON: ${reason.terminalReason}`]),
+      "DELEGATE_RESULT: BLOCKED",
+    ].join("\n"),
     ...reason,
     progress: progress({
       state: "blocked",

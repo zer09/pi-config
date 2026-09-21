@@ -5,6 +5,7 @@ import {
   CHILD_ATTEMPT_BUDGET,
   CHILD_RECURSION_PROHIBITION,
   CHILD_TERMINAL_RESULT_INSTRUCTIONS,
+  DELEGATE_RUN_TOOL,
   LIVE_CONTINUATION_PROMPT,
   MODEL_CATALOG_PROMPT_GUIDELINES,
   REPORT_RECOVERY_PROMPT,
@@ -80,20 +81,61 @@ test("the base child prompt embeds the generic recursion prohibition verbatim", 
   }
 });
 
+test("delegate_run metadata distinguishes intentional reports from sanitized operational failures exactly", () => {
+  assert.equal(
+    DELEGATE_RUN_TOOL.description,
+    "Run one fresh bounded isolated Pi delegate for one role. Routing and operational fallback are automatic. Returns completed and valid intentional BLOCKED/FAILED Markdown reports; operational failures remain sanitized tool errors. The parent remains sole orchestrator.",
+  );
+  assert.doesNotMatch(DELEGATE_RUN_TOOL.description, /every other terminal state is a sanitized tool error/);
+});
+
 test("the child owns semantic attempt limits while the supervisor owns time", () => {
   assert.match(CHILD_ATTEMPT_BUDGET, /at most two materially equivalent attempts/);
-  assert.match(CHILD_ATTEMPT_BUDGET, /Repeat only when new evidence justifies it/);
+  assert.match(CHILD_ATTEMPT_BUDGET, /targeted material change justified by new evidence/);
   assert.match(CHILD_ATTEMPT_BUDGET, /report BLOCKED/);
   assert.doesNotMatch(CHILD_ATTEMPT_BUDGET, /minute|hour|clock|time/i);
 });
 
-test("child evidence rules distinguish optional independent checks from required evidence exactly", () => {
-  const expected = "For each required proof or gate, make at most two materially equivalent attempts. Repeat only when new evidence justifies it. Parent-supplied verified evidence satisfies a check unless the assignment explicitly requires independent reproduction. Report an unavailable optional independent check as a limit; it does not justify BLOCKED. If explicitly required evidence or access remains unavailable and you cannot finish the assigned role, stop unrelated work and report BLOCKED.";
+test("child attempt and evidence rules appear exactly in every role prompt", () => {
+  const expected = `For each required proof or gate, make at most two materially equivalent attempts. An equivalent retry repeats the same proof or gate without a relevant material change to source, configuration, environment, or evidence. A rerun after a targeted material change justified by new evidence is not an equivalent retry and remains allowed, even for the same command.
+Parent-supplied verified evidence satisfies a check unless the assignment explicitly requires independent reproduction. Report an unavailable optional independent check as a limit; it does not justify BLOCKED. If explicitly required evidence or access remains unavailable and you cannot finish the assigned role, stop unrelated work and report BLOCKED.
+Implementation and remediation delegates: do not report BLOCKED for an ordinary compile/test failure you can still investigate and repair within scope. Such failures are not inaccessible evidence.
+Reserve BLOCKED for inability to proceed, such as unavailable required evidence or access, an external dependency, a policy or assignment conflict, or a required user decision.
+If assigned work is otherwise complete but required verification still fails after bounded evidence-driven repair, use DELEGATE_REASON: verification_failure with DELEGATE_RESULT: FAILED, not BLOCKED or budget_exhausted.
+Use budget_exhausted only when a real fixed external, assignment, or tool-enforced attempt quota prevents a required result. Your own count of changed test runs is not such a quota.`;
   assert.equal(CHILD_ATTEMPT_BUDGET, expected);
   for (const family of ROLE_FAMILIES) {
     const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
     assert.ok(prompt.includes(`## Attempt limits\n\n${expected}\n\n## Final protocol`));
   }
+});
+
+test("targeted material changes permit reruns of the same command beyond equivalent attempts", () => {
+  assert.match(CHILD_ATTEMPT_BUDGET, /An equivalent retry repeats the same proof or gate without a relevant material change to source, configuration, environment, or evidence\./);
+  assert.match(CHILD_ATTEMPT_BUDGET, /A rerun after a targeted material change justified by new evidence is not an equivalent retry and remains allowed, even for the same command\./);
+});
+
+test("implementation and remediation keep investigating repairable compile and test failures", () => {
+  for (const family of ["implementation", "remediation"] as const) {
+    const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Repair the assigned defect and verify it.");
+    assert.match(prompt, /Implementation and remediation delegates: do not report BLOCKED for an ordinary compile\/test failure you can still investigate and repair within scope\./);
+    assert.match(prompt, /Such failures are not inaccessible evidence\./);
+  }
+});
+
+test("BLOCKED means inability to proceed rather than an ordinary failed verification", () => {
+  assert.match(CHILD_ATTEMPT_BUDGET, /Reserve BLOCKED for inability to proceed, such as unavailable required evidence or access, an external dependency, a policy or assignment conflict, or a required user decision\./);
+  assert.match(CHILD_ATTEMPT_BUDGET, /Report an unavailable optional independent check as a limit; it does not justify BLOCKED\./);
+});
+
+test("required verification failure after bounded evidence-driven repair maps to FAILED", () => {
+  assert.match(CHILD_ATTEMPT_BUDGET, /If assigned work is otherwise complete but required verification still fails after bounded evidence-driven repair, use DELEGATE_REASON: verification_failure with DELEGATE_RESULT: FAILED, not BLOCKED or budget_exhausted\./);
+});
+
+test("budget_exhausted stays compatible but requires a real fixed attempt quota", () => {
+  assert.ok(BLOCKED_REASON_CODES.includes("budget_exhausted"));
+  assert.match(CHILD_ATTEMPT_BUDGET, /Use budget_exhausted only when a real fixed external, assignment, or tool-enforced attempt quota prevents a required result\./);
+  assert.match(CHILD_ATTEMPT_BUDGET, /Your own count of changed test runs is not such a quota\./);
 });
 
 test("finished reviews complete with or without findings and with optional-check limits exactly", () => {
@@ -111,6 +153,15 @@ test("terminal instructions derive every closed reason code and keep three exact
   assert.match(CHILD_TERMINAL_RESULT_INSTRUCTIONS, /DELEGATE_REASON: <failed-code>\nDELEGATE_RESULT: FAILED/);
   assert.match(CHILD_TERMINAL_RESULT_INSTRUCTIONS, /DELEGATE_RESULT appears once as the final nonblank line/);
   assert.match(CHILD_TERMINAL_RESULT_INSTRUCTIONS, /reviews with findings use COMPLETED/);
+});
+
+test("BLOCKED and FAILED require a complete self-contained handoff from every role", () => {
+  const required = "For BLOCKED or FAILED, write a complete self-contained handoff report before the terminal pair. Do not return only the terminal pair. Include: work completed; changed paths, or state that no paths changed; the exact blocker or failed requirement; supporting evidence and exact checks and results; current repository or task state; remaining work; and the specific action needed to unblock or safely continue. Never include secrets.";
+  assert.ok(CHILD_TERMINAL_RESULT_INSTRUCTIONS.includes(required));
+  for (const family of ROLE_FAMILIES) {
+    const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
+    assert.ok(prompt.includes(required), `the ${family} prompt must require the handoff report`);
+  }
 });
 
 test("child prompts carry no parent workflow, waiver, or gate instruction beyond the role contract", () => {

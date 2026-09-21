@@ -1167,7 +1167,15 @@ test("accepted reason codes propagate typed through result, progress, details, a
     assert.equal(toolResult.details?.terminalReason, reason, reason);
     assert.equal(toolResult.details?.reasonStatus, "accepted", reason);
     assert.equal(toolResult.details?.blockedMisuseSuspected, misuse, reason);
-    assert.match(toolResult.content[0]!.text, new RegExp(`^- terminal reason: ${reason}$`, "m"), reason);
+    const text = toolResult.content[0]!.text;
+    assert.match(text, new RegExp(`^- terminal reason: ${reason}$`, "m"), reason);
+    assert.ok(text.endsWith(`\n\n${reportText.split("\n")[0]}`), reason);
+    assert.doesNotMatch(text, /^DELEGATE_REASON:|^DELEGATE_RESULT:/m);
+    const diagnosticPath = toolResult.details?.diagnosticPath;
+    assert.equal(typeof diagnosticPath, "string");
+    assert.equal(text.includes(diagnosticPath as string), false);
+    const diagnostic = JSON.parse(await readFile(diagnosticPath as string, "utf8"));
+    assert.equal(diagnostic.delegateReport.text, `${reportText}\n`);
   }
 });
 
@@ -1188,7 +1196,7 @@ test("missing or rejected reasons never change BLOCKED and FAILED terminality or
       },
       { reportText },
     );
-    await runAndFinalize(baseOptions(fixture, { role: "solution-e" }), async (result) => {
+    await runAndFinalize(baseOptions(fixture, { role: "solution-e" }), async (result, finalize) => {
       assert.equal(result.state, expectedState, reportText);
       // The intentional terminal outcome stands and no route advances solely
       // because the reason is missing or rejected.
@@ -1196,6 +1204,9 @@ test("missing or rejected reasons never change BLOCKED and FAILED terminality or
       assert.equal(result.terminalReason, "unspecified", reportText);
       assert.equal(result.reasonStatus, reasonStatus, reportText);
       assert.equal(result.blockedMisuseSuspected, undefined, reportText);
+      const toolResult = await finalize();
+      assert.ok(toolResult.content[0]!.text.endsWith(`\n\n${reportText.split("\n")[0]}`));
+      assert.doesNotMatch(toolResult.content[0]!.text, /SECRET-PATH|RAWTOKEN99|not_a_real_code|^DELEGATE_REASON:|^DELEGATE_RESULT:/m);
     });
   }
 });

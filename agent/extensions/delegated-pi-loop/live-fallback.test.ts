@@ -384,7 +384,8 @@ for (const [behavior, expected] of [
 }
 
 test("live output accounting includes controls and resets the per-route limit", async () => {
-  await check({ behaviors: ["provider", "complete"], padding: 5500 }, async (result, trace, status) => {
+  // Leave room for the expanded child policy within each route's byte limit.
+  await check({ behaviors: ["provider", "complete"], padding: 3500 }, async (result, trace, status) => {
     assert.equal(result.state, "completed");
     assert.equal(trace.filter((entry) => entry.kind === "start").length, 1);
     const accounted = status.reduce((sum, entry) => sum + entry.outputBytes, 0);

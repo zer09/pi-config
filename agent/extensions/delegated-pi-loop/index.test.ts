@@ -220,11 +220,11 @@ test("the registered availableSkills schema carries the description on the array
     // delegated child.
     const savedChildFlag = process.env.PI_DELEGATED_CHILD;
     delete process.env.PI_DELEGATED_CHILD;
-    const registrations: { name: string; parameters: unknown; promptGuidelines?: readonly string[] }[] = [];
+    const registrations: { name: string; description: string; parameters: unknown; promptGuidelines?: readonly string[] }[] = [];
     const fakePi = {
       on: () => {},
       registerCommand: () => {},
-      registerTool: (config: { name: string; parameters: unknown; promptGuidelines?: readonly string[] }) => registrations.push(config),
+      registerTool: (config: { name: string; description: string; parameters: unknown; promptGuidelines?: readonly string[] }) => registrations.push(config),
     };
     try {
       (extension.default as (pi: unknown) => void)(fakePi);
@@ -238,7 +238,9 @@ test("the registered availableSkills schema carries the description on the array
     );
     // The parent receives the complete centralized delegation workflow
     // exactly once, through the active delegate_run promptGuidelines.
-    const { delegateRunPromptGuidelines, MODEL_CATALOG_PROMPT_GUIDELINES } = await import("./instructions.ts");
+    const { DELEGATE_RUN_TOOL, delegateRunPromptGuidelines, MODEL_CATALOG_PROMPT_GUIDELINES } = await import("./instructions.ts");
+    assert.equal(registrations[0]?.description, DELEGATE_RUN_TOOL.description);
+    assert.match(registrations[0]!.description, /Returns completed and valid intentional BLOCKED\/FAILED Markdown reports; operational failures remain sanitized tool errors/);
     const { loadRoutingSnapshot, roleIdsInFamily } = await import("./routing.ts");
     const snapshot = loadRoutingSnapshot();
     assert.deepEqual(
