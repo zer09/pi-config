@@ -472,6 +472,10 @@ export interface RunOptions {
   readonly random?: () => number;
   /** Internal, already-fresh Codex usage snapshot for this run's primary selection. */
   readonly codexUsageSnapshot?: RouteSelectionOptions["codexUsageSnapshot"];
+  /** Registration-owned weekly-paced scheduler; omitted callers use stateless ranking and reserve protection. */
+  readonly scheduler?: RouteSelectionOptions["scheduler"];
+  /** Routing wall clock in milliseconds; defaults to Date.now. */
+  readonly now?: () => number;
   readonly onProgress?: (progress: DelegateProgress) => void;
   /** Internal test seam for the five-minute accepted-activity warning. */
   readonly activityWarningMs?: number;

@@ -8,7 +8,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { RESTART_AFTER_WORK_NOTE } from "./instructions.ts";
 import { buildDelegateResourceSelection, readResourcesFile } from "./resources.ts";
-import { validateRoutingConfig } from "./routing.ts";
+import { createRouteScheduler, validateRoutingConfig } from "./routing.ts";
 import { loadRoutingFixture } from "./routing.test-fixture.ts";
 import { finalizeDelegateRun } from "./result.ts";
 import { isOperationalFailureState, runDelegate } from "./runner.ts";
@@ -882,6 +882,44 @@ test("forwards the Codex usage snapshot once and ranks the entire fallback chain
     assert.equal(snapshotReads, 1);
     assert.equal(draws, 1, "the highest-score tie must draw only once for the whole chain");
   });
+
+  // Each invocation consumes the shared rotation once, not once per catalog fallback.
+  const now = 1_800_000_000_000;
+  const scheduler = createRouteScheduler();
+  let selections = 0;
+  let clockReads = 0;
+  const pacedSnapshot = {
+    "openai-codex-b": {
+      ...snapshot["openai-codex-b"]!,
+      secondary: { remainingPercent: 25, resetAt: now / 1000 + 604800 },
+    },
+    "openai-codex-c": {
+      ...snapshot["openai-codex-c"]!,
+      primary: { remainingPercent: 40 },
+      secondary: { remainingPercent: 100, resetAt: now / 1000 + 151200 },
+    },
+  };
+  for (const primary of ["openai-codex-c", "openai-codex-b"]) {
+    await runAndFinalize({
+      ...baseOptions(fixture, { routingConfig }),
+      codexUsageSnapshot: pacedSnapshot,
+      now: () => { clockReads += 1; return now; },
+      scheduler: {
+        ...scheduler,
+        select: (pool, providers) => { selections += 1; return scheduler.select(pool, providers); },
+      },
+      random: () => assert.fail("scheduled routing must not draw"),
+    }, async (result) => {
+      assert.equal(result.state, "routes_unavailable");
+      assert.deepEqual(result.attempts.map((attempt) => attempt.route), [
+        `${primary}/model-x:high`,
+        `${primary === "openai-codex-b" ? "openai-codex-c" : "openai-codex-b"}/model-x:high`,
+        "openai-codex/model-x:high", "openai-codex-a/model-x:high",
+      ]);
+    });
+  }
+  assert.equal(selections, 2);
+  assert.equal(clockReads, 2);
 });
 
 test("skips an uncatalogued primary and completes on a fresh fallback route", async () => {

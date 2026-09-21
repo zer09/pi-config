@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  createRouteScheduler,
   loadRoutingConfig as loadLiveRoutingConfig,
   loadRoutingSnapshot,
   oracleModelIds,
@@ -113,6 +114,7 @@ function usageSnapshot(records: Readonly<Record<string, {
   readonly allowed?: boolean;
   readonly primary?: number;
   readonly secondary?: number;
+  readonly secondaryResetAt?: number;
 }>>): NonNullable<RouteSelectionOptions["codexUsageSnapshot"]> {
   return Object.freeze(Object.fromEntries(Object.entries(records).map(([providerId, usage]) => [
     providerId,
@@ -122,7 +124,10 @@ function usageSnapshot(records: Readonly<Record<string, {
       fetchedAt: 0,
       allowed: usage.allowed ?? true,
       ...(usage.primary === undefined ? {} : { primary: Object.freeze({ remainingPercent: usage.primary, resetAt: 1 }) }),
-      ...(usage.secondary === undefined ? {} : { secondary: Object.freeze({ remainingPercent: usage.secondary, resetAt: 1 }) }),
+      ...(usage.secondary === undefined ? {} : { secondary: Object.freeze({
+        remainingPercent: usage.secondary,
+        ...(usage.secondaryResetAt === undefined ? {} : { resetAt: usage.secondaryResetAt }),
+      }) }),
     }),
   ])));
 }
@@ -865,26 +870,68 @@ test("Codex usage ranks the primary and fallback tail by 5-hour remaining", () =
   assert.equal(snapshot["openai-codex-b"]!.primary!.remainingPercent, 90);
 });
 
-test("Codex usage ranks only 5-hour remaining, ignoring weekly remaining and credits", () => {
-  for (const secondary of [0, 10, 100]) {
-    const snapshot = usageSnapshot({
-      "openai-codex": { primary: 99, secondary },
-      "openai-codex-a": { primary: 60, secondary: 100 },
-      "openai-codex-b": { primary: 30, secondary: 100 },
-      "openai-codex-c": { primary: 0, secondary: 100 },
+test("standard weights pace weekly quota and reset time with protective multiplicative 5-hour headroom", () => {
+  const now = 1_800_000_000_000;
+  for (const [primary, secondary, secondsLeft, expected] of [
+    [80, 25, 604800, 40],
+    [80, 25, 151200, 80],
+    [80, 100, 151200, 120],
+    [20, 100, 151200, 30],
+    [80, 1, 604800, 40],
+    [80, 1, 60, 80],
+    [80, 25, 1209600, 40],
+  ]) {
+    let selections = 0;
+    selectRoutes(providerPoolConfig(), "solution-a", undefined, {
+      now: () => now,
+      codexUsageSnapshot: usageSnapshot({
+        "openai-codex": { primary, secondary, secondaryResetAt: now / 1000 + secondsLeft },
+      }),
+      scheduler: {
+        release: () => false,
+        select: (_pool, providers) => {
+          selections += 1;
+          assert.deepEqual(providers, [{ provider: "openai-codex", weight: expected }]);
+          return providers[0]!.provider;
+        },
+      },
     });
-    // Extra credit fields cannot override primary-window ranking.
-    const withCredits = Object.fromEntries(Object.entries(snapshot).map(([provider, usage], index) => [
-      provider, { ...usage!, credits: index * 1000 },
-    ]));
-    for (const codexUsageSnapshot of [snapshot, withCredits]) {
-      const routes = selectRoutes(providerPoolConfig(), "solution-a", undefined, {
-        codexUsageSnapshot,
-        random: () => assert.fail("the highest 5-hour score is unique"),
-      });
-      assert.deepEqual(routes.map((route) => route.provider), CODEX_PROVIDERS);
-    }
+    assert.equal(selections, 1);
   }
+});
+
+test("missing weekly/reset data gives a neutral factor and credits cannot change weights", () => {
+  for (const weekly of [{}, { secondary: 1 }, { secondary: 100 }]) {
+    const snapshot = usageSnapshot({ "openai-codex": { primary: 60, ...weekly } });
+    selectRoutes(providerPoolConfig(), "solution-a", undefined, {
+      now: () => 1_800_000_000_000,
+      codexUsageSnapshot: { "openai-codex": { ...snapshot["openai-codex"]!, ...{ credits: 9999 } } },
+      scheduler: {
+        release: () => false,
+        select: (_pool, providers) => {
+          assert.deepEqual(providers, [{ provider: "openai-codex", weight: 60 }]);
+          return providers[0]!.provider;
+        },
+      },
+    });
+  }
+});
+
+test("paced weights also rank the fallback tail without comparing standards to weekly-only reserves", () => {
+  const now = 1_800_000_000_000;
+  const routes = selectRoutes(providerPoolConfig(), "solution-a", undefined, {
+    now: () => now,
+    codexUsageSnapshot: usageSnapshot({
+      "openai-codex": { primary: 80, secondary: 25, secondaryResetAt: now / 1000 + 604800 },
+      "openai-codex-a": { primary: 40, secondary: 100, secondaryResetAt: now / 1000 + 151200 },
+      "openai-codex-b": { primary: 5, secondary: 100, secondaryResetAt: now / 1000 + 60 },
+      "openai-codex-c": { planType: "prolite", secondary: 100 },
+    }),
+    random: () => assert.fail("the highest paced weight is unique"),
+  });
+  assert.deepEqual(routes.map((route) => route.provider), [
+    "openai-codex-a", "openai-codex", "openai-codex-b", "openai-codex-c",
+  ]);
 });
 
 test("Codex usage accepts primary alone but missing primary cannot outrank usable standard capacity", () => {
@@ -903,10 +950,10 @@ test("Codex usage accepts primary alone but missing primary cannot outrank usabl
 
 test("Codex usage breaks exact highest-score ties with one draw over only tied standard providers", () => {
   const snapshot = usageSnapshot({
-    "openai-codex": { primary: 90, secondary: 0 },
+    "openai-codex": { primary: 90, secondary: 100 },
     "openai-codex-a": { primary: 20 },
     "openai-codex-b": { primary: 90, secondary: 100 },
-    "openai-codex-c": { planType: "prolite", primary: 100 },
+    "openai-codex-c": { planType: "prolite", secondary: 100 },
   });
   for (const [value, primary] of [[0.49, "openai-codex"], [0.99, "openai-codex-b"]] as const) {
     let draws = 0;
@@ -959,10 +1006,10 @@ test("only exact prolite planType is reserved, independently of provider IDs", (
   for (const planType of ["plus", "pro", "team", "enterprise", "pro-lite", "pro_lite", "future-plan_2"]) {
     const routes = selectRoutes(providerPoolConfig(providers), "solution-a", undefined, {
       codexUsageSnapshot: usageSnapshot({
-        "openai-codex": { planType: "prolite", primary: 100 },
+        "openai-codex": { planType: "prolite", secondary: 100 },
         "openai-codex-pro": { planType, primary: 20 },
         "openai-codex-prolite": { planType, primary: 50 },
-        "openai-codex-z": { planType: "prolite", primary: 80 },
+        "openai-codex-z": { planType: "prolite", secondary: 80 },
       }),
       random: () => assert.fail("the highest standard 5-hour score is unique"),
     });
@@ -977,9 +1024,9 @@ test("usable standard routes rank by capacity before unknown fallbacks and Pro L
   const config = providerPoolConfig(providers);
   const before = structuredClone(config);
   const snapshot = usageSnapshot({
-    "openai-codex": { planType: "prolite", primary: 100 },
+    "openai-codex": { planType: "prolite", secondary: 100 },
     "openai-codex-a": { allowed: false, primary: 100 },
-    "openai-codex-c": { planType: "prolite", allowed: false, primary: 0 },
+    "openai-codex-c": { planType: "prolite", allowed: false, secondary: 100 },
     "openai-codex-d": { primary: 20 },
     "openai-codex-e": { primary: 50, secondary: 0 },
     "openai-codex-f": { primary: 40 },
@@ -990,7 +1037,7 @@ test("usable standard routes rank by capacity before unknown fallbacks and Pro L
       random: () => assert.fail("the highest usable standard must win without a draw"),
     });
     assert.deepEqual(routes.map((route) => route.provider), [
-      "openai-codex-e", "openai-codex-f", "openai-codex-d", "openai-codex-a", "openai-codex-b",
+      "openai-codex-f", "openai-codex-d", "openai-codex-a", "openai-codex-b", "openai-codex-e",
       "openai-codex", "openai-codex-c",
     ]);
   }
@@ -1000,9 +1047,9 @@ test("usable standard routes rank by capacity before unknown fallbacks and Pro L
 
 test("missing snapshots and missing primary windows compete as unknown before a known Pro Lite reserve", () => {
   const snapshot = usageSnapshot({
-    "openai-codex": { planType: "prolite", primary: 100 },
+    "openai-codex": { planType: "prolite", secondary: 100 },
     "openai-codex-a": { secondary: 100 },
-    "openai-codex-b": { planType: "future-plan", secondary: 0 },
+    "openai-codex-b": { planType: "future-plan", secondary: 50 },
   });
   for (const [value, primary] of [[0, "openai-codex-a"], [0.5, "openai-codex-b"], [0.99, "openai-codex-c"]] as const) {
     let draws = 0;
@@ -1022,8 +1069,8 @@ test("a disallowed standard with missing primary is blocked, not unknown, when a
     codexUsageSnapshot: usageSnapshot({
       "openai-codex": { allowed: false, secondary: 100 },
       "openai-codex-a": { primary: 0 },
-      "openai-codex-b": { planType: "prolite", primary: 0.1 },
-      "openai-codex-c": { planType: "prolite", allowed: false, primary: 100 },
+      "openai-codex-b": { planType: "prolite", secondary: 0.1 },
+      "openai-codex-c": { planType: "prolite", allowed: false, secondary: 100 },
     }),
     random: () => assert.fail("the only usable reserve must win without a draw"),
   });
@@ -1032,13 +1079,13 @@ test("a disallowed standard with missing primary is blocked, not unknown, when a
   ]);
 });
 
-test("exhausted standards promote the highest usable Pro Lite 5-hour score and retain every fallback", () => {
+test("exhausted standards promote the highest usable weekly-only Pro Lite reserve and retain every fallback", () => {
   const routes = selectRoutes(providerPoolConfig(), "solution-a", undefined, {
     codexUsageSnapshot: usageSnapshot({
       "openai-codex": { primary: 0, secondary: 100 },
-      "openai-codex-a": { planType: "prolite", primary: 30, secondary: 100 },
-      "openai-codex-b": { planType: "prolite", primary: 70, secondary: 0 },
-      "openai-codex-c": { planType: "prolite", allowed: false, primary: 100 },
+      "openai-codex-a": { planType: "prolite", secondary: 30 },
+      "openai-codex-b": { planType: "prolite", secondary: 70 },
+      "openai-codex-c": { planType: "prolite", allowed: false, secondary: 100 },
     }),
     random: () => assert.fail("the highest usable reserve is unique"),
   });
@@ -1047,13 +1094,13 @@ test("exhausted standards promote the highest usable Pro Lite 5-hour score and r
   ]);
 });
 
-test("Pro Lite promotion randomizes only highest 5-hour ties, including all-Pro-Lite pools", () => {
+test("Pro Lite promotion randomizes only highest weekly ties, including all-Pro-Lite pools", () => {
   for (const planType of ["plus", "prolite"]) {
     const snapshot = usageSnapshot({
-      "openai-codex": { planType, primary: 0 },
-      "openai-codex-a": { planType: "prolite", primary: 80, secondary: 100 },
-      "openai-codex-b": { planType: "prolite", primary: 80, secondary: 0 },
-      "openai-codex-c": { planType: "prolite", primary: 20 },
+      "openai-codex": { planType, secondary: 0 },
+      "openai-codex-a": { planType: "prolite", secondary: 80 },
+      "openai-codex-b": { planType: "prolite", secondary: 80 },
+      "openai-codex-c": { planType: "prolite", secondary: 20 },
     });
     for (const [value, primary] of [[0.49, "openai-codex-a"], [0.99, "openai-codex-b"]] as const) {
       let draws = 0;
@@ -1081,9 +1128,9 @@ test("without usable or unknown candidates, Codex pools retain the entire legacy
       "openai-codex-c": { allowed: false, secondary: 100 },
     }),
     usageSnapshot({
-      "openai-codex": { planType: "prolite", primary: 0 },
+      "openai-codex": { planType: "prolite", secondary: 0 },
       "openai-codex-a": { allowed: false, primary: 90 },
-      "openai-codex-b": { planType: "prolite", secondary: 100 },
+      "openai-codex-b": { planType: "prolite" },
       "openai-codex-c": { primary: 0 },
     }),
   ]) {
@@ -1101,11 +1148,15 @@ test("without usable or unknown candidates, Codex pools retain the entire legacy
 
 test("absent, empty, and unmatched Codex snapshots preserve legacy random selection exactly", () => {
   const config = providerPoolConfig();
-  for (const snapshot of [undefined, usageSnapshot({}), usageSnapshot({ "openai-codex-other": { planType: "prolite", primary: 100 } })]) {
+  for (const snapshot of [undefined, usageSnapshot({}), usageSnapshot({ "openai-codex-other": { planType: "prolite", secondary: 100 } })]) {
     for (const value of [-1, 0, 0.26, 0.5, 0.99, 1, 2]) {
       let draws = 0;
       const routes = selectRoutes(config, "solution-a", undefined, {
         codexUsageSnapshot: snapshot,
+        scheduler: {
+          select: () => assert.fail("unscored pools must not enter weighted scheduling"),
+          release: () => false,
+        },
         random: () => { draws += 1; return value; },
       });
       const primary = CODEX_PROVIDERS[Math.max(0, Math.min(3, Math.floor(value * 4)))]!;
@@ -1126,11 +1177,15 @@ test("mixed, non-Codex, and invalid Codex alias pools ignore usage snapshots", (
   ]) {
     const config = providerPoolConfig(providers);
     const snapshot = usageSnapshot(Object.fromEntries(providers.map((provider, index) => [
-      provider, { planType: index === 0 ? "prolite" : "plus", primary: index === 0 ? 100 : 0 },
+      provider, index === 0 ? { planType: "prolite", secondary: 100 } : { primary: 0 },
     ])));
     let draws = 0;
     const routes = selectRoutes(config, "solution-a", undefined, {
       codexUsageSnapshot: snapshot,
+      scheduler: {
+        select: () => assert.fail("legacy pools must not schedule"),
+        release: () => assert.fail("legacy pools must not release reserves"),
+      },
       random: () => { draws += 1; return 0.99; },
     });
     assert.equal(draws, 1);
@@ -1142,10 +1197,14 @@ test("mixed, non-Codex, and invalid Codex alias pools ignore usage snapshots", (
 test("single-provider Codex pools and explicit Pro Lite pins remain deterministic even when disallowed", () => {
   const options = {
     codexUsageSnapshot: usageSnapshot({
-      "openai-codex": { planType: "prolite", allowed: false, primary: 0 },
+      "openai-codex": { planType: "prolite", allowed: false, secondary: 0 },
       "openai-codex-a": { primary: 100 },
     }),
     random: () => assert.fail("single-provider pools must not draw"),
+    scheduler: {
+      select: () => assert.fail("single-provider pools and pins must not schedule"),
+      release: () => assert.fail("single-provider pools and pins must not release reserves"),
+    },
   };
   assert.deepEqual(
     selectRoutes(providerPoolConfig(["openai-codex"]), "solution-a", undefined, options).map(routeKey),
@@ -1186,7 +1245,7 @@ test("exclusions, disabled providers, tier allowlists, and capabilities apply be
   for (const standardUsable of [true, false]) {
     const options = {
       codexUsageSnapshot: usageSnapshot({
-        "openai-codex": { planType: "prolite", primary: 20 },
+        "openai-codex": { planType: "prolite", secondary: 20 },
         "openai-codex-a": { primary: standardUsable ? 60 : 0 },
         "openai-codex-b": { primary: 100 },
         "openai-codex-c": { allowed: standardUsable, primary: 80 },
@@ -1226,8 +1285,8 @@ test("Codex reserve ordering preserves tier concatenation even when a later stan
   for (const primary of [0, 20]) {
     const routes = selectRoutes(config, "solution-a", undefined, {
       codexUsageSnapshot: usageSnapshot({
-        "openai-codex": { primary: 100 }, "openai-codex-a": { planType: "prolite", primary: 50 },
-        "openai-codex-b": { primary }, "openai-codex-c": { planType: "prolite", primary: 90 },
+        "openai-codex": { primary: 100 }, "openai-codex-a": { planType: "prolite", secondary: 50 },
+        "openai-codex-b": { primary }, "openai-codex-c": { planType: "prolite", secondary: 90 },
       }),
       random: () => assert.fail("each tier has a unique highest score"),
     });
@@ -1251,10 +1310,10 @@ test("model overrides reserve Pro Lite without changing provider thinking defaul
   };
   const options = {
     codexUsageSnapshot: usageSnapshot({
-      "openai-codex": { planType: "prolite", primary: 100 },
+      "openai-codex": { planType: "prolite", secondary: 100 },
       "openai-codex-a": { primary: 50 },
       "openai-codex-b": { secondary: 100 },
-      "openai-codex-c": { planType: "prolite", primary: 80 },
+      "openai-codex-c": { planType: "prolite", secondary: 80 },
     }),
     random: () => assert.fail("the model pool has a unique highest standard score"),
   };
@@ -1270,6 +1329,216 @@ test("model overrides reserve Pro Lite without changing provider thinking defaul
     "openai-codex-a/model-x:high", "openai-codex-b/model-x:high",
     "openai-codex/model-x:high", "openai-codex-c/model-x:high",
   ]);
+});
+
+test("weekly exhaustion blocks standards, and known usable reserves beat unknown or unusable Pro Lite data", () => {
+  for (const standard of [
+    { primary: 90, secondary: 0 },
+    { secondary: 0 },
+    { allowed: false, primary: 100, secondary: 100 },
+    { primary: 0, secondary: 100 },
+  ]) {
+    for (const reserve of [{ secondary: 0 }, { allowed: false, secondary: 100 }]) {
+      const routes = selectRoutes(providerPoolConfig(), "solution-a", undefined, {
+        now: () => 1_800_000_000_000,
+        codexUsageSnapshot: usageSnapshot({
+          "openai-codex": standard,
+          "openai-codex-a": { planType: "prolite" },
+          "openai-codex-b": { planType: "prolite", secondary: 50 },
+          "openai-codex-c": { planType: "prolite", ...reserve },
+        }),
+        random: () => assert.fail("only the known usable reserve can serve"),
+      });
+      assert.deepEqual(routes.map((route) => route.provider), [
+        "openai-codex-b", "openai-codex", "openai-codex-a", "openai-codex-c",
+      ]);
+    }
+  }
+});
+
+test("one scheduler distributes repeated standard primaries by weight instead of a permanent winner", () => {
+  const config = providerPoolConfig();
+  const scheduler = createRouteScheduler();
+  const snapshot = usageSnapshot({ "openai-codex": { primary: 75 }, "openai-codex-a": { primary: 25 } });
+  const primaries = Array.from({ length: 100 }, () => selectRoutes(config, "solution-a", undefined, {
+    scheduler,
+    now: () => 1_800_000_000_000,
+    codexUsageSnapshot: structuredClone(snapshot),
+    random: () => assert.fail("weighted scheduling must not draw"),
+  })[0]!.provider);
+  assert.equal(primaries.filter((provider) => provider === "openai-codex").length, 75);
+  assert.equal(primaries.filter((provider) => provider === "openai-codex-a").length, 25);
+  assert.equal(new Set(primaries.slice(0, 4)).size, 2);
+});
+
+test("repeated provider pools in later tiers consume only one scheduler turn per invocation", () => {
+  const now = 1_800_000_000_000;
+  const base = providerPoolConfig(CODEX_PROVIDERS.slice(0, 3));
+  const config: RoutingConfig = {
+    ...base,
+    models: { ...base.models, "model-y": base.models["model-x"]! },
+    profiles: { ...base.profiles, pool: { ...base.profiles.pool!, tiers: [
+      { model: "model-x", thinking: "high" }, { model: "model-y", thinking: "high" },
+    ] } },
+  };
+  const scheduler = createRouteScheduler();
+  const primaries: string[] = [];
+  for (let index = 0; index < 100; index += 1) {
+    const routes = selectRoutes(config, "solution-a", undefined, {
+      scheduler,
+      now: () => now,
+      codexUsageSnapshot: usageSnapshot({
+        "openai-codex": { primary: 50 }, "openai-codex-a": { primary: 50 },
+        "openai-codex-b": { planType: "prolite", secondary: 100, secondaryResetAt: now / 1000 + 86400 },
+      }),
+    });
+    primaries.push(routes[0]!.provider);
+    assert.equal(routes[0]!.provider, routes[3]!.provider);
+    assert.deepEqual(routes.map((route) => route.model), ["model-x", "model-x", "model-x", "model-y", "model-y", "model-y"]);
+  }
+  assert.deepEqual(CODEX_PROVIDERS.slice(0, 3).map((provider) => primaries.filter((primary) => primary === provider).length), [45, 45, 10]);
+});
+
+test("scheduler instances isolate rotations and release credit; stateless callers share neither", () => {
+  const config = providerPoolConfig();
+  const first = createRouteScheduler();
+  const second = createRouteScheduler();
+  const options = {
+    now: () => 1_800_000_000_000,
+    codexUsageSnapshot: usageSnapshot({ "openai-codex": { primary: 50 }, "openai-codex-a": { primary: 50 } }),
+    random: () => 0,
+  };
+  assert.equal(selectRoutes(config, "solution-a", undefined, { ...options, scheduler: first })[0]!.provider, "openai-codex");
+  assert.equal(selectRoutes(config, "solution-a", undefined, { ...options, scheduler: second })[0]!.provider, "openai-codex");
+  assert.equal(selectRoutes(config, "solution-a", undefined, { ...options, scheduler: first })[0]!.provider, "openai-codex-a");
+  for (let index = 0; index < 5; index += 1) {
+    assert.equal(selectRoutes(config, "solution-a", undefined, options)[0]!.provider, "openai-codex");
+    assert.equal(first.release("pool", 0.2), index === 4);
+  }
+  assert.equal(second.release("pool", 0.2), false);
+  assert.equal(selectRoutes(config, "solution-a", undefined, { ...options, scheduler: second })[0]!.provider, "openai-codex-a");
+});
+
+test("Pro Lite release is zero outside 48 hours and follows the bounded pressure-times-weekly share inside", () => {
+  const now = 1_800_000_000_000;
+  const config = providerPoolConfig(["openai-codex", "openai-codex-a"]);
+  for (const [secondsLeft, weekly] of [[172801, 100], [172800, 100], [86400, 100], [86400, 50], [60, 100]]) {
+    const share = 0.20 * Math.max(0, 1 - secondsLeft / 172800) * weekly / 100;
+    const sequences: string[][] = [];
+    for (let repeat = 0; repeat < 2; repeat += 1) {
+      const scheduler = createRouteScheduler();
+      let released = 0;
+      const sequence: string[] = [];
+      for (let count = 1; count <= 1000; count += 1) {
+        const routes = selectRoutes(config, "solution-a", undefined, {
+          now: () => now,
+          scheduler,
+          codexUsageSnapshot: usageSnapshot({
+            "openai-codex": { primary: 0.1 },
+            "openai-codex-a": { planType: "prolite", secondary: weekly, secondaryResetAt: now / 1000 + secondsLeft },
+          }),
+          random: () => assert.fail("known weights must not draw"),
+        });
+        sequence.push(routes[0]!.provider);
+        if (routes[0]!.provider === "openai-codex-a") released += 1;
+        assert.ok(released <= count * share + 1e-9, `release cap at selection ${count}`);
+        assert.equal(routes[1]!.provider, routes[0]!.provider === "openai-codex" ? "openai-codex-a" : "openai-codex");
+      }
+      assert.equal(released, Math.floor(1000 * share + 1e-9));
+      sequences.push(sequence);
+    }
+    assert.deepEqual(sequences[0], sequences[1]);
+  }
+});
+
+test("multiple Pro Lite records average release pressure, count unknowns as zero, and preserve fallback class order", () => {
+  const now = 1_800_000_000_000;
+  const scheduler = createRouteScheduler();
+  const config = providerPoolConfig();
+  const counts = new Map<string, number>();
+  for (let count = 1; count <= 600; count += 1) {
+    const routes = selectRoutes(config, "solution-a", undefined, {
+      now: () => now,
+      scheduler,
+      codexUsageSnapshot: usageSnapshot({
+        "openai-codex": { primary: 1 },
+        "openai-codex-a": { planType: "prolite", secondary: 100, secondaryResetAt: now / 1000 + 86400 },
+        "openai-codex-b": { planType: "prolite", secondary: 40, secondaryResetAt: now / 1000 + 43200 },
+        "openai-codex-c": { planType: "prolite" },
+      }),
+      random: () => assert.fail("release selection must not draw"),
+    });
+    const primary = routes[0]!.provider;
+    counts.set(primary, (counts.get(primary) ?? 0) + 1);
+    // (0.5 * 1 + 0.75 * 0.4 + 0) / 3 gives a total share of 0.16 / 3.
+    const released = (counts.get("openai-codex-a") ?? 0) + (counts.get("openai-codex-b") ?? 0);
+    assert.ok(released <= count * 0.16 / 3 + 1e-9);
+    assert.deepEqual(routes.map((route) => route.provider), [primary, ...CODEX_PROVIDERS.filter((provider) => provider !== primary)]);
+  }
+  assert.deepEqual(Object.fromEntries(counts), { "openai-codex": 568, "openai-codex-a": 20, "openai-codex-b": 12 });
+});
+
+test("adding full Pro Lite reserves never multiplies the 20 percent pool cap", () => {
+  const now = 1_800_000_000_000;
+  const config = providerPoolConfig();
+  const scheduler = createRouteScheduler();
+  let released = 0;
+  for (let count = 1; count <= 1000; count += 1) {
+    const routes = selectRoutes(config, "solution-a", undefined, {
+      now: () => now,
+      scheduler,
+      codexUsageSnapshot: usageSnapshot(Object.fromEntries(CODEX_PROVIDERS.map((provider, index) => [
+        provider, index === 0 ? { primary: 10 } : { planType: "prolite", secondary: 100, secondaryResetAt: now / 1000 + 1 },
+      ]))),
+    });
+    if (routes[0]!.provider !== "openai-codex") released += 1;
+    assert.ok(released <= count * 0.20);
+  }
+  assert.equal(released, 199);
+});
+
+test("no scheduler or missing reserve reset keeps standards first even at the end of the week", () => {
+  const now = 1_800_000_000_000;
+  for (const options of [{}, { scheduler: createRouteScheduler() }]) {
+    for (let index = 0; index < 20; index += 1) {
+      const routes = selectRoutes(providerPoolConfig(), "solution-a", undefined, {
+        ...options,
+        now: () => now,
+        codexUsageSnapshot: usageSnapshot({
+          "openai-codex": { primary: 0.1 },
+          "openai-codex-a": { planType: "prolite", secondary: 100, ...(!options.scheduler ? { secondaryResetAt: now / 1000 + 1 } : {}) },
+          "openai-codex-b": { planType: "prolite", secondary: 0, secondaryResetAt: now / 1000 + 1 },
+          "openai-codex-c": { planType: "prolite", allowed: false, secondary: 100, secondaryResetAt: now / 1000 + 1 },
+        }),
+      });
+      assert.deepEqual(routes.map((route) => route.provider), CODEX_PROVIDERS);
+    }
+  }
+});
+
+test("unknown standards do not release reserves, but unavailable standards allow 100 percent weekly-only reserve traffic", () => {
+  const now = 1_800_000_000_000;
+  for (const standard of [{}, { primary: 0 }]) {
+    const scheduler = createRouteScheduler();
+    const counts = new Map<string, number>();
+    for (let index = 0; index < 100; index += 1) {
+      const routes = selectRoutes(providerPoolConfig(), "solution-a", undefined, {
+        now: () => now,
+        scheduler,
+        codexUsageSnapshot: usageSnapshot({
+          "openai-codex": standard,
+          "openai-codex-a": { planType: "prolite", secondary: 80, secondaryResetAt: now / 1000 + 1 },
+          "openai-codex-b": { planType: "prolite", secondary: 20, secondaryResetAt: now / 1000 + 604800 },
+          "openai-codex-c": { planType: "prolite" },
+        }),
+        random: () => 0,
+      });
+      counts.set(routes[0]!.provider, (counts.get(routes[0]!.provider) ?? 0) + 1);
+    }
+    assert.deepEqual(Object.fromEntries(counts), standard.primary === 0
+      ? { "openai-codex-a": 80, "openai-codex-b": 20 }
+      : { "openai-codex": 100 });
+  }
 });
 
 test("tiers concatenate in configured order with per-tier primaries", () => {

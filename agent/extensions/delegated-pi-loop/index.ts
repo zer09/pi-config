@@ -21,7 +21,7 @@ import { renderDelegateCall, renderDelegateResult } from "./render.ts";
 import { allowedDelegateSkillNames, buildDelegateResourceSelection, loadDelegateResources } from "./resources.ts";
 import { delegateToolResultPatch, finalizeDelegateRun as finalizeDelegateRunDefault } from "./result.ts";
 import { runDelegate as runDelegateDefault } from "./runner.ts";
-import { loadRoutingSnapshot as loadRoutingSnapshotDefault, requireRole, roleIds, roleIdsInFamily } from "./routing.ts";
+import { createRouteScheduler, loadRoutingSnapshot as loadRoutingSnapshotDefault, requireRole, roleIds, roleIdsInFamily } from "./routing.ts";
 import type { RoutingConfig } from "./routing.ts";
 import type {
   DelegateProgress,
@@ -126,11 +126,13 @@ export default function delegatedPiLoopExtension(
     runDelegate = runDelegateDefault,
     finalizeDelegateRun = finalizeDelegateRunDefault,
     loadRoutingSnapshot = loadRoutingSnapshotDefault,
+    now = Date.now,
   }: {
     createUsageCache?: typeof createCodexUsageCache;
     runDelegate?: typeof runDelegateDefault;
     finalizeDelegateRun?: typeof finalizeDelegateRunDefault;
     loadRoutingSnapshot?: typeof loadRoutingSnapshotDefault;
+    now?: () => number;
   } = {},
 ): void {
   // Delegated children load this extension explicitly from the resource
@@ -182,6 +184,8 @@ export default function delegatedPiLoopExtension(
   const DelegateParameters = delegateParameters(allowedDelegateSkillNames(delegateResources), routingSnapshot);
 
   const manager = new DelegateManager();
+  // Parallel runs share weekly-paced rotations and bounded reserve release, never another registration's state.
+  const scheduler = createRouteScheduler();
   let usageCachePromise: Promise<CodexUsageCache> | undefined;
   const candidateProviderIds = [...new Set([
     ...routingSnapshot.disabledProviders,
@@ -289,6 +293,7 @@ export default function delegatedPiLoopExtension(
     async execute(toolCallId, params, signal, onUpdate, ctx) {
       // Share the first execute context's registry and one file load across concurrent runs.
       const usageCache = await (usageCachePromise ??= createUsageCache({
+        now,
         resolveAuth: (providerId) => ctx.modelRegistry.getProviderAuth(providerId),
       }));
       // Registry-owned runtime role validation before admission: the schema
@@ -315,6 +320,8 @@ export default function delegatedPiLoopExtension(
           cwd,
           resourceSelection,
           codexUsageSnapshot: usageCache.getFreshSnapshot(),
+          scheduler,
+          now,
           // The oracle main-model skip reads the parent model id through
           // native extension context, never by inspecting the environment;
           // delegate providers come from routing.json alone.

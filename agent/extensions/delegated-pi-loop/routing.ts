@@ -99,6 +99,57 @@ export interface RouteSelectionOptions {
   readonly random?: () => number;
   /** Already-fresh records from getFreshSnapshot, keyed by provider ID. */
   readonly codexUsageSnapshot?: Readonly<Partial<Record<string, CodexUsageRecord>>>;
+  /** Registration-owned scheduling state. Omit for stateless ranking without late reserve release. */
+  readonly scheduler?: RouteScheduler;
+  /** Wall clock in milliseconds; defaults to Date.now. */
+  readonly now?: () => number;
+}
+
+export interface RouteScheduler {
+  /** Smooth weighted round-robin over a nonempty list of positive weights. */
+  select(pool: string, providers: readonly { readonly provider: string; readonly weight: number }[]): string;
+  /** Spend at most the accumulated fractional traffic share, without rounding up a whole run. */
+  release(pool: string, share: number): boolean;
+}
+
+/** Create once per extension registration, never in module-global state or once per run. */
+export function createRouteScheduler(): RouteScheduler {
+  const pools = new Map<string, Map<string, number>>();
+  const releaseCredits = new Map<string, number>();
+  return {
+    select(pool, providers) {
+      let current = pools.get(pool);
+      // Changed membership starts a new rotation; removed providers cannot leave quota debt behind.
+      if (!current || current.size !== providers.length || providers.some(({ provider }) => !current!.has(provider))) {
+        current = new Map(providers.map(({ provider }) => [provider, 0]));
+        pools.set(pool, current);
+      }
+      const total = providers.reduce((sum, { weight }) => sum + weight, 0);
+      let primary = providers[0]!.provider;
+      let best = -Infinity;
+      for (const { provider, weight } of providers) {
+        const credit = current.get(provider)! + weight / total;
+        current.set(provider, credit);
+        if (credit > best) {
+          primary = provider;
+          best = credit;
+        }
+      }
+      current.set(primary, current.get(primary)! - 1);
+      return primary;
+    },
+    release(pool, share) {
+      if (share <= 0) {
+        releaseCredits.delete(pool);
+        return false;
+      }
+      const credit = (releaseCredits.get(pool) ?? 0) + share;
+      // The tolerance only corrects floating-point addition at a whole-run boundary.
+      const release = credit >= 1 - 1e-12;
+      releaseCredits.set(pool, release ? Math.max(0, credit - 1) : credit);
+      return release;
+    },
+  };
 }
 
 const OVERRIDE_POLICIES: readonly OverridePolicy[] = ["allowed", "rejected"];
@@ -366,6 +417,8 @@ function randomPrimary(eligible: readonly string[], random?: () => number): stri
 }
 
 interface RouteSelection extends RouteSelectionOptions {
+  readonly nowSeconds: number;
+  readonly scheduledPrimaries: Map<string, string>;
   readonly pinnedProvider?: string;
   readonly excluded: ReadonlySet<string>;
 }
@@ -375,32 +428,41 @@ interface ProviderEntry {
   readonly thinking: ThinkingLevel;
 }
 
-function poolScore(provider: string, selection: RouteSelectionOptions): number | undefined {
+function poolScore(provider: string, selection: RouteSelection): number | undefined {
   const usage = selection.codexUsageSnapshot?.[provider];
-  if (usage === undefined || !usage.allowed || usage.primary === undefined) return undefined;
-  // Only 5-hour capacity decides route ranking. The snapshot owns freshness.
-  const score = usage.primary.remainingPercent;
-  return score > 0 ? score : undefined;
-}
-
-function poolPrimary(providers: readonly string[], selection: RouteSelectionOptions): string | undefined {
-  let bestScore = 0;
-  let healthiest: string[] = [];
-  for (const provider of providers) {
-    const score = poolScore(provider, selection);
-    if (score === undefined) continue;
-    if (score > bestScore) {
-      bestScore = score;
-      healthiest = [provider];
-    } else if (score === bestScore) {
-      healthiest.push(provider);
-    }
+  if (usage === undefined || !usage.allowed) return undefined;
+  const weekly = usage.secondary;
+  // Pro Lite has weekly-only capacity. Callers keep its scores separate from standards.
+  if (usage.planType === "prolite") {
+    return weekly !== undefined && weekly.remainingPercent > 0 ? weekly.remainingPercent : undefined;
   }
-  if (healthiest.length === 1) return healthiest[0]!;
-  if (healthiest.length > 1) return randomPrimary(healthiest, selection.random);
+  const primary = usage.primary?.remainingPercent;
+  if (primary === undefined || primary <= 0 || (weekly !== undefined && weekly.remainingPercent <= 0)) return undefined;
+  let weeklyFactor = 1;
+  if (weekly?.resetAt !== undefined) {
+    const timeFractionLeft = Math.max(0.01, Math.min(1, (weekly.resetAt - selection.nowSeconds) / 604800));
+    const paceRatio = (weekly.remainingPercent / 100) / timeFractionLeft;
+    weeklyFactor = Math.max(0.5, Math.min(1.5, Math.sqrt(paceRatio)));
+  }
+  // Weekly pacing can adjust, but never replace, protective 5-hour headroom.
+  return primary * weeklyFactor;
 }
 
-function rankedProviders(providers: readonly string[], selection: RouteSelectionOptions): string[] {
+function poolPrimary(providers: readonly string[], selection: RouteSelection, pool: string): string | undefined {
+  const weighted = providers.flatMap((provider) => {
+    const weight = poolScore(provider, selection);
+    return weight === undefined ? [] : [{ provider, weight }];
+  });
+  if (weighted.length === 0) return undefined;
+  if (selection.scheduler) return selection.scheduler.select(pool, weighted);
+  // Direct callers retain stateless highest-weight ranking and the injected tie-break draw.
+  const bestScore = Math.max(...weighted.map(({ weight }) => weight));
+  const healthiest = weighted.filter(({ weight }) => weight === bestScore).map(({ provider }) => provider);
+  if (healthiest.length === 1) return healthiest[0]!;
+  return randomPrimary(healthiest, selection.random);
+}
+
+function rankedProviders(providers: readonly string[], selection: RouteSelection): string[] {
   return providers
     .map((provider, index) => ({ provider, index, score: poolScore(provider, selection) }))
     .sort((left, right) => {
@@ -425,13 +487,38 @@ function poolRoutes(model: string, entries: readonly ProviderEntry[], selection:
     const premium = providers.filter((provider) => snapshot[provider]?.planType === "prolite");
     const unknown = standard.filter((provider) => {
       const usage = snapshot[provider];
-      return usage === undefined || (usage.allowed && usage.primary === undefined);
+      return usage === undefined || (usage.allowed && usage.primary === undefined
+        && (usage.secondary === undefined || usage.secondary.remainingPercent > 0));
     });
-    primary = poolPrimary(standard, selection);
+    // Share a rotation across roles/models using the same eligible pool, not one per invocation.
+    const pool = JSON.stringify([...providers].sort());
+    const usableStandard = standard.some((provider) => poolScore(provider, selection) !== undefined);
+    const releasing = premium.flatMap((provider) => {
+      const weekly = snapshot[provider]!.secondary;
+      if (poolScore(provider, selection) === undefined || weekly?.resetAt === undefined) return [];
+      const pressure = Math.max(0, Math.min(1, 1 - (weekly.resetAt - selection.nowSeconds) / 172800));
+      const weight = pressure * weekly.remainingPercent / 100;
+      return weight > 0 ? [{ provider, weight }] : [];
+    });
+    // Average across all eligible Pro Lite records, with unusable/unknown records contributing zero.
+    // Adding reserves never multiplies the 20% pool cap. Within that share, release pressure sets weights.
+    const releaseShare = usableStandard && premium.length > 0
+      ? 0.20 * releasing.reduce((sum, { weight }) => sum + weight, 0) / premium.length
+      : 0;
+    // Repeated pools in later tiers reuse this run's choice, rather than spending a second scheduler turn.
+    primary = selection.scheduledPrimaries.get(pool);
+    if (primary === undefined) {
+      if (selection.scheduler?.release(pool, releaseShare)) {
+        primary = selection.scheduler.select(`${pool}:release`, releasing);
+      } else {
+        primary = poolPrimary(standard, selection, `${pool}:standard`);
+      }
+    }
     // Try unknown standard capacity before spending a known Pro Lite reserve.
     if (primary === undefined && unknown.length > 0) primary = randomPrimary(unknown, selection.random);
-    primary ??= poolPrimary(premium, selection);
+    primary ??= poolPrimary(premium, selection, `${pool}:reserve`);
     if (primary !== undefined) {
+      if (selection.scheduler && (usableStandard || unknown.length === 0)) selection.scheduledPrimaries.set(pool, primary);
       fallbackOrder = [...rankedProviders(standard, selection), ...rankedProviders(premium, selection)];
     }
   }
@@ -587,11 +674,13 @@ export function roleIdsInFamily(config: RoutingConfig, family: RoleFamily): read
  * One shared selector for every role: per tier, derive eligible providers from
  * capabilities, intersect allowlists, disabled providers, and override
  * exclusions, then choose a usage-aware primary for all-Codex pools when a
- * fresh snapshot is supplied, reserving known Pro Lite providers until standard
- * and unknown capacity cannot serve as primary. Rank usable fallbacks by the same
- * 5-hour capacity within the standard and Pro Lite groups; keep config order for
- * unranked providers. Otherwise use a random primary. Single-provider tiers consume
- * no draw. Concatenate tiers without reordering.
+ * fresh snapshot is supplied. Pace standard 5-hour headroom against the weekly
+ * quota and reset time. Pro Lite uses weekly-only capacity as a separate reserve:
+ * standards and unknown standards go first, except for scheduler-bounded release
+ * during the final 48 hours. Rank fallbacks within each class, standards first.
+ * Without a scheduler, rank statelessly and never release a reserve early. Legacy
+ * pools keep random primaries. Single-provider tiers consume no draw or scheduler
+ * turn. Concatenate tiers without reordering.
  */
 export function selectRoutes(
   config: RoutingConfig,
@@ -615,6 +704,9 @@ export function selectRoutes(
   const selection: RouteSelection = {
     random: options.random,
     codexUsageSnapshot: options.codexUsageSnapshot,
+    scheduler: options.scheduler,
+    nowSeconds: (options.now ?? Date.now)() / 1000,
+    scheduledPrimaries: new Map(),
     pinnedProvider: validatedOverride?.provider,
     excluded: new Set(validatedOverride?.excludeProviders ?? []),
   };

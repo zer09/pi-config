@@ -420,12 +420,15 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
   }
 
   // Route selection happens exactly once per invocation through the shared
-  // selector, which also fixes each tier's primary once. It
+  // selector, which synchronously advances registration-owned weekly-paced
+  // scheduling before concurrent runs can select from the same snapshot. It
   // completes before any private artifact exists, so a rejected config or
   // override leaves no artifact directory behind.
   const routes = selectRoutes(routing, options.role, options.routingOverride, {
     random: options.random,
     codexUsageSnapshot: options.codexUsageSnapshot,
+    scheduler: options.scheduler,
+    now: options.now,
   });
 
   // The child resource selection is built (and its extension and skill

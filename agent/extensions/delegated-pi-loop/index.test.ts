@@ -516,6 +516,71 @@ test("the parent lazily shares one cache and first execute auth context, forward
   assert.equal(refreshes, 3);
 });
 
+test("each registration owns one scheduler shared by concurrently initiated runs and forwards the millisecond clock", async (t) => {
+  const { root, extension } = await loadExtensionForTest(t);
+  const { selectRoutes, validateRoutingConfig } = await import("./routing.ts");
+  const providers = ["openai-codex", "openai-codex-a", "openai-codex-b"];
+  const routing = validateRoutingConfig({
+    version: 2,
+    thinkingLevels: ["high"],
+    models: { "model-x": { providers: Object.fromEntries(providers.map((provider) => [
+      provider, { thinking: ["high"], default: "high" },
+    ])) } },
+    profiles: { pool: { overridePolicy: "rejected", tiers: [{ model: "model-x", thinking: "high" }] } },
+    assignments: {
+      solution: ["pool", "pool"], review: ["pool"], implementation: "pool",
+      remediation: "pool", verification: "pool", oracle: "pool",
+    },
+  });
+  const now = () => 1_800_000_000_000;
+  const snapshot: RunOptions["codexUsageSnapshot"] = Object.freeze({
+    "openai-codex": { providerId: "openai-codex", planType: "plus", fetchedAt: now(), allowed: true, primary: { remainingPercent: 80 } },
+    "openai-codex-a": { providerId: "openai-codex-a", planType: "plus", fetchedAt: now(), allowed: true, primary: { remainingPercent: 80 } },
+    "openai-codex-b": {
+      providerId: "openai-codex-b", planType: "prolite", fetchedAt: now(), allowed: true,
+      secondary: { remainingPercent: 100, resetAt: now() / 1000 + 604800 },
+    },
+  });
+  const registrations: NonNullable<RunOptions["scheduler"]>[] = [];
+  for (const runCount of [3, 2]) {
+    let tool: ToolDefinition<DelegateToolParams> | undefined;
+    const forwarded: RunOptions[] = [];
+    const primaries: string[] = [];
+    extension({
+      on: () => {}, registerCommand: () => {},
+      registerTool: (config: { name: string }) => {
+        if (config.name === "delegate_run") tool = config as ToolDefinition<DelegateToolParams>;
+      },
+    }, {
+      loadRoutingSnapshot: () => routing,
+      now,
+      createUsageCache: async (options) => {
+        assert.equal(options.now, now, "cache freshness and routing use the same clock");
+        return { getFreshSnapshot: () => snapshot, invalidate: async () => {}, refresh: async () => {} };
+      },
+      runDelegate: async (options) => {
+        assert.equal(options.now, now);
+        assert.equal(options.codexUsageSnapshot, snapshot);
+        assert.ok(options.scheduler);
+        forwarded.push(options);
+        primaries.push(selectRoutes(options.routingConfig!, options.role, options.routingOverride, options)[0]!.provider);
+        await nextTurn();
+        return lifecycleResult(root);
+      },
+      finalizeDelegateRun: async () => ({ content: [{ type: "text", text: "finalized" }] }),
+    });
+    assert.ok(tool);
+    await Promise.all(Array.from({ length: runCount }, (_, index) => tool!.execute(
+      `run-${index}`, { role: index % 2 === 0 ? "solution-a" : "solution-b", prompt: "test" }, undefined, undefined,
+      { cwd: root, modelRegistry: { getProviderAuth: async () => assert.fail("fake cache needs no auth") } },
+    )));
+    assert.deepEqual(primaries, ["openai-codex", "openai-codex-a", "openai-codex"].slice(0, runCount));
+    assert.ok(forwarded.every((options) => options.scheduler === forwarded[0]!.scheduler));
+    registrations.push(forwarded[0]!.scheduler!);
+  }
+  assert.notEqual(registrations[0], registrations[1]);
+});
+
 test("seven concurrent delegates refresh once after the transition to idle", async (t) => {
   const { root, extension } = await loadExtensionForTest(t);
   const providerIds = ["openai-codex-gate-a", "openai-codex-gate-b", "openai-codex-gate-c",
