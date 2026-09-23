@@ -216,6 +216,32 @@
           }
         },
         {
+          "id": "xiaomi/mimo-v2.6-pro",
+          "name": "MiMo V2.6 Pro (Command Code)",
+          "reasoning": true,
+          "input": ["text"],
+          "contextWindow": 1048576,
+          "maxTokens": 131072,
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": "xhigh",
+            "max": "max"
+          },
+          "cost": {
+            "input": 0.435,
+            "output": 0.87,
+            "cacheRead": 0.0036,
+            "cacheWrite": 0
+          },
+          "compat": {
+            "requiresReasoningContentOnAssistantMessages": true
+          }
+        },
+        {
           "id": "Qwen/Qwen3.8-Max-0902",
           "name": "Qwen 3.8 Max 0902 (Command Code)",
           "reasoning": true,
