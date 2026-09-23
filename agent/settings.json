@@ -12,6 +12,18 @@
   ],
   "enabledModels": [
     "openai-codex/gpt-6-sol",
+    "openai-codex-cgpt3/gpt-5.6-sol",
+    "openai-codex-cgpt4/gpt-5.6-sol",
+    "openai-codex-cgpt5/gpt-5.6-sol",
+    "openai-codex-cgpt6/gpt-5.6-sol",
+    "openai-codex-cgpt7/gpt-5.6-sol",
+    "openai-codex-cgpt8/gpt-5.6-sol",
+    "openai-codex-cgpt9/gpt-5.6-sol",
+    "openai-codex-cgpt10/gpt-5.6-sol",
+    "openai-codex-cgpt11/gpt-5.6-sol",
+    "openai-codex-cgpt12/gpt-5.6-sol",
+    "openai-codex-cgpt13/gpt-5.6-sol",
+    "openai-codex-cgpt14/gpt-5.6-sol",
     "orcarouter/deepseek/deepseek-v4-flash-free"
   ],
   "defaultProvider": "orcarouter",
