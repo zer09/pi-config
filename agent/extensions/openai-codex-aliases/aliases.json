@@ -1,14 +1,12 @@
 {
   "aliases": [
-    { "slug": "cgpt1", "name": "OpenAI Codex CGPT1" },
-    { "slug": "cgpt2", "name": "OpenAI Codex CGPT2" },
     {
-      "slug": "cgpt3",
-      "name": "cgpt3 adrian"
+      "slug": "cgpt1",
+      "name": "cgpt1 eliMore"
     },
     {
-      "slug": "cgpt4",
-      "name": "cgpt4 elaine"
+      "slug": "cgpt2",
+      "name": "cgpt2 leoJames"
     },
     {
       "slug": "cgpt5",
@@ -17,38 +15,6 @@
     {
       "slug": "cgpt6",
       "name": "cgpt6 emily"
-    },
-    {
-      "slug": "cgpt7",
-      "name": "cgpt7 dominic"
-    },
-    {
-      "slug": "cgpt8",
-      "name": "cgpt8 danielle.s"
-    },
-    {
-      "slug": "cgpt9",
-      "name": "cgpt9 elijah"
-    },
-    {
-      "slug": "cgpt10",
-      "name": "cgpt10 joanna"
-    },
-    {
-      "slug": "cgpt11",
-      "name": "cgpt11 regina"
-    },
-    {
-      "slug": "cgpt12",
-      "name": "cgpt12 danielle.v"
-    },
-    {
-      "slug": "cgpt13",
-      "name": "cgpt13 michell.h"
-    },
-    {
-      "slug": "cgpt14",
-      "name": "cgpt14 david.m"
     }
   ]
 }
