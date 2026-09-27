@@ -3,13 +3,22 @@ import test from "node:test";
 import { Value } from "typebox/value";
 import { ExploreToolParameters } from "./explore-parameters.ts";
 
-test("accepts the upstream Explore parameter contract", () => {
+test("accepts identifier bags and natural-language questions", () => {
   assert.equal(Value.Check(ExploreToolParameters, { query: "GraphManager" }), true);
   assert.equal(Value.Check(ExploreToolParameters, {
     query: "SessionStoreManager afterCommit",
     maxFiles: 5,
     projectPath: "/home/gc/development/wi",
   }), true);
+  assert.equal(Value.Check(ExploreToolParameters, {
+    query: "How does session state reach the commit handler?",
+  }), true);
+});
+
+test("advertises identifier-first query guidance", () => {
+  const description = ExploreToolParameters.properties.query.description;
+  assert.match(description, /^Symbol names, file paths, or short code terms/);
+  assert.match(description, /natural-language question also works/);
 });
 
 test("enforces maxFiles bounds", () => {

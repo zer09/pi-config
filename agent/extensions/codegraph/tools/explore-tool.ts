@@ -30,12 +30,12 @@ export function registerExploreTool(pi: ExtensionAPI, manager: GraphManager): vo
   const tool: ToolDefinition<ExploreToolParams> = {
     name: "codegraph_explore",
     label: "CodeGraph Explore",
-    description: `Explore indexed source for a question, flow, bug, or area. Returns line-numbered source, relationships, and blast radius where available using CodeGraph's adaptive output budget. Emergency output cap: ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)}.`,
-    promptSnippet: "Explore indexed source with upstream CodeGraph retrieval",
+    description: `Explore indexed source using symbol names, file paths, short code terms, or a natural-language question. Returns line-numbered source, relationships, and blast radius where available using CodeGraph's adaptive output budget. Emergency output cap: ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)}.`,
+    promptSnippet: "Explore indexed source by identifiers, paths, or code terms",
     promptGuidelines: [
       "Use codegraph_explore first for indexed source-code architecture, flows, bugs, what/where, or how-does-X-work questions; treat returned source as already read.",
-      "Give codegraph_explore a concise question and include exact symbol or file names when known; split unrelated flows into separate calls.",
-      "Codegraph_explore locates evidence using identifiers, text, and graph relationships; reason over the returned source yourself for causal or behavioral answers.",
+      "Pass the smallest useful query: exact symbol names, file paths, or short code terms. A natural-language question also works; for a flow, name the symbols spanning it and split unrelated flows into separate calls.",
+      "Codegraph_explore matches identifiers and indexed code text lexically, then follows graph relationships; reason over the returned source yourself for causal or behavioral answers.",
       "Use codegraph_explore instead of grep/read exploration for indexed source code; fall back to raw file tools only for docs/configs/unindexed or explicitly stale files.",
     ],
     parameters: ExploreToolParameters,
