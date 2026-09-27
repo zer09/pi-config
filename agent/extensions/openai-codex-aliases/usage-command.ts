@@ -227,9 +227,8 @@ function providerLabel(provider: ProviderDescriptor): string {
 	return detail ? `${identity}/${detail}` : identity;
 }
 
-function remainingLabel(window: UsageWindow | undefined, allowed: boolean): string {
-	if (!window) return "—";
-	return percent(allowed ? window.remainingPercent : 0);
+function remainingLabel(window: UsageWindow | undefined): string {
+	return window ? percent(window.remainingPercent) : "—";
 }
 
 function resetLabel(window: UsageWindow | undefined): string {
@@ -293,9 +292,9 @@ export function formatCodexUsageReport(results: readonly ProviderResult[], check
 			providerLabel(result.provider),
 			planLabel(result.usage.plan),
 			status,
-			remainingLabel(result.usage.primary, result.usage.allowed),
+			remainingLabel(result.usage.primary),
 			resetLabel(result.usage.primary),
-			remainingLabel(result.usage.secondary, result.usage.allowed),
+			remainingLabel(result.usage.secondary),
 			resetLabel(result.usage.secondary),
 			percent(routingScore(result.usage)),
 			result.usage.credits === undefined ? "—" : String(result.usage.credits),

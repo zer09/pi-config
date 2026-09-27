@@ -645,9 +645,9 @@ async function run() {
 						return usageResponse({
 							allowed: false,
 							plan: "k12",
-							primaryUsed: 0,
+							primaryUsed: 100,
 							primaryReset: Date.UTC(2026, 8, 14, 10, 23) / 1000,
-							secondaryUsed: 100,
+							secondaryUsed: 40,
 							secondaryReset: Date.UTC(2026, 8, 14, 12, 42) / 1000,
 							credits: 2,
 						});
@@ -685,7 +685,7 @@ async function run() {
 		assert.ok(lines.slice(1).every((line) => !line.includes("|")), "plain-text output must not use Markdown table separators");
 		assert.ok(lines.slice(1, 6).every((line) => visibleWidth(line) === visibleWidth(lines[1])), "headers, separator, and rows must align");
 		assert.match(lines[3], /^codex\s+Pro Lite\s+Available\s+16%\s+Sep 19, 4:10 PM\s+—\s+—\s+16%\s+0\s*$/);
-		assert.match(lines[4], /^codex-personal\s+K-12\s+Blocked\s+0%\s+Sep 14, 6:23 PM\s+0%\s+Sep 14, 8:42 PM\s+0%\s+2\s*$/);
+		assert.match(lines[4], /^codex-personal\s+K-12\s+Blocked\s+0%\s+Sep 14, 6:23 PM\s+60%\s+Sep 14, 8:42 PM\s+0%\s+2\s*$/);
 		assert.match(lines[5], /^codex-business\s+—\s+Unavailable\s+—\s+—\s+—\s+—\s+0%\s+—\s*$/);
 		assert.equal(lines[6], "Authenticated 3  Available 1  Quota-blocked 1  Unavailable 1  Missing auth 1");
 		assert.equal(lines[7], "Best provider: codex at 16%");
@@ -877,6 +877,23 @@ async function run() {
 			ui: { notify() { throw new Error("notify must not run without UI"); } },
 		});
 		assert.equal(authCalls, 0, "non-UI mode must return before resolving credentials");
+	}
+
+	{
+		const output = formatCodexUsageReport([
+			{
+				kind: "usage",
+				provider: { id: "openai-codex-weekly", name: "OpenAI Codex Weekly" },
+				usage: {
+					plan: "plus",
+					allowed: false,
+					primary: { remainingPercent: 100 },
+					secondary: { remainingPercent: 0 },
+				},
+			},
+		], Date.UTC(2026, 8, 14, 5, 23));
+		assert.match(output, /^codex-weekly\s+Plus\s+Blocked\s+100%\s+Not returned\s+0%\s+Not returned\s+0%\s+—\s*$/m);
+		assert.match(output, /Best provider: none available/);
 	}
 
 	{
