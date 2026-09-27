@@ -1,16 +1,16 @@
 {
-  "lastChangelogVersion": "0.85.1",
+  "lastChangelogVersion": "0.87.1",
   "packages": [
-    "npm:pi-blackhole@0.5.1",
-    "npm:pi-btw@0.4.1",
+    "npm:pi-blackhole@0.5.9",
+    "npm:pi-btw@0.6.1",
     {
       "source": "npm:pi-browser-harness@0.10.2",
       "skills": []
     },
-    "npm:pi-claude-bridge@0.6.3"
+    "npm:pi-claude-bridge@0.8.0"
   ],
   "enabledModels": [
-    "openai-codex/gpt-6-sol",
+    "openai-codex/gpt-5.6-sol",
     "openai-codex-cgpt1/gpt-5.6-sol",
     "openai-codex-cgpt2/gpt-5.6-sol",
     "openai-codex-cgpt5/gpt-5.6-sol",
@@ -20,6 +20,7 @@
   "defaultProvider": "orcarouter",
   "defaultModel": "deepseek/deepseek-v4-flash-free",
   "defaultThinkingLevel": "high",
+  "cacheWarming": "off",
   "theme": "dark",
   "transport": "websocket-cached",
   "hideThinkingBlock": false,

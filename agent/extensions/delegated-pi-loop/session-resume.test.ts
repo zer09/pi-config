@@ -7,7 +7,7 @@ import path from "node:path";
 import { buildDelegatePrompt, LIVE_CONTINUATION_PROMPT, REPORT_RECOVERY_PROMPT, RESTART_AFTER_WORK_NOTE } from "./instructions.ts";
 import { finalizeDelegateRun } from "./result.ts";
 import { requireRole, validateRoutingConfig } from "./routing.ts";
-import { runDelegate } from "./runner.ts";
+import { HistoryValidationError, runDelegate } from "./runner.ts";
 import { terminationProbes } from "./supervisor.ts";
 import type { AttemptStatus, DelegateProgress, DelegateRunResult, RunOptions } from "./types.ts";
 
@@ -54,6 +54,8 @@ interface Settings {
 async function fixture(settings: Settings = {}) {
   const cwd = await mkdtemp(path.join(root, "fixture-"));
   const script = path.join(cwd, "fake-pi.mjs");
+  const prompt = "ORIGINAL-ASSIGNMENT: complete the single increment.";
+  const role = requireRole(routingConfig, "solution-a");
   await writeFile(path.join(cwd, "outside"), "unchanged fixture", { mode: 0o600 });
   await writeFile(script, `
 import { appendFileSync, chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
@@ -70,6 +72,9 @@ if (args.includes("--list-models")) {
   if ((settings.catalog ?? routes).includes(route)) console.log(route.replace("/", " ") + " 100 100 yes yes");
   process.exit(0);
 }
+const { buildSessionProjection } = await (await import(${JSON.stringify(new URL("./pi-session-projection.fixture.ts", import.meta.url).href)})).loadTargetSessionManager();
+const assignment = ${JSON.stringify(buildDelegatePrompt(role, cwd, prompt))};
+const restartAssignment = ${JSON.stringify(buildDelegatePrompt(role, cwd, prompt, { restartAfterWork: true }))};
 let provider = args[args.indexOf("--provider") + 1];
 let model = args[args.indexOf("--model") + 1];
 let thinking = args[args.indexOf("--thinking") + 1];
@@ -83,17 +88,13 @@ if (initialSize === 0) appendFileSync(file, JSON.stringify(header) + "\\n");
 const entries = readFileSync(file, "utf8").split("\\n").flatMap((line) => { try { return [JSON.parse(line)]; } catch { return []; } });
 // Pi repairs a missing final LF on load, after validating the first parsed header.
 if (!readFileSync(file, "utf8").endsWith("\\n")) appendFileSync(file, "\\n");
-const byId = new Map(entries.filter((entry) => entry.type !== "session").map((entry) => [entry.id, entry]));
-let leaf = entries.at(-1)?.id;
-let context = false;
-const visited = new Set();
-while (byId.has(leaf) && !visited.has(leaf)) {
-  visited.add(leaf);
-  const entry = byId.get(leaf);
-  if (entry.type === "message" && entry.message?.role === "user" && typeof entry.message.content === "string"
-    && entry.message.content.startsWith("# Task:") && entry.message.content.includes("ORIGINAL-ASSIGNMENT:")) context = true;
-  leaf = entry.parentId;
-}
+// Use the installed target's model-visible projection, not raw assignment ancestry.
+let context = buildSessionProjection(entries.filter((entry) => entry.type !== "session")).messages.some((message) => {
+  if (message.role !== "user") return false;
+  let text = message.content;
+  if (Array.isArray(text) && text.every((block) => block.type === "text")) text = text.map((block) => block.text).join("");
+  return text === assignment || text === restartAssignment;
+});
 let parentId = entries.filter((entry) => entry.type !== "session").at(-1)?.id ?? null;
 const descendant = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
 trace({ kind: "start", route: route(), args, file, directory, context, initialSize,
@@ -157,7 +158,35 @@ process.stdin.on("data", (chunk) => {
     const message = { type: "message", id: process.pid + "-" + step + "-" + round, parentId, timestamp: header.timestamp,
       message: { role: "user", content: command.message, timestamp: 1 }, context: sentinel };
     const history = round === 1 ? settings.history?.[previous.length] : undefined;
-    if (history === "truncated") appendFileSync(file, JSON.stringify(message).slice(0, -10));
+    let nextParentId = message.id;
+    if (history?.startsWith("projection-")) {
+      const edit = { type: "context_edit", id: "edit", parentId: message.id, timestamp: header.timestamp, targetId: message.id, replacement: null };
+      const compact = { type: "compaction", id: "compact", parentId: message.id, timestamp: header.timestamp,
+        summary: "Fixture summary", tokensBefore: 100, firstKeptEntryId: message.id };
+      const other = { type: "custom", id: "other", parentId: message.id, timestamp: header.timestamp, customType: "fixture" };
+      const records = [message];
+      if (history === "projection-edit-restore") records.push(edit, { ...edit, id: "restore", parentId: "edit",
+        replacement: { content: [{ type: "text", text: assignment.slice(0, 30) }, { type: "text", text: assignment.slice(30) }] } });
+      else if (history === "projection-edit-offbranch") records.push(edit, other);
+      else if (history === "projection-compaction-keep") records.push({ ...edit, replacement: { content: restartAssignment } }, { ...compact, parentId: "edit" });
+      else if (history === "projection-compaction-tail-firstKept") records.push({ ...compact, retainedTail: [] });
+      else if (history === "projection-edit-remove") records.push(edit);
+      else if (history === "projection-edit-change") records.push({ ...edit, replacement: { content: "Other work" } });
+      else if (history === "projection-compaction-none") records.push({ ...compact, firstKeptEntryId: "compact" });
+      else if (history === "projection-tail-only") records.push({ ...compact, firstKeptEntryId: undefined, retainedTail: [message.message] });
+      else if (history === "projection-compaction-edit-omitted") records.push({ ...compact, firstKeptEntryId: "compact" },
+        { ...edit, parentId: "compact", replacement: { content: assignment } });
+      else if (history === "projection-edit-crossbranch") records.push({ ...other, parentId: null }, { ...edit, parentId: "other" });
+      else if (history === "projection-edit-missing") records.push({ ...edit, targetId: "MISSING-PRIVATE-ID" });
+      else if (history === "projection-edit-noneditable") records.push(other, { ...edit, targetId: "other", parentId: "other" });
+      else if (history === "projection-edit-malformed") records.push({ ...edit, replacement: {} });
+      else if (history === "projection-invalid-offbranch") records.push({ ...edit, targetId: "MISSING-PRIVATE-ID" }, other);
+      else if (history === "projection-boundary-conflict") records.push({ ...compact, firstKeptEntryId: "MISSING-PRIVATE-ID", retainedTail: [message.message] });
+      else throw new Error("Unknown projection fixture");
+      for (const record of records) appendFileSync(file, JSON.stringify(record) + "\\n");
+      nextParentId = records.at(-1).id;
+    }
+    else if (history === "truncated") appendFileSync(file, JSON.stringify(message).slice(0, -10));
     else if (history === "header-only") { /* No durable assignment yet. */ }
     else if (history === "continuation-only") appendFileSync(file, JSON.stringify({ ...message, message: { ...message.message, content: ${JSON.stringify(LIVE_CONTINUATION_PROMPT)} } }) + "\\n");
     else if (history === "off-branch") {
@@ -173,7 +202,7 @@ process.stdin.on("data", (chunk) => {
       appendFileSync(file, JSON.stringify(message) + "\\n");
       if (history === "malformed-tail") appendFileSync(file, '{"type":"message"');
     }
-    parentId = message.id;
+    parentId = nextParentId;
     context = true;
     trace({ kind: "persist", route: route() });
     emit({ type: "agent_start" });
@@ -197,7 +226,7 @@ process.stdin.on("data", (chunk) => {
 setInterval(() => {}, 1000);
 `, { mode: 0o700 });
   const options: RunOptions = {
-    role: "solution-a", prompt: "ORIGINAL-ASSIGNMENT: complete the single increment.", cwd, routingConfig,
+    role: "solution-a", prompt, cwd, routingConfig,
     piInvocation: { command: process.execPath, prefixArgs: [script] },
     resourceSelection: { catalogArgs: ["--no-extensions"], runtimeArgs: ["--no-extensions", "--no-skills"], verifyCatalogSpawn() {}, verifyRuntimeSpawn() {} },
     activityWarningMs: 250, activityIdleMs: 800, progressWarningMs: 1500, progressStallMs: 3000,
@@ -351,6 +380,35 @@ for (const history of ["header-only", "truncated", "off-branch", "continuation-o
   });
 }
 
+for (const history of ["projection-edit-restore", "projection-edit-offbranch", "projection-compaction-keep", "projection-compaction-tail-firstKept"]) {
+  test(`${history} resumes projected assignment without replay`, async () => {
+    await check({ history: [history], behaviors: ["provider", "provider", "complete"], switchFaultRoutes: [0, 1] }, (result, trace) => {
+      assert.equal(result.state, "completed");
+      assert.deepEqual(result.attempts.map((entry) => entry.state), ["provider_failed", "provider_failed", "completed"]);
+      assert.deepEqual(trace.filter((entry) => entry.kind === "start").map((entry) => entry.context), [false, true, true]);
+      const prompts = trace.filter((entry) => entry.kind === "prompt");
+      assert.equal(prompts.length, 3);
+      assert.deepEqual(prompts.slice(1).map((entry) => entry.command!.message), [LIVE_CONTINUATION_PROMPT, LIVE_CONTINUATION_PROMPT]);
+      assert.ok(result.attempts.every((entry) => !entry.restartAfterWork));
+    });
+  });
+}
+
+for (const history of ["projection-edit-remove", "projection-edit-change", "projection-compaction-none", "projection-tail-only", "projection-compaction-edit-omitted"]) {
+  test(`${history} triggers exactly one attributed restart then projected continuation`, async () => {
+    await check({ history: [history], behaviors: ["provider", "provider", "complete"], switchFaultRoutes: [0, 1], restartAttempts: [0] }, (result, trace) => {
+      assert.equal(result.state, "completed");
+      assert.deepEqual(result.attempts.map((entry) => entry.state), ["provider_failed", "provider_failed", "completed"]);
+      assert.deepEqual(trace.filter((entry) => entry.kind === "start").map((entry) => entry.context), [false, false, true]);
+      const prompts = trace.filter((entry) => entry.kind === "prompt");
+      const original = prompts[0]!.command!.message!;
+      const restart = original.replace("\n\n## Attempt limits", `\n\n${RESTART_AFTER_WORK_NOTE}\n\n## Attempt limits`);
+      assert.deepEqual(prompts.map((entry) => entry.command!.message), [original, restart, LIVE_CONTINUATION_PROMPT]);
+      assert.deepEqual(result.attempts.map((entry) => entry.restartAfterWork ?? false), [true, false, false]);
+    });
+  });
+}
+
 test("exit between acknowledgement and append deliberately replays, then durable replay permits continuation", async () => {
   await check({ behaviors: ["ack-exit", "provider", "complete"], switchFaultRoutes: [1], restartAttempts: [0] }, (result, trace) => {
     assert.equal(result.state, "completed");
@@ -449,19 +507,43 @@ test("valid active assignment with a malformed tail still continues", async () =
   });
 });
 
-for (const history of ["malformed-header", "identity-change", "unsafe-tree", "over-bytes", "over-line", "over-records"]) {
+for (const [history, category] of [
+  ["malformed-header", "record_shape"], ["identity-change", "file_integrity"], ["unsafe-tree", "ancestry"],
+  ["over-bytes", "size_limit"], ["over-line", "size_limit"], ["over-records", "size_limit"],
+  ["projection-edit-crossbranch", "ancestry"], ["projection-edit-missing", "context_target"],
+  ["projection-edit-noneditable", "context_target"], ["projection-edit-malformed", "record_shape"],
+  ["projection-invalid-offbranch", "context_target"], ["projection-boundary-conflict", "ancestry"],
+] as const) {
   test(`${history} fails closed before replacement spawn without exposing private history`, async () => {
     const identityChange = history === "identity-change";
     const f = await fixture({ behaviors: ["provider", "provider", "complete"], switchFaultRoutes: [0, 1],
       history: identityChange ? ["valid", history] : [history] });
     const progress: DelegateProgress[] = [];
-    await assert.rejects(runDelegate({ ...f.options, onProgress: (entry) => progress.push(entry) }), { message: "Delegated session history validation failed" });
+    let failureText = "";
+    await assert.rejects(runDelegate({ ...f.options, onProgress: (entry) => progress.push(entry) }), (error) => {
+      assert.ok(error instanceof HistoryValidationError);
+      assert.equal(error.message, "Delegated session history validation failed");
+      assert.equal(error.category, category);
+      assert.deepEqual(Object.keys(error), ["category"]);
+      assert.equal(error.cause, undefined);
+      failureText = `${error.message}\n${error.stack}\n${JSON.stringify(error)}`;
+      return true;
+    });
     const trace = await f.trace();
     const starts = trace.filter((entry) => entry.kind === "start");
     assert.equal(starts.length, identityChange ? 2 : 1);
+    assert.deepEqual(starts.map((entry) => entry.route), routes.slice(0, starts.length));
+    assert.deepEqual(trace.filter((entry) => entry.kind === "catalog").map((entry) => entry.route), routes.slice(0, starts.length + 1));
     assert.equal(trace.filter((entry) => entry.kind === "prompt").length, starts.length);
     assert.ok(starts.every((entry) => entry.priorGone && gone(entry.pid) && gone(entry.descendant!)));
-    for (const value of [sentinel, sessionId, "CHANGED-PRIVATE-ID", "MISSING-PRIVATE-ID", starts[0]!.file!]) assert.ok(!JSON.stringify(progress).includes(value));
+    const exposed = failureText + JSON.stringify(progress);
+    for (const value of [sentinel, sessionId, "CHANGED-PRIVATE-ID", "MISSING-PRIVATE-ID", "PRIVATE-PROVIDER-ERROR",
+      "2026-08-01T00:00:00.000Z", starts[0]!.file!, starts[0]!.directory!, f.options.prompt,
+      trace.find((entry) => entry.kind === "prompt")!.command!.message!]) {
+      assert.ok(!exposed.includes(value), "history errors and progress must not expose private detail");
+    }
+    await assert.rejects(lstat(starts[0]!.file!), { code: "ENOENT" });
+    await assert.rejects(lstat(starts[0]!.directory!), { code: "ENOENT" });
     assert.ok(!(await readdir(root)).some((name) => name.startsWith("delegated-pi-")));
   });
 }
@@ -550,6 +632,46 @@ test("finalization exceptions still remove the private session after persisted r
   assert.equal(starts.length, 2);
   assert.ok(starts.every((entry) => gone(entry.pid) && gone(entry.descendant!)));
 });
+
+for (const cleanupFails of [false, true]) {
+  test(`retained cleanup ${cleanupFails ? "overrides" : "precedes"} a typed history exception and removes artifacts`, async () => {
+    const f = await fixture();
+    const error = new HistoryValidationError("record_shape");
+    const original = terminationProbes.build;
+    terminationProbes.build = (child) => {
+      const probes = original(child);
+      if (!cleanupFails || child.spawnargs.includes("--list-models")) return probes;
+      let now = performance.now();
+      return { ...probes, now: () => now, groupExists: () => true,
+        delay: async (ms) => { now += ms; await new Promise<void>((resolve) => setTimeout(resolve, 10)); } };
+    };
+    try {
+      await assert.rejects(runDelegate({ ...f.options, onProgress(progress) {
+        // Inject before the runner releases retained ownership to exercise its exception cleanup.
+        if (progress.attempt === 2 && progress.state === "catalog_check") throw error;
+      } }), (caught) => {
+        if (!cleanupFails) assert.equal(caught, error);
+        else {
+          assert.ok(caught instanceof Error && !(caught instanceof HistoryValidationError));
+          assert.equal(caught.message, "Delegated child cleanup failed");
+        }
+        return true;
+      });
+      const starts = (await f.trace()).filter((entry) => entry.kind === "start");
+      assert.equal(starts.length, 1);
+      assert.ok(gone(starts[0]!.pid) && gone(starts[0]!.descendant!));
+      await assert.rejects(lstat(starts[0]!.file!), { code: "ENOENT" });
+      await assert.rejects(lstat(starts[0]!.directory!), { code: "ENOENT" });
+      assert.ok(!(await readdir(root)).some((name) => name.startsWith("delegated-pi-")));
+    } finally {
+      terminationProbes.build = original;
+      for (const entry of await f.trace()) {
+        if (entry.kind !== "start" || gone(entry.pid)) continue;
+        try { process.kill(-entry.pid, "SIGKILL"); } catch {}
+      }
+    }
+  });
+}
 
 test("negative cleanup proof prohibits persisted replacement", async () => {
   const original = terminationProbes.build;

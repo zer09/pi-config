@@ -20,7 +20,7 @@ import { activeDelegateLabel, combinedSignal, DelegateManager } from "./manager.
 import { renderDelegateCall, renderDelegateResult } from "./render.ts";
 import { allowedDelegateSkillNames, buildDelegateResourceSelection, loadDelegateResources } from "./resources.ts";
 import { delegateToolResultPatch, finalizeDelegateRun as finalizeDelegateRunDefault } from "./result.ts";
-import { runDelegate as runDelegateDefault } from "./runner.ts";
+import { HistoryValidationError, runDelegate as runDelegateDefault } from "./runner.ts";
 import { createRouteScheduler, loadRoutingSnapshot as loadRoutingSnapshotDefault, requireRole, roleIds, roleIdsInFamily } from "./routing.ts";
 import type { RoutingConfig } from "./routing.ts";
 import type {
@@ -352,6 +352,13 @@ export default function delegatedPiLoopExtension(
           }
         }
         return finalResult(handle.id, finalized);
+      } catch (error) {
+        if (!(error instanceof HistoryValidationError)) throw error;
+        // The runner has already cleaned up. Keep the category out of model-visible content.
+        return finalResult(handle.id, {
+          content: [{ type: "text", text: "Delegated session history validation failed" }],
+          details: { state: "delegate_failed", historyFailureCategory: error.category },
+        });
       } finally {
         runSignal.dispose();
         // Remove this delegate before the idle check. The delete and check share one JS turn,

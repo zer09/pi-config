@@ -693,15 +693,40 @@ async function runTests() {
 				{ type: "message", message: { role: "toolResult", usage: { input: 200, output: 20, cacheRead: 30, cacheWrite: 3 } } },
 				{ type: "compaction", usage: { input: 300, output: 30, cacheRead: 40, cacheWrite: 4 } },
 				{ type: "branch_summary", usage: { input: 400, output: 40, cacheRead: 50, cacheWrite: 5 } },
+				{
+					type: "usage",
+					kind: "cache_warm",
+					provider: "test-provider",
+					model: "test-model",
+					usage: { input: 500, output: 50, cacheRead: 600, cacheWrite: 60 },
+				},
 				{ type: "message", message: { role: "toolResult" } },
 				{ type: "compaction" },
 				{ type: "branch_summary" },
 			],
 		});
 		assert.ok(
-			footer.renderPlain().includes("(16%) (↑1k/R140 · ↓100/W14)"),
-			"session totals should include tool, compaction, and branch-summary usage while cache hit rate remains assistant-based",
+			footer.renderPlain().includes("(16%) (↑1.5k/R740 · ↓150/W74)"),
+			"session totals should include tool, compaction, branch-summary, and standalone usage while cache hit rate remains assistant-based",
 		);
+	}
+
+	{
+		const footer = await createFooter({
+			entries: [{
+				type: "usage",
+				kind: "cache_warm",
+				provider: "test-provider",
+				model: "test-model",
+				usage: { input: 500, output: 700, cacheRead: 600, cacheWrite: 800 },
+			}],
+		});
+		const line = footer.renderPlain();
+		assert.ok(
+			line.includes("(↑500/R600 · ↓700/W800)"),
+			"usage-only entries should contribute input/output and cache read/write totals",
+		);
+		assert.ok(!line.includes("%"), "usage-only entries should not set the assistant cache hit rate");
 	}
 
 	{

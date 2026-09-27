@@ -11,7 +11,7 @@ import {
 } from "./artifacts.ts";
 import { interruptionSource } from "./manager.ts";
 import { buildDelegatePrompt } from "./instructions.ts";
-import { createPersistedPiSession } from "./persisted-session.ts";
+import { createPersistedPiSession, type HistoryFailureCategory } from "./persisted-session.ts";
 import { oracleGuard, roleLabel, routeKey } from "./routes.ts";
 import { loadRoutingConfig, oracleModelIds, requireRole, selectRoutes } from "./routing.ts";
 import { buildDelegateResourceSelection, loadDelegateResources } from "./resources.ts";
@@ -52,6 +52,15 @@ import type {
   RunOptions,
   StallCause,
 } from "./types.ts";
+
+export class HistoryValidationError extends Error {
+  readonly category: HistoryFailureCategory;
+
+  constructor(category: HistoryFailureCategory) {
+    super("Delegated session history validation failed");
+    this.category = category;
+  }
+}
 
 function roundedSeconds(milliseconds: number): number {
   return Math.round(milliseconds / 100) / 10;
@@ -624,7 +633,9 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         prepareFreshPrompt: async () => {
           if (persistedSession.assignmentAccepted) {
             const readiness = await persistedSession.historyReadiness(prompt, restartPrompt);
-            if (readiness === "invalid") throw new Error("Delegated session history validation failed");
+            if (readiness === "invalid") {
+              throw new HistoryValidationError(persistedSession.historyFailureCategory ?? "unclassified");
+            }
             if (readiness === "assignment_absent") {
               // Acknowledgement can precede persistence. Only proven missing assignment context permits replay.
               persistedSession.assignmentAccepted = false;

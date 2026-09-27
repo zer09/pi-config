@@ -1,6 +1,7 @@
 import { keyText } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { diagnosticLine } from "./result.ts";
+import type { HistoryFailureCategory } from "./persisted-session.ts";
 import type {
   DelegateProgress,
   DelegateToolParams,
@@ -10,6 +11,9 @@ import type {
 } from "./types.ts";
 
 const COLLAPSED_REPORT_LINES = 20;
+const HISTORY_FAILURE_CATEGORIES: readonly HistoryFailureCategory[] = [
+  "file_integrity", "size_limit", "read_changed", "record_shape", "context_target", "ancestry", "unclassified",
+];
 
 function reuseText(context: ToolRenderContext): Text {
   return context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
@@ -107,7 +111,8 @@ export function renderDelegateResult(
 
   const output = textOutput(result).trimEnd();
   const lines = output.split("\n");
-  const state = typeof result.details?.state === "string" ? result.details.state : "completed";
+  // A thrown tool error has no state details; never display it as a completed delegate.
+  const state = typeof result.details?.state === "string" ? result.details.state : "failed";
   const successful = state === "completed";
   const icon = successful ? theme.fg("success", "✓") : theme.fg("error", "✗");
   let rendered = `${icon} ${theme.fg("toolTitle", theme.bold(`${id}${String(state)}`))}`;
@@ -122,6 +127,12 @@ export function renderDelegateResult(
   // model-visible tool content. Shown without any read prompt.
   if (!successful && typeof result.details?.diagnosticPath === "string") {
     rendered += `\n${theme.fg("dim", diagnosticLine(result.details.diagnosticPath))}`;
+  }
+
+  // Restored details are untrusted; only fixed categories may reach this operator-only line.
+  const historyCategory = HISTORY_FAILURE_CATEGORIES.find((category) => category === result.details?.historyFailureCategory);
+  if (!successful && historyCategory !== undefined) {
+    rendered += `\n${theme.fg("dim", `history validation: ${historyCategory}`)}`;
   }
 
   const visible = options.expanded ? lines : lines.slice(0, COLLAPSED_REPORT_LINES);

@@ -3,9 +3,9 @@ import {
 	type AssistantMessage,
 	type AssistantMessageEvent,
 	type AssistantMessageEventStream,
-	type Context,
 	type Model,
 	type Provider,
+	type TranscriptContext,
 } from "@earendil-works/pi-ai";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
 import type { CodexAlias } from "./config";
@@ -58,7 +58,7 @@ function mapModelToCanonical(model: Model<CodexApi>): Model<CodexApi> {
 	return { ...model, provider: CANONICAL_OPENAI_CODEX_PROVIDER_ID };
 }
 
-function mapContextToCanonical(context: Context, aliasProviderId: string): Context {
+function mapContextToCanonical(context: TranscriptContext, aliasProviderId: string): TranscriptContext {
 	return {
 		...context,
 		messages: context.messages.map((message) => {

@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const Module = require("node:module");
+const { tmpdir } = require("node:os");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
@@ -39,39 +40,20 @@ function requirePiDependency(name) {
 	}
 }
 
+function resolvePiAiRoot(packageRoot, globalRoot) {
+	const nestedRoot = path.join(packageRoot, "node_modules", "@earendil-works", "pi-ai");
+	if (fs.existsSync(nestedRoot)) return nestedRoot;
+	return path.join(globalRoot, "@earendil-works", "pi-ai");
+}
+
 const { createJiti } = requirePiDependency("jiti");
 const { visibleWidth } = requirePiDependency("@earendil-works/pi-tui");
+const piAiRoot = resolvePiAiRoot(piPackageRoot, globalNodeModules);
+// Pi AI's package exports are import-only; use its installed entry in this CJS harness.
+const { createAssistantMessageEventStream, normalizeContext } = require(
+	path.join(piAiRoot, "dist", "index.js"),
+);
 const extensionPath = path.join(__dirname, "index.ts");
-
-function createTestAssistantMessageEventStream() {
-	const queue = [];
-	const waiting = [];
-	let done = false;
-	return {
-		push(event) {
-			if (done) return;
-			if (event.type === "done" || event.type === "error") done = true;
-			const waiter = waiting.shift();
-			if (waiter) waiter({ value: event, done: false });
-			else queue.push(event);
-		},
-		end() {
-			done = true;
-			while (waiting.length > 0) waiting.shift()({ value: undefined, done: true });
-		},
-		async *[Symbol.asyncIterator]() {
-			while (true) {
-				if (queue.length > 0) yield queue.shift();
-				else if (done) return;
-				else {
-					const result = await new Promise((resolve) => waiting.push(resolve));
-					if (result.done) return;
-					yield result.value;
-				}
-			}
-		},
-	};
-}
 
 function rejectDefaultSourceProvider() {
 	throw new Error("tests must inject a fake Codex provider");
@@ -79,7 +61,7 @@ function rejectDefaultSourceProvider() {
 
 module.exports = {
 	builtinProviders: rejectDefaultSourceProvider,
-	createAssistantMessageEventStream: createTestAssistantMessageEventStream,
+	createAssistantMessageEventStream,
 };
 
 const jiti = createJiti(extensionPath, {
@@ -214,11 +196,11 @@ function createFakeSource() {
 		auth: { oauth },
 		getModels: () => sourceModels,
 		stream(model, context, options) {
-			calls.stream.push({ model, context, options });
+			calls.stream.push({ model, context, serializedContext: JSON.stringify(context), options });
 			return source.streamResult(model, context, options);
 		},
 		streamSimple(model, context, options) {
-			calls.streamSimple.push({ model, context, options });
+			calls.streamSimple.push({ model, context, serializedContext: JSON.stringify(context), options });
 			return source.streamSimpleResult(model, context, options);
 		},
 		streamResult: () => makeEventStream([]),
@@ -228,12 +210,53 @@ function createFakeSource() {
 }
 
 async function collect(stream) {
-	const events = [];
-	for await (const event of stream) events.push(event);
-	return events;
+	let timer;
+	try {
+		return await Promise.race([
+			(async () => {
+				const result = stream.result();
+				const events = [];
+				for await (const event of stream) events.push(event);
+				const terminal = events.at(-1);
+				assert.equal(events.filter((event) => event.type === "done" || event.type === "error").length, 1);
+				assert.ok(terminal.type === "done" || terminal.type === "error", "the terminal event should be last");
+				assert.equal(await result, terminal.type === "done" ? terminal.message : terminal.error,
+					"result() should resolve to the outward terminal message");
+				return events;
+			})(),
+			new Promise((_, reject) => {
+				timer = setTimeout(() => reject(new Error("alias stream or result() did not terminate")), 5000);
+			}),
+		]);
+	} finally {
+		clearTimeout(timer);
+	}
 }
 
 async function run() {
+	{
+		const fixtureRoot = fs.mkdtempSync(path.join(tmpdir(), "pi-codex-dependencies-"));
+		try {
+			const fixtureGlobalRoot = path.join(fixtureRoot, "node_modules");
+			const fixturePiRoot = path.join(fixtureGlobalRoot, "@earendil-works", "pi-coding-agent");
+			const nestedRoot = path.join(fixturePiRoot, "node_modules", "@earendil-works", "pi-ai");
+			const flatRoot = path.join(fixtureGlobalRoot, "@earendil-works", "pi-ai");
+			// Empty directories test layout selection without loading any fixture package.
+			fs.mkdirSync(nestedRoot, { recursive: true });
+			assert.equal(fs.existsSync(flatRoot), false, "the nested-only fixture must not have flat Pi AI");
+			assert.equal(resolvePiAiRoot(fixturePiRoot, fixtureGlobalRoot), nestedRoot,
+				"nested-only Pi AI should resolve under pi-coding-agent");
+			fs.mkdirSync(flatRoot, { recursive: true });
+			assert.equal(resolvePiAiRoot(fixturePiRoot, fixtureGlobalRoot), nestedRoot,
+				"nested Pi AI should take precedence over flat Pi AI");
+			fs.rmSync(nestedRoot, { recursive: true });
+			assert.equal(resolvePiAiRoot(fixturePiRoot, fixtureGlobalRoot), flatRoot,
+				"flat Pi AI should be used when no nested package exists");
+		} finally {
+			fs.rmSync(fixtureRoot, { recursive: true, force: true });
+		}
+	}
+
 	{
 		const aliases = loadOpenAICodexAliases();
 		assert.ok(aliases.length > 0, "the deployed alias configuration should not be empty");
@@ -313,7 +336,7 @@ async function run() {
 
 	{
 		const builtProviderModuleUrl = pathToFileURL(
-			path.join(globalNodeModules, "@earendil-works", "pi-ai", "dist", "providers", "openai-codex.js"),
+			path.join(piAiRoot, "dist", "providers", "openai-codex.js"),
 		).href;
 		const { openaiCodexProvider } = await import(builtProviderModuleUrl);
 		const source = openaiCodexProvider();
@@ -353,38 +376,54 @@ async function run() {
 		}
 	}
 
-	{
+	for (const method of ["stream", "streamSimple"]) {
 		const { source, sourceModels, calls } = createFakeSource();
 		const sourcePartial = makeAssistant("openai-codex", {
 			content: [
-				{ type: "thinking", thinking: "", thinkingSignature: '{"type":"reasoning","encrypted_content":"fixture"}' },
-				{ type: "toolCall", id: "call|fc_item", name: "read", arguments: {} },
+				{ type: "text", text: "a", textSignature: "text-fixture", blockMetadata: { future: true } },
+				{ type: "thinking", thinking: "b", thinkingSignature: '{"type":"reasoning","encrypted_content":"fixture"}' },
+				{
+					type: "toolCall", id: "call|fc_item", name: "read", arguments: { path: "fixture.txt" },
+					namespace: "functions", thoughtSignature: "tool-fixture", callMetadata: { future: true },
+				},
 			],
 			stopReason: "pending",
 			providerThinkingLevel: "high",
 			rawStopReason: "in_progress",
 			responseId: "response-fixture",
-			providerExtensionMetadata: { future: true },
+			providerExtensionMetadata: { future: true, provider: "openai-codex" },
 		});
-		const sourceDone = { ...sourcePartial, stopReason: "stop", rawStopReason: "end_turn", endTurn: true };
+		const sourceDone = {
+			...sourcePartial, stopReason: "stop", rawStopReason: "end_turn", endTurn: true,
+			usage: {
+				input: 11, output: 7, cacheRead: 5, cacheWrite: 3, cacheWrite1h: 2, reasoning: 4, totalTokens: 26,
+				cost: { input: 0.11, output: 0.07, cacheRead: 0.05, cacheWrite: 0.03, total: 0.26 },
+			},
+		};
 		const sourceEvents = [
 			{ type: "start", partial: sourcePartial },
 			{ type: "text_start", contentIndex: 0, partial: sourcePartial },
-			{ type: "text_delta", contentIndex: 0, delta: "a", partial: sourcePartial },
+			{ type: "text_delta", contentIndex: 0, delta: "a", partial: sourcePartial, eventMetadata: { future: true } },
 			{ type: "text_end", contentIndex: 0, content: "a", partial: sourcePartial },
-			{ type: "thinking_start", contentIndex: 0, partial: sourcePartial },
-			{ type: "thinking_delta", contentIndex: 0, delta: "b", partial: sourcePartial },
-			{ type: "thinking_end", contentIndex: 0, content: "b", partial: sourcePartial },
-			{ type: "toolcall_start", contentIndex: 1, partial: sourcePartial },
-			{ type: "toolcall_delta", contentIndex: 1, delta: "{}", partial: sourcePartial },
-			{ type: "toolcall_end", contentIndex: 1, toolCall: sourcePartial.content[1], partial: sourcePartial },
+			{ type: "thinking_start", contentIndex: 1, partial: sourcePartial },
+			{ type: "thinking_delta", contentIndex: 1, delta: "b", partial: sourcePartial },
+			{ type: "thinking_end", contentIndex: 1, content: "b", partial: sourcePartial },
+			{ type: "toolcall_start", contentIndex: 2, partial: sourcePartial },
+			{ type: "toolcall_delta", contentIndex: 2, delta: '{"path":"fixture.txt"}', partial: sourcePartial },
+			{ type: "toolcall_end", contentIndex: 2, toolCall: sourcePartial.content[2], partial: sourcePartial },
 			{ type: "done", reason: "stop", message: sourceDone },
 		];
-		source.streamSimpleResult = () => makeEventStream(sourceEvents);
+		source[`${method}Result`] = () => makeEventStream(sourceEvents);
 		const provider = createOpenAICodexAliasProvider(PERSONAL, source);
 		const aliasModel = provider.getModels()[0];
 		const aliasHistory = makeAssistant(PERSONAL.id, {
-			content: [{ type: "thinking", thinking: "", thinkingSignature: "alias-state" }],
+			content: [
+				{ type: "thinking", thinking: "", thinkingSignature: "alias-state", redacted: true, blockMetadata: { future: true } },
+				{ type: "text", text: "Reading", textSignature: '{"v":1,"id":"history","phase":"commentary"}' },
+				{ ...sourcePartial.content[2], callMetadata: { provider: PERSONAL.id } },
+			],
+			stopReason: "toolUse", responseId: "history-fixture", providerThinkingLevel: "high",
+			assistantMetadata: { provider: PERSONAL.id, future: [1, 2] },
 		});
 		const canonicalHistory = makeAssistant("openai-codex", {
 			content: [{ type: "thinking", thinking: "", thinkingSignature: "canonical-state" }],
@@ -393,92 +432,137 @@ async function run() {
 			content: [{ type: "thinking", thinking: "", thinkingSignature: "business-state" }],
 		});
 		const unrelatedHistory = makeAssistant("anthropic", { api: "anthropic-messages", model: "claude-test" });
-		const userMessage = { role: "user", content: "hello", timestamp: 1 };
+		const userMessage = { role: "user", content: "hello", timestamp: 1, messageMetadata: { provider: PERSONAL.id } };
 		const toolResult = {
-			role: "toolResult",
-			toolCallId: "call",
-			toolName: "read",
-			content: [{ type: "text", text: "ok" }],
-			isError: false,
-			timestamp: 2,
+			role: "toolResult", toolCallId: "call|fc_item", toolName: "read",
+			content: [{ type: "text", text: "ok", blockMetadata: { future: true } }],
+			details: { path: "fixture.txt", provider: PERSONAL.id }, usage: sourceDone.usage,
+			isError: false, timestamp: 2,
 		};
-		const context = {
-			systemPrompt: "system",
-			messages: [userMessage, aliasHistory, canonicalHistory, otherAliasHistory, unrelatedHistory, toolResult],
-			tools: [{ name: "read", description: "read", parameters: { type: "object" } }],
+		const readTool = {
+			name: "read", description: "Read a file",
+			parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+			constrainedSampling: false, toolMetadata: { future: true },
 		};
-		const controller = new AbortController();
-		const options = {
-			signal: controller.signal,
-			reasoning: "high",
-			headers: { "x-request": "test" },
-			metadata: { request: 1 },
+		const changedReadTool = {
+			...readTool, description: "Read part of a file",
+			parameters: { ...readTool.parameters, properties: { ...readTool.parameters.properties, limit: { type: "number" } } },
 		};
+		const initialSystem = {
+			role: "system", content: "Initial instructions", timestamp: 0,
+			sections: { behavior: "Read before editing.", removable: "Temporary guidance." },
+			toolsAdded: [readTool, { name: "write", description: "Write a file", parameters: { type: "object" } }],
+			systemMetadata: { provider: PERSONAL.id, future: true },
+		};
+		const changedSystem = {
+			role: "system", content: [{ type: "text", text: "Use the updated tools.", blockMetadata: { future: true } }],
+			sections: { behavior: "Read only the requested lines.", removable: null, review: "Report the result." },
+			toolsRemoved: [{ name: "read" }, { name: "write" }], toolsAdded: [changedReadTool], timestamp: 3,
+			systemMetadata: { provider: "openai-codex", future: true },
+		};
+		const followUp = { role: "user", content: "Continue with the new instructions.", timestamp: 4 };
+		const checkpointSystem = {
+			role: "system", content: "Initial instructions\n\nUse the updated tools.", timestamp: 0,
+			sections: { behavior: "Read only the requested lines.", review: "Report the result." },
+			toolsAdded: [changedReadTool], systemMetadata: { checkpoint: true },
+		};
+		const compactedSummary = { role: "user", content: "Summary: fixture.txt was read; continue the review.", timestamp: 5 };
+		const resumedSystem = {
+			role: "system", content: "Resume without tools.", sections: { review: null },
+			toolsRemoved: [{ name: "read" }], timestamp: 6,
+		};
+		const history = [aliasHistory, toolResult, canonicalHistory, otherAliasHistory, unrelatedHistory];
+		const expectedHistory = [
+			{ ...aliasHistory, provider: "openai-codex" }, toolResult,
+			{ ...canonicalHistory, provider: "openai-codex-foreign" }, otherAliasHistory, unrelatedHistory,
+		];
 		const sourceModelBefore = cloneJson(sourceModels[0]);
-		const contextBefore = cloneJson(context);
 		const sourceEventsBefore = cloneJson(sourceEvents);
+		for (const [scenario, messages, expectedMessages] of [
+			["initial", [initialSystem, userMessage, ...history], [initialSystem, userMessage, ...expectedHistory]],
+			["changed instructions/tools", [initialSystem, userMessage, ...history, changedSystem, followUp],
+				[initialSystem, userMessage, ...expectedHistory, changedSystem, followUp]],
+			// Compaction and resume supply a rebuilt transcript, not session-file entries.
+			["compaction/resume", [checkpointSystem, compactedSummary, ...history, resumedSystem, followUp],
+				[checkpointSystem, compactedSummary, ...expectedHistory, resumedSystem, followUp]],
+		]) {
+			const context = {
+				...normalizeContext({ messages: cloneJson(messages) }),
+				transcriptMetadata: { scenario, provider: PERSONAL.id },
+			};
+			const contextBefore = cloneJson(context);
+			const expectedSerialized = JSON.stringify({ messages: expectedMessages, transcriptMetadata: context.transcriptMetadata });
+			const controller = new AbortController();
+			const options = {
+				signal: controller.signal, reasoning: "high", headers: { "x-request": "test" }, metadata: { request: 1 },
+			};
+			const outwardEvents = await collect(provider[method](aliasModel, context, options));
+			assert.deepEqual(outwardEvents, sourceEvents.map((event) => {
+				if (event.type === "done") return { ...event, message: { ...event.message, provider: PERSONAL.id } };
+				return { ...event, partial: { ...event.partial, provider: PERSONAL.id } };
+			}), `${method}: all events, block metadata, signatures, terminal fields and usage should survive`);
 
-		const outwardEvents = await collect(provider.streamSimple(aliasModel, context, options));
-		assert.deepEqual(
-			outwardEvents.map((event) => event.type),
-			sourceEvents.map((event) => event.type),
-			"the adapter should forward every event type",
-		);
-		for (const event of outwardEvents) {
-			const message = event.type === "done" ? event.message : event.type === "error" ? event.error : event.partial;
-			assert.equal(message.provider, PERSONAL.id, `${event.type} should expose the alias provider`);
-			assert.equal(message.providerThinkingLevel, "high", `${event.type} should preserve provider thinking metadata`);
-			assert.deepEqual(message.providerExtensionMetadata, { future: true }, `${event.type} should preserve unknown fields`);
+			const call = calls[method].at(-1);
+			assert.deepEqual(call.model, sourceModels[0], "only the model provider should change");
+			assert.equal(call.options, options, "request options and abort signal should reach the source unchanged");
+			assert.equal(call.serializedContext, expectedSerialized, `${method}: exact ${scenario} transcript at the provider boundary`);
+			assert.notEqual(call.context, context);
+			assert.notEqual(call.context.messages, context.messages);
+			for (const [index, message] of context.messages.entries()) {
+				const mapped = call.context.messages[index];
+				if (message.role === "assistant" && (message.provider === PERSONAL.id || message.provider === "openai-codex")) {
+					assert.notEqual(mapped, message, "rewritten assistants should be cloned");
+					assert.equal(mapped.content, message.content, "assistant blocks should not be rewritten");
+				} else {
+					assert.equal(mapped, message, "system, user, tool result and foreign assistant messages should not be rewritten");
+				}
+			}
+			assert.deepEqual(sourceModels[0], sourceModelBefore, "the source model should remain unchanged");
+			assert.deepEqual(aliasModel, { ...sourceModelBefore, provider: PERSONAL.id }, "the alias model should remain unchanged");
+			assert.deepEqual(context, contextBefore, "the source context and messages should remain unchanged");
+			assert.deepEqual(sourceEvents, sourceEventsBefore, "source events and messages should remain unchanged");
 		}
-		const outwardDone = outwardEvents.at(-1);
-		assert.equal(outwardDone.message.endTurn, true, "the terminal Codex end_turn signal should survive alias mapping");
-		assert.equal(outwardDone.message.rawStopReason, "end_turn", "the raw terminal reason should survive alias mapping");
-		assert.equal(outwardDone.message.responseId, "response-fixture", "the response ID should survive alias mapping");
+		assert.equal(calls[method].length, 3, `${method} should delegate each transcript exactly once`);
+		assert.equal(calls.stream.length + calls.streamSimple.length, 3, "the other source method should not run");
 
-		assert.equal(calls.streamSimple.length, 1);
-		const call = calls.streamSimple[0];
-		assert.equal(call.model.provider, "openai-codex", "the source model should use the canonical provider");
-		assert.equal(call.model.id, aliasModel.id, "the source model ID should remain canonical");
-		assert.equal(call.options, options, "request options and abort signal should reach the source unchanged");
-		assert.notEqual(call.context, context);
-		assert.notEqual(call.context.messages, context.messages);
-		assert.equal(call.context.messages[0], userMessage, "user messages should not be rewritten");
-		assert.equal(call.context.messages[1].provider, "openai-codex", "current-alias history should become canonical");
-		assert.equal(call.context.messages[2].provider, "openai-codex-foreign", "canonical history should remain foreign");
-		assert.equal(call.context.messages[3], otherAliasHistory, "other-alias history should remain foreign");
-		assert.equal(call.context.messages[4], unrelatedHistory, "unrelated assistant history should remain foreign");
-		assert.equal(call.context.messages[5], toolResult, "tool results should not be rewritten");
-		assert.deepEqual(sourceModels[0], sourceModelBefore, "the source model should remain unchanged");
-		assert.deepEqual(context, contextBefore, "the source context and messages should remain unchanged");
-		assert.deepEqual(sourceEvents, sourceEventsBefore, "source events and messages should remain unchanged");
-	}
+		for (const reason of ["error", "aborted"]) {
+			const sourceError = makeAssistant("openai-codex", {
+				stopReason: reason, errorMessage: `provider ${reason}`, rawStopReason: "provider-terminal",
+				content: aliasHistory.content, usage: sourceDone.usage, providerExtensionMetadata: { future: true },
+			});
+			source[`${method}Result`] = () => makeEventStream([{ type: "error", reason, error: sourceError }]);
+			const events = await collect(provider[method](aliasModel, normalizeContext({ messages: [] })));
+			assert.deepEqual(events, [{ type: "error", reason, error: { ...sourceError, provider: PERSONAL.id } }],
+				`${method}: provider ${reason} should preserve the complete terminal message`);
+		}
 
-	{
-		const { source, calls } = createFakeSource();
-		const sourceError = makeAssistant("openai-codex", { stopReason: "error", errorMessage: "provider error" });
-		source.streamResult = () => makeEventStream([{ type: "error", reason: "error", error: sourceError }]);
-		const provider = createOpenAICodexAliasProvider(PERSONAL, source);
-		const model = provider.getModels()[0];
-		const options = { temperature: 0.2 };
-		const events = await collect(provider.stream(model, { messages: [] }, options));
-		assert.equal(calls.stream.length, 1, "the full stream adapter should delegate to source.stream");
-		assert.equal(calls.stream[0].options, options);
-		assert.equal(events.length, 1);
-		assert.equal(events[0].type, "error");
-		assert.equal(events[0].error.provider, PERSONAL.id);
-		assert.equal(events[0].error.errorMessage, sourceError.errorMessage);
-	}
-
-	{
-		const { source } = createFakeSource();
-		source.streamSimpleResult = () => makeEventStream([], new Error("detail that must stay internal"));
-		const provider = createOpenAICodexAliasProvider(PERSONAL, source);
-		const events = await collect(provider.streamSimple(provider.getModels()[0], { messages: [] }));
-		assert.equal(events.length, 1);
-		assert.equal(events[0].type, "error");
-		assert.equal(events[0].error.provider, PERSONAL.id);
-		assert.equal(events[0].error.errorMessage, "OpenAI Codex alias stream failed unexpectedly");
-		assert.ok(!events[0].error.errorMessage.includes("detail"), "unexpected iterator details should not leak");
+		for (const failure of ["sync", "iterator", "unterminated", "aborted"]) {
+			const controller = new AbortController();
+			source[`${method}Result`] = (_model, _context, options) => {
+				assert.equal(options.signal, controller.signal);
+				if (failure === "sync") throw new Error("detail that must stay internal");
+				return {
+					async *[Symbol.asyncIterator]() {
+						yield { type: "start", partial: sourcePartial };
+						if (failure === "aborted") controller.abort();
+						if (failure !== "unterminated") throw new Error("detail that must stay internal");
+					},
+				};
+			};
+			const events = await collect(provider[method](aliasModel, normalizeContext({ messages: [] }), { signal: controller.signal }));
+			assert.deepEqual(events.map((event) => event.type), failure === "sync" ? ["error"] : ["start", "error"]);
+			const terminal = events.at(-1);
+			const reason = failure === "aborted" ? "aborted" : "error";
+			assert.equal(terminal.reason, reason);
+			assert.equal(terminal.error.stopReason, reason);
+			assert.equal(terminal.error.provider, PERSONAL.id);
+			assert.equal(terminal.error.errorMessage, failure === "aborted"
+				? "Request was aborted" : "OpenAI Codex alias stream failed unexpectedly");
+			assert.deepEqual(terminal.error.usage, {
+				input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+			});
+		}
 	}
 
 	{

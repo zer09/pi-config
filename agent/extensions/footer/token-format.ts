@@ -12,8 +12,8 @@ import type { ContextUsageSnapshot } from "./types";
 const TOKEN_FORMATTER = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1, notation: "compact" });
 
 /**
- * Format session token totals from assistant messages, usage-bearing tool results,
- * compactions, and branch summaries.
+ * Format session token totals from assistant messages, standalone usage entries,
+ * usage-bearing tool results, compactions, and branch summaries.
  *
  * @param ctx - Current Pi extension context.
  * @param theme - Active Pi theme.
@@ -37,6 +37,8 @@ export function formatSessionTokenTotals(
 			updatesCacheHitRate = true;
 		} else if (entry.type === "message" && entry.message.role === "toolResult") {
 			usage = entry.message.usage;
+		} else if (entry.type === "usage") {
+			usage = entry.usage;
 		} else if (entry.type === "compaction" || entry.type === "branch_summary") {
 			usage = entry.usage;
 		}

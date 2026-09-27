@@ -60,6 +60,27 @@ replaceAllExact(
   2,
 );
 
+replaceOnce(
+  "src/om/provider-stream.ts",
+  `interface RegisteredProviderConfig {`,
+  `import type { ProviderHeaders } from "@earendil-works/pi-ai";\n\ninterface RegisteredProviderConfig {`,
+);
+replaceOnce(
+  "src/om/provider-stream.ts",
+  `  headers: Record<string, string> | undefined,\n  sessionId: string | undefined,\n): Record<string, string> | undefined {`,
+  `  headers: ProviderHeaders | undefined,\n  sessionId: string | undefined,\n): ProviderHeaders | undefined {`,
+);
+replaceOnce(
+  "src/om/provider-stream.ts",
+  `    const attributed = withProviderAttributionHeaders(model, headers, sessionId) ?? {};`,
+  `    // This transform receives post-auth string headers, so no nullable deletion\n    // marker can exist on this path even though the shared merge helper preserves them.\n    const attributed = withProviderAttributionHeaders(model, headers, sessionId) as\n      | Record<string, string>\n      | undefined;`,
+);
+replaceOnce(
+  "src/om/provider-stream.ts",
+  `    if (typeof next === "function") return (await next(attributed)) ?? attributed;\n    return attributed;`,
+  `    const merged = attributed ?? {};\n    if (typeof next === "function") return (await next(merged)) ?? merged;\n    return merged;`,
+);
+
 for (const stage of ["observer", "reflector", "dropper"]) {
   const rel = `src/om/agents/${stage}/agent.ts`;
   replaceOnce(

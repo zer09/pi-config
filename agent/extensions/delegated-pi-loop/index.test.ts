@@ -200,6 +200,13 @@ test("active bash command never enters ToolResult details or compact, expanded, 
         }
       }
     }
+    // Pi omits details when execute throws; this result must not get a success checkmark.
+    const thrown = renderDelegateResult(
+      { content: [{ type: "text", text: "Delegated session history validation failed" }] },
+      { expanded: false, isPartial: false }, theme, {},
+    ).render(120).join("\n");
+    assert.match(thrown, /^✗ failed/);
+    assert.doesNotMatch(thrown, /✓|completed/);
   } finally {
     rmSync(hooksDir, { recursive: true, force: true });
   }
@@ -464,6 +471,89 @@ test("the synchronous child factory never initializes the usage cache or loads r
   });
   assert.equal(returned, undefined);
   assert.deepEqual(events, ["session_start", "session_shutdown"]);
+});
+
+test("history validation returns exact content with operator-only categories and native error marking", async (t) => {
+  const { root, extension } = await loadExtensionForTest(t);
+  const { HistoryValidationError } = await import("./runner.ts");
+  const events = new Map<string, (...args: unknown[]) => unknown>();
+  let tool: ToolDefinition<DelegateToolParams> | undefined;
+  let failure: unknown;
+  extension({
+    on: (event, handler) => { events.set(event, handler); }, registerCommand: () => {},
+    registerTool: (config: { name: string }) => {
+      if (config.name === "delegate_run") tool = config as ToolDefinition<DelegateToolParams>;
+    },
+  }, {
+    createUsageCache: async () => ({
+      getFreshSnapshot: () => Object.freeze({}),
+      invalidate: async () => assert.fail("no finalized quota failures"),
+      refresh: async () => assert.fail("throw paths request no usage refresh"),
+    }),
+    runDelegate: async () => { throw failure; },
+    finalizeDelegateRun: async () => assert.fail("the runner owns cleanup on throw"),
+  });
+  assert.ok(tool);
+  const ctx = { cwd: root, modelRegistry: { getProviderAuth: async () => assert.fail("fake cache needs no auth") } };
+  const params = { role: "remediation", prompt: "test" };
+  const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
+  let delegateId = 0;
+  for (const category of ["file_integrity", "size_limit", "read_changed", "record_shape", "context_target", "ancestry", "unclassified"] as const) {
+    failure = new HistoryValidationError(category);
+    // Reusing an exclusive role also proves that every exception releases manager admission.
+    const result = await tool.execute("history-failure", params, undefined, undefined, ctx);
+    assert.deepEqual(result, {
+      content: [{ type: "text", text: "Delegated session history validation failed" }],
+      details: { state: "delegate_failed", historyFailureCategory: category, delegateId: ++delegateId },
+    });
+    const event = { toolName: "delegate_run", ...result, isError: false };
+    const patch = events.get("tool_result")!(event);
+    assert.deepEqual(patch, { isError: true });
+    assert.deepEqual(event.content, result.content);
+    assert.deepEqual(event.details, result.details);
+    assert.equal(events.get("tool_result")!({ ...event, toolName: "other" }), undefined);
+    for (const expanded of [false, true]) {
+      const rendered = tool.renderResult!(result, { expanded, isPartial: false }, theme, {}).render(160).join("\n");
+      assert.ok(rendered.includes(`history validation: ${category}`));
+      assert.match(rendered, /✗.*delegate_failed/);
+      assert.doesNotMatch(rendered, /✓|completed/);
+    }
+    assert.deepEqual(result.content, [{ type: "text", text: "Delegated session history validation failed" }]);
+  }
+  for (const unrelated of [
+    new Error("unrelated runner failure"),
+    new Error("Delegated child cleanup failed"),
+    Object.assign(new Error("Delegated session history validation failed"), { name: "HistoryValidationError", category: "record_shape" }),
+    { message: "Delegated session history validation failed", category: "record_shape" },
+  ]) {
+    failure = unrelated;
+    await assert.rejects(tool.execute("unrelated-failure", params, undefined, undefined, ctx), (caught) => caught === unrelated);
+  }
+});
+
+test("history category rendering rejects arbitrary strings, paths, and content without coercion", async (t) => {
+  await loadExtensionForTest(t);
+  const { renderDelegateResult } = await import("./render.ts");
+  const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
+  const result: ToolResult = {
+    content: [{ type: "text", text: "Delegated session history validation failed" }],
+    details: { state: "delegate_failed" },
+  };
+  for (const expanded of [false, true]) {
+    const options = { expanded, isPartial: false };
+    const baseline = renderDelegateResult(result, options, theme, {}).render(160).join("\n");
+    for (const category of [
+      undefined, null, false, 42, "", "unknown", "__proto__", "constructor", "toString", "RECORD_SHAPE",
+      "record_shape ", "record_shape\nPRIVATE-HISTORY-CONTENT", "/private/session.jsonl", "PRIVATE-HISTORY-CONTENT".repeat(100),
+      ["record_shape"], { category: "record_shape" }, { toString() { assert.fail("never coerce category objects"); } },
+    ]) {
+      const untrusted = { ...result, details: { ...result.details, historyFailureCategory: category } };
+      assert.equal(renderDelegateResult(untrusted, options, theme, {}).render(160).join("\n"), baseline);
+      assert.deepEqual(untrusted.content, [{ type: "text", text: "Delegated session history validation failed" }]);
+    }
+    const completed = { ...result, details: { state: "completed", historyFailureCategory: "record_shape" } };
+    assert.doesNotMatch(renderDelegateResult(completed, options, theme, {}).render(160).join("\n"), /history validation:|record_shape/);
+  }
 });
 
 test("the parent lazily shares one cache and first execute auth context, forwarding fresh snapshots", async (t) => {
