@@ -58,7 +58,7 @@ export const MODEL_CATALOG_PROMPT_GUIDELINES: readonly string[] = [
 /** Static model-visible `delegate_run` parameter descriptions. */
 export const DELEGATE_RUN_PARAMETER_DESCRIPTIONS = {
   prompt:
-    "Self-contained neutral assignment: goal, governing documents and relevant evidence, scope, success checks, prohibitions, and required report.",
+    "Self-contained neutral assignment: goal, governing documents, scope, success checks, prohibitions, and required report. Include useful evidence already known when relevant, with optional known paths, symbols, or line ranges as non-exhaustive starting points. Do not investigate merely to populate evidence or location fields. Unknown locations are acceptable; do not fabricate them.",
   cwd: "Delegate cwd; relative paths resolve from parent cwd.",
   availableSkills:
     "Approved skills visible to the child; full instructions load only if needed.",
@@ -132,6 +132,7 @@ export function delegateRunPromptGuidelines(
     "delegate_run [Routing]: Routing and operational fallback are automatic. Use delegate_model_catalog and routingOverride only for an explicit user or project one-run operational route request; never override oracle or change permissions or concurrency.",
     "delegate_run [Failure and authority]: Treat every non-completed state as a failed tool-error delegation and report it. Any non-completed required role stops automatic advancement to the next increment. Do not retry automatically beyond bounded fallback. Follow the user's ordinary next instruction; continue, resume, or retry requires no special syntax. Delegate completion never authorizes staging, committing, pushing, deploying, or hosted-service mutation; each requires separate explicit authorization.",
     "delegate_run [Skills]: Pass only task-relevant pre-approved availableSkills. Selection exposes skills but never forces full loading.",
+    "delegate_run [Evidence handoff]: When relevant, include useful evidence already learned: paths, symbols, line ranges, observed behavior, findings, or hypotheses. Distinguish verified observations from hypotheses when it matters. Evidence handoff is optional; do not investigate merely to populate evidence or location fields. Unknown locations are acceptable; do not fabricate them. Supplied locations are non-exhaustive starting points, not restrictions on delegate investigation.",
   ];
 }
 
@@ -205,7 +206,10 @@ export const CHILD_RECURSION_PROHIBITION =
 export const CHILD_ASSIGNMENT_RULES = `Follow applicable project instructions; more specific wins.
 Preserve user changes; never reset, clean, stash, overwrite, or revert.
 Do not stage, commit, push, deploy, or write hosted services unless this assignment explicitly authorizes that action.
-Never expose credentials, tokens, cookies, or private keys.`;
+Never expose credentials, tokens, cookies, or private keys.
+Supplied paths, symbols, line ranges, findings, and hypotheses are non-exhaustive starting points, not limits on investigation.
+Verify supplied evidence against the current tree.
+Follow relevant callers, tests, dependencies, or other discovered evidence beyond supplied locations without expanding the assigned scope.`;
 
 /** Fixed semantic attempt-budget instructions; the supervisor owns wall-clock limits. */
 export const CHILD_ATTEMPT_BUDGET = `For each required proof or gate, make at most two materially equivalent attempts. An equivalent retry repeats the same proof or gate without a relevant material change to source, configuration, environment, or evidence. A rerun after a targeted material change justified by new evidence is not an equivalent retry and remains allowed, even for the same command.

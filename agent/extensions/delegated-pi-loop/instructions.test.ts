@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
+  CHILD_ASSIGNMENT_RULES,
   CHILD_ATTEMPT_BUDGET,
   CHILD_RECURSION_PROHIBITION,
   CHILD_TERMINAL_RESULT_INSTRUCTIONS,
+  DELEGATE_RUN_PARAMETER_DESCRIPTIONS,
   DELEGATE_RUN_TOOL,
   LIVE_CONTINUATION_PROMPT,
   MODEL_CATALOG_PROMPT_GUIDELINES,
@@ -78,6 +80,17 @@ test("the base child prompt embeds the generic recursion prohibition verbatim", 
   for (const family of ROLE_FAMILIES) {
     const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
     assert.match(prompt, /Do not start or orchestrate another agent process or subagent\./);
+  }
+});
+
+test("supplied evidence remains a starting point in every role prompt", () => {
+  const safeguard = `Supplied paths, symbols, line ranges, findings, and hypotheses are non-exhaustive starting points, not limits on investigation.
+Verify supplied evidence against the current tree.
+Follow relevant callers, tests, dependencies, or other discovered evidence beyond supplied locations without expanding the assigned scope.`;
+  assert.ok(CHILD_ASSIGNMENT_RULES.includes(safeguard));
+  for (const family of ROLE_FAMILIES) {
+    const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
+    assert.ok(prompt.includes(safeguard), `the ${family} prompt must preserve independent investigation`);
   }
 });
 
@@ -249,6 +262,25 @@ test("parent guidelines scope and gate each increment before integrated final re
   assert.doesNotMatch(guidelines, /run exactly one implementation delegate\.|After finalizing a contract for delegated implementation, run one implementation delegate\./);
 });
 
+test("parent evidence handoff is optional and requires no extra discovery", () => {
+  const guideline = delegateRunPromptGuidelines(SOLUTION_ROLE_FIXTURE, REVIEW_ROLE_FIXTURE)
+    .find((line) => line.startsWith("delegate_run [Evidence handoff]:"));
+  assert.ok(guideline);
+  assert.match(guideline, /When relevant, include useful evidence already learned/);
+  assert.match(guideline, /paths, symbols, line ranges, observed behavior, findings, or hypotheses/);
+  assert.match(guideline, /Distinguish verified observations from hypotheses when it matters/);
+  assert.match(guideline, /Evidence handoff is optional/);
+  assert.match(guideline, /Supplied locations are non-exhaustive starting points, not restrictions on delegate investigation/);
+
+  const description = DELEGATE_RUN_PARAMETER_DESCRIPTIONS.prompt;
+  assert.match(description, /Include useful evidence already known when relevant/);
+  assert.match(description, /optional known paths, symbols, or line ranges as non-exhaustive starting points/);
+  for (const text of [description, guideline]) {
+    assert.match(text, /[Dd]o not investigate merely to populate evidence or location fields/);
+    assert.match(text, /Unknown locations are acceptable; do not fabricate them/);
+  }
+});
+
 test("an unknown role family stays fail-closed at the contract boundary", () => {
   // A smuggled runtime family value must throw instead of falling through to
   // an implementation contract; the routing registry keeps rejecting unknown
@@ -316,7 +348,7 @@ test("the parent guidelines stay dynamic, compact, and tool-attributed", () => {
     SOLUTION_ROLE_FIXTURE,
     REVIEW_ROLE_FIXTURE,
   );
-  assert.equal(guidelines.length, 15);
+  assert.equal(guidelines.length, 16);
   assert.ok(guidelines.every((line) => line.startsWith("delegate_run ")));
   const text = guidelines.join("\n");
   assert.match(text, /solution-a, solution-b, and solution-c concurrently/);
