@@ -17,8 +17,8 @@
     "openai-codex-cgpt6/gpt-5.6-sol",
     "orcarouter/deepseek/deepseek-v4-flash-free"
   ],
-  "defaultProvider": "orcarouter",
-  "defaultModel": "deepseek/deepseek-v4-flash-free",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-sol",
   "defaultThinkingLevel": "high",
   "cacheWarming": "off",
   "theme": "dark",
