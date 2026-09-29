@@ -258,7 +258,15 @@
     "deepseek-v4-flash-vision-exp": {
       "providers": {
         "opencode-go": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+          "thinking": [
+            "off",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
           "default": "max"
         }
       }
@@ -266,7 +274,15 @@
     "xiaomi/mimo-v2.5-pro": {
       "providers": {
         "commandcode": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+          "thinking": [
+            "off",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
           "default": "max"
         }
       }
@@ -353,6 +369,15 @@
     "gate-e": {
       "tiers": [
         {
+          "model": "glm-5.3",
+          "thinking": "max",
+          "providers": ["zai"]
+        }
+      ]
+    },
+    "gate-f": {
+      "tiers": [
+        {
           "model": "claude-sonnet-5-5",
           "thinking": "xhigh",
           "providers": ["commandcode"]
@@ -437,7 +462,7 @@
     }
   },
   "assignments": {
-    "solution": ["gate-a", "gate-b", "gate-c", "gate-d", "gate-e"],
+    "solution": ["gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "gate-f"],
     "review": ["gate-a", "gate-b", "gate-c"],
     "implementation": "implementation",
     "remediation": "implementation",
