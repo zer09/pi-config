@@ -191,66 +191,66 @@
         }
       }
     },
-    "gpt-5.5": {
+    "gpt-5.6-sol": {
       "providers": {
         "openai-codex": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
         "openai-codex-cgpt1": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
         "openai-codex-cgpt2": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
         "openai-codex-cgpt3": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
         "openai-codex-cgpt4": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
         "openai-codex-cgpt5": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
         "openai-codex-cgpt6": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
         "openai-codex-cgpt7": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
         "openai-codex-cgpt8": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
         "openai-codex-cgpt9": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
         "openai-codex-cgpt10": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
         "openai-codex-cgpt11": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
         "openai-codex-cgpt12": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
         "openai-codex-cgpt13": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
         "openai-codex-cgpt14": {
-          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         }
       }
@@ -332,7 +332,7 @@
     "gate-b": {
       "tiers": [
         {
-          "model": "gpt-5.5",
+          "model": "gpt-5.6-sol",
           "thinking": "high",
           "providers": [
             "openai-codex",
