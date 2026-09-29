@@ -271,6 +271,11 @@
         }
       }
     },
+    "sonnet-5-5": {
+      "providers": {
+        "commandcode": { "thinking": ["xhigh"], "default": "xhigh" }
+      }
+    },
     "glm-5.3": {
       "providers": {
         "zai": { "thinking": ["low", "high", "max"], "default": "max" }
@@ -348,8 +353,8 @@
     "gate-e": {
       "tiers": [
         {
-          "model": "xiaomi/mimo-v2.5-pro",
-          "thinking": "max",
+          "model": "sonnet-5-5",
+          "thinking": "xhigh",
           "providers": ["commandcode"]
         }
       ]
