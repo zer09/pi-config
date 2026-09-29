@@ -127,7 +127,7 @@
         }
       }
     },
-    "gpt-5.6-sol": {
+    "gpt-6.1-sol": {
       "providers": {
         "openai-codex": {
           "thinking": ["minimal", "medium", "high", "xhigh", "max"],
@@ -307,7 +307,7 @@
     "gate-a": {
       "tiers": [
         {
-          "model": "gpt-5.6-sol",
+          "model": "gpt-6.1-sol",
           "thinking": "high",
           "providers": [
             "openai-codex",
@@ -369,9 +369,9 @@
     "gate-e": {
       "tiers": [
         {
-          "model": "glm-5.3",
+          "model": "xiaomi/mimo-v2.5-pro",
           "thinking": "max",
-          "providers": ["zai"]
+          "providers": ["commandcode"]
         }
       ]
     },
@@ -438,7 +438,7 @@
     "verification": {
       "tiers": [
         {
-          "model": "gpt-5.6-sol",
+          "model": "gpt-6.1-sol",
           "thinking": "high",
           "providers": [
             "openai-codex",
