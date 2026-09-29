@@ -271,7 +271,7 @@
         }
       }
     },
-    "sonnet-5-5": {
+    "claude-sonnet-5-5": {
       "providers": {
         "commandcode": { "thinking": ["xhigh"], "default": "xhigh" }
       }
@@ -353,7 +353,7 @@
     "gate-e": {
       "tiers": [
         {
-          "model": "sonnet-5-5",
+          "model": "claude-sonnet-5-5",
           "thinking": "xhigh",
           "providers": ["commandcode"]
         }

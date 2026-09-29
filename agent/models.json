@@ -13,6 +13,40 @@
       },
       "models": [
         {
+          "id": "claude-sonnet-5-5",
+          "name": "Claude Sonnet 5.5 (Command Code)",
+          "api": "anthropic-messages",
+          "baseUrl": "https://api.commandcode.ai/provider",
+          "reasoning": true,
+          "input": ["text", "image"],
+          "contextWindow": 1000000,
+          "maxTokens": 128000,
+          "thinkingLevelMap": {
+            "off": null,
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "xhigh": "xhigh",
+            "max": "max"
+          },
+          "cost": {
+            "input": 2,
+            "output": 10,
+            "cacheRead": 0.2,
+            "cacheWrite": 2.5
+          },
+          "promptCache": {
+            "short": 300,
+            "long": 3600
+          },
+          "compat": {
+            "forceAdaptiveThinking": true,
+            "supportsTemperature": false,
+            "supportsStrictTools": true
+          }
+        },
+        {
           "id": "google/gemini-3.8-flash",
           "name": "Gemini 3.8 Flash (Command Code)",
           "reasoning": true,
