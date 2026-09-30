@@ -4,11 +4,11 @@ Minimal patterns for common Genkit APIs. Examples use **Google AI** (`GoogleAI`,
 
 ## Public imports
 
-Use **`genkit`**, **`genkit.plugins.*`**, **`genkit.embedder`**, **`genkit.evaluator`**, and **`genkit.model`** (and similar public modules) only — not internal packages (`genkit._core`, etc.).
+Use public packages and modules, not internals such as `genkit._core`. These examples target the split-package layout (`genkit_google_genai`, `genkit_fastapi`, `genkit_middleware`, `genkit_evaluators`, and `genkit.agent`). Verify the resolved SDK first; [Setup](setup.md) covers legacy imports. Keep the existing plugin and model selection.
 
 ```python
 from genkit import Genkit, ActionRunContext
-from genkit.plugins.google_genai import GoogleAI
+from genkit_google_genai import GoogleAI
 
 ai = Genkit(plugins=[GoogleAI()], model='googleai/gemini-flash-latest')
 ```
@@ -54,6 +54,8 @@ async for chunk in sr.stream:
         print(chunk.text, end='', flush=True)
 final = await sr.response  # final.text
 ```
+
+On the pinned API, awaiting `.response` completes even if chunk consumption stops early. Keep chunk delivery and final-response handling separate; see [Agents](agents.md) for the same turn pattern.
 
 ---
 
@@ -156,7 +158,7 @@ response = await ai.generate(prompt='Weather in Paris?', tools=[get_weather])
 ## Embeddings
 
 ```python
-from genkit.plugins.google_genai import GeminiEmbeddingModels
+from genkit_google_genai import GeminiEmbeddingModels
 
 embedder = f'googleai/{GeminiEmbeddingModels.GEMINI_EMBEDDING_001}'
 embeddings = await ai.embed(embedder=embedder, content='The sky is blue.')

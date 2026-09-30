@@ -9,12 +9,28 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Source of truth
 
 - Upstream repository: https://github.com/planetscale/database-skills
-- Current upstream commit checked locally: `af0ce0cfb65cca4cc21d18ca0d9cf270ca99d488`
+- Default branch: `main`, resolved with authenticated `gh` GET on 2026-09-30.
+- Current reviewed commit: `73b20b7eb64716d8c7100c054f0677c0c6e77e30`.
+- Current repository tree: `1eed492bb25f6e3886cb89eeed5d12e4766562e9`.
+- Prior reviewed commit: `af0ce0cfb65cca4cc21d18ca0d9cf270ca99d488` (tree `7adfcfc8e45a2dfa79b1f7904a34c08eec99bde1`).
 
-| Local skill | Upstream path |
-| --- | --- |
-| `mysql` | `skills/mysql/SKILL.md` plus references |
-| `postgres` | `skills/postgres/SKILL.md` plus references |
+| Local path | Upstream path | Complete inventory |
+| --- | --- | --- |
+| `agent/skills/mysql/` | `skills/mysql/` | 19 source files: root + 18 references; 20 local files including metadata |
+| `agent/skills/postgres/` | `skills/postgres/` | 23 source files: root + 22 references; 24 local files including metadata |
+
+### Reviewed source changes
+
+Downloaded every file under both upstream paths at both commits and verified Git blob hashes. Compared the complete trees and local files before editing. Paths are unchanged, with no additions, deletions, moves, or omitted runtime files. Local `agents/openai.yaml` files have no upstream counterparts.
+
+| Skill | Decision | Applied source delta |
+| --- | --- | --- |
+| `postgres` | Adopt; retain `make it slim` | Copy the session-level `SET` warning from `skills/postgres/references/ps-connection-pooling.md` and `skills/postgres/references/ps-connections.md` to the same reference paths under `agent/skills/postgres/`. Both files match upstream exactly, including the transaction-scoped `SET LOCAL` alternative. The other 22 local files are unchanged. |
+| `mysql` | Verified no-op; retain `make it slim` | All 19 source files match the prior revision. All 20 local files remain byte-identical to the pre-sync tree. |
+
+The PostgreSQL subtree changed from `d88c9e1d9ef50949b8ce4fde20629a31378afe8e` to `9589f4be80426a42d37030e186dceed734043eaa`. The MySQL subtree remains `a2d3f6d189cb2847d659da7108b399df9ac08875`.
+
+No new adaptations or rejections were needed. Existing root adaptations remain: intent-based routing, exact production/destructive gates, proportional discovery, relative reference indexes, and provider-choice boundaries. Existing omissions from the roots remain: broad upstream triggers, remote reference URLs, unconditional hosting claims, and PostgreSQL's extra frontmatter. Preserve PostgreSQL's existing `references/monitoring.md` overlay (`uvx pg_activity` instead of `pip install pg_activity`). Neither skill's name, description, metadata, or local index changed.
 
 ## Local safety rule
 

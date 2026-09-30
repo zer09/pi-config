@@ -36,7 +36,7 @@ after the user confirms success.
 
 ## Task routing after confirmation
 
-- Default to `browser_snapshot` for page structure, labels, and clickable coordinates. Pass its `@(x,y)` directly to `browser_click`; no screenshot round-trip.
+- Default to `browser_snapshot` for page structure, labels, refs, and click coordinates. Prefer its `[eN]` handles as `ref` for interactions; use fresh `@(x,y)` as a fallback. No screenshot round-trip.
 - Use `browser_execute_js` for surgical DOM reads such as a value, attribute, or coordinates.
 - Use `browser_screenshot` only for visual verification, such as layout, colors, or chart rendering, not page understanding or control discovery.
 - Read [tool selection and diagnostics](references/tools-and-diagnostics.md) for the full tool tree, isolated search/reader tabs, or console/network diagnosis after an action fails.

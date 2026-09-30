@@ -211,6 +211,54 @@ Write an article about {{topic}}.
 {{#if style}}Write in a {{style}} style.{{/if}}
 ```
 
+### Tools and middleware in frontmatter
+
+`.prompt` files can select registered tools and middleware. These fields do not authorize tool side effects or live model calls. Confirm the exact action and target before invoking a prompt that can mutate hosted services.
+
+```prompt
+---
+model: googleai/gemini-flash-latest
+input:
+  schema:
+    tone: string
+tools:
+  - getAttractions
+  - getFlightInfo
+toolChoice: auto
+maxTurns: 20
+returnToolRequests: false
+use:
+  - name: genkit-middleware/retry
+    config:
+      maxRetries: 2
+---
+{{role "system"}}
+You are a friendly trip planning assistant. Keep your tone {{tone}}.
+
+{{history}}
+```
+
+| Frontmatter | Go option |
+| --- | --- |
+| `tools` | `ai.WithTools` (registered tool names) |
+| `toolChoice` | `ai.WithToolChoice` (`auto`, `required`, `none`) |
+| `maxTurns` | `ai.WithMaxTurns` |
+| `returnToolRequests` | `ai.WithReturnToolRequests` |
+| `use` | `ai.WithUse` |
+
+A `use` entry is a middleware name or a map with `name` and optional `config`. Register middleware on the same `*Genkit` registry before resolving a prompt by name:
+
+```go
+import "github.com/genkit-ai/genkit/go/plugins/middleware"
+
+g := genkit.Init(ctx, genkit.WithPlugins(
+	&googlegenai.GoogleAI{},
+	&middleware.Middleware{},
+))
+```
+
+See [middleware](middleware.md) for the registered `genkit-middleware/{retry,fallback,filesystem,skills,toolApproval}` implementations. Preserve the project's module version; verify these fields against the resolved SDK rather than upgrading to obtain them.
+
 ## Schemas
 
 ### DefineSchemaFor (from Go type)

@@ -1,7 +1,7 @@
 # gh co
 
 Source: https://cli.github.com/manual/gh_co
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help co`.
+Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help co`.
 
 ## Summary
 
@@ -27,6 +27,7 @@ FLAGS
       --detach               Checkout PR with a detached HEAD
   -f, --force                Reset the existing local branch to the latest state of the pull request
       --recurse-submodules   Update all submodules after checkout
+      --worktree path        Check out the pull request into a worktree at the given path
 
 INHERITED FLAGS
       --help                     Show help for command
@@ -40,6 +41,7 @@ EXAMPLES
   $ gh pr checkout 32
   $ gh pr checkout https://github.com/OWNER/REPO/pull/32
   $ gh pr checkout feature
+  $ gh pr checkout 32 --branch feature --worktree /path/to/wt-feature
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

@@ -1,7 +1,7 @@
 # gh pr create
 
 Source: https://cli.github.com/manual/gh_pr_create
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help pr create`.
+Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help pr create`.
 
 ## Summary
 
@@ -42,6 +42,20 @@ Link an issue to the pull request by referencing the issue in the body of the pu
 request. If the body text mentions `Fixes #123` or `Closes #123`, the referenced issue
 will automatically get closed when the pull request gets merged.
 
+Use `--attach` to upload an image or video. The attachment is appended to the
+body. If the body references an attached file, such as `![alt](./login.png)`, that
+reference is rewritten to point at the uploaded asset instead.
+You can attach up to 50 files per command.
+
+Alt text for an image follows the path after `#`, as in
+`--attach './login.png#The login error state'`. Without it the filename is used.
+A reference already in the body keeps the alt text written there. Video renders
+as a player and has no alt text, so it cannot be given any.
+
+If some attachments upload and others fail, the pull request is still created with the
+ones that succeeded. The command then exits with a non-zero status, but the new pull
+request's URL is still printed to stdout.
+
 By default, users with write access to the base repository can push new commits to the
 head branch of the pull request. Disable this with `--no-maintainer-edit`.
 
@@ -57,6 +71,7 @@ ALIASES
 
 FLAGS
   -a, --assignee login       Assign people by their login. Use "@me" to self-assign.
+      --attach file          Attach an image or video file, in '<file>#<image alt text>' format
   -B, --base branch          The branch into which you want your code merged
   -b, --body string          Body for the pull request
   -F, --body-file file       Read body text from file (use "-" to read from standard input)
@@ -87,6 +102,8 @@ EXAMPLES
   $ gh pr create --project "Roadmap"
   $ gh pr create --base develop --head monalisa:feature
   $ gh pr create --template "pull_request_template.md"
+  $ gh pr create --attach './login.png#The login error state'
+  $ gh pr create --attach ./before.png --attach ./after.png
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

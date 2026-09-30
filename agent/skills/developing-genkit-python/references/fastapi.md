@@ -1,5 +1,7 @@
 # FastAPI — Genkit Python
 
+This retained guide uses the legacy `genkit.plugins.fastapi` decorator API. Do not mix it with split-package imports. For resolved SDKs exposing `genkit_fastapi`, use the selected `serve_flow` / `serve_agent` guidance in [Agents](agents.md); inspect installed signatures before changing an existing server. Preserve routes, schemas, auth, and event-loop ownership. The nested `child(input, ctx)` examples below are inherited and may not match newer flow wrappers; the compatible `.run(..., on_chunk=...)` form is documented in the selected guide.
+
 ## Install
 
 ```bash

@@ -5,7 +5,7 @@ description: "Read Notion workspace content or perform explicitly requested Noti
 
 # Notion
 
-Use the official `ntn` CLI. Treat it as self-documenting; discover current syntax instead of guessing.
+Use the official `ntn` CLI (reviewed: `0.23.11`). Treat it as self-documenting; discover current syntax instead of guessing.
 
 ## Guardrails
 
@@ -19,8 +19,10 @@ Use the official `ntn` CLI. Treat it as self-documenting; discover current synta
 
 ## Setup and discovery
 
+CLI maintenance is not a workspace request. Inspect startup and isolate version/help checks as described in the maintenance process; do not check authentication or discover API endpoints for an upgrade.
+
 1. Check `command -v ntn`. If absent, report the blocker. Persistent CLI installation requires user request/agreement; do not run a curl installer automatically.
-2. Check existing authentication with `ntn whoami`; prefer an already configured `NOTION_API_TOKEN`. If authentication or integration access is missing, report the blocker and ask the user to configure access. Login/logout alter local/account state and require user request/agreement; do not start `ntn login` merely to satisfy a read request.
+2. For workspace operations, prefer an already configured `NOTION_API_TOKEN`; otherwise check existing authentication with `ntn whoami`. If authentication or integration access is missing, report the blocker and ask the user to configure access. Login/logout alter local/account state and require user request/agreement; do not start `ntn login` merely to satisfy a read request.
 3. Minimize context while discovering syntax:
    - `ntn <command> --help`
    - `ntn api ls`
@@ -31,8 +33,8 @@ Use the official `ntn` CLI. Treat it as self-documenting; discover current synta
 ## Operation map
 
 - Search/find: inspect `ntn api v1/search --help`; return 5–10 strong matches, not raw JSON.
-- Read page content: `ntn pages get <page-id>`; retry with `--json` only if Markdown is truncated.
-- Create/edit Markdown pages: inspect `ntn pages create --help` or `ntn pages edit --help` first.
+- Read page content: `ntn pages get <page-id>`; if Markdown is truncated, inspect `unknown_block_ids` with `--json`. Do not replace a page from incomplete content.
+- Create/edit Markdown pages: inspect `ntn pages create --help` or `ntn pages edit --help` first. Frontmatter in Markdown is not a property-update interface; use `ntn api` for property changes.
 - Query a database: resolve it with `ntn datasources resolve <database-id>`, then use `ntn datasources query <data-source-id>` with a reasonable limit (usually 20–50).
 - Manage properties, comments, schemas, or unsupported page operations: use `ntn api` after inspecting that endpoint.
 - Upload files: inspect `ntn files --help`.

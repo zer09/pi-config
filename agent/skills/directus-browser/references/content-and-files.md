@@ -1,7 +1,7 @@
 # Directus content and files reference
 
-Last reviewed: 2026-08-09
-Sources: `official-sources.md` -> Content and file docs.
+Last reviewed: 2026-09-30
+Sources: `official-sources.md` -> Content and file docs; Directus 12 breaking changes.
 
 Use this for Content module, collection pages, item pages, Files module, assets, folders, and file metadata.
 
@@ -28,6 +28,7 @@ Use this for Content module, collection pages, item pages, Files module, assets,
 - Use `browser_execute_js` for exact values when form state is ambiguous.
 - Prefer `data-collection`, `data-field`, and `data-primary-key` attributes when present.
 - After saving, verify by checking save network response, saved UI state, or a fresh item read.
+- Directus 12.2+ WYSIWYG uses Tiptap. Unsupported stored HTML can be normalized on edit/save; review the warning/diff before unlocking the field. Do not change untouched markup incidentally.
 
 ## Files module
 
@@ -36,6 +37,7 @@ Use this for Content module, collection pages, item pages, Files module, assets,
 - File metadata is stored in the `directus_files` system collection.
 - Folder metadata is stored in `directus_folders`.
 - File permissions are configurable like regular collection data.
+- Directus 12.4.0 has a non-admin folder-read regression that can break the File Library with HTTP 500; 12.4.1 fixes it. Do not widen permissions to work around that failure.
 
 ## Assets and access
 
@@ -44,7 +46,7 @@ Use this for Content module, collection pages, item pages, Files module, assets,
 - Stored cookies can authenticate asset access when present.
 - `access_token` query auth exists, but do not use or ask for static tokens unless explicitly authorized.
 - Prefer Directus asset/API URLs over direct storage paths so permissions and image transformations apply.
-- Transformed image assets can be requested with a `key` query parameter for configured presets. Directus 12.2 defaults transformed output to at most 3000 pixels unless the server configuration changes that limit.
+- Transformed image assets can be requested with a `key` query parameter for configured presets. The default maximum output dimension is 3000 pixels in Directus 12.2 and 6000 in 12.3+; server configuration can override it.
 
 ## Upload safety
 

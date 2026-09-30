@@ -12,11 +12,15 @@ Use `schemantic` for Genkit Dart's typed schema mapping. Preserve the project's 
 
 ## Installation
 
-Add dependencies:
+Inspect existing generator dependencies first. For requested setup with Schemantic 0.2.x, the builder is a separate dev dependency:
 
 ```bash
 dart pub add schemantic
+dart pub add dev:schemantic_builder
+dart pub add dev:build_runner
 ```
+
+Use versions compatible with the project. If generation reports zero outputs, check `schemantic_builder` and the schema/part names. Use the existing generator command; do not add obsolete `--delete-conflicting-outputs` flags merely to match an old tutorial.
 
 ## Basic Usage
 

@@ -6,7 +6,7 @@ NEVER write `let auth = Auth.auth()` as an inline class or struct property if th
 - **SAFE PATTERN:** Initialize `Auth.auth()` lazily (`lazy var auth = Auth.auth()`) OR explicitly initialize the manager *after* `FirebaseApp.configure()` finishes.
 
 ## 1. Import and Initialize
-Ensure you have installed the `FirebaseAuth` SDK. Use the `xcode-project-setup` skill to automate adding the SPM dependency to the Xcode project.
+Reuse existing Firebase configuration and a compatible pinned `FirebaseAuth` dependency in the project's SPM/Xcode setup. Client SDK setup does not require CLI installation, CLI initialization, provisioning, or live authentication. Provider changes and live user creation require explicit user instruction for the exact action and target project/environment. Treat the snippets as app code; use mocks or a configured emulator for checks.
 
 > **Note:** Ensure `FirebaseApp.configure()` has been executed in your app's entry point before calling any `Auth.auth()` methods, otherwise your app will crash. Do not initialize Auth objects in SwiftUI `@State` properties at the App root level.
 
@@ -41,7 +41,7 @@ Modern Swift projects should prioritize `async/await` for authentication calls t
 ### Sign Up
 ```swift
 do {
-    let authResult = try await Auth.auth().createUser(withEmail: "user@example.com", password: "password")
+    let authResult = try await Auth.auth().createUser(withEmail: email, password: password)
     print("User created successfully with uid: \(authResult.user.uid)")
 } catch {
     print("Error creating user: \(error.localizedDescription)")
@@ -51,7 +51,7 @@ do {
 ### Sign In
 ```swift
 do {
-    let authResult = try await Auth.auth().signIn(withEmail: "user@example.com", password: "password")
+    let authResult = try await Auth.auth().signIn(withEmail: email, password: password)
     print("User signed in successfully with uid: \(authResult.user.uid)")
 } catch {
     print("Error signing in: \(error.localizedDescription)")

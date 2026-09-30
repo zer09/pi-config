@@ -18,7 +18,17 @@ For an authorized local session with a safe entrypoint, run from the project dir
 genkit start -- uv run python src/main.py
 ```
 
-Match the path to the project's entrypoint. The foreground process stays open while the UI is in use; stop it with `Ctrl+C` when finished. Use the URL printed by the CLI, typically `http://localhost:4000`.
+Match the path to the project's entrypoint or existing startup script. The foreground process stays open while the UI is in use; stop it with `Ctrl+C` when finished. `--noui` disables the UI, not the persistent server. Use the installed/repository-pinned CLI and the URL it prints, typically `http://localhost:4000`. Never fetch a latest runner automatically.
+
+For an authorized automated invocation, put `--non-interactive` before `--`. A one-shot flow call takes JSON matching the flow input and a runtime command:
+
+```bash
+genkit flow:run my_flow '"input"' --non-interactive -- uv run python src/main.py
+```
+
+`flow:run` exits after one flow invocation; it does not run an agent directly. An agent test needs an explicitly requested flow wrapper around one turn and the same live-call gate. `start --noui` is not a one-shot check.
+
+For machine-readable trace output, use `genkit trace:get <traceId> --format json`. Bound output and redact private inputs, outputs, and credentials before saving or sharing it. Trace collection is optional, not proof required for every code edit.
 
 When a flow invocation is explicitly authorized, or the flow uses only local mocks within the requested task:
 

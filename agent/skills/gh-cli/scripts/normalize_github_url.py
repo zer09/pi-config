@@ -111,14 +111,23 @@ def parse_url(url: str) -> dict:
             return unsupported("invalid OWNER/REPO path segments")
         return repo_view_route(f"{owner}/{repo}")
 
-    parsed = urlparse(url)
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return unsupported("malformed URL")
     host = parsed.netloc.lower()
     if host.startswith("www."):
         host = host[4:]
 
+    # Check shared URL parts before the SSH route can return early.
+    for part in (parsed.path, parsed.params, parsed.query, parsed.fragment):
+        if CONTROL_RE.search(unquote(part)):
+            return unsupported("URL path, query, or fragment contains control characters")
+    segments = [unquote(part) for part in parsed.path.split("/") if part]
+    fragment = unquote(parsed.fragment or "")
+
     if parsed.scheme == "ssh" and host == "git@github.com":
-        segments = [unquote(part) for part in parsed.path.split("/") if part]
-        if len(segments) != 2 or any(CONTROL_RE.search(part) for part in segments):
+        if len(segments) != 2:
             return unsupported("expected OWNER/REPO path segments")
         owner = segments[0]
         repo = clean_repo(segments[1])
@@ -129,11 +138,6 @@ def parse_url(url: str) -> dict:
     if parsed.scheme != "https" or host != "github.com":
         return unsupported("expected a GitHub HTTPS URL or GitHub SSH repository URL")
 
-    segments = [unquote(part) for part in parsed.path.split("/") if part]
-    fragment = unquote(parsed.fragment or "")
-    query = unquote(parsed.query or "")
-    if any(CONTROL_RE.search(part) for part in segments) or CONTROL_RE.search(fragment) or CONTROL_RE.search(query):
-        return unsupported("URL path, query, or fragment contains control characters")
     if len(segments) < 2:
         return unsupported("expected OWNER/REPO path segments")
 
@@ -187,7 +191,8 @@ def parse_url(url: str) -> dict:
 
     if head == "releases" and len(rest) >= 3 and rest[1] == "tag":
         tag = "/".join(rest[2:])
-        return route(["references/release/view.md"], ["gh", "release", "view", tag, "--repo", slug])
+        # Keep URL tags and paths after "--" so they cannot become command options.
+        return route(["references/release/view.md"], ["gh", "release", "view", "--repo", slug, "--", tag])
 
     if head == "blob" and len(rest) >= 3:
         ref = rest[1]
@@ -197,7 +202,7 @@ def parse_url(url: str) -> dict:
         file_path = "/".join(path_segments)
         return route(
             ["references/repo/read-file.md"],
-            ["gh", "repo", "read-file", file_path, "--repo", slug, "--ref", ref],
+            ["gh", "repo", "read-file", "--repo", slug, "--ref", ref, "--", file_path],
         )
 
     if head == "tree" and len(rest) >= 2:
@@ -206,10 +211,9 @@ def parse_url(url: str) -> dict:
         if ambiguous_content_route(ref, path_segments, blob=False):
             return unsupported_ambiguous_content_route()
         dir_path = "/".join(path_segments)
-        argv = ["gh", "repo", "read-dir"]
+        argv = ["gh", "repo", "read-dir", "--repo", slug, "--ref", ref]
         if dir_path:
-            argv.append(dir_path)
-        argv.extend(["--repo", slug, "--ref", ref])
+            argv.extend(["--", dir_path])
         return route(["references/repo/read-dir.md"], argv)
 
     if head == "compare" and len(rest) >= 2:

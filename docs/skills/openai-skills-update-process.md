@@ -9,7 +9,7 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Upstream provenance
 
 - Upstream repository: https://github.com/openai/skills
-- Current upstream commit checked locally: `49f948faa9258a0c61caceaf225e179651397431`
+- Current canonical default branch checked in Increment 17 (2026-09-30): `main`, commit `49f948faa9258a0c61caceaf225e179651397431`, tree `224b363928698e143876aef008232ed73d8e6f81`.
 
 | Local skill | Upstream path | Local notes |
 | --- | --- | --- |
@@ -17,6 +17,19 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 | `figma` | `skills/.curated/figma` | Owns MCP setup, troubleshooting, and context/screenshots/variables/assets fetching, not code implementation. |
 | `figma-implement-design` | `skills/.curated/figma-implement-design` | Owns repository UI implementation from a supplied Figma node/URL or supported desktop selection. |
 | `figma-create-design-system-rules` | `skills/.curated/figma-create-design-system-rules` | Owns reusable project-level Figma-to-code rule authoring, not ordinary implementation. |
+
+### Increment 17 source comparison
+
+Authenticated `gh` GET verified the canonical repository, default-branch commit, and complete recursive tree. The commit is unchanged from the prior pin. Compared every blob in the mapped folders with local resources, including scripts, references, assets, licenses, and metadata where present. Verified all 29 source blob identities using existing Git objects or authenticated GET; identical historical bytes were not downloaded again.
+
+| Local skill | Source files | Unchanged subtree SHA-1 | Result |
+| --- | --- | --- | --- |
+| `figma` | 8 | `b61e723c00a0757daf549ac6d8835ef1c3a7ed10` | Source unchanged; retain local routing, references, safety, and MCP dependency metadata byte-identically. |
+| `figma-implement-design` | 6 | `122e36f32ef3fc85374d70c4fb62a83861816e40` | Source unchanged; retain local context-plus-screenshot workflow and implementation reference byte-identically. |
+| `figma-create-design-system-rules` | 8 | `b1ab9259fd28ebdb2dabe2b6cb1a60cdc5818ef1` | Source unchanged; retain local platform-neutral rule authoring and template byte-identically. |
+| `skill-creator` | 7 | `8bfb6b8774d223eea3e788cfdfa1e4209e5e2ae9` | OpenAI source unchanged; dual-source comparison is recorded in `skill-creator-update-process.md`. |
+
+Existing source-to-local differences remain local overlays, not new source changes. No runtime edits or new compatibility integration were needed. Target/all 38 validators, metadata, changed links, scoped diff/secret/artifact checks, and runtime/index preservation fingerprints passed. These checks do not establish model compliance or configured Figma MCP operation. Host MCP setup remains unverified; no installation, configuration, browser, or live MCP call ran.
 
 ## Local policy
 

@@ -1,25 +1,28 @@
-# Gemini Notebook (formerly Google NotebookLM) CLI - Complete Command Reference
+# Gemini Notebook (formerly Google NotebookLM) CLI - Command Reference
 
-This document contains the complete command signatures and all available options for every `nlm` command.
+Runtime command guidance for `nlm 0.13.0`. Use installed command help for options not listed here.
+
+Apply the [root authorization rules](../SKILL.md#safety-and-authorization) before executing examples. Reads do not authorize writes. Setup, auth recovery, exports, uploads, and configuration each retain their own scope; delete always needs explicit target confirmation. Batch and pipeline generation must not bypass Studio confirmation.
 
 ## Table of Contents
 
 1. [Global Options](#global-options)
 2. [Authentication](#authentication)
-3. [Notebook Commands](#notebook-commands)
-4. [Source Commands](#source-commands)
-5. [Research Commands](#research-commands)
-6. [Generation Commands](#generation-commands)
-7. [Studio Commands](#studio-commands)
-8. [Download Commands](#download-commands)
-9. [Export Commands](#export-commands)
-10. [Sharing Commands](#sharing-commands)
-11. [Note Commands](#note-commands)
-12. [Chat Commands](#chat-commands)
-13. [Alias Commands](#alias-commands)
-14. [Config Commands](#config-commands)
-15. [Organization and Automation](#organization-and-automation)
-16. [Setup, Skill, and Diagnostics](#setup-skill-and-diagnostics)
+3. [Plan Usage](#plan-usage)
+4. [Notebook Commands](#notebook-commands)
+5. [Source Commands](#source-commands)
+6. [Research Commands](#research-commands)
+7. [Generation Commands](#generation-commands)
+8. [Studio Commands](#studio-commands)
+9. [Download Commands](#download-commands)
+10. [Export Commands](#export-commands)
+11. [Sharing Commands](#sharing-commands)
+12. [Note Commands](#note-commands)
+13. [Chat Commands](#chat-commands)
+14. [Alias Commands](#alias-commands)
+15. [Config Commands](#config-commands)
+16. [Organization and Automation](#organization-and-automation)
+17. [Setup, Skill, and Diagnostics](#setup-skill-and-diagnostics)
 
 ---
 
@@ -99,8 +102,30 @@ nlm login switch <profile>
 ```bash
 nlm login switch work
 # Output: ✓ Switched default profile to work
-#         Account: jsmith@company.com
+#         Account: user@example.com
 ```
+
+### nlm auth refresh
+
+```bash
+nlm auth refresh [--profile <profile>]
+```
+
+Runs a non-interactive headless-browser refresh against a saved profile and writes renewed credentials. It exits non-zero on failure. This is auth recovery, not an offline status check. Use only for authorized recovery or expressly requested unattended maintenance; do not install a scheduler as an adjacent step. `NOTEBOOKLM_COOKIES` or `NOTEBOOKLM_DISABLE_HEADLESS_REFRESH=1` prevents this refresh. Never print secret values or unset those controls automatically.
+
+---
+
+## Plan Usage
+
+```bash
+nlm usage
+nlm usage --json
+nlm usage --profile <profile>
+```
+
+This account-level read reports measured compute usage, not estimated request counts. Inspect both `rolling` and `weekly` windows: `percent_used`, `percent_remaining`, and `resets_at`. JSON timestamps are UTC; table timestamps use local time. `tier` appears when available. Check usage before quota-limited work when the remaining budget matters.
+
+MCP `usage_get(profile="<profile>")` checks one saved account without switching the default used by other tools. An explicit profile takes precedence over environment cookies; a missing profile errors rather than falling back. Auth failure does not mean exhausted quota and does not authorize account switching or automatic login.
 
 ---
 
@@ -170,8 +195,13 @@ nlm notebook query <notebook-id> <question> [OPTIONS]
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--source-ids` | | Limit to specific sources (comma-separated) |
-| `--conversation-id` | | Continue existing conversation |
+| `--conversation-id` | `-c` | Continue a specified conversation |
+| `--new-conversation` | | Start an independent chat instead of continuing persistent history |
+| `--timeout` | `-t` | Query time budget in seconds (default: 120) |
+| `--json` | `-j` | Output as JSON |
 | `--profile` | `-p` | Use specific profile |
+
+MCP also supports `notebook_query_start` followed by `notebook_query_status(query_id)` for long queries. Poll only the requested query; do not start duplicates after a timeout without checking its status.
 
 ### nlm notebook rename
 
@@ -446,8 +476,26 @@ nlm report create <notebook-id> [OPTIONS]
 
 | Option | Values | Default |
 |--------|--------|---------|
-| `--format` | `"Briefing Doc"`, `"Study Guide"`, `"Blog Post"`, `"Create Your Own"` | `"Briefing Doc"` |
+| `--format` | `"Briefing Doc"`, `"Study Guide"`, `"Blog Post"`, `"Create Your Own"`, `"Interactive"` | `"Briefing Doc"` |
+| `--template` | Interactive report template (only for `Interactive`) | `learning_overview` |
 | `--prompt` | Custom prompt (required for "Create Your Own") | |
+
+### Interactive report content and elements
+
+```bash
+nlm report get <notebook-id> <report-id> [--json] [-o report.md]
+nlm report elements <notebook-id> <report-id> [--json] [--content]
+nlm report elements <notebook-id> <report-id> --wait <element-id> --timeout 180 --content
+nlm report element create <notebook-id> <report-id> --id <element-id> --confirm
+nlm report element create <notebook-id> <report-id> --type video --setting video_format=explainer --confirm
+nlm report element create-batch <notebook-id> <report-id> --plan plan.json --confirm
+```
+
+`get` reads report markdown; `-o` is a separate local export. `elements` reads suggested cards, sections, allowed settings, and status. `--wait` accepts comma-separated element IDs and `--timeout` bounds waiting. `--content` includes supported inline content.
+
+`element create` selects by `--id` or `--type`; options include `--prompt`, `--language`, repeatable `--setting name=value`, `--json`, and `--profile`. `create-batch` takes a JSON list of `element_id`, optional `steering_prompt`, and optional `settings`. Report creation does not authorize generating its suggested elements. Each requested generation still needs `--confirm`.
+
+MCP `report(action="get"|"elements"|"generate", notebook_id=..., artifact_id=...)` provides the same surface. `generate` with `plan=[...]` and no confirmation validates without generating; only an authorized plan may use `confirm=True`. `elements` accepts `wait_for=[...]`, `timeout`, and `include_content=True`. A timed-out poll is not a failed generation. See the [interactive report workflow](workflows.md#interactive-report-elements).
 
 ### nlm quiz create
 
@@ -615,7 +663,7 @@ nlm download <type> <notebook-id> [OPTIONS]
 ```
 
 **Available types:** `audio`, `video`, `report`, `mind-map`, `slide-deck`,
-`infographic`, `quiz`, `flashcards`, `data-table`
+`infographic`, `quiz`, `flashcards`, `data-table`, `file`
 
 | Option | Description |
 |--------|-------------|
@@ -625,12 +673,21 @@ nlm download <type> <notebook-id> [OPTIONS]
 
 **Examples:**
 ```bash
-nlm download audio <nb-id> --output podcast.mp3
+nlm download audio <nb-id> --output podcast.m4a
 nlm download video <nb-id> --output video.mp4
 nlm download report <nb-id> --output report.md
+nlm download file <nb-id> --id <artifact-id> --output export.bin
 nlm download quiz <nb-id> --output quiz.html --format html
 nlm download flashcards <nb-id> --output cards.json --format json
 ```
+
+Audio downloads contain AAC in MP4 and require `.m4a` or `.mp4`; `.mp3` is rejected. Conversion is a separate local operation, not part of a download request.
+
+MCP downloads stay inside the download root on the server host. The root uses `NOTEBOOKLM_DOWNLOAD_DIR` after stripping whitespace and expanding `~` if the value is nonempty. Otherwise, it uses `~/Downloads/gemini-notebook` only if `~/Downloads` is an existing directory; if not, it uses the application storage directory's `downloads` subdirectory.
+
+Relative `output_path` values are anchored to this root; outside paths are refused. Use the returned absolute destination. CLI can use an explicitly requested outside path only when `NOTEBOOKLM_DOWNLOAD_DIR` is unset or empty. A nonempty value confines CLI too; unlike the MCP resolver, CLI does not strip whitespace. Never derive output paths from notebook content or unset confinement to bypass it.
+
+For newly completed audio/video, MCP `download_artifact(..., artifact_id=..., wait=True, wait_timeout=300)` can wait for CDN readiness. The wait bounds service polling, not total transfer time. Retry a late download rather than generating again. Downloads and hosted Google Docs/Sheets exports are different authorized actions.
 
 ### nlm download all
 
@@ -664,20 +721,25 @@ nlm download all --all-notebooks --output-dir ./exports --skip-existing
 Export artifacts to Google Docs or Sheets.
 
 ```bash
-nlm export <type> <notebook-id> <artifact-id> [OPTIONS]
+nlm export to-docs NOTEBOOK ARTIFACT_ID [--title TITLE] [--profile PROFILE]
+nlm export to-sheets NOTEBOOK ARTIFACT_ID [--title TITLE] [--profile PROFILE]
+nlm export artifact NOTEBOOK ARTIFACT_ID --type docs|sheets [--title TITLE] [--json] [--profile PROFILE]
 ```
 
-**Available types:** `docs`, `sheets`
+`NOTEBOOK` accepts an ID or alias. `to-docs` exports a report; `to-sheets` exports a data table. `artifact` selects the destination with the required `--type` option. Each export needs exact authorization for the notebook, artifact, and hosted destination.
 
-| Option | Description |
-|--------|-------------|
-| `--title` | Title for the exported document |
-| `--profile` | Use specific profile |
+| Option | Commands | Description |
+|--------|----------|-------------|
+| `--title TITLE` | All three | Optional title for the exported document |
+| `--profile PROFILE`, `-p PROFILE` | All three | Use specific profile |
+| `--type docs\|sheets`, `-t docs\|sheets` | `artifact` only | Required export destination |
+| `--json`, `-j` | `artifact` only | Output as JSON |
 
 **Examples:**
 ```bash
-nlm export sheets <nb-id> <artifact-id> --title "Data Table Export"
-nlm export docs <nb-id> <artifact-id> --title "My Report"
+nlm export to-sheets <nb-id> <artifact-id> --title "Data Table Export"
+nlm export to-docs <nb-id> <artifact-id> --title "My Report"
+nlm export artifact <nb-id> <artifact-id> -t docs --title "My Report" -j -p <profile>
 ```
 
 ---
@@ -698,21 +760,27 @@ nlm share status <notebook-id> [OPTIONS]
 
 ### nlm share public
 
-Enable or disable public link sharing.
+Enable public link sharing. This command only enables access.
 
 ```bash
-nlm share public <notebook-id> [OPTIONS]
+nlm share public <notebook-id> [--profile PROFILE]
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--off` | Disable public sharing (default: enable) |
-| `--profile` | Use specific profile |
+### nlm share private
 
-**Examples:**
+Disable public link sharing. Invited collaborators retain access; this does not remove them.
+
 ```bash
-nlm share public <nb-id>         # Enable public link
-nlm share public <nb-id> --off   # Disable public link
+nlm share private <notebook-id> [--profile PROFILE]
+```
+
+Both commands accept `--profile PROFILE` or `-p PROFILE`. Each change needs exact authorization for the notebook and access change. Verify the result with sharing status.
+
+**Examples (run only the requested change):**
+```bash
+nlm share public <nb-id>    # Enable public link only if requested
+nlm share private <nb-id>   # Disable public link only if requested
+nlm share status <nb-id>    # Verify sharing settings and collaborators
 ```
 
 ### nlm share invite
@@ -829,7 +897,7 @@ nlm chat configure <notebook-id> [OPTIONS]
 
 ### nlm chats list
 
-List chat sessions for a notebook (alias: `nlm chat list`).
+List chat sessions for a notebook.
 
 ```bash
 nlm chats list <notebook-id> [OPTIONS]
@@ -964,7 +1032,8 @@ nlm config set <key> <value>
 | `output.format` | `table` | Default output format (table, json) |
 | `output.color` | `true` | Enable colored output |
 | `output.short_ids` | `true` | Show shortened IDs |
-| `auth.browser` | `auto` | Preferred browser for login (auto, chrome, arc, brave, edge, chromium, vivaldi, opera). Falls back to auto if preferred browser is not found. |
+| `auth.browser` | `auto` | Preferred login browser: auto, chrome, arc, dia, comet, brave, edge, chromium, firefox, vivaldi, opera. Falls back to auto if a preferred named browser is unavailable. |
+| `auth.browser_path` | empty | Explicit Chromium-compatible executable; `NLM_BROWSER_PATH` overrides named discovery. |
 | `auth.default_profile` | `default` | Profile to use when `--profile` not specified. **Note:** The MCP Server always uses the active default profile. Changing this setting will instantaneously switch the MCP server's Google account. |
 
 **Example**: Set default profile to avoid typing `--profile` for every command:
@@ -1011,23 +1080,25 @@ nlm cross query "Everything" --all
 
 ### Batch operations
 
+Resolve selectors to exact notebook targets before authorized mutations. Source ingestion needs separate authorization. Deletes require explicit confirmation of every exact target, even with `--confirm`.
+
 ```bash
 nlm batch query "Summarize" --notebooks "id1,id2"
 nlm batch add-source "https://example.com" --notebooks "id1,id2"
 nlm batch create "Project A, Project B"
 nlm batch delete --notebooks "id1,id2" --confirm
-nlm batch studio audio --tags "research"
 ```
+
+Do not use CLI batch Studio for generation: `nlm batch studio` has no confirmation option. MCP `batch(action="studio", ...)` ignores `confirm`; setting `confirm=True` does not fix this. Use individual CLI generation commands with `--confirm` or direct gated MCP `studio_create` calls for each authorized notebook and artifact.
 
 ### Pipelines
 
 ```bash
 nlm pipeline list
-nlm pipeline run ingest-and-podcast --notebook <id> --input-url "https://..."
-nlm pipeline run research-and-report --notebook <id> --input-url "https://..."
-nlm pipeline run multi-format --notebook <id>
 nlm pipeline create my-pipeline --file pipeline.yaml
 ```
+
+The `ingest-and-podcast`, `research-and-report`, and `multi-format` pipelines generate artifacts without Studio confirmation. Mutation pipelines lack granular gates for source ingestion, generation, and deletion. Do not run mutation pipelines. Use individual authorized operations with Studio confirmation and exact-target delete confirmation instead. Source ingestion remains separately authorized. Creating a pipeline is a separate local write, not permission to run it. Neither CLI nor MCP pipeline execution has a confirmation parameter.
 
 Run `nlm <family> <command> --help` for selector and profile options.
 
@@ -1035,10 +1106,10 @@ Run `nlm <family> <command> --help` for selector and profile options.
 
 ## Setup, Skill, and Diagnostics
 
-MCP setup writes the configured server name `gemini-notebook-mcp`; the
-`notebooklm-mcp` executable remains unchanged for compatibility.
+The distribution remains `notebooklm-mcp-cli` at 0.13.0, with executables `nlm` and `notebooklm-mcp`. New MCP connections use `gemini-notebook-mcp`. An old connection name is not a package rename or permission to replace a working configuration.
 
 ```bash
+nlm setup                      # Interactive wizard for a human in a terminal
 nlm setup list
 nlm setup add <tool>
 nlm setup remove <tool>
@@ -1052,6 +1123,7 @@ nlm skill install <tool> [--level user|project]
 nlm skill update [tool]
 nlm skill uninstall <tool>
 nlm skill show
+nlm skill package [--output DIR]  # Local ZIP, not an upload
 
 nlm doctor
 nlm doctor --verbose
@@ -1062,9 +1134,15 @@ Relay AI/3P profiles exist, the command prompts for a selection unless
 `--profile` is supplied; if no profile exists, nothing is created. Fully quit
 the selected Claude profile before adding or removing MCP configuration. The
 CLI refuses to write while the active Claude executable is running, including
-when Relay AI launched it. User-level skill installation likewise requires
-the target tool to be detected; use `--level project` for an intentional
-project-local install.
+when Relay AI launched it. User-level skill installation likewise requires the target tool to be detected.
+
+The wizard offers status, add MCP, add skill, remove, copy setup, and exit; Esc returns to the previous screen. It lists detected tools, starts connection selection empty, and offers `notebooklm-mcp` or `notebooklm` connections under **Needs a fix**. Renaming to `gemini-notebook-mcp` is a separate configuration write that preserves other settings. Do not drive the interactive wizard as maintenance validation or choose adjacent writes.
+
+MCP configuration defaults to app/user scope and uses the executable's full path. Codex CLI and ChatGPT desktop share a configuration on the same host. The wizard uses GitHub Copilot's VS Code user profile; direct `nlm setup add github-copilot` defaults to project scope unless `--scope user` is supplied. Skills default to **All my projects** (user level); choose `--level project` only for an authorized project install. Current/newer skill versions are kept. Replacing older or unversioned skills requires confirmation and backs up the old directory. Do not let this replace the locally adapted skill or its safety overlays.
+
+`nlm skill package --output DIR` writes `DIR/nlm-skill.zip`, replacing an existing ZIP atomically. Without `--output`, it uses `~/Downloads` if present, otherwise the home directory. It packages the distribution's upstream skill, not this local adaptation, and moves upstream `version` into `metadata.version`. Review its contents and safety rules before any separately authorized upload.
+
+Claude Desktop Chat/Cowork and claude.ai load account-uploaded skills through **Customize → Skills → Add**; the Desktop Code tab uses Claude Code's local skills. Packaging does not upload anything. Uploading to that account is a hosted mutation; adding skill content to a NotebookLM notebook is a separate hosted source mutation with an exact notebook target. The ZIP is for Claude skill import, not a supported NotebookLM source-file format. No setup or package request authorizes either upload.
 
 Verb-first aliases are also available for common operations, including
 `nlm create`, `nlm list`, `nlm get`, `nlm add`, `nlm rename`, `nlm delete`,

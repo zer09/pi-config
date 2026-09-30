@@ -32,7 +32,7 @@ playwright-cli -s=task-test snapshot
 
 The test pauses at the start. Resume or step according to the printed debugging instructions until the relevant setup and target state are reached. Keep the test process alive while inspecting it. This attachment is not user-profile access and does not authorize CDP or extension attachment to the user's browser.
 
-For test generation that depends on fixtures or login setup, explore through the existing seed/test session instead of opening the URL in an unrelated session. Preserve hooks and fixtures. Do not share one paused session between independent scenarios.
+For test generation that depends on fixtures or login setup, explore through the existing seed/test session instead of opening the URL in an unrelated session. Preserve hooks and fixtures. Generate scenarios sequentially: detach and stop the task-owned background test after each scenario, then restart the seed for the next one. Do not share one paused session between independent scenarios or start the next seed before the previous test process stops.
 
 ## Generate useful tests
 

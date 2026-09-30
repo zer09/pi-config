@@ -117,6 +117,11 @@ Installing a new skill means:
 - `pp-posthog-update-process.md`: update workflow for the Printing Press PostHog CLI skill.
 - `refine-linear-task-update-process.md`: retired-skill notes and reinstall checklist for the former Linear task refinement skill.
 
+## Deferred maintenance
+
+- TODO: `outpour-mcp` is intentionally excluded from the current update. Its blank inventory row records presence only, not maintenance acceptance or hardening. Later work must complete maintenance integration, harden custom-endpoint credential safety, fix the known `call` argument-parsing defect (the tool name is selected as the JSON argument), and add offline regression tests. No Outpour remediation occurred in this update.
+- `impeccable` is excluded from the current update and remains untouched, explicit-only, pending future removal. This exclusion does not authorize removal.
+
 ## Retired skills
 
 These runtime skills were removed during the skill slimming pass because their workflows are strong base-model capabilities, overlap with remaining tools, or are not worth a dedicated runtime skill in this setup:

@@ -19,10 +19,10 @@ Directus access does not bypass Browser Harness consent, the chosen profile/acco
 
 1. Open the Directus URL. If unknown, ask for it.
 2. If login is required, stop and ask the user to log in manually in the browser.
-3. Use `browser_snapshot` first for page structure and clickable coordinates.
-4. Navigate by visible labels and Directus concepts, not brittle selectors or stored coordinates.
+3. Use `browser_snapshot` first for page structure and interaction refs. Prefer `[eN]` refs; use fresh snapshot coordinates only as a fallback.
+4. Navigate by visible labels and Directus concepts. Refresh the snapshot after navigation, major re-renders, or stale refs.
 5. Use `browser_execute_js` for precise DOM/form/table reads. Prefer Directus field data attributes when present: `data-collection`, `data-field`, `data-primary-key`.
-6. After a save or a failed action, inspect `browser_network_requests`; use `browser_console` only when the UI appears broken.
+6. After a save or a failed action, inspect `browser_network_requests`; use `browser_console` only when the UI appears broken. A timeout leaves the mutation outcome unverified; inspect before any authorized safe retry.
 7. Verify changes via saved UI state, network response, or a fresh read.
 8. Use screenshots only for visual/layout confirmation.
 

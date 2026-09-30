@@ -43,23 +43,14 @@ create index entries with duplicate values.
 
 ## Query Support Examples
 
-| Query Type                           | Index Required                       |
-| :----------------------------------- | :----------------------------------- |
-| **Simple Equality**<br>`where("a",   | Single-Field Index on field `a`      |
-: "==", 1)`                            :                                      :
-| **Simple Range/Sort**<br>`where("a", | Single-Field Index on field `a`      |
-: ">", 1).orderBy("a")`                :                                      :
-| **Multiple Equality**<br>`where("a", | Single-Field Index on field `a` and  |
-: "==", 1).where("b", "==", 2)`        : `b`                                  :
-| **Equality +                         | **Composite Index** on field `a` and |
-: Range/Sort**<br>`where("a", "==",    : `b`                                  :
-: 1).where("b", ">", 2)`               :                                      :
-| **Multiple Ranges**<br>`where("a",   | **Composite Index** on field `a` and |
-: ">", 1).where("b", ">", 2)`          : `b`                                  :
-| **Array Contains +                   | **Composite Index** on field `tags`  |
-: Equality**<br>`where("tags",         : and `active`                         :
-: "array-contains",                    :                                      :
-: "news").where("active", "==", true)` :                                      :
+| Query | Index to consider |
+| --- | --- |
+| `where("a", "==", 1)` | Single-field on `a` |
+| `where("a", ">", 1).orderBy("a")` | Single-field on `a` |
+| `where("a", "==", 1).where("b", "==", 2)` | Single-field on `a` and `b` |
+| `where("a", "==", 1).where("b", ">", 2)` | Composite on `a` and `b` |
+| `where("a", ">", 1).where("b", ">", 2)` | Composite on `a` and `b` |
+| `where("tags", "array-contains", "news").where("active", "==", true)` | Composite on `tags` and `active` |
 
 If no indexes is present, Firestore Enterprise will perform a full collection
 scan to find documents that match a query.
@@ -131,8 +122,10 @@ Define a unique index:
 
 ### Explicitly authorized deployment
 
-Index deployment requires explicit user instruction for that exact action. Verify the project and database first; a missing target does not authorize database creation. For local work, validate the index configuration without deployment.
+Index deployment requires explicit authorization for the exact action and target project/database. Verify the database exists and confirm its Enterprise edition/native access mode. A missing target does not authorize database creation. For local work, validate the index configuration without deployment.
+
+Before deployment, apply the [single-database config and creation gates](provisioning.md#explicitly-authorized-deployment). `<single-database-config>` must contain only the authorized existing database and resource files; a broad config can affect other databases even with an index-only selector.
 
 ```bash
-firebase deploy --only firestore:indexes --project <project-id>
+firebase deploy --only firestore:indexes --project <project-id> --config <single-database-config>
 ```

@@ -1,6 +1,6 @@
 # Directus browser-operation security
 
-Last reviewed: 2026-08-09
+Last reviewed: 2026-09-30
 Sources: `official-sources.md` -> AI/MCP and security docs, adapted for browser operation without Directus MCP.
 
 Use this for token handling, script execution, API mutation gates, hosted-service safety, and risky Studio changes.
@@ -37,7 +37,7 @@ Not allowed by default:
 
 If Directus MCP settings are visible in Studio, treat them as configuration, not as an available tool in this Pi session. Do not enable/disable MCP, OAuth modes, registered clients, static-token access patterns, or delete permissions unless explicitly asked.
 
-Official guidance prefers OAuth and a dedicated least-privilege user. Directus v11.12+ includes stable built-in remote MCP; older/special setups can use local `@directus/content-mcp`. For OAuth, prefer Client ID Metadata Document registration when the client supports it; enable Dynamic Client Registration only when needed. Static tokens remain a fallback for clients without OAuth.
+Official guidance prefers OAuth and a dedicated least-privilege user. Built-in remote MCP requires Directus v11.12+ and left beta in v11.13; older/special setups can use local `@directus/content-mcp`. For OAuth, prefer Client ID Metadata Document registration when the client supports it; enable Dynamic Client Registration only when needed. Static tokens remain a fallback for clients without OAuth.
 
 Keep Directus MCP's global delete permission disabled unless the user explicitly requests that exposure. Directus 12 licensing can disable MCP and other APIs after entitlement limits expire, so inspect the server version and license state instead of weakening auth or permissions when MCP is unavailable.
 

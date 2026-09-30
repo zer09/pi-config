@@ -28,7 +28,8 @@ gh api repos/OWNER/REPO/pulls/123/files --paginate
 
 ## Reference navigation
 
-- `references/index.md` - command-family map and path rules.
+- `references/index.md` - command-family map, extension boundary, and path rules.
+- `references/gh.md` - built-in root help.
 - `references/<command>.md` - top-level command help, for example `references/pr.md`.
 - `references/<command>/<subcommand>.md` - subcommand help, for example `references/pr/view.md`.
 - `references/help/<topic>.md` - `gh help <topic>` pages.

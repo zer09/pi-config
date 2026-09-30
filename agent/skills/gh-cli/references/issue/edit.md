@@ -1,7 +1,7 @@
 # gh issue edit
 
 Source: https://cli.github.com/manual/gh_issue_edit
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue edit`.
+Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help issue edit`.
 
 ## Summary
 
@@ -19,6 +19,21 @@ Edit one or more issues within the same repository.
 Editing issues' projects requires authorization with the `project` scope.
 To authorize, run `gh auth refresh -s project`.
 
+Use `--attach` to upload an image or video to a single issue. Without a body
+flag the issue keeps the body it already has and the attachment is appended to it.
+If the body references an attached file, such as `![alt](./login.png)`, that
+reference is rewritten to point at the uploaded asset instead.
+You can attach up to 50 files per command.
+
+Alt text for an image follows the path after `#`, as in
+`--attach './login.png#The login error state'`. Without it the filename is used.
+A reference already in the body keeps the alt text written there. Video renders
+as a player and has no alt text, so it cannot be given any.
+
+If some attachments upload and others fail, the issue is still updated with the
+ones that succeeded. The command then exits with a non-zero status, but the edited
+issue URLs are still printed to stdout.
+
 The `--add-assignee` and `--remove-assignee` flags both support
 the following special values:
 - `@me`: assign or unassign yourself
@@ -35,6 +50,7 @@ FLAGS
       --add-label name             Add labels by name
       --add-project title          Add the issue to projects by title
       --add-sub-issue number       Add sub-issues by number or URL
+      --attach file                Attach an image or video file, in '<file>#<image alt text>' format
   -b, --body string                Set the new body.
   -F, --body-file file             Read body text from file (use "-" to read from standard input)
   -m, --milestone name             Edit the milestone the issue belongs to by name
@@ -64,6 +80,8 @@ EXAMPLES
   $ gh issue edit 23 --milestone "Version 1"
   $ gh issue edit 23 --remove-milestone
   $ gh issue edit 23 --body-file body.txt
+  $ gh issue edit 23 --attach './login.png#The login error state'
+  $ gh issue edit 23 --attach ./before.png --attach ./after.png
   $ gh issue edit 23 34 --add-label "help wanted"
   $ gh issue edit 23 --type Bug
   $ gh issue edit 23 --remove-type

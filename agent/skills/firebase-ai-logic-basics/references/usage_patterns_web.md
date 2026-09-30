@@ -1,7 +1,9 @@
 # Firebase AI Logic Basics
 
 ## Initialization Pattern
-You must initialize the ai-logic service after the main Firebase App.
+Initialize AI Logic after the main Firebase App. Reuse existing app initialization, config, and compatible client dependencies; add `firebase` only for a requested dependency change. Client setup does not authorize backend provisioning.
+
+Replace model placeholders with a model supported by the chosen provider and feature in the [model documentation](https://firebase.google.com/docs/ai-logic/models.md.txt).
 ```JavaScript
 import { initializeApp } from "firebase/app";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "firebase/ai";
@@ -18,10 +20,10 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize the AI Logic service (defaults to Gemini Developer API)
 // To set the AI provider, set the backend as the second parameter
-const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
+const ai = getAI(app, { backend: new GoogleAIBackend() });
 
 const generationConfig = {
-  candidate_count: 1,
+  candidateCount: 1,
   maxOutputTokens: 2048,
   stopSequences: [],
   temperature: 0.7,      // Balanced: creative but focused
@@ -30,7 +32,7 @@ const generationConfig = {
 };
 
 // Specify the config as part of creating the `GenerativeModel` instance
-const model = getGenerativeModel(ai, { model: "gemini-2.5-flash-lite",  generationConfig });
+const model = getGenerativeModel(ai, { model: "<supported-model>",  generationConfig });
 ```
 
 ## Core Capabilities
@@ -119,7 +121,7 @@ const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
 
 // Create a `GenerativeModel` instance with a model that supports your use case
 const model = getGenerativeModel(ai, {
-  model: "gemini-2.5-flash-image",
+  model: "<supported-image-model>",
   // Configure the model to respond with text and images (required)
   generationConfig: {
     responseModalities: [ResponseModality.TEXT, ResponseModality.IMAGE],
@@ -130,7 +132,7 @@ const model = getGenerativeModel(ai, {
 const prompt = 'Generate an image of the Eiffel Tower with fireworks in the background.';
 
 // To generate an image, call `generateContent` with the text input
-const result = model.generateContent(prompt);
+const result = await model.generateContent(prompt);
 
 // Handle the generated image
 try {
@@ -150,11 +152,12 @@ Enforce a specific JSON schema for the response.
 ```JavaScript
 import { getGenerativeModel, Schema } from "firebase/ai";
 const jsonModel = getGenerativeModel(ai, {
-    model: "gemini-2.5-flash-lite",
+    model: "<supported-model>",
     generationConfig: {
         responseMimeType: "application/json",
-        // Optional: Define a schema
-        schema = Schema.object({ ... });
+        responseSchema: Schema.object({
+            properties: { answer: Schema.string() }
+        })
     }
 });
 

@@ -1,10 +1,10 @@
 # Firebase Local Environment Setup
 
-Inspect existing project tools and configuration first. Dependency-only and existing-config tasks do not require CLI authentication, CLI download/install, project creation, app registration, or CLI initialization.
+Inspect existing project tools and configuration first. Dependency-only and existing-config tasks do not require CLI authentication, CLI download/install, project creation, app registration, CLI initialization, or live account/project inspection.
 
 ## 1. Verify Node.js only when needed
 - **Action**: Run `node --version` only when the requested task needs Node.js.
-- **Handling**: Match the repository's Node.js requirements. If Node.js is missing or incompatible, report it and ask before download/install. Follow the installation options below only after the user agrees:
+- **Handling**: Match the repository's Node.js requirements and the selected CLI package's `engines.node`. Firebase CLI 15.32.0 declares `>=20.0.0 || >=22.0.0 || >=24.0.0`; this does not authorize changing a project's pinned runtime. If Node.js is missing or incompatible, report it and ask before download/install. Follow the installation options below only after the user agrees:
 
   **Recommended: Use a Node Version Manager**
   This avoids permission issues when installing global packages.
@@ -57,3 +57,9 @@ firebase login
 ```
 
 For an authorized login without local browser access, use `firebase login --no-localhost` instead. Keep local dependency and configuration work independent of login or optional agent tooling setup.
+
+## 4. Separately requested agent tooling
+
+The guides under `setup/` and `refresh/` contain upstream installer recipes, not prerequisites for Firebase app work. Use a guide only for the requested agent and installation scope. Do not run its installers, auto-downloading runners, broad skill updates, MCP setup, or restarts automatically. Confirm the exact packages/skills, versions, and local configuration changes first; preserve other agent settings. Read local configuration without exposing credentials, and do not probe accounts or hosted APIs to verify agent setup.
+
+For Pi skill maintenance, follow the [local update process](../../../../docs/skills/firebase-skills-update-process.md) instead of those installers. Do not create a second skill copy or replace the local safety overlays.

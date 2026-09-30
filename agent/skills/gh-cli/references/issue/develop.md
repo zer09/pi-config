@@ -1,7 +1,7 @@
 # gh issue develop
 
 Source: https://cli.github.com/manual/gh_issue_develop
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue develop`.
+Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help issue develop`.
 
 ## Summary
 
@@ -30,6 +30,7 @@ FLAGS
   -c, --checkout             Checkout the branch after creating it
   -l, --list                 List linked branches for the issue
   -n, --name string          Name of the branch to create
+      --worktree path        Check out the branch into a worktree at the given path
 
 INHERITED FLAGS
       --help                     Show help for command
@@ -47,6 +48,9 @@ EXAMPLES
 
   # Create a branch for issue 123 and check it out
   $ gh issue develop 123 --checkout
+
+  # Create a branch for issue 123 and check it out in a worktree
+  $ gh issue develop 123 --checkout --worktree /path/to/wt-feature
 
   # Create a branch in repo monalisa/cli for issue 123 in repo cli/cli
   $ gh issue develop 123 --repo cli/cli --branch-repo monalisa/cli

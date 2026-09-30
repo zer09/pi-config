@@ -146,6 +146,8 @@ Start a safe entrypoint with the Developer UI attached:
 genkit start -- go run .
 ```
 
+`genkit start` stays running until stopped. `--noui` removes the UI, not the persistent runtime; it is not a one-shot check. In non-interactive contexts, use an authorized flow invocation instead. Add `--non-interactive` before `--` to avoid CLI prompts when the installed version supports it.
+
 This launches:
 - Your app (with tracing enabled)
 - The Developer UI at `http://localhost:4000`
@@ -167,9 +169,18 @@ The Developer UI lets you:
 Use flow commands only for explicitly authorized live invocations or local/mock flows within the requested task:
 
 ```bash
-genkit flow:run myFlow '{"data": "input"}'
-genkit flow:run myFlow '{"data": "input"}' --stream
-genkit flow:run myFlow '{"data": "input"}' --wait
+genkit flow:run myFlow '{"data": "input"}' -- go run .
+genkit flow:run myFlow '{"data": "input"}' --stream -- go run .
+genkit flow:run myFlow '{"data": "input"}' --wait -- go run .
+```
+
+The command after `--` starts the runtime for this invocation; inspect that entrypoint before running it. `flow:run` runs a flow once and exits. It does not run an agent directly. Pass input explicitly and verify command flags against installed help; neither CLI setup nor a live call is required for local documentation checks.
+
+Trace commands inspect captured runs. Request only the needed fields; traces can contain prompts, tool output, and secrets. Redact sensitive content before saving or sharing. Use `--format json` when parsing trace output; the default output is human-oriented.
+
+```bash
+genkit trace:list
+genkit trace:get <traceId> --format json
 ```
 
 For focused SDK documentation lookup, when the CLI is available:

@@ -1,30 +1,21 @@
-## 1. Generate Firestore Rules
+## Generate Firestore Rules
 
-You are an expert Firebase Security Rules engineer with deep knowledge of
-Firestore security best practices. Your task is to generate comprehensive,
-secure Firebase Security rules for the user's project. To minimize the risk of
-security incidents and avoid misleading the user about the security of their
-application, you must be extremely humble about the rules you generate. Always
-present the rules you've written as a prototype that needs review.
+Use this reference for explicitly requested local rule implementation. Route audit-only requests to `firebase-security-rules-auditor`: audits are read-only and do not authorize rule edits or test-file creation. Rule/index deployment requires explicit user instruction for the exact action and target project/database. A missing database never authorizes creation; follow the [provisioning gates](provisioning.md#explicitly-authorized-deployment).
 
-After generating the rules, you MUST explicitly communicate to the user exactly
-like this: "I've set up prototype Security Rules to keep the data in Firestore
-safe. They are designed to be secure for <explain reasons here>. However, you
-should review and verify them before broadly sharing your app. If you'd like, I
-can help you harden these rules."
+All attack cases below mean local reasoning or available local tests with test identities, not live bypass attempts. Do not authenticate, create hosted users, change data, install tools, or deploy to validate a local rule change. State assumptions and missing checks; generated rules are a prototype for review, not a security guarantee.
 
 ### Workflow
 
-Follow this structured workflow strictly:
+Use the relevant checks below for the requested collections and access model.
 
 #### Phase-1: Codebase Analysis
 
-1.  **Scan the entire codebase** to identify:
+1.  **Inspect relevant code, config, rules, and tests** to identify:
     -   Programming language(s) used (for understanding context only)
     -   All Firestore collection and document paths
     -   **All Firestore Queries:** Identify every `where()`, `orderBy()`, and
-        `limit()` clause. The security rules **MUST** allow these specific
-        queries.
+        `limit()` clause. Preserve intended access and query constraints; do not
+        loosen ownership checks to allow an overbroad application query.
     -   Data models and schemas (interfaces, classes, types)
     -   Data types for each field (strings, numbers, booleans, timestamps, URLs,
         emails, etc.)
@@ -33,8 +24,8 @@ Follow this structured workflow strictly:
     -   CRUD operations (create, read, update, delete)
     -   Authentication patterns (Firebase Auth, custom tokens, anonymous)
     -   Access patterns and business logic rules
-2.  **Document your findings** in a untracked file. Refer to this file when
-    generating the security rules.
+2.  Record the relevant findings in the response or an already authorized local
+    artifact. Do not create extra files for an audit.
 
 #### Phase-2: Security Rules Generation
 
@@ -174,7 +165,7 @@ function isValidList(list, maxSize) {
 //
 // Validate optional string (if present, must be string and within length)
 function isValidOptionalString(field, minLen, maxLen) {
-  return !('field' in request.resource.data) ||
+  return !(field in request.resource.data) ||
          (request.resource.data[field] is string &&
           request.resource.data[field].size() >= minLen &&
           request.resource.data[field].size() <= maxLen);
@@ -279,8 +270,9 @@ match /users/{userId} {
 
 #### Critical Directives for Secure Generation
 
--   **PREFER USING READ OVER LIST OR GET** `list` and `get` can add complexity
-    to security rules. Prefer using `read` over them.
+-   **Query boundaries:** Rules are not filters. Match ownership predicates in
+    queries. Use separate `get` and `list` rules when collection queries need a
+    `request.query.limit` cap; do not replace that boundary with a broad `read`.
 -   **Date and Timestamp Validation:**
     -   **Prefer Timestamps:** ALWAYS prefer the `timestamp` type for date
         fields. Firestore automatically ensures they are logically valid dates.

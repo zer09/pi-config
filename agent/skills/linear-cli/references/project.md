@@ -38,6 +38,11 @@ Description:
 
   Create a new Linear project
 
+  Linear Markdown: a plain Linear URL creates a mention; `@name`, `@[Name](id)`,
+  and `[Name](url)` do not. Get a person's URL from the `url` field of
+  `linear team members <TEAM> --json`, or an issue's from `linear issue url <ID>`.
+  Run `linear markdown` for collapsible sections and the full reference.
+
 Options:
 
   -h, --help                             - Show this help.
@@ -114,6 +119,11 @@ Usage:   linear project update <projectId>
 Description:
 
   Update a Linear project
+
+  Linear Markdown: a plain Linear URL creates a mention; `@name`, `@[Name](id)`,
+  and `[Name](url)` do not. Get a person's URL from the `url` field of
+  `linear team members <TEAM> --json`, or an issue's from `linear issue url <ID>`.
+  Run `linear markdown` for collapsible sections and the full reference.
 
 Options:
 

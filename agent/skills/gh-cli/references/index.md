@@ -2,10 +2,13 @@
 
 Use this index when the command family, exact flags, or output fields are not obvious. Each command reference was generated from local `gh help` output and includes the manual URL, summary, subcommand links, and full help text.
 
+Verified against `gh version 2.101.0 (2026-09-15)`: 229 command/alias pages, eight help topics, and [root help](gh.md). Unchanged pages retain their earlier generator attribution after a complete normalized help comparison.
+
 Runtime route: identify the repository as `OWNER/REPO`; convert obvious GitHub HTTPS or SSH URLs directly to the matching `gh` command; use `../scripts/normalize_github_url.py` only when conversion is unclear, the URL is complex, or deterministic JSON output is useful. Keep read-only command output bounded with filters or temp files when output may be large.
 
 ## Path rules
 
+- Root help: `gh help` -> `gh.md`.
 - Top-level command: `gh pr` -> `pr.md`.
 - Subcommand: `gh pr view` -> `pr/view.md`.
 - Nested subcommand: `gh repo deploy-key add` -> `repo/deploy-key/add.md`.
@@ -86,3 +89,7 @@ Before running writes such as create, edit, delete, comment, review, merge, rele
 - [`help/mintty.md`](help/mintty.md) - Information about using gh with MinTTY
 - [`help/reference.md`](help/reference.md) - A comprehensive reference of all gh commands
 - [`help/telemetry.md`](help/telemetry.md) - Information about telemetry in gh
+
+## Installed extensions
+
+`gh stack` comes from [github/gh-stack](https://github.com/github/gh-stack), observed at v0.1.1. It is not part of the core CLI inventory above. Read `gh stack --help` and `gh stack <command> --help` for its installed syntax; do not apply the core CLI version to extension help. The hosted-write gate also applies to extension commands.

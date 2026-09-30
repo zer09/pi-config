@@ -6,7 +6,8 @@ Use this process to update `agent/skills/intent-layer` from Crafter Station's up
 
 - Repository: `https://github.com/crafter-station/skills`
 - Runtime skill path: `context-engineering/intent-layer/`
-- Current upstream checkout reviewed: `304057192b795d3b0d3b718092983046facd2664`
+- Current canonical default branch checked in Increment 17 (2026-09-30): `main`, commit `f0fe474d76ed3f04113664095ff1b9e9844e8020`, tree `e33b2ef4446a309586f8a79df08ac8465e58e75a`.
+- Prior checkout reviewed: `304057192b795d3b0d3b718092983046facd2664`.
 - Last commit containing the runtime path: `24d77ce6365072c1699a20928e57a971abaa10f2`
 - Current upstream main deleted `context-engineering/intent-layer/`; retain the local snapshot until a replacement source or an explicit retirement decision exists.
 - Snapshot files:
@@ -19,6 +20,12 @@ Use this process to update `agent/skills/intent-layer` from Crafter Station's up
   - `references/capture-protocol.md`
 
 Do not install upstream `README.md` into the runtime skill folder; keep long-lived maintenance notes in `docs/skills/`.
+
+### Increment 17 retained-source verification
+
+Authenticated `gh` GET verified the canonical repository, default-branch commit, and complete recursive tree. `context-engineering/intent-layer/` remains absent, as at the prior reviewed checkout. The retained commit `24d77ce6365072c1699a20928e57a971abaa10f2` has tree `048fe309afecfafa7d71a9335c8064d9f1a854be` and mapped subtree `df42a406dbac9940445c93aa7c13dea65d744760`. Verified all eight source blobs and compared the seven runtime files with the local snapshot and overlays; the upstream README stays outside runtime.
+
+**Result: retained path absent, no runtime edit.** Preserve the local last-containing snapshot and UI metadata byte-identically. No replacement-source search, adoption, rewrite, or retirement occurred. Target/all 38 validators, metadata/changed links, scoped diff/secret/artifact checks, and runtime/index preservation fingerprints passed. No script behavior, model evaluation, installation, or build was exercised; validation does not establish a current replacement source.
 
 ## Local classification
 

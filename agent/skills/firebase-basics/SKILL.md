@@ -10,30 +10,26 @@ Use this skill for Firebase CLI setup and login, project selection, local initia
 ## Hosted service safety
 
 - Read-only project inspection, local code edits, local config edits, and emulator use are allowed.
-- Project creation, service enablement, deploys, database creation, rule publishing, data writes, billing/quota changes, credential rotation, and other hosted mutations require exact user instruction.
+- Project creation, app registration, service enablement, deploys, database creation, rule publishing, data writes, billing/quota changes, credential rotation, and other hosted mutations require exact user instruction for the action and target.
 - `firebase login`, `firebase logout`, and active project changes alter local state. Run them only when the user asks or agrees.
 - Never print or commit tokens, service account JSON, private keys, OAuth credentials, or user-specific credential paths.
 
-## Workflow
+## Select the task
 
-1. Inspect the project before initializing: existing `firebase.json`, `.firebaserc`, app config files, package scripts, platform folders, and emulator config.
-2. Verify CLI state with read-only commands:
+- Inspect existing `firebase.json`, `.firebaserc`, app config files, package scripts, and platform folders before choosing setup actions. Reuse the configured project and app identities.
+- Dependency-only and existing-config tasks do not require CLI authentication, CLI download/install, initialization, or live account/project inspection. Read-only discovery is optional when the requested task needs remote facts, not a prerequisite for local maintenance.
+- Use the installed or repository-pinned CLI only when needed. Resolve repository scripts/local binaries without an auto-downloading runner; ask before download/install. Prefer an explicit `--project <PROJECT_ID>` over changing the active project.
+- Load only the relevant reference before its setup work:
+  - [Local environment and optional agent tooling](references/local-env-setup.md)
+  - [CLI help and command selection](references/firebase-cli-guide.md)
+  - [Selective service initialization](references/firebase-service-init.md)
+  - [Web](references/web_setup.md), [Android](references/android_setup.md), [iOS](references/ios_setup.md), or [Flutter](references/flutter_setup.md)
+- Initialize only the exact requested product and identified project. A local setup request does not authorize project creation, app registration, or service enablement. Stop before unapproved hosted prompts.
+- Agent setup/refresh guides under `references/setup/` and `references/refresh/` apply only to separately requested agent tooling changes. Read the local-environment gate first; do not automatically install a full skill suite, CLI, plugin, or MCP server.
 
-```bash
-firebase --version
-firebase login:list
-firebase projects:list
-firebase use
-```
+## Completion
 
-3. Load references only as needed:
-   - [local environment setup](references/local-env-setup.md)
-   - [Firebase CLI guide](references/firebase-cli-guide.md)
-   - [service initialization](references/firebase-service-init.md)
-   - [Web setup](references/web_setup.md), [Android setup](references/android_setup.md), [iOS setup](references/ios_setup.md), [Flutter setup](references/flutter_setup.md)
-   - Agent setup/refresh guides under `references/setup/` and `references/refresh/`
-4. Initialize only the products needed by the current task. Do not add hosting, functions, Firestore, Auth, or other products just because `firebase init` offers them.
-5. After local config changes, run the narrowest validation available: build, lint, emulator checks, rules tests, or CLI dry runs.
+Complete the requested local files and run the narrowest available project checks. Fix failures caused by the change. Do not deploy as validation or install missing tooling to make a check pass. Emulator checks can require downloads or live services; use existing offline checks where possible. Report missing tools, unrun checks, and separately gated hosted setup as deferred.
 
 ## Routing reminders
 

@@ -86,12 +86,12 @@ generate:
 
 Use policies in code:
 ```typescript
-await executeQuery(queryRef, QueryFetchPolicy.CACHE_ONLY);
-await executeQuery(queryRef, QueryFetchPolicy.SERVER_ONLY);
+await executeQuery(queryRef, { fetchPolicy: QueryFetchPolicy.CACHE_ONLY });
+await executeQuery(queryRef, { fetchPolicy: QueryFetchPolicy.SERVER_ONLY });
 ```
 
 ### Subscriptions (Realtime)
-Use `subscribe()` to receive live updates.
+Use `subscribe()` to receive live updates. It accepts positional callbacks, as below, or an observer object with `onNext`, `onErr`, and `onComplete`. The observer property is `onErr`, not `onError`; `onError` is only the parameter name in the positional overload.
 
 #### Web (Vanilla JS)
 ```typescript

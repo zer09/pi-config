@@ -50,6 +50,8 @@ final response = await ai.generate(
 ## Tool Approval Middleware
 Intercepts tool execution for specified tools and requires explicit approval. Returns `FinishReason.interrupted`.
 
+For the resolved SDK with restart builders, `.restart(payload)` nests approval under `metadata.resumed`; a top-level metadata flag does not approve the tool. Approve only the reviewed pending operation and target. Middleware approval does not replace application authorization.
+
 ```dart
 final response = await ai.generate(
   prompt: 'Delete the database.',
@@ -70,13 +72,7 @@ if (response.finishReason == FinishReason.interrupted) {
       messages: response.messages, // Pass history
       toolChoice: ToolChoice.none, // Prevent immediate re-call
       interruptRestart: [
-        ToolRequestPart(
-          toolRequest: interrupt.toolRequest,
-          metadata: {
-            ...?interrupt.metadata, 
-            'tool-approved': true 
-          }, 
-        ),
+        interrupt.restart({'tool-approved': true}),
       ],
     );
   }

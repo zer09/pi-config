@@ -14,6 +14,17 @@ void main() async {
 }
 ```
 
+## Version-specific runtime behavior
+
+The selected [pinned core source](https://github.com/genkit-ai/skills/blob/cbb4df32dedd2e2140a71550c3ae6ece7a18fdb6/skills/developing-genkit-dart/references/genkit.md) describes the APIs below. Check the resolved SDK before applying them to older projects; do not upgrade to make an example fit.
+
+- Register core `RetryPlugin()` in the existing `Genkit(plugins: [...])` array before using `use: [retry()]`. Retry transient model failures only within the authorized call and cost limits. Do not assume replayed tools are idempotent.
+- On this API, tools return `ToolResult<Output>`: `.response(output)` for success, `.response(output, parts: [...])` for media, or `.interrupt(data)` to pause. A direct tool call also returns a `ToolResult`; read a `ToolResponseResult`'s `.output`. Older SDKs may accept plain output values instead.
+- Generation model/tool failures resolve with `FinishReason.failed`; inspect `error` and keep in-process `cause` private. Cancellation or the tool-loop limit yields `FinishReason.aborted`. Do not treat either as success. Inspect only redacted error fields, not raw messages or causes.
+- A failed/aborted response's `messages` contains last-good history. An authorized retry can pass that history to `generate`; use a fresh token after cancellation.
+- Stable `CancellationController` / `CancellationToken` come from `genkit.dart` or `client.dart`. Pass `cancel: controller.token`; call `controller.cancel(reason)` to stop. For generation streams, await `stream.onResult` after consuming chunks to inspect the final finish reason.
+- Top-level `final` flows register lazily. Evaluate the flow symbol from `main()` so its `defineFlow` call runs before optional CLI inspection.
+
 ## Generate Text
 
 ```dart
@@ -67,7 +78,7 @@ final weatherTool = ai.defineTool(
   inputSchema: WeatherInput.$schema,
   fn: (input, _) async {
     // Call your weather API here
-    return 'Weather in ${input.location}: 72°F and sunny';
+    return .response('Weather in ${input.location}: 72°F and sunny');
   },
 );
 

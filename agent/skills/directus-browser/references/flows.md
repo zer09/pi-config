@@ -1,7 +1,7 @@
 # Directus flows reference
 
-Last reviewed: 2026-07-09
-Sources: `official-sources.md` -> Flow docs.
+Last reviewed: 2026-09-30
+Sources: `official-sources.md` -> Flow docs; Directus 12 breaking changes.
 
 Use this for Flows module work, operation chains, automation troubleshooting, and flow logs.
 
@@ -20,6 +20,8 @@ Use this for Flows module work, operation chains, automation troubleshooting, an
 ## Operation hints
 
 - Data operations can create, read, update, or delete collection items and can run with configured permission scope.
+- Directus 12.3+ Update Items/Delete Items operations return `null` for empty targets, not an all-items mutation. Use only one targeting method (`key` or `query`); Update Items also rejects either with a batch payload. Never expand a target to all items without an exact request.
+- In 12.4+, query-based updates/deletes with non-admin accountability also enforce read permissions when resolving targets.
 - Webhook / Request URL operations can call external URLs with custom method, headers, and body.
 - Condition operations route success/reject paths; in blocking event hooks, a rejecting final condition can cancel the original database transaction.
 - Directus Run Script operations are sandboxed JavaScript/TypeScript: no file-system access, no network requests, and no Node modules. This is separate from Pi `browser_run_script`.

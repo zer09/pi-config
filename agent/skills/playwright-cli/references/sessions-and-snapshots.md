@@ -51,7 +51,7 @@ For a specific DOM property missing from the snapshot:
 playwright-cli -s=task-name eval "el => el.getAttribute('data-testid')" e5
 ```
 
-Use screenshots for visual verification, not routine control discovery. Use `snapshot --filename=after.yaml` or `screenshot --filename=after.png` only when the task needs that artifact and its contents are safe to save.
+Use screenshots for visual verification, not routine control discovery. Use `snapshot --filename=after.yaml` or `screenshot --filename=after.png` only when the task needs that artifact and its contents are safe to save. For many search matches, `find "Search" --filename=matches.md` saves the results instead of returning them; apply the same artifact safety rule and task-specific session flag.
 
 `--raw` returns only the result, omitting status, generated code, and snapshot sections. Do not use it when collecting generated TypeScript. `--json` wraps replies as JSON. Neither flag redacts sensitive data.
 

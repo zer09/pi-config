@@ -39,12 +39,59 @@ Before and after updates, apply [local-skill-update-invariants.md](local-skill-u
 ## Source of truth
 
 - Upstream repository: https://github.com/mattpocock/skills
-- Current upstream commit checked locally: `84fdeffd12f2ee307994d1eb6feb48173b6e0502`
+- Canonical default branch: `main`.
+- Current upstream commit checked locally: `d81f3a183412e71a5b1e84ca21bc1a35eea03a60`.
+- Current recursive tree: `b9814f871fb63e6b40b1e82017c363b59075e81c` (complete, not truncated).
+- Previous comparison pin: `84fdeffd12f2ee307994d1eb6feb48173b6e0502`, tree `5c5d817a09c3ac2cbad66c0d09db3fce3455a440`.
+- This is a comparison pin, not a claim that all upstream behavior was copied.
 
 | Local skill | Upstream path | Local notes |
 | --- | --- | --- |
 | `grill-with-docs` | `skills/engineering/grill-with-docs` | Keeps `CONTEXT-FORMAT.md` and `ADR-FORMAT.md`; use as the replacement for deprecated ubiquitous-language workflow. |
 | `improve-codebase-architecture` | `skills/engineering/improve-codebase-architecture` | Architecture deepening workflow informed by `CONTEXT.md` and ADRs. |
+
+## Latest source comparison
+
+Fetched both pinned trees and every file under the two mapped folders through authenticated `gh api --method GET`. Verified each downloaded blob against its tree SHA and size, recorded SHA-256 hashes, and compared the exact prior, current, and local content. Neither mapped folder moved.
+
+### Mapped runtime inventory at the current pin
+
+Paths below are relative to the upstream repository root. The prior pin has the same five paths.
+
+| Source path | Change from prior pin |
+| --- | --- |
+| `skills/engineering/grill-with-docs/SKILL.md` | Replaces slash-command composition with explicit Skill-tool calls for `grilling` and `domain-modeling`. |
+| `skills/engineering/grill-with-docs/agents/openai.yaml` | Byte-identical upstream metadata. |
+| `skills/engineering/improve-codebase-architecture/SKILL.md` | Skill-tool dispatch, `CONTEXT.md` to `GLOSSARY.md` references, and punctuation changes. |
+| `skills/engineering/improve-codebase-architecture/HTML-REPORT.md` | Punctuation and wording only; no new report behavior. |
+| `skills/engineering/improve-codebase-architecture/agents/openai.yaml` | Byte-identical upstream metadata. |
+
+### Governing references compared, not installed
+
+The mapped roots compose companion skills upstream. Compared these seven Markdown files at both pins to check the source of the local self-contained references:
+
+| Current source path | Local behavior/reference retained |
+| --- | --- |
+| `skills/productivity/grilling/SKILL.md` | Bounded, one-question-at-a-time sessions in both local roots. |
+| `skills/engineering/domain-modeling/SKILL.md` | Domain grounding and explicit-only documentation writes in both local roots. |
+| `skills/engineering/domain-modeling/GLOSSARY-FORMAT.md` | `grill-with-docs/CONTEXT-FORMAT.md`; prior upstream path was `skills/engineering/domain-modeling/CONTEXT-FORMAT.md`. |
+| `skills/engineering/domain-modeling/ADR-FORMAT.md` | `grill-with-docs/ADR-FORMAT.md`. |
+| `skills/engineering/codebase-design/SKILL.md` | `improve-codebase-architecture/LANGUAGE.md` and the compact root glossary. |
+| `skills/engineering/codebase-design/DEEPENING.md` | `improve-codebase-architecture/DEEPENING.md`. |
+| `skills/engineering/codebase-design/DESIGN-IT-TWICE.md` | `improve-codebase-architecture/INTERFACE-DESIGN.md`. |
+
+The grilling change expands the multi-question round example. Domain-modeling changes its description and renames `CONTEXT.md`, `CONTEXT-MAP.md`, and the format reference to `GLOSSARY` names. Other reference changes are punctuation or wording, plus the glossary rename in interface-design guidance. No new relevant behavior requires another local reference or dependency.
+
+### Decisions
+
+| Local skill | Decision | Adopt/adapt/reject assessment |
+| --- | --- | --- |
+| `grill-with-docs` | `keep it`; compared/no-op across all 4 runtime files. | No new adoption or adaptation. Reject companion Skill-tool dispatch, multi-question rounds, and glossary renames. Retain the existing bounded conversation, grounded vocabulary/scenarios, explicit-only lazy documentation writes, context ownership, relationships, and example dialogue. |
+| `improve-codebase-architecture` | `keep it`; compared/no-op across all 6 runtime files. | No new adoption or adaptation. Reject companion dispatch and glossary renames; do not import punctuation-only changes. Retain candidate fields and selection pause, read-only exploration, deep-module terminology and tests, explicit-only documentation, and optional temp HTML. |
+
+Existing divergences still reject automatic delegation, exhaustive interviewing, inline writes from agreement, mandatory HTML/browser opening, and automatic implementation. Local skill names, metadata, reference names, and ownership do not change. `grill-with-docs-usage.md` stays byte-identical because runtime behavior did not change.
+
+Validation: both target validators and all 38 Local Skill validators passed, including frontmatter, YAML, exact skill tokens, description ranges, and runtime links. Static positive/near-miss review preserved read-only planning, the candidate pause, selected-candidate exploration, exact-scope glossary/ADR authorization, and optional temp reports. All 10 runtime files match their pre-comparison hashes. No live/model evaluation was run.
 
 ## Local files
 
@@ -57,14 +104,19 @@ Before and after updates, apply [local-skill-update-invariants.md](local-skill-u
 ## Update workflow
 
 1. Load `skill-creator` and `gh-cli`, then read this file.
-2. Fetch upstream files with authenticated `gh` CLI through Context Mode, for example:
+2. Resolve the canonical default branch, commit, and complete recursive tree with authenticated `gh` GET requests through Context Mode. Substitute the returned values for `BRANCH`, `TREE_SHA`, and `BLOB_SHA`:
 
 ```bash
-gh api repos/mattpocock/skills/contents/skills/engineering/grill-with-docs/SKILL.md?ref=main
+gh api --method GET repos/mattpocock/skills --jq .default_branch
+gh api --method GET repos/mattpocock/skills/commits/BRANCH --jq '{sha, tree: .commit.tree.sha}'
+gh api --method GET 'repos/mattpocock/skills/git/trees/TREE_SHA?recursive=1'
+gh api --method GET repos/mattpocock/skills/git/blobs/BLOB_SHA
 ```
 
-3. Compare upstream runtime files with local skill folders.
-4. Adopt only useful upstream runtime changes, then reapply the shared and skill-specific overlays above. Keep roots and selected references consistent; upstream is not the final policy.
+Fetch every runtime file under the mapped folders at that commit. Resolve moves through the tree without silently changing local ownership. Follow governing companion references only as needed to compare the source of retained behavior; do not install the broader suite.
+
+3. Compare exact current source with the previous comparison pin and local files before editing. Keep temporary commit/tree inventories, blob and file hashes, local snapshots, and an increment-only diff.
+4. Adopt only useful upstream runtime changes, then reapply the shared and skill-specific overlays above. Keep roots and selected references consistent; upstream is not the final policy. If no relevant change remains, leave runtime byte-identical and record compared/no-op rather than manufacturing a wording update.
 5. Keep every `SKILL.md` frontmatter limited to `name` and `description`.
 6. Keep local maintenance pointers in each `SKILL.md` pointing to this grouped update process.
 7. Keep `agents/openai.yaml` valid YAML with only UI metadata fields unless UI assets are intentionally installed.
@@ -77,7 +129,7 @@ for skill in grill-with-docs improve-codebase-architecture; do
 done
 ```
 
-10. Run all Local Skill validators. Parse changed YAML, check exact skill tokens, short-description ranges, dependencies, changed links, and the scoped diff. Compare root lines as a diagnostic, not proof of useful behavior.
+10. Run all Local Skill validators after every update. Parse target YAML, check exact skill tokens, short-description ranges, dependencies, changed links, and the scoped diff. Compare root lines as a diagnostic, not proof of useful behavior.
 11. Statically check near misses: an architecture audit ends with candidates; choosing one remains read-only; a plan/domain review does not write; agreement on a term does not write; explicit glossary/ADR requests allow only the requested documentation. Check the candidate pause and bounded stopping criteria. Do not use live/model evaluations unless separately requested.
 12. Scan changed files for literal home paths and secret values. Commit only when explicitly requested.
 

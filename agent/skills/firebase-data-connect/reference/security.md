@@ -33,9 +33,9 @@ query AdminOnly @auth(expr: "auth.token.admin == true") { ... }
 | Level | Who Can Access | CEL Equivalent |
 |-------|----------------|----------------|
 | `PUBLIC` | Anyone, authenticated or not | `true` |
-| `USER_ANON` | Any authenticated user (including anonymous) | `auth.uid != nil` |
-| `USER` | Authenticated users (excludes anonymous) | `auth.uid != nil && auth.token.firebase.sign_in_provider != 'anonymous'` |
-| `USER_EMAIL_VERIFIED` | Users with verified email | `auth.uid != nil && auth.token.email_verified` |
+| `USER_ANON` | Any authenticated user (including anonymous) | `auth != null` |
+| `USER` | Authenticated users (excludes anonymous) | `auth != null && auth.token.firebase.sign_in_provider != 'anonymous'` |
+| `USER_EMAIL_VERIFIED` | Users with verified email | `auth != null && auth.token.email_verified` |
 | `NO_ACCESS` | Admin SDK only | `false` |
 
 > **Important:** Levels like `USER` are starting points. Always add filters or expressions to verify the user can access specific data.
@@ -52,7 +52,7 @@ query AdminOnly @auth(expr: "auth.token.admin == true") { ... }
 | `auth.token` | Auth token claims (see below) |
 | `vars` | Operation variables (e.g., `vars.movieId`) |
 | `request.time` | Server timestamp |
-| `request.operationName` | "query" or "mutation" |
+| `request.operationName` | Name of the GraphQL operation being executed (e.g., `"GetMovie"`) |
 
 ### auth.token Fields
 
@@ -76,7 +76,7 @@ query AdminOnly @auth(expr: "auth.token.admin == true") { ... }
 @auth(expr: "auth.token.email_verified && auth.token.email.endsWith('@company.com')")
 
 # Check multiple conditions
-@auth(expr: "auth.uid != nil && (auth.token.role == 'editor' || auth.token.role == 'admin')")
+@auth(expr: "auth != null && (auth.token.role == 'editor' || auth.token.role == 'admin')")
 
 # Check variable
 @auth(expr: "has(vars.status) && vars.status in ['draft', 'published']")

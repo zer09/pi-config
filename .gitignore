@@ -98,6 +98,11 @@ Thumbs.db
 *.p12
 *.pfx
 
+# Python bytecode and test caches
+__pycache__/
+*.pyc
+.pytest_cache/
+
 # Local code graph db/cache
 .codebase-memory/
 .codegraph/

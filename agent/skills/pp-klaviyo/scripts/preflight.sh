@@ -11,7 +11,8 @@ if [ -z "${KLAVIYO_API_KEY:-}" ]; then
   exit 1
 fi
 
-if [ -n "${KLAVIYO_BASE_URL:-}" ]; then
+# Require absence, not an empty override, to match the real-key safety rule.
+if [ "${KLAVIYO_BASE_URL+x}" = x ]; then
   printf '%s\n' 'Klaviyo preflight failed: KLAVIYO_BASE_URL must be unset for authenticated access.' >&2
   exit 1
 fi

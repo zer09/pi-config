@@ -2,18 +2,14 @@
 
 This guide covers how to integrate Firebase AI Logic (Gemini API) into your Flutter applications.
 
-> [!IMPORTANT]
-> **Foundational Workflows & CLI-First Approach:**
-> 1. **Review Foundation:** Before implementing platform-specific code, ALWAYS review the foundational `firebase-basics` skill to ensure familiarity with core workflows.
-> 2. **Backend Provisioning via CLI:** Use the Firebase CLI for backend setup. Running `npx firebase-tools init ailogic` is MANDATORY to provision the service. `flutterfire configure` does NOT enable the AI service and will result in `PERMISSION_DENIED` if skipped.
-> 3. **Client Configuration:** Use `flutterfire configure` strictly for generating `firebase_options.dart`. Avoid manual Console configuration.
+Reuse existing Firebase configuration, initialization, and dependencies. For a separate configuration requirement, use [Flutter setup](../../firebase-basics/references/flutter_setup.md). Client code changes do not require CLI login, initialization, or service enablement. `flutterfire configure` produces client configuration; it does not enable the AI service. Any registration or service enablement requires explicit authorization for the exact action and project. Use installed or repository-pinned tooling; ask before download/install or upgrades.
 
 > [!NOTE]
 > `firebase_vertexai` has been replaced by `firebase_ai`. Always use `firebase_ai` for new projects.
 
 ## Installation
 
-Add the necessary Firebase dependencies to your `pubspec.yaml`:
+For a requested client dependency addition, add only missing packages to `pubspec.yaml`. Preserve compatible resolved versions; these versions are examples, not an upgrade requirement:
 
 ```yaml
 dependencies:
@@ -48,7 +44,7 @@ void main() async {
 Use `FirebaseAI.googleAI` for the **Gemini Developer API**.
 
 > [!IMPORTANT]
-> **Model Selection:** Always use **`gemini-flash-latest`**. DO NOT USE `gemini-1.5-flash`.
+> **Model Selection:** Replace `<supported-model>` with a model supported by the chosen provider and feature in the [model documentation](https://firebase.google.com/docs/ai-logic/models.md.txt).
 
 > [!IMPORTANT]
 > **Choose the Right API Provider:** Use `FirebaseAI.googleAI` (Gemini Developer API) as the default for prototyping and standard use. Use the Agent Platform Gemini API, formerly Vertex AI Gemini API, only for enterprise scalability or data-residency requirements. The Gemini Developer API usually does not require Blaze billing, but Agent Platform does.
@@ -62,8 +58,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 Future<String> generateText(String prompt) async {
   final googleAI = FirebaseAI.googleAI(auth: FirebaseAuth.instance);
 
-  // Use the latest Gemini Flash model
-  final model = googleAI.generativeModel(model: 'gemini-flash-latest');
+  final model = googleAI.generativeModel(model: '<supported-model>');
 
   final response = await model.generateContent([Content.text(prompt)]);
   return response.text ?? 'No response';

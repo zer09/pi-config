@@ -5,7 +5,7 @@
  * Run periodically as the CLI evolves to keep skill references up to date.
  */
 
-import { dirname, join } from "@std/path"
+import { dirname, join } from "node:path"
 
 const SCRIPT_DIR = dirname(new URL(import.meta.url).pathname)
 const SKILL_DIR = join(SCRIPT_DIR, "..")

@@ -1,11 +1,11 @@
 # gh codespace ports forward
 
 Source: https://cli.github.com/manual/gh_codespace_ports_forward
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help codespace ports forward`.
+Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help codespace ports forward`.
 
 ## Summary
 
-Forward ports
+Forward ports from a codespace to your local machine.
 
 ## Subcommands
 
@@ -14,10 +14,17 @@ Forward ports
 ## Manual
 
 ```text
-Forward ports
+Forward ports from a codespace to your local machine.
+
+Ports bind to loopback (`127.0.0.1`) by default. Use `--all-interfaces`
+to bind to all interfaces.
+
 
 USAGE
   gh codespace ports forward <remote-port>:<local-port>... [flags]
+
+FLAGS
+  --all-interfaces   Listen on all network interfaces
 
 INHERITED FLAGS
   -c, --codespace string    Name of the codespace

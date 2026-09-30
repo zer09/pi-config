@@ -4,11 +4,13 @@ This guide covers basic CRUD operations, type-safe data modeling, and real-time 
 
 ## 1. Setup
 
-Ensure you have added the required dependency:
+Reuse existing app configuration and compatible pinned dependencies. Client SDK setup does not require CLI installation, CLI initialization, provisioning, or live authentication. Add the dependency only when needed for the requested local change:
 ```bash
 flutter pub add cloud_firestore
 ```
-Also, ensure FlutterFire is configured properly for your target platforms.
+Reuse FlutterFire configuration for the intended platforms. These snippets implement app behavior; use mocks or a configured emulator for checks. Executing hosted data writes requires explicit user instruction for the exact action and target project/database/documents.
+
+Preserve ownership filters, query ordering, and limits. Do not sort a limited unsorted subset or fetch unbounded data to bypass a missing index. Prepare the needed index locally; deployment requires separate exact authorization.
 
 ---
 
@@ -62,9 +64,34 @@ Encapsulate all database interactions within a dedicated service class to keep y
 
 ### Initialization & References
 
+Await the existing `Firebase.initializeApp(...)` before selecting the database. Reuse the intended app's FlutterFire configuration; do not initialize it again. Standard is an edition, not a database ID. Verify the project and database ID from existing configuration, then choose one construction below.
+
+Only when the verified target is `(default)`:
+
+```dart
+final itemService = ItemService(FirebaseFirestore.instance);
+```
+
+For a named Standard database, replace `my-database-id` with the verified/configured Standard database ID:
+
+```dart
+import 'package:firebase_core/firebase_core.dart';
+
+final itemService = ItemService(
+  FirebaseFirestore.instanceFor(
+    app: Firebase.app(),
+    databaseId: 'my-database-id',
+  ),
+);
+```
+
+Inject the selected instance into the service. Every operation uses that instance, with no internal fallback to `(default)`.
+
 ```dart
 class ItemService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db;
+
+  ItemService(FirebaseFirestore db) : _db = db;
 
   // Define your collection reference
   CollectionReference get _itemsRef => _db.collection('items');
@@ -84,6 +111,7 @@ class ItemService {
       final querySnapshot = await _itemsRef
           .where('ownerId', isEqualTo: ownerId)
           .orderBy('createdAt', descending: true)
+          .limit(50)
           .get();
 
       return querySnapshot.docs.map((doc) => Item.fromFirestore(doc)).toList();
@@ -97,13 +125,10 @@ class ItemService {
   Stream<List<Item>> streamItems(String ownerId) {
     return _itemsRef
         .where('ownerId', isEqualTo: ownerId)
+        .orderBy('createdAt', descending: true)
+        .limit(50)
         .snapshots()
-        .map((snapshot) {
-          // If a custom composite index is missing during prototyping, apply sorting client-side:
-          final items = snapshot.docs.map((doc) => Item.fromFirestore(doc)).toList();
-          items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return items;
-        });
+        .map((snapshot) => snapshot.docs.map((doc) => Item.fromFirestore(doc)).toList());
   }
 
   // 4. Update Data

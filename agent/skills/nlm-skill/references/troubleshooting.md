@@ -43,6 +43,14 @@ nlm login --check
 # Run nlm login only for first-time setup or confirmed stale credentials.
 ```
 
+### Headless refresh and account boundaries
+
+`nlm auth refresh --profile <profile>` renews saved credentials through a headless browser. It is a networked state change, not a status check. Use it only for authorized recovery or specifically requested unattended maintenance. Do not install cron/launchd jobs merely because a session failed.
+
+`NOTEBOOKLM_COOKIES` overrides saved credentials unless an operation explicitly selects a profile. The refresh command refuses to run when that variable is set. `NOTEBOOKLM_DISABLE_HEADLESS_REFRESH=1` disables both automatic headless recovery and explicit refresh; some Workspace accounts revoke sessions when the saved browser profile relaunches. Respect this control rather than unsetting it automatically.
+
+If refresh fails, diagnose missing/stale credentials before requesting interactive login. Do not delete profiles, use `--force`/`--clear`, replace cookies, or switch the default account as automatic recovery. `nlm login --check` itself makes live requests. Never print cookies, OAuth tokens, raw auth headers, or browser-profile contents in a recovery report.
+
 ### Browser Doesn't Launch
 
 **Symptoms:**
@@ -52,7 +60,7 @@ nlm login --check
 **Solutions:**
 
 1. **Ensure a supported Chromium-based browser is installed:**
-   Supported browsers (in priority order): Google Chrome, Arc (macOS), Brave, Microsoft Edge, Chromium, Vivaldi, Opera.
+   Supported choices include Google Chrome, Arc, Dia, Comet, Brave, Microsoft Edge, Chromium, Firefox, Vivaldi, and Opera. `auth.browser_path` or `NLM_BROWSER_PATH` can select an explicit Chromium-compatible executable; changing either needs authorization.
    ```bash
    which google-chrome || which brave-browser || which chromium
    ```
@@ -165,8 +173,7 @@ Ensure the container has network access and can reach `notebook.google.com`.
 Error: Rate limit exceeded
 ```
 
-**Cause:** Too many API calls in a short period. Query and Studio generation
-limits are separate and undocumented; video limits may require a longer pause.
+**Cause:** A transient rate limit or exhausted compute window. Read `nlm usage --json` or MCP `usage_get` when budget matters. Inspect `rolling` and `weekly` percentages and reset times; use window names, not array positions. Wait for the relevant reset when exhausted. An authentication error is not zero quota and does not authorize switching accounts.
 
 **Solutions:**
 
@@ -407,6 +414,22 @@ nlm chat configure <id> --goal custom --prompt "Act as a tutor..."
 ```
 
 ---
+
+## Download and setup changes
+
+### Audio suffix or download path rejected
+
+Audio downloads are AAC in MP4. Use `.m4a` or `.mp4`, not `.mp3`. A newly completed artifact can precede CDN readiness; wait for the selected artifact rather than generating another one.
+
+MCP downloads stay inside the download root on the server host. The root uses `NOTEBOOKLM_DOWNLOAD_DIR` after stripping whitespace and expanding `~` if the value is nonempty. Otherwise, it uses `~/Downloads/gemini-notebook` only if `~/Downloads` is an existing directory; if not, it uses the application storage directory's `downloads` subdirectory.
+
+Relative `output_path` values are anchored to this root; outside paths are refused. Use the returned absolute destination; it is not a client-host path or a browser download URL. CLI outside-path downloads are possible only when `NOTEBOOKLM_DOWNLOAD_DIR` is unset or empty and the user requested the destination. A nonempty value confines CLI too; unlike the MCP resolver, CLI does not strip whitespace. Do not unset confinement, change server configuration, or move files as an automatic repair.
+
+### Old connection name or skill not visible
+
+An `old name` warning refers to MCP registration, not a renamed Python distribution. `notebooklm-mcp-cli` still provides `nlm` and `notebooklm-mcp`. Follow the [setup reference](command_reference.md#setup-skill-and-diagnostics) only for a requested client/scope change. Do not remove/reinstall a tool to fix a connection label.
+
+Claude Desktop Chat/Cowork and claude.ai do not load local skill folders. `nlm skill package --output DIR` creates an upstream-skill ZIP for a separately authorized account upload. Packaging does not upload it, update this local skill, or ingest notebook sources. Do not replace local safety overlays through `nlm skill update` or the wizard.
 
 ## Getting More Help
 

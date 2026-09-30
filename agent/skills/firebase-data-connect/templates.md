@@ -202,6 +202,7 @@ generate:
     package: "com.myapp.dataconnect"
   swiftSdk:
     outputDir: "../ios/MyApp/DataConnect"
+    package: "DataConnectGenerated"
   dartSdk:
     outputDir: "../flutter/lib/dataconnect"
     package: myapp_dataconnect
@@ -294,7 +295,7 @@ const unsubscribe = subscribe(liveDashboardRef(), {
     // Called immediately with current data, then on each refresh
     renderDashboard(result.data.items);
   },
-  onError: (error) => console.error('Subscription error:', error)
+  onErr: (error) => console.error('Subscription error:', error)
 });
 
 // Cleanup when done

@@ -1,6 +1,6 @@
 # Directus schema API mutations
 
-Last reviewed: 2026-08-09
+Last reviewed: 2026-09-30
 Sources: `official-sources.md` -> Schema/API docs; local finding `findings/directus-schema-api-update-guide-2026-07-09.md` distilled with project-specific hosts/paths removed.
 
 Use this only when the user explicitly authorizes Directus schema writes. Default Directus operation remains read-only/UI-first.
@@ -30,7 +30,7 @@ Safe default: additive nullable schema only.
 
 ## Required live inspection
 
-Before API writes, inspect the live instance:
+Only during an explicitly authorized schema API task, after the root's per-task Browser Harness gate, inspect the live instance before writes. Maintenance does not authorize these probes:
 
 ```js
 await fetch('/server/info', { credentials: 'include' });
@@ -52,7 +52,8 @@ Directus 12.2 schema snapshot diffs support a scoped collection set and an addit
 - Use `browser_execute_js` with bounded async IIFEs for concise schema operations.
 - Split longer workflows into small chunks; large one-shot `Runtime.evaluate` calls can timeout.
 - Use `browser_run_script` only for reviewed, repetitive workflows after explicit authorization.
-- If using `browser_run_script`, the daemon helper is `daemon.evaluateJs`.
+- If using `browser_run_script`, the daemon helper is `daemon.evaluateJs`; check its `{ success, data/error }` result before claiming success.
+- A timeout or cancellation does not undo writes. Treat the outcome as unverified and inspect before an authorized safe retry; stop and repeat the user setup gate after disconnect.
 - Never print cookies, access tokens, refresh tokens, or secret environment values.
 
 ## Idempotent helpers
@@ -82,9 +83,10 @@ async function api(method, path, body) {
 
 async function getMaybe(path) {
   const response = await fetch(path, { credentials: 'include' });
-  if (response.status === 404 || response.status === 403) return null;
-  const json = await response.json();
+  if (response.status === 404) return null;
+  // Denied access does not prove that a resource is missing.
   if (!response.ok) throw new Error(`GET ${path} failed (${response.status})`);
+  const json = await response.json();
   return json.data ?? json;
 }
 ```
@@ -105,7 +107,7 @@ Idempotency rules:
 4. Create relation metadata.
 5. Create alias fields explicitly when the API does not expose them automatically.
 6. Patch project-specific allow-lists/interface options, such as page-builder M2A fields.
-7. Copy or create permissions from comparable collections.
+7. Copy or create permissions from comparable collections only if those exact permission writes are explicitly in scope.
 8. Verify authenticated schema metadata.
 9. Verify public/runtime access separately when public rendering depends on it.
 

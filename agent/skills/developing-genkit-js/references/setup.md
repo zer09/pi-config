@@ -1,15 +1,13 @@
 # Genkit JS Setup
 
-Follow these instructions to set up Genkit in the current codebase. These instructions are general-purpose and have not been written with specific codebase knowledge, so use your best judgement when following them.
+Use this reference for requested Genkit JS setup. Inspect existing imports, initialization, package scripts, lockfiles, and framework conventions first. Preserve package-manager and dependency pins. Setup does not authorize a live model call, provider/secret change, or deployment.
 
-0. Tell the user "I'm going to check out your workspace and set you up to use Genkit for GenAI workflows."
-1. If the current workspace is empty or is a starter template, your goal will be to create a simple image generation flow that allows someone to generate an image based on a prompt and selectable style. If the current workspace is not empty, you will create a simple example flow to help get the user started.
+1. Match the requested deliverable. Do not create an image-generation or example flow merely because the workspace is empty.
 2. Check to see if any Genkit provider plugin (such as `@genkit-ai/google-genai` or `@genkit-ai/oai-compat` or others, may start with `genkitx-*`) is installed.
-   - If not, ask the user which provider they want to use.
-   - **For non-Google providers**: Use `genkit docs:search "plugins"` to find the correct package and installation instructions.
-   - If they have no preference, default to `@genkit-ai/google-genai` for a quick start.
-   - If this is a Next.js app, install `@genkit-ai/next` as well.
-3. Search the codebase for the exact string `genkit(` (remember to escape regexes properly) which would indicate that the user has already set up Genkit in the codebase. If found, no need to set it up again, tell the user "Genkit is already configured in this app." and exit this workflow.
+   - Reuse the existing provider. If none is configured and the choice matters, ask which provider to use; do not silently default to Google AI.
+   - For other providers, inspect installed source or official plugin docs. Add packages only within a requested setup/dependency task using compatible project pins.
+   - For Next.js, inspect existing `@genkit-ai/next` integration before adding it; do not register it as a model provider.
+3. Find the existing `genkit(` initialization, including imported aliases and beta entrypoints. Reuse it when present; do not duplicate configuration or stop before completing the requested repair.
 4. Create an `ai` directory in the primary source directory of the project (this may be e.g. `src` but is project-dependent). Adapt this path if your project uses a different structure.
 5. Create `{sourceDir}/ai/genkit.ts` and populate it using the example below. DO NOT add a `next` plugin to the file, ONLY add a model provider plugin to the plugins array:
 
@@ -36,8 +34,8 @@ import './genkit.js';
 // import each created flow, tool, etc. here for use in the Genkit Dev UI
 ```
 
-8. Add a `genkit:ui` script to `package.json` that runs `genkit start -- npx tsx --watch {sourceDir}/ai/index.ts` (or `npx genkit-cli` or `pnpm dlx` or `yarn dlx` for those package managers, if CLI is not locally installed). DO NOT try to run the script now.
-9. Tell the user "Genkit is now configured and ready for use." as setup is now complete. Also remind them to set appropriate env variables (e.g. `GEMINI_API_KEY` for Google providers). Wait for the user to prompt further before creating any specific flows.
+8. Add a development script only when the task needs it. Reuse installed or repository-pinned CLI and runner scripts; do not force CLI installation, package downloads, or a new script name. `genkit start -- <existing-run-command>` captures traces but stays running; do not start it merely to validate setup.
+9. Check the requested local setup with available project checks. Report the deliverable, results, and deferred live/provider checks. Refer to required environment variable names (such as `GEMINI_API_KEY`) without reading, logging, or saving credential values.
 
 ## Next Steps & Troubleshooting
 

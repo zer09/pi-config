@@ -4,18 +4,27 @@ This guide walks you through using Cloud Firestore in your Android app using Kot
 
 ### Local SDK setup
 
-Android dependency and SDK setup can proceed without backend provisioning or service enablement. Backend provisioning and service enablement are separate actions that require explicit user instruction for each exact action and target. Only when explicitly requested, follow the [Standard provisioning reference](provisioning.md).
+Client SDK setup does not require CLI installation, CLI initialization, provisioning, or live authentication. Backend provisioning and service enablement are separate actions that require explicit user instruction for each exact action and target project/database. Only when explicitly requested, follow the [Standard provisioning reference](provisioning.md).
+
+Inspect the app module, `applicationId`, build variant, existing `google-services.json`, and Google services Gradle plugin first. Reuse matching config and wiring; load [Android app configuration](../../../firebase-basics/references/android_setup.md) only when those need attention. Missing config does not authorize creation or registration.
 
  ---
 
 ### 1. Add Dependencies
 
-In your module-level `build.gradle.kts` (usually `app/build.gradle.kts`), add the dependency for Cloud Firestore:
+Preserve a compatible pinned BoM, version catalog, and convention plugins. Add only the requested dependency. If the resolved version matters, inspect local Gradle metadata or use the existing wrapper with the actual module and variant:
+
+```bash
+./gradlew --offline -q :app:dependencyInsight --dependency firebase-firestore --configuration releaseRuntimeClasspath
+```
+
+If the wrapper or dependency is not cached, report the limit rather than downloading it for a check. When a new version is needed, verify compatibility using [Google Maven BoM metadata](https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-bom/maven-metadata.xml) and [Firestore metadata](https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-firestore/maven-metadata.xml); do not force the latest version.
+
+In your module-level `build.gradle.kts` (usually `app/build.gradle.kts`), reuse the existing BoM declaration or add a verified compatible version:
 
 ```kotlin
 dependencies {
-    // [AGENT] Fetch the latest available BoM version from https://firebase.google.com/support/release-notes/android before adding this
-    implementation(platform("com.google.firebase:firebase-bom:<latest_bom_version>"))
+    implementation(platform("com.google.firebase:firebase-bom:<compatible_bom_version>"))
 
     // Add the dependency for the Cloud Firestore library
     // When using the BoM, you don't specify versions in Firebase library dependencies
@@ -27,26 +36,24 @@ dependencies {
 
 ### 2. Initialize Firestore
 
+Use the configured database ID. `Firebase.firestore` selects `(default)` only; for a named Standard database use `FirebaseFirestore.getInstance("my-database-id")` and reuse that instance.
+
 In your Activity or Fragment, initialize the `FirebaseFirestore` instance:
 
 ```kotlin
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import com.google.firebase.Firebase
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.ktx.Firebase
+import com.google.firebase.firestore.firestore
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : ComponentActivity() {
 
     private lateinit var db: FirebaseFirestore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val db = Firebase.firestore
-        
-        setContent {
-            MaterialTheme {
-                Text("Firestore initialized!")
-            }
-        }
+        db = Firebase.firestore
     }
 }
 ```
@@ -81,6 +88,8 @@ class MainActivity : ComponentActivity() {
 ---
 
 ### 3. Add Data
+
+These snippets implement app behavior. Use mocks or a configured emulator for checks. Executing hosted data writes requires explicit user instruction for the exact action and target project/database/documents. Preserve ownership filters, query ordering, and limits; do not broaden reads to work around a rules or index failure.
 
 Add a new document with a generated ID using `add()`:
 
@@ -144,6 +153,7 @@ Read multiple documents using a query:
 ```kotlin
 db.collection("cities")
     .whereEqualTo("capital", true)
+    .limit(50)
     .get()
     .addOnSuccessListener { documents ->
         for (document in documents) {

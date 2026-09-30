@@ -12,34 +12,73 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
 
 - Manual root: https://cli.github.com/manual/
 - Command index: https://cli.github.com/manual/gh
-- Local generator source: `gh help` output from the installed GitHub CLI. The base generation used `gh version 2.95.0 (2026-06-20)`. Changed help pages were refreshed from `gh version 2.97.0 (2026-07-31)`; unchanged pages retain their earlier attribution after a complete command-tree comparison found byte-identical help text.
+- Local generator source: `gh help` output from the installed GitHub CLI. The current comparison used `gh version 2.101.0 (2026-09-15)`. Earlier generation used 2.95.0, 2.96.0, and 2.97.0; unchanged pages retain their earlier attribution after a complete command-tree comparison found identical normalized help text.
+
+## Approved CLI upgrade and provenance
+
+The 2026-09-29 update replaced only `~/.local/bin/gh`, selected by PATH, from 2.97.0 to 2.101.0. The skill remains `make it slim`; its trigger intent, hosted-write gate, and metadata are unchanged.
+
+- Official release: https://github.com/cli/cli/releases/tag/v2.101.0, published 2026-09-15.
+- Linux amd64 artifact: https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_linux_amd64.tar.gz.
+- Published checksums: https://github.com/cli/cli/releases/download/v2.101.0/gh_2.101.0_checksums.txt.
+- Archive SHA-256: `9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8`.
+- Checksum-manifest SHA-256, also matched to the release API asset digest: `f8bbc37fc5568a6a162d1a67b1e9c1afa9139f7b5a46dcde4a57bdaa0db33b60`.
+- Installed binary SHA-256: `ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff`.
+
+Future CLI upgrades require explicit approval for the target version and installation path. Download the archive and checksum manifest with `gh release download <tag> --repo github.com/cli/cli` into a temporary directory. Verify the archive against its exact entry in the published manifest before extraction or execution. Copy the verified binary to a temporary file beside `~/.local/bin/gh`, set mode 0755, compare the copy, and rename it atomically over the approved path. Verify `command -v gh` and `gh --version` afterward. Do not replace `/usr/bin/gh` or change authentication, tokens, extensions, repositories, or hosted state.
+
+## Extension boundary: gh stack
+
+`gh extension list`, `gh stack --version`, and `gh stack --help` identified [github/gh-stack](https://github.com/github/gh-stack) v0.1.1. Its help advertises stack management, remote operations, navigation, and utilities. It is an installed extension, not a missing built-in command page.
+
+Keep extension-generated help out of the core references and comprehensive `gh help reference` snapshot. Use the installed extension's own `--help` at runtime, as directed by `references/index.md`. The core inventory includes the built-in `gh extension` management family, but not commands listed under `EXTENSION COMMANDS`. This update neither upgraded nor changed gh-stack. Any future stored extension reference needs a separate namespace and explicit extension source/version attribution, not the core CLI generator version.
 
 ## File model
 
 - `agent/skills/gh-cli/SKILL.md`: frontmatter, operating rules, minimal local examples, and reference navigation. Keep it token-friendly.
-- `agent/skills/gh-cli/references/index.md`: compact command-family map, runtime route, and reference path rules for discovery.
+- `agent/skills/gh-cli/references/index.md`: compact command-family map, runtime route, extension boundary, and reference path rules for discovery.
+- `agent/skills/gh-cli/references/gh.md`: root `gh help` from isolated configuration without installed extensions or custom aliases.
 - `agent/skills/gh-cli/references/<command>.md`: top-level command manual, for example `references/auth.md`.
 - `agent/skills/gh-cli/references/<command>/<subcommand>.md`: subcommand manual, for example `references/auth/login.md` and `references/pr/create.md`.
 - `agent/skills/gh-cli/references/help/<topic>.md`: `gh help <topic>` pages, not command pages.
 - `agent/skills/gh-cli/scripts/normalize_github_url.py`: single-argument, network-free parser for GitHub HTTPS and SSH URLs. It emits compact JSON with one primary `gh.argv` and top-level `references` entries that point back into `agent/skills/gh-cli/references/`.
+- `agent/skills/gh-cli/scripts/test_normalize_github_url.py`: offline regression tests for route output, referenced files, malformed URLs, control characters, and slash-ref ambiguity.
 - `agent/skills/gh-cli/agents/openai.yaml`: UI metadata only. Regenerate if SKILL.md trigger intent changes.
 
 ## Update workflow for a future agent
 
 1. Load the `skill-creator` and `gh-cli` skills, then read this file.
-2. Check the official manual and installed CLI version: `gh --version`, https://cli.github.com/manual/, and https://cli.github.com/manual/gh.
-3. Walk `gh help` recursively from the root command categories: Core commands, GitHub Actions commands, Alias commands, and Additional commands. Treat any `* COMMANDS` section inside a command help page as subcommands.
-4. For each command path, write exactly one reference file using this mapping:
+2. Check the official manual and installed CLI version: `gh --version`, https://cli.github.com/manual/, and https://cli.github.com/manual/gh. Treat the approved installed version as authoritative if the live manual has moved ahead.
+3. Capture core help with empty temporary `GH_CONFIG_DIR` and `XDG_DATA_HOME` directories. Disable update checks, telemetry, colors, and prompting with `GH_NO_UPDATE_NOTIFIER=1`, `GH_NO_EXTENSION_UPDATE_NOTIFIER=1`, `GH_TELEMETRY=false`, `NO_COLOR=1`, and `GH_PROMPT_DISABLED=1`. Clear inherited tokens, host/repo overrides, debug logging, and forced-TTY settings from the capture process without changing user configuration. Walk all `* COMMANDS` sections recursively, except `EXTENSION COMMANDS`, and capture every root `HELP TOPICS` entry. Include the default `co` alias; do not create duplicate pages for alternate command spellings in `ALIASES` sections.
+4. Save root help to `references/gh.md`. For each command path, write exactly one reference file using this mapping:
    - `gh auth` -> `agent/skills/gh-cli/references/auth.md`
    - `gh auth login` -> `agent/skills/gh-cli/references/auth/login.md`
    - `gh codespace ports forward` -> `agent/skills/gh-cli/references/codespace/ports/forward.md`
-5. Keep generated reference files self-contained: source URL, generator version, summary, subcommand links, and full `gh help ...` manual text. Normalize any machine-expanded home path in help output to `~/...` before saving.
+5. Keep generated reference files self-contained: source URL, generator version, summary, subcommand links, and full `gh help ...` manual text. Normalize machine-expanded home paths and isolated data/config paths to their portable `~/...` defaults. Strip trailing line whitespace and use one final newline. Compare the complete normalized text, not only command names. Refresh changed pages and their attribution; preserve identical pages. Add missing pages and remove obsolete generated pages only after checking for local edits and symlinks.
 6. Update `SKILL.md` only with compact routing guidance, and update `references/index.md` with command-family entries. Do not paste full manual text into `SKILL.md`.
 7. Preserve the GitHub mutation gate, secret-protection rules, and HTTPS-repository-URL normalization rule in `SKILL.md`.
 8. Preserve `scripts/normalize_github_url.py`; when adding URL kinds, return one primary argv array rather than shell strings, avoid alternate argv fields such as `clone_argv`, and include the exact top-level `references/...` files an agent should read before running `gh`.
 9. Keep this central update process linked from `SKILL.md`; do not add a duplicate update-process file inside the skill bundle.
-10. Validate with `uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/gh-cli` when PyYAML is not already installed.
-11. Smoke-test the URL normalizer with at least HTTPS repo, SSH repo, pull request, issue, discussion, issue comment, review comment, action run, release, file blob, directory tree, and slash-ref blob/tree URLs. Verify valid outputs have top-level `references`, `gh.argv`, no `gh.references`, and no `clone_argv`; verify `http://github.com/...`, malformed URLs with decoded path/query/fragment control characters, and ambiguous blob/tree URLs whose refs may contain slashes are rejected as unsupported.
+10. Validate with `uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/gh-cli` when PyYAML is not already installed. Run all Local Skill validators and the metadata/link checks from the local invariants.
+11. Run `uv run python -B ~/.pi/agent/skills/gh-cli/scripts/test_normalize_github_url.py`. The suite covers HTTPS and both SSH repo forms, PRs, issues, discussions, comments/reviews, commits, action runs, releases, comparisons, blobs, trees, fallback routes, and slash-ref ambiguity. Valid results have exactly top-level `references` and `gh.argv`, with no `gh.references` or `clone_argv`. Invalid results use unsupported JSON and exit 2. Tests block network/process calls and cover every ASCII control character, raw and percent-decoded, including HTTPS path parameters and SSH query/fragment inputs. Malformed authorities must not raise parser exceptions. Compile Python files with `PYTHONPYCACHEPREFIX` set to a temporary directory, not the skill folder.
+12. Verify exact set equality between the recursively discovered pages, reference files, and inventory below. Check index families, subcommand links, source/version attribution, `git diff --check`, and artifact/secret/home-path scans. Compare protected binary/config/extension and unrelated-file fingerprints to the pre-update state. Do not stage, commit, push, or mutate hosted services as part of validation.
+
+## Current inventory (2.101.0)
+
+The core snapshot contains 238 help pages: root help, 229 command/alias pages, and eight help topics. The 2.97.0 to 2.101.0 comparison changed 15 existing manuals and left 222 identical. No built-in command or topic was added or removed. Root help is now stored explicitly. The normalized URL routes remain unchanged; rejection now also covers malformed authorities and decoded controls in SSH query/fragment inputs and HTTPS path parameters.
+
+### Validation record (2026-09-29)
+
+- Target validator and all 38 Local Skill validators passed, including frontmatter and `agents/openai.yaml` checks.
+- A fresh recursive capture matched all 238 normalized manuals. The comprehensive reference independently listed all 229 command/alias pages. All 237 child links, index families, and inventory entries matched.
+- Eight offline normalizer tests passed, including 396 control-character cases. The CLI entrypoint smoke test and `py_compile` passed; bytecode stayed in a temporary cache.
+- Markdown links, source/version attribution, portable paths, secret-pattern scans, artifact scans, and `git diff --check` passed.
+- Fingerprints confirmed that `/usr/bin/gh`, gh authentication/configuration, extension files, Git index/HEAD, and unrelated tracked files did not change.
+- Manual routing review preserved GitHub data/command triggers and distinguished Linear, browser interaction, local review, and skill-authoring intents. No model-agent evaluations or hosted operations were run.
+
+### Root help
+
+- `gh help` -> `references/gh.md`
 
 ## Current generated command references
 

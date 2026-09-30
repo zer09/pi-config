@@ -2,7 +2,9 @@
 
 ## Initialization
 
-First, ensure you have initialized the Firebase App (see `firebase-basics` skill). Then, initialize the Auth service:
+Reuse the app's existing Firebase configuration and initialization. Client SDK setup does not require CLI installation, CLI initialization, provisioning, or live authentication. Use `firebase-basics` only for missing app configuration. The snippets implement app behavior; use mocks or a configured emulator for checks, not live sign-in, user creation, or email sending.
+
+Initialize the Auth service:
 
 ```javascript
 import { getAuth } from "firebase/auth";
@@ -68,6 +70,12 @@ signInWithPopup(auth, provider)
     // ...
   });
 ```
+
+### Troubleshooting `auth/unauthorized-domain`
+
+A popup that closes with `auth/unauthorized-domain` can indicate that the app's host is absent from Authentication → Settings → Authorized domains. Domain entries contain only the hostname, such as `localhost`, not a scheme or port. Do not confuse them with OAuth redirect URIs.
+
+Changing authorized domains requires explicit user instruction for the exact action, domain, and target project/environment. Report the missing setup and finish the local code without changing hosted settings or attempting live sign-in.
 
 ## Sign In with Facebook (Popup)
 

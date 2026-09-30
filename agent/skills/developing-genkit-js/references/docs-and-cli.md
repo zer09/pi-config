@@ -1,62 +1,58 @@
-# Genkit Documentation & CLI
+# Genkit documentation and CLI
 
-This reference lists common tasks and workflows using the `genkit` CLI. For authoritative command details, always run `genkit --help` or `genkit <command> --help`.
+## Tool selection and boundaries
 
-## Prerequisites:
+Use the installed or repository-pinned `genkit` CLI when the task benefits from it. Documentation/code work does not require CLI setup. Verify commands against installed help or source; do not download, install, or upgrade tooling as skill maintenance. The upstream documentation commands assume CLI 1.29.0 or newer; an older CLI is a check limit, not automatic upgrade authority.
 
-Ensure that the CLI is on `genkit-cli` version >= 1.29.0. If not, or if an older version (1.x < 1.29.0) is present, update the Genkit CLI version. Alternatively, to run commands with a specific version or without global installation, prefix them with `npx -y genkit-cli@^1.29.0`.
+Review the run command and startup code before invocation. A local Dev UI, flow, or evaluator can call hosted providers or execute tool mutations. Live model/API calls, deployments, provider/secret changes, and hosted writes require explicit user instruction for the exact action and target. Prefer existing mock/local checks.
 
-## Documentation
+## Documentation lookup
 
--   **Search docs**: `genkit docs:search <query>`
-    -   Example: `genkit docs:search "streaming"`
-    -   Example: `genkit docs:search "rag retrieval"`
--   **Read doc**: `genkit docs:read <path>`
-    -   Example: `genkit docs:read js/overview.md`
--   **List docs**: `genkit docs:list`
+When available, use a focused command rather than loading the whole catalog:
 
-## Development Workflow
+```bash
+genkit docs:search "streaming"
+genkit docs:read js/flows.md
+genkit docs:list
+```
 
--   **Start Dev Mode**: `genkit start -- <command>`
-    -   Runs the provided command in Genkit dev mode, enabling the Developer UI (usually at http://localhost:4000).
-    -   **Node.js (TypeScript)**:
-        ```bash
-        genkit start -- npx tsx --watch src/index.ts
-        ```
-    -   **Next.js**:
-        ```bash
-        genkit start -- npx next dev
-        ```
+Installed package source and project references remain valid alternatives. Documentation lookup does not require login, a model call, or a running app.
 
-## Flow Execution
+## Runtime lifecycle
 
--   **Run a flow**: `genkit flow:run <flowName> '<inputJSON>'`
-    -   Executes a flow directly from the CLI. Useful for testing.
-    -   **Simple Input**:
-        ```bash
-        genkit flow:run tellJoke '"chicken"'
-        ```
-    -   **Object Input**:
-        ```bash
-        genkit flow:run generateStory '{"subject": "robot", "genre": "sci-fi"}'
-        ```
+`genkit start -- <run-command>` wraps the existing app with tracing. For an authorized development session, use the project's installed runner and normal entrypoint. Do not use `npx`/`dlx` to fetch a missing runner automatically.
+
+`start` stays running until stopped. `--noui` removes the Dev UI, not the persistent runtime. It is not a one-shot validation command. Add `--non-interactive` before `--` in non-interactive contexts when the installed version supports it; this avoids CLI prompts, not provider calls.
+
+## Flow execution
+
+For a separately authorized invocation or a safe local/mock flow, append the existing runtime command after `--`:
+
+```bash
+genkit flow:run tellJoke '"chicken"' -- <existing-run-command>
+genkit flow:run generateStory '{"subject": "robot", "genre": "sci-fi"}' -- <existing-run-command>
+```
+
+`flow:run` starts that runtime, invokes the named flow once, prints a trace ID, and exits. Pass input JSON explicitly: omitted input is `undefined`, not a schema `.default()` value. The command runs flows (`ai.defineFlow`), not [beta agents](agents.md). Do not add a throwaway live-check flow just to validate local code or documentation.
 
 ## Evaluation
 
--   **Evaluate a flow**: `genkit eval:flow <flowName> [data]`
-    -   Runs a flow and evaluates the output against configured evaluators.
-    -   **Example (Single Input)**:
-        ```bash
-        genkit eval:flow answerQuestion '[{"testCaseId": "1", "input": {"question": "What is Genkit?"}}]'
-        ```
-    -   **Example (Batch Input)**:
-        ```bash
-        genkit eval:flow answerQuestion --input inputs.json
-        ```
+Evaluators can make additional paid model calls. Confirm exact authorization for the flow, dataset, evaluator, provider, and output before a live evaluation. Keep sensitive datasets and results out of tracked files. Use local/mock evaluators when possible.
 
--   **Run Evaluation**: `genkit eval:run <dataset>`
-    -   Evaluates a dataset against configured evaluators.
-    -   **Example**:
-        ```bash
-        genkit eval:run dataset.json --output results.json
-        ```
+```bash
+genkit eval:flow answerQuestion --input inputs.json -- <existing-run-command>
+genkit eval:run dataset.json --output results.json
+```
+
+The command after `--` starts the runtime for `eval:flow`; it can have side effects before the flow runs. Verify dataset shape and flags against the installed CLI. These are reference commands, not maintenance acceptance checks.
+
+## Traces
+
+Trace content can contain prompts, outputs, tool arguments, and credentials. Inspect only needed fields and redact sensitive content before saving or sharing. Never log tokens or credential values. Keep verbose output bounded in temporary files after redaction.
+
+```bash
+genkit trace:list
+genkit trace:get <traceId> --format json
+```
+
+Use `--format json` for machine parsing. The default output is human-oriented and may contain banners or truncated data; do not pipe that form directly into JSON parsers. Traces do not replace offline tests, type checks, or authorization.

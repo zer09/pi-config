@@ -2,6 +2,8 @@
 
 When integrating Firebase Authentication and Google Sign-In into Flutter apps targeting cross-platform environments (like Mobile + Web), you must navigate several breaking changes introduced in `google_sign_in` 7.x+ and some platform-specific quirks.
 
+Reuse existing Firebase initialization and pinned dependencies. Client SDK setup does not require CLI installation, CLI initialization, provisioning, or live authentication. Provider enablement, domain changes, and live user creation require explicit user instruction for the exact action and target project/environment. Use mocks or a configured emulator for checks.
+
 ## 1. `google_sign_in` 7.2.0 API Changes
 - **Method Renamed**: The `signIn()` method is deprecated/removed and has been replaced with `authenticate()`.
 - **Token Separation**: The `GoogleSignInAuthentication` object no longer packages both identity and authorization tokens together. Initial authentication now only provides the `idToken`. If an `accessToken` is required for Google APIs, you must explicitly request server authorization separately.
@@ -28,11 +30,9 @@ When integrating Firebase Authentication and Google Sign-In into Flutter apps ta
   await FirebaseAuth.instance.signOut();
   ```
 
-## 4. Prototyping Workaround: Bypassing Firestore Composite Indices
-*Note: This is a Firestore consideration frequently encountered while fetching user-specific auth data.*
+## 4. Firestore queries for user data
 
-When querying data via `FirebaseFirestore.instance`, using `.where('userId', isEqualTo: uid)` combined with a sort on a different field like `.orderBy('createdAt', descending: true)` mandates a custom composite index. 
-- **Quick Alternative**: During local development, you can avoid defining indexes by pulling the data using only `.where()` and applying the `.sort()` operation client-side on the resulting `List` in Dart.
+Preserve ownership filters, ordering, and limits when querying user data. Do not fetch an unbounded collection or sort a limited unsorted subset to bypass a missing composite index. Use `firebase-firestore` for edition-aware query/index work; index deployment needs separate exact authorization.
 
 ## 5. Robust `AuthService` Boilerplate
 Here is a comprehensive `AuthService` implementation that properly handles the initialization and platform differences between Flutter Web and Mobile:
@@ -45,9 +45,10 @@ import 'package:google_sign_in/google_sign_in.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  AuthService() {
+  // Await this once before sign-in or sign-out; constructors cannot await it.
+  Future<void> initialize() async {
     if (!kIsWeb) {
-      GoogleSignIn.instance.initialize();
+      await GoogleSignIn.instance.initialize();
     }
   }
 
@@ -66,10 +67,8 @@ class AuthService {
         return await _auth.signInWithPopup(authProvider);
       } else {
         // Mobile uses standard flow
-        final GoogleSignInAccount? googleUser = await GoogleSignIn.instance.authenticate();
-        if (googleUser == null) return null; // Cancelled
-
-        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+        final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate();
+        final GoogleSignInAuthentication googleAuth = googleUser.authentication;
         
         final AuthCredential credential = GoogleAuthProvider.credential(
           idToken: googleAuth.idToken,
@@ -78,7 +77,7 @@ class AuthService {
         return await _auth.signInWithCredential(credential);
       }
     } catch (e) {
-      print("Error during Google Sign-In: \$e");
+      // Show a safe error state without logging credentials or provider responses.
       return null;
     }
   }
@@ -91,8 +90,14 @@ class AuthService {
       }
       await _auth.signOut();
     } catch (e) {
-      print("Error signing out: \$e");
+      // Show a safe error state without logging credentials or provider responses.
     }
   }
 }
 ```
+
+Create the service after Firebase initialization, then `await authService.initialize()` before exposing its sign-in/sign-out actions. In 7.x, cancellation is reported as an exception; map it to a cancelled UI state rather than assuming a null account.
+
+## 6. Web authorized domains
+
+For popup failures with `auth/unauthorized-domain`, follow the [Web troubleshooting guidance](client_sdk_web.md#troubleshooting-authunauthorized-domain). Domain changes remain gated; a Flutter Web port change does not require adding a port to the authorized-domain entry.

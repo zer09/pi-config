@@ -4,7 +4,7 @@
 
 Pair with [studio-prompting-guide.md](studio-prompting-guide.md) for mode selection and decision trees.
 
-**Usage:** Replace `<notebook-id>` and `[placeholders]`. All generation requires `confirm=True` (MCP) or `--confirm` (CLI).
+**Usage:** Replace `<notebook-id>` and `[placeholders]`. All generation requires `confirm=True` (MCP) or `--confirm` (CLI), plus the exact user request and target under the [root authorization rules](../SKILL.md#safety-and-authorization). Examples do not authorize adjacent writes.
 
 **Which section to use:**
 - **Fast track (default):** Use [Minimal prompts](#fast-track-minimal-prompts) — 1–3 sentences
@@ -13,6 +13,27 @@ Pair with [studio-prompting-guide.md](studio-prompting-guide.md) for mode select
 **Difficulty note:** Quiz CLI uses `--difficulty 1-5` (3=medium). MCP uses `difficulty="easy"|"medium"|"hard"`.
 
 ---
+
+## Interactive report element plan
+
+After reading the selected report's element IDs and allowed settings, a plan might contain:
+
+```json
+[
+  {
+    "element_id": "<quiz-element-id>",
+    "steering_prompt": "For exam preparation, test the section's named mechanisms and their differences. Use only uploaded sources. Do not invent statistics, quotes, or examples.",
+    "settings": {"difficulty": "hard", "question_amount": "more"}
+  },
+  {
+    "element_id": "<video-element-id>",
+    "steering_prompt": "Explain the section's two central mechanisms for a beginner. Use only uploaded sources. Do not invent statistics, quotes, or examples.",
+    "settings": {"video_format": "explainer"}
+  }
+]
+```
+
+Replace generic concepts with concrete concepts from each returned section. Validate through MCP `report(action="generate", plan=[...], ...)` without `confirm`; it reads the hosted report but does not generate. Stop there for a planning-only request. Only an authorized generation plan may proceed with `confirm=True`. Do not treat a card recommendation as approval. See the [element guide](studio-prompting-guide.md#interactive-report-elements).
 
 ## Fast Track Minimal Prompts
 

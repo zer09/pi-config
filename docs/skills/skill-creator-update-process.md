@@ -11,8 +11,19 @@ The local skill keeps the public name `skill-creator`. It is not a verbatim mirr
 | Source | Repository | Upstream path | Reviewed checkout commit | Last path-specific commit observed |
 | --- | --- | --- | --- | --- |
 | OpenAI | https://github.com/openai/skills | `skills/.system/skill-creator` | `49f948faa9258a0c61caceaf225e179651397431` | `4ab6e0f` |
-| Anthropic | https://github.com/anthropics/skills | `skills/skill-creator` | `f17010c9bb483898c1d9c9f42dde2b3a98889434` | `b9e19e6` |
+| Anthropic | https://github.com/anthropics/skills | `skills/skill-creator` | `8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4` | `b9e19e6` |
 | Pi | Pi documentation installed with `@earendil-works/pi-coding-agent` | `docs/skills.md`, `README.md`, and `docs/json.md` | Local installed package | N/A |
+
+### Increment 17 source comparison (2026-09-30)
+
+Authenticated `gh` GET verified both canonical repositories, their default branch `main`, exact commits, and complete recursive trees. OpenAI remains at the pin above, tree `224b363928698e143876aef008232ed73d8e6f81`. Anthropic advanced from `f17010c9bb483898c1d9c9f42dde2b3a98889434` to the reviewed commit above, tree `d482eba557f7b2035c8a83589809628b96f6f40e`; its mapped skill subtree is identical to the prior pin.
+
+| Source | Full mapped inventory | Unchanged subtree SHA-1 | Ownership comparison result |
+| --- | --- | --- | --- |
+| OpenAI | 7 files, including scaffolding scripts, metadata, and `references/openai_yaml.md` | `8bfb6b8774d223eea3e788cfdfa1e4209e5e2ae9` | No source delta; preserve local initializer, metadata generator, validator, and unified root. |
+| Anthropic | 18 files, including agents, evaluation scripts/viewer, schemas, and license | `3cf9a8db32597ba3e24b584a3d696f4e11c7d7b6` | No source delta; preserve local evaluation/schema references and Pi-native runners, aggregation, viewer, and safety utilities under the ownership map below. |
+
+All 25 source blob identities were verified; cached identical bytes were reused. Source-to-local comparisons include both sources' runtime resources and concept-to-Pi mappings, not wholesale vendor replacement. The local skill remains byte-identical. Target/all 38 validators, metadata/changed links, compile-in-memory, temporary starter fixtures, and the existing offline adversarial suite passed. Scoped diff/secret/artifact and runtime/index preservation checks passed. The inherited ignored `scripts/__pycache__/quick_validate.cpython-314.pyc` was left untouched; no skill-folder cache was generated. No live Pi/model/token evaluation, installation, build, or new harness integration ran. Static and fake-Pi checks do not establish live model behavior.
 
 Frontmatter authority: the portable Agent Skills specification at https://agentskills.io/specification.md defines required `name` and `description`, with optional `license`, `compatibility`, `metadata`, and experimental `allowed-tools`. Pi additionally supports `disable-model-invocation`; treat it as a Pi-only extension rather than portable standard frontmatter.
 

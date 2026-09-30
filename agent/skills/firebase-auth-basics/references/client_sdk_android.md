@@ -2,24 +2,27 @@
 
 This guide walks you through using Firebase Authentication in your Android app using Kotlin DSL (`build.gradle.kts`) and Kotlin code.
 
-### 1, Enable Authentication via CLI
+### 1. Local SDK setup
 
-Before adding dependencies in your app, make sure you enable the Auth service in your Firebase Project using the Firebase CLI:
+Client SDK setup does not require CLI installation, CLI initialization, provisioning, or live authentication. Inspect the app module, `applicationId`, build variant, existing `google-services.json`, and Google services Gradle plugin first. Reuse matching config and plugin wiring; load [Android app configuration](../../firebase-basics/references/android_setup.md) only when those need attention. Missing config does not authorize project creation or app registration.
 
-```bash
-npx -y firebase-tools@latest init auth
-```
-
- ---
+Provider enablement and authorized-domain changes are separate hosted actions requiring explicit user instruction for the exact action and target project/environment. Implement the client flow without performing those actions or testing live sign-in.
 
 ### 2. Add Dependencies
 
-In your module-level `build.gradle.kts` (usually `app/build.gradle.kts`), add the dependency for Firebase Authentication:
+Preserve a compatible pinned BoM, version catalog, and convention plugins. Add only the requested dependency. If the resolved SDK version matters, inspect local Gradle metadata or use the existing wrapper with the actual module and variant:
+
+```bash
+./gradlew --offline -q :app:dependencyInsight --dependency firebase-auth --configuration releaseRuntimeClasspath
+```
+
+If the wrapper or dependency is not cached, report the limit rather than downloading it for a check. When a new version is needed, verify compatibility using [Google Maven BoM metadata](https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-bom/maven-metadata.xml) and [Auth metadata](https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-auth/maven-metadata.xml); do not force the latest version.
+
+In your module-level `build.gradle.kts` (usually `app/build.gradle.kts`), reuse the existing BoM declaration or add a verified compatible version:
 
 ```kotlin
 dependencies {
-    // [AGENT] Fetch the latest available BoM version from https://firebase.google.com/support/release-notes/android before adding this
-    implementation(platform("com.google.firebase:firebase-bom:<latest_bom_version>"))
+    implementation(platform("com.google.firebase:firebase-bom:<compatible_bom_version>"))
 
     // Add the dependency for the Firebase Authentication library
     // When using the BoM, you don't specify versions in Firebase library dependencies
@@ -34,23 +37,19 @@ dependencies {
 In your Activity or Fragment, initialize the `FirebaseAuth` instance:
 
 ```kotlin
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.ktx.auth
-import com.google.firebase.ktx.Firebase
+import com.google.firebase.auth.auth
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : ComponentActivity() {
 
     private lateinit var auth: FirebaseAuth
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val auth = Firebase.auth
-        
-        setContent {
-            MaterialTheme {
-                Text("Auth initialized!")
-            }
-        }
+        auth = Firebase.auth
     }
 }
 ```
@@ -104,6 +103,8 @@ public override fun onStart() {
 ---
 
 ### 5. Sign Up New Users (Email/Password)
+
+These snippets implement app behavior, not commands to execute during maintenance. Use mocks or a configured emulator for checks. Live user creation requires explicit user instruction for the exact action and target project/environment.
 
 Use `createUserWithEmailAndPassword` to register new users:
 

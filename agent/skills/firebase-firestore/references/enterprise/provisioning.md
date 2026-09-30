@@ -6,8 +6,7 @@ Database creation and rule/index deployment require explicit user instruction fo
 
 ## Manual Initialization
 
-Initialize the following firebase configuration files manually. Do not use `npx
--y firebase-tools@latest init`, as it expects interactive inputs.
+For requested local setup, edit only the needed configuration fields instead of starting interactive initialization.
 
 1.  **Identify the target**: Use an existing database, or create one only under the explicit creation gate below. Skip hosted steps for local-only work.
 2.  **Create `firebase.json`**: This file contains database configuration for
@@ -18,22 +17,11 @@ Initialize the following firebase configuration files manually. Do not use `npx
 
 ### 1. Create a Firestore Enterprise Database
 
-Only after the user explicitly requests creation of this database, establish its project, ID, Enterprise edition, native access mode, and location. Run `firebase firestore:locations --project <project-id>` if location options are needed. Suggest colocation where relevant, but leave the provisioning decision explicit.
+Only with explicit authorization for the exact creation action and target project/database, establish its ID, Enterprise edition, native access mode, location, and realtime setting. Run `firebase firestore:locations --project <project-id>` if location options are needed. Suggest colocation where relevant, but leave the provisioning decision explicit.
 
-For that authorized target:
+CLI 15.32.0 defaults realtime updates to enabled when Enterprise Firestore data access is enabled. Set `<authorized-realtime-setting>` to exactly `ENABLED` or `DISABLED`, as explicitly authorized for that target. If the realtime choice or exact creation authorization is missing, stop before creation.
 
-```bash
-firebase firestore:databases:create my-database-id \
-  --location="<selected-location>" \
-  --edition="enterprise" \
-  --firestore-data-access="ENABLED" \
-  --mongodb-compatible-data-access="DISABLED" \
-  --project <project-id>
-```
-
-This will create an enterprise database in the selected location with native mode enabled. A
-database id is required to create an enterprise database and the database id
-must not be `(default)`. If realtime updates are part of the explicitly selected provisioning configuration, use the `--realtime-updates` flag instead of the preceding command:
+A database ID is required and must not be `(default)`. For that authorized target:
 
 ```bash
 firebase firestore:databases:create my-database-id \
@@ -41,7 +29,7 @@ firebase firestore:databases:create my-database-id \
   --edition="enterprise" \
   --firestore-data-access="ENABLED" \
   --mongodb-compatible-data-access="DISABLED" \
-  --realtime-updates="ENABLED" \
+  --realtime-updates="<authorized-realtime-setting>" \
   --project <project-id>
 ```
 
@@ -56,6 +44,7 @@ content (match `database` and `location` to the selected target). For local-only
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json",
     "edition": "enterprise",
+    "dataAccessMode": "FIRESTORE_NATIVE",
     "database": "my-database-id",
     "location": "<selected-location>"
   }
@@ -96,17 +85,19 @@ start:
 
 ## Explicitly authorized deployment
 
-Deploy only when the user explicitly requests the exact rule/index deployment. Confirm the project and database and select only the authorized resources. If the database is missing, stop unless its creation is separately authorized. Local validation does not require deployment.
+Deploy only with explicit authorization for the exact rule/index action and target project/database. Confirm the existing database, Enterprise edition, native access mode, and selected resources. If the target is missing, stop; create it through the preceding creation gate only if separately authorized with the exact project, database ID, edition, access mode, and location. Do not use deployment to create it implicitly. Service enablement also needs separate exact authorization. Local validation does not require deployment.
+
+Use a reviewed config containing only the authorized database and resource files, with an explicit `database` value. Set `<single-database-config>` to that file; preserve the original multi-database config. In CLI 15.32.0, `firestore:rules` and `firestore:indexes` can select every configured database, and preparation can create the first config entry before database filtering. A `--only` selector alone is not sufficient isolation.
 
 ```bash
 # Rules and indexes, only if both are authorized
-firebase deploy --only firestore --project <project-id>
+firebase deploy --only firestore --project <project-id> --config <single-database-config>
 
 # Rules only
-firebase deploy --only firestore:rules --project <project-id>
+firebase deploy --only firestore:rules --project <project-id> --config <single-database-config>
 
 # Indexes only
-firebase deploy --only firestore:indexes --project <project-id>
+firebase deploy --only firestore:indexes --project <project-id> --config <single-database-config>
 ```
 
 ## Local Emulation

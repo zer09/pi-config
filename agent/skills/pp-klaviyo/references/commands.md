@@ -2,10 +2,21 @@
 
 Use these examples as starting points. Inspect the installed command's `--help` before use because generated command surfaces can drift.
 
+## Current release safety notes
+
+The installed CLI is `klaviyo-pp-cli 2026.9.3`. The release ledger identifies `5bb1f7fc0d5df8cd83e88201be56458811c0eb00` as its source commit.
+
+- `campaigns deploy` checks unsubscribe tags before creating a template or making other API calls. Raw campaign/template writes do not inherit this check; use [HTML QA](#campaign-html-qa) before deployment or launch.
+- Ambiguous transport and 5xx retries are limited to GET, HEAD, and OPTIONS. Other methods, including read-only POST reports, are not retried on these failures. Bounded authentication and rate-limit recovery remain available. Inspect target state before any separately authorized write retry.
+- Campaign creation and template assignment preserve nested JSON:API objects. After exact write authorization, inspect `campaigns create --help` for the JSON object flags or `--stdin`. Inspect `campaign-message-assign-template --help` for `--data-relationships-template`. Do not flatten nested objects or invent unsupported body flags.
+- Path parameters are percent-encoded as single URL segments, including `.` and `..` values.
+
 ## Health and discovery
 
+Run the [preflight](../scripts/preflight.sh) from this skill's directory, not from the project or `references/` directory:
+
 ```bash
-$HOME/.pi/agent/skills/pp-klaviyo/scripts/preflight.sh
+sh ./scripts/preflight.sh
 klaviyo-pp-cli --version
 klaviyo-pp-cli --help
 klaviyo-pp-cli agent-context --pretty
@@ -13,7 +24,7 @@ klaviyo-pp-cli which "<capability>" --json
 klaviyo-pp-cli <resource> <command> --help
 ```
 
-The current `doctor` command probes the bare API root, so credential validation can be inconclusive. Prefer one bounded `accounts get` request for a live authenticated check. Do not print the raw account response.
+The current `doctor` command probes the bare API root, so credential validation can be inconclusive. Within an authorized authenticated-read task, prefer one bounded `accounts get` request. Do not print the raw account response. For offline maintenance, use version, help, and local `agent-context` checks only.
 
 ## Safe live read template
 
@@ -30,7 +41,7 @@ Add one command-specific page bound and sparse-field flag where available. Avoid
 
 ## Representative reads
 
-These shapes were checked against `klaviyo-pp-cli 2026.8.1` help. Adjust selected fields to the request.
+These shapes were checked against `klaviyo-pp-cli 2026.9.3` help without product API calls. Adjust selected fields to the request.
 
 ```bash
 # Account identity. Capture and parse; do not print the raw object.
@@ -95,6 +106,23 @@ klaviyo-pp-cli templates get \
 ```
 
 Campaign, flow, form, segment, and metric report queries use POST but are read-only analytics operations. In this CLI release, report shortcut help does not document a query-body input flag. Inspect `campaign-values-reports --help`, `flow-values-reports --help`, and `metric-aggregates --help`; do not improvise or execute a report until runtime help exposes the exact query input.
+
+## Campaign HTML QA
+
+Before an authorized deployment or launch, check the exact HTML file locally:
+
+```bash
+klaviyo-pp-cli plan qa-gate --html ./email.html \
+  --json --no-input --no-color --data-source live --no-cache
+```
+
+Without `--campaign-id`, this command reads only the local HTML. Adding `--campaign-id` fetches campaign evidence and requires authenticated-read authorization and PII controls. Do not use `--dry-run` for validation; it only lists planned checks.
+
+Inspect `verdict` and `findings`, not just the exit code. A failed finding can accompany exit 0. Missing HTML produces an unsubscribe warning, not proof of compliance.
+
+Use `{% unsubscribe %}` as standalone text, or `{% unsubscribe_link %}` in an anchor's `href`. The full-link tag inside `href` and the URL-only tag outside `href` fail validation. Tags found only in comments or non-rendered `<template>` content do not count. Resolve failures and review warnings before continuing. Preview the rendered email too; this source check does not prove visibility or accessibility.
+
+For `campaigns deploy`, `--template-file` reads a file; `--template-html` takes literal HTML despite the generated example showing a filename. A successful QA result does not authorize deployment or sending. Keep the mutation workflow and final confirmation gate.
 
 ## PII controls
 

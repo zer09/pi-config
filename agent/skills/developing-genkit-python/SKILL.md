@@ -9,7 +9,7 @@ description: "Implement or debug Genkit Python generation, agents, flows, tools,
 
 - Local code edits and checks are allowed within the requested task. Firebase/GCP mutations, deployment, provider or secret changes, and live model/API calls require explicit user instruction for the exact action. A local flow or Dev UI can still call hosted services.
 - Never print, save, or commit API keys, tokens, or service credentials. Use environment variable names or `<api-key>` placeholders.
-- The Genkit Python runtime floor is **Python 3.10+**. Preserve a project's pinned newer Python version and dependency constraints. Inspect `pyproject.toml`, lockfiles, imports, and installed package versions; use the project's `uv` environment without upgrading dependencies unless requested.
+- The Genkit Python runtime floor is **Python 3.10+**. Preserve a project's pinned newer Python version and dependency constraints. Inspect `pyproject.toml`, lockfiles, imports, and installed package versions; use the project's `uv` environment when standardized, or preserve its existing manager, without upgrading dependencies unless requested.
 - Verify uncertain imports and APIs against installed source, the relevant reference, or current SDK documentation. [Setup](references/setup.md) records the runtime-floor evidence and bootstrap examples.
 
 ## Python API guidance and references
@@ -23,14 +23,17 @@ Load only the reference relevant to the task:
 | New setup, plugins, Hello World, optional CLI installation | [Setup](references/setup.md) |
 | Structured output, streaming, flows, tools, embeddings | [Examples](references/examples.md) |
 | Python SDK import, schema, decorator, streaming, or event-loop failures | [Common errors](references/common-errors.md) |
-| HTTP handlers and parallel flows | [FastAPI](references/fastapi.md) |
+| Compatible beta agents, history, approvals, current HTTP routers | [Agents](references/agents.md) |
+| Legacy HTTP decorator and parallel flows | [FastAPI](references/fastapi.md) |
 | `.prompt` files and helpers | [Dotprompt](references/dotprompt.md) |
 | Requested evaluation implementation | [Evals](references/evals.md) |
 | Optional local tracing and Dev UI | [Development workflow](references/dev-workflow.md) |
 
+Use agents only when the task needs multi-turn state and the resolved SDK supports them. Keep existing flows and generation loops unless a migration is requested. Plugin import paths depend on the resolved package generation; [Setup](references/setup.md) distinguishes them.
+
 ## Validation and completion
 
-Run the relevant available project tests, lint, or type checks for affected code through `uv run`. Prefer mocked/local checks; live calls and model-based evaluations require exact authorization. Documentation-only work needs relevant link/example checks, not CLI startup or a full environment setup.
+Run the relevant available project tests, lint, or type checks for affected code through `uv run` or the existing project scripts. Prefer mocked/local checks; live calls and model-based evaluations require exact authorization. Documentation-only work needs relevant link/example checks, not CLI startup or a full environment setup.
 
 Finish with the requested deliverable, checks and results, and version assumptions or blocked checks. Fix in-scope regressions without expanding into dependency upgrades or hosted actions.
 

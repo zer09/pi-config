@@ -1,6 +1,6 @@
 # Directus Studio reference index
 
-Last reviewed: 2026-07-09
+Last reviewed: 2026-09-30
 
 Use this index first when operating Directus through `pi-browser-harness`. Then load the smallest reference needed for the task.
 
@@ -34,8 +34,9 @@ Directus Studio is module-based. Use `browser_snapshot` to identify current labe
 ## Browser navigation rules
 
 - Navigate by visible labels and Directus concepts, not stored coordinates or brittle CSS classes.
-- Prefer `browser_snapshot` for page structure and click targets.
+- Prefer `browser_snapshot` for page structure and `[eN]` interaction refs. Use fresh snapshot coordinates only when no ref is available.
+- Refresh the snapshot after navigation, major re-renders, or stale refs.
 - Prefer `browser_execute_js` for exact form/table/DOM values.
 - Prefer Directus field data attributes when present: `data-collection`, `data-field`, `data-primary-key`.
-- After saves/failures, check network responses before guessing.
+- After saves/failures, check network responses before guessing. A timeout does not prove that a mutation failed; verify before an authorized safe retry.
 - Fall back to the Studio UI when browser-context API probes return 401/403.

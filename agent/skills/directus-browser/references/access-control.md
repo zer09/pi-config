@@ -1,7 +1,7 @@
 # Directus access-control reference
 
-Last reviewed: 2026-08-09
-Sources: `official-sources.md` -> Access-control docs.
+Last reviewed: 2026-09-30
+Sources: `official-sources.md` -> Access-control docs; Directus 12 breaking changes.
 
 Use this for users, roles, policies, permissions, app/admin access, public access, and access-control API reads.
 
@@ -21,6 +21,7 @@ Use this for users, roles, policies, permissions, app/admin access, public acces
 - Field validation can validate values for create/update.
 - Field presets can set default values for create/update.
 - API responses omit or null restricted fields; treat `null` as possible real data or permission masking.
+- Directus 12.4+ update/delete by query resolves targets through read permissions: the primary key and filter/sort fields must be readable, and unreadable items are skipped. Nested O2M saves also require child-collection read access. Do not broaden permissions without an exact request.
 
 ## Roles and policies
 

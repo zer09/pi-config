@@ -1,15 +1,15 @@
 # Directus browser-context API probes
 
-Last reviewed: 2026-07-09
-Sources: `official-sources.md` -> API docs and security docs.
+Last reviewed: 2026-09-30
+Sources: `official-sources.md` -> API docs, security docs, and Directus 12 breaking changes.
 
 Use this for read-only inspection through the logged-in browser session. Default to UI-first operation for mutations.
 
 ## Allowed by default
 
-Use same-origin, logged-in, read-only `GET` requests from `browser_execute_js` with `credentials: "include"`.
+After the root's per-task Browser Harness gate, use same-origin, logged-in, read-only `GET` requests from `browser_execute_js` with `credentials: "include"`. A GET that triggers a flow is not a read-only probe.
 
-If a probe returns 401/403, fall back to Studio UI. Do not extract tokens from cookies, localStorage, or sessionStorage.
+If a probe returns 401/403, fall back to Studio UI. Do not extract tokens from cookies, localStorage, or sessionStorage. Directus 12.4+ can return `COLLECTION_INACTIVE` (403) for inactive collections; do not treat denied access as a missing resource or reactivate it without an exact request.
 
 ## Generic helper
 

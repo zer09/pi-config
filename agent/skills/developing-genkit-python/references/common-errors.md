@@ -6,12 +6,9 @@ Use the matching section for a Genkit Python import, schema, API, or runtime fai
 
 ## ModuleNotFoundError: No module named 'genkit.plugins.google_genai'
 
-**Cause:** Plugin package not installed.
+**Cause:** A missing plugin or an import from the wrong package generation.
 
-**Fix:** Add dependencies from PyPI:
-```bash
-uv add genkit genkit-plugin-google-genai
-```
+**Fix:** Inspect the lockfile and installed module layout first. The split-package API uses `from genkit_google_genai import GoogleAI`; legacy `genkit-plugin-*` projects can retain `genkit.plugins.google_genai`. See [Setup](setup.md). Add dependencies only for an authorized setup/repair task, not as an automatic import-error workaround.
 
 ---
 
@@ -80,3 +77,9 @@ sr = ai.generate_stream(prompt='...')   # no await
 async for chunk in sr.stream: ...
 final = await sr.response
 ```
+
+## Agent state, streaming, and errors
+
+With compatible `genkit.agent`, `chat.send_stream(...)` returns a turn synchronously; consume `.stream`, then await `.response`. A stored conversation uses `await agent.load_chat(snapshot_id=...)` to restore history. Without a store, IDs remain `None`; round-trip messages, state, and artifacts yourself.
+
+A throwing tool can end the turn with `AgentError`. Do not blindly replay side-effecting tools. Build approval restart/respond entries only from the response's interrupts, after verifying the exact operation and user authority. See [Agents](agents.md) for selected APIs and safety boundaries.

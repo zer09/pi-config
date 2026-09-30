@@ -1,7 +1,7 @@
 # gh help environment
 
 Source: https://cli.github.com/manual/gh_help_environment
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help environment`.
+Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help environment`.
 
 ## Summary
 
@@ -67,6 +67,9 @@ If a newer version was found, an upgrade notice is displayed on standard error.
 When an extension is executed, gh checks for new versions for the executed extension once every 24 hours.
 If a newer version was found, an upgrade notice is displayed on standard error.
 
+`GH_EXTENSION`: set to `1` by gh when it invokes an extension, allowing an extension to
+tell whether it was run as `gh <extension>` or directly as a standalone program.
+
 `GH_CONFIG_DIR`: the directory where gh will store configuration files. If not specified,
 the default value will be one of the following paths (in order of precedence):
   - `$XDG_CONFIG_HOME/gh` (if `$XDG_CONFIG_HOME` is set),
@@ -76,7 +79,8 @@ the default value will be one of the following paths (in order of precedence):
 `GH_PROMPT_DISABLED`: set to any value to disable interactive prompting in the terminal.
 
 `GH_PATH`: set the path to the gh executable, useful for when gh can not properly determine
-its own path such as in the cygwin terminal.
+its own path such as in the cygwin terminal. gh also sets this when invoking extensions so they
+can call back into the same gh executable.
 
 `GH_MDWIDTH`: default maximum width for markdown render wrapping.  The max width of lines
 wrapped on the terminal will be taken as the lesser of the terminal width, this value, or 120 if

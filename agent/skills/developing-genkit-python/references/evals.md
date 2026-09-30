@@ -2,13 +2,15 @@
 
 ## Two types of evaluators
 
-1. **Built-in** — ship with `genkit-plugin-evaluators`, register with `register_genkit_evaluators(ai)`
-2. **BYO (LLM-based)** — define your own scoring logic with `ai.define_evaluator()`
+1. **Built-in** — split-package SDKs use `genkit-evaluators` and `register_genkit_evaluators(ai)`. Regex/deep-equal checks do not require Google AI or credentials.
+2. **BYO** — define scoring logic with `ai.define_evaluator()`. Model judges are optional live calls, not offline validation.
+
+Verify the resolved package generation first; [Setup](setup.md) covers legacy imports. Preserve project dependencies. Add packages only for requested evaluation setup.
 
 ## Install
 
 ```bash
-uv add genkit-plugin-evaluators
+uv add genkit-evaluators
 ```
 
 ## Dataset format
@@ -26,14 +28,16 @@ Fields: `testCaseId`, `input`, `output`, `reference` (reference optional for som
 ## Built-in evaluators
 
 ```python
-from genkit.plugins.evaluators import register_genkit_evaluators
+from genkit_evaluators import register_genkit_evaluators
 register_genkit_evaluators(ai)
 ```
 
-Registered evaluators include `genkitEval/regex`. Run via CLI:
+Registered evaluators include `genkitEval/regex`, `genkitEval/deep_equal`, and `genkitEval/jsonata`. The optional CLI needs a registered runtime. For requested local-only evaluation, review startup and evaluator behavior first; a model judge or data-producing flow needs separate authorization. Run against an existing runtime:
 ```bash
 genkit eval:run datasets/my_dataset.json --evaluators=genkitEval/regex
 ```
+
+For the compatible programmatic API, call `await ai.evaluate(dataset=my_dataset, evaluator='byo/my_eval')` with singular `evaluator`; read `EvalResponse.root`, not `.results`. The chosen evaluator can still make hosted calls. Keep datasets and results redacted.
 
 ## BYO evaluator
 

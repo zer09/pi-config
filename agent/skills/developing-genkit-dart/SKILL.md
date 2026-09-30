@@ -18,7 +18,9 @@ Use Dart APIs rather than translating another Genkit SDK's syntax. Load only the
 | Task | Reference |
 | --- | --- |
 | Setup or optional CLI/Dev UI | [Getting started](references/getting-started.md) |
-| `Genkit()`, `generate`, `generateStream`, `embedMany`, tools, flows, remote clients | [Core framework](references/genkit.md) |
+| `Genkit()`, generation, tools, flows, errors, cancellation, remote clients | [Core framework](references/genkit.md) |
+| `.prompt` call/stream/render, schemas, tool-loop fields | [Dotprompt](references/dotprompt.md) |
+| Compatible experimental agents, chat state, interrupts, HTTP clients | [Agents](references/agents.md) |
 | Schemantic schema mapping, `@Schema()`, generated `$schema` types | [Schemantic](references/schemantic.md) |
 | Gemini | [Google GenAI](references/genkit_google_genai.md) |
 | Claude | [Anthropic](references/genkit_anthropic.md) |
@@ -28,6 +30,8 @@ Use Dart APIs rather than translating another Genkit SDK's syntax. Load only the
 | On-device Chrome Prompt API | [Chrome](references/genkit_chrome.md) |
 | HTTP flows through Shelf | [Shelf](references/genkit_shelf.md) |
 | Firebase AI provider | [Firebase AI](references/genkit_firebase_ai.md) |
+
+Use agents when the requested task needs multi-turn state and the resolved SDK supports the experimental APIs. Keep existing flows and generation loops unless a migration is requested.
 
 Genkit Dart schema mapping uses Schemantic. Regenerate affected schema files using the project's existing generator when definitions change; preserve generated-code conventions.
 

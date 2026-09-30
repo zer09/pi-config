@@ -4,17 +4,21 @@ Apply the [root action boundary](../SKILL.md#action-boundary) before using any c
 
 ## Reading comments
 
-The review file path is shown by `crit status`. Use `crit comments` for unresolved comments and `crit comments --json` for structured agent input. Add `--all` to include resolved comments or `--plan <slug>` for a plan review. Review-level comments appear first.
+After an explicitly requested interactive round completes, read the finish prompt on stdout. It may embed unresolved comments as JSON instead of a review file path. Stderr carries `approved: true` or `approved: false`; missing output is not approval. Do not start a review to read existing comments.
+
+The review file path is shown by `crit status`. Use `crit comments` for unresolved comments and `crit comments --json` for flat, structured agent input. Add `--all` to include resolved comments or `--plan <slug>` for a plan review. `crit comments [path]` accepts an explicit `review.json` or `.crit` directory. Review-level comments appear first.
 
 When multiple sessions match the current directory and branch, headless commands refuse to guess. Use `crit status --json`, select the intended session, then pass `--session <id>` to `comment`, `comments`, `share`, `pull`, or `push`.
 
 ## Review file format
 
-Comments have three scopes:
+Persisted review JSON has three comment scopes:
 
-- **Line comments** (`scope: "line"`): tied to specific lines, stored in `files.<path>.comments`.
-- **File comments** (`scope: "file"`): about a file overall, stored in `files.<path>.comments` with `start_line: 0`.
+- **Line comments**: tied to specific lines, stored in `files.<path>.comments`. An empty `scope` is omitted; explicit `scope: "line"` is also valid.
+- **File comments** (`scope: "file"`): about a file overall, stored in `files.<path>.comments` with `start_line: 0` and `end_line: 0`.
 - **Review comments** (`scope: "review"`): general feedback, stored in the top-level `review_comments` array.
+
+Flattened `crit comments --json` output normalizes scopes to explicit `"line"`, `"file"`, or `"review"` values.
 
 ```json
 {
@@ -142,16 +146,20 @@ Plan reviews (via `crit plan` or the ExitPlanMode hook) store the review file in
 crit comment --plan my-plan-2026-03-23 --reply-to c_a1b2c3 --author 'Pi' 'Updated the plan'
 ```
 
-## GitHub PR integration
+## GitHub PR / GitLab MR integration
 
-`pull` updates the local review file and needs a request for that sync. `push` posts a GitHub review and needs explicit instruction for that exact action and PR target. A dry-run does not authorize a later push.
+`pull` updates the local review file and needs a request for that sync and target. `push` posts a PR/MR review and needs explicit instruction for that exact hosted action, target, and review event. A dry-run does not authorize a later push.
 
 ```bash
-crit pull [pr-number]                                    # Fetch PR review comments into the review file
-crit push [--dry-run] [--event <type>] [-m <msg>] [pr]   # Post review comments as a GitHub PR review
+crit pull [number|url]                                  # Fetch PR/MR comments into the local review
+crit push [--dry-run] [--event <type>] [-m <msg>] [number|url]
+crit pull --forge github <number>                       # Select the requested GitHub provider
+crit pull --forge gitlab <number>                       # Select the requested GitLab provider
 ```
 
-Requires `gh` CLI installed and authenticated. PR number is auto-detected from the current branch; verify it matches the requested target before syncing.
+GitHub requires authenticated `gh`; GitLab requires authenticated `glab`, not `gh`. Use the `gh-cli` skill and authenticated `gh` for separate GitHub reads. Do not install CLIs or change authentication as a side effect.
+
+Crit auto-detects the provider and PR/MR when omitted. Verify the host, repository/project, change request, and local review match the requested target. `--forge auto|github|gitlab` selects the provider for `pull` and `push`; do not guess across providers. Preserve `--session <id>` when selecting a local review.
 
 `--event` values: `comment` (default), `approve`, `request-changes`. `-m` adds a review-level body message. Approval and change-request events must match the user's explicit instruction.
 
@@ -161,14 +169,19 @@ Publishing and unpublishing are separate hosted actions. Apply the root's exact-
 
 ```bash
 crit share <file> [file...]                          # Upload and print URL
+crit share --share-url <url> <file>                  # Select the authorized deployment
 crit share --qr <file>                               # Also print QR code (terminal only)
 crit share --org <slug> <file>                       # Share under an organization
 crit share --org <slug> --visibility unlisted <file> # Org share with explicit visibility
-crit unpublish [file...]                              # Remove shared review
+crit share --preview <file.html>                    # Publish an HTML preview, not a dry-run
+crit unpublish [file...]                            # Remove shared review
+crit unpublish --share-url <url> [file...]           # Select the original deployment
 ```
 
-- Relay the output: copy the URL (and QR if used) into your response. Do not make the user search tool output.
+- Relay the output after redacting secrets: copy the URL (and QR if used) into your response. Do not make the user search tool output.
 - `--qr` is terminal-only. Skip it in mobile apps, web chat UIs, or anywhere Unicode block characters will not render correctly.
 - `--org <slug>` shares under an organization. Visibility defaults to `organization` (members only). Override with `--visibility` (`organization`, `unlisted`, `public`).
+- `--share-url` selects among configured `share_targets` or overrides the destination for one invocation. Multiple targets without a default require an explicit choice. Do not change configuration or authentication to make that choice. A CLI override takes precedence over `CRIT_SHARE_URL`; an empty `CRIT_SHARE_URL=` disables sharing unless a CLI override is supplied.
+- `crit share --preview` publishes HTML; it is not an offline preview or dry-run. In v0.21.0 it honors `--org`, `--visibility`, and `--qr` and preserves the original HTML path. Apply the same publication gates.
 - If a review file exists, comments for the shared files are included automatically. Include them when checking the authorized publication scope.
-- Unpublish uses the persisted delete token in the review file. No extra args are needed. Do not expose the token.
+- Unpublish uses the persisted delete token in the review file. Use `--share-url` for the intended non-default deployment; do not guess a different destination or expose the token. Do not send credentials or delete tokens to an unapproved deployment.

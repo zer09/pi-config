@@ -41,23 +41,14 @@ specific index.
 
 ## Query Support Examples
 
-| Query Type                           | Index Required                       |
-| :----------------------------------- | :----------------------------------- |
-| **Simple Equality**<br>`where("a",   | Automatic (Single-Field)             |
-: "==", 1)`                            :                                      :
-| **Simple Range/Sort**<br>`where("a", | Automatic (Single-Field)             |
-: ">", 1).orderBy("a")`                :                                      :
-| **Multiple Equality**<br>`where("a", | Automatic (Merged Single-Field)      |
-: "==", 1).where("b", "==", 2)`        :                                      :
-| **Equality +                         | **Composite Index**                  |
-: Range/Sort**<br>`where("a", "==",    :                                      :
-: 1).where("b", ">", 2)`               :                                      :
-| **Multiple Ranges**<br>`where("a",   | **Composite Index** (and technically |
-: ">", 1).where("b", ">", 2)`          : limited query support)               :
-| **Array Contains +                   | **Composite Index**                  |
-: Equality**<br>`where("tags",         :                                      :
-: "array-contains",                    :                                      :
-: "news").where("active", "==", true)` :                                      :
+| Query | Index |
+| --- | --- |
+| `where("a", "==", 1)` | Automatic single-field |
+| `where("a", ">", 1).orderBy("a")` | Automatic single-field |
+| `where("a", "==", 1).where("b", "==", 2)` | Merged single-field |
+| `where("a", "==", 1).where("b", ">", 2)` | Composite |
+| `where("a", ">", 1).where("b", ">", 2)` | Composite; verify query constraints |
+| `where("tags", "array-contains", "news").where("active", "==", true)` | Composite |
 
 ## Best Practices & Exemptions
 
@@ -109,8 +100,10 @@ Your indexes should be defined in `firestore.indexes.json` (pointed to by
 
 ### Explicitly authorized deployment
 
-Index deployment requires explicit user instruction for that exact action. Verify the project and database first; a missing target does not authorize database creation. For local work, validate the index configuration without deployment.
+Index deployment requires explicit authorization for the exact action and target project/database. Verify the database exists and confirm its edition/access mode. A missing target does not authorize database creation. For local work, validate the index configuration without deployment.
+
+Before deployment, apply the [single-database config and creation gates](provisioning.md#explicitly-authorized-deployment). `<single-database-config>` must contain only the authorized existing database and resource files; a broad config can affect other databases even with an index-only selector.
 
 ```bash
-firebase deploy --only firestore:indexes --project <project-id>
+firebase deploy --only firestore:indexes --project <project-id> --config <single-database-config>
 ```

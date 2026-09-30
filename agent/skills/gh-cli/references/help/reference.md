@@ -1,7 +1,7 @@
 # gh help reference
 
 Source: https://cli.github.com/manual/gh_help_reference
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help reference`.
+Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help reference`.
 
 ## Summary
 
@@ -389,9 +389,11 @@ List ports in a codespace
       --repo-owner string   Filter codespace selection by repository owner (username or org)
   -t, --template string     Format JSON output using a Go template; see "gh help formatting"
 
-#### gh codespace ports forward <remote-port>:<local-port>...
+#### gh codespace ports forward <remote-port>:<local-port>... [flags]
 
 Forward ports
+
+  --all-interfaces   Listen on all network interfaces
 
 #### gh codespace ports visibility <port>:{public|private|org}...
 
@@ -727,6 +729,7 @@ Close issue
 
 Add a comment to an issue
 
+      --attach file      Attach an image or video file, in '<file>#<image alt text>' format
   -b, --body text        The comment body text
   -F, --body-file file   Read body text from file (use "-" to read from standard input)
       --create-if-none   Create a new comment if no comments are found. Can be used only with --edit-last
@@ -741,6 +744,7 @@ Add a comment to an issue
 Create a new issue
 
   -a, --assignee login       Assign people by their login. Use "@me" to self-assign.
+      --attach file          Attach an image or video file, in '<file>#<image alt text>' format
       --blocked-by numbers   Mark the new issue as blocked by these issue numbers or URLs
       --blocking numbers     Mark the new issue as blocking these issue numbers or URLs
   -b, --body string          Supply a body. Will prompt for one otherwise.
@@ -775,6 +779,7 @@ Manage linked branches for an issue
   -c, --checkout             Checkout the branch after creating it
   -l, --list                 List linked branches for the issue
   -n, --name string          Name of the branch to create
+      --worktree path        Check out the branch into a worktree at the given path
 
 ### gh issue edit {<numbers> | <urls>} [flags]
 
@@ -786,6 +791,7 @@ Edit issues
       --add-label name             Add labels by name
       --add-project title          Add the issue to projects by title
       --add-sub-issue number       Add sub-issues by number or URL
+      --attach file                Attach an image or video file, in '<file>#<image alt text>' format
   -b, --body string                Set the new body.
   -F, --body-file file             Read body text from file (use "-" to read from standard input)
   -m, --milestone name             Edit the milestone the issue belongs to by name
@@ -953,6 +959,7 @@ Check out a pull request in git
       --detach               Checkout PR with a detached HEAD
   -f, --force                Reset the existing local branch to the latest state of the pull request
       --recurse-submodules   Update all submodules after checkout
+      --worktree path        Check out the pull request into a worktree at the given path
 
 Aliases
 
@@ -982,6 +989,7 @@ Close a pull request
 
 Add a comment to a pull request
 
+      --attach file      Attach an image or video file, in '<file>#<image alt text>' format
   -b, --body text        The comment body text
   -F, --body-file file   Read body text from file (use "-" to read from standard input)
       --create-if-none   Create a new comment if no comments are found. Can be used only with --edit-last
@@ -996,6 +1004,7 @@ Add a comment to a pull request
 Create a pull request
 
   -a, --assignee login       Assign people by their login. Use "@me" to self-assign.
+      --attach file          Attach an image or video file, in '<file>#<image alt text>' format
   -B, --base branch          The branch into which you want your code merged
   -b, --body string          Body for the pull request
   -F, --body-file file       Read body text from file (use "-" to read from standard input)
@@ -1039,6 +1048,7 @@ Edit a pull request
       --add-label name          Add labels by name
       --add-project title       Add the pull request to projects by title
       --add-reviewer login      Add or re-request reviewers by their login. Use "@copilot" to request review from Copilot.
+      --attach file             Attach an image or video file, in '<file>#<image alt text>' format
   -B, --base branch             Change the base branch for this pull request
   -b, --body string             Set the new body.
   -F, --body-file file          Read body text from file (use "-" to read from standard input)
@@ -1955,6 +1965,7 @@ Search for issues
       --project owner/number   Filter on project board owner/number
       --reactions number       Filter on number of reactions
   -R, --repo OWNER/REPO        Filter on repository, in OWNER/REPO format
+      --search-type string     Type of issue search to perform: {lexical|semantic|hybrid} (default "lexical")
       --sort string            Sort fetched results: {comments|created|interactions|reactions|reactions-+1|reactions--1|reactions-heart|reactions-smile|reactions-tada|reactions-thinking_face|updated} (default "best-match")
       --state string           Filter based on state: {open|closed}
       --team-mentions string   Filter based on team mentions

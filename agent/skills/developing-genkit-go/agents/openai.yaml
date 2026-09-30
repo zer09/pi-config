@@ -1,4 +1,4 @@
 interface:
   display_name: "Genkit Go"
   short_description: "Implement and debug Genkit Go apps"
-  default_prompt: "Use $developing-genkit-go to implement or debug Genkit Go generation, flows, tools, prompts, streaming, and providers."
+  default_prompt: "Use $developing-genkit-go to implement or debug Genkit Go generation, agents, flows, tools, prompts, streaming, and providers."

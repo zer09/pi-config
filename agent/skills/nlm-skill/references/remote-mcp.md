@@ -1,7 +1,7 @@
 # Remote MCP Deployment
 
 Gemini Notebook (formerly Google NotebookLM) MCP supports Streamable HTTP, but it is designed primarily for
-local, single-user operation. It is not a secure, turnkey public connector.
+local, single-user operation. It is not a secure, turnkey public connector. Deployment and configuration changes require an exact user request and target under the [root safety rules](../SKILL.md#safety-and-authorization).
 
 ## Security Boundary
 
@@ -41,7 +41,7 @@ Remote operation involves two separate credentials:
 The MCP server uses one process-wide Gemini Notebook profile. Every caller operates
 the same Google account, and `nlm login switch <profile>` changes the account
 for the whole server. An OAuth gateway controls access to the endpoint but does
-not create per-user Gemini Notebook isolation.
+not create per-user Gemini Notebook isolation. `usage_get(profile=...)` is an account-specific read exception; it does not switch other tools or make one server safe for multiple users.
 
 Google can require interactive sign-in again at any time. Persistent local
 browser profiles give the best recovery behavior. VPS and container
@@ -63,9 +63,9 @@ source_add(
 ```
 
 A browser or phone path is not uploaded automatically. Likewise,
-`download_artifact(output_path=...)` writes to the server host; it does not
-return a secure browser download URL. Remote file upload and download require a
-separate, authenticated file-transfer layer.
+`download_artifact(output_path=...)` writes inside the download root on the server host. The root uses `NOTEBOOKLM_DOWNLOAD_DIR` after stripping whitespace and expanding `~` if the value is nonempty. Otherwise, it uses `~/Downloads/gemini-notebook` only if `~/Downloads` is an existing directory; if not, it uses the application storage directory's `downloads` subdirectory.
+
+Pass a relative `output_path`, which is anchored to this root; paths outside the root are refused. Use the returned absolute destination on the server host. It is not a client-host path or a secure browser download URL. Remote file upload and download require a separate, authenticated file-transfer layer.
 
 Remote deployments are therefore best suited to URL, text, and Drive sources;
 research; queries; Studio creation/status; and metadata operations.

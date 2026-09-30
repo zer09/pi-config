@@ -8,7 +8,7 @@ Apply the [Required User Setup Gate](../SKILL.md#required-user-setup-gate) befor
 What do you need to know?
 
   Page structure, clickable controls, labels?
-    -> browser_snapshot (default: accessibility tree with @(x,y) for interactive elements)
+    -> browser_snapshot (default: accessibility tree with [eN] refs and @(x,y) for interactive elements)
 
   A specific element's value, attribute, or coordinates?
     -> browser_execute_js (el.innerText, el.getBoundingClientRect())
@@ -29,11 +29,13 @@ What do you need to know?
     -> browser_screenshot (visual verification only)
 ```
 
-Pass `@(x,y)` from `browser_snapshot` straight to `browser_click`. Do not take a screenshot to rediscover those coordinates.
+Prefer snapshot refs such as `ref: "e7"` for `browser_click`, `browser_fill`, `browser_select_option`, and other ref-aware tools. Refs resolve the element at action time; coordinates can go stale after layout changes. After navigation, a major re-render, or `ref is stale`, take a fresh snapshot instead of retrying blindly. When no ref is available, pass fresh snapshot `@(x,y)` to `browser_click` or use a surgical DOM read. Do not take a screenshot to rediscover controls.
 
-`browser_web_search` and `browser_read_page` each use an isolated tab and do not touch the user's current tab. They still require per-task setup confirmation and use the authorized profile. Reader mode strips page boilerplate.
+For an authorized form change, prefer `browser_fill` for controlled inputs; use `browser_type` for keystroke-sensitive widgets. Inspect the returned value and any "Page changes" diff, then verify the requested result with a fresh snapshot or surgical read. A page diff is not proof that a remote save succeeded.
 
-For a synthesized, cited multi-source report, the package can supply `deep-research` or `/deep-research <question>`, using isolated `web-search-researcher` agents. Use that separate workflow only if available and authorized; it is not required for ordinary browser control.
+`browser_web_search` uses an isolated tab; `browser_read_page` with `url` opens, reads, and closes an isolated tab; `browser_read_page` with `targetId` reads that existing session-owned tab in place. They still require per-task setup confirmation and use the authorized profile. Search for candidate URLs, then read promising results; reader mode strips page boilerplate. The package no longer supplies a deep-research skill, command, or researcher agent.
+
+Keep tab operations inside the session's owned tabs. Isolation does not authorize access to another profile or the user's unrelated tabs.
 
 ## Diagnose an action that appeared to do nothing
 
@@ -47,5 +49,7 @@ browser_network_requests({ sinceMs: 5000 })
 The cursor separates new console messages from existing ones. Network requests show whether an API call fired and failed. Do not repeat a mutation only to collect diagnostics unless that repeat is authorized and safe.
 
 The console buffer is page-scoped, clears on tab switch, and holds 500 records. Inspect only relevant entries; do not expose credentials, cookies, tokens, auth headers, or private payloads.
+
+A CDP timeout can report `kind: "timeout"` rather than `cdp_error`. Treat a timed-out mutation's outcome as unverified, not as proof that nothing happened. If still connected, inspect the result before considering an authorized, safe retry.
 
 If a dialog blocks progress, handle it under the root's dialog boundary before continuing. If connection fails, stop and repeat the user setup gate instead of probing the daemon or socket.

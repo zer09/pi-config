@@ -7,8 +7,9 @@ description: "Design Cloud Firestore models, client queries, rules, and indexes;
 
 ## Hosted service safety
 
-- Read-only inspection, local code/config edits, and emulation are allowed within the requested task. Database creation, data writes, rule/index deployment, deletion, and other hosted mutations require explicit user instruction for that exact action.
-- A missing database is not permission to create one. Code, rules, modeling, and read-only tasks can finish without provisioning or deployment.
+- Read-only inspection, local code/config edits, and emulation are allowed within the requested task. Database creation, data writes, rule/index deployment, service enablement, deletion, and other hosted mutations require explicit user instruction for that exact action and target project/database.
+- A missing database is not permission to create one. Code, rules, modeling, and read-only tasks can finish without provisioning or deployment. Client SDK setup does not require CLI installation, CLI initialization, provisioning, or live authentication.
+- Route rules audits to `firebase-security-rules-auditor`. Audits are read-only; recommendations do not authorize fixes, test-file creation, live bypass attempts, or deployment.
 - Never print, save, or commit credentials, tokens, service account keys, or private keys.
 
 ## Target and edition
@@ -40,7 +41,7 @@ Load only the task and edition references needed:
 
 ## Validation and completion
 
-For code changes, run the relevant available project checks. For rules, test allowed and denied paths with local rules tests or supported emulation. For indexes, validate config and query compatibility; emulator success does not prove production index behavior or edition parity. Do not deploy as a validation shortcut.
+Preserve ownership filters, query ordering, and limits; never broaden reads or fetch unbounded data to bypass rules or indexes. For code changes, run the relevant available project checks. For rules, test allowed and denied paths with local rules tests or supported emulation. For indexes, validate config and query compatibility; emulator success does not prove production index behavior or edition parity. Do not deploy as a validation shortcut.
 
 Finish with the requested guidance or local changes, checks and results, target/edition assumptions, and any unverified behavior. Fix failures caused by the change within scope. Report missing evidence or tooling without provisioning a service to unblock local work.
 

@@ -1,6 +1,6 @@
 ---
 name: crit-cli
-description: "Use for local Crit review data, programmatic comments and replies, sharing, or GitHub sync. Interactive foreground review belongs to explicit $crit."
+description: "Use for local Crit review data, programmatic comments and replies, sharing, or GitHub/GitLab sync. Interactive foreground review belongs to explicit $crit."
 ---
 
 # Crit CLI
@@ -14,14 +14,14 @@ Reading a review does not authorize changing it. Classify the requested action b
 | Read local review JSON, `crit status`, `crit comments` | Read-only. Do not add replies, resolve comments, or sync as a side effect. |
 | `crit comment`, including replies | Mutates local review state. Require the user to request that comment write or reply. |
 | Resolution with `--resolve` or JSON `resolve` | Mutates local review state. Never resolve without an explicit user request, even after fixing the issue. |
-| `crit pull` | Reads GitHub but updates the local review file. Require a user request for that sync and its PR/review target. |
-| `crit push` | Posts to GitHub. Require explicit user instruction for that exact hosted action, PR target, and review event. |
-| `crit share` | Publishes files and included comments. Require explicit user instruction for that publication, target, and visibility. |
-| `crit unpublish` | Deletes remote shared state. Require explicit user instruction to unpublish the exact shared review/files. |
+| `crit pull` | Reads GitHub/GitLab but updates the local review file. Require a user request for that sync and its PR/MR and local review target. |
+| `crit push` | Posts to GitHub/GitLab. Require explicit user instruction for that exact hosted action, PR/MR target, and review event. |
+| `crit share` | Publishes files and included comments. Require explicit user instruction for that publication, exact files/comments, destination, and visibility. |
+| `crit unpublish` | Deletes remote shared state. Require explicit user instruction to unpublish the exact shared review/files at the intended destination. |
 
-`crit push --dry-run` previews a push; it does not authorize a later push. A request to pull does not authorize posting back to GitHub. Clarify missing targets or visibility before hosted writes. Do not expose credentials or persisted delete tokens.
+`crit push --dry-run` previews a push; it does not authorize a later push. A request to pull does not authorize posting back to GitHub/GitLab. Clarify missing targets or visibility before hosted writes. Do not expose credentials or persisted delete tokens.
 
-Interactive foreground review is the explicit `$crit` workflow, not a CLI side effect. A generic request to "review" does not authorize launching it.
+Interactive foreground review is the explicit `$crit` workflow, not a CLI side effect. A generic request to "review", including a just-written plan, does not authorize launching it. Never launch a review or run a product action merely to validate the CLI or skills; use offline version/help checks.
 
 ## Task routing
 
@@ -32,7 +32,7 @@ Load only the needed section of [commands and review data](references/commands-a
 | Read comments or interpret JSON | [Reading comments](references/commands-and-review-data.md#reading-comments) and [review file format](references/commands-and-review-data.md#review-file-format) |
 | Write requested comments or replies | [Authoring](references/commands-and-review-data.md#authoring-comments); [bulk JSON](references/commands-and-review-data.md#bulk-commenting-3-comments) for 3+ comments |
 | Select the correct reply or plan | [Multi-file disambiguation](references/commands-and-review-data.md#multi-file-disambiguation) and [plan-mode comments](references/commands-and-review-data.md#plan-mode-comments) |
-| Sync with a PR | [GitHub PR integration](references/commands-and-review-data.md#github-pr-integration) |
+| Sync with a PR/MR | [GitHub PR / GitLab MR integration](references/commands-and-review-data.md#github-pr--gitlab-mr-integration) |
 | Publish or unpublish | [Sharing](references/commands-and-review-data.md#sharing) |
 
 ## Key correctness rules
@@ -44,6 +44,7 @@ Load only the needed section of [commands and review data](references/commands-a
 - Read existing replies and selected `quote` text. Missing or false `resolved` means unresolved. Use `anchor` when lines shift; `drifted: true` means line numbers are approximate.
 - Use atomic `--json` for 3+ comments. The resolution gate also applies to each bulk entry.
 - Organization shares default to members-only `organization` visibility. Do not silently widen visibility; follow the authorized scope.
+- Select the authorized deployment with `--share-url <url>` when sharing/unpublishing. If multiple targets lack a default, stop for a choice; do not change auth/configuration to bypass ambiguity.
 
 ## Completion
 

@@ -1,6 +1,16 @@
 # Changelog
 
-This document summarizes local Pi configuration changes. Detailed upgrade notes live under [`docs/changelogs/`](./changelogs/).
+This document summarizes local Pi configuration changes. Detailed change records live under [`docs/changelogs/`](./changelogs/).
+
+## 2026-10-01: Local skill and CLI maintenance
+
+Details: [`docs/changelogs/2026-10-01-skill-and-cli-maintenance.md`](./changelogs/2026-10-01-skill-and-cli-maintenance.md).
+
+- Completed the approved source-based maintenance of 36 Local Skills, preserving compact routers, metadata, project dependency choices, and exact hosted-action gates. Outpour remained TODO-only; Impeccable remained untouched pending future removal.
+- Upgraded the approved CLIs and Browser Harness package. Retained Browser Harness's `skills: []` filter and existing installation ownership. The parent completed the slow Astral builds/installations after a stalled delegate attempt.
+- Selectively updated Firebase, Printing Press, Directus, PostgreSQL, and CLI references. Verified Genkit's replacement origin at `genkit-ai/skills` and compared all 79 runtime source files across four language skills. Recorded intentional source no-ops and preserved the Intent Layer snapshot.
+- Reconciled 38 installed roots and 36 automatically visible catalog entries. Refreshed offline catalog attribution to 3,261 local `o200k_base` tokens without rerunning provider calibration or historical full-context totals.
+- Final validation passed all 38 skill validators, 39 offline regression tests, whitespace checks, and three independent reviews. Live SDK/provider/model/browser/product behavior remains untested by this maintenance; deferred defects and earlier operational incidents are recorded in the detailed notes. No commit, push, deployment, or hosted-service mutation was included.
 
 ## 2026-09-27: Live Blackhole 0.5.9 installation
 

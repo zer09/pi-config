@@ -1,7 +1,7 @@
 # gh search issues
 
 Source: https://cli.github.com/manual/gh_search_issues
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help search issues`.
+Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help search issues`.
 
 ## Summary
 
@@ -25,6 +25,12 @@ GitHub search syntax is documented at:
 On supported GitHub hosts, advanced issue search syntax can be used in the
 `--search` query. For more information about advanced issue search, see:
 <https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/filtering-and-searching-issues-and-pull-requests#building-advanced-filters-for-issues>
+
+Use `--search-type` to select semantic or hybrid (keyword + semantic)
+ranking instead of the default lexical search. Semantic and hybrid search are
+scoped to issues, are relevance-ranked (so `--sort` and `--order`
+cannot be used), return a single page of results, and are not available on
+GitHub Enterprise Server.
 
 For more information on handling search queries containing a hyphen, run `gh search --help`.
 
@@ -63,6 +69,7 @@ FLAGS
       --project owner/number   Filter on project board owner/number
       --reactions number       Filter on number of reactions
   -R, --repo OWNER/REPO        Filter on repository, in OWNER/REPO format
+      --search-type string     Type of issue search to perform: {lexical|semantic|hybrid} (default "lexical")
       --sort string            Sort fetched results: {comments|created|interactions|reactions|reactions-+1|reactions--1|reactions-heart|reactions-smile|reactions-tada|reactions-thinking_face|updated} (default "best-match")
       --state string           Filter based on state: {open|closed}
       --team-mentions string   Filter based on team mentions
@@ -103,6 +110,12 @@ EXAMPLES
 
   # Search issues only from un-archived repositories (default is all repositories)
   $ gh search issues --owner github --archived=false
+
+  # Search issues using semantic (natural-language) ranking
+  $ gh search issues "feature broken on web" --search-type semantic
+
+  # Search issues using hybrid (keyword + semantic) ranking
+  $ gh search issues "feature broken" --search-type hybrid
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

@@ -1,6 +1,6 @@
 ---
 name: developing-genkit-go
-description: "Implement or debug Genkit Go generation, flows, tools, prompts, streaming, and providers. Use for Genkit Go SDK code, setup, or Go-specific API errors."
+description: "Implement or debug Genkit Go generation, agents, flows, tools, prompts, streaming, and providers. Use for Genkit Go SDK code, setup, or Go-specific API errors."
 ---
 
 # Genkit Go
@@ -23,6 +23,7 @@ Load only the reference needed for the task:
 | `Generate`, `GenerateText`, `GenerateData`, streaming and output formats | [Generation](references/generation.md) |
 | `DefinePrompt`, `DefineDataPrompt`, `.prompt` files and schemas | [Prompts](references/prompts.md) |
 | `DefineTool`, interrupts, `RestartWith`/`RespondWith` | [Tools](references/tools.md) |
+| Experimental multi-turn agents, state and session selection | [Agents](references/agents.md) |
 | `ai.WithUse`, hooks, retry/fallback, approval and filesystem middleware | [Middleware](references/middleware.md) |
 | `DefineFlow`, `DefineStreamingFlow`, `genkit.Handler`, HTTP serving | [Flows and HTTP](references/flows-and-http.md) |
 | Google AI, Vertex AI, Anthropic, OpenAI-compatible APIs, Ollama | [Providers](references/providers.md) |

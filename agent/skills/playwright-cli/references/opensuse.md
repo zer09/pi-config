@@ -4,13 +4,13 @@ Load this reference when selecting an engine on the local host or diagnosing a b
 
 ## Known local state
 
-The installation assessment for `@playwright/cli@0.1.21` reports:
+The earlier installation assessment for `@playwright/cli@0.1.21` reported:
 
-- Chromium and Firefox currently resolve their shared-library dependencies on this openSUSE Tumbleweed host.
-- WebKit uses an Ubuntu fallback build that requires unavailable older sonames, including ICU 74 libraries such as `libicuuc.so.74` and `libicui18n.so.74`.
-- The host has ICU 78. A newer major version does not satisfy the older ABI.
+- Chromium and Firefox resolved their shared-library dependencies on this openSUSE Tumbleweed host.
+- WebKit used an Ubuntu fallback build that required unavailable older sonames, including ICU 74 libraries such as `libicuuc.so.74` and `libicui18n.so.74`.
+- The assessed host had ICU 78. A newer major version does not satisfy the older ABI.
 
-These are shared-library findings supplied for this installation, not proof that every browser feature works. Recheck after host or Playwright upgrades instead of treating these findings as permanent.
+These are historical shared-library findings, not proof that every browser feature works. The CLI 0.1.22 update changes its Playwright dependency to `1.64.0-alpha-1790635538000`; browser availability and library compatibility were not rechecked. No browser binaries were downloaded or launched. Recheck for the selected build during separately authorized browser work instead of treating the earlier findings as current verification.
 
 ## Choose a compatible runtime
 

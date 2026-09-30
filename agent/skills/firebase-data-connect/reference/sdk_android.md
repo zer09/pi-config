@@ -1,6 +1,6 @@
 # Android SDK
 
-Consult this file when writing Android application code (Kotlin) that interacts with the SQL Connect backend.
+Consult this file when writing Android application code (Kotlin) that interacts with the SQL Connect backend. Reuse the existing generated connector, module/variant config, and Google services plugin. For a separate config requirement, see [Android setup](../../firebase-basics/references/android_setup.md). Client dependency work does not require CLI login, live project discovery, initialization, or backend provisioning.
 
 ### Best Practices for Agents
 - **Operation compatibility**: SQL Connect stores operations on the server. Regenerate affected SDKs after local operation changes and test against the emulator. Coordinate publication before clients use changed production operations, but deploy only with explicit user instruction for that exact action. Local work does not authorize redeployment.
@@ -10,19 +10,20 @@ Consult this file when writing Android application code (Kotlin) that interacts 
 
 ### Dependencies (build.gradle.kts)
 
-Ensure you have the Kotlin Serialization plugin and standard SQL Connect dependencies:
+Inspect existing Gradle files, version catalogs, and resolved dependencies before adding packages. Preserve compatible BoM, Kotlin, serialization, and coroutine versions. When available, inspect the selected module/variant with `./gradlew --offline -q :app:dependencyInsight --dependency firebase-dataconnect --configuration releaseRuntimeClasspath`; adjust the module/configuration to the app. If offline resolution is unavailable, report it rather than installing tooling or forcing latest versions.
+
+For a requested dependency addition, reuse existing declarations and add only what is missing. Replace the placeholders with the project's compatible versions:
 
 ```kotlin
 plugins {
-    kotlin("plugin.serialization") version "1.8.22" // Must match Kotlin version
+    kotlin("plugin.serialization") version "<project-kotlin-version>"
 }
 
 dependencies {
-    // [AGENT] Fetch the latest available BoM version from https://firebase.google.com/support/release-notes/android before adding this
-    implementation(platform("com.google.firebase:firebase-bom:34.12.0"))
+    implementation(platform("com.google.firebase:firebase-bom:<compatible-bom-version>"))
     implementation("com.google.firebase:firebase-dataconnect")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.5.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:<compatible-coroutines-version>")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:<compatible-serialization-version>")
 }
 ```
 

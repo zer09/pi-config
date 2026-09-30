@@ -5,6 +5,10 @@ efficient.
 
 ## Initialization
 
+Reuse existing app config and initialization. Client SDK setup does not require CLI installation, CLI initialization, provisioning, or live authentication. Use `firebase-basics` only for missing app configuration. The default instance below is appropriate only for a configured `(default)` database; pass the verified database ID for a named Standard database.
+
+These snippets implement app behavior. Use mocks or a configured emulator for checks. Executing hosted data writes requires explicit user instruction for the exact action and target project/database/documents. Preserve ownership filters, query ordering, and limits; do not broaden reads to work around a rules or index failure.
+
 ```javascript
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
@@ -13,7 +17,7 @@ import { getFirestore } from "firebase/firestore";
 // const app = initializeApp();
 
 const firebaseConfig = {
-  // Your config options. Get the values by running 'npx -y firebase-tools@latest apps:sdkconfig <platform> <app-id>'
+  // Reuse the project's existing app configuration.
 };
 
 const app = initializeApp(firebaseConfig);
@@ -114,12 +118,12 @@ if (docSnap.exists()) {
 
 ### Get Multiple Documents (`getDocs`)
 
-Fetches all documents in a query or collection once.
+Fetch a bounded page once. Add the ownership filter required by the application's rules.
 
 ```javascript
-import { collection, getDocs } from "firebase/firestore";
+import { collection, query, limit, getDocs } from "firebase/firestore";
 
-const querySnapshot = await getDocs(collection(db, "cities"));
+const querySnapshot = await getDocs(query(collection(db, "cities"), limit(50)));
 querySnapshot.forEach((doc) => {
   // doc.data() is never undefined for query doc snapshots
   console.log(doc.id, " => ", doc.data());
@@ -144,9 +148,9 @@ const unsub = onSnapshot(doc(db, "cities", "SF"), (doc) => {
 ### Handle Changes (Added/Modified/Removed)
 
 ```javascript
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, limit, onSnapshot } from "firebase/firestore";
 
-const q = query(collection(db, "cities"), where("state", "==", "CA"));
+const q = query(collection(db, "cities"), where("state", "==", "CA"), limit(50));
 const unsubscribe = onSnapshot(q, (snapshot) => {
   snapshot.docChanges().forEach((change) => {
     if (change.type === "added") {

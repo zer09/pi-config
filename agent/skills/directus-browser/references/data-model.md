@@ -1,7 +1,7 @@
 # Directus data model reference
 
-Last reviewed: 2026-07-09
-Sources: `official-sources.md` -> Core Studio and data model docs.
+Last reviewed: 2026-09-30
+Sources: `official-sources.md` -> Core Studio and data model docs; Directus 12 breaking changes.
 
 Use this for Settings -> Data Model work: collections, fields, interfaces, displays, validation, conditions, and relationships. For explicitly approved API-based schema writes, use `schema-api-mutations.md` after reading this conceptual reference.
 
@@ -9,6 +9,7 @@ Use this for Settings -> Data Model work: collections, fields, interfaces, displ
 
 - Collection = database table plus Directus metadata.
 - User collections are project data models; system collections are prefixed `directus_`.
+- In Directus 12.4+, inactive collections retain schema/data but reject content reads/writes and cannot be opened for content in Studio. Schema management remains available. Reactivation is a configuration write, not an inspection workaround.
 - Field = database column plus Directus metadata such as interface, display, validation, and conditions.
 - Interface = Studio input/editing control for a field.
 - Display = Studio rendering for a field value.

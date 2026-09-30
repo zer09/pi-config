@@ -9,13 +9,19 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 ## Source of truth
 
 - Upstream repository: https://github.com/softaworks/agent-toolkit
-- Current upstream commit checked locally: `3027f20f3181758385a1bb8c022d4041dfb4de84`
+- Current canonical default branch checked in Increment 17 (2026-09-30): `main`, commit `3027f20f3181758385a1bb8c022d4041dfb4de84`, tree `8728fc5f92845d088e97e724260f5d5d9724c728`.
 
 | Local skill | Upstream path |
 | --- | --- |
 | `session-handoff` | `skills/session-handoff/SKILL.md` plus runtime resources |
 
 Prefer the `skills/` source paths over generated `dist/plugins/...` copies.
+
+### Increment 17 source comparison
+
+Authenticated `gh` GET verified the canonical repository, default-branch commit, and complete recursive tree. The pin is unchanged. The full `skills/session-handoff/` subtree, `9038976da9e22fa34168feb813ef18082fe005b1`, contains 12 files: root, README, references, four scripts, and evaluation resources. All source blob identities were verified and compared with local resources, including the renamed neutral baseline; generated `dist/` copies were not used.
+
+**Result: source unchanged, no runtime edit.** Preserve the local explicit create/resume routing, project-local paths, safety boundaries, UI metadata, runtime reference, and neutral evaluation resources byte-identically. Target/all 38 validators, metadata/changed links, scoped diff/secret/artifact checks, and runtime/index preservation fingerprints passed. No handoff creation, model evaluation, installation, or build ran; static checks do not prove model compliance.
 
 ## Local files
 

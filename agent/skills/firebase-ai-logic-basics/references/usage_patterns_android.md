@@ -1,21 +1,16 @@
 # Firebase AI Logic on Android (Kotlin)
 
-First, ensure you have initialized the Firebase App (see `firebase-basics` skill). Then, initialize
-the AI Logic service as below
-### 0. Enable Firebase AI Logic via CLI
+Reuse the existing Firebase app, module/variant config, and Google services plugin. For a separate config problem, see [Android setup](../../firebase-basics/references/android_setup.md).
 
-Before adding dependencies in your app, make sure you enable the AI Logic service in your Firebase Project using the Firebase CLI:
+Client dependency or code changes do not require CLI login, initialization, or service enablement. If the AI service is unavailable, report that setup requirement; enabling it requires explicit authorization for the exact action and project. Do not install or upgrade tooling automatically.
 
-```bash
-npx -y firebase-tools@latest init
-# When prompted, select 'AI logic' to enable the Gemini API in your project.
-```
+Replace `<supported-model>` with a model supported by the chosen provider and feature in the [model documentation](https://firebase.google.com/docs/ai-logic/models.md.txt).
 
  ---
 
 ### 1. Add Dependencies
 
-In your module-level `build.gradle.kts` (usually `app/build.gradle.kts`), add the dependency for Firebase AI:
+For a requested dependency addition, reuse the module's compatible BoM, version catalog, and plugin configuration. In your module-level `build.gradle.kts` (usually `app/build.gradle.kts`), add only the missing Firebase AI dependency; the versions below are examples, not an upgrade requirement:
 
 ```kotlin
 dependencies {
@@ -35,8 +30,8 @@ In your Activity or Fragment, initialize the `FirebaseAI` service and generate c
 
 ```kotlin
 import com.google.firebase.ai.FirebaseAI
-import com.google.firebase.ai.ktx.ai
-import com.google.firebase.ktx.Firebase
+import com.google.firebase.Firebase
+import com.google.firebase.ai.ai
 
 class MainActivity : AppCompatActivity() {
 
@@ -47,8 +42,7 @@ class MainActivity : AppCompatActivity() {
         // Initialize Firebase AI
         val ai = Firebase.ai
 
-        // Use a model (e.g., gemini-2.5-flash-lite)
-        val model = ai.generativeModel("gemini-2.5-flash-lite")
+        val model = ai.generativeModel("<supported-model>")
 
         // Generate content
         lifecycleScope.launch {
@@ -82,7 +76,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val ai = Firebase.ai
-        val model = ai.generativeModel("gemini-2.5-flash-lite")
+        val model = ai.generativeModel("<supported-model>")
         
         lifecycleScope.launch {
             val response = model.generateContent("Hello Gemini!")
@@ -107,10 +101,10 @@ val image1: Bitmap = ... // Load your bitmap
 val image2: Bitmap = ...
 
 val response = model.generateContent(
-    content("Analyze these images for me") {
+    content {
         image(image1)
         image(image2)
-        text("Compare these two items.")
+        text("Analyze these images for me. Compare these two items.")
     }
 )
 Log.d(TAG, response.text)

@@ -34,4 +34,14 @@ For an authorized local development session with a safe entrypoint:
 genkit start -- dart run main.dart
 ```
 
-Match the command to the project's entrypoint. Inspect only relevant trace excerpts, and keep live invocation separate from local analysis or tests with mocked providers.
+Match the command to the project's entrypoint. `start` stays open until stopped; `--noui` disables the UI, not the persistent server. For an authorized automated session, put `--non-interactive` before `--` to avoid prompts. Use the installed or repository-pinned CLI; never fetch a latest runner automatically.
+
+For an explicitly authorized one-shot flow invocation, pass JSON matching the flow input and the runtime command after `--`:
+
+```bash
+genkit flow:run myFlow '"input"' --non-interactive -- dart run main.dart
+```
+
+`flow:run` exits after one flow call; it does not run an agent directly. Top-level `final` flow/agent symbols must be evaluated from `main()` to register. A mock-only flow can support local checks, but this command is not inherently offline.
+
+Inspect only relevant trace excerpts. For machine-readable output, use `genkit trace:get <traceId> --format json`; traces can contain credentials and private inputs. Bound and redact output before saving or sharing it. Keep live invocation separate from local analysis or tests with mocked providers.

@@ -1,12 +1,27 @@
 ---
 name: crit
-description: "Review code changes, a plan, a live page (running dev server), or a local HTML file with crit inline comments. Use when asked to review code, a plan, a diff, a running web app, or when you want structured human feedback on your work."
+description: "Run Crit's foreground human review loop for code, plans, diffs, or pages only when the user explicitly requests it. Generic review requests do not count."
 disable-model-invocation: true
 ---
 
 # Review with Crit
 
-Review and revise code changes, plans, live pages (running dev servers, staging URLs), or local HTML files using `crit` for inline comment review.
+Use only for an explicit `$crit`, `/skill:crit`, or direct request for the Crit review loop. A generic code, plan, PR/MR, or page review request does not count. Do not launch an interactive review during maintenance or validation. Programmatic Crit tasks belong to [crit-cli](../crit-cli/SKILL.md).
+
+## Action boundary
+
+Reading feedback or starting a review does not authorize other mutations. Apply fixes only within the requested scope. Before any CLI write:
+
+| Action | Required authorization |
+|---|---|
+| Local comments or replies | User request for that write; otherwise summarize changes without posting a reply. |
+| Resolution, including bulk JSON `resolve` | Explicit user request, even after fixing the issue. |
+| `crit pull` | Requested sync and exact PR/MR and local review target. |
+| `crit push` | Explicit hosted action, PR/MR target, and review event; a dry-run is not permission to post. |
+| `crit share` | Explicit publication of the exact files/included comments, destination, and visibility. |
+| `crit unpublish` | Explicit deletion of the exact shared review/files at the intended destination. |
+
+Do not expose credentials or persisted delete tokens. Use [crit-cli's action boundary and references](../crit-cli/SKILL.md#action-boundary) for these operations.
 
 ## Step 1: Pass arguments to `crit`
 
@@ -15,6 +30,7 @@ The CLI auto-detects the review mode from its arguments. **Do not ask the user w
 ```
 crit <arguments>               # file, dir, URL, .html — CLI auto-detects mode
 crit --pr <num|url>            # GitHub PR (range mode)
+crit --mr <iid|url>            # GitLab MR (range mode)
 crit --range <base>..<head>    # commit range (range mode)
 crit                           # no args → branch diff
 ```
@@ -23,7 +39,7 @@ If no arguments, check conversation context:
 1. A plan file was written earlier in this conversation → `crit <plan-file>`
 2. Otherwise → bare `crit` (branch diff)
 
-For another-device access, keep Crit on loopback and proxy through a trusted tunnel. `--public-url` changes the advertised URL but does not expose the server. Non-loopback access requires `--allow-unauthenticated-network`; Crit has no network authentication, so confirm that exposure before use.
+For another-device access, keep Crit on loopback and proxy through a trusted tunnel. `--public-url` changes the advertised URL but does not expose the server. Both `--public-url` (even on loopback) and a non-loopback `--host` require `--allow-unauthenticated-network`. Crit has no network authentication: reachable clients can read review/repo files and post comments that may trigger agents. Confirm this exposure before use; do not bind directly to a LAN/Tailscale IP.
 
 ## Step 2: Launch crit and block until review completes
 
@@ -46,11 +62,13 @@ If a crit server is already running from earlier in this conversation, `crit` au
 
 ## Step 3: Read the review output
 
-When `crit` completes, follow its stdout instructions and check stderr for `approved: true` or `approved: false`. Read the review file path from stdout. For mid-round re-entry or headless recovery, use `crit comments --json`; add `--plan <slug>` for plan reviews.
+When `crit` completes, read the finish prompt on stdout within the user's authorized scope. Check stderr for `approved: true` or `approved: false`. Approval ends the loop; report that no further changes were requested. Do not infer approval from empty stdout or a missing file path.
 
-The file contains structured JSON. Three comment types:
+Unresolved comments may be embedded in stdout as JSON. Read a review file only if the prompt supplies its path. For mid-round re-entry or headless recovery, use `crit comments --json`; add `--plan <slug>` for plan reviews. If multiple sessions match, use `crit status --json` and select the intended `--session <id>`; do not guess. If feedback or approval remains unavailable, report the incomplete review and stop.
+
+Review JSON has three comment types:
 - `review_comments` (top-level, `r_`-prefixed IDs) — general feedback
-- File comments (per-file `comments` array, no `start_line`/`end_line`) — about the file as a whole
+- File comments (per-file `comments` array, with `scope: "file"`, `start_line: 0`, and `end_line: 0`) concern the file as a whole
 - Line comments (per-file `comments` array, with `start_line`/`end_line`) — about specific lines
 
 Identify all comments where `resolved` is `false` or missing. Unresolved comments may have `replies` — read them before acting.
@@ -67,14 +85,14 @@ For each unresolved comment:
 1. Understand what the comment asks for
 2. If it contains a suggestion block, apply that specific change
 3. Revise the referenced file (plan or code file from the diff)
-4. Reply with what you did: `crit comment --reply-to <id> --author 'Pi' '<what you did>'` (reply bodies support markdown)
+4. If the user requested a reply write, reply with what you did: `crit comment --reply-to <id> --author 'Pi' '<what you did>'`. Otherwise summarize without changing comments. Preserve `--session <id>` or `--plan <slug>` when needed.
 5. **Do not pass `--resolve`.** Resolving is the reviewer's call. Only add `--resolve` if the user explicitly asks.
 
 Editing the plan file triggers Crit's live reload — the user sees changes in the browser immediately.
 
 ### When replying to multiple comments
 
-Use `--json` for a single bulk call instead of one invocation per comment:
+For requested replies, use `--json` for a single atomic bulk call instead of one invocation per comment. Use a JSON file for multi-paragraph bodies, as described in [bulk commenting](../crit-cli/references/commands-and-review-data.md#bulk-commenting-3-comments):
 
 ```bash
 echo '[
@@ -83,43 +101,21 @@ echo '[
 ]' | crit comment --json --author 'Pi'
 ```
 
-**If there are zero review comments**: inform the user no changes were requested and stop.
-
 ## Step 5: Signal completion and start next round
 
 **CRITICAL — you MUST run this step. Do NOT skip it. Do NOT proceed without it.**
 
-When Step 2's `crit` command exits with feedback, it prints `Next round: crit <args>` to stdout. Run that command verbatim — the daemon is keyed by args, so mismatched args spawn a new daemon instead of reconnecting.
+The finish prompt on stdout supplies the next-round command. Preserve that command and its session/plan identity rather than rebuilding the original arguments. For ordinary reviews this is `crit --session <id>`. If it prints `crit plan --name <slug>`, keep the slug and supply the revised plan file (or plan content on stdin); plan mode requires input. Do not replace a session-specific command with bare `crit`.
 
 On subsequent calls, `crit` automatically signals round-complete first, then blocks until the next "Finish Review" click.
 
 Tell the user: **"Changes applied. Review the diff in your browser and click Finish Review when ready."**
 
-**Do NOT proceed until `crit` completes.** When it does, return to Step 3. If the user finishes with zero comments, the review is approved — stop the loop and proceed.
+**Do NOT proceed until `crit` completes.** When it does, return to Step 3. Stop on `approved: true`, not merely an absence of new comments. Keep the foreground timeout at least 3600 seconds for every round.
 
 ## Sharing
 
-If the user asks for a URL, a shareable link, or to share the review:
-
-```bash
-crit share <file>
-```
-
-**Always relay the full output to the user** — copy the URL directly into your response. Don't make them dig through tool output.
-
-To remove a shared review:
-
-```bash
-crit unpublish [file...]
-```
-
-### QR codes
-
-Only use `--qr` in real terminal environments with monospace rendering. Skip it in mobile apps or web chat UIs — Unicode block characters won't render.
-
-```bash
-crit share --qr <file>
-```
+A request for the current review URL does not authorize publication. Relay the existing URL instead. Route explicitly requested sharing or unpublishing through [crit-cli](../crit-cli/SKILL.md#action-boundary), with the exact destination and visibility confirmed. Relay the resulting output and URL after redacting secrets. QR output is terminal-only; skip it in mobile apps and web chat.
 
 ## Maintenance
 

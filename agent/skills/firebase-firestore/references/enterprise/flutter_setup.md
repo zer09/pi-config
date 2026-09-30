@@ -4,11 +4,13 @@ This guide covers basic CRUD operations, type-safe data modeling, and real-time 
 
 ## 1. Setup
 
-Ensure you have added the required dependency:
+Reuse existing app configuration and compatible pinned dependencies. Client SDK setup does not require CLI installation, CLI initialization, provisioning, or live authentication. Add the dependency only when needed for the requested local change:
 ```bash
 flutter pub add cloud_firestore
 ```
-Also, ensure FlutterFire is configured properly for your target platforms.
+Reuse FlutterFire configuration for the intended platforms. These snippets implement app behavior; use mocks or a configured emulator for checks. Executing hosted data writes requires explicit user instruction for the exact action and target project/database/documents.
+
+Preserve ownership filters, query ordering, and limits. Do not sort a limited unsorted subset or fetch unbounded data to bypass an index requirement. Prepare any needed index locally; deployment requires separate exact authorization.
 
 ---
 
@@ -62,9 +64,11 @@ Encapsulate all database interactions within a dedicated service class to keep y
 
 ### Initialization & References
 
+Replace `my-database-id` with the verified/configured Enterprise database ID. Initialize Firebase before constructing this service; reuse its named `_db` instance.
+
 ```dart
 class ItemService {
-  // For Enterprise Native Mode, you often need to specify a non-default database ID:
+  // Keep every operation on the configured Enterprise database.
   final FirebaseFirestore _db = FirebaseFirestore.instanceFor(
     app: Firebase.app(),
     databaseId: 'my-database-id',
@@ -88,6 +92,7 @@ class ItemService {
       final querySnapshot = await _itemsRef
           .where('ownerId', isEqualTo: ownerId)
           .orderBy('createdAt', descending: true)
+          .limit(50)
           .get();
 
       return querySnapshot.docs.map((doc) => Item.fromFirestore(doc)).toList();
@@ -101,13 +106,10 @@ class ItemService {
   Stream<List<Item>> streamItems(String ownerId) {
     return _itemsRef
         .where('ownerId', isEqualTo: ownerId)
+        .orderBy('createdAt', descending: true)
+        .limit(50)
         .snapshots()
-        .map((snapshot) {
-          // If a custom composite index is missing during prototyping, apply sorting client-side:
-          final items = snapshot.docs.map((doc) => Item.fromFirestore(doc)).toList();
-          items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return items;
-        });
+        .map((snapshot) => snapshot.docs.map((doc) => Item.fromFirestore(doc)).toList());
   }
 
   // 4. Update Data

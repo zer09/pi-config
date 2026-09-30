@@ -1,7 +1,9 @@
 # Firebase AI Logic iOS Setup Guide
 
 ## 1. Import and Initialize
-Ensure you have installed the `FirebaseAILogic` SDK via Swift Package Manager.
+Reuse the existing Firebase app and compatible `FirebaseAILogic` Swift package. Add the package only when the requested client work needs it; SDK setup does not authorize backend provisioning.
+
+Replace `<supported-model>` with a model supported by the chosen provider and feature in the [model documentation](https://firebase.google.com/docs/ai-logic/models.md.txt).
 
 ```swift
 import FirebaseAILogic
@@ -10,7 +12,7 @@ import FirebaseAILogic
 let ai = FirebaseAI.firebaseAI()
 
 // Specify a model that's appropriate for your use case.
-let model = ai.generativeModel(modelName: "gemini-flash-latest")
+let model = ai.generativeModel(modelName: "<supported-model>")
 ```
 
 ## 2. SwiftUI Integration (Best Practices)
@@ -27,7 +29,7 @@ import FirebaseAILogic
 @Observable
 final class AIViewModel {
     // Initialize lazily to ensure FirebaseApp is configured first
-    private lazy var model = FirebaseAI.firebaseAI().generativeModel(modelName: "gemini-flash-latest")
+    private lazy var model = FirebaseAI.firebaseAI().generativeModel(modelName: "<supported-model>")
     
     var responseText: String = ""
     var isFetching: Bool = false
@@ -80,12 +82,12 @@ You can configure safety thresholds to prevent the model from generating harmful
 
 ```swift
 let safetySettings = [
-  SafetySetting(category: .harassment, threshold: .blockLowAndAbove),
-  SafetySetting(category: .hateSpeech, threshold: .blockMediumAndAbove)
+  SafetySetting(harmCategory: .harassment, threshold: .blockLowAndAbove),
+  SafetySetting(harmCategory: .hateSpeech, threshold: .blockMediumAndAbove)
 ]
 
 let model = FirebaseAI.firebaseAI().generativeModel(
-  modelName: "gemini-flash-latest",
+  modelName: "<supported-model>",
   safetySettings: safetySettings
 )
 ```
@@ -115,13 +117,12 @@ Task {
 Define functions that the model can request to execute to interact with external systems. *Note: Advanced workflows like function calling generally require a multi-turn Chat Session to handle the back-and-forth execution.*
 
 ```swift
-let getStockPriceTool = Tool(functionDeclarations: [
+let getStockPriceTool = Tool.functionDeclarations([
   FunctionDeclaration(
     name: "getStockPrice",
     description: "Get the current stock price for a given symbol.",
     parameters: [
-      "symbol": Schema(
-        type: .string,
+      "symbol": .string(
         description: "The stock symbol, e.g. AAPL"
       )
     ]
@@ -129,7 +130,7 @@ let getStockPriceTool = Tool(functionDeclarations: [
 ])
 
 let model = FirebaseAI.firebaseAI().generativeModel(
-  modelName: "gemini-flash-latest",
+  modelName: "<supported-model>",
   tools: [getStockPriceTool]
 )
 

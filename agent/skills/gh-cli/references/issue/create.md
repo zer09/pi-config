@@ -1,7 +1,7 @@
 # gh issue create
 
 Source: https://cli.github.com/manual/gh_issue_create
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue create`.
+Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help issue create`.
 
 ## Summary
 
@@ -15,6 +15,20 @@ Create an issue on GitHub.
 
 ```text
 Create an issue on GitHub.
+
+Use `--attach` to upload an image or video. The attachment is appended to the
+body. If the body references an attached file, such as `![alt](./login.png)`, that
+reference is rewritten to point at the uploaded asset instead.
+You can attach up to 50 files per command.
+
+Alt text for an image follows the path after `#`, as in
+`--attach './login.png#The login error state'`. Without it the filename is used.
+A reference already in the body keeps the alt text written there. Video renders
+as a player and has no alt text, so it cannot be given any.
+
+If some attachments upload and others fail, the issue is still created with the
+ones that succeeded. The command then exits with a non-zero status, but the new
+issue's URL is still printed to stdout.
 
 Adding an issue to projects requires authorization with the `project` scope.
 To authorize, run `gh auth refresh -s project`.
@@ -32,6 +46,7 @@ ALIASES
 
 FLAGS
   -a, --assignee login       Assign people by their login. Use "@me" to self-assign.
+      --attach file          Attach an image or video file, in '<file>#<image alt text>' format
       --blocked-by numbers   Mark the new issue as blocked by these issue numbers or URLs
       --blocking numbers     Mark the new issue as blocking these issue numbers or URLs
   -b, --body string          Supply a body. Will prompt for one otherwise.
@@ -53,6 +68,8 @@ INHERITED FLAGS
 
 EXAMPLES
   $ gh issue create --title "I found a bug" --body "Nothing works"
+  $ gh issue create --attach './login.png#The login error state'
+  $ gh issue create --attach ./before.png --attach ./after.png
   $ gh issue create --label "bug,help wanted"
   $ gh issue create --label bug --label "help wanted"
   $ gh issue create --assignee monalisa,hubot

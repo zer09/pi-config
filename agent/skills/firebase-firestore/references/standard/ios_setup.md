@@ -16,18 +16,25 @@ This is a zero-tolerance constraint. Using `FirebaseFirestoreSwift` is fundament
 # ⛔️ CRITICAL RULE: NO INLINE INITIALIZATION ⛔️
 NEVER write `let db = Firestore.firestore()` as an inline class or struct property if there is ANY chance the object is instantiated before `FirebaseApp.configure()` executes in the app root.
 - **FATAL CRASH:** `@Observable class DataManager { let db = Firestore.firestore() }` initialized as a `@State` in the App root.
-- **SAFE PATTERN:** Initialize `Firestore.firestore()` lazily (`lazy var db = Firestore.firestore()`) OR explicitly initialize the manager *after* `FirebaseApp.configure()` finishes.
+- **SAFE PATTERN:** Create the selected Firestore instance *after* `FirebaseApp.configure()` finishes, then inject it into the manager.
 
 ## 1. Import and Initialize
-Ensure you have installed the `FirebaseFirestore` SDK. Use the `xcode-project-setup` skill to automate adding the SPM dependency to the Xcode project.
+Reuse existing app configuration and a compatible pinned `FirebaseFirestore` dependency in the project's SPM/Xcode setup. Client SDK setup does not require CLI installation, CLI initialization, provisioning, or live authentication. These snippets implement app behavior; use mocks or a configured emulator for checks. Executing hosted data writes requires explicit user instruction for the exact action and target project/database/documents. Preserve ownership filters, query ordering, and limits.
 
 ```swift
 import FirebaseFirestore
 ```
 
-Initialize an instance of Cloud Firestore:
+Initialize Cloud Firestore after `FirebaseApp.configure()` completes. Standard is an edition, not a database ID. From verified app configuration, choose exactly one of these alternatives and pass the selected `db` to `MyView`.
+
+Only when the verified target is `(default)`:
 ```swift
 let db = Firestore.firestore()
+```
+
+Otherwise, for a named Standard database, use its verified/configured Standard database ID:
+```swift
+let db = Firestore.firestore(database: "my-database-id")
 ```
 
 ## 2. Type-Safe Data Models (Codable)
@@ -60,7 +67,7 @@ do {
 ## 4. Reading Data (Modern Concurrency & Codable)
 ```swift
 do {
-    let querySnapshot = try await db.collection("users").getDocuments()
+    let querySnapshot = try await db.collection("users").limit(to: 50).getDocuments()
     
     // Map documents to the User struct automatically
     let users = querySnapshot.documents.compactMap { document in
@@ -95,15 +102,20 @@ import FirebaseFirestore
 @MainActor
 @Observable 
 final class DataManager {
+    private let db: Firestore
     private var listenerHandle: ListenerRegistration?
     var data: [String] = []
+
+    init(db: Firestore) {
+        self.db = db
+    }
     
     func startListening(for userId: String) {
         // 1. Clean up any existing listener to prevent duplicates if the ID changes
         stopListening()
         
         // 2. Start the regular listener and capture the handle
-        listenerHandle = Firestore.firestore().collection("users").document(userId).addSnapshotListener { snapshot, error in
+        listenerHandle = db.collection("users").document(userId).addSnapshotListener { snapshot, error in
             // Handle updates
         }
     }
@@ -124,8 +136,12 @@ Then, in your SwiftUI View, trigger the listener using `.task(id:)`.
 
 ```swift
 struct MyView: View {
-    @State private var manager = DataManager()
+    @State private var manager: DataManager
     @Environment(AuthManager.self) var authManager
+
+    init(db: Firestore) {
+        _manager = State(initialValue: DataManager(db: db))
+    }
     
     var body: some View {
         List(manager.data, id: \.self) { item in
@@ -142,5 +158,10 @@ struct MyView: View {
         }
     }
 }
+```
+
+Construct the view with the selected `db` after app configuration:
+```swift
+MyView(db: db)
 ```
 

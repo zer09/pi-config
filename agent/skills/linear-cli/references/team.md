@@ -139,7 +139,7 @@ Options:
   -h, --help           - Show this help.
   --workspace  <slug>  - Target workspace (uses credentials)
   -a, --all            - Include inactive members
-  -j, --json           - Output as JSON
+  -j, --json           - Output as JSON; a member's url mentions them when pasted into Markdown
 ```
 
 ### states

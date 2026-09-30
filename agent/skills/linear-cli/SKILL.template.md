@@ -17,7 +17,7 @@ Use the local `linear` command for Linear reads and carefully gated writes. Line
 
 ## Syntax and identifier discovery
 
-Resolve command syntax in this order:
+Bundled command references match Linear CLI 2.6.0. Resolve command syntax in this order:
 
 1. Open the smallest bundled family reference, such as [issue](references/issue.md), and use its documented signature and flags.
 2. Construct the command from that reference.
@@ -60,8 +60,11 @@ linear issue comment add <ISSUE-ID> --body-file <comment.md>
 
 Use inline `--description` or `--body` only for simple one-line text. File flags preserve formatting, avoid shell escaping issues, and prevent literal `\n` from appearing in Linear.
 
+For mentions and collapsible sections, read [markdown](references/markdown.md). Mentions require a plain Linear URL, not `@name` or a Markdown link. Resolve people within the relevant team first; confirm before widening the search to the workspace.
+
 Known gotchas:
 
+- `document create` requires exactly one attachment target. See [document](references/document.md) for target flags, including cycle/team scoping.
 - Use `--add-label` or `--remove-label` to change selected labels without replacing the full set. Repeated `--label` flags replace the full label set.
 - `issue list` defaults to priority sorting; override with `--sort manual` or configure `issue_sort` / `LINEAR_ISSUE_SORT`.
 - `issue list` is an alias of `issue mine` and shows your issues; use `issue query` for all assignees or team/project-wide filtering.

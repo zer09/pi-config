@@ -2,7 +2,7 @@
 
 Quantitative calibration date: 2026-07-01
 
-Offline skill-catalog refresh: 2026-09-12 (installed Pi 0.85.1; installed Browser Harness package `pi-browser-harness` 0.10.2; refreshed only `## Skills` from the current local roots after the final MySQL/PostgreSQL/uv/Notion routing pass. Provider calibration and the full tool-schema/structural inventory were not rerun. All other measured totals and the 0.6.0/0.8.3 Browser Harness tool data remain historical.)
+Offline skill-catalog refresh: 2026-09-30 (installed Pi 0.87.1; refreshed only `## Skills` from the current 38 local roots after accepted maintenance Increments 1-19. Explicit-only `crit` and `impeccable` leave 36 automatically visible skills. Outpour membership records inventory only, not maintenance acceptance. Provider calibration and the full tool-schema/structural inventory were not rerun. Version labels, measured totals, and Browser Harness package/tool data outside `## Skills` remain historical snapshots, not current full-context totals.)
 
 Delegated incremental-implementation instruction update: 2026-09-08 (parent guidelines assign one reviewed increment per fresh implementation delegate; implementation children use small edit-and-check steps and simple existing patterns. Local `o200k_base` attribution is below; provider calibration and the full extension/tool inventory were not rerun.)
 
@@ -1010,54 +1010,55 @@ The historical token table immediately below remains the 2026-07-01 measurement 
 
 ## Skills
 
-Startup includes only the XML skill catalog: name, description, and location. Full `SKILL.md` content is an on-demand cost after the agent reads a matching skill. This table measures the current working tree offline on 2026-09-12 with installed Pi 0.85.1 and local `tiktoken` `o200k_base`; provider calibration was not rerun.
+Startup includes only the XML skill catalog: name, description, and location. Full `SKILL.md` content is an on-demand cost after the agent reads a matching skill. This table measures the current working tree offline on 2026-09-30 with installed Pi 0.87.1 and local `tiktoken` 0.13.0 `o200k_base`; provider calibration was not rerun.
 
-The catalog contains 35 visible Local Skills, all from `user/global skills`. Explicit-only `crit` and `impeccable` have `disable-model-invocation: true`; both are excluded from startup catalog totals and load only through explicit invocation. Enumerate the current `agent/skills/*/SKILL.md` roots alphabetically, exclude those explicit-only skills, and use each current frontmatter name and description unchanged. All locations are `/home/gc/.pi/agent/skills/<name>/SKILL.md`. In particular, Browser Harness uses `/home/gc/.pi/agent/skills/pi-browser-harness/SKILL.md`, not an npm package skill copy.
+The 38 installed roots produce 36 visible Local Skills, all from `user/global skills`. Explicit-only `crit` and `impeccable` have `disable-model-invocation: true`; both are excluded from startup catalog totals and load only through explicit invocation. Outpour's row records catalog membership only: maintenance, call-argument parsing, and custom-endpoint credential safety remain deferred, not accepted or hardened. Impeccable remains untouched and excluded from this maintenance, pending future removal. Enumerate the current `agent/skills/*/SKILL.md` roots alphabetically, exclude those explicit-only skills, and use each current frontmatter name and description unchanged. All locations are `/home/gc/.pi/agent/skills/<name>/SKILL.md`. In particular, Browser Harness uses `/home/gc/.pi/agent/skills/pi-browser-harness/SKILL.md`, not an npm package skill copy.
 
-Serialization follows installed Pi 0.85.1's `formatSkillsForPrompt(skills, "read")` in `/home/gc/.bun/install/global/node_modules/@earendil-works/pi-coding-agent/dist/core/skills.js:275-302`. Preserve its three exact header sentences, blank line, `<available_skills>` wrapper, XML escaping, and two-space/four-space entry indentation. Join lines with `\n`, including the initial `\n\n`, with no trailing newline. The full catalog uses alphabetical skill order; table rows use descending isolated `Catalog entry` count with an alphabetical name tie-break.
+Serialization follows installed Pi 0.87.1's `formatSkillsForPrompt(skills, "read")` and `escapeXml` in `/home/gc/.bun/install/global/node_modules/@earendil-works/pi-coding-agent/dist/core/skills.js:275-306`. The installed package manifest supplies the version. Measurement evaluates only those extracted pure functions in an empty Node VM, without module imports or SDK startup. It uses an existing cached Python environment and SHA-256-verified cached `o200k_base` data; socket access is disabled. No installation, environment sync, network, credentials/config access, or live provider calibration occurred. Preserve its three exact header sentences, blank line, `<available_skills>` wrapper, XML escaping, and two-space/four-space entry indentation. Join lines with `\n`, including the initial `\n\n`, with no trailing newline. The full catalog uses alphabetical skill order; table rows use descending isolated `Catalog entry` count with an alphabetical name tie-break.
 
-Each `Catalog entry` counts its isolated exact `<skill>...</skill>` block, including both tag lines and the three field lines, without a trailing newline. `Description` and `Path` count their unescaped strings in isolation. `Full SKILL.md if loaded` counts the complete current root file, including frontmatter. `Skill entry subtotal` sums the row `Catalog entry` values. `Available skills catalog block` counts the full canonical formatter output over all 35 skills. `Catalog wrapper/header overhead` is the exact full-block count minus the row subtotal; this residual intentionally includes header/wrapper tokens and cross-entry BPE boundary effects.
+Each `Catalog entry` counts its isolated exact `<skill>...</skill>` block, including both tag lines and the three field lines, without a trailing newline. `Description` and `Path` count their unescaped strings in isolation. `Full SKILL.md if loaded` counts the complete current root file, including frontmatter. `Skill entry subtotal` sums the row `Catalog entry` values. `Available skills catalog block` counts the full canonical formatter output over all 36 visible skills. `Catalog wrapper/header overhead` is the exact full-block count minus the row subtotal; this residual intentionally includes header/wrapper tokens and cross-entry BPE boundary effects.
 
 | Origin | Skill | Catalog entry | Description | Path | Full `SKILL.md` if loaded |
 |---|---|---:|---:|---:|---:|
-| user/global skills | `pp-posthog` | 115 | 67 | 17 | 848 |
+| user/global skills | `pp-posthog` | 115 | 67 | 17 | 900 |
 | user/global skills | `firebase-app-hosting-basics` | 107 | 54 | 19 | 544 |
-| user/global skills | `developing-genkit-js` | 106 | 54 | 19 | 556 |
-| user/global skills | `gh-cli` | 105 | 59 | 16 | 608 |
-| user/global skills | `linear-cli` | 103 | 57 | 16 | 1,527 |
+| user/global skills | `gh-cli` | 105 | 59 | 16 | 625 |
+| user/global skills | `playwright-cli` | 105 | 56 | 16 | 741 |
+| user/global skills | `linear-cli` | 103 | 57 | 16 | 1,642 |
+| user/global skills | `firebase-ai-logic-basics` | 102 | 49 | 19 | 713 |
 | user/global skills | `skill-creator` | 102 | 55 | 17 | 2,220 |
-| user/global skills | `pp-klaviyo` | 101 | 51 | 18 | 882 |
+| user/global skills | `pp-klaviyo` | 101 | 51 | 18 | 947 |
+| user/global skills | `developing-genkit-js` | 97 | 45 | 19 | 649 |
 | user/global skills | `firebase-hosting-basics` | 96 | 45 | 18 | 444 |
 | user/global skills | `firebase-security-rules-auditor` | 96 | 41 | 20 | 375 |
-| user/global skills | `firebase-basics` | 95 | 48 | 16 | 591 |
+| user/global skills | `firebase-basics` | 95 | 48 | 16 | 747 |
 | user/global skills | `intent-layer` | 95 | 49 | 16 | 784 |
-| user/global skills | `firebase-ai-logic-basics` | 94 | 41 | 19 | 606 |
 | user/global skills | `improve-codebase-architecture` | 94 | 41 | 19 | 1,120 |
 | user/global skills | `outpour-mcp` | 93 | 44 | 17 | 789 |
 | user/global skills | `figma-implement-design` | 92 | 40 | 19 | 797 |
-| user/global skills | `firebase-firestore` | 91 | 44 | 16 | 803 |
-| user/global skills | `developing-genkit-dart` | 90 | 36 | 20 | 618 |
-| user/global skills | `developing-genkit-python` | 89 | 37 | 19 | 585 |
+| user/global skills | `firebase-firestore` | 91 | 44 | 16 | 891 |
+| user/global skills | `developing-genkit-dart` | 90 | 36 | 20 | 692 |
+| user/global skills | `developing-genkit-go` | 89 | 37 | 19 | 636 |
+| user/global skills | `developing-genkit-python` | 89 | 37 | 19 | 672 |
 | user/global skills | `grill-with-docs` | 88 | 35 | 18 | 901 |
-| user/global skills | `developing-genkit-go` | 87 | 35 | 19 | 614 |
 | user/global skills | `figma-create-design-system-rules` | 83 | 27 | 21 | 866 |
 | user/global skills | `firebase-data-connect` | 83 | 36 | 16 | 791 |
-| user/global skills | `nlm-skill` | 83 | 34 | 17 | 905 |
+| user/global skills | `nlm-skill` | 83 | 34 | 17 | 1,082 |
 | user/global skills | `session-handoff` | 82 | 36 | 16 | 679 |
-| user/global skills | `firebase-auth-basics` | 78 | 29 | 17 | 475 |
-| user/global skills | `notion` | 78 | 33 | 15 | 787 |
-| user/global skills | `pi-browser-harness` | 78 | 27 | 17 | 765 |
+| user/global skills | `crit-cli` | 78 | 32 | 16 | 1,017 |
+| user/global skills | `notion` | 78 | 33 | 15 | 870 |
+| user/global skills | `pi-browser-harness` | 78 | 27 | 17 | 780 |
 | user/global skills | `figma` | 76 | 30 | 16 | 326 |
-| user/global skills | `crit-cli` | 75 | 29 | 16 | 911 |
+| user/global skills | `firebase-auth-basics` | 76 | 27 | 17 | 630 |
 | user/global skills | `ty` | 75 | 31 | 15 | 416 |
 | user/global skills | `uv` | 73 | 29 | 15 | 624 |
 | user/global skills | `ruff` | 72 | 28 | 15 | 473 |
-| user/global skills | `directus-browser` | 71 | 24 | 16 | 1,239 |
+| user/global skills | `directus-browser` | 71 | 24 | 16 | 1,280 |
 | user/global skills | `mysql` | 68 | 25 | 14 | 854 |
 | user/global skills | `postgres` | 66 | 22 | 15 | 932 |
-| **Skill entry subtotal** | — | **3,080** | — | — | — |
+| **Skill entry subtotal** | — | **3,187** | — | — | — |
 | Catalog wrapper/header overhead | — | **74** | — | — | — |
-| **Available skills catalog block** | — | **3,154** | — | — | — |
+| **Available skills catalog block** | — | **3,261** | — | — | — |
 
 ## Prompt templates
 

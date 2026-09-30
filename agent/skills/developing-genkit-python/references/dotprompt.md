@@ -25,7 +25,9 @@ Include these ingredients:
 {{/if}}
 ```
 
-Place `.prompt` files in a `prompts/` directory and point `prompt_dir` at it.
+Place `.prompt` files in a `prompts/` directory and point `prompt_dir` at it. Use explicit `{{role "system"}}` / `{{role "user"}}` sections when role separation matters; a flat body becomes a user message. On the pinned API, `input.schema` is not a local pre-call validation gate. Validate inputs in the flow when hard failures are required.
+
+These examples target the split-package layout in [Setup](setup.md). Preserve compatible legacy imports and the project's provider/model choices.
 
 ## Python setup
 
@@ -33,7 +35,7 @@ Place `.prompt` files in a `prompts/` directory and point `prompt_dir` at it.
 from pathlib import Path
 from pydantic import BaseModel
 from genkit import Genkit
-from genkit.plugins.google_genai import GoogleAI
+from genkit_google_genai import GoogleAI
 
 ai = Genkit(
     plugins=[GoogleAI()],
@@ -73,26 +75,29 @@ async def tell_story(subject: str, ctx: ActionRunContext) -> str:
         if chunk.text:
             ctx.send_chunk(chunk.text)
             full += chunk.text
-    return full
+    final = await result.response
+    return final.text or full
 ```
 
 Note: `.stream(input={...})` not `ai.generate_stream(...)` — different call shape for prompts.
 
-## Render without generating (for LLM-judge evals)
+## Render without generating
 
 ```python
 rendered = await ai.prompt('my_prompt').render(input={'key': 'value'})
-response = await ai.generate(model='googleai/gemini-flash-latest', messages=rendered.messages)
 ```
+
+Rendering does not call the model; registered template helpers can still have side effects. Keep rendered messages private. A later `ai.generate(messages=rendered.messages, ...)` is a separate model call and needs exact authorization.
 
 ## Helpers
 
-Register Python functions callable inside Handlebars templates:
+Register Python functions callable inside Handlebars templates. On the pinned API, positional template arguments arrive packed in the first parameter:
 ```python
 def list_helper(data: object, *args, **kwargs) -> str:
-    if not isinstance(data, list):
+    items = data[0] if isinstance(data, (list, tuple)) and data else data
+    if not isinstance(items, list):
         return ''
-    return '\n'.join(f'- {item}' for item in data)
+    return '\n'.join(f'- {item}' for item in items)
 
 ai.define_helper('list', list_helper)
 ```
