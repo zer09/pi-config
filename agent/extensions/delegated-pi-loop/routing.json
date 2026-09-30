@@ -413,8 +413,8 @@
     "implementation": {
       "tiers": [
         {
-          "model": "gpt-6-astra",
-          "thinking": "max",
+          "model": "gpt-6.1-sol",
+          "thinking": "high",
           "providers": [
             "openai-codex",
             "openai-codex-cgpt1",
