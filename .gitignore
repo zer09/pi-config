@@ -29,6 +29,10 @@ agent/pi-blackhole/**
 !agent/pi-blackhole/reapply-context-edit-compaction-patch.test.mjs
 !agent/pi-blackhole/reapply-context-edit-compaction-patch-0.5.9.mjs
 !agent/pi-blackhole/reapply-context-edit-compaction-patch-0.5.9.test.mjs
+!agent/pi-blackhole/reapply-compact-after-percent-patch-0.5.10.mjs
+!agent/pi-blackhole/reapply-nullable-provider-headers-patch-0.5.10.mjs
+!agent/pi-blackhole/reapply-context-edit-compaction-patch-0.5.10.mjs
+!agent/pi-blackhole/port-0.5.10.test.mjs
 !agent/pi-blackhole/port-0.5.9-integration.test.mjs
 !agent/pi-blackhole/port-0.5.9-package-discovery.test.mjs
 !agent/pi-blackhole/port-0.5.9-lifecycle.test.mjs
@@ -46,6 +50,8 @@ agent/pi-btw/**
 !agent/pi-btw/reapply-model-runtime-patch.mjs
 !agent/pi-btw/reapply-model-runtime-patch.test.mjs
 !agent/pi-btw/persisted-session-restart.test.mjs
+!agent/pi-btw/reapply-model-runtime-patch-0.7.0.mjs
+!agent/pi-btw/port-0.7.0.test.mjs
 
 # Local auth and sensitive local-only files
 agent/auth.json

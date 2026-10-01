@@ -46,6 +46,30 @@ function acceptSettledPrompt(protocol: RpcJsonlProtocol, id: string, round: 1 | 
   ]);
 }
 
+test("handled prompts reject the assignment and allow a fallback prompt", () => {
+  const protocol = new RpcJsonlProtocol();
+  const command = JSON.parse(protocol.beginPrompt(1, "assignment"));
+  const records = feed(protocol, [Buffer.from(`${JSON.stringify({
+    id: command.id, type: "response", command: "prompt", success: true,
+    data: { disposition: "handled" },
+  })}\n`)]);
+  assert.deepEqual(records, [{ kind: "prompt_rejected", round: 1, category: "command_rejected" }]);
+  const fallback = JSON.parse(protocol.beginFallbackPromptCycle(2, "assignment"));
+  assert.equal(fallback.id, "route-2:prompt-1");
+});
+
+test("started, queued, and legacy prompt responses preserve acceptance", () => {
+  for (const disposition of ["started", "queued", undefined]) {
+    const protocol = new RpcJsonlProtocol();
+    const command = JSON.parse(protocol.beginPrompt(1, "assignment"));
+    const records = feed(protocol, [Buffer.from(`${JSON.stringify({
+      id: command.id, type: "response", command: "prompt", success: true,
+      data: disposition === undefined ? undefined : { disposition },
+    })}\n`)]);
+    assert.deepEqual(records, [{ kind: "prompt_accepted", round: 1 }]);
+  }
+});
+
 test("serializes all five correlated controls and emits only allowlisted results", () => {
   const protocol = new RpcJsonlProtocol();
   const results: ControlResult[] = [];

@@ -2,6 +2,22 @@
 
 These notes track local changes made under `~/.pi/agent/npm/node_modules/pi-blackhole/`. Package upgrades or reinstalls can overwrite those files, so re-check this file after every `pi-blackhole` upgrade.
 
+## 2026-10-01: `pi-blackhole@0.5.10` isolated port, not deployed
+
+The isolated compatibility candidate and worktree settings pin exactly **0.5.10** against Pi **0.99.2**. The original `~/.pi` installation is unchanged. The three new `-0.5.10.mjs` helpers preserve the accepted percentage threshold, nullable provider headers, and fresh `context_edit` summary transformations. They retain version/source, prerequisite, isolation, link, partial-state, drift, and byte/mtime idempotence guards. All older helpers remain unchanged. There is no 0.5.10 live entrypoint.
+
+Use a stock package extracted from the SRI-verified 0.5.10 archive under an explicit disposable `TMPDIR` outside the worktree. The helpers reject `node_modules` targets. Apply them in this order:
+
+```bash
+export TMPDIR=/home/gc/worktrees/pi-0992-20261001T105108Z-57871/tmp
+node agent/pi-blackhole/reapply-compact-after-percent-patch-0.5.10.mjs "$TMPDIR/isolated-package"
+node agent/pi-blackhole/reapply-nullable-provider-headers-patch-0.5.10.mjs "$TMPDIR/isolated-package"
+node agent/pi-blackhole/reapply-context-edit-compaction-patch-0.5.10.mjs "$TMPDIR/isolated-package"
+PI_BLACKHOLE_0_5_10_TARBALL=/home/gc/worktrees/pi-0992-20261001T105108Z-57871/archives/pi-blackhole-0.5.10.tgz node --test agent/pi-blackhole/port-0.5.10.test.mjs
+```
+
+The focused gate passed 8/8 tests. Strict compilation passed for all 123 production files in both stock and patched candidates against target declarations. The adapted offline lifecycle fixture passed 1/1 through manifest-selected `./index.ts`: one fake-provider request, one settled compaction, projected canaries, and unchanged raw JSONL prefix. Configuration bytes remain unchanged. Runtime manifests/locks select 0.5.10; exact package replacement preserved all other runtime dependency bytes and mtimes without npm pruning. Run package/runtime checks through the RUN `run-command.mjs` offline sandbox. These checks do not establish live activation or broader lifecycle coverage for 0.5.10.
+
 ## 2026-09-27 — `pi-blackhole@0.5.9` local port and live deployment
 
 The 0.5.9 changelog adds worker notifications, elapsed worker timeouts, early worker completion, cache retention, capped recall drill-downs, dropper pool-pressure fixes, Git environment isolation, and settings persistence. It does not include this installation's percentage threshold, nullable `ProviderHeaders`, or fresh `context_edit` compaction repair. The live package, npm manifest/lock, and Pi settings now pin **0.5.9**. The three local patches are applied to its source and its manifest selects `./index.ts`. `showWorkerNotifications: false` preserves quiet output; `dropperPressureThreshold: 1` disables the newly effective pool-pressure trigger without disabling normal dropper cadence. Cache warming remains off. Fresh-process activation was confirmed after deployment.

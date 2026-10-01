@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed change records live under [`docs/changelogs/`](./changelogs/).
 
+## 2026-10-01: Pi 0.99.2 compatibility preparation
+
+Details: [`docs/changelogs/pi-to-0.99.2-compatibility-preparation.md`](./changelogs/pi-to-0.99.2-compatibility-preparation.md).
+
+- **Prepared in an isolated worktree, not deployed.** Target exact Pi 0.99.2. Upgrade Blackhole to 0.5.10, BTW to 0.7.0, and Claude Bridge to 0.9.1 with the five existing local patches ported. Retain Browser Harness 0.11.0 and pin already-resolved Cursor 0.5.2. Exclude the new default MCP, llama.cpp, codemode, and tool-search extensions. Preserve models, themes, wrapper, compaction policy, and `lastChangelogVersion: "0.87.1"`.
+- Fixed handled RPC input being incorrectly acknowledged as assignment acceptance using the existing rejection path. Focused offline patch/behavior/type checks and final combined SDK/CLI loading pass with unchanged inventories. Three baseline/environment assertions remain from the earlier full delegated suite; no broader matrix or rollback planning was added after the narrowed request. Package increments use approved independent reviews. Live/visual acceptance remains untested. The original tree and live installation were not changed.
+
 ## 2026-10-01: Local skill and CLI maintenance
 
 Details: [`docs/changelogs/2026-10-01-skill-and-cli-maintenance.md`](./changelogs/2026-10-01-skill-and-cli-maintenance.md).

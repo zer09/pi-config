@@ -415,7 +415,8 @@ export class RpcJsonlProtocol {
     const pending = this.pendingPrompt;
     this.pendingPrompt = undefined;
     this.completedResponseIds.add(id);
-    if (!value.success) {
+    // An input hook can acknowledge a prompt without starting or queuing it.
+    if (!value.success || (isRecord(value.data) && value.data.disposition === "handled")) {
       this.promptUnsettled = false;
       emit({ kind: "prompt_rejected", round: pending.round, category: "command_rejected" });
       return;

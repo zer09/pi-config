@@ -1,5 +1,17 @@
 # Local pi-btw patches
 
+## 2026-10-01: isolated `pi-btw@0.7.0` candidate on Pi 0.99.2, not deployed
+
+The worktree pin and disposable runtime now use exactly 0.7.0. The original installation remains unchanged. The registry archive SRI is `sha512-bvEbqKWRFi6wMa0+tX0yHDEwvqkWhfsS7p7jayl/RNSD4x6GehzJhlb/X+lZcTitFTByTOZuq/66djPEANJ0VQ==`. All seven extracted files match the captured archive. There are no new runtime dependencies; the three Pi peer ranges remain `>=0.85.1 <1`.
+
+`reapply-model-runtime-patch-0.7.0.mjs` retains the single change: `setRuntimeApiKey(model.provider, auth.apiKey, { signal: ctx.signal })`. The helper requires an explicit disposable package under the isolated `TMPDIR`, outside the repository and `node_modules`. It rejects linked/shared files, wrong names or versions, and source drift. It verifies all seven published file fingerprints before writing. A second pass reverses the patch only in memory for verification and preserves bytes and mtimes. The 0.6.1 helper and fixtures remain intact.
+
+Five focused port tests pass, including cancellation during real Pi 0.99.2 credential synchronization with an offline fake native provider. All six established regressions pass in adapted RUN-only copies: patch reapplication, two-turn canonical context, summary failure/retry, branch/reset restoration, shutdown cancellation/fresh turn, and two-process persisted restart. The copies change only the package pin, the established host-version adaptation, helper output expectations, and isolated helper invocation. All behavior and security assertions remain active. Strict type checks pass for both production files in stock and patched packages. Target loading reports no errors, zero BTW tools, and unchanged commands/events.
+
+Upstream 0.7.0 includes optional child-extension loading. No `btw.json` or extension sources were added. Both trusted and untrusted default source checks return `[]`; no BTW-owned child install exists. The conversation and summary tool allowlists remain covered by the existing fake-provider tests.
+
+Isolated evidence and reproduction drivers remain outside this worktree under `/home/gc/worktrees/pi-0992-20261001T105108Z-57871/`: `btw-evidence.mjs`, `btw-port-driver.mjs`, `btw-runtime-update.mjs`, `btw-prepare-tests.mjs`, and `btw-smoke.mjs`. Offline commands, exact argv, exits, and logs are recorded in `reports/commands.jsonl` and `reports/btw-*.log`. No live reapply, deployment, interactive acceptance, or model inference was performed. Claude Bridge and SDK upgrades are deferred.
+
 These notes track local changes made under `~/.pi/agent/npm/node_modules/pi-btw/`. Package upgrades or reinstalls can overwrite them. Re-check this file after every `pi-btw` update.
 
 ## 2026-09-26 — Pi 0.87.1 and `pi-btw@0.6.1`
