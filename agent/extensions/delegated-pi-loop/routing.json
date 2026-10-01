@@ -526,7 +526,7 @@
     }
   },
   "assignments": {
-    "solution": ["gate-a", "gate-b", "gate-c", "gate-d", "gate-e", "gate-f"],
+    "solution": ["gate-a", "gate-b", "gate-c", "gate-d"],
     "review": ["gate-a", "gate-b", "gate-c"],
     "implementation": "implementation",
     "remediation": "implementation",
