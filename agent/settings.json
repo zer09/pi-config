@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.87.1",
+  "lastChangelogVersion": "0.99.2",
   "packages": [
     "npm:pi-blackhole@0.5.10",
     "npm:pi-btw@0.7.0",
