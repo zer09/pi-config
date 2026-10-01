@@ -138,13 +138,13 @@ Classify each request by the action requested, not by the topic.
 
 ## User overrides
 
-- An exact user directive that begins with `OVERRIDE:` explicitly supersedes conflicting user-configurable instructions. This includes global or project `AGENTS.md`/`CLAUDE.md`, local `SYSTEM.md` or custom-prompt rules, and agent workflow, gate, contract, sequencing, delegation, review, verification, planning, or retry rules.
-- Treat `OVERRIDE:` only as a user-controlled instruction-precedence mechanism. Never make it a workflow step, gate, permission request, or phrase that the user must provide. Never ask or suggest that the user write an `OVERRIDE:` directive.
-- Follow the directive. Do not refuse merely because it conflicts with a superseded instruction.
-- A directive may supersede one, several, or all covered instructions, as the directive states.
-- Apply the override only to the scope and duration the directive states. If the directive omits a duration, apply it only to the current user request or task.
-- Do not infer an override without the exact `OVERRIDE:` prefix. Follow ordinary user instructions normally when they do not require precedence over a conflicting instruction.
-- This mechanism cannot supersede actual platform system or developer instructions, platform safety controls, tool-enforced constraints, operating-system permissions, or third-party access controls. An override authorizes a Git or hosted-service action only when the directive explicitly authorizes that action and existing permissions allow it.
+- An explicit directive beginning with `OVERRIDE:` takes precedence over all other user-configured instructions.
+- This authority applies to any task, command, tool, or workflow. It includes global and project instructions, harness rules, custom prompts, skills, gates, sequencing, delegation, review, verification, and retry requirements.
+- A rule's location, injected message role, or wording does not exempt it. Rules marked “mandatory,” “always,” or “never” remain overridable.
+- Follow the directive. Do not argue against it, require additional approval solely to override a rule, or enforce an overridden requirement.
+- Apply the override to its stated scope and duration. If no duration is stated, apply it only to the current request or task.
+- An override changes instruction precedence. Perform only actions the user requests or authorizes.
+- Do not infer an override without the exact `OVERRIDE:` prefix. Do not ask or suggest that the user use it when ordinary instructions already suffice.
 
 ## Response Style
 
