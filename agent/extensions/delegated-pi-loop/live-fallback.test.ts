@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
-import { after, test } from "node:test";
+import { after, test, type TestContext } from "node:test";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { buildDelegatePrompt, LIVE_CONTINUATION_PROMPT, REPORT_RECOVERY_PROMPT, RESTART_AFTER_WORK_NOTE } from "./instructions.ts";
 import { requireRole, validateRoutingConfig } from "./routing.ts";
 import { runDelegate } from "./runner.ts";
-import { terminationProbes } from "./supervisor.ts";
+import { finalizeDelegateRun } from "./result.ts";
+import { terminationProbes, type TerminationProbes } from "./supervisor.ts";
 import type { AttemptStatus, DelegateProgress, DelegateRunResult, RunOptions } from "./types.ts";
 
 const root = await mkdtemp(path.join(os.tmpdir(), "delegate-live-test-"));
@@ -36,6 +37,10 @@ interface FixtureOptions {
   behaviors?: string[];
   catalog?: string[];
   catalogDelayRoute?: number;
+  catalogHangRoute?: number;
+  catalogStartupMs?: number;
+  runtimeStartupMs?: number;
+  omitCatalogReadiness?: boolean;
   controlFault?: string;
   faultStep?: number;
   descendant?: boolean;
@@ -57,15 +62,20 @@ const persistPrompt = createFixtureSession(args);
 const trace = (entry) => appendFileSync("trace.jsonl", JSON.stringify({ pid: process.pid, ...entry }) + "\\n", { mode: 0o600 });
 if (args.includes("--list-models")) {
   const route = args[args.indexOf("--list-models") + 1];
+  if (settings.catalogStartupMs) await new Promise((resolve) => setTimeout(resolve, settings.catalogStartupMs));
   trace({ kind: "catalog", route });
   const done = () => {
     if ((settings.catalog ?? routes).includes(route)) console.log(route.replace("/", " ") + " 100 100 yes yes");
     trace({ kind: "catalog-end", route });
     process.exit(0);
   };
-  if (route === routes[settings.catalogDelayRoute]) setTimeout(done, 2000);
+  if (route === routes[settings.catalogHangRoute]) {
+    if (!settings.omitCatalogReadiness) trace({ kind: "catalog-ready", route });
+    setInterval(() => {}, 1000);
+  } else if (route === routes[settings.catalogDelayRoute]) setTimeout(done, 2000);
   else done();
 } else {
+  if (settings.runtimeStartupMs) await new Promise((resolve) => setTimeout(resolve, settings.runtimeStartupMs));
   let provider = args[args.indexOf("--provider") + 1];
   let model = args[args.indexOf("--model") + 1];
   let thinking = args[args.indexOf("--thinking") + 1];
@@ -170,11 +180,11 @@ async function statuses(result: DelegateRunResult): Promise<PrivateStatus[]> {
   return Promise.all(entries.map(async (name) => JSON.parse(await readFile(path.join(result.artifactDir, name, "status.json"), "utf8"))));
 }
 
-async function check(settings: FixtureOptions, body: (result: DelegateRunResult, trace: Trace[], status: PrivateStatus[]) => void | Promise<void>, overrides: Partial<RunOptions> = {}) {
+async function check(settings: FixtureOptions, body: (result: DelegateRunResult, trace: Trace[], status: PrivateStatus[]) => void | Promise<void>, overrides: Partial<RunOptions> = {}, control?: RetainedCatalogControl) {
   const f = await fixture(settings);
   let result: DelegateRunResult | undefined;
-  try {
-    result = await runDelegate({ ...f.options, ...overrides });
+  const verify = async (received: DelegateRunResult) => {
+    result = received;
     const trace = await f.trace();
     await body(result, trace, await statuses(result));
     const starts = trace.filter((entry) => entry.kind === "start");
@@ -187,12 +197,180 @@ async function check(settings: FixtureOptions, body: (result: DelegateRunResult,
       assert.ok(priorExit >= 0 && priorExit < trace.indexOf(starts[i]!), "positive cleanup precedes every fresh spawn");
     }
     assert.doesNotMatch(JSON.stringify({ ...result, report: undefined }), /CONTROL-PRIVATE-SENTINEL|PROVIDER-PRIVATE-SENTINEL|TOOL-PRIVATE-SENTINEL|INVALID-REPORT-SENTINEL/);
+  };
+  try {
+    const options = { ...f.options, ...overrides };
+    if (control) await runRetainedCatalogScenario(f, options, control, verify);
+    else await verify(await runDelegate(options));
   } finally {
     if (result) await rm(result.artifactDir, { recursive: true, force: true });
-    // Exact fixture leaders only, as a safety net if an assertion fails.
-    for (const entry of await f.trace()) {
-      if (entry.kind !== "start" || gone(entry.pid)) continue;
+    // The opt-in driver also owns children with no trace before abort.
+    let trace: Trace[];
+    if (control) trace = await readScenarioTrace(f);
+    else trace = await f.trace();
+    for (const entry of trace) {
+      if (entry.kind !== "start" && !(control && entry.kind === "catalog")) continue;
+      if (gone(entry.pid) && (!control || gone(-entry.pid))) continue;
       try { process.kill(-entry.pid, "SIGKILL"); } catch {}
+    }
+  }
+}
+
+interface RetainedCatalogEvidence {
+  owned: { pid: number; catalog: boolean; probes: TerminationProbes }[];
+  deliveredRoutes: string[];
+  trace?: Trace[];
+  artifactDir?: string;
+  finalized?: boolean;
+}
+interface RetainedCatalogControl {
+  t: TestContext;
+  guardMs?: number;
+  evidence?: RetainedCatalogEvidence;
+}
+
+async function readScenarioTrace(f: Awaited<ReturnType<typeof fixture>>): Promise<Trace[]> {
+  return f.trace().catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  });
+}
+
+async function runRetainedCatalogScenario(
+  f: Awaited<ReturnType<typeof fixture>>,
+  options: RunOptions,
+  control: RetainedCatalogControl,
+  body: (result: DelegateRunResult) => Promise<void>,
+) {
+  const realNow = performance.now.bind(performance);
+  const realSetTimeout = globalThis.setTimeout;
+  const realClearTimeout = globalThis.clearTimeout;
+  const originalBuild = terminationProbes.build;
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = path.join(f.cwd, "diagnostics");
+  const controller = new AbortController();
+  const evidence = control.evidence ?? { owned: [], deliveredRoutes: [] };
+  let age = realNow();
+  let runningSince: number | undefined;
+  const now = () => age + (runningSince === undefined ? 0 : realNow() - runningSince);
+  const pause = () => { age = now(); runningSince = undefined; };
+  const resume = () => { runningSince ??= realNow(); };
+  const clock = control.t.mock.method(performance, "now", now);
+  let nextCatalog: string | undefined;
+  let catalogOrdinal = 0;
+  const timers: { route: string; handle: NodeJS.Timeout; deadline: number; armed: boolean; fire: () => void }[] = [];
+  // Verification arms only the next catalog deadline, not equal-duration live-switch timers.
+  const timerMock = control.t.mock.method(globalThis, "setTimeout", (callback: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+    if (nextCatalog === undefined) return realSetTimeout(callback, ms, ...args);
+    const route = nextCatalog;
+    nextCatalog = undefined;
+    const handle = realSetTimeout(() => {}, 0);
+    realClearTimeout(handle);
+    timers.push({ route, handle, deadline: now() + (ms ?? 0), armed: true, fire: () => callback(...args) });
+    return handle;
+  });
+  const clearMock = control.t.mock.method(globalThis, "clearTimeout", (handle: NodeJS.Timeout | undefined) => {
+    const timer = timers.find((entry) => entry.handle === handle);
+    if (timer) timer.armed = false;
+    realClearTimeout(handle);
+  });
+  let cleanups = 0;
+  terminationProbes.build = (child) => {
+    // Cleanup and its probes share the same epoch and consume real elapsed time.
+    resume();
+    cleanups += 1;
+    const real = originalBuild(child);
+    evidence.owned.push({ pid: child.pid!, catalog: child.spawnargs.includes("--list-models"), probes: real });
+    return {
+      ...real,
+      waitForClose: async (ms: number) => {
+        try { return await real.waitForClose(ms); }
+        finally {
+          cleanups -= 1;
+          if (cleanups === 0 && !controller.signal.aborted) pause();
+        }
+      },
+    };
+  };
+  let failure: Error | undefined;
+  let settled = false;
+  const abort = () => {
+    resume();
+    // No fixture barriers remain: abort releases the actual catalog and retained session.
+    controller.abort();
+  };
+  const guard = realSetTimeout(() => {
+    failure = new Error("Retained catalog scenario guard expired before readiness or settlement");
+    abort();
+  }, control.guardMs ?? 5000);
+  const onAbort = () => { failure ??= new Error("Retained catalog scenario test aborted"); abort(); };
+  control.t.signal.addEventListener("abort", onAbort, { once: true });
+  const driver = (async () => {
+    while (!settled && !controller.signal.aborted) {
+      const timer = timers.find((entry) => entry.route === routes[2] && entry.armed);
+      if (timer && (await readScenarioTrace(f)).some((entry) => entry.kind === "catalog-ready" && entry.route === timer.route)) {
+        timer.armed = false;
+        pause();
+        age += Math.max(0, timer.deadline - now());
+        evidence.deliveredRoutes.push(timer.route);
+        timer.fire();
+      }
+      await new Promise<void>((resolve) => realSetTimeout(resolve, 10));
+    }
+  })().catch((error: Error) => { failure = error; abort(); });
+  try {
+    const selection = options.resourceSelection!;
+    const result = await runDelegate({
+      ...options,
+      signal: controller.signal,
+      resourceSelection: {
+        ...selection,
+        verifyCatalogSpawn: () => {
+          selection.verifyCatalogSpawn();
+          pause();
+          nextCatalog = routes[catalogOrdinal++];
+        },
+      },
+    });
+    evidence.artifactDir = result.artifactDir;
+    try {
+      settled = true;
+      realClearTimeout(guard);
+      await driver;
+      if (failure) throw failure;
+      assert.deepEqual(evidence.deliveredRoutes, [routes[2]], "only the ready hanging catalog receives its deadline");
+      assert.ok(timers.every((timer) => !timer.armed), "settlement disarms every catalog deadline");
+      await body(result);
+    } finally {
+      await finalizeDelegateRun(result);
+      evidence.finalized = true;
+    }
+  } finally {
+    settled = true;
+    abort();
+    realClearTimeout(guard);
+    control.t.signal.removeEventListener("abort", onAbort);
+    try {
+      await driver;
+      // Probe ownership comes from actual children, including children with no trace yet.
+      for (const { probes } of evidence.owned) {
+        if (probes.groupExists()) probes.signalGroup("SIGKILL");
+        assert.ok(await probes.waitForClose(3000), "owned streams must close before restoring hooks");
+        const deadline = realNow() + 3000;
+        while (probes.groupExists() && realNow() < deadline) {
+          await new Promise<void>((resolve) => realSetTimeout(resolve, 25));
+        }
+        assert.equal(probes.groupExists(), false, "every exact owned catalog and execution group must be reaped");
+        assert.equal(probes.processIsRunning(), false, "every owned leader must be reaped");
+      }
+      evidence.trace = await readScenarioTrace(f);
+    } finally {
+      terminationProbes.build = originalBuild;
+      clearMock.mock.restore();
+      timerMock.mock.restore();
+      clock.mock.restore();
+      if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+      else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
     }
   }
 }
@@ -268,8 +446,8 @@ for (const behaviors of [["provider", "reject", "complete"], ["recover-reject", 
   });
 }
 
-test("catalog skip and timeout keep one idle execution child and process-local ordinals", async () => {
-  await check({ behaviors: ["provider"], catalog: [routes[0]!, routes[3]!], catalogDelayRoute: 2, descendant: true }, (result, trace, status) => {
+test("catalog skip and timeout keep one idle execution child and process-local ordinals", async (t) => {
+  await check({ behaviors: ["provider"], catalog: [routes[0]!, routes[3]!], catalogHangRoute: 2, descendant: true }, (result, trace, status) => {
     assert.equal(result.state, "completed");
     assert.deepEqual(result.attempts.map((entry) => entry.state), ["provider_failed", "catalog_unavailable", "timed_out", "completed"]);
     assert.equal(trace.filter((entry) => entry.kind === "start").length, 1);
@@ -279,7 +457,100 @@ test("catalog skip and timeout keep one idle execution child and process-local o
     const firstPrompt = trace.findIndex((entry) => entry.kind === "prompt");
     const secondCatalog = trace.findIndex((entry) => entry.kind === "catalog" && entry.route === routes[1]);
     assert.ok(firstPrompt < secondCatalog, "fallback catalogs are on demand, never prefetched");
-  }, { catalogTimeoutMs: 300 });
+  }, { catalogTimeoutMs: 300 }, { t });
+});
+
+test("retained catalog startup beyond 300 ms preserves skip, timeout, reuse, and ordinals", async (t) => {
+  const originals = { now: performance.now, setTimeout, clearTimeout, build: terminationProbes.build, agentDir: process.env.PI_CODING_AGENT_DIR };
+  const evidence: RetainedCatalogEvidence = { owned: [], deliveredRoutes: [] };
+  const started = performance.now();
+  await check({
+    behaviors: ["provider"], catalog: [routes[0]!, routes[3]!], catalogHangRoute: 2, descendant: true,
+    catalogStartupMs: 350, runtimeStartupMs: 350,
+  }, (result, trace, status) => {
+    assert.equal(result.state, "completed");
+    assert.deepEqual(result.attempts.map((entry) => entry.state), ["provider_failed", "catalog_unavailable", "timed_out", "completed"]);
+    assert.equal(trace.filter((entry) => entry.kind === "start").length, 1);
+    assert.deepEqual(trace.filter((entry) => entry.kind === "catalog").map((entry) => entry.route), routes);
+    assert.equal(trace.filter((entry) => entry.kind === "prompt").at(-1)!.command!.id, "route-2:prompt-1");
+    assert.deepEqual(status.map((entry) => entry.liveReused), [false, true]);
+    const firstPrompt = trace.findIndex((entry) => entry.kind === "prompt");
+    const secondCatalog = trace.findIndex((entry) => entry.kind === "catalog" && entry.route === routes[1]);
+    assert.ok(firstPrompt < secondCatalog, "fallback catalogs are on demand, never prefetched");
+    assert.deepEqual(evidence.deliveredRoutes, [routes[2]]);
+    assert.equal(evidence.owned.filter((entry) => entry.catalog).length, 4);
+    assert.equal(evidence.owned.filter((entry) => !entry.catalog).length, 1);
+    assert.equal(trace.filter((entry) => entry.kind === "catalog-ready").length, 1);
+    assert.equal(trace.filter((entry) => entry.kind === "catalog-end").length, 3);
+  }, { catalogTimeoutMs: 300 }, { t, evidence });
+  assert.ok(performance.now() - started >= 5 * 350, "real catalog and execution startup must exceed the unchanged 300 ms deadlines");
+  assert.equal(performance.now, originals.now);
+  assert.equal(setTimeout, originals.setTimeout);
+  assert.equal(clearTimeout, originals.clearTimeout);
+  assert.equal(terminationProbes.build, originals.build);
+  assert.equal(process.env.PI_CODING_AGENT_DIR, originals.agentDir);
+  assert.equal(evidence.finalized, true);
+  await assert.rejects(readdir(evidence.artifactDir!), { code: "ENOENT" });
+});
+
+for (const early of [false, true]) {
+  test(`retained catalog guard ${early ? "before any trace" : "without readiness"} settles and reaps every owned group`, async (t) => {
+    const originals = { now: performance.now, setTimeout, clearTimeout, build: terminationProbes.build, agentDir: process.env.PI_CODING_AGENT_DIR };
+    const evidence: RetainedCatalogEvidence = { owned: [], deliveredRoutes: [] };
+    let reachedBody = false;
+    const started = performance.now();
+    await assert.rejects(check({
+      behaviors: ["provider"], catalog: [routes[0]!, routes[3]!], catalogHangRoute: 2, descendant: true,
+      omitCatalogReadiness: true, catalogStartupMs: early ? 2000 : undefined,
+    }, () => {
+      reachedBody = true;
+    }, { catalogTimeoutMs: 300 }, { t, guardMs: 1000, evidence }), /Retained catalog scenario guard expired before readiness or settlement/);
+    assert.equal(reachedBody, false, "guard failure must precede normal result assertions");
+    assert.ok(performance.now() - started >= 1000, "the guard and abort cleanup must use real elapsed time");
+    assert.equal(performance.now, originals.now);
+    assert.equal(setTimeout, originals.setTimeout);
+    assert.equal(clearTimeout, originals.clearTimeout);
+    assert.equal(terminationProbes.build, originals.build);
+    assert.equal(process.env.PI_CODING_AGENT_DIR, originals.agentDir);
+    assert.equal(evidence.finalized, true);
+    await assert.rejects(readdir(evidence.artifactDir!), { code: "ENOENT" });
+    assert.deepEqual(evidence.deliveredRoutes, []);
+    const trace = evidence.trace!;
+    if (early) {
+      assert.deepEqual(trace, [], "early guard cleanup must not depend on a trace file");
+      assert.equal(evidence.owned.length, 1, "the actual untraced catalog child is still owned");
+      assert.equal(evidence.owned[0]!.catalog, true);
+    } else {
+      assert.equal(trace.some((entry) => entry.kind === "catalog-ready"), false);
+      assert.deepEqual(trace.filter((entry) => entry.kind === "catalog").map((entry) => entry.route), routes.slice(0, 3));
+      assert.equal(evidence.owned.filter((entry) => entry.catalog).length, 3);
+      assert.equal(evidence.owned.filter((entry) => !entry.catalog).length, 1);
+      const execution = trace.find((entry) => entry.kind === "start")!;
+      assert.ok(execution.descendant && gone(execution.descendant), "guard failure must reap the execution descendant");
+    }
+    for (const { pid, probes } of evidence.owned) {
+      assert.ok(gone(pid), "guard rejection must follow leader reaping");
+      assert.ok(gone(-pid), "guard rejection must follow exact process-group reaping");
+      assert.equal(probes.groupExists(), false);
+      assert.equal(probes.processIsRunning(), false);
+    }
+    assert.deepEqual((await readdir(root)).filter((name) => name.startsWith("delegated-pi-")), [], "guard failure must leave no owned run artifacts");
+  });
+}
+
+test("ordinary live-fallback check after catalog guards keeps default clocks, timers, and controls", async () => {
+  const started = performance.now();
+  await new Promise<void>((resolve) => setTimeout(resolve, 25));
+  assert.ok(performance.now() > started);
+  await check({ behaviors: ["provider", "complete"], descendant: true }, (result, trace, status) => {
+    assert.equal(result.state, "completed");
+    assert.deepEqual(result.attempts.map((entry) => entry.state), ["provider_failed", "completed"]);
+    assert.equal(trace.filter((entry) => entry.kind === "start").length, 1);
+    assert.deepEqual(trace.filter((entry) => entry.kind === "catalog").map((entry) => entry.route), routes.slice(0, 2));
+    assert.deepEqual(trace.filter((entry) => entry.command).map((entry) => entry.command!.type), ["prompt", "get_state", "set_model", "set_thinking_level", "get_state", "prompt"]);
+    assert.equal(trace.filter((entry) => entry.kind === "prompt").at(-1)!.command!.id, "route-2:prompt-1");
+    assert.deepEqual(status.map((entry) => entry.liveReused), [false, true]);
+  });
 });
 
 for (const [controlFault, faultStep] of [

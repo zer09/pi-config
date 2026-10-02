@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { after, test } from "node:test";
+import { after, test, type TestContext } from "node:test";
 import { lstatSync, writeFileSync } from "node:fs";
 import { chmod, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createPrivateDirectory } from "./artifacts.ts";
 import { REPORT_RECOVERY_PROMPT } from "./instructions.ts";
+import { PiRpcMonitor } from "./monitor.ts";
 import { createPersistedPiSession } from "./persisted-session.ts";
 import {
   DEFAULT_PROGRESS_STALL_MS,
@@ -554,16 +555,135 @@ test("fixed interruption sources propagate and arbitrary reasons become unknown"
   }
 });
 
-test("cancellation during recovery keeps one manager attempt and kills the child", async () => {
+async function runRecoveryCancellation(t: TestContext, script: string, options: {
+  activityIdleMs?: number;
+  guardMs?: number;
+} = {}) {
   const controller = new AbortController();
-  setTimeout(() => controller.abort(), 150);
-  const { status } = await run(eventScript([missing(), [{ type: "agent_start" }]]), {
-    signal: controller.signal,
-    activityIdleMs: 1000,
+  const realNow = performance.now.bind(performance);
+  const frozenAt = realNow();
+  let resumedAt: number | undefined;
+  const resume = () => { resumedAt ??= realNow(); };
+  // Bootstrap must not consume the lease. Real timers and the supervisor ticker still run.
+  const clock = t.mock.method(performance, "now", () => {
+    if (resumedAt === undefined) return frozenAt;
+    return frozenAt + realNow() - resumedAt;
   });
+  const originalBuild = terminationProbes.build;
+  let owned: TerminationProbes | undefined;
+  let pid: number | undefined;
+  terminationProbes.build = (child) => {
+    // Unexpected termination also needs an advancing clock in the deadline's epoch.
+    resume();
+    pid = child.pid;
+    owned = originalBuild(child);
+    return owned;
+  };
+  let guardExpired = false;
+  const guard = setTimeout(() => {
+    guardExpired = true;
+    resume();
+    controller.abort();
+  }, options.guardMs ?? 5000);
+  const progress: DelegateProgress[] = [];
+  try {
+    // Await the actual run, including cleanup, even when the recovery gate is missing.
+    const result = await run(script, {
+      signal: controller.signal,
+      activityIdleMs: options.activityIdleMs ?? 1000,
+      onProgress: (value) => {
+        progress.push(value);
+        if (value.reportRound === 2 && value.reportNudgeCount === 1) {
+          // Forced progress proves the recovery prompt was sent, not accepted by the child.
+          resume();
+          controller.abort();
+        }
+      },
+    });
+    clearTimeout(guard);
+    assert.ok(owned && pid !== undefined, "the fixture must reach owned-child cleanup");
+    assert.ok(await isGone(pid), "the owned child must be dead before settlement returns");
+    assert.equal(owned.groupExists(), false, "the owned process group must be dead");
+    await finishedStderr(result.attemptDir);
+    if (guardExpired) throw new Error("Recovery cancellation guard expired before recovery progress");
+    return { ...result, progress, pid };
+  } finally {
+    clearTimeout(guard);
+    resume();
+    controller.abort();
+    try {
+      // Only this fixture's group may be killed if normal cleanup failed.
+      if (owned?.groupExists()) {
+        owned.signalGroup("SIGKILL");
+        const deadline = realNow() + 3000;
+        while (owned.groupExists() && realNow() < deadline) await sleep(25);
+        assert.equal(owned.groupExists(), false, "fixture safety cleanup must reap the owned group");
+      }
+      if (pid !== undefined) assert.ok(await isGone(pid), "fixture safety cleanup must reap the owned child");
+    } finally {
+      terminationProbes.build = originalBuild;
+      clock.mock.restore();
+    }
+  }
+}
+
+test("cancellation during recovery keeps one manager attempt and kills the child", async (t) => {
+  const { status, progress, pid } = await runRecoveryCancellation(t, eventScript([missing(), [{ type: "agent_start" }]]));
   assert.equal(status.state, "interrupted");
   assert.equal(status.reportNudgeCount, 1);
   assert.equal(status.reportRound, 2);
+  assert.ok(progress.some((value) => value.reportRound === 2 && value.reportNudgeCount === 1));
+  assert.ok(await isGone(pid), "the recovery child must be dead");
+});
+
+test("delayed startup still cancels during recovery", async (t) => {
+  const originalNow = performance.now;
+  const originalBuild = terminationProbes.build;
+  const started = performance.now();
+  const script = `await new Promise((resolve) => setTimeout(resolve, 600));\n${eventScript([missing(), [{ type: "agent_start" }]])}`;
+  const { status, root } = await runRecoveryCancellation(t, script, { activityIdleMs: 250 });
+  assert.equal(performance.now, originalNow);
+  assert.equal(terminationProbes.build, originalBuild);
+  assert.ok(performance.now() - started >= 600, "startup must exceed both the old timer and the initial lease");
+  assert.equal(status.state, "interrupted");
+  assert.equal(status.reportNudgeCount, 1);
+  assert.equal(status.reportRound, 2);
+  const commands = (await readFile(path.join(root, "commands.jsonl"), "utf8")).trim().split("\n");
+  assert.equal(JSON.parse(commands[0]).command.id, "prompt-1");
+});
+
+test("missing recovery progress expires the guard only after cleanup and restores hooks", async (t) => {
+  const originalNow = performance.now;
+  const originalBuild = terminationProbes.build;
+  const rootIndex = fixtureRoots.length;
+  const script = `process.on("SIGTERM", () => {});\n${eventScript([[{ type: "agent_start" }]])}`;
+  await assert.rejects(
+    runRecoveryCancellation(t, script, { guardMs: 1000 }),
+    /Recovery cancellation guard expired before recovery progress/,
+  );
+  assert.equal(performance.now, originalNow);
+  assert.equal(terminationProbes.build, originalBuild);
+  const attemptDir = path.join(fixtureRoots[rootIndex], "attempt");
+  const status = JSON.parse(await readFile(path.join(attemptDir, "status.json"), "utf8"));
+  assert.equal(status.state, "interrupted");
+  assert.equal(status.reportRound, 1);
+  assert.equal(status.reportNudgeCount, 0);
+  assert.equal(status.cleanupFailureReason, undefined);
+  await finishedStderr(attemptDir);
+});
+
+test("ordinary supervision after the recovery guard uses real time and cleanup", async () => {
+  const started = performance.now();
+  await sleep(25);
+  assert.ok(performance.now() > started, "the scenario clock must no longer be frozen");
+  const { status, root, attemptDir } = await run(eventScript([completed()]));
+  assert.equal(status.state, "completed");
+  assert.equal(status.reportRound, 1);
+  assert.equal(status.reportNudgeCount, 0);
+  assert.equal(status.cleanupFailureReason, undefined);
+  const command = JSON.parse((await readFile(path.join(root, "commands.jsonl"), "utf8")).trim());
+  assert.ok(await isGone(command.pid), "the ordinary run must also reap its child");
+  await finishedStderr(attemptDir);
 });
 
 test("child exit during recovery fails closed", async () => {
@@ -983,18 +1103,208 @@ setInterval(() => {}, 1000);
   }
 });
 
-test("a silent active tool reaches the normal idle deadline", async () => {
-  const events = [
-    { type: "agent_start" },
-    { type: "tool_execution_start", toolCallId: "silent", toolName: "ctx_batch_execute", args: {} },
-  ];
-  const { status, progress } = await run(eventScript([events]), {
-    activityWarningMs: 100,
-    activityIdleMs: 250,
-    progressWarningMs: 3000,
-    progressStallMs: 6000,
-    cleanupTimeoutMs: 1000,
+async function runToolWatchdog(t: TestContext, options: {
+  multiple?: "id" | "anonymous";
+  startupMs?: number;
+  omitTool?: boolean;
+  guardMs?: number;
+  rawEpoch?: number;
+} = {}) {
+  const anonymous = options.multiple === "anonymous";
+  const tool = (type: string, name: string, id: string, n?: number) => ({
+    type, toolName: name,
+    ...(anonymous ? {} : { toolCallId: id }),
+    ...(n === undefined ? { args: {} } : { partialResult: { n } }),
   });
+  const phases = [
+    [{ type: "agent_start" }, ...(options.omitTool ? [] : [
+      tool("tool_execution_start", options.multiple ? "read" : "ctx_batch_execute", "old"),
+    ])],
+  ];
+  if (options.multiple) {
+    if (anonymous) phases.push([tool("tool_execution_start", "fake-unallowlisted-tool", "unknown")]);
+    phases.push([tool("tool_execution_start", "bash", "new")]);
+    for (const n of [1, 2]) {
+      const updates = [tool("tool_execution_update", "bash", "new", n)];
+      if (anonymous) updates.push(tool("tool_execution_update", "other-fake-tool", "unknown", n));
+      phases.push(updates);
+    }
+  }
+  const built = await fixture(`
+import { existsSync, writeFileSync } from "node:fs";
+${options.omitTool ? 'process.on("SIGTERM", () => {});' : ""}
+await new Promise((resolve) => setTimeout(resolve, ${options.startupMs ?? 0}));
+let buffer = "";
+let started = false;
+let phase = 1;
+const phases = ${JSON.stringify(phases)};
+const emit = (events) => { for (const event of events) process.stdout.write(JSON.stringify(event) + "\\n"); };
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString();
+  if (started || !buffer.includes("\\n")) return;
+  started = true;
+  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
+  writeFileSync("watchdog-child.json", JSON.stringify({ pid: process.pid, command }), { mode: 0o600 });
+  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
+  emit(phases[0]);
+});
+setInterval(() => {
+  if (started && phase < phases.length && existsSync("watchdog-release-" + phase)) emit(phases[phase++]);
+}, 10);
+`);
+  const attemptDir = path.join(built.root, "attempt");
+  await createPrivateDirectory(attemptDir);
+  const controller = new AbortController();
+  const realNow = performance.now.bind(performance);
+  const realSetTimeout = setTimeout;
+  const realClearTimeout = clearTimeout;
+  const sleepReal = (ms: number) => new Promise<void>((resolve) => realSetTimeout(resolve, ms));
+  // Integer epochs keep exact lease ages from rounding below warning or expiry thresholds.
+  const epoch = Math.floor(options.rawEpoch ?? realNow());
+  let age = 0;
+  let resumedAt: number | undefined;
+  const resume = () => { resumedAt ??= realNow(); };
+  const clock = t.mock.method(performance, "now", () => epoch + age + (resumedAt === undefined ? 0 : realNow() - resumedAt));
+  const originalConsume = PiRpcMonitor.prototype.consumeEvent;
+  const originalSnapshot = PiRpcMonitor.prototype.snapshot;
+  const accepted: { event: Record<string, unknown>; at: number; snapshot: ReturnType<typeof originalSnapshot> }[] = [];
+  const observed: { age: number; snapshot: ReturnType<typeof originalSnapshot> }[] = [];
+  const consumeMock = t.mock.method(PiRpcMonitor.prototype, "consumeEvent", function (this: PiRpcMonitor, ...args: Parameters<typeof originalConsume>) {
+    const before = originalSnapshot.call(this);
+    originalConsume.apply(this, args);
+    const snapshot = originalSnapshot.call(this);
+    // A fixture write is not readiness. Only the real monitor's accepted activity opens a barrier.
+    if (snapshot.activityEventCount > before.activityEventCount) accepted.push({ event: args[1], at: age, snapshot });
+  });
+  const snapshotMock = t.mock.method(PiRpcMonitor.prototype, "snapshot", function (this: PiRpcMonitor) {
+    const snapshot = originalSnapshot.call(this);
+    observed.push({ age, snapshot });
+    return snapshot;
+  });
+  const originalBuild = terminationProbes.build;
+  let owned: TerminationProbes | undefined;
+  let pid: number | undefined;
+  let terminationAge: number | undefined;
+  let cleanupStarted: number | undefined;
+  terminationProbes.build = (child) => {
+    // Cleanup deadlines and the real probes keep the scenario's continuous epoch.
+    terminationAge = age;
+    cleanupStarted = realNow();
+    resume();
+    pid = child.pid;
+    owned = originalBuild(child);
+    return owned;
+  };
+  let settled = false;
+  let failure: unknown;
+  const abort = () => { resume(); controller.abort(); };
+  const guard = realSetTimeout(() => {
+    failure = new Error("Tool watchdog guard expired before accepted events or settlement");
+    abort();
+  }, options.guardMs ?? 5000);
+  const onAbort = () => { failure ??= new Error("Tool watchdog test aborted"); abort(); };
+  t.signal.addEventListener("abort", onAbort, { once: true });
+  const waitFor = async (ready: () => boolean) => {
+    while (!failure && !settled) {
+      if (ready()) return;
+      await sleepReal(10);
+    }
+    throw failure ?? new Error("Tool watchdog settled before its event barrier");
+  };
+  const belowDeadline = async (nextAge: number, count: number) => {
+    age = nextAge;
+    // With the child held at its barrier, the next snapshot comes from the actual 100 ms ticker.
+    await waitFor(() => observed.some((item) => item.age === nextAge && item.snapshot.activeToolCount === count));
+    assert.equal(settled, false);
+    assert.equal(owned, undefined, "the below-lease ticker must not start termination");
+    assert.equal(observed.at(-1)?.snapshot.agentRunning, true);
+    assert.deepEqual(observed.at(-1)?.snapshot.errors, []);
+  };
+  const driver = (async () => {
+    await waitFor(() => accepted.some((item) => item.event.type === "tool_execution_start"));
+    assert.equal(accepted.at(-1)?.at, 0, "bootstrap must not age the tool lease");
+    if (!options.multiple) {
+      await belowDeadline(99, 1);
+      assert.equal(observed.at(-1)?.snapshot.activityWarningCount, 0);
+      age = 100;
+      await waitFor(() => observed.some((item) => item.age === 100 && item.snapshot.activityWarningCount === 1));
+      assert.equal(owned, undefined, "the warning ticker must leave the tool running");
+      await belowDeadline(249, 1);
+      assert.equal(observed.at(-1)?.snapshot.activityWarningCount, 1);
+      age = 250;
+      return;
+    }
+    let nextPhase = 1;
+    const release = async (at: number) => {
+      age = at;
+      const count = accepted.length + phases[nextPhase].length;
+      await writeFile(path.join(built.root, `watchdog-release-${nextPhase++}`), "release", { mode: 0o600 });
+      await waitFor(() => accepted.length === count);
+      assert.equal(accepted.at(-1)?.snapshot.lastActivityMonotonic, epoch + at);
+      assert.equal(accepted.at(-1)?.snapshot.activeToolName, "read");
+    };
+    // Equal timestamps select the newest tool. Distinct starts preserve the older read lease.
+    if (anonymous) await release(10);
+    await release(20);
+    await release(200);
+    await release(390);
+    const updates = accepted.filter((item) => item.event.type === "tool_execution_update");
+    assert.deepEqual(updates.map((item) => item.at), anonymous ? [200, 200, 390, 390] : [200, 390]);
+    assert.ok(updates.every((item) => item.snapshot.errors.length === 0));
+    await belowDeadline(399, anonymous ? 3 : 2);
+    assert.equal(observed.at(-1)?.snapshot.lastEvent, "tool_execution_update");
+    assert.equal(observed.at(-1)?.snapshot.lastActivityMonotonic, epoch + 390);
+    age = 400;
+  })().catch((error) => { failure ??= error; abort(); });
+  const progress: DelegateProgress[] = [];
+  try {
+    // The guard aborts this run. It never abandons the promise or its owned child group.
+    const status = await supervisePi({
+      label: "test", role: "review-a", attempt: 1,
+      cwd: built.root, artifactDir: attemptDir, promptPath: built.promptPath,
+      route: ROUTE, piInvocation: built.invocation,
+      runtimeResourceArgs: RUNTIME_RESOURCE_ARGS, verifyRuntimeResources: () => {},
+      activityWarningMs: 100, activityIdleMs: options.multiple ? 400 : 250,
+      progressWarningMs: 3000, progressStallMs: 6000, cleanupTimeoutMs: 1000,
+      reportRecoveryIdleMs: 400, maxOutputBytes: 1024 * 1024, graceMs: 100,
+      signal: controller.signal, onProgress: (value) => progress.push(value),
+    });
+    settled = true;
+    realClearTimeout(guard);
+    await driver;
+    assert.ok(owned && pid !== undefined, "the watchdog fixture must reach owned-child cleanup");
+    assert.ok(await isGone(pid), "the owned child must be dead before settlement returns");
+    assert.equal(owned.groupExists(), false, "the owned process group must be dead");
+    await finishedStderr(attemptDir);
+    assert.ok(cleanupStarted !== undefined && realNow() - cleanupStarted < 3000, "real cleanup must remain bounded");
+    if (failure) throw failure;
+    assert.equal(terminationAge, options.multiple ? 400 : 250, "only the exact lease-expiry ticker starts cleanup");
+    return { status, progress, attemptDir, root: built.root };
+  } finally {
+    settled = true;
+    realClearTimeout(guard);
+    t.signal.removeEventListener("abort", onAbort);
+    abort();
+    await driver;
+    try {
+      if (owned?.groupExists()) {
+        owned.signalGroup("SIGKILL");
+        const deadline = realNow() + 3000;
+        while (owned.groupExists() && realNow() < deadline) await sleepReal(25);
+        assert.equal(owned.groupExists(), false, "fixture safety cleanup must reap the owned group");
+      }
+      if (pid !== undefined) assert.ok(await isGone(pid), "fixture safety cleanup must reap the owned child");
+    } finally {
+      terminationProbes.build = originalBuild;
+      snapshotMock.mock.restore();
+      consumeMock.mock.restore();
+      clock.mock.restore();
+    }
+  }
+}
+
+test("a silent active tool reaches the normal idle deadline", async (t) => {
+  const { status, progress } = await runToolWatchdog(t);
   assert.equal(status.state, "stalled");
   assert.equal(status.stallCause, "active_tool_idle");
   assert.equal(status.deadlineCause, "idle_deadline");
@@ -1011,35 +1321,118 @@ test("a silent active tool reaches the normal idle deadline", async () => {
   assert.ok(progress.every((item) => item.activityWarningCount <= 1));
 });
 
-test("a newer updating tool cannot mask an older silent tool", async () => {
-  // Two tools stay active: the older one never updates, the newer one
-  // produces a novel accumulated update every 30 ms. The stalest-tool
-  // watchdog must stall on the older silent tool and name it.
-  const script = `
-let buffer = "";
-process.stdin.on("data", (chunk) => {
-  buffer += chunk.toString();
-  if (!buffer.includes("\\n")) return;
-  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
-  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
-  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
-  process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolCallId: "old", toolName: "read", args: {} }) + "\\n");
-  process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolCallId: "new", toolName: "bash", args: {} }) + "\\n");
-  let updates = 0;
-  setInterval(() => {
-    updates += 1;
-    process.stdout.write(JSON.stringify({ type: "tool_execution_update", toolCallId: "new", toolName: "bash", partialResult: { n: updates } }) + "\\n");
-  }, 30);
-});
-setInterval(() => {}, 1000);
-`;
-  const { status, progress } = await run(script, {
-    activityWarningMs: 100,
-    activityIdleMs: 400,
-    progressWarningMs: 3000,
-    progressStallMs: 6000,
-    cleanupTimeoutMs: 1000,
+for (const multiple of [undefined, "id", "anonymous"] as const) {
+  test(`tool watchdog ${multiple ?? "single"} accepts delayed bootstrap before aging its lease`, async (t) => {
+    const originals = { now: performance.now, consume: PiRpcMonitor.prototype.consumeEvent, snapshot: PiRpcMonitor.prototype.snapshot, build: terminationProbes.build };
+    const started = performance.now();
+    const { status, root } = await runToolWatchdog(t, { multiple, startupMs: 600 });
+    assert.ok(performance.now() - started >= 600, "bootstrap must exceed both configured tool leases");
+    assert.equal(performance.now, originals.now);
+    assert.equal(PiRpcMonitor.prototype.consumeEvent, originals.consume);
+    assert.equal(PiRpcMonitor.prototype.snapshot, originals.snapshot);
+    assert.equal(terminationProbes.build, originals.build);
+    const child = JSON.parse(await readFile(path.join(root, "watchdog-child.json"), "utf8"));
+    assert.equal(child.command.id, "prompt-1");
+    assert.ok(await isGone(child.pid));
+    assert.equal(status.state, "stalled");
+    assert.equal(status.stallCause, "active_tool_idle");
+    assert.equal(status.deadlineCause, "idle_deadline");
+    let expectedTools = 1;
+    if (multiple === "anonymous") expectedTools = 3;
+    else if (multiple === "id") expectedTools = 2;
+    assert.equal(status.activeToolCount, expectedTools);
+    assert.equal(status.activeToolName, multiple ? "read" : "ctx_batch_execute");
+    if (multiple) assert.equal(status.lastEvent, "tool_execution_update");
+    else assert.equal(status.activityWarningCount, 1);
+    assert.deepEqual(status.streamErrors, []);
+    assert.equal(status.cleanupFailureReason, undefined);
   });
+}
+
+// These fractional epochs can round exact warning or expiry ages below their thresholds.
+for (const rawEpoch of [200.00000000000003, 128.00000000000003, 400.00000000000006]) {
+  for (const multiple of [undefined, "id", "anonymous"] as const) {
+    test(`tool watchdog ${multiple ?? "single"} normalizes fractional epoch ${rawEpoch}`, async (t) => {
+      const originals = { now: performance.now, consume: PiRpcMonitor.prototype.consumeEvent, snapshot: PiRpcMonitor.prototype.snapshot, build: terminationProbes.build };
+      let result: Awaited<ReturnType<typeof runToolWatchdog>>;
+      try {
+        result = await runToolWatchdog(t, { multiple, rawEpoch });
+      } finally {
+        assert.equal(performance.now, originals.now);
+        assert.equal(PiRpcMonitor.prototype.consumeEvent, originals.consume);
+        assert.equal(PiRpcMonitor.prototype.snapshot, originals.snapshot);
+        assert.equal(terminationProbes.build, originals.build);
+      }
+      const { status, root, attemptDir } = result;
+      const child = JSON.parse(await readFile(path.join(root, "watchdog-child.json"), "utf8"));
+      assert.equal(child.command.id, "prompt-1");
+      assert.ok(await isGone(child.pid), "exact lease cleanup must reap the child");
+      await finishedStderr(attemptDir);
+      assert.equal(status.state, "stalled");
+      assert.equal(status.stallCause, "active_tool_idle");
+      assert.equal(status.deadlineCause, "idle_deadline");
+      let expectedTools = 1;
+      if (multiple === "anonymous") expectedTools = 3;
+      else if (multiple === "id") expectedTools = 2;
+      assert.equal(status.activeToolCount, expectedTools);
+      assert.equal(status.activeToolName, multiple ? "read" : "ctx_batch_execute");
+      if (multiple) assert.equal(status.lastEvent, "tool_execution_update");
+      else assert.equal(status.activityWarningCount, 1);
+      assert.deepEqual(status.streamErrors, []);
+      assert.equal(status.cleanupFailureReason, undefined);
+    });
+  }
+}
+
+test("missing tool acceptance expires the watchdog guard after full cleanup and restores hooks", async (t) => {
+  const originals = { now: performance.now, consume: PiRpcMonitor.prototype.consumeEvent, snapshot: PiRpcMonitor.prototype.snapshot, build: terminationProbes.build };
+  const rootIndex = fixtureRoots.length;
+  const started = performance.now();
+  await assert.rejects(runToolWatchdog(t, { omitTool: true, guardMs: 1000 }), /Tool watchdog guard expired before accepted events or settlement/);
+  assert.ok(performance.now() - started >= 1000, "the guard must use real elapsed time");
+  assert.equal(performance.now, originals.now);
+  assert.equal(PiRpcMonitor.prototype.consumeEvent, originals.consume);
+  assert.equal(PiRpcMonitor.prototype.snapshot, originals.snapshot);
+  assert.equal(terminationProbes.build, originals.build);
+  const root = fixtureRoots[rootIndex];
+  const child = JSON.parse(await readFile(path.join(root, "watchdog-child.json"), "utf8"));
+  assert.ok(await isGone(child.pid), "guard rejection must follow child cleanup");
+  const attemptDir = path.join(root, "attempt");
+  const status = JSON.parse(await readFile(path.join(attemptDir, "status.json"), "utf8"));
+  assert.equal(status.state, "interrupted");
+  assert.equal(status.lastEvent, "agent_start");
+  assert.equal(status.activeToolCount, 0);
+  assert.equal(status.cleanupFailureReason, undefined);
+  await finishedStderr(attemptDir);
+});
+
+test("ordinary supervision after the tool watchdog guard uses real clocks and event acceptance", async () => {
+  const started = performance.now();
+  await sleep(25);
+  assert.ok(performance.now() > started);
+  const { status } = await run(eventScript([completed()]));
+  assert.equal(status.state, "completed");
+  assert.equal(status.agentStartCount, 1);
+  assert.equal(status.agentSettledSeen, true);
+  assert.deepEqual(status.streamErrors, []);
+});
+
+test("uncontrolled bootstrap held before RPC reproduces silence", async () => {
+  const events = [{ type: "agent_start" }, { type: "tool_execution_start", toolCallId: "silent", toolName: "ctx_batch_execute", args: {} }];
+  // Keep bootstrap behind an unreleased barrier so host scheduling cannot let RPC overtake the ticker.
+  const { status } = await run(`setInterval(() => {}, 1000); await new Promise(() => {});\n${eventScript([events])}`, {
+    activityWarningMs: 100, activityIdleMs: 250,
+    progressWarningMs: 3000, progressStallMs: 6000, cleanupTimeoutMs: 1000,
+  });
+  assert.equal(status.state, "stalled");
+  assert.equal(status.stallCause, "rpc_silent");
+  assert.equal(status.activeToolCount, 0);
+  assert.equal(status.cleanupFailureReason, undefined);
+});
+
+test("a newer updating tool cannot mask an older silent tool", async (t) => {
+  // The newer tool renews with distinct accumulated updates shortly before the older lease expires.
+  const { status, progress } = await runToolWatchdog(t, { multiple: "id" });
   assert.equal(status.state, "stalled");
   assert.equal(status.stallCause, "active_tool_idle");
   assert.equal(status.activeToolCount, 2);
@@ -1183,34 +1576,8 @@ setInterval(() => {}, 1000);
   assert.doesNotMatch(JSON.stringify(progress), /checkpoint|[0-9a-f]{64}/);
 });
 
-test("the anonymous multi-tool watchdog stalls on the stalest silent tool by name bucket", async () => {
-  const script = `
-let buffer = "";
-process.stdin.on("data", (chunk) => {
-  buffer += chunk.toString();
-  if (!buffer.includes("\\n")) return;
-  const command = JSON.parse(buffer.slice(0, buffer.indexOf("\\n")));
-  process.stdout.write(JSON.stringify({ id: command.id, type: "response", command: "prompt", success: true }) + "\\n");
-  process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\\n");
-  process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolName: "read", args: {} }) + "\\n");
-  process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolName: "fake-unallowlisted-tool", args: {} }) + "\\n");
-  process.stdout.write(JSON.stringify({ type: "tool_execution_start", toolName: "bash", args: {} }) + "\\n");
-  let updates = 0;
-  setInterval(() => {
-    updates += 1;
-    process.stdout.write(JSON.stringify({ type: "tool_execution_update", toolName: "bash", partialResult: { n: updates } }) + "\\n");
-    process.stdout.write(JSON.stringify({ type: "tool_execution_update", toolName: "other-fake-tool", partialResult: { n: updates } }) + "\\n");
-  }, 30);
-});
-setInterval(() => {}, 1000);
-`;
-  const { status, progress } = await run(script, {
-    activityWarningMs: 100,
-    activityIdleMs: 400,
-    progressWarningMs: 3000,
-    progressStallMs: 6000,
-    cleanupTimeoutMs: 1000,
-  });
+test("the anonymous multi-tool watchdog stalls on the stalest silent tool by name bucket", async (t) => {
+  const { status, progress } = await runToolWatchdog(t, { multiple: "anonymous" });
   // The bash-named and unknown-bucket tools keep renewing through anonymous
   // name-exact updates; only the silent anonymous read tool goes idle.
   assert.equal(status.state, "stalled");

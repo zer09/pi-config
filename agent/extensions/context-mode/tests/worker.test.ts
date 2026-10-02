@@ -190,13 +190,15 @@ describe.skipIf(process.platform === "win32")("owned backend worker", () => {
 
   describe("synchronous subprocess fallback", () => {
     let sentinel: ReturnType<typeof childProcess.spawn>;
-    const alive = (pid: number) => {
+    const alive = (pid: number, readStat: (path: string, encoding: "utf8") => string = readFileSync) => {
       if (process.platform === "linux") {
         try {
-          const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+          const stat = readStat(`/proc/${pid}/stat`, "utf8");
           return !["Z", "X"].includes(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[0]);
         } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+          // A process can disappear before opening stat or while reading it.
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code === "ENOENT" || code === "ESRCH") return false;
           throw error;
         }
       }
@@ -217,6 +219,40 @@ describe.skipIf(process.platform === "win32")("owned backend worker", () => {
       const exit = new Promise<void>((resolve) => sentinel.once("exit", () => resolve()));
       sentinel.kill("SIGKILL");
       await exit;
+    });
+
+    describe.skipIf(process.platform !== "linux")("process probe", () => {
+      it.each(["ENOENT", "ESRCH"])("returns false when stat disappears (%s)", (code) => {
+        const error = Object.assign(new Error("fixture disappeared"), { code });
+        expect(alive(123, (path, encoding) => {
+          expect(path).toBe("/proc/123/stat");
+          expect(encoding).toBe("utf8");
+          throw error;
+        })).toBe(false);
+      });
+
+      it.each([["R", true], ["S", true], ["Z", false], ["X", false]] as const)("preserves stat state %s", (state, expected) => {
+        expect(alive(123, (path, encoding) => {
+          expect(path).toBe("/proc/123/stat");
+          expect(encoding).toBe("utf8");
+          return `123 (fixture with ) name) ${state} 1 123`;
+        })).toBe(expected);
+      });
+
+      it("propagates an unexpected stat error unchanged", () => {
+        const error = Object.assign(new Error("fixture access denied"), { code: "EACCES" });
+        let caught: unknown;
+        try {
+          alive(123, (path, encoding) => {
+            expect(path).toBe("/proc/123/stat");
+            expect(encoding).toBe("utf8");
+            throw error;
+          });
+        } catch (failure) {
+          caught = failure;
+        }
+        expect(caught).toBe(error);
+      });
     });
 
     it.each([
