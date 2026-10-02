@@ -18,11 +18,11 @@ Eligibility follows the official Codex model catalog's advertised `priority` ser
 
 - provider: canonical `openai-codex` or a valid `openai-codex-<slug>` alias
 - API: `openai-codex-responses`
-- model: `gpt-5.4`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, or `gpt-5.6-terra`
+- model: `gpt-5.4`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-6-astra`, `gpt-6-luna`, `gpt-6-sol`, or `gpt-6.1-sol`
 - ChatGPT OAuth/subscription auth, not API-key auth
 - payload does not already include `service_tier`
 
-The catalog describes `priority` as **Fast — 1.5x speed, increased usage**. Models without that catalog tier, including `gpt-5.4-mini`, remain ineligible. The source checked for this allowlist was `openai/codex` `codex-rs/models-manager/models.json` blob `47e640365d465dc710644bf9508f1f741108ff43`.
+The catalog advertises **Fast** as 2x speed with increased usage for `gpt-6-astra` and `gpt-6.1-sol`, and 1.5x speed for `gpt-6-sol` and `gpt-6-luna`. Models without that catalog tier, including `gpt-5.4-mini`, remain ineligible. The four GPT-6 additions were checked against `openai/codex` `codex-rs/models-manager/models.json` blob `77e0389c56000ca19df5029278c30c3e9528af51`. Existing entries remain from the earlier catalog blob `47e640365d465dc710644bf9508f1f741108ff43`.
 
 If the current model is not eligible, `/fastlane` shows a warning and leaves Fastlane disabled.
 Personal, Business, and future aliases use the shared strict provider-ID classifier from `openai-codex-aliases`.
