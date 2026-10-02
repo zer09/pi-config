@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { after, test } from "node:test";
+import { after, test, type TestContext } from "node:test";
 import { existsSync, readdirSync, rmSync, symlinkSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { RESTART_AFTER_WORK_NOTE } from "./instructions.ts";
-import { buildDelegateResourceSelection, readResourcesFile } from "./resources.ts";
+import { PiRpcMonitor } from "./monitor.ts";
+import { buildDelegateResourceSelection, loadDelegateResources, readResourcesFile } from "./resources.ts";
 import { createRouteScheduler, validateRoutingConfig } from "./routing.ts";
 import { loadRoutingFixture } from "./routing.test-fixture.ts";
 import { finalizeDelegateRun } from "./result.ts";
 import { isOperationalFailureState, runDelegate } from "./runner.ts";
-import { terminationProbes } from "./supervisor.ts";
+import { terminationProbes, type TerminationProbes } from "./supervisor.ts";
 import type { DelegateProgress, DelegateRunResult, RunOptions, ToolResult } from "./types.ts";
 
 const execFileAsync = promisify(execFile);
@@ -201,12 +202,229 @@ async function replaceFinalReportOnProgress(
   };
 }
 
+async function runCatalogScenario<T>(
+  t: TestContext,
+  options: RunOptions,
+  control: { timeoutRoute?: string; failCleanupRoute?: string; holdCleanupRoute?: string; guardMs?: number; fractionalPostCleanup?: boolean },
+  body: (result: DelegateRunResult, finalize: () => Promise<ToolResult>, evidence: {
+    cleanupCount: number; deadlineDeliveries: number; disarmedDeliveryAttempts: number;
+  }) => Promise<T>,
+): Promise<T> {
+  const originalNow = performance.now;
+  const realNow = originalNow.bind(performance);
+  const realSetTimeout = globalThis.setTimeout;
+  const realClearTimeout = globalThis.clearTimeout;
+  const originalBuild = terminationProbes.build;
+  const originalConsume = PiRpcMonitor.prototype.consumeEvent;
+  const selection = options.resourceSelection ?? buildDelegateResourceSelection(options.resourcePolicy ?? loadDelegateResources());
+  const controller = new AbortController();
+  let age = realNow();
+  let runningSince: number | undefined;
+  const now = () => age + (runningSince === undefined ? 0 : realNow() - runningSince);
+  const pause = () => { age = now(); runningSince = undefined; };
+  const resume = () => { runningSince ??= realNow(); };
+  const advance = (ms: number) => { pause(); age += ms; };
+  const clock = t.mock.method(performance, "now", now);
+  let armCatalog = false;
+  const timers: { handle: NodeJS.Timeout; deadline: number; armed: boolean; fire: () => void }[] = [];
+  // Only the next timer after synchronous catalog verification is intercepted.
+  // Guard, stream, process-group, and polling timers always use the real scheduler.
+  const timerMock = t.mock.method(globalThis, "setTimeout", (callback: () => void, ms?: number, ...args: unknown[]) => {
+    if (!armCatalog) return realSetTimeout(callback, ms, ...args);
+    armCatalog = false;
+    const handle = realSetTimeout(() => {}, 0);
+    realClearTimeout(handle);
+    timers.push({ handle, deadline: now() + (ms ?? 0), armed: true, fire: callback });
+    return handle;
+  });
+  const evidence = { cleanupCount: 0, deadlineDeliveries: 0, disarmedDeliveryAttempts: 0 };
+  const owned: TerminationProbes[] = [];
+  let fractionalEpoch: number | undefined;
+  let fractionalStallAge: number | undefined;
+  const clearMock = t.mock.method(globalThis, "clearTimeout", (handle: NodeJS.Timeout | undefined) => {
+    const timer = timers.find((entry) => entry.handle === handle);
+    if (timer) {
+      if (control.fractionalPostCleanup && fractionalEpoch === undefined && !timer.armed) {
+        // The catalog's final timer clear follows natural cleanup and catalog parsing.
+        assert.equal(timers.length, 1, "the first catalog must precede the first execution RPC");
+        assert.equal(evidence.deadlineDeliveries, 0);
+        assert.equal(owned.length, 1);
+        assert.equal(owned[0]!.groupExists(), false, "natural catalog cleanup must reap the exact group first");
+        assert.equal(owned[0]!.processIsRunning(), false);
+        pause();
+        const previous = now();
+        const lease = options.activityIdleMs!;
+        // Cross a power-of-two boundary so addition loses the epoch's smallest fraction.
+        // Choose a later boundary instead of moving an already-later clock back to 400 ms.
+        const boundary = 2 ** Math.ceil(Math.log2(Math.max(1024, previous + lease / 2)));
+        fractionalEpoch = boundary - lease / 2 + boundary * Number.EPSILON / 2;
+        assert.ok(fractionalEpoch >= previous, "the post-cleanup clock must not move backward");
+        assert.ok((fractionalEpoch + lease) - fractionalEpoch < lease, "the constructed epoch must expose exact-advance rounding");
+        age = fractionalEpoch;
+      }
+      timer.armed = false;
+    }
+    realClearTimeout(handle);
+  });
+  const deliver = (timer: typeof timers[number]) => {
+    if (!timer.armed) { evidence.disarmedDeliveryAttempts += 1; return false; }
+    timer.armed = false;
+    advance(Math.max(0, timer.deadline - now()));
+    evidence.deadlineDeliveries += 1;
+    timer.fire();
+    return true;
+  };
+  let releaseClose: (() => void) | undefined;
+  let heldTimer: typeof timers[number] | undefined;
+  terminationProbes.build = (child) => {
+    // Cleanup deadlines and probes stay in the scenario epoch, with real elapsed time.
+    resume();
+    const real = originalBuild(child);
+    owned.push(real);
+    const index = child.spawnargs.indexOf("--list-models");
+    const route = index < 0 ? undefined : child.spawnargs[index + 1];
+    const targetRoute = control.failCleanupRoute ?? control.holdCleanupRoute ?? control.timeoutRoute;
+    if (route !== undefined && (targetRoute === undefined || route === targetRoute)) evidence.cleanupCount += 1;
+    if (route !== undefined && route === control.failCleanupRoute) {
+      advance(10_000);
+      resume();
+      // Force a negative proof, but retain real signals and reap the exact group below.
+      return { ...real, groupExists: () => true };
+    }
+    return {
+      ...real,
+      waitForClose: async (ms: number) => {
+        const closeDeadline = now() + ms;
+        if (route !== undefined && route === control.holdCleanupRoute) {
+          pause();
+          heldTimer = timers.at(-1);
+          await new Promise<void>((resolve) => { releaseClose = resolve; });
+          resume();
+        }
+        try { return await real.waitForClose(Math.max(0, closeDeadline - now())); }
+        finally { pause(); }
+      },
+    };
+  };
+  const consumeMock = t.mock.method(PiRpcMonitor.prototype, "consumeEvent", function (
+    this: PiRpcMonitor, ...args: Parameters<PiRpcMonitor["consumeEvent"]>
+  ) {
+    originalConsume.apply(this, args);
+    if (args[1].type === "tool_execution_start" && this.snapshot().activeToolCount === 1) {
+      if (control.fractionalPostCleanup) {
+        const snapshot = this.snapshot();
+        assert.equal(snapshot.activeToolLastNovelUpdateMonotonic, fractionalEpoch, "the real parsed tool start must use the post-cleanup epoch");
+        assert.equal(snapshot.lastActivityMonotonic, fractionalEpoch);
+        const exactAge = (now() + options.activityIdleMs!) - snapshot.activeToolLastNovelUpdateMonotonic!;
+        assert.ok(exactAge < options.activityIdleMs!, `the old exact advance must undershoot the lease, got ${exactAge} ms`);
+      }
+      // The real tool event is accepted. This matrix needs an expired lease, not an
+      // exact boundary where fractional cleanup time can round the age below the lease.
+      advance(options.activityIdleMs! + 1);
+      if (control.fractionalPostCleanup) {
+        const started = this.snapshot().activeToolLastNovelUpdateMonotonic!;
+        fractionalStallAge = now() - started;
+        t.diagnostic(`post-cleanup epoch=${started}; exact-advance age=${(started + options.activityIdleMs!) - started}; stall-phase age=${fractionalStallAge} ms`);
+      }
+    }
+  });
+  let failure: Error | undefined;
+  let settled = false;
+  const abort = () => { resume(); controller.abort(); releaseClose?.(); };
+  const guard = realSetTimeout(() => {
+    failure = new Error("Catalog scenario guard expired before readiness or settlement");
+    abort();
+  }, control.guardMs ?? 5000);
+  const onAbort = () => { failure ??= new Error("Catalog scenario test aborted"); abort(); };
+  t.signal.addEventListener("abort", onAbort, { once: true });
+  const driver = (async () => {
+    while (!settled && !controller.signal.aborted) {
+      if (releaseClose && heldTimer) {
+        advance(800);
+        assert.equal(deliver(heldTimer), false, "natural settlement must disarm the catalog timer before cleanup");
+        releaseClose();
+        releaseClose = undefined;
+        heldTimer = undefined;
+      }
+      if (control.timeoutRoute && evidence.deadlineDeliveries === 0 && timers.at(-1)?.armed) {
+        const ready = await readFile(path.join(options.cwd, "catalog-ready.jsonl"), "utf8").catch((error: NodeJS.ErrnoException) => {
+          if (error.code === "ENOENT") return "";
+          throw error;
+        });
+        if (ready.trim().split("\n").filter(Boolean).some((line) => JSON.parse(line).route === control.timeoutRoute)) {
+          assert.equal(deliver(timers.at(-1)!), true);
+        }
+      }
+      await new Promise<void>((resolve) => realSetTimeout(resolve, 10));
+    }
+  })().catch((error: Error) => { failure = error; abort(); });
+  try {
+    const resultPromise = runDelegate({
+      ...options,
+      signal: controller.signal,
+      resourceSelection: {
+        ...selection,
+        verifyCatalogSpawn: () => {
+          selection.verifyCatalogSpawn();
+          pause();
+          armCatalog = true;
+        },
+      },
+    });
+    // The guard aborts the operation, not the await. Finalization precedes rejection.
+    return await settleAndFinalize(resultPromise, async (result, finalize) => {
+      settled = true;
+      realClearTimeout(guard);
+      await driver;
+      if (failure) throw failure;
+      if (control.fractionalPostCleanup) {
+        assert.notEqual(fractionalEpoch, undefined, "the post-cleanup control must run before execution");
+        assert.ok(fractionalStallAge! > options.activityIdleMs!, `the stall phase must pass the lease, got ${fractionalStallAge} ms`);
+      }
+      return body(result, finalize, evidence);
+    });
+  } finally {
+    settled = true;
+    abort();
+    realClearTimeout(guard);
+    t.signal.removeEventListener("abort", onAbort);
+    try {
+      await driver;
+      for (const real of owned) {
+        if (real.groupExists()) real.signalGroup("SIGKILL");
+        assert.ok(await real.waitForClose(3000), "owned child streams must close before hooks are restored");
+        const deadline = realNow() + 3000;
+        while (real.groupExists() && realNow() < deadline) {
+          await new Promise<void>((resolve) => realSetTimeout(resolve, 25));
+        }
+        assert.equal(real.groupExists(), false, "the exact owned fixture group must be reaped");
+        assert.equal(real.processIsRunning(), false, "the owned fixture leader must be reaped");
+      }
+    } finally {
+      terminationProbes.build = originalBuild;
+      consumeMock.mock.restore();
+      clearMock.mock.restore();
+      timerMock.mock.restore();
+      clock.mock.restore();
+      assert.equal(performance.now, originalNow);
+      assert.equal(globalThis.setTimeout, realSetTimeout);
+      assert.equal(globalThis.clearTimeout, realClearTimeout);
+      assert.equal(terminationProbes.build, originalBuild);
+      assert.equal(PiRpcMonitor.prototype.consumeEvent, originalConsume);
+    }
+  }
+}
+
 async function fakePi(
   catalog: readonly string[],
   behaviors: Readonly<Record<string, Behavior>>,
   options: {
     catalogDelayMs?: number;
     catalogDelayRoute?: string;
+    catalogHangRoute?: string;
+    catalogStartupMs?: number;
+    catalogReadiness?: boolean;
+    omitCatalogReadiness?: boolean;
     spawnMarker?: boolean;
     supervisionLog?: boolean;
     argvLog?: boolean;
@@ -242,6 +460,10 @@ if (argvLog) appendFileSync("argv.jsonl", JSON.stringify(process.argv.slice(1)) 
 if (spawnMarkerPath) writeFileSync(spawnMarkerPath, String(process.pid));
 if (args.includes("--list-models")) {
   const route = args[args.indexOf("--list-models") + 1];
+  if (${options.catalogStartupMs ?? 0} > 0) await new Promise((resolve) => setTimeout(resolve, ${options.catalogStartupMs ?? 0}));
+  if (${options.catalogReadiness === true && options.omitCatalogReadiness !== true}) {
+    appendFileSync("catalog-ready.jsonl", JSON.stringify({ route, pid: process.pid }) + "\\n");
+  }
   const respond = () => {
     if (catalog.includes(route)) {
       const separator = route.indexOf("/");
@@ -252,7 +474,8 @@ if (args.includes("--list-models")) {
     }
     process.exit(0);
   };
-  if (catalogDelayMs > 0 && (catalogDelayRoute === null || route === catalogDelayRoute)) setTimeout(respond, catalogDelayMs);
+  if (route === ${JSON.stringify(options.catalogHangRoute ?? null)}) { /* Only the parent deadline can stop this catalog. */ }
+  else if (catalogDelayMs > 0 && (catalogDelayRoute === null || route === catalogDelayRoute)) setTimeout(respond, catalogDelayMs);
   else respond();
 } else {
   const { createFixtureSession } = await import(${JSON.stringify(new URL("./persisted-session.fixture.ts", import.meta.url).href)});
@@ -1699,17 +1922,17 @@ test("a silent active tool propagates terminal causes through final progress, di
   });
 });
 
-test("catalog-only attempts stay without active tool idle telemetry", async () => {
+test("catalog-only attempts stay without active tool idle telemetry", async (t) => {
   const fixture = await fakePi(
     ["prov-1/model-x", "prov-2/model-x"],
     { "prov-1/model-x": "complete", "prov-2/model-x": "complete" },
-    { catalogDelayMs: 500, catalogDelayRoute: "prov-1/model-x" },
+    { catalogHangRoute: "prov-1/model-x", catalogReadiness: true },
   );
-  await runAndFinalize(baseOptions(fixture, {
+  await runCatalogScenario(t, baseOptions(fixture, {
     routingConfig: providerCountRoutingConfig(2),
     catalogTimeoutMs: 100,
     random: () => 0,
-  }), async (result) => {
+  }), { timeoutRoute: "prov-1/model-x" }, async (result) => {
     assert.equal(result.state, "completed");
     assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out", "completed"]);
     // The catalog attempt never carries the field, and the completed
@@ -1719,17 +1942,17 @@ test("catalog-only attempts stay without active tool idle telemetry", async () =
   });
 });
 
-test("catalog-only attempts omit every supervised liveness field", async () => {
+test("catalog-only attempts omit every supervised liveness field", async (t) => {
   const fixture = await fakePi(
     ["prov-1/model-x", "prov-2/model-x"],
     { "prov-1/model-x": "complete", "prov-2/model-x": "complete" },
-    { catalogDelayMs: 500, catalogDelayRoute: "prov-1/model-x" },
+    { catalogHangRoute: "prov-1/model-x", catalogReadiness: true },
   );
-  await runAndFinalize(baseOptions(fixture, {
+  await runCatalogScenario(t, baseOptions(fixture, {
     routingConfig: providerCountRoutingConfig(2),
     catalogTimeoutMs: 100,
     random: () => 0,
-  }), async (result, finalize) => {
+  }), { timeoutRoute: "prov-1/model-x" }, async (result, finalize) => {
     assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out", "completed"]);
     const supervisedKeys = [
       "stallCause",
@@ -2127,16 +2350,20 @@ test("catalog preflight timeout continues with its fixed cause while work remain
   });
 });
 
-for (const count of [1, 2]) {
-  test(`a final catalog timeout propagates only its own cause on every surface (${count} routes)`, { timeout: 5000 }, async () => {
+for (const { count, fractionalPostCleanup } of [
+  { count: 1, fractionalPostCleanup: false },
+  { count: 2, fractionalPostCleanup: false },
+  { count: 2, fractionalPostCleanup: true },
+]) {
+  test(`a final catalog timeout propagates only its own cause on every surface (${count} routes${fractionalPostCleanup ? ", fractional post-cleanup" : ""})`, { timeout: fractionalPostCleanup ? 8000 : 5000 }, async (t) => {
     const finalRoute = `prov-${count}/model-x`;
     const fixture = await fakePi(
       ["prov-1/model-x", "prov-2/model-x"],
       { "prov-1/model-x": "bash-silent", "prov-2/model-x": "complete" },
-      { catalogDelayMs: 500, catalogDelayRoute: finalRoute },
+      { catalogHangRoute: finalRoute, catalogReadiness: true, argvLog: true },
     );
     const updates: DelegateProgress[] = [];
-    await runAndFinalize(baseOptions(fixture, {
+    await runCatalogScenario(t, baseOptions(fixture, {
       routingConfig: providerCountRoutingConfig(count),
       random: () => 0,
       catalogTimeoutMs: 100,
@@ -2145,7 +2372,9 @@ for (const count of [1, 2]) {
       progressWarningMs: 1000,
       progressStallMs: 2000,
       onProgress: (progress) => updates.push(progress),
-    }), async (result, finalize) => {
+    }), { timeoutRoute: finalRoute, fractionalPostCleanup }, async (result, finalize, evidence) => {
+      assert.equal(evidence.cleanupCount, 1, "the final catalog cleanup must run exactly once");
+      assert.equal(evidence.deadlineDeliveries, 1);
       assert.equal(result.state, "routes_unavailable");
       assert.equal(result.selectedRoute, undefined);
       assert.deepEqual(result.attempts.map((attempt) => attempt.state), count === 1 ? ["timed_out"] : ["stalled", "timed_out"]);
@@ -2181,36 +2410,28 @@ for (const count of [1, 2]) {
       assert.doesNotMatch(toolResult.content[0]!.text, /- stall cause:|active tools:|active tool:|COMMAND-SENTINEL/);
       if (count === 2) assert.equal(diagnostic.attempts[0].stallCause, "active_tool_idle");
     });
+    const invocations = (await readFile(path.join(fixture.root, "argv.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line) as string[]);
+    assert.equal(invocations.filter((args) => args.includes("--list-models")).length, count);
+    assert.equal(invocations.filter((args) => args.includes("--mode")).length, count - 1, "the final catalog timeout must not start execution or fallback");
   });
 }
 
-for (const count of [1, 2]) {
+for (const { count, fractionalPostCleanup } of [
+  { count: 1, fractionalPostCleanup: false },
+  { count: 2, fractionalPostCleanup: false },
+  { count: 2, fractionalPostCleanup: true },
+]) {
   for (const timedOut of [true, false]) {
-    test(`catalog cleanup failure preserves only final causes on every surface (${count} routes, ${timedOut ? "deadline" : "natural settlement"})`, { timeout: 8000 }, async () => {
+    test(`catalog cleanup failure preserves only final causes on every surface (${count} routes, ${timedOut ? "deadline" : "natural settlement"}${fractionalPostCleanup ? ", fractional post-cleanup" : ""})`, { timeout: 8000 }, async (t) => {
       const finalRoute = `prov-${count}/model-x`;
       const fixture = await fakePi(
         ["prov-1/model-x", "prov-2/model-x"],
         { "prov-1/model-x": "bash-silent", "prov-2/model-x": "complete" },
-        { catalogDelayMs: timedOut ? 1000 : 0, catalogDelayRoute: finalRoute, argvLog: true },
+        { catalogHangRoute: timedOut ? finalRoute : undefined, catalogReadiness: true, argvLog: true },
       );
       const updates: DelegateProgress[] = [];
-      const originalBuild = terminationProbes.build;
-      const cleanupChildren: (() => Promise<void>)[] = [];
-      let cleanupCount = 0;
       try {
-        terminationProbes.build = (child) => {
-          const real = originalBuild(child);
-          const catalogIndex = child.spawnargs.indexOf("--list-models");
-          if (catalogIndex < 0 || child.spawnargs[catalogIndex + 1] !== finalRoute) return real;
-          cleanupCount += 1;
-          cleanupChildren.push(async () => {
-            real.signalGroup("SIGKILL");
-            assert.ok(await real.waitForClose(1000), "the owned catalog child must close after cleanup");
-          });
-          // Expire only the injected cleanup clock. Real signals still kill the fixture.
-          return { ...real, now: () => performance.now() + 10_000, groupExists: () => true };
-        };
-        await runAndFinalize(baseOptions(fixture, {
+        await runCatalogScenario(t, baseOptions(fixture, {
           routingConfig: providerCountRoutingConfig(count),
           random: () => 0,
           catalogTimeoutMs: timedOut ? 100 : 400,
@@ -2219,7 +2440,8 @@ for (const count of [1, 2]) {
           progressWarningMs: 1000,
           progressStallMs: 2000,
           onProgress: (progress) => updates.push(progress),
-        }), async (result, finalize) => {
+        }), { timeoutRoute: timedOut ? finalRoute : undefined, failCleanupRoute: finalRoute, fractionalPostCleanup }, async (result, finalize, evidence) => {
+          assert.equal(evidence.cleanupCount, 1, "catalog cleanup must run exactly once");
           const expectedDeadline = timedOut ? "catalog_preflight" : undefined;
           assert.equal(result.selectedRoute, undefined);
           assert.equal(result.report, "");
@@ -2264,59 +2486,124 @@ for (const count of [1, 2]) {
           else assert.doesNotMatch(markdown, /- deadline cause:/);
           assert.doesNotMatch(markdown, /- stall cause:|active tools:|active tool:|COMMAND-SENTINEL|ARG-SENTINEL/);
         });
-        assert.equal(cleanupCount, 1, "catalog cleanup must run exactly once");
         const invocations = (await readFile(path.join(fixture.root, "argv.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line) as string[]);
         assert.equal(invocations.filter((args) => args.includes("--list-models")).length, count);
         assert.equal(invocations.filter((args) => args.includes("--mode")).length, count - 1, "the failed catalog must not start execution or fallback");
       } finally {
-        terminationProbes.build = originalBuild;
-        try {
-          await Promise.all(cleanupChildren.map((cleanup) => cleanup()));
-        } finally {
-          await rm(fixture.root, { recursive: true, force: true });
-        }
+        await rm(fixture.root, { recursive: true, force: true });
       }
     });
   }
 }
 
-test("a catalog child that settles naturally ignores a later deadline and runs one cleanup", async () => {
+test("a catalog child that settles naturally ignores a later deadline and runs one cleanup", async (t) => {
   const fixture = await fakePi(
     ["prov-a/model-x"],
     { "prov-a/model-x": "complete" },
   );
-  // The catalog child settles almost immediately, but its positive cleanup
-  // proof is stretched past the short catalog deadline through the shared
-  // termination-probe seam. Natural settlement must disarm the deadline
-  // timer first, so the outcome stays available instead of flipping to
-  // timed_out/catalog_preflight mid-cleanup.
-  const originalBuild = terminationProbes.build;
-  const delayMs = 800;
-  try {
-    terminationProbes.build = (child) => {
-      const real = originalBuild(child);
-      return {
-        ...real,
-        waitForClose: async (timeoutMs: number) => {
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-          return real.waitForClose(Math.max(0, timeoutMs - delayMs));
-        },
-      };
-    };
-    await runAndFinalize(baseOptions(fixture, {
-      routingConfig: singleRouteRoutingConfig(),
-      catalogTimeoutMs: 400,
-    }), async (result) => {
-      assert.equal(result.state, "completed");
-      assert.equal(result.attempts.length, 1);
-      assert.equal(result.attempts[0]?.state, "completed");
-      assert.equal(result.attempts[0]?.deadlineCause, undefined);
-      // The positive cleanup proof really did finish after the deadline.
-      assert.ok(result.elapsedSeconds >= delayMs / 1000, `cleanup must outlast the deadline, got ${result.elapsedSeconds}s`);
-    });
-  } finally {
-    terminationProbes.build = originalBuild;
+  await runCatalogScenario(t, baseOptions(fixture, {
+    routingConfig: singleRouteRoutingConfig(),
+    catalogTimeoutMs: 400,
+  }), { holdCleanupRoute: "prov-a/model-x" }, async (result, _finalize, evidence) => {
+    assert.equal(result.state, "completed");
+    assert.equal(result.attempts.length, 1);
+    assert.equal(result.attempts[0]?.state, "completed");
+    assert.equal(result.attempts[0]?.deadlineCause, undefined);
+    assert.equal(evidence.cleanupCount, 1, "catalog cleanup must run exactly once");
+    assert.equal(evidence.deadlineDeliveries, 0);
+    assert.equal(evidence.disarmedDeliveryAttempts, 1);
+    // Cleanup was held while scenario time advanced 800 ms beyond natural settlement.
+    assert.ok(result.elapsedSeconds >= 0.8, `cleanup must outlast the deadline, got ${result.elapsedSeconds}s`);
+  });
+});
+
+test("delayed catalog startup delivers only the intended deadline after readiness", async (t) => {
+  const originals = { now: performance.now, setTimeout, clearTimeout, build: terminationProbes.build, consume: PiRpcMonitor.prototype.consumeEvent };
+  const fixture = await fakePi(
+    ["prov-1/model-x", "prov-2/model-x"],
+    { "prov-1/model-x": "complete", "prov-2/model-x": "complete" },
+    { catalogHangRoute: "prov-1/model-x", catalogStartupMs: 250, catalogReadiness: true, argvLog: true },
+  );
+  const started = performance.now();
+  await runCatalogScenario(t, baseOptions(fixture, {
+    routingConfig: providerCountRoutingConfig(2),
+    catalogTimeoutMs: 100,
+    random: () => 0,
+  }), { timeoutRoute: "prov-1/model-x" }, async (result, _finalize, evidence) => {
+    assert.equal(result.state, "completed");
+    assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out", "completed"]);
+    assert.equal(result.attempts[0]?.deadlineCause, "catalog_preflight");
+    assert.equal(result.attempts[1]?.deadlineCause, undefined);
+    assert.equal(evidence.deadlineDeliveries, 1);
+    assert.equal(evidence.cleanupCount, 1);
+  });
+  assert.equal(performance.now, originals.now);
+  assert.equal(setTimeout, originals.setTimeout);
+  assert.equal(clearTimeout, originals.clearTimeout);
+  assert.equal(terminationProbes.build, originals.build);
+  assert.equal(PiRpcMonitor.prototype.consumeEvent, originals.consume);
+  assert.ok(performance.now() - started >= 250, "real boot must exceed the original 100 ms deadline");
+  const invocations = (await readFile(path.join(fixture.root, "argv.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line) as string[]);
+  assert.equal(invocations.filter((args) => args.includes("--list-models")).length, 2);
+  assert.equal(invocations.filter((args) => args.includes("--mode")).length, 1);
+  for (const line of (await readFile(path.join(fixture.root, "catalog-ready.jsonl"), "utf8")).trim().split("\n")) {
+    const { pid } = JSON.parse(line);
+    assert.ok(await isGone(pid), "each ready catalog leader must be gone");
+    assert.ok(await isGone(-pid), "each ready catalog's exact owned group must be gone");
   }
+  await assertNoOwnedArtifacts("the delayed-startup run must finalize its artifacts");
+});
+
+test("missing catalog readiness expires the real guard after settlement and restores hooks", async (t) => {
+  const originals = { now: performance.now, setTimeout, clearTimeout, build: terminationProbes.build, consume: PiRpcMonitor.prototype.consumeEvent };
+  const fixture = await fakePi(
+    ["prov-1/model-x"],
+    { "prov-1/model-x": "complete" },
+    { catalogHangRoute: "prov-1/model-x", catalogReadiness: true, omitCatalogReadiness: true, spawnMarker: true, argvLog: true },
+  );
+  const started = performance.now();
+  let reachedBody = false;
+  await assert.rejects(runCatalogScenario(t, baseOptions(fixture, {
+    routingConfig: providerCountRoutingConfig(1),
+    catalogTimeoutMs: 100,
+  }), { timeoutRoute: "prov-1/model-x", guardMs: 1000 }, async () => {
+    reachedBody = true;
+  }), /Catalog scenario guard expired before readiness or settlement/);
+  assert.equal(reachedBody, false, "guard failure must reject before normal outcome assertions");
+  assert.equal(performance.now, originals.now);
+  assert.equal(setTimeout, originals.setTimeout);
+  assert.equal(clearTimeout, originals.clearTimeout);
+  assert.equal(terminationProbes.build, originals.build);
+  assert.equal(PiRpcMonitor.prototype.consumeEvent, originals.consume);
+  assert.ok(performance.now() - started >= 1000, "the safety guard must use real elapsed time");
+  assert.equal(existsSync(path.join(fixture.root, "catalog-ready.jsonl")), false);
+  const pid = Number(await readFile(fixture.spawnMarkerPath!, "utf8"));
+  assert.ok(Number.isSafeInteger(pid) && pid > 0);
+  assert.ok(await isGone(pid), "guard rejection must follow owned catalog leader reaping");
+  assert.ok(await isGone(-pid), "guard rejection must follow owned catalog group reaping");
+  const invocations = (await readFile(path.join(fixture.root, "argv.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line) as string[]);
+  assert.equal(invocations.length, 1, "guard abort must not start execution or fallback");
+  assert.ok(invocations[0]?.includes("--list-models"));
+  await assertNoOwnedArtifacts("guard rejection must follow artifact finalization");
+});
+
+test("ordinary catalog execution after the scenario guard uses real clocks and timers", async () => {
+  const started = performance.now();
+  await new Promise<void>((resolve) => setTimeout(resolve, 25));
+  assert.ok(performance.now() > started);
+  const fixture = await fakePi(["prov-a/model-x"], { "prov-a/model-x": "complete" }, { argvLog: true });
+  await runAndFinalize(baseOptions(fixture, {
+    routingConfig: singleRouteRoutingConfig(),
+    catalogTimeoutMs: 400,
+  }), async (result) => {
+    assert.equal(result.state, "completed");
+    assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["completed"]);
+    assert.equal(result.deadlineCause, undefined);
+    assert.equal(result.cleanupFailureReason, undefined);
+  });
+  const invocations = (await readFile(path.join(fixture.root, "argv.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line) as string[]);
+  assert.equal(invocations.filter((args) => args.includes("--list-models")).length, 1);
+  assert.equal(invocations.filter((args) => args.includes("--mode")).length, 1);
 });
 
 test("spawn failure and invalid stream fall back with actual remaining work", async () => {
