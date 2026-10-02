@@ -318,9 +318,9 @@ test("agent/AGENTS.md no longer duplicates the parent delegation workflow", asyn
   // The general override mechanism remains user-controlled instruction
   // precedence and must never become part of a delegated workflow.
   assert.match(agents, /## User overrides/);
-  assert.match(agents, /begins with `OVERRIDE:`/);
-  assert.match(agents, /Never ask or suggest that the user write an `OVERRIDE:` directive/);
-  assert.match(agents, /cannot supersede actual platform system or developer instructions/);
+  assert.match(agents, /An explicit directive beginning with `OVERRIDE:` takes precedence over all other user-configured instructions\./);
+  assert.match(agents, /Do not infer an override without the exact `OVERRIDE:` prefix\. Do not ask or suggest that the user use it when ordinary instructions already suffice\./);
+  assert.match(agents, /A rule's location, injected message role, or wording does not exempt it\. Rules marked “mandatory,” “always,” or “never” remain overridable\./);
 });
 
 test("no model or provider catalog enumeration enters permanent prompt content", async () => {

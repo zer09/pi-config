@@ -54,7 +54,7 @@ const UNSUPPORTED_STRICT_SCHEMA_KEYS = [
 
 function strictRequiredSchema(parameters: Record<string, unknown>): boolean {
   if (parameters.type !== "object") return false;
-  // Match Pi 0.87.1 makeStrictJsonSchema without a runtime import or mutation.
+  // Match Pi 0.99.2 makeStrictJsonSchema without a runtime import or mutation.
   // The session line limit bounds this iterative walk over parsed JSON.
   const pending: unknown[] = [parameters];
   while (pending.length > 0) {
@@ -320,7 +320,7 @@ export async function createPersistedPiSession(artifactDir: string): Promise<Per
           let contextStart = 0;
           if (compactionIndex >= 0) {
             const compaction = tree.get(activePath[compactionIndex]!)!.compaction!;
-            // Pi 0.87.1 ignores legacy retainedTail. A self boundary retains none.
+            // Pi 0.99.2 ignores legacy retainedTail. A self boundary retains none.
             contextStart = compactionIndex + 1;
             if (compaction.firstKeptEntryId !== undefined && compaction.firstKeptEntryId !== activePath[compactionIndex]) {
               contextStart = activePath.indexOf(compaction.firstKeptEntryId);

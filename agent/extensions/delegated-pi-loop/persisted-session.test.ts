@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { renameSync, writeFileSync } from "node:fs";
-import { chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, symlink, truncate, writeFile } from "node:fs/promises";
+import { access, chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, symlink, truncate, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { SystemMessage, Tool, Usage } from "@earendil-works/pi-ai";
@@ -12,6 +12,54 @@ import { buildDelegatePrompt, LIVE_CONTINUATION_PROMPT, RESTART_AFTER_WORK_NOTE 
 
 const root = await mkdtemp(path.join(os.tmpdir(), "delegate-session-test-"));
 after(async () => { await rm(root, { recursive: true, force: true }); });
+
+for (const [name, manifest, expected] of [
+  ["wrong package identity", { name: "pi-coding-agent", version: "0.99.2" }, "@earendil-works/pi-coding-agent"],
+  ...["0.87.1", "0.99.1", "0.99.3", "1.0.0", "0.99.2-dev", "", undefined].map((version) => [
+    `unsupported version ${JSON.stringify(version)}`, { name: "@earendil-works/pi-coding-agent", version }, "0.99.2",
+  ] as const),
+] as const) {
+  test(`projection oracle preflight rejects ${name} before helper import`, async () => {
+    const directory = await mkdtemp(path.join(root, "oracle-manifest-"));
+    const marker = path.join(directory, "imported");
+    await mkdir(path.join(directory, "dist", "core"), { recursive: true });
+    await writeFile(path.join(directory, "package.json"), JSON.stringify({ ...manifest, type: "module" }));
+    // This marker would reveal an import that ran before manifest validation.
+    await writeFile(path.join(directory, "dist", "core", "session-manager.js"), `
+import { writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(marker)}, "imported");
+export function buildSessionProjection() {}
+export const SessionManager = { open() {} };
+`);
+    await assert.rejects(loadTargetSessionManager(directory), {
+      name: "AssertionError", code: "ERR_ASSERTION", expected,
+      actual: expected === "0.99.2" ? manifest.version : manifest.name,
+    });
+    await assert.rejects(access(marker), { code: "ENOENT" });
+  });
+}
+
+for (const [name, source, message] of [
+  ["missing projection", "export const SessionManager = { open() {} };", "target projection helper must be available"],
+  ["non-callable projection", "export const buildSessionProjection = 1; export const SessionManager = { open() {} };", "target projection helper must be available"],
+  ["missing writer", "export function buildSessionProjection() {}", "target session writer must be available"],
+  ["null writer", "export function buildSessionProjection() {} export const SessionManager = null;", "target session writer must be available"],
+  ["missing writer open", "export function buildSessionProjection() {} export const SessionManager = {};", "target session writer must be available"],
+  ["non-callable writer open", "export function buildSessionProjection() {} export const SessionManager = { open: 1 };", "target session writer must be available"],
+] as const) {
+  test(`projection oracle preflight rejects ${name} on Pi 0.99.2`, async () => {
+    const directory = await mkdtemp(path.join(root, "oracle-helper-"));
+    await mkdir(path.join(directory, "dist", "core"), { recursive: true });
+    await writeFile(path.join(directory, "package.json"), JSON.stringify({
+      name: "@earendil-works/pi-coding-agent", version: "0.99.2", type: "module",
+    }));
+    await writeFile(path.join(directory, "dist", "core", "session-manager.js"), source);
+    await assert.rejects(loadTargetSessionManager(directory), {
+      name: "AssertionError", code: "ERR_ASSERTION", message: new RegExp(`^${message}\\n`),
+      expected: "function", actual: name.startsWith("non-callable") ? "number" : "undefined",
+    });
+  });
+}
 
 test("session creation precreates one empty private file and keeps acceptance only in memory", async () => {
   const directory = await mkdtemp(path.join(root, "private-"));
@@ -243,7 +291,7 @@ for (const [name, changes] of [
   });
 }
 
-// Synthetic schemas pin Pi 0.87.1 acceptance without a Pi runtime import or resolver.
+// Synthetic schemas pin Pi 0.99.2 acceptance without a Pi runtime import or resolver.
 for (const [name, schema, expected] of [
   ["empty object", { type: "object" }, "usable"],
   ["optional property auto-fixed by Pi", { type: "object", properties: { path: { type: "string" } } }, "usable"],
@@ -294,7 +342,7 @@ for (const [name, schema, expected] of [
   ] as const),
 ] as const) {
   for (const strict of ["require", "prefer"] as const) {
-    test(`strict ${strict} schema ${name} matches Pi 0.87.1 readiness`, async () => {
+    test(`strict ${strict} schema ${name} matches Pi 0.99.2 readiness`, async () => {
       const directory = await mkdtemp(path.join(root, "strict-schema-"));
       const session = await createPersistedPiSession(directory);
       const message = { ...system, toolsAdded: [{ ...toolDefinition,
@@ -506,7 +554,7 @@ const projectionCases: [string, unknown[], "usable" | "assignment_absent"][] = [
 ];
 
 for (const [name, entries, expected] of projectionCases) {
-  test(`Pi 0.87.1 projection differential: ${name}`, async () => {
+  test(`Pi 0.99.2 projection differential: ${name}`, async () => {
     const { buildSessionProjection } = await loadTargetSessionManager();
     const directory = await mkdtemp(path.join(root, "projection-"));
     const session = await createPersistedPiSession(directory);
@@ -605,7 +653,7 @@ for (const [name, entries] of [
   }
 }
 
-test("Pi 0.87.1 writes accepted context edits with normalized target-role content", async () => {
+test("Pi 0.99.2 writes accepted context edits with normalized target-role content", async () => {
   const { SessionManager } = await loadTargetSessionManager();
   const directory = await mkdtemp(path.join(root, "pi-written-"));
   const session = await createPersistedPiSession(directory);
