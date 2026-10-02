@@ -1,4 +1,5 @@
 import { callCtxTool, type BackendLoadDeps } from "./backend.js";
+import { assertNotAborted, type CallLifecycle } from "./worker-client.js";
 import { resolveProjectDir, resolveUserPath } from "./project.js";
 import { assertSafeBatchCommand, assertSafeFilePath, assertSafeWorkingDirectory } from "./safety.js";
 import { LEAN_TOOL_METADATA, SUPPORTED_LANGUAGES } from "./schemas.js";
@@ -28,10 +29,12 @@ export type CtxSearchParams = {
   contentType?: "code" | "prose";
 };
 
+export const DEFAULT_EXECUTION_TIMEOUT_MS = 300000;
+
 type AnyLeanParams = CtxExecuteFileParams | CtxBatchExecuteParams | CtxSearchParams;
 
 type WrapperDeps = BackendLoadDeps & {
-  callTool?: (projectDir: string, name: LeanToolName, args: Record<string, unknown>) => Promise<ToolResult>;
+  callTool?: (projectDir: string, name: LeanToolName, args: Record<string, unknown>, lifecycle: CallLifecycle) => Promise<ToolResult>;
 };
 
 function assertString(value: unknown, field: string): string {
@@ -70,9 +73,10 @@ function getProjectDir(ctx?: ExtensionContextLike): string {
   return resolveProjectDir({ ctx });
 }
 
-async function invoke(name: LeanToolName, projectDir: string, args: Record<string, unknown>, deps: WrapperDeps): Promise<ToolResult> {
-  if (deps.callTool) return deps.callTool(projectDir, name, args);
-  return callCtxTool(projectDir, name, args, deps);
+async function invoke(name: LeanToolName, projectDir: string, args: Record<string, unknown>, deps: WrapperDeps, lifecycle: CallLifecycle): Promise<ToolResult> {
+  assertNotAborted(lifecycle.signal);
+  if (deps.callTool) return deps.callTool(projectDir, name, args, lifecycle);
+  return callCtxTool(projectDir, name, args, deps, lifecycle);
 }
 
 export function buildExecuteFileArgs(params: CtxExecuteFileParams, projectDir: string): Record<string, unknown> {
@@ -88,7 +92,7 @@ export function buildExecuteFileArgs(params: CtxExecuteFileParams, projectDir: s
     path,
     language,
     code: assertString(params.code, "code"),
-    timeout: optionalNumber(params.timeout, "timeout"),
+    timeout: optionalNumber(params.timeout, "timeout") ?? DEFAULT_EXECUTION_TIMEOUT_MS,
     intent: params.intent === undefined ? undefined : assertString(params.intent, "intent"),
   });
 }
@@ -112,7 +116,7 @@ export function buildBatchExecuteArgs(params: CtxBatchExecuteParams, projectDir:
   return omitUndefined({
     commands,
     queries: assertStringArray(params.queries, "queries"),
-    timeout: optionalNumber(params.timeout, "timeout"),
+    timeout: optionalNumber(params.timeout, "timeout") ?? DEFAULT_EXECUTION_TIMEOUT_MS,
     concurrency,
     cwd,
     query_scope: "batch",
@@ -144,15 +148,17 @@ export async function executeLeanTool(
   params: AnyLeanParams,
   ctx?: ExtensionContextLike,
   deps: WrapperDeps = {},
+  lifecycle: CallLifecycle = {},
 ): Promise<ToolResult> {
+  assertNotAborted(lifecycle.signal);
   const projectDir = getProjectDir(ctx);
   switch (name) {
     case "ctx_execute_file":
-      return invoke(name, projectDir, buildExecuteFileArgs(params as CtxExecuteFileParams, projectDir), deps);
+      return invoke(name, projectDir, buildExecuteFileArgs(params as CtxExecuteFileParams, projectDir), deps, lifecycle);
     case "ctx_batch_execute":
-      return invoke(name, projectDir, buildBatchExecuteArgs(params as CtxBatchExecuteParams, projectDir), deps);
+      return invoke(name, projectDir, buildBatchExecuteArgs(params as CtxBatchExecuteParams, projectDir), deps, lifecycle);
     case "ctx_search":
-      return invoke(name, projectDir, buildSearchArgs(params as CtxSearchParams), deps);
+      return invoke(name, projectDir, buildSearchArgs(params as CtxSearchParams), deps, lifecycle);
   }
 }
 
@@ -172,8 +178,8 @@ export function createLeanToolRegistrations(deps: WrapperDeps = {}): ToolRegistr
     parameters: meta.parameters,
     renderCall: createCallRenderer(meta.name, meta.label),
     renderResult: createResultRenderer(meta.name, PARTIAL_TEXT[meta.name]),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      return executeLeanTool(meta.name, params as AnyLeanParams, ctx, deps);
+    async execute(_toolCallId, params, signal, onUpdate, ctx) {
+      return executeLeanTool(meta.name, params as AnyLeanParams, ctx, deps, { signal, onUpdate });
     },
   }));
 }

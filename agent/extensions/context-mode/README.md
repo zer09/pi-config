@@ -10,7 +10,7 @@ It is for large-output workflows: noisy tests/builds, logs, large JSON/CSV, gene
 
 ## How it works
 
-The wrapper lazy-loads upstream `context-mode` as an internal backend:
+The wrapper loads upstream `context-mode` in a new owned subprocess for each call:
 
 1. Sets `CONTEXT_MODE_EMBEDDED_PLUGIN_TOOLS=1` before import.
 2. Imports upstream `server.bundle.mjs`.
@@ -18,7 +18,25 @@ The wrapper lazy-loads upstream `context-mode` as an internal backend:
 4. Calls only the selected upstream handlers directly.
 5. Wraps calls with `withProjectDirOverride({ projectDir })`.
 
+A backend thread runs inside the subprocess. The IPC owner remains responsive when indexing or search blocks the backend thread. Spawn interception starts in the thread before the upstream import. The owner creates async children in its main event loop and records each PID before acknowledging the launch. Thread termination cannot interrupt that ownership step. The Pi host's `child_process` exports are not patched. Worker stdin is closed, and worker logs do not enter the IPC protocol.
+
+The bridge supports the ChildProcess interface used by pinned context-mode 1.0.169: PID, stdout/stderr data listeners, child error/exit/close events, and `unref`. It is not a general ChildProcess replacement. Output relay permits one chunk of at most 64 KiB per stream in flight. Upstream upgrades require another API-usage check.
+
 It never calls upstream MCP `tools/list`, and it does not register upstream's full tool schema.
+
+## Execution, progress, and cancellation
+
+`ctx_batch_execute` and `ctx_execute_file` supply `timeout=300000` milliseconds when omitted. Explicit timeout values are preserved. Upstream applies the batch timeout as a shared execution budget with concurrency 1, or separately to each command with concurrency greater than 1. Execution timeouts exclude indexing and search. `ctx_search` has no new execution timeout.
+
+Pi receives changed progress for backend phase transitions, observed subprocess output growth, and subprocess completion. Updates contain aggregate process counts and output byte counts, not commands, paths, or output text. Output growth is coalesced at 100 milliseconds. Silent work gets no periodic heartbeat. Productive long calls can use explicit larger execution timeouts without changing the delegate watchdog or route policy. Blocking indexing/search remains silent unless an observed process produces output or completes.
+
+Cancellation stops the backend thread before command completion can schedule more queued work. On Unix, each worker starts as a private process-group leader. Synchronous probes and compilers inherit that group; observed async commands use separate groups recorded in the ownership ledger. The Pi host checks both the ledger and the worker group after every worker exit, including normal results, cancellation, and crashes. Cleanup failure is an error, not success or settled cancellation.
+
+On IPC parent disconnect or forced thread shutdown, the worker cleans its async groups first, then kills its own fallback group as its final action. It never waits for cleanup of a group containing itself or signals the inherited Pi host group. Thread shutdown has a 500-millisecond forced fallback; each cleanup pass allows 200 milliseconds for SIGTERM and 1500 milliseconds after SIGKILL. The Pi host has a 3-second worker kill fallback. The fallback group does not count as observed progress or against the subprocess limit.
+
+Integration coverage runs on Linux. Linux checks exclude dead zombie descendants awaiting system-init reaping; direct command children are reaped. Other Unix systems use process-group existence checks and can report cleanup failure if init delays zombie reaping. Windows only supports direct-process cleanup here, not Unix group guarantees. Descendants that deliberately leave the owned process group are outside this cleanup guarantee. This is not a sandbox.
+
+Each call allows at most 4096 observed subprocess starts. IPC arguments and results are limited to 16 MiB. Calls still share the existing project-scoped storage; no worker-specific storage is introduced.
 
 ## Storage
 

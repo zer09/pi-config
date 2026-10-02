@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Backend, LeanToolName, RegisteredCtxTool, ToolResult } from "./types.js";
+import { assertNotAborted, invokeWorker, type CallLifecycle } from "./worker-client.js";
 
 export const REQUIRED_CTX_TOOLS: LeanToolName[] = ["ctx_execute_file", "ctx_batch_execute", "ctx_search"];
 
@@ -147,13 +148,26 @@ export async function callCtxTool(
   name: LeanToolName,
   args: Record<string, unknown>,
   deps: BackendLoadDeps = {},
+  lifecycle: CallLifecycle = {},
 ): Promise<ToolResult> {
+  assertNotAborted(lifecycle.signal);
+  if (!deps.importModule) {
+    const serverBundle = resolveContextModeServer(deps);
+    if (!serverBundle) throw new Error("context-mode backend not found. Run npm install in ~/.pi/agent/extensions/context-mode or set CONTEXT_MODE_ROOT.");
+    const env = { ...(deps.env ?? process.env) };
+    prepareBackendEnv(projectDir, { ...deps, env });
+    const result = await invokeWorker(pathToFileURL(serverBundle).href, projectDir, name, args, env, lifecycle);
+    return normalizeCtxResult(name, result);
+  }
+  // Keep the in-memory importer seam for unit tests. Real calls always use an owned worker.
   prepareBackendEnv(projectDir, deps);
   const backend = await loadBackend(projectDir, deps);
   const tool = backend.tools.get(name);
   if (!tool) throw new Error(`Unsupported context-mode tool: ${name}`);
 
+  assertNotAborted(lifecycle.signal);
   const parsedArgs = parseArgsWithUpstreamSchema(tool, args);
   const result = await backend.withProjectDirOverride({ projectDir }, async () => tool.handler(parsedArgs));
+  assertNotAborted(lifecycle.signal);
   return normalizeCtxResult(name, result);
 }

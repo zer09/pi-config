@@ -35,7 +35,7 @@ export const ctxExecuteFileSchema = {
     timeout: {
       type: "number",
       minimum: 0,
-      description: "Optional timeout in milliseconds.",
+      description: "Execution timeout in milliseconds (default 300000); excludes indexing/search.",
     },
     intent: {
       type: "string",
@@ -70,7 +70,7 @@ export const ctxBatchExecuteSchema = {
     timeout: {
       type: "number",
       minimum: 0,
-      description: "Optional timeout in milliseconds.",
+      description: "Execution timeout in milliseconds (default 300000). Shared for serial batches; per command when parallel. Excludes indexing/search.",
     },
     concurrency: {
       type: "integer",

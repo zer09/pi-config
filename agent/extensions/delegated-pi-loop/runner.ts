@@ -550,6 +550,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         break;
       }
       if (catalog.outcome === "cleanup_failed") {
+        deadlineCause = catalog.deadlineCause;
         cleanupFailureReason = catalog.cleanupFailureReason;
         attempts.push({
           route: routeKey(route),
@@ -568,6 +569,8 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
           elapsedSeconds: roundedSeconds(performance.now() - catalogStarted),
           deadlineCause: catalog.deadlineCause,
         });
+        // Only the final route supplies the exhausted chain's operational cause.
+        if (index === routes.length - 1) deadlineCause = catalog.deadlineCause;
         // A fixed 15-second catalog preflight timeout consumes no shared
         // work budget (none exists); the finite route chain continues.
         continue;
@@ -723,6 +726,9 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
       if (index >= routes.length - 1) {
         // An exhausted operational chain keeps the existing safe outcome.
         finalState = "routes_unavailable";
+        // Keep the final attempt's causes when final progress replaces its state.
+        deadlineCause = attemptStatus.deadlineCause;
+        stallCauseValue = attemptStatus.stallCause;
         // Diagnostic-only capture of the final supervised attempt's report:
         // it reaches only the private schema-9 failure diagnostic that
         // finalizeDelegateRun persists before artifact removal, never the

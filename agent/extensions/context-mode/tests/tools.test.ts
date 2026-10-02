@@ -13,6 +13,7 @@ describe("wrapper arg builders", () => {
       language: "javascript",
       code: "console.log(FILE_CONTENT.length)",
       intent: "errors",
+      timeout: 300000,
     });
   });
 
@@ -28,6 +29,7 @@ describe("wrapper arg builders", () => {
     ).toEqual({
       commands: [{ label: "status", command: "git status --short" }],
       queries: ["modified"],
+      timeout: 300000,
       concurrency: 1,
       cwd: "/work/project",
       query_scope: "batch",
@@ -50,6 +52,11 @@ describe("wrapper arg builders", () => {
         "/work/project",
       ),
     ).toThrow(/cwd/);
+  });
+
+  it.each([0, 1234, 900000])("preserves explicit timeout %i for execution tools", (timeout) => {
+    expect(buildExecuteFileArgs({ path: "log.txt", language: "javascript", code: "console.log(1)", timeout }, "/work/project").timeout).toBe(timeout);
+    expect(buildBatchExecuteArgs({ commands: [{ label: "x", command: "git status" }], queries: ["x"], timeout }, "/work/project").timeout).toBe(timeout);
   });
 
   it("rejects negative timeout values", () => {
@@ -117,9 +124,31 @@ describe("tool registrations", () => {
     expect(callTool).toHaveBeenCalledWith("/work/project", "ctx_batch_execute", {
       commands: [{ label: "status", command: "rtk git status --short" }],
       queries: ["status"],
+      timeout: 300000,
       concurrency: 1,
       cwd: "/work/project",
       query_scope: "batch",
+    }, {});
+  });
+
+  it("passes registration signal and updates to the backend seam", async () => {
+    const signal = new AbortController().signal;
+    const onUpdate = vi.fn();
+    const callTool = vi.fn(async (_dir, _name, _args, lifecycle) => {
+      lifecycle.onUpdate({ content: [{ type: "text", text: "changed" }] });
+      return { content: [{ type: "text" as const, text: "ok" }] };
     });
+    const search = createLeanToolRegistrations({ callTool })[2];
+    await search.execute("id", { queries: ["x"] }, signal, onUpdate, { cwd: "/work/project" });
+    expect(callTool.mock.calls[0][3]).toEqual({ signal, onUpdate });
+    expect(onUpdate).toHaveBeenCalledOnce();
+  });
+
+  it("does not call the backend on pre-abort", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const callTool = vi.fn();
+    await expect(createLeanToolRegistrations({ callTool })[2].execute("id", { queries: ["x"] }, controller.signal)).rejects.toThrow(/cancelled/);
+    expect(callTool).not.toHaveBeenCalled();
   });
 });

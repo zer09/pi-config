@@ -1556,7 +1556,8 @@ test("a delayed catalog preflight consumes no shared work budget", async () => {
       // supervised child still received the full renewable liveness leases
       // and the single-route chain ends as the safe routes_unavailable.
       assert.equal(result.state, "routes_unavailable");
-      assert.equal(result.deadlineCause, undefined);
+      assert.equal(result.deadlineCause, "idle_deadline");
+      assert.equal(result.stallCause, "rpc_silent");
       assert.equal(result.attempts.length, 1);
       assert.equal(result.attempts[0]?.state, "stalled");
       assert.equal(result.attempts[0]?.stallCause, "rpc_silent");
@@ -1648,15 +1649,25 @@ test("only the final selected active bash command survives fallback in memory", 
   }
 });
 
-test("a silent active tool propagates per-attempt idle telemetry through attempts and details", async () => {
+test("a silent active tool propagates terminal causes through final progress, diagnostics, and ToolResult", async () => {
   const fixture = await fakePi(["prov-1/model-x"], { "prov-1/model-x": "tool-silent" });
+  const updates: DelegateProgress[] = [];
   await runAndFinalize(baseOptions(fixture, {
     routingConfig: providerCountRoutingConfig(1),
     activityWarningMs: 80,
     activityIdleMs: 300,
     progressWarningMs: 1000,
     progressStallMs: 2000,
+    onProgress: (progress) => updates.push(progress),
   }), async (result, finalize) => {
+    assert.equal(result.state, "routes_unavailable");
+    assert.equal(result.selectedRoute, undefined);
+    assert.equal(result.deadlineCause, "idle_deadline");
+    assert.equal(result.stallCause, "active_tool_idle");
+    assert.equal(result.progress.state, "routes_unavailable");
+    assert.equal(result.progress.deadlineCause, "idle_deadline");
+    assert.equal(result.progress.stallCause, "active_tool_idle");
+    assert.deepEqual(updates.at(-1), result.progress);
     assert.equal(result.attempts[0]?.state, "stalled");
     assert.equal(result.attempts[0]?.stallCause, "active_tool_idle");
     const attempt = result.attempts[0];
@@ -1667,10 +1678,24 @@ test("a silent active tool propagates per-attempt idle telemetry through attempt
     assert.ok(attempt?.activeToolIdleSeconds !== undefined && attempt.activeToolIdleSeconds >= 0.2,
       `attempt idle telemetry must travel, got ${attempt?.activeToolIdleSeconds}`);
     const toolResult = await finalize();
-    const details = toolResult.details as { attempts?: readonly Record<string, unknown>[] };
+    assert.equal(toolResult.details?.state, "routes_unavailable");
+    assert.equal(toolResult.details?.deadlineCause, "idle_deadline");
+    assert.equal(toolResult.details?.stallCause, "active_tool_idle");
+    assert.match(toolResult.content[0]!.text, /failed: routes_unavailable/);
+    assert.match(toolResult.content[0]!.text, /- deadline cause: idle_deadline/);
+    assert.match(toolResult.content[0]!.text, /- stall cause: active_tool_idle/);
+    const details = toolResult.details as { attempts?: readonly Record<string, unknown>[]; progress?: DelegateProgress };
+    assert.equal(details.progress?.deadlineCause, "idle_deadline");
+    assert.equal(details.progress?.stallCause, "active_tool_idle");
     const sanitized = details.attempts?.[0];
     assert.equal(sanitized?.activeToolName, "ctx_batch_execute");
     assert.equal(sanitized?.activeToolIdleSeconds, attempt?.activeToolIdleSeconds);
+    const diagnostic = JSON.parse(await readFile(toolResult.details?.diagnosticPath as string, "utf8"));
+    assert.equal(diagnostic.state, "routes_unavailable");
+    assert.equal(diagnostic.deadlineCause, "idle_deadline");
+    assert.equal(diagnostic.stallCause, "active_tool_idle");
+    assert.equal(diagnostic.attempts[0].deadlineCause, "idle_deadline");
+    assert.equal(diagnostic.attempts[0].stallCause, "active_tool_idle");
   });
 });
 
@@ -1771,10 +1796,17 @@ test("route-one supervised liveness evidence survives a completed final-route fa
     assert.equal(result.selectedRoute, completed.route);
     assert.equal(result.progress.state, "completed");
     assert.equal(result.progress.attempt, 2);
+    assert.equal(result.deadlineCause, undefined);
+    assert.equal(result.stallCause, undefined);
+    assert.equal(result.progress.deadlineCause, undefined);
+    assert.equal(result.progress.stallCause, undefined);
     assert.ok(result.progress.activityEventCount === completed.activityEventCount);
     // Sanitized ToolResult attempt details retain the finite route-one values.
     const toolResult = await finalize();
     const details = toolResult.details as { attempts?: readonly Record<string, unknown>[] };
+    assert.equal(toolResult.details?.deadlineCause, undefined);
+    assert.equal(toolResult.details?.stallCause, undefined);
+    assert.doesNotMatch(toolResult.content[0]!.text, /idle_deadline|active_tool_idle/);
     const sanitizedStalled = details.attempts?.[0] as Record<string, unknown>;
     assert.equal(sanitizedStalled.stallCause, "active_tool_idle");
     assert.equal(sanitizedStalled.rpcIdleSeconds, stalled.rpcIdleSeconds);
@@ -1787,6 +1819,52 @@ test("route-one supervised liveness evidence survives a completed final-route fa
     assert.equal(sanitizedStalled.progressWarningCount, 0);
     assert.equal(sanitizedStalled.activeToolIdleSeconds, stalled.activeToolIdleSeconds);
   });
+});
+
+test("terminal operational causes belong only to the final route", async () => {
+  for (const last of ["hang", "credit", "catalog-only"] as const) {
+    const catalog = ["prov-1/model-x"];
+    if (last !== "catalog-only") catalog.push("prov-2/model-x");
+    const fixture = await fakePi(catalog, {
+      "prov-1/model-x": "tool-silent",
+      "prov-2/model-x": last === "catalog-only" ? "complete" : last,
+    });
+    const updates: DelegateProgress[] = [];
+    await runAndFinalize(baseOptions(fixture, {
+      routingConfig: providerCountRoutingConfig(2),
+      random: () => 0,
+      activityWarningMs: 80,
+      activityIdleMs: 300,
+      progressWarningMs: 1000,
+      progressStallMs: 2000,
+      onProgress: (progress) => updates.push(progress),
+    }), async (result, finalize) => {
+      let expectedState = "catalog_unavailable";
+      if (last === "hang") expectedState = "stalled";
+      else if (last === "credit") expectedState = "provider_failed";
+      const expectedDeadline = last === "hang" ? "idle_deadline" : undefined;
+      const expectedStall = last === "hang" ? "rpc_silent" : undefined;
+      assert.equal(result.state, "routes_unavailable", last);
+      assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["stalled", expectedState]);
+      assert.equal(result.attempts[0]?.stallCause, "active_tool_idle");
+      assert.equal(result.attempts[1]?.deadlineCause, expectedDeadline);
+      assert.equal(result.attempts[1]?.stallCause, expectedStall);
+      assert.equal(result.deadlineCause, expectedDeadline);
+      assert.equal(result.stallCause, expectedStall);
+      assert.equal(result.progress.route, "prov-2/model-x:high");
+      assert.equal(result.progress.deadlineCause, expectedDeadline);
+      assert.equal(result.progress.stallCause, expectedStall);
+      assert.deepEqual(updates.at(-1), result.progress);
+      const toolResult = await finalize();
+      assert.equal(toolResult.details?.deadlineCause, expectedDeadline);
+      assert.equal(toolResult.details?.stallCause, expectedStall);
+      assert.doesNotMatch(toolResult.content[0]!.text, /active_tool_idle/);
+      const diagnostic = JSON.parse(await readFile(toolResult.details?.diagnosticPath as string, "utf8"));
+      assert.equal(diagnostic.deadlineCause, expectedDeadline);
+      assert.equal(diagnostic.stallCause, expectedStall);
+      assert.equal(diagnostic.attempts[0].stallCause, "active_tool_idle");
+    });
+  }
 });
 
 test("an exhausted operational chain persists full per-attempt liveness evidence", async () => {
@@ -2044,8 +2122,163 @@ test("catalog preflight timeout continues with its fixed cause while work remain
     assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["timed_out", "completed"]);
     assert.equal(result.attempts[0]?.deadlineCause, "catalog_preflight");
     assert.equal(result.attempts[0]?.stallCause, undefined);
+    assert.equal(result.deadlineCause, undefined);
+    assert.equal(result.progress.deadlineCause, undefined);
   });
 });
+
+for (const count of [1, 2]) {
+  test(`a final catalog timeout propagates only its own cause on every surface (${count} routes)`, { timeout: 5000 }, async () => {
+    const finalRoute = `prov-${count}/model-x`;
+    const fixture = await fakePi(
+      ["prov-1/model-x", "prov-2/model-x"],
+      { "prov-1/model-x": "bash-silent", "prov-2/model-x": "complete" },
+      { catalogDelayMs: 500, catalogDelayRoute: finalRoute },
+    );
+    const updates: DelegateProgress[] = [];
+    await runAndFinalize(baseOptions(fixture, {
+      routingConfig: providerCountRoutingConfig(count),
+      random: () => 0,
+      catalogTimeoutMs: 100,
+      activityWarningMs: 80,
+      activityIdleMs: 300,
+      progressWarningMs: 1000,
+      progressStallMs: 2000,
+      onProgress: (progress) => updates.push(progress),
+    }), async (result, finalize) => {
+      assert.equal(result.state, "routes_unavailable");
+      assert.equal(result.selectedRoute, undefined);
+      assert.deepEqual(result.attempts.map((attempt) => attempt.state), count === 1 ? ["timed_out"] : ["stalled", "timed_out"]);
+      if (count === 2) {
+        assert.equal(result.attempts[0]?.stallCause, "active_tool_idle");
+        assert.equal(result.attempts[0]?.activeToolName, "bash");
+      }
+      assert.equal(result.attempts.at(-1)?.deadlineCause, "catalog_preflight");
+      assert.equal(result.attempts.at(-1)?.activeToolName, undefined);
+      assert.equal(result.deadlineCause, "catalog_preflight");
+      assert.equal(result.stallCause, undefined);
+      assert.equal(result.activeBashCommand, undefined);
+      assert.equal(result.progress.route, `${finalRoute}:high`);
+      assert.deepEqual(updates.at(-1), result.progress);
+      const toolResult = await finalize();
+      const details = toolResult.details as { progress?: DelegateProgress; attempts?: readonly Record<string, unknown>[] } & Record<string, unknown>;
+      const diagnostic = JSON.parse(await readFile(details.diagnosticPath as string, "utf8"));
+      for (const surface of [result.progress, details, details.progress!, diagnostic]) {
+        assert.equal(surface.state, "routes_unavailable");
+        assert.equal(surface.deadlineCause, "catalog_preflight");
+        assert.equal(surface.stallCause, undefined);
+        assert.equal(surface.activeToolCount ?? 0, 0);
+        assert.equal(surface.activeToolName, undefined);
+        assert.equal(surface.activeToolElapsedSeconds, undefined);
+        assert.equal(surface.activeToolIdleSeconds, undefined);
+        assert.equal(surface.activeBashCommand, undefined);
+      }
+      assert.equal(details.selectedRoute, undefined);
+      assert.equal(diagnostic.selectedRoute, undefined);
+      assert.equal(details.attempts?.at(-1)?.deadlineCause, "catalog_preflight");
+      assert.equal(diagnostic.attempts.at(-1).deadlineCause, "catalog_preflight");
+      assert.match(toolResult.content[0]!.text, /- deadline cause: catalog_preflight/);
+      assert.doesNotMatch(toolResult.content[0]!.text, /- stall cause:|active tools:|active tool:|COMMAND-SENTINEL/);
+      if (count === 2) assert.equal(diagnostic.attempts[0].stallCause, "active_tool_idle");
+    });
+  });
+}
+
+for (const count of [1, 2]) {
+  for (const timedOut of [true, false]) {
+    test(`catalog cleanup failure preserves only final causes on every surface (${count} routes, ${timedOut ? "deadline" : "natural settlement"})`, { timeout: 8000 }, async () => {
+      const finalRoute = `prov-${count}/model-x`;
+      const fixture = await fakePi(
+        ["prov-1/model-x", "prov-2/model-x"],
+        { "prov-1/model-x": "bash-silent", "prov-2/model-x": "complete" },
+        { catalogDelayMs: timedOut ? 1000 : 0, catalogDelayRoute: finalRoute, argvLog: true },
+      );
+      const updates: DelegateProgress[] = [];
+      const originalBuild = terminationProbes.build;
+      const cleanupChildren: (() => Promise<void>)[] = [];
+      let cleanupCount = 0;
+      try {
+        terminationProbes.build = (child) => {
+          const real = originalBuild(child);
+          const catalogIndex = child.spawnargs.indexOf("--list-models");
+          if (catalogIndex < 0 || child.spawnargs[catalogIndex + 1] !== finalRoute) return real;
+          cleanupCount += 1;
+          cleanupChildren.push(async () => {
+            real.signalGroup("SIGKILL");
+            assert.ok(await real.waitForClose(1000), "the owned catalog child must close after cleanup");
+          });
+          // Expire only the injected cleanup clock. Real signals still kill the fixture.
+          return { ...real, now: () => performance.now() + 10_000, groupExists: () => true };
+        };
+        await runAndFinalize(baseOptions(fixture, {
+          routingConfig: providerCountRoutingConfig(count),
+          random: () => 0,
+          catalogTimeoutMs: timedOut ? 100 : 400,
+          activityWarningMs: 80,
+          activityIdleMs: 300,
+          progressWarningMs: 1000,
+          progressStallMs: 2000,
+          onProgress: (progress) => updates.push(progress),
+        }), async (result, finalize) => {
+          const expectedDeadline = timedOut ? "catalog_preflight" : undefined;
+          assert.equal(result.selectedRoute, undefined);
+          assert.equal(result.report, "");
+          assert.equal(result.progress.route, `${finalRoute}:high`);
+          assert.deepEqual(updates.at(-1), result.progress);
+          assert.deepEqual(result.attempts.map((attempt) => attempt.state), count === 1 ? ["cleanup_failed"] : ["stalled", "cleanup_failed"]);
+          const toolResult = await finalize();
+          const details = toolResult.details as { progress?: DelegateProgress; attempts?: readonly Record<string, unknown>[] } & Record<string, unknown>;
+          const diagnosticPath = details.diagnosticPath as string;
+          assert.ok(diagnosticPath.startsWith(ownedDiagnosticsRoot + path.sep));
+          const diagnostic = JSON.parse(await readFile(diagnosticPath, "utf8"));
+          for (const surface of [result, result.progress, updates.at(-1)!, details, details.progress!, diagnostic]) {
+            assert.equal(surface.state, "cleanup_failed");
+            assert.equal(surface.deadlineCause, expectedDeadline);
+            assert.equal(surface.cleanupFailureReason, "group_alive");
+            assert.equal(surface.stallCause, undefined);
+            assert.equal("activeToolCount" in surface ? surface.activeToolCount : 0, 0);
+            assert.equal("activeToolName" in surface ? surface.activeToolName : undefined, undefined);
+            assert.equal("activeToolElapsedSeconds" in surface ? surface.activeToolElapsedSeconds : undefined, undefined);
+            assert.equal("activeToolIdleSeconds" in surface ? surface.activeToolIdleSeconds : undefined, undefined);
+            assert.equal("activeBashCommand" in surface ? surface.activeBashCommand : undefined, undefined);
+          }
+          assert.equal(details.selectedRoute, undefined);
+          assert.equal(diagnostic.selectedRoute, undefined);
+          assert.equal(diagnostic.schemaVersion, 9);
+          for (const attempts of [result.attempts, details.attempts!, diagnostic.attempts]) {
+            assert.equal(attempts.at(-1)?.deadlineCause, expectedDeadline);
+            assert.equal(attempts.at(-1)?.cleanupFailureReason, "group_alive");
+            assert.equal(attempts.at(-1)?.stallCause, undefined);
+            assert.equal(attempts.at(-1)?.activeToolName, undefined);
+            if (count === 2) {
+              assert.equal(attempts[0]?.deadlineCause, "idle_deadline");
+              assert.equal(attempts[0]?.stallCause, "active_tool_idle");
+              assert.equal(attempts[0]?.activeToolName, "bash");
+              assert.equal(attempts[0]?.cleanupFailureReason, undefined);
+            }
+          }
+          const markdown = toolResult.content[0]!.text;
+          assert.match(markdown, /## Delegate solution-a failed: cleanup_failed/);
+          assert.match(markdown, /- cleanup failure: group_alive/);
+          if (timedOut) assert.match(markdown, /- deadline cause: catalog_preflight/);
+          else assert.doesNotMatch(markdown, /- deadline cause:/);
+          assert.doesNotMatch(markdown, /- stall cause:|active tools:|active tool:|COMMAND-SENTINEL|ARG-SENTINEL/);
+        });
+        assert.equal(cleanupCount, 1, "catalog cleanup must run exactly once");
+        const invocations = (await readFile(path.join(fixture.root, "argv.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line) as string[]);
+        assert.equal(invocations.filter((args) => args.includes("--list-models")).length, count);
+        assert.equal(invocations.filter((args) => args.includes("--mode")).length, count - 1, "the failed catalog must not start execution or fallback");
+      } finally {
+        terminationProbes.build = originalBuild;
+        try {
+          await Promise.all(cleanupChildren.map((cleanup) => cleanup()));
+        } finally {
+          await rm(fixture.root, { recursive: true, force: true });
+        }
+      }
+    });
+  }
+}
 
 test("a catalog child that settles naturally ignores a later deadline and runs one cleanup", async () => {
   const fixture = await fakePi(
