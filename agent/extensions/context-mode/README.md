@@ -30,6 +30,30 @@ It never calls upstream MCP `tools/list`, and it does not register upstream's fu
 
 Pi receives changed progress for backend phase transitions, observed subprocess output growth, and subprocess completion. Updates contain aggregate process counts and output byte counts, not commands, paths, or output text. Output growth is coalesced at 100 milliseconds. Silent work gets no periodic heartbeat. Productive long calls can use explicit larger execution timeouts without changing the delegate watchdog or route policy. Blocking indexing/search remains silent unless an observed process produces output or completes.
 
+### Redirected log progress
+
+`ctx_batch_execute` accepts optional `progressFiles: string[]` for commands that redirect output to log files. List at most 32 paths. Relative paths resolve against the effective batch `cwd`; absolute paths are accepted. The wrapper applies its existing file-path safety checks and deduplicates resolved paths. This option never reaches the upstream schema or handler.
+
+Example tool arguments:
+
+```json
+{
+  "commands": [{ "label": "cargo tests", "command": "cargo test > cargo-test.log 2>&1" }],
+  "queries": ["test result"],
+  "cwd": "/path/to/project",
+  "timeout": 900000,
+  "progressFiles": ["cargo-test.log"]
+}
+```
+
+The wrapper baselines existing files before starting the worker. Initially missing files can appear later. It polls metadata asynchronously every 200 milliseconds after the previous poll finishes. Only readable regular files contribute progress; the wrapper never reads log contents. Polls with no positive growth send no update.
+
+Changed updates include monotonic aggregate `fileBytes` alongside existing worker counters. No file counter appears before actual growth. Updates contain no file paths or contents. Final results and indexed content stay unchanged, so the example's redirected test output is not searchable unless a separate command captures it.
+
+A shrink resets that file's size baseline without reducing the aggregate. A replacement, recreation after an observed deletion, or recovery from unreadable state is baselined again; only subsequent growth counts. Polling cannot reconstruct writes or replacements between samples. These conservative baselines can undercount work, but do not replay old bytes as progress.
+
+Monitoring ends on cancellation, worker termination, or terminal result/error receipt. Late metadata completions cannot emit updates. Omitted or empty `progressFiles` retains the existing behavior. File growth renews only the delegate's idle lease through `onUpdate`; existing structural bounds still apply. It never extends execution timeouts, and indexing/search remains outside those timeouts.
+
 Cancellation stops the backend thread before command completion can schedule more queued work. On Unix, each worker starts as a private process-group leader. Synchronous probes and compilers inherit that group; observed async commands use separate groups recorded in the ownership ledger. The Pi host checks both the ledger and the worker group after every worker exit, including normal results, cancellation, and crashes. Cleanup failure is an error, not success or settled cancellation.
 
 On IPC parent disconnect or forced thread shutdown, the worker cleans its async groups first, then kills its own fallback group as its final action. It never waits for cleanup of a group containing itself or signals the inherited Pi host group. Thread shutdown has a 500-millisecond forced fallback; each cleanup pass allows 200 milliseconds for SIGTERM and 1500 milliseconds after SIGKILL. The Pi host has a 3-second worker kill fallback. The fallback group does not count as observed progress or against the subprocess limit.

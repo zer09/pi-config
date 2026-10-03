@@ -26,6 +26,19 @@ describe("lean schema payload", () => {
     expect(properties.path?.description).toContain("inside the active project root");
   });
 
+  it("exposes a bounded optional progressFiles list only for batches", () => {
+    const payloads = getLeanToolDefinitionPayloads();
+    const batch = payloads.find((tool) => tool.name === "ctx_batch_execute")!;
+    expect(batch.parameters.properties).toHaveProperty("progressFiles", {
+      type: "array", maxItems: 32, items: { type: "string", minLength: 1 },
+      description: expect.stringContaining("never read or index contents"),
+    });
+    expect(batch.parameters.required).not.toContain("progressFiles");
+    for (const tool of payloads.filter((tool) => tool.name !== "ctx_batch_execute")) {
+      expect(tool.parameters.properties).not.toHaveProperty("progressFiles");
+    }
+  });
+
   it("marks timeout fields as non-negative", () => {
     const payloads = getLeanToolDefinitionPayloads();
     const executeFileTimeout = (payloads.find((tool) => tool.name === "ctx_execute_file")?.parameters.properties as Record<string, unknown>).timeout;

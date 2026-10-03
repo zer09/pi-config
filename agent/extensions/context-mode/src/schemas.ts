@@ -82,6 +82,12 @@ export const ctxBatchExecuteSchema = {
       type: "string",
       description: "Optional working directory. Defaults to project root.",
     },
+    progressFiles: {
+      type: "array",
+      maxItems: 32,
+      items: { type: "string", minLength: 1 },
+      description: "Optional explicit log paths, absolute or relative to cwd. Report only observed byte growth through progress updates; never read or index contents. Does not extend execution timeouts.",
+    },
   },
   required: ["commands", "queries"],
 } satisfies JsonSchema;

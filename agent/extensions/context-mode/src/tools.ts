@@ -20,6 +20,7 @@ export type CtxBatchExecuteParams = {
   timeout?: number;
   concurrency?: number;
   cwd?: string;
+  progressFiles?: string[];
 };
 
 export type CtxSearchParams = {
@@ -123,6 +124,17 @@ export function buildBatchExecuteArgs(params: CtxBatchExecuteParams, projectDir:
   });
 }
 
+function resolveProgressFiles(value: unknown, cwd: string): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > 32) throw new Error("progressFiles must be an array of at most 32 paths");
+  const paths = value.map((path, index) => {
+    const resolved = resolveUserPath(assertString(path, `progressFiles[${index}]`), cwd);
+    assertSafeFilePath(resolved);
+    return resolved;
+  });
+  return [...new Set(paths)];
+}
+
 function optionalContentType(value: unknown): "code" | "prose" | undefined {
   if (value === undefined || value === "") return undefined;
   if (value !== "code" && value !== "prose") throw new Error("contentType must be 'code' or 'prose'");
@@ -155,8 +167,13 @@ export async function executeLeanTool(
   switch (name) {
     case "ctx_execute_file":
       return invoke(name, projectDir, buildExecuteFileArgs(params as CtxExecuteFileParams, projectDir), deps, lifecycle);
-    case "ctx_batch_execute":
-      return invoke(name, projectDir, buildBatchExecuteArgs(params as CtxBatchExecuteParams, projectDir), deps, lifecycle);
+    case "ctx_batch_execute": {
+      const batch = params as CtxBatchExecuteParams;
+      const args = buildBatchExecuteArgs(batch, projectDir);
+      const progressFiles = resolveProgressFiles(batch.progressFiles, args.cwd as string);
+      if (progressFiles?.length) lifecycle = { ...lifecycle, progressFiles };
+      return invoke(name, projectDir, args, deps, lifecycle);
+    }
     case "ctx_search":
       return invoke(name, projectDir, buildSearchArgs(params as CtxSearchParams), deps, lifecycle);
   }

@@ -6,6 +6,8 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { callCtxTool } from "../src/backend.js";
+import { executeLeanTool } from "../src/tools.js";
+import type { CallLifecycle } from "../src/worker-client.js";
 import { cleanupOwned, ownedIsAlive } from "../src/process-cleanup.mjs";
 import type { LeanToolName, ToolUpdate } from "../src/types.js";
 // Load the harness at runtime without making this package depend on Pi host declarations.
@@ -28,7 +30,7 @@ async function waitFor(predicate: () => boolean, deadline = 3000) {
 function args(mode: string, extra: Record<string, unknown> = {}) {
   return { mode, marker: resolve(dir, "started"), pids: resolve(dir, "pids"), ...extra };
 }
-function call(mode: string, lifecycle: { signal?: AbortSignal; onUpdate?: (update: ToolUpdate) => void } = {}, extra: Record<string, unknown> = {}, name: LeanToolName = "ctx_batch_execute") {
+function call(mode: string, lifecycle: CallLifecycle = {}, extra: Record<string, unknown> = {}, name: LeanToolName = "ctx_batch_execute") {
   return callCtxTool(dir, name, args(mode, extra), { env }, lifecycle);
 }
 beforeEach(() => {
@@ -412,6 +414,84 @@ describe.skipIf(process.platform === "win32")("owned backend worker", () => {
     } finally { clearInterval(poll); }
   });
 
+  it.each(["growing", "stopped", "omitted"])("redirected silent output obeys a scaled delegate idle lease (%s)", async (mode) => {
+    const monitor = new PiRpcMonitor(performance.now(), new Date().toISOString());
+    monitor.acceptPrompt(1);
+    monitor.consumeEvent(1, { type: "agent_start" });
+    monitor.consumeEvent(1, { type: "tool_execution_start", toolCallId: "ctx", toolName: "ctx_batch_execute", args: {} });
+    const controller = new AbortController();
+    const updates: ToolUpdate[] = [];
+    const log = resolve(dir, "redirected.log");
+    const control = resolve(dir, "stop-growth");
+    let checking = false;
+    let stalled = false;
+    const pending = call("log", {
+      signal: controller.signal,
+      ...(mode !== "omitted" ? { progressFiles: [log] } : {}),
+      onUpdate: (update) => {
+        updates.push(update);
+        monitor.recordValidRpc();
+        monitor.consumeEvent(1, { type: "tool_execution_update", toolCallId: "ctx", toolName: "ctx_batch_execute", partialResult: update });
+        if ((update.details!.progress as { started: number }).started > 0) checking = true;
+      },
+    }, { log, control, duration: 2000 });
+    const settled = pending.then((result) => result, (error: Error) => error.message);
+    const poll = setInterval(() => {
+      if (!checking) return;
+      const snapshot = monitor.snapshot();
+      const now = performance.now();
+      const decision = evaluateLiveness({
+        rpcIdleMs: now - snapshot.lastValidRpcMonotonic,
+        activityIdleMs: now - snapshot.lastActivityMonotonic,
+        progressIdleMs: now - snapshot.lastStructuralProgressMonotonic,
+        activeToolIdleMs: now - snapshot.activeToolLastNovelUpdateMonotonic!,
+        duplicateCheckpointsSinceNovel: snapshot.duplicateCheckpointsSinceNovel,
+      }, { activityIdleMs: 700, activityWarningMs: 600, progressStallMs: 10000, progressWarningMs: 9000 });
+      if (decision.action === "stall") { stalled = true; controller.abort(); }
+    }, 20);
+    try {
+      if (mode === "stopped") {
+        await waitFor(() => updates.some((update) => (update.details!.progress as { fileBytes?: number }).fileBytes));
+        writeFileSync(control, "stop");
+        await waitFor(() => existsSync(`${control}.stopped`));
+      }
+      const result = await settled;
+      if (mode === "growing") expect(result).toEqual({ content: [{ type: "text", text: "fixture result" }], details: { tool: "ctx_batch_execute" } });
+      else expect(result).toMatch(/cancelled/);
+      expect(stalled).toBe(mode !== "growing");
+      expect(readFileSync(log, "utf8")).toContain("CTX_REDIRECTED_FILE_ONLY");
+      const progress = updates.map((update) => update.details!.progress as { outputBytes: number; fileBytes?: number });
+      expect([...new Set(progress.map((value) => value.outputBytes))]).toEqual([0]);
+      expect(progress.some((value) => (value.fileBytes ?? 0) > 0)).toBe(mode !== "omitted");
+      const counts = progress.map((value) => value.fileBytes ?? 0);
+      expect(counts).toEqual([...counts].sort((a, b) => a - b));
+      expect(JSON.stringify(updates)).not.toContain(dir);
+      expect(JSON.stringify(updates)).not.toContain("CTX_REDIRECTED_FILE_ONLY");
+      const before = updates.length;
+      await delay(250);
+      expect(updates).toHaveLength(before);
+      for (const pid of pids()) {
+        if (existsSync(`/proc/${pid}/stat`)) expect(readFileSync(`/proc/${pid}/stat`, "utf8").split(") ")[1][0]).toBe("Z");
+      }
+    } finally { clearInterval(poll); controller.abort(); await settled; }
+  }, 10000);
+
+  it("keeps explicit-file contents out of installed upstream results and the index", async () => {
+    const { CONTEXT_MODE_ROOT: _root, ...upstreamEnv } = env;
+    const updates: ToolUpdate[] = [];
+    const command = `${process.execPath} ${resolve(fixtureRoot, "command.mjs")} log ${resolve(dir, "pids")} 800 > redirected.log 2>&1`;
+    const result = await executeLeanTool("ctx_batch_execute", {
+      commands: [{ label: "redirected", command }], queries: ["CTX_REDIRECTED"], cwd: dir, progressFiles: ["redirected.log"], timeout: 3000,
+    }, { cwd: dir }, { env: upstreamEnv }, { onUpdate: (update) => updates.push(update) });
+    expect(updates.some((update) => (update.details!.progress as { fileBytes?: number }).fileBytes)).toBe(true);
+    expect([...new Set(updates.map((update) => (update.details!.progress as { outputBytes: number }).outputBytes))]).toEqual([0]);
+    expect(result.details).toEqual({ tool: "ctx_batch_execute" });
+    expect(JSON.stringify(result)).not.toMatch(/fileBytes|file bytes grown|CTX_REDIRECTED_FILE_ONLY/);
+    const search = await callCtxTool(dir, "ctx_search", { queries: ["CTX_REDIRECTED"] }, { env: upstreamEnv });
+    expect(search.content[0].text).not.toContain("CTX_REDIRECTED_FILE_ONLY");
+    expect(readFileSync(resolve(dir, "redirected.log"), "utf8")).toContain("CTX_REDIRECTED_FILE_ONLY");
+  }, 10000);
+
   it.each([1, 2])("cancels installed upstream queues (concurrency=%i)", async (concurrency) => {
     const { CONTEXT_MODE_ROOT: _root, ...upstreamEnv } = env;
     const controller = new AbortController();
@@ -433,14 +513,23 @@ describe.skipIf(process.platform === "win32")("owned backend worker", () => {
     }
   });
 
-  it("cleans installed upstream explicit-timeout command groups", async () => {
+  it.each([false, true])("cleans installed upstream explicit-timeout command groups (file progress=%s)", async (monitorFiles) => {
     const { CONTEXT_MODE_ROOT: _root, ...upstreamEnv } = env;
     const sentinel = childProcess.spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { detached: true, stdio: "ignore" });
     try {
-      const command = `${process.execPath} ${resolve(fixtureRoot, "command.mjs")} tree ${resolve(dir, "pids")} 10000`;
-      const result = await callCtxTool(dir, "ctx_batch_execute", {
-        commands: [{ label: "timeout-tree", command }], queries: ["timeout"], timeout: 1200, concurrency: 1, cwd: dir, query_scope: "batch",
-      }, { env: upstreamEnv });
+      const updates: ToolUpdate[] = [];
+      const log = resolve(dir, "timeout.log");
+      const mode = monitorFiles ? "log-tree" : "tree";
+      let command = `${process.execPath} ${resolve(fixtureRoot, "command.mjs")} ${mode} ${resolve(dir, "pids")} 10000`;
+      if (monitorFiles) command += ` > ${log} 2>&1`;
+      const result = await executeLeanTool("ctx_batch_execute", {
+        commands: [{ label: "timeout-tree", command }], queries: ["timeout"], timeout: 1200, concurrency: 1, cwd: dir,
+        ...(monitorFiles ? { progressFiles: [log] } : {}),
+      }, { cwd: dir }, { env: upstreamEnv }, { onUpdate: (update) => updates.push(update) });
+      expect(updates.some((update) => (update.details!.progress as { fileBytes?: number }).fileBytes)).toBe(monitorFiles);
+      const before = updates.length;
+      await delay(250);
+      expect(updates).toHaveLength(before);
       expect(result.content[0].text).toMatch(/timed?\s*out|timeout/i);
       expect(pids()).toHaveLength(2);
       // Upstream kills -proc.pid, which is the detached shell's group, not these children.

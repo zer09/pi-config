@@ -131,6 +131,38 @@ describe("tool registrations", () => {
     }, {});
   });
 
+  it("resolves and deduplicates explicit files relative to batch cwd without upstream args", async () => {
+    const callTool = vi.fn(async () => ({ content: [{ type: "text" as const, text: "ok" }] }));
+    await executeLeanTool("ctx_batch_execute", {
+      commands: [{ label: "x", command: "git status" }], queries: ["x"], cwd: "build",
+      progressFiles: ["log", "./log", "@log", "/tmp/other.log"],
+    }, { cwd: "/work/project" }, { callTool });
+    expect(callTool.mock.calls[0]).toEqual([
+      "/work/project", "ctx_batch_execute",
+      { commands: [{ label: "x", command: "git status" }], queries: ["x"], cwd: "/work/project/build", concurrency: 1, timeout: 300000, query_scope: "batch" },
+      { progressFiles: ["/work/project/build/log", "/tmp/other.log"] },
+    ]);
+  });
+
+  it.each([null, "log", [""], [42], Array.from({ length: 33 }, () => "log"), [".env"], ["key.pem"]])("rejects invalid or unsafe progressFiles (%j)", async (progressFiles) => {
+    const callTool = vi.fn();
+    await expect(executeLeanTool("ctx_batch_execute", {
+      commands: [{ label: "x", command: "git status" }], queries: ["x"], progressFiles: progressFiles as string[],
+    }, { cwd: "/work/project" }, { callTool })).rejects.toThrow(/progressFiles|Blocked/);
+    expect(callTool).not.toHaveBeenCalled();
+  });
+
+  it("leaves an empty explicit list equivalent to omitted monitoring", async () => {
+    const callTool = vi.fn(async () => ({ content: [{ type: "text" as const, text: "ok" }] }));
+    await executeLeanTool("ctx_batch_execute", {
+      commands: [{ label: "x", command: "git status" }], queries: ["x"], progressFiles: [],
+    }, { cwd: "/work/project" }, { callTool });
+    expect(callTool).toHaveBeenCalledWith("/work/project", "ctx_batch_execute", {
+      commands: [{ label: "x", command: "git status" }], queries: ["x"], timeout: 300000, concurrency: 1,
+      cwd: "/work/project", query_scope: "batch",
+    }, {});
+  });
+
   it("passes registration signal and updates to the backend seam", async () => {
     const signal = new AbortController().signal;
     const onUpdate = vi.fn();

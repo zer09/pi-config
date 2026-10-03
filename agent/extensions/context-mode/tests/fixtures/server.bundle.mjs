@@ -61,9 +61,14 @@ async function handler(args) {
   if (args.mode === "schema") return { content: [{ type: "text", text: String(args.limit) }] };
   const run = async (index) => {
     appendFileSync(args.marker, `${index}\n`);
-    const child = spawn(process.execPath, [fileURLToPath(new URL("./command.mjs", import.meta.url)), args.mode, args.pids, String(args.duration ?? 800)], {
-      detached: true, stdio: ["ignore", "pipe", "pipe"],
-    });
+    const commandArgs = [fileURLToPath(new URL("./command.mjs", import.meta.url)), args.mode, args.pids, String(args.duration ?? 800), args.control ?? ""];
+    let child;
+    if (args.log) {
+      const command = [process.execPath, ...commandArgs].map((value) => JSON.stringify(value)).join(" ");
+      child = spawn("/bin/sh", ["-c", `${command} > ${JSON.stringify(args.log)} 2>&1`], { detached: true, stdio: ["ignore", "pipe", "pipe"] });
+    } else {
+      child = spawn(process.execPath, commandArgs, { detached: true, stdio: ["ignore", "pipe", "pipe"] });
+    }
     return new Promise((resolve) => {
       child.once("error", (error) => { throw error; });
       child.once("close", () => resolve());
@@ -89,7 +94,10 @@ async function handler(args) {
   return { content: [{ type: "text", text: "fixture result" }] };
 }
 export const REGISTERED_CTX_TOOLS = ["ctx_execute_file", "ctx_batch_execute", "ctx_search"].map((name) => ({
-  name, config: { inputSchema: { parse: (args) => ({ ...args, limit: Number(args.limit ?? 2) }) } }, handler,
+  name, config: { inputSchema: { parse: (args) => {
+    if ("progressFiles" in args) throw new Error("wrapper-only progressFiles reached upstream");
+    return { ...args, limit: Number(args.limit ?? 2) };
+  } } }, handler,
 }));
 export async function withProjectDirOverride({ projectDir }, fn) {
   if (process.env.CONTEXT_MODE_PROJECT_DIR !== projectDir) throw new Error("project mismatch");
