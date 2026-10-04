@@ -97,9 +97,18 @@ function safeTimestamp(value: string): string {
     : "unknown";
 }
 
+export function fastlaneConfirmed(progress: { readonly fastlaneRequested?: unknown; readonly fastlaneState?: unknown; readonly state?: unknown; readonly phase?: unknown } | undefined): boolean {
+  return progress?.fastlaneRequested === true && progress.fastlaneState === "enabled"
+    && progress.state !== "catalog_check" && progress.phase !== "catalog";
+}
+
 function sanitizedProgress(progress: DelegateProgress): DelegateProgress {
   return {
     ...progress,
+    fastlaneRequested: progress.fastlaneRequested === true,
+    fastlaneState: progress.state === "catalog_check" || progress.phase === "catalog"
+      ? "unknown"
+      : fixed(progress.fastlaneState, ["enabled", "inactive", "unknown"]) as DelegateProgress["fastlaneState"],
     route: safeRoute(progress.route),
     phase: bounded(progress.phase) ?? "unknown",
     lastEvent: bounded(progress.lastEvent) ?? "unknown",

@@ -91,6 +91,22 @@ function failedResult(overrides: Partial<DelegateRunResult> = {}): DelegateRunRe
   };
 }
 
+test("Fastlane details survive JSON restoration with strict state and request sanitization", () => {
+  for (const requested of [true, false, undefined, "true", 1]) {
+    for (const state of ["enabled", "inactive", "unknown", undefined, true, "PRIVATE-STATE", { enabled: true }]) {
+      const result = { ...completedResult("Done\n\nDELEGATE_RESULT: COMPLETED"),
+        progress: progress({ fastlaneRequested: requested, fastlaneState: state } as Partial<DelegateProgress>) };
+      const details = JSON.parse(JSON.stringify(finalToolResult(result).details));
+      assert.equal(details.progress.fastlaneRequested, requested === true);
+      assert.equal(details.progress.fastlaneState, typeof state === "string" && ["enabled", "inactive", "unknown"].includes(state) ? state : undefined);
+      assert.doesNotMatch(JSON.stringify(details), /PRIVATE-STATE/);
+    }
+  }
+  const result = { ...completedResult("Done\n\nDELEGATE_RESULT: COMPLETED"),
+    progress: progress({ state: "catalog_check", phase: "catalog", fastlaneRequested: true, fastlaneState: "enabled" }) };
+  assert.equal((finalToolResult(result).details!.progress as DelegateProgress).fastlaneState, "unknown");
+});
+
 test("happy path returns exact Markdown with the terminal marker removed", () => {
   const result = completedResult("# Findings\n\nObserved the defect at src/app.ts:12.\n\nDELEGATE_RESULT: COMPLETED");
   assert.equal(completedMarkdown(result), [

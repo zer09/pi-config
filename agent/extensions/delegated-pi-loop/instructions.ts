@@ -29,7 +29,7 @@ export const DELEGATE_RUN_TOOL = {
   name: "delegate_run",
   label: "Delegate Run",
   description:
-    "Run one fresh bounded isolated Pi delegate for one role. Routing and operational fallback are automatic. Returns completed and valid intentional BLOCKED/FAILED Markdown reports; operational failures remain sanitized tool errors. The parent remains sole orchestrator.",
+    "Run one fresh bounded isolated Pi delegate for one role. Routing and operational fallback are automatic. Returns completed and valid intentional BLOCKED/FAILED Markdown reports; operational failures remain sanitized tool errors. The parent remains sole orchestrator. Optional fastlane requests eligible child priority service and increases subscription usage.",
   promptSnippet: "Run one fresh isolated delegated role",
 } as const;
 
@@ -60,6 +60,7 @@ export const DELEGATE_RUN_PARAMETER_DESCRIPTIONS = {
   prompt:
     "Self-contained neutral assignment: goal, governing documents, scope, success checks, prohibitions, and required report. Include useful evidence already known when relevant, with optional known paths, symbols, or line ranges as non-exhaustive starting points. Do not investigate merely to populate evidence or location fields. Unknown locations are acceptable; do not fabricate them.",
   cwd: "Delegate cwd; relative paths resolve from parent cwd.",
+  fastlane: "Optional, default false. Request Fastlane for this invocation only; increases subscription usage. Ineligible routes continue normally. The fastlane marker confirms child configuration, not injection, server acceptance, or speed. Never inferred from parent Fastlane state.",
   availableSkills:
     "Approved skills visible to the child; full instructions load only if needed.",
 } as const;

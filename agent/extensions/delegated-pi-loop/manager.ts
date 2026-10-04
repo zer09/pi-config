@@ -1,4 +1,5 @@
 import { roleIsExclusive } from "./routes.ts";
+import { fastlaneConfirmed } from "./result.ts";
 import type { ResolvedRole } from "./routing.ts";
 import type { DelegateProgress, DelegateState, InterruptionSource } from "./types.ts";
 
@@ -16,6 +17,7 @@ export interface DelegateHandle {
 }
 
 export interface ActiveDelegate {
+  readonly fastlaneEnabled?: boolean;
   readonly id: number;
   readonly role: string;
   readonly state: DelegateState | "starting" | "stopping";
@@ -30,7 +32,7 @@ export interface ActiveDelegate {
 
 /** Choice label for the /delegate:list picker: id, role, state, route, phase, round, elapsed. */
 export function activeDelegateLabel(delegate: ActiveDelegate): string {
-  return `#${delegate.id}  ${delegate.role}  ${delegate.state}  ${delegate.route}  phase=${delegate.phase}  round ${delegate.reportRound}/2  ${elapsedText(delegate.elapsedSeconds)}`;
+  return `#${delegate.id}  ${delegate.role}  ${delegate.state}  ${delegate.route}${delegate.fastlaneEnabled === true ? "  fastlane" : ""}  phase=${delegate.phase}  round ${delegate.reportRound}/2  ${elapsedText(delegate.elapsedSeconds)}`;
 }
 
 function elapsedText(seconds: number): string {
@@ -104,6 +106,12 @@ export class DelegateManager {
     return this.active.get(toolCallId)?.delegateId;
   }
 
+  fastlaneEnabledFor(toolCallId: string | undefined): boolean | undefined {
+    if (!toolCallId) return undefined;
+    const run = this.active.get(toolCallId);
+    return run === undefined ? undefined : fastlaneConfirmed(run.progress);
+  }
+
   listActive(): readonly ActiveDelegate[] {
     return [...this.active.values()]
       .sort((left, right) => left.delegateId - right.delegateId)
@@ -132,6 +140,7 @@ export class DelegateManager {
     const elapsedSeconds = run.progress?.elapsedSeconds
       ?? Math.round((performance.now() - run.startedAt) / 100) / 10;
     return {
+      ...(fastlaneConfirmed(run.progress) ? { fastlaneEnabled: true } : {}),
       id: run.delegateId,
       role: run.role.id,
       state: run.controller.signal.aborted ? "stopping" : (run.progress?.state ?? "starting"),

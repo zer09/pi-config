@@ -2,6 +2,12 @@
 
 This document summarizes local Pi configuration changes. Detailed change records live under [`docs/changelogs/`](./changelogs/).
 
+## Delegated Fastlane: isolated worktree preparation
+
+- Added optional invocation-local `delegate_run.fastlane`, default off. Explicit `true` requests eligible child priority service and increases subscription usage. Fastlane is the sixth fixed runtime extension, loaded last; catalog preflight stays alias-only. Only requested runtime children receive `--fastlane`. Child eligibility, protected tiers, and fresh provider-hook confirmation remain authoritative; parent Fastlane, footer, routing, and dependencies are unchanged.
+- Bounded child status confirms only `enabled`, `inactive`, or `unknown`, resets per attempt, ignores parked/control traffic, and renews RPC health without task activity or progress. Call/progress/final/list markers require requested and confirmed enabled configuration. Restored call rows now update their existing Text synchronously in Pi 0.99.2's call-before-result order, including the first frame, without recursive invalidation or cross-row state.
+- Prepared only in this worktree, not deployed. Parent verification reported the serialized delegated suite passed; the default parallel suite had intermittent existing fixture assertions. Remediation reproduced the missing first-frame marker before the fix, then passed 262/262 related serialized tests, Fastlane/footer tests, and the 51-file strict typecheck. No live provider call or billing/latency acceptance ran. Offline parent attribution is +62 schema tokens and +13 tool-description tokens with cached `tiktoken 0.14.0` / `o200k_base`; these are isolated deltas, not provider totals. The parent owns the context-cost entry. Historical five-extension and token snapshots remain unchanged.
+
 ## 2026-10-01: Pi 0.99.2 compatibility preparation
 
 Details: [`docs/changelogs/pi-to-0.99.2-compatibility-preparation.md`](./changelogs/pi-to-0.99.2-compatibility-preparation.md).

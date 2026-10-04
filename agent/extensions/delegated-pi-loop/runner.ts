@@ -299,6 +299,8 @@ async function routeIsCatalogued(
 
 function progressFromStatus(status: AttemptStatus, attempt: number, restartAfterWorkCount: number): DelegateProgress {
   return {
+    fastlaneRequested: status.fastlaneRequested,
+    fastlaneState: status.fastlaneState,
     label: status.label,
     role: status.role,
     state: status.state,
@@ -630,6 +632,7 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
         route,
         piInvocation,
         persistedSession,
+        fastlane: options.fastlane === true,
         runtimeResourceArgs: resourceSelection.runtimeArgs,
         verifyRuntimeResources: resourceSelection.verifyRuntimeSpawn,
         // The runner has consumed positive cleanup before any fresh execution reaches this callback.

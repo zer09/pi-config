@@ -2,6 +2,8 @@
 
 Quantitative calibration date: 2026-07-01
 
+Delegated Fastlane update: 2026-10-04 (optional invocation-local `delegate_run.fastlane`; offline parent schema attribution increases by 62 local `o200k_base` tokens and the tool description by 13. Provider calibration and full-context totals were not rerun. The isolated attribution is below.)
+
 Offline skill-catalog refresh: 2026-09-30 (installed Pi 0.87.1; refreshed only `## Skills` from the current 38 local roots after accepted maintenance Increments 1-19. Explicit-only `crit` and `impeccable` leave 36 automatically visible skills. Outpour membership records inventory only, not maintenance acceptance. Provider calibration and the full tool-schema/structural inventory were not rerun. Version labels, measured totals, and Browser Harness package/tool data outside `## Skills` remain historical snapshots, not current full-context totals.)
 
 Delegated incremental-implementation instruction update: 2026-09-08 (parent guidelines assign one reviewed increment per fresh implementation delegate; implementation children use small edit-and-check steps and simple existing patterns. Local `o200k_base` attribution is below; provider calibration and the full extension/tool inventory were not rerun.)
@@ -1007,6 +1009,19 @@ The historical token table immediately below remains the 2026-07-01 measurement 
 | Global context file | `/home/gc/.pi/agent/AGENTS.md` | 1,660 | 1,637 |
 | Project-context wrapper/header overhead | `<project_context>` wrapper | 14 | — |
 | **Project context block** | — | **1,674** | — |
+
+## Delegated Fastlane attribution (2026-10-04)
+
+Measured offline with installed Pi 0.99.2 and cached `tiktoken` 0.14.0 using `o200k_base`. The measurement captures the actual `delegate_run.parameters` object passed to `registerTool` and serializes it with plain `JSON.stringify`, without indentation or a trailing newline. Both schema inputs retain the same current 11-role and 20-skill enums. The baseline removes only `properties.fastlane` from that captured schema. The baseline tool description is `DELEGATE_RUN_TOOL.description` from commit `46cd312b6dd59512c5d559442467ffcaecb44979`; the updated input is the registered tool description. Each surface is tokenized independently.
+
+| Parent surface | Before characters / UTF-8 bytes / tokens | After characters / UTF-8 bytes / tokens | Delta characters / UTF-8 bytes / tokens |
+|---|---:|---:|---:|
+| `delegate_run` parameter schema | 2,011 / 2,011 / 431 | 2,345 / 2,345 / 493 | +334 / +334 / +62 |
+| `delegate_run` tool description | 266 / 266 / 44 | 359 / 359 / 57 | +93 / +93 / +13 |
+
+To reproduce, import the extension with Pi's installed package mappings and capture `delegate_run` in a stub `registerTool`. Leave `PI_DELEGATED_CHILD` unset. Use the schema transformation and baseline description above, then count each string with `len(tiktoken.get_encoding("o200k_base").encode(text))` through `uv run --no-project --offline --with tiktoken==0.14.0 python`. No provider inference ran. The measurement excludes provider framing, routing changes, tool-call arguments, and full-context totals. The two isolated token deltas do not establish an exact provider input delta.
+
+Fastlane adds no child tool declarations or instructions. Its CLI flag and RPC status are infrastructure, not startup prompt text. Historical calibration and inventory totals remain unchanged.
 
 ## Skills
 

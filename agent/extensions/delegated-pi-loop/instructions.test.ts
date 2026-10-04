@@ -97,7 +97,7 @@ Follow relevant callers, tests, dependencies, or other discovered evidence beyon
 test("delegate_run metadata distinguishes intentional reports from sanitized operational failures exactly", () => {
   assert.equal(
     DELEGATE_RUN_TOOL.description,
-    "Run one fresh bounded isolated Pi delegate for one role. Routing and operational fallback are automatic. Returns completed and valid intentional BLOCKED/FAILED Markdown reports; operational failures remain sanitized tool errors. The parent remains sole orchestrator.",
+    "Run one fresh bounded isolated Pi delegate for one role. Routing and operational fallback are automatic. Returns completed and valid intentional BLOCKED/FAILED Markdown reports; operational failures remain sanitized tool errors. The parent remains sole orchestrator. Optional fastlane requests eligible child priority service and increases subscription usage.",
   );
   assert.doesNotMatch(DELEGATE_RUN_TOOL.description, /every other terminal state is a sanitized tool error/);
 });

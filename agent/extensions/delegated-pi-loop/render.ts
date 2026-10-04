@@ -1,6 +1,6 @@
 import { keyText } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { diagnosticLine } from "./result.ts";
+import { diagnosticLine, fastlaneConfirmed } from "./result.ts";
 import type { HistoryFailureCategory } from "./persisted-session.ts";
 import type {
   DelegateProgress,
@@ -59,17 +59,25 @@ export function renderDelegateCall(
   theme: RenderTheme,
   context: ToolRenderContext,
   activeDelegateId?: number,
+  activeFastlaneEnabled?: boolean,
 ): Text {
   const text = reuseText(context);
-  const stateDelegateId = typeof context.state?.delegateId === "number" ? context.state.delegateId : undefined;
-  const delegateId = activeDelegateId ?? stateDelegateId;
-  const id = delegateId === undefined ? "" : `#${delegateId} `;
-  const override = args.routingOverride !== undefined ? " override" : "";
-  text.setText(
-    theme.fg("toolTitle", theme.bold(`Delegate ${id}`))
-      + theme.fg("accent", args.role)
-      + theme.fg("muted", override),
-  );
+  const refreshCall = () => {
+    const stateDelegateId = typeof context.state?.delegateId === "number" ? context.state.delegateId : undefined;
+    const delegateId = activeDelegateId ?? stateDelegateId;
+    const id = delegateId === undefined ? "" : `#${delegateId} `;
+    const override = args.routingOverride !== undefined ? " override" : "";
+    const confirmed = activeFastlaneEnabled ?? (context.state?.fastlaneEnabled === true);
+    const fastlane = args.fastlane === true && confirmed ? " fastlane" : "";
+    text.setText(
+      theme.fg("toolTitle", theme.bold(`Delegate ${id}`))
+        + theme.fg("accent", args.role)
+        + theme.fg("muted", override + fastlane),
+    );
+  };
+  // Pi composes call before result. Update this row's call Text before the frame is drawn.
+  if (context.state) context.state.refreshDelegateCall = refreshCall;
+  refreshCall();
   return text;
 }
 
@@ -81,7 +89,11 @@ export function renderDelegateResult(
 ): Text {
   const text = reuseText(context);
   const progress = progressFrom(result);
+  const confirmed = fastlaneConfirmed(progress);
+  if (context.state) context.state.fastlaneEnabled = confirmed;
+  const fastlane = confirmed ? " · fastlane" : "";
   const delegateId = delegateIdFrom(result, context);
+  if (typeof context.state?.refreshDelegateCall === "function") context.state.refreshDelegateCall();
   const id = delegateId === undefined ? "" : `#${delegateId} `;
 
   if (options.isPartial && progress) {
@@ -100,7 +112,7 @@ export function renderDelegateResult(
         ? "  ⚠ progress idle"
         : "";
     text.setText([
-      theme.fg("warning", heading) + theme.fg("muted", `  ${route}`),
+      theme.fg("warning", heading) + theme.fg("muted", `  ${route}${fastlane}`),
       theme.fg("muted", `phase: ${progress.phase}  state: ${progress.state}  attempt: ${progress.attempt}${restarts}${activeTool}${warning}`),
       theme.fg("toolOutput", `last: ${event}`),
       theme.fg("dim", `at: ${ageText(progress.lastEventAt)}  elapsed: ${progress.elapsedSeconds.toFixed(1)}s`),
@@ -115,7 +127,7 @@ export function renderDelegateResult(
   const state = typeof result.details?.state === "string" ? result.details.state : "failed";
   const successful = state === "completed";
   const icon = successful ? theme.fg("success", "✓") : theme.fg("error", "✗");
-  let rendered = `${icon} ${theme.fg("toolTitle", theme.bold(`${id}${String(state)}`))}`;
+  let rendered = `${icon} ${theme.fg("toolTitle", theme.bold(`${id}${String(state)}`))}${theme.fg("muted", fastlane)}`;
   if (progress) {
     const restarts = progress.restartAfterWorkCount > 0
       ? `  restarts after work: ${progress.restartAfterWorkCount}`

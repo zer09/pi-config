@@ -40,6 +40,8 @@ function requirePiDependency(name) {
 
 const { createJiti } = requirePiDependency("jiti");
 const extensionPath = path.join(__dirname, "index.ts");
+const { FASTLANE_RPC_STATUS_KEY } = createJiti(extensionPath, { interopDefault: false })(path.join(__dirname, "constants.ts"));
+assert.equal(FASTLANE_RPC_STATUS_KEY, "delegate-fastlane", "RPC status key is a fixed public contract");
 
 function loadExtension() {
 	const jiti = createJiti(extensionPath, { interopDefault: false, moduleCache: false });
@@ -50,18 +52,20 @@ function loadExtension() {
 async function createFastlane(options = {}) {
 	const handlers = new Map();
 	const commands = new Map();
+	const flags = new Map();
+	const statuses = [];
 	const notifications = [];
 	const emitted = [];
 	const factory = loadExtension();
 	let usingOAuth = options.usingOAuth ?? true;
-	let model = options.model ?? {
+	let model = Object.hasOwn(options, "model") ? options.model : {
 		provider: "openai-codex",
 		id: "gpt-5.5",
 		api: "openai-codex-responses",
 	};
 	const ctx = {
 		hasUI: true,
-		mode: "tui",
+		mode: options.mode ?? "tui",
 		cwd: options.cwd ?? path.join(process.env.HOME ?? "/home/test", "project"),
 		get model() {
 			return model;
@@ -73,6 +77,9 @@ async function createFastlane(options = {}) {
 		},
 		sessionManager: {},
 		ui: {
+			setStatus(key, value) {
+				statuses.push({ key, value });
+			},
 			notify(message, level = "info") {
 				notifications.push({ message, level });
 			},
@@ -92,12 +99,21 @@ async function createFastlane(options = {}) {
 		registerCommand(name, command) {
 			commands.set(name, command);
 		},
+		registerFlag(name, flag) {
+			flags.set(name, flag);
+		},
+		getFlag(name) {
+			assert.ok(flags.has(name), "flag should be registered before reading it");
+			return options.fastlane ?? flags.get(name).default;
+		},
 	});
 	await handlers.get("session_start")?.({}, ctx);
 
 	return {
 		handlers,
 		commands,
+		flags,
+		statuses,
 		notifications,
 		emitted,
 		lastEvent() {
@@ -134,6 +150,13 @@ async function run() {
 	}
 
 	for (const modelId of ["gpt-5.4", "gpt-5.5", "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol"]) {
+		const startup = await createFastlane({
+			fastlane: true,
+			model: { provider: "openai-codex", id: modelId, api: "openai-codex-responses" },
+		});
+		assert.deepEqual(startup.lastEvent().data, { active: true }, `${modelId} should enable at startup`);
+		assert.deepEqual(await startup.beforeProvider({ model: modelId }), { model: modelId, service_tier: "priority" });
+
 		const fastlane = await createFastlane({
 			model: { provider: "openai-codex", id: modelId, api: "openai-codex-responses" },
 		});
@@ -251,6 +274,185 @@ async function run() {
 
 		await fastlane.runCommand();
 		assert.deepEqual(fastlane.lastEvent().data, { active: true }, "Fastlane can be enabled again after returning to an eligible model");
+	}
+
+	for (const fastlaneFlag of [undefined, false, true]) {
+		const fastlane = await createFastlane({ fastlane: fastlaneFlag });
+		assert.equal(fastlane.flags.size, 1, "only the Fastlane flag should be registered");
+		assert.equal(fastlane.flags.get("fastlane").type, "boolean");
+		assert.equal(fastlane.flags.get("fastlane").default, false);
+		assert.deepEqual(fastlane.lastEvent().data, { active: fastlaneFlag === true });
+		assert.deepEqual(fastlane.notifications, [], "startup should not send interactive notifications");
+		assert.deepEqual(fastlane.statuses, [], "TUI startup should not publish RPC status");
+	}
+
+	for (const provider of ["openai-codex", "openai-codex-personal", "openai-codex-business", "openai-codex-future-1"]) {
+		for (const usingOAuth of [true, false]) {
+			const fastlane = await createFastlane({
+				fastlane: true,
+				usingOAuth,
+				mode: "rpc",
+				model: { provider, id: "gpt-5.5", api: "openai-codex-responses" },
+			});
+			assert.deepEqual(fastlane.lastEvent().data, { active: usingOAuth }, `${provider} startup requires OAuth`);
+			assert.deepEqual(fastlane.statuses, [{ key: FASTLANE_RPC_STATUS_KEY, value: usingOAuth ? "enabled" : "inactive" }]);
+			assert.deepEqual(await fastlane.beforeProvider({ model: "gpt-5.5" }), usingOAuth ? { model: "gpt-5.5", service_tier: "priority" } : undefined);
+		}
+	}
+
+	for (const model of [
+		undefined,
+		{ provider: "anthropic", id: "claude-sonnet-4-5", api: "anthropic-messages" },
+		{ provider: "openai-codex", id: "gpt-5.5", api: "openai-responses" },
+		{ provider: "openai-codex", id: "gpt-5.4-mini", api: "openai-codex-responses" },
+		{ provider: "openai-codex-", id: "gpt-5.5", api: "openai-codex-responses" },
+	]) {
+		const fastlane = await createFastlane({ fastlane: true, mode: "rpc", model });
+		assert.deepEqual(fastlane.lastEvent().data, { active: false }, "ineligible startup must stay inactive");
+		assert.equal(await fastlane.beforeProvider({ model: model?.id }), undefined);
+		assert.deepEqual(fastlane.statuses, [
+			{ key: FASTLANE_RPC_STATUS_KEY, value: "inactive" },
+			{ key: FASTLANE_RPC_STATUS_KEY, value: "inactive" },
+		]);
+		fastlane.setModel({ provider: "openai-codex", id: "gpt-5.5", api: "openai-codex-responses" });
+		await fastlane.modelSelect();
+		assert.deepEqual(fastlane.lastEvent().data, { active: true }, "ineligible startup must retain CLI intent");
+	}
+
+	{
+		const fastlane = await createFastlane({ fastlane: true, mode: "rpc" });
+		await fastlane.modelSelect();
+		await fastlane.beforeProvider({ model: "gpt-5.5" });
+		await fastlane.beforeProvider({ model: "gpt-5.5" });
+		assert.deepEqual(fastlane.statuses, Array.from({ length: 4 }, () => ({ key: FASTLANE_RPC_STATUS_KEY, value: "enabled" })), "same-model requests must publish fresh confirmation without deduplication");
+
+		fastlane.setModel({ provider: "anthropic", id: "claude-sonnet-4-5", api: "anthropic-messages" });
+		await fastlane.modelSelect();
+		assert.deepEqual(fastlane.lastEvent().data, { active: false });
+		assert.equal(await fastlane.beforeProvider({ model: "claude-sonnet-4-5" }), undefined);
+		fastlane.setModel({ provider: "openai-codex-personal", id: "gpt-5.6-sol", api: "openai-codex-responses" });
+		await fastlane.modelSelect();
+		assert.deepEqual(fastlane.lastEvent().data, { active: true }, "CLI intent should re-enable an eligible route");
+		assert.deepEqual(await fastlane.beforeProvider({ model: "gpt-5.6-sol" }), { model: "gpt-5.6-sol", service_tier: "priority" });
+		assert.deepEqual(fastlane.statuses.slice(4), [
+			{ key: FASTLANE_RPC_STATUS_KEY, value: "inactive" },
+			{ key: FASTLANE_RPC_STATUS_KEY, value: "inactive" },
+			{ key: FASTLANE_RPC_STATUS_KEY, value: "enabled" },
+			{ key: FASTLANE_RPC_STATUS_KEY, value: "enabled" },
+		]);
+	}
+
+	{
+		const fastlane = await createFastlane({ fastlane: true, mode: "rpc" });
+		fastlane.setUsingOAuth(false);
+		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.5" }), undefined, "auth changes must be checked before requests");
+		assert.deepEqual(fastlane.lastEvent().data, { active: false });
+		fastlane.setUsingOAuth(true);
+		assert.deepEqual(await fastlane.beforeProvider({ model: "gpt-5.5" }), { model: "gpt-5.5", service_tier: "priority" }, "restored OAuth should re-enable sticky intent without model_select");
+		fastlane.setUsingOAuth(false);
+		await fastlane.modelSelect();
+		assert.deepEqual(fastlane.lastEvent().data, { active: false });
+		fastlane.setUsingOAuth(true);
+		await fastlane.modelSelect();
+		assert.deepEqual(fastlane.lastEvent().data, { active: true });
+		assert.deepEqual(fastlane.statuses.map((status) => status.value), ["enabled", "inactive", "enabled", "inactive", "enabled"]);
+
+		fastlane.setModel(undefined);
+		await fastlane.modelSelect();
+		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.5" }), undefined, "no selected model must not inject");
+		assert.deepEqual(fastlane.lastEvent().data, { active: false });
+	}
+
+	{
+		const fastlane = await createFastlane({ fastlane: true, mode: "rpc" });
+		assert.deepEqual(await fastlane.runCommand(), { message: "Fastlane disabled.", level: "info" });
+		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.5" }), undefined, "manual disable must override CLI intent immediately");
+		await fastlane.modelSelect();
+		fastlane.setModel({ provider: "anthropic", id: "claude-sonnet-4-5", api: "anthropic-messages" });
+		await fastlane.modelSelect();
+		fastlane.setModel({ provider: "openai-codex", id: "gpt-5.5", api: "openai-codex-responses" });
+		await fastlane.modelSelect();
+		fastlane.setUsingOAuth(false);
+		await fastlane.beforeProvider({ model: "gpt-5.5" });
+		fastlane.setUsingOAuth(true);
+		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.5" }), undefined);
+		assert.deepEqual(fastlane.lastEvent().data, { active: false }, "route and auth changes must not undo manual disable");
+		assert.ok(fastlane.statuses.slice(1).every((status) => status.key === FASTLANE_RPC_STATUS_KEY && status.value === "inactive"));
+		assert.deepEqual(await fastlane.runCommand(), { message: "Fastlane enabled.", level: "info" });
+		fastlane.setModel({ provider: "anthropic", id: "claude-sonnet-4-5", api: "anthropic-messages" });
+		await fastlane.modelSelect();
+		fastlane.setModel({ provider: "openai-codex", id: "gpt-5.5", api: "openai-codex-responses" });
+		await fastlane.modelSelect();
+		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.5" }), undefined, "manual enable must use ordinary disable-only route behavior");
+	}
+
+	{
+		const fastlane = await createFastlane({ fastlane: true, usingOAuth: false });
+		assert.equal((await fastlane.runCommand()).level, "warning");
+		fastlane.setUsingOAuth(true);
+		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.5" }), undefined, "a valid manual toggle on an ineligible route must cancel sticky intent");
+		await fastlane.modelSelect();
+		assert.deepEqual(fastlane.lastEvent().data, { active: false });
+	}
+
+	{
+		const fastlane = await createFastlane({ fastlane: true });
+		await fastlane.runCommand("status");
+		fastlane.setUsingOAuth(false);
+		await fastlane.beforeProvider({ model: "gpt-5.5" });
+		fastlane.setUsingOAuth(true);
+		assert.deepEqual(await fastlane.beforeProvider({ model: "gpt-5.5" }), { model: "gpt-5.5", service_tier: "priority" }, "invalid command arguments must not override CLI intent");
+	}
+
+	{
+		const fastlane = await createFastlane();
+		await fastlane.runCommand();
+		fastlane.setModel({ provider: "openai-codex-business", id: "gpt-5.6-sol", api: "openai-codex-responses" });
+		await fastlane.modelSelect();
+		assert.deepEqual(fastlane.lastEvent().data, { active: true }, "ordinary eligible route changes should keep Fastlane enabled");
+		fastlane.setUsingOAuth(false);
+		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.6-sol" }), undefined);
+		fastlane.setUsingOAuth(true);
+		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.6-sol" }), undefined, "ordinary sessions must not re-enable after auth recovery");
+	}
+
+	{
+		const fastlane = await createFastlane({ fastlane: true, mode: "rpc" });
+		for (const service_tier of ["default", "auto", "flex", "priority", null, undefined]) {
+			const payload = Object.freeze({ model: "gpt-5.5", service_tier });
+			assert.equal(await fastlane.beforeProvider(payload), undefined, "every existing service_tier value must remain untouched");
+			assert.deepEqual(payload, { model: "gpt-5.5", service_tier });
+		}
+		const inheritedTier = Object.create({ service_tier: "default" });
+		inheritedTier.model = "gpt-5.5";
+		assert.equal(await fastlane.beforeProvider(inheritedTier), undefined, "inherited service_tier must remain protected");
+		for (const payload of [{ model: "gpt-5.4" }, {}, [], null, "payload"]) {
+			assert.equal(await fastlane.beforeProvider(payload), undefined, "mismatched or invalid payloads must not inject");
+		}
+		const payload = Object.freeze({ model: "gpt-5.5", input: "hello" });
+		assert.deepEqual(await fastlane.beforeProvider(payload), { model: "gpt-5.5", input: "hello", service_tier: "priority" });
+		assert.deepEqual(payload, { model: "gpt-5.5", input: "hello" }, "injection must not mutate the caller's payload");
+		assert.ok(fastlane.statuses.every((status) => status.key === FASTLANE_RPC_STATUS_KEY && status.value === "enabled"), "RPC status confirms configuration, not actual payload injection");
+	}
+
+	for (const mode of ["tui", "rpc", "json", "print"]) {
+		for (const fastlaneFlag of [undefined, false, true]) {
+			if (mode === "rpc" && fastlaneFlag === true) continue;
+			const fastlane = await createFastlane({ mode, fastlane: fastlaneFlag });
+			await fastlane.modelSelect();
+			await fastlane.beforeProvider({ model: "gpt-5.5" });
+			await fastlane.runCommand();
+			await fastlane.runCommand();
+			assert.deepEqual(fastlane.statuses, [], `${mode} with flag ${fastlaneFlag} must not publish RPC status`);
+		}
+	}
+
+	{
+		const requested = await createFastlane({ fastlane: true, mode: "rpc" });
+		const ordinary = await createFastlane({ mode: "rpc" });
+		await requested.beforeProvider({ model: "gpt-5.5" });
+		assert.deepEqual(ordinary.lastEvent().data, { active: false }, "extension instances must not share enablement");
+		assert.deepEqual(ordinary.statuses, [], "extension instances must not share status traffic");
 	}
 
 	console.log("fastlane tests passed");

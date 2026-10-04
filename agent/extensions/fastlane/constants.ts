@@ -5,6 +5,9 @@
 /** Event emitted when Fastlane active/display state changes. */
 export const FASTLANE_STATE_EVENT = "fastlane:state";
 
+/** RPC status key for child-local Fastlane configuration. */
+export const FASTLANE_RPC_STATUS_KEY = "delegate-fastlane";
+
 /** API type used by Pi's ChatGPT-auth Codex provider. */
 export const OPENAI_CODEX_API_ID = "openai-codex-responses";
 

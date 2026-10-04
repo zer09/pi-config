@@ -1,4 +1,5 @@
-import { THINKING_LEVELS, type ProviderFailureCategory, type ThinkingLevel } from "./types.ts";
+import { FASTLANE_RPC_STATUS_KEY } from "../fastlane/constants.ts";
+import { THINKING_LEVELS, type DelegateFastlaneState, type ProviderFailureCategory, type ThinkingLevel } from "./types.ts";
 
 // The round-2 recovery prompt text itself lives in instructions.ts; this
 // module owns only the RPC framing and correlation state.
@@ -72,6 +73,7 @@ export type ProtocolRecord =
   | { readonly kind: "event"; readonly round: ReportRound; readonly event: Record<string, unknown> }
   | { readonly kind: "ui_response"; readonly line: string; readonly method: string }
   | { readonly kind: "ui_activity"; readonly method: string }
+  | { readonly kind: "fastlane_status"; readonly state: DelegateFastlaneState; readonly duringPrompt: boolean }
   | { readonly kind: "protocol_error"; readonly category: string };
 
 interface PendingPrompt {
@@ -506,6 +508,14 @@ export class RpcJsonlProtocol {
         if (!this.failed) this.pendingUiResponses -= 1;
       }
       if (!this.failed) emit({ kind: "ui_response", method, line: serializeUiCancellation(id) });
+      return;
+    }
+    if (method === "setStatus" && value.statusKey === FASTLANE_RPC_STATUS_KEY) {
+      // Clear and malformed values remove confirmation without retaining UI text.
+      let state: DelegateFastlaneState = "unknown";
+      if (value.statusText === "enabled" || value.statusText === "inactive") state = value.statusText;
+      emit({ kind: "fastlane_status", state,
+        duringPrompt: this.pendingControl === undefined && (this.pendingPrompt !== undefined || this.promptUnsettled) });
       return;
     }
     // Unknown methods are consumed like fire-and-forget UI updates. Never invent

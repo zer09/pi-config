@@ -46,6 +46,40 @@ function acceptSettledPrompt(protocol: RpcJsonlProtocol, id: string, round: 1 | 
   ]);
 }
 
+test("Fastlane status accepts only exact bounded text and clears malformed or missing values", () => {
+  const protocol = new RpcJsonlProtocol();
+  for (const value of ["enabled", "inactive", undefined, null, "", true, 1, "ENABLED", "enabled ", "PRIVATE-STATUS".repeat(100), ["enabled"], { enabled: true }]) {
+    const records = feed(protocol, [Buffer.from(JSON.stringify({ type: "extension_ui_request", method: "setStatus", statusKey: "delegate-fastlane", statusText: value, error: "PRIVATE-ERROR" }) + "\n")]);
+    assert.deepEqual(records, [{ kind: "fastlane_status", state: value === "enabled" || value === "inactive" ? value : "unknown", duringPrompt: false }]);
+    assert.doesNotMatch(JSON.stringify(records), /PRIVATE/);
+  }
+  for (const request of [
+    { method: "setStatus", statusKey: "other", statusText: "enabled" },
+    { method: "setStatus", statusText: "enabled" },
+    { method: "unknown", statusKey: "delegate-fastlane", statusText: "enabled" },
+  ]) {
+    assert.deepEqual(feed(protocol, [Buffer.from(JSON.stringify({ type: "extension_ui_request", ...request }) + "\n")]), [{ kind: "ui_activity", method: request.method }]);
+  }
+});
+
+test("Fastlane status has prompt scope only after a new prompt, never across administrative drains", () => {
+  const protocol = new RpcJsonlProtocol();
+  const line = JSON.stringify({ type: "extension_ui_request", method: "setStatus", statusKey: "delegate-fastlane", statusText: "enabled" }) + "\n";
+  protocol.beginPrompt(1, "assignment");
+  assert.equal((feed(protocol, [Buffer.from(line)])[0] as { duringPrompt: boolean }).duringPrompt, true);
+  acceptSettledPrompt(protocol, "prompt-1");
+  protocol.beginControl("switch", { type: "set_model", ...{ provider: CONTROL_MODEL.provider, modelId: CONTROL_MODEL.id } }, () => {});
+  assert.deepEqual(feed(protocol, [Buffer.from(line)]), [{ kind: "fastlane_status", state: "enabled", duringPrompt: false }]);
+  controlReply(protocol, "switch", "set_model", CONTROL_MODEL);
+  // Full trailing administrative records are discarded; partial records block activation.
+  assert.deepEqual(feed(protocol, [Buffer.from(line)]), [{ kind: "fastlane_status", state: "enabled", duringPrompt: false }]);
+  feed(protocol, [Buffer.from(line.slice(0, -1))]);
+  assert.equal(protocol.canBeginFallbackPromptCycle(2), false);
+  assert.deepEqual(feed(protocol, [Buffer.from("\n")]), [{ kind: "fastlane_status", state: "enabled", duringPrompt: false }]);
+  protocol.beginFallbackPromptCycle(2, "continue");
+  assert.deepEqual(feed(protocol, [Buffer.from(line)]), [{ kind: "fastlane_status", state: "enabled", duringPrompt: true }]);
+});
+
 test("handled prompts reject the assignment and allow a fallback prompt", () => {
   const protocol = new RpcJsonlProtocol();
   const command = JSON.parse(protocol.beginPrompt(1, "assignment"));

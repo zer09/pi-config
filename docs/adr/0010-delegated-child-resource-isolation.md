@@ -35,7 +35,7 @@ Every delegated launch disables discovery with `--no-extensions`, `--no-skills`,
 
 ### Model-visible versus infrastructure extensions
 
-The runtime child profile loads exactly five extension entry files:
+The runtime child profile loads exactly six extension entry files:
 
 | Extension | Child purpose | Model-visible child context |
 |---|---|---|
@@ -44,8 +44,19 @@ The runtime child profile loads exactly five extension entry files:
 | `web-search` | `web_search`, `fetch_contents` | Yes |
 | `context-mode` | `ctx_execute_file`, `ctx_batch_execute`, `ctx_search` | Yes |
 | `codegraph` | Indexed source exploration tools | Yes |
+| `fastlane` | Invocation-local priority service configuration | None |
 
-`delegated-pi-loop` inside the child keeps the parent-disappearance watchdog active and keeps recursive `delegate_run` unavailable, while adding no delegate tool schema or orchestration guidelines to child context. After canonical resolution the validator requires the runtime list to equal exactly these five canonical entry files in this exact order; extra contained entries, missing entries, reordered entries, and alternate same-directory entry files all fail closed. Focused per-directory invariants keep their detailed first-failure diagnostics ahead of that exact-profile boundary.
+`delegated-pi-loop` inside the child keeps the parent-disappearance watchdog active and keeps recursive `delegate_run` unavailable, while adding no delegate tool schema or orchestration guidelines to child context. After canonical resolution the validator requires the runtime list to equal exactly these six canonical entry files in this exact order; extra contained entries, missing entries, reordered entries, and alternate same-directory entry files all fail closed. Focused per-directory invariants keep their detailed first-failure diagnostics ahead of that exact-profile boundary.
+
+### Invocation-local Fastlane
+
+`fastlane/index.ts` is the sixth fixed runtime entry. It adds no child tool schema. `delegate_run.fastlane` is optional and defaults to false. Only an explicit true passes `--fastlane` to runtime children, including every fresh fallback or replacement. Catalog preflight stays alias-only. Parent Fastlane state never supplies child intent. Requesting Fastlane increases subscription usage; ineligible routes continue normally.
+
+The parent consumes only `setStatus` records with the fixed key `delegate-fastlane`. Exact `enabled` and `inactive` values become bounded configuration states; missing, cleared, malformed, or other values become `unknown` and clear confirmation. Arbitrary UI text, status errors, and provider or auth details never reach delegate status. Generic UI handling and dialog cancellation stay unchanged.
+
+Confirmation resets at every new attempt, catalog transition, and replacement. Parked handlers discard dedicated status without killing an otherwise reusable child. Administrative model-switch status is discarded, including status before or after control responses. The existing whole-chunk drain and partial-record guards remain authoritative. Only active supervision for the verified route accepts prompt-scoped status on reuse; fresh startup status may confirm its known spawn route. Detached handlers cannot update a settled attempt. Fastlane publishes status before every provider request, even when unchanged, so a same-model fallback needs fresh confirmation rather than carrying parked state.
+
+Accepted status renews RPC health only. It never renews accepted activity or structural progress, as required by ADR 0015. The `fastlane` marker appears in per-delegate call, progress, final, and list rendering only for requested, child-confirmed enabled configuration. Restored details use strict booleans and bounded state values. A final marker describes the final attempt's last confirmed configuration, not a still-running child. No child status is emitted onto the parent's `fastlane:state` bus or footer. Configuration does not guarantee payload injection, server acceptance, or speed; protected payload tiers stay unchanged.
 
 ### Separate catalog profile
 
@@ -85,7 +96,7 @@ No package is uninstalled or disabled. `agent/settings.json` keeps `pi-browser-h
 
 - A delegated child starts with 17 active tools (4 built-ins plus 13 from the three model-visible extensions) instead of 56, and with only orchestrator-selected skill descriptions instead of all 34.
 - The largest per-child reduction is the absence of `pi-browser-harness`: 38 `browser_*` tool schemas and the `pi-browser-harness` skill description disappear from every child.
-- Excluded local extensions (`fastlane`, `footer`, `theme-overrides`), package extensions (`pi-blackhole`, `pi-btw`, `pi-browser-harness`, `pi-claude-bridge`, `pi-cursor`), every project-local extension, and every future extension are absent from children unless explicitly added to the policy.
+- Excluded local extensions (`footer`, `theme-overrides`), package extensions (`pi-blackhole`, `pi-btw`, `pi-browser-harness`, `pi-claude-bridge`, `pi-cursor`), every project-local extension, and every future extension are absent from children unless explicitly added to the policy.
 - Risk accepted: excluding all project extensions also excludes project-specific safety hooks. The delegated role contract, global and project context files, process supervision, and separate mutation authorization remain the safety boundary. A future repository that requires a project safety extension in children must add it to the policy explicitly after review.
 - Catalog preflight no longer exercises unrelated extensions, so an unrelated extension failure cannot spuriously fail a route catalog check; conversely, an alias extension failure now reports alias routes unavailable through the existing catalog behavior without any broad-discovery fallback.
 - The `availableSkills` parameter enum adds a small one-time parent schema cost; the parent already carries the complete skill catalog and needs the exact machine-visible delegated allowlist.

@@ -134,7 +134,11 @@ export interface PiRoute {
 
 export type DelegateRoute = PiRoute;
 
+export type DelegateFastlaneState = "enabled" | "inactive" | "unknown";
+
 export interface DelegateProgress {
+  readonly fastlaneRequested?: boolean;
+  readonly fastlaneState?: DelegateFastlaneState;
   readonly label: string;
   readonly role: DelegateRole;
   readonly state: DelegateState;
@@ -231,6 +235,8 @@ export interface MonitorSnapshot {
 }
 
 export interface AttemptStatus {
+  readonly fastlaneRequested?: boolean;
+  readonly fastlaneState?: DelegateFastlaneState;
   readonly schemaVersion: 1;
   readonly label: string;
   readonly role: DelegateRole;
@@ -358,6 +364,7 @@ export interface DelegateRunResult {
 }
 
 export interface DelegateToolParams {
+  readonly fastlane?: boolean;
   readonly role: DelegateRole;
   readonly prompt: string;
   readonly routingOverride?: RoutingOverride;
@@ -460,6 +467,7 @@ export interface RenderTheme {
 }
 
 export interface RunOptions {
+  readonly fastlane?: boolean;
   readonly role: DelegateRole;
   readonly prompt: string;
   readonly cwd: string;

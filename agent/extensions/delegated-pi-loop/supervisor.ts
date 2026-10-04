@@ -17,6 +17,7 @@ import type {
   CleanupFailureReason,
   DeadlineCause,
   DelegateProgress,
+  DelegateFastlaneState,
   DelegateRole,
   DelegateState,
   InterruptionSource,
@@ -89,6 +90,7 @@ interface SuperviseBaseOptions {
 }
 
 export interface SupervisePiOptions extends SuperviseBaseOptions {
+  readonly fastlane?: boolean;
   /** Runner-only ownership transfer. Direct supervision always cleans up by default. */
   readonly retainOnFailure?: boolean;
   /** Required by every runDelegate path. Omission is a context-free direct-test seam only. */
@@ -323,6 +325,7 @@ function progressFromMonitor(
   reportNudgeCount: 0 | 1,
   reportRecoveryReason: "missing_report" | "invalid_result" | undefined,
   metadata: {
+    readonly fastlaneState?: DelegateFastlaneState;
     readonly deadlineCause?: DeadlineCause;
     readonly stallCause?: StallCause;
     readonly cleanupFailureReason?: CleanupFailureReason;
@@ -343,6 +346,8 @@ function progressFromMonitor(
       ? "progress"
       : undefined;
   return {
+    fastlaneRequested: options.fastlane === true,
+    fastlaneState: metadata.fastlaneState,
     label: options.label,
     role: options.role,
     state,
@@ -478,7 +483,7 @@ export class RetainedPiSession {
 
   private readonly onRecord = (record: ProtocolRecord): void => {
     if (record.kind === "ui_response") this.write(record.line);
-    else if (record.kind !== "ui_activity") this.stop();
+    else if (record.kind !== "ui_activity" && record.kind !== "fastlane_status") this.stop();
   };
 
   private readonly onStdout = (chunk: Buffer): void => {
@@ -576,6 +581,9 @@ export async function supervisePi(options: SupervisePiOptions, retained?: Retain
   const stderrStream = createWriteStream(stderrPath, { flags: "wx", mode: 0o600 });
   const protocol = retained?.protocol ?? new RpcJsonlProtocol();
   const monitor = new PiRpcMonitor(started, startedAt, () => performance.now(), isoNow, () => emitProgress(false));
+  // Confirmation belongs to this attempt, never to the retained process.
+  let fastlaneState: DelegateFastlaneState = "unknown";
+  let handlerActive = true;
   let outputBytes = 0;
   let retentionRequested = false;
   let ownershipTransferred = false;
@@ -611,6 +619,8 @@ export async function supervisePi(options: SupervisePiOptions, retained?: Retain
     const settledAt = performance.now();
     return {
       schemaVersion: 1,
+      fastlaneRequested: options.fastlane === true,
+      fastlaneState,
       label: options.label,
       role: options.role,
       route: routeKey(options.route),
@@ -669,6 +679,7 @@ export async function supervisePi(options: SupervisePiOptions, retained?: Retain
   const args = [
     ...options.piInvocation.prefixArgs,
     ...options.runtimeResourceArgs,
+    ...(options.fastlane === true ? ["--fastlane"] : []),
     "--mode",
     "rpc",
     ...(options.persistedSession?.args ?? ["--no-session"]),
@@ -724,7 +735,7 @@ export async function supervisePi(options: SupervisePiOptions, retained?: Retain
         monitor,
         reportNudgeCount,
         reportRecoveryReason,
-        { deadlineCause, stallCause: stallCauseValue, cleanupFailureReason, interruptionSource: interruptionSourceValue },
+        { fastlaneState, deadlineCause, stallCause: stallCauseValue, cleanupFailureReason, interruptionSource: interruptionSourceValue },
       ));
     } catch (error) {
       // The caller-owned progress sink failed inside a supervisor-owned
@@ -836,6 +847,7 @@ export async function supervisePi(options: SupervisePiOptions, retained?: Retain
   }
 
   function handleProtocolRecord(record: ProtocolRecord): void {
+    if (!handlerActive) return;
     // A protocol error is terminal for the stream. It is branched on before
     // the RPC-health clock so a malformed, oversized, duplicate, or
     // out-of-order record can never renew communication liveness on its way
@@ -850,6 +862,16 @@ export async function supervisePi(options: SupervisePiOptions, retained?: Retain
     // JSONL parsing and prompt-round correlation. Malformed, oversized,
     // duplicate, and out-of-order records fail earlier and never reach here.
     monitor.recordValidRpc();
+    if (record.kind === "fastlane_status") {
+      // Startup has a known spawn route. Reuse requires a new prompt after
+      // parked controls and their drain boundary; administrative status is discarded.
+      if (options.fastlane === true && !terminalRequested && !retentionRequested
+        && (retained === undefined || record.duringPrompt)) {
+        fastlaneState = record.state;
+        emitProgress(true);
+      }
+      return;
+    }
     if (record.kind === "prompt_rejected") {
       promptRejected = true;
       settleRoute("prompt_rejected");
@@ -920,6 +942,7 @@ export async function supervisePi(options: SupervisePiOptions, retained?: Retain
     else stderrStream.write(chunk);
   };
   const removeChildListeners = () => {
+    handlerActive = false;
     child.removeListener("close", onClose);
     child.removeListener("exit", onLeaderExit);
     child.removeListener("error", onChildError);
@@ -1071,7 +1094,12 @@ export async function supervisePi(options: SupervisePiOptions, retained?: Retain
     // stderr and settling artifacts so later output cannot reach closed state.
     removeChildListeners();
     options.signal?.removeEventListener("abort", abort);
-    if (!terminalRequested || completionCleanupPerformed) protocol.finish(handleProtocolRecord);
+    if (!terminalRequested || completionCleanupPerformed) {
+      // Finish framing only; detached status must not update the settled attempt.
+      protocol.finish((record) => {
+        if (record.kind === "protocol_error") monitor.addProtocolError(record.category);
+      });
+    }
     child.stdin?.end();
     const finalAllowance = cleanupDeadline === undefined
       ? finalCleanupAllowanceMs

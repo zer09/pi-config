@@ -3306,6 +3306,7 @@ async function fixtureResourcePolicy(): Promise<{
     path.join(extensionsRoot, "web-search"),
     path.join(extensionsRoot, "context-mode", "src"),
     path.join(extensionsRoot, "codegraph"),
+    path.join(extensionsRoot, "fastlane"),
     path.join(skillsRoot, "alpha"),
   ]) {
     await mkdir(dir, { recursive: true });
@@ -3316,6 +3317,7 @@ async function fixtureResourcePolicy(): Promise<{
     path.join(extensionsRoot, "web-search", "index.ts"),
     path.join(extensionsRoot, "context-mode", "src", "index.ts"),
     path.join(extensionsRoot, "codegraph", "index.ts"),
+    path.join(extensionsRoot, "fastlane", "index.ts"),
   ]) {
     await writeFile(file, "");
   }
@@ -3330,6 +3332,7 @@ async function fixtureResourcePolicy(): Promise<{
         "../web-search/index.ts",
         "../context-mode/src/index.ts",
         "../codegraph/index.ts",
+        "../fastlane/index.ts",
       ],
     },
     skills: {
@@ -3403,10 +3406,10 @@ test("every fallback attempt receives byte-for-byte identical runtime resource a
   for (const argv of runtimeArgv) {
     assert.deepEqual(runtimeResourceSlice(argv), first);
   }
-  // The default policy loads the five fixed runtime entries exactly once each.
+  // The default policy loads the six fixed runtime entries exactly once each.
   const entries = first.filter((_, index) => first[index - 1] === "-e");
-  assert.equal(entries.length, 5);
-  assert.equal(new Set(entries).size, 5);
+  assert.equal(entries.length, 6);
+  assert.equal(new Set(entries).size, 6);
   assert.ok(!first.includes("--no-context-files"), "runtime children keep context files enabled");
   // Provider, model, and thinking arguments remain unchanged after --mode rpc.
   const argv = runtimeArgv[0]!;

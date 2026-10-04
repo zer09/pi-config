@@ -44,7 +44,7 @@ Because the policy is tool-scoped, tool-scoped prompt content is absent when `de
 <!-- pi-delegated-instructions:begin:delegate-run-tool -->
 - **Name:** `delegate_run`
 - **Label:** Delegate Run
-- **Description:** Run one fresh bounded isolated Pi delegate for one role. Routing and operational fallback are automatic. Returns completed and valid intentional BLOCKED/FAILED Markdown reports; operational failures remain sanitized tool errors. The parent remains sole orchestrator.
+- **Description:** Run one fresh bounded isolated Pi delegate for one role. Routing and operational fallback are automatic. Returns completed and valid intentional BLOCKED/FAILED Markdown reports; operational failures remain sanitized tool errors. The parent remains sole orchestrator. Optional fastlane requests eligible child priority service and increases subscription usage.
 - **Prompt snippet:** Run one fresh isolated delegated role
 <!-- pi-delegated-instructions:end:delegate-run-tool -->
 
@@ -54,6 +54,7 @@ Because the policy is tool-scoped, tool-scoped prompt content is absent when `de
 - **`role`:** Choose one configured role. Gate members and sequencing are listed in delegate_run guidelines.
 - **`prompt`:** Self-contained neutral assignment: goal, governing documents, scope, success checks, prohibitions, and required report. Include useful evidence already known when relevant, with optional known paths, symbols, or line ranges as non-exhaustive starting points. Do not investigate merely to populate evidence or location fields. Unknown locations are acceptable; do not fabricate them.
 - **`cwd`:** Delegate cwd; relative paths resolve from parent cwd.
+- **`fastlane`:** Optional, default false. Request Fastlane for this invocation only; increases subscription usage. Ineligible routes continue normally. The fastlane marker confirms child configuration, not injection, server acceptance, or speed. Never inferred from parent Fastlane state.
 - **`availableSkills`:** Approved skills visible to the child; full instructions load only if needed.
 - **`routingOverride.provider`:** Restrict this run to one provider.
 - **`routingOverride.model`:** Use this configured model for this run.
@@ -361,6 +362,7 @@ The child receives exactly these extensions, in order:
 3. `web-search/index.ts`
 4. `context-mode/src/index.ts`
 5. `codegraph/index.ts`
+6. `fastlane/index.ts`
 
 Source:
 
@@ -368,6 +370,14 @@ Source:
 - `agent/extensions/delegated-pi-loop/resources.json`
 
 The loop extension detects `PI_DELEGATED_CHILD=1`, returns before any routing or resource loading, and registers neither `delegate_run` nor `delegate_model_catalog` in the child. This prevents recursive delegation and keeps every parent tool guideline out of child context. The child branch only installs a parent-process watchdog. See the child branch at the top of `agent/extensions/delegated-pi-loop/index.ts`.
+
+### Optional delegated Fastlane
+
+Set `delegate_run.fastlane: true` to request eligible child priority service for this invocation. The default is false, independent of parent Fastlane state. Requesting Fastlane increases subscription usage. Every fresh runtime fallback or replacement receives the flag; catalog preflight never does. Ineligible routes keep normal service and routing.
+
+The per-delegate `fastlane` marker appears only after the child confirms enabled configuration. A request alone never adds the marker. Confirmation clears at catalog transitions and new attempts. Parked and administrative switch status is discarded; same-model fallback needs fresh provider-request confirmation. Missing, cleared, or malformed status removes confirmation. Status renews only RPC health, not accepted activity or structural progress.
+
+Call, progress, final, and `/delegate:list` rendering keep each delegate's status separate. Restored details accept only strict requested booleans and bounded states. Final rendering describes the final attempt's last confirmed configuration. It does not claim that the child is still running. Child status never changes the parent footer. Enabled configuration does not guarantee payload injection, server acceptance, or speed, and existing protected payload tiers remain unchanged.
 
 ### Approved optional skills
 

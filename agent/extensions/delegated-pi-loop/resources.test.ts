@@ -51,6 +51,7 @@ const FIXTURE_ENTRY = {
   webSearch: "../web-search/index.ts",
   contextMode: "../context-mode/src/index.ts",
   codegraph: "../codegraph/index.ts",
+  fastlane: "../fastlane/index.ts",
   codegraphAlternate: "../codegraph/alt.ts",
   footer: "../footer/index.ts",
 } as const;
@@ -67,7 +68,7 @@ interface FixtureOptions {
 /**
  * One self-contained policy sandbox that mirrors the real layout: an
  * extensions root with the delegated-pi-loop directory holding the policy, a
- * sibling skills root, and the five required extension directories. Every
+ * sibling skills root, and the six required extension directories. Every
  * file is created empty; only structure matters to the validator.
  */
 async function createFixturePolicy(options: FixtureOptions = {}): Promise<{
@@ -88,6 +89,7 @@ async function createFixturePolicy(options: FixtureOptions = {}): Promise<{
     path.join(extensionsRoot, "web-search"),
     path.join(extensionsRoot, "context-mode", "src"),
     path.join(extensionsRoot, "codegraph"),
+    path.join(extensionsRoot, "fastlane"),
   ]) {
     await mkdir(dir, { recursive: true });
   }
@@ -97,6 +99,7 @@ async function createFixturePolicy(options: FixtureOptions = {}): Promise<{
   await writeFile(path.join(extensionsRoot, "web-search", "index.ts"), "");
   await writeFile(path.join(extensionsRoot, "context-mode", "src", "index.ts"), "");
   await writeFile(path.join(extensionsRoot, "codegraph", "index.ts"), "");
+  await writeFile(path.join(extensionsRoot, "fastlane", "index.ts"), "");
   // Contained-but-unapproved siblings that mirror the real extensions
   // root: an unrelated footer extension plus alternate entry files inside
   // two required extension directories. Listing any of them in a policy
@@ -121,6 +124,7 @@ async function createFixturePolicy(options: FixtureOptions = {}): Promise<{
         FIXTURE_ENTRY.webSearch,
         FIXTURE_ENTRY.contextMode,
         FIXTURE_ENTRY.codegraph,
+        FIXTURE_ENTRY.fastlane,
       ],
     },
     skills: {
@@ -170,6 +174,7 @@ test("the shipped resources.json validates with the exact policy inventory", () 
       path.join("web-search", "index.ts"),
       path.join("context-mode", "src", "index.ts"),
       path.join("codegraph", "index.ts"),
+      path.join("fastlane", "index.ts"),
     ],
   );
   assert.deepEqual(allowedDelegateSkillNames(resources), [...SHIPPED_ALLOWED_SKILLS]);
@@ -181,7 +186,7 @@ test("the shipped resources.json validates with the exact policy inventory", () 
 
 test("the shipped policy resolves through the public loader", () => {
   const resources = loadDelegateResources();
-  assert.equal(resources.runtimeExtensions.length, 5);
+  assert.equal(resources.runtimeExtensions.length, 6);
   assert.equal(resources.allowedSkills.size, SHIPPED_ALLOWED_SKILLS.length);
 });
 
@@ -476,6 +481,20 @@ test("a missing model-tool extension in runtime fails", async () => {
   }
 });
 
+test("Fastlane is required only at the end of runtime and never enters catalog preflight", async () => {
+  const { policyPath } = await createFixturePolicy();
+  const base = JSON.parse(await readFileText(policyPath));
+  const missing = structuredClone(base);
+  missing.extensions.runtime.pop();
+  await assertPolicyFailure(() => validateResourcePolicy(missing, rootsFor(policyPath)), /exactly the six canonical entries in order/);
+  const polluted = structuredClone(base);
+  polluted.extensions.catalog.push(FIXTURE_ENTRY.fastlane);
+  await assertPolicyFailure(() => validateResourcePolicy(polluted, rootsFor(policyPath)), /exactly one canonical entry/);
+  const reordered = structuredClone(base);
+  reordered.extensions.runtime.unshift(reordered.extensions.runtime.pop());
+  await assertPolicyFailure(() => validateResourcePolicy(reordered, rootsFor(policyPath)), /exactly the six canonical entries in order/);
+});
+
 test("a model-tool extension in the catalog profile fails", async () => {
   const { policyPath } = await createFixturePolicy();
   const base = JSON.parse(await readFileText(policyPath)) as { extensions: { runtime: string[]; catalog?: string[] } };
@@ -524,12 +543,13 @@ test("an extra footer entry in catalog or runtime fails canonical resolution", a
       FIXTURE_ENTRY.webSearch,
       FIXTURE_ENTRY.contextMode,
       FIXTURE_ENTRY.codegraph,
+      FIXTURE_ENTRY.fastlane,
       FIXTURE_ENTRY.footer,
     ],
   });
   await assertPolicyFailure(
     () => readResourcesFile(runtimeExtra.policyPath),
-    /extensions\.runtime must resolve to exactly the five canonical entries in order/,
+    /extensions\.runtime must resolve to exactly the six canonical entries in order/,
   );
 });
 
@@ -543,11 +563,12 @@ test("reordered runtime entries fail the canonical profile order", async () => {
       FIXTURE_ENTRY.webSearch,
       FIXTURE_ENTRY.contextMode,
       FIXTURE_ENTRY.codegraph,
+      FIXTURE_ENTRY.fastlane,
     ],
   });
   await assertPolicyFailure(
     () => readResourcesFile(fixture.policyPath),
-    /extensions\.runtime must resolve to exactly the five canonical entries in order/,
+    /extensions\.runtime must resolve to exactly the six canonical entries in order/,
   );
 });
 
@@ -570,11 +591,12 @@ test("alternate same-directory entry files fail canonical entry identity", async
       FIXTURE_ENTRY.webSearch,
       FIXTURE_ENTRY.contextMode,
       FIXTURE_ENTRY.codegraphAlternate,
+      FIXTURE_ENTRY.fastlane,
     ],
   });
   await assertPolicyFailure(
     () => readResourcesFile(runtimeAlternate.policyPath),
-    /extensions\.runtime must resolve to exactly the five canonical entries in order/,
+    /extensions\.runtime must resolve to exactly the six canonical entries in order/,
   );
 });
 
@@ -721,7 +743,7 @@ test("catalog arguments disable all discovery, load only the alias entry, and ca
   }
 });
 
-test("runtime arguments keep context files enabled, load exactly the five entries, then skills", () => {
+test("runtime arguments keep context files enabled, load exactly the six entries, then skills", () => {
   const resources = loadDelegateResources();
   const args = buildRuntimeResourceArgs(resources, resolveDelegateSkills(resources, ["uv"]));
   for (const flag of ["--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes"]) {

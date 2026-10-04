@@ -9,6 +9,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isOpenAICodexProviderId } from "../openai-codex-aliases/provider-id";
 import {
+	FASTLANE_RPC_STATUS_KEY,
 	FASTLANE_STATE_EVENT,
 	FAST_SERVICE_TIER,
 	OPENAI_CODEX_API_ID,
@@ -62,8 +63,20 @@ function getEligibility(ctx: ExtensionContext): Eligibility {
 	return { eligible: true, modelKey: key };
 }
 
-function publishState(pi: ExtensionAPI, state: SessionState): void {
+function refreshEnablement(ctx: ExtensionContext, state: SessionState): void {
+	if (state.startupRequested && !state.manualOverride) {
+		// Keep CLI intent across route and auth changes until the user toggles it.
+		state.enabled = getEligibility(ctx).eligible;
+	} else if (state.enabled && !getEligibility(ctx).eligible) {
+		state.enabled = false;
+	}
+}
+
+function publishState(pi: ExtensionAPI, state: SessionState, ctx: ExtensionContext): void {
 	pi.events.emit(FASTLANE_STATE_EVENT, { active: state.enabled });
+	if (state.startupRequested && ctx.mode === "rpc") {
+		ctx.ui.setStatus(FASTLANE_RPC_STATUS_KEY, state.enabled ? "enabled" : "inactive");
+	}
 }
 
 function injectFastServiceTier(
@@ -71,11 +84,8 @@ function injectFastServiceTier(
 	ctx: ExtensionContext,
 	state: SessionState,
 ): PayloadRecord | undefined {
+	refreshEnablement(ctx, state);
 	if (!state.enabled) return undefined;
-	if (!getEligibility(ctx).eligible) {
-		state.enabled = false;
-		return undefined;
-	}
 	if (!isPayloadRecord(payload)) return undefined;
 	if (payload.model !== ctx.model?.id) return undefined;
 	if ("service_tier" in payload) return undefined;
@@ -89,31 +99,42 @@ function injectFastServiceTier(
 export default function fastlaneExtension(pi: ExtensionAPI): void {
 	const states = new WeakMap<object, SessionState>();
 
+	pi.registerFlag("fastlane", {
+		description: "Start with Fastlane priority service tier for eligible models",
+		type: "boolean",
+		default: false,
+	});
+
 	function getState(ctx: ExtensionContext): SessionState {
 		let state = states.get(ctx.sessionManager);
 		if (!state) {
-			state = { enabled: false };
+			state = { enabled: false, startupRequested: false, manualOverride: false };
 			states.set(ctx.sessionManager, state);
 		}
 		return state;
 	}
 
 	pi.on("session_start", (_event, ctx) => {
-		const state: SessionState = { enabled: false };
+		const state: SessionState = {
+			enabled: false,
+			startupRequested: pi.getFlag("fastlane") === true,
+			manualOverride: false,
+		};
 		states.set(ctx.sessionManager, state);
-		publishState(pi, state);
+		refreshEnablement(ctx, state);
+		publishState(pi, state, ctx);
 	});
 
 	pi.on("model_select", (_event, ctx) => {
 		const state = getState(ctx);
-		if (state.enabled && !getEligibility(ctx).eligible) state.enabled = false;
-		publishState(pi, state);
+		refreshEnablement(ctx, state);
+		publishState(pi, state, ctx);
 	});
 
 	pi.on("before_provider_request", (event, ctx) => {
 		const state = getState(ctx);
 		const nextPayload = injectFastServiceTier(event.payload, ctx, state);
-		publishState(pi, state);
+		publishState(pi, state, ctx);
 		return nextPayload;
 	});
 
@@ -128,17 +149,19 @@ export default function fastlaneExtension(pi: ExtensionAPI): void {
 			}
 
 			const state = getState(ctx);
+			// An explicit toggle takes control from the sticky startup request.
+			state.manualOverride = true;
 			const eligibility = getEligibility(ctx);
 			if (state.enabled && eligibility.eligible) {
 				state.enabled = false;
-				publishState(pi, state);
+				publishState(pi, state, ctx);
 				ctx.ui.notify("Fastlane disabled.", "info");
 				return;
 			}
 
 			if (!eligibility.eligible) {
 				state.enabled = false;
-				publishState(pi, state);
+				publishState(pi, state, ctx);
 				ctx.ui.notify(
 					`Fastlane cannot be enabled for ${eligibility.modelKey}: ${eligibility.reason ?? "model is not eligible"}.`,
 					"warning",
@@ -147,7 +170,7 @@ export default function fastlaneExtension(pi: ExtensionAPI): void {
 			}
 
 			state.enabled = true;
-			publishState(pi, state);
+			publishState(pi, state, ctx);
 			ctx.ui.notify("Fastlane enabled.", "info");
 		},
 	});

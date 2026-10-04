@@ -135,6 +135,56 @@ async function run(script: string, overrides: Partial<Parameters<typeof supervis
   return { status, progress, attemptDir, root: built.root };
 }
 
+function fastlaneStatus(statusText?: unknown) {
+  return { type: "extension_ui_request", method: "setStatus", statusKey: "delegate-fastlane", statusText };
+}
+
+test("Fastlane accepts initial startup before prompt and retains bounded status in artifacts", async () => {
+  const script = `process.stdout.write(${JSON.stringify(JSON.stringify(fastlaneStatus("enabled")) + "\n")});\n` + eventScript([completed()]);
+  const { status, progress, attemptDir } = await run(script, { fastlane: true });
+  assert.equal(status.state, "completed");
+  assert.equal(status.fastlaneState, "enabled");
+  assert.ok(progress.some((item) => item.fastlaneState === "enabled" && item.activityEventCount === 0 && item.structuralProgressCount === 0));
+  const persisted = JSON.parse(await readFile(path.join(attemptDir, "status.json"), "utf8"));
+  assert.equal(persisted.fastlaneRequested, true);
+  assert.equal(persisted.fastlaneState, "enabled");
+});
+
+test("Fastlane inactive, clear, and malformed status remove an earlier enabled confirmation", async () => {
+  for (const value of ["inactive", undefined, null, true, "PRIVATE-STATUS"]) {
+    const { status } = await run(eventScript([[fastlaneStatus("enabled"), fastlaneStatus(value), ...completed()]]), { fastlane: true });
+    assert.equal(status.state, "completed");
+    assert.equal(status.fastlaneState, value === "inactive" ? "inactive" : "unknown");
+    assert.doesNotMatch(JSON.stringify(status), /PRIVATE-STATUS/);
+  }
+});
+
+test("Fastlane status renews only RPC health, not accepted activity or structural progress", async () => {
+  let now = 10;
+  const monitor = new PiRpcMonitor(0, "2026-01-01T00:00:00.000Z", () => now, () => "2026-01-01T00:00:00.000Z");
+  monitor.acceptPrompt(1);
+  const before = monitor.snapshot();
+  now = 50;
+  const { RpcJsonlProtocol } = await import("./protocol.ts");
+  const protocol = new RpcJsonlProtocol();
+  protocol.feed(Buffer.from(JSON.stringify(fastlaneStatus("enabled")) + "\n"), (record) => {
+    assert.equal(record.kind, "fastlane_status");
+    monitor.recordValidRpc();
+  });
+  const after = monitor.snapshot();
+  assert.equal(after.lastValidRpcMonotonic, 50);
+  assert.equal(after.lastActivityMonotonic, before.lastActivityMonotonic);
+  assert.equal(after.lastStructuralProgressMonotonic, before.lastStructuralProgressMonotonic);
+  assert.equal(after.activityEventCount, before.activityEventCount);
+  assert.equal(after.structuralProgressCount, before.structuralProgressCount);
+  const script = eventScript([[{ type: "agent_start" }]]) + `\nsetInterval(() => process.stdout.write(${JSON.stringify(JSON.stringify(fastlaneStatus("enabled")) + "\n")}), 40);`;
+  const { status } = await run(script, { fastlane: true });
+  assert.equal(status.state, "stalled");
+  assert.equal(status.stallCause, "activity_idle");
+  assert.ok(status.rpcIdleSeconds < status.activityIdleSeconds);
+  assert.equal(status.structuralProgressCount, 1);
+});
+
 test("active bash command stays in memory outside status artifacts and progress", async () => {
   const command = "printf 'COMMAND-SENTINEL'\n\nprintf '終'";
   const { status, progress, attemptDir } = await run(eventScript([[
@@ -164,7 +214,7 @@ test("a successful supervisor result does not carry an active bash command", asy
 });
 
 test("runtime child argv follows the fixed resource-argument ordering", async () => {
-  const extensions = ["/x/delegated-pi-loop/index.ts", "/x/openai-codex-aliases/index.ts", "/x/web-search/index.ts", "/x/context-mode/src/index.ts", "/x/codegraph/index.ts"];
+  const extensions = ["/x/delegated-pi-loop/index.ts", "/x/openai-codex-aliases/index.ts", "/x/web-search/index.ts", "/x/context-mode/src/index.ts", "/x/codegraph/index.ts", "/x/fastlane/index.ts"];
   const resourceArgs = [
     "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes",
     ...extensions.flatMap((entry) => ["-e", entry]),

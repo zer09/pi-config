@@ -84,6 +84,7 @@ function renderSection(id: InstructionDocSectionId): string {
         ["`role`", delegateRunRoleDescription()],
         ["`prompt`", DELEGATE_RUN_PARAMETER_DESCRIPTIONS.prompt],
         ["`cwd`", DELEGATE_RUN_PARAMETER_DESCRIPTIONS.cwd],
+        ["`fastlane`", DELEGATE_RUN_PARAMETER_DESCRIPTIONS.fastlane],
         ["`availableSkills`", DELEGATE_RUN_PARAMETER_DESCRIPTIONS.availableSkills],
         ["`routingOverride.provider`", ROUTING_OVERRIDE_PARAMETER_DESCRIPTIONS.provider],
         ["`routingOverride.model`", ROUTING_OVERRIDE_PARAMETER_DESCRIPTIONS.model],

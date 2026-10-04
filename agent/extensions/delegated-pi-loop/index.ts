@@ -63,6 +63,10 @@ function delegateParameters(allowedSkillNames: readonly string[], routing: Routi
       minLength: 1,
       description: DELEGATE_RUN_PARAMETER_DESCRIPTIONS.prompt,
     }),
+    fastlane: Type.Optional(Type.Boolean({
+      default: false,
+      description: DELEGATE_RUN_PARAMETER_DESCRIPTIONS.fastlane,
+    })),
     routingOverride: Type.Optional(RoutingOverrideParameters),
     cwd: Type.Optional(Type.String({
       description: DELEGATE_RUN_PARAMETER_DESCRIPTIONS.cwd,
@@ -317,6 +321,7 @@ export default function delegatedPiLoopExtension(
           routingConfig: routingSnapshot,
           routingOverride,
           prompt: params.prompt,
+          fastlane: params.fastlane === true,
           cwd,
           resourceSelection,
           codexUsageSnapshot: usageCache.getFreshSnapshot(),
@@ -369,7 +374,7 @@ export default function delegatedPiLoopExtension(
     },
 
     renderCall: (args, theme, context) => (
-      renderDelegateCall(args, theme, context, manager.idFor(context.toolCallId))
+      renderDelegateCall(args, theme, context, manager.idFor(context.toolCallId), manager.fastlaneEnabledFor(context.toolCallId))
     ),
     renderResult: renderDelegateResult,
   });

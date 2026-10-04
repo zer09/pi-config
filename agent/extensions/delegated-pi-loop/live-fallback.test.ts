@@ -31,7 +31,7 @@ const routingConfig = validateRoutingConfig({
   assignments: { solution: ["chain"], review: ["chain"], implementation: "chain", remediation: "chain", verification: "chain", oracle: "chain" },
 });
 
-type Trace = { kind: string; pid: number; route?: string; command?: { id: string; type: string; message?: string }; bytes?: number; descendant?: number };
+type Trace = { kind: string; pid: number; route?: string; args?: string[]; command?: { id: string; type: string; message?: string }; bytes?: number; descendant?: number };
 type PrivateStatus = AttemptStatus & { liveReused: boolean };
 interface FixtureOptions {
   behaviors?: string[];
@@ -46,24 +46,31 @@ interface FixtureOptions {
   descendant?: boolean;
   padding?: number;
   idleFault?: boolean;
+  fastlaneStates?: (string | null)[];
+  startupStatus?: string;
+  administrativeStatus?: boolean;
+  parkedStatus?: boolean;
+  obsoleteStatus?: boolean;
+  sameModel?: boolean;
 }
 
 async function fixture(settings: FixtureOptions = {}) {
   const cwd = await mkdtemp(path.join(root, "fixture-"));
   const script = path.join(cwd, "fake-pi.mjs");
+  const fixtureRoutes = settings.sameModel ? routes.map((route) => route.split("/")[0] + "/model-a") : routes;
   await writeFile(script, `
 import { appendFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { createFixtureSession } from ${JSON.stringify(new URL("./persisted-session.fixture.ts", import.meta.url).href)};
 const settings = ${JSON.stringify(settings)};
-const routes = ${JSON.stringify(routes)};
+const routes = ${JSON.stringify(fixtureRoutes)};
 const args = process.argv.slice(2);
 const persistPrompt = createFixtureSession(args);
 const trace = (entry) => appendFileSync("trace.jsonl", JSON.stringify({ pid: process.pid, ...entry }) + "\\n", { mode: 0o600 });
 if (args.includes("--list-models")) {
   const route = args[args.indexOf("--list-models") + 1];
   if (settings.catalogStartupMs) await new Promise((resolve) => setTimeout(resolve, settings.catalogStartupMs));
-  trace({ kind: "catalog", route });
+  trace({ kind: "catalog", route, args });
   const done = () => {
     if ((settings.catalog ?? routes).includes(route)) console.log(route.replace("/", " ") + " 100 100 yes yes");
     trace({ kind: "catalog-end", route });
@@ -83,9 +90,10 @@ if (args.includes("--list-models")) {
   let step = 0;
   let route = () => provider + "/" + model;
   const descendant = settings.descendant ? spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" }) : undefined;
-  trace({ kind: "start", route: route(), descendant: descendant?.pid });
+  trace({ kind: "start", route: route(), args, descendant: descendant?.pid });
   process.on("exit", () => trace({ kind: "exit", route: route() }));
   process.on("SIGTERM", () => {
+    if (settings.obsoleteStatus) process.stdout.write(JSON.stringify({ type: "extension_ui_request", method: "setStatus", statusKey: "delegate-fastlane", statusText: "enabled" }) + "\\n");
     const done = () => process.exit(0);
     if (descendant && descendant.exitCode === null) { descendant.once("close", done); descendant.kill(); }
     else done();
@@ -95,7 +103,12 @@ if (args.includes("--list-models")) {
     trace({ kind: "output", route: route(), bytes: Buffer.byteLength(line) });
     process.stdout.write(line);
   };
-  const settle = () => { emit({ type: "agent_end", willRetry: false }); emit({ type: "agent_settled" }); };
+  const status = (statusText) => emit({ type: "extension_ui_request", method: "setStatus", statusKey: "delegate-fastlane", statusText });
+  if (settings.startupStatus) status(settings.startupStatus);
+  const settle = () => {
+    emit({ type: "agent_end", willRetry: false }); emit({ type: "agent_settled" });
+    if (settings.parkedStatus) status("enabled");
+  };
   let buffer = "";
   process.stdin.on("data", (chunk) => {
     buffer += chunk.toString("utf8");
@@ -107,6 +120,7 @@ if (args.includes("--list-models")) {
       trace({ kind: command.type === "prompt" ? "prompt" : "control", route: route(), command, bytes: Buffer.byteLength(line + "\\n") });
       if (command.type !== "prompt") {
         step += 1;
+        if (settings.administrativeStatus) status("enabled");
         const fault = settings.controlFault;
         const faultHere = step === (settings.faultStep ?? 1);
         if (faultHere && fault === "timeout") continue;
@@ -127,13 +141,18 @@ if (args.includes("--list-models")) {
           if (faultHere && fault === "mismatch") response.data.id = "wrong";
         } else if (command.type === "set_thinking_level") thinking = command.level;
         // Keep the partial tail in the acknowledgement write so the boundary fault is deterministic.
-        emit(response, faultHere && fault === "partial" ? "{" : "");
+        let tail = faultHere && fault === "partial" ? "{" : "";
+        if (faultHere && fault === "status-partial") tail = JSON.stringify({ type: "extension_ui_request", method: "setStatus", statusKey: "delegate-fastlane", statusText: "enabled" });
+        emit(response, tail);
         if (faultHere && fault === "exit-after-ack") process.exit(3);
+        if (settings.administrativeStatus && !(faultHere && fault === "status-partial")) status("enabled");
         if (faultHere && fault === "duplicate") emit(response);
         if (faultHere && fault === "event") emit({ type: "agent_start" });
         continue;
       }
       round += 1;
+      const configuredStatus = settings.fastlaneStates?.[routes.indexOf(route())];
+      if (configuredStatus !== undefined && configuredStatus !== null) status(configuredStatus);
       const behavior = (settings.behaviors ?? ["provider", "complete"])[routes.indexOf(route())] ?? "complete";
       if (behavior === "reject" || (behavior === "recover-reject" && round === 2)) { emit({ id: command.id, type: "response", command: "prompt", success: false, error: "PROVIDER-PRIVATE-SENTINEL" }); continue; }
       emit({ id: command.id, type: "response", command: "prompt", success: true });
@@ -163,13 +182,96 @@ if (args.includes("--list-models")) {
 `, { mode: 0o700 });
   const options: RunOptions = {
     role: "solution-a", prompt: "Complete the one assigned increment.", cwd,
-    piInvocation: { command: process.execPath, prefixArgs: [script] }, routingConfig,
+    piInvocation: { command: process.execPath, prefixArgs: [script] },
+    routingConfig: settings.sameModel ? validateRoutingConfig({
+      version: 2, thinkingLevels: ["high"], disabledProviders: [],
+      models: { "model-a": { providers: Object.fromEntries(fixtureRoutes.map((route) =>
+        [route.split("/")[0], { thinking: ["high"], default: "high" }])) } },
+      profiles: { chain: { overridePolicy: "rejected", tiers: [{ model: "model-a", thinking: "high" }] } },
+      assignments: { solution: ["chain"], review: ["chain"], implementation: "chain", remediation: "chain", verification: "chain", oracle: "chain" },
+    }) : routingConfig,
+    random: () => 0,
     resourceSelection: { catalogArgs: ["--no-extensions"], runtimeArgs: ["--no-extensions", "--no-skills"], verifyCatalogSpawn() {}, verifyRuntimeSpawn() {} },
     activityWarningMs: 200, activityIdleMs: 600, progressWarningMs: 1000, progressStallMs: 2000,
     reportRecoveryIdleMs: 500, graceMs: 100, cleanupTimeoutMs: 1000, catalogTimeoutMs: 500, liveSwitchTimeoutMs: 300,
   };
   return { cwd, options, trace: async (): Promise<Trace[]> => (await readFile(path.join(cwd, "trace.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line)) };
 }
+
+test("Fastlane fresh fallback and failed switches pass runtime-only intent to every spawn", async () => {
+  for (const settings of [
+    { behaviors: ["exit", "complete"], obsoleteStatus: true },
+    { behaviors: ["provider", "complete"], controlFault: "reject", faultStep: 2, administrativeStatus: true, obsoleteStatus: true },
+  ]) {
+    await check({ ...settings, fastlaneStates: ["enabled", "inactive"] }, (result, trace, status) => {
+      assert.equal(result.state, "completed");
+      assert.equal(trace.filter((entry) => entry.kind === "start").length, 2);
+      for (const start of trace.filter((entry) => entry.kind === "start")) {
+        assert.equal(start.args!.filter((arg) => arg === "--fastlane").length, 1);
+      }
+      for (const catalog of trace.filter((entry) => entry.kind === "catalog")) assert.ok(!catalog.args!.includes("--fastlane"));
+      assert.equal(status[0]!.fastlaneState, "enabled");
+      assert.equal(status[1]!.fastlaneState, "inactive");
+      assert.equal(result.progress.fastlaneState, "inactive");
+    }, { fastlane: true });
+  }
+});
+
+test("Fastlane confirmation resets across eligible, ineligible, eligible retained routes and catalogs", async () => {
+  const progress: DelegateProgress[] = [];
+  await check({ behaviors: ["provider", "provider", "complete"], fastlaneStates: ["enabled", "inactive", "enabled"], administrativeStatus: true, parkedStatus: true }, (result, trace, status) => {
+    assert.equal(result.state, "completed");
+    assert.equal(trace.filter((entry) => entry.kind === "start").length, 1);
+    assert.deepEqual(status.map((entry) => entry.fastlaneState), ["enabled", "inactive", "enabled"]);
+    assert.equal(result.progress.fastlaneState, "enabled");
+    for (const item of progress.filter((item) => item.state === "catalog_check")) assert.equal(item.fastlaneState, undefined);
+    for (const item of progress.filter((item) => item.attempt === 2 && item.state === "running")) assert.notEqual(item.fastlaneState, "enabled");
+  }, { fastlane: true, onProgress: (item) => progress.push(item) });
+});
+
+test("parked and administrative Fastlane status cannot confirm an unconfirmed retained attempt", async () => {
+  const progress: DelegateProgress[] = [];
+  await check({ behaviors: ["provider", "complete"], fastlaneStates: ["enabled", null], administrativeStatus: true, parkedStatus: true }, (result, trace, status) => {
+    assert.equal(result.state, "completed");
+    assert.equal(trace.filter((entry) => entry.kind === "start").length, 1);
+    assert.equal(status[0]!.fastlaneState, "enabled");
+    assert.equal(status[1]!.fastlaneState, "unknown");
+    for (const item of progress.filter((item) => item.attempt === 2)) assert.notEqual(item.fastlaneState, "enabled");
+  }, { fastlane: true, onProgress: (item) => progress.push(item) });
+});
+
+test("buffered partial administrative Fastlane status blocks reuse without confirming its replacement", async () => {
+  const progress: DelegateProgress[] = [];
+  await check({ behaviors: ["provider", "complete"], fastlaneStates: ["enabled", null], administrativeStatus: true, controlFault: "status-partial", faultStep: 4, obsoleteStatus: true }, (result, trace, status) => {
+    assert.equal(result.state, "completed");
+    assert.equal(trace.filter((entry) => entry.kind === "start").length, 2);
+    assert.equal(status[1]!.liveReused, false);
+    assert.equal(status[1]!.fastlaneState, "unknown");
+    for (const item of progress.filter((item) => item.attempt === 2)) assert.notEqual(item.fastlaneState, "enabled");
+  }, { fastlane: true, onProgress: (item) => progress.push(item) });
+});
+
+test("same-model retained fallback needs a new provider-request Fastlane confirmation", async () => {
+  for (const next of [null, "enabled"]) {
+    await check({ sameModel: true, behaviors: ["provider", "complete"], fastlaneStates: ["enabled", next], administrativeStatus: true }, (result, trace, status) => {
+      assert.equal(result.state, "completed");
+      assert.equal(trace.filter((entry) => entry.kind === "start").length, 1);
+      assert.equal(status[1]!.liveReused, true);
+      assert.equal(status[1]!.fastlaneState, next ?? "unknown");
+    }, { fastlane: true });
+  }
+});
+
+test("omitted and false Fastlane never inherit emitted enabled state or pass a flag", async () => {
+  for (const fastlane of [undefined, false]) {
+    await check({ startupStatus: "enabled", fastlaneStates: ["enabled"], behaviors: ["complete"] }, (result, trace) => {
+      assert.equal(result.state, "completed");
+      assert.equal(result.progress.fastlaneRequested, false);
+      assert.equal(result.progress.fastlaneState, "unknown");
+      for (const item of trace.filter((entry) => entry.args)) assert.ok(!item.args!.includes("--fastlane"));
+    }, { fastlane });
+  }
+});
 
 function gone(pid: number): boolean {
   try { process.kill(pid, 0); return false; } catch { return true; }

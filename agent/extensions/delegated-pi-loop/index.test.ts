@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import fsPromises, { readFile } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { type TestContext } from "node:test";
@@ -263,12 +264,18 @@ test("the registered availableSkills schema carries the description on the array
       required?: string[];
       properties: Record<string, {
         type?: string;
+        default?: boolean;
         description?: string;
         minItems?: number;
         maxItems?: number;
         items?: { enum?: string[]; description?: string; minItems?: number; maxItems?: number }; enum?: string[];
       }>;
     };
+    const fastlane = parameters.properties.fastlane;
+    assert.equal(fastlane?.type, "boolean");
+    assert.equal(fastlane?.default, false);
+    assert.equal(parameters.required?.includes("fastlane"), false);
+    assert.match(fastlane?.description ?? "", /increases subscription usage/);
     const availableSkills = parameters.properties.availableSkills;
     assert.ok(availableSkills, "the registered schema must carry the availableSkills property");
     assert.equal(availableSkills.type, "array");
@@ -456,6 +463,227 @@ function lifecycleResult(artifactDir: string): DelegateRunResult {
     },
   };
 }
+
+test("Fastlane rendering shows only strict requested and confirmed configuration, including restored details", async (t) => {
+  await loadExtensionForTest(t);
+  const { renderDelegateCall, renderDelegateResult } = await import("./render.ts");
+  const { finalToolResult } = await import("./result.ts");
+  const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
+  const args = { role: "solution-a", prompt: "test", fastlane: true };
+  assert.doesNotMatch(renderDelegateCall(args, theme, {}).render(160).join("\n"), /fastlane/);
+  for (const requested of [true, false, undefined, "true", 1]) {
+    for (const state of ["enabled", "inactive", "unknown", undefined, true, "PRIVATE-STATE", ["enabled"]]) {
+      for (const catalog of [false, true]) {
+        const base = lifecycleResult("/tmp/not-read");
+        const progress = { ...base.progress, fastlaneRequested: requested, fastlaneState: state,
+          state: catalog ? "catalog_check" : "completed", phase: catalog ? "catalog" : "settled" };
+        // Exercise both production sanitization and untrusted historical details.
+        const sanitized = finalToolResult({ ...base, progress } as DelegateRunResult);
+        const raw = { ...sanitized, details: { ...sanitized.details, progress } };
+        const expected = requested === true && state === "enabled" && !catalog;
+        for (const result of [sanitized, JSON.parse(JSON.stringify(raw))]) {
+          for (const isPartial of [false, true]) {
+            const context = { state: {} };
+            const rendered = renderDelegateResult(result, { expanded: false, isPartial }, theme, context).render(160).join("\n");
+            assert.equal(rendered.includes("fastlane"), expected);
+            assert.doesNotMatch(rendered, /PRIVATE-STATE/);
+            assert.equal(renderDelegateCall(args, theme, context).render(160).join("\n").includes("fastlane"), expected);
+            assert.doesNotMatch(renderDelegateCall(args, theme, context, 1, false).render(160).join("\n"), /fastlane/);
+            assert.doesNotMatch(renderDelegateCall({ ...args, fastlane: false }, theme, context).render(160).join("\n"), /fastlane/);
+          }
+        }
+      }
+    }
+  }
+});
+
+test("installed Pi call-first restored partial and final rows refresh Fastlane before the first frame", async (t) => {
+  const { extension } = await loadExtensionForTest(t);
+  let tool: ToolDefinition<DelegateToolParams> | undefined;
+  extension({
+    on: () => {}, registerCommand: () => {},
+    registerTool: (config: { name: string }) => { if (config.name === "delegate_run") tool = config as ToolDefinition<DelegateToolParams>; },
+  });
+  assert.ok(tool);
+  const piRoot = findInstalledPiPackageRoot()!;
+  const { initTheme } = await import(pathToFileURL(path.join(piRoot, "dist/modes/interactive/theme/theme.js")).href);
+  const { ToolExecutionComponent } = await import(pathToFileURL(path.join(piRoot, "dist/modes/interactive/components/tool-execution.js")).href);
+  initTheme("dark", false);
+  const { finalToolResult } = await import("./result.ts");
+  const base = lifecycleResult("/tmp/not-read");
+  const enabled = { ...base.progress, fastlaneRequested: true, fastlaneState: "enabled" };
+  const resultWith = (progress: unknown): ToolResult => ({
+    ...finalToolResult(base), details: { state: "completed", delegateId: 7, progress },
+  });
+  let renderRequests = 0;
+  const order: string[] = [];
+  const definition = { ...tool,
+    renderCall: (...args: Parameters<NonNullable<ToolDefinition<DelegateToolParams>["renderCall"]>>) => { order.push("call"); return tool!.renderCall!(...args); },
+    renderResult: (...args: Parameters<NonNullable<ToolDefinition<DelegateToolParams>["renderResult"]>>) => { order.push("result"); return tool!.renderResult!(...args); },
+  };
+  const row = (id: string, fastlane: unknown = true) => new ToolExecutionComponent(
+    "delegate_run", id, { role: "solution-a", prompt: id, fastlane }, {}, definition,
+    { requestRender: () => { renderRequests++; } }, "/tmp",
+  );
+  const frame = (component: InstanceType<typeof ToolExecutionComponent>) => component.render(160).join("\n");
+  const callLine = (component: InstanceType<typeof ToolExecutionComponent>) => frame(component).split("\n").find((line: string) => line.includes("Delegate "))!;
+  const clearing = [
+    undefined, null, "malformed", {},
+    { ...enabled, fastlaneRequested: undefined }, { ...enabled, fastlaneRequested: false },
+    { ...enabled, fastlaneRequested: "true" }, { ...enabled, fastlaneRequested: 1 },
+    { ...enabled, fastlaneState: undefined }, { ...enabled, fastlaneState: "inactive" },
+    { ...enabled, fastlaneState: "unknown" }, { ...enabled, fastlaneState: ["enabled"] },
+    { ...enabled, fastlaneState: "PRIVATE-STATE" },
+    { ...enabled, state: "catalog_check" }, { ...enabled, phase: "catalog" },
+  ];
+  for (const isPartial of [true, false]) {
+    const first = row(`restored-${isPartial}`);
+    const second = row(`other-${isPartial}`);
+    assert.doesNotMatch(callLine(first), /fastlane/);
+    for (const progress of clearing) {
+      order.length = 0;
+      first.updateResult(JSON.parse(JSON.stringify(resultWith(enabled))), isPartial);
+      assert.deepEqual(order, ["call", "result"]);
+      assert.match(callLine(first), /fastlane/);
+      assert.match(callLine(first), /#7/);
+      assert.match(callLine(first), /fastlane/); // A repeated cached frame must stay correct.
+      assert.doesNotMatch(callLine(second), /fastlane/);
+      second.updateResult(JSON.parse(JSON.stringify(resultWith(enabled))), isPartial);
+      first.updateResult(JSON.parse(JSON.stringify(resultWith(progress))), isPartial);
+      assert.doesNotMatch(callLine(first), /fastlane/);
+      assert.doesNotMatch(frame(first), /fastlane|PRIVATE-STATE/);
+      assert.match(callLine(second), /fastlane/);
+      second.updateResult(resultWith(undefined), isPartial);
+    }
+    for (const requested of [undefined, false, "true", 1]) {
+      const unrequested = row(`unrequested-${String(requested)}`, requested);
+      // Undefined is an omitted argument, not the helper's default true.
+      if (requested === undefined) unrequested.updateArgs({ role: "solution-a", prompt: "omitted" });
+      unrequested.updateResult(resultWith(enabled), isPartial);
+      assert.doesNotMatch(callLine(unrequested), /fastlane/);
+    }
+  }
+  assert.equal(renderRequests, 0, "result refresh must not recurse through invalidate/requestRender");
+});
+
+test("call-first result refresh keeps active manager false authoritative over restored confirmation", async (t) => {
+  await loadExtensionForTest(t);
+  const { renderDelegateCall, renderDelegateResult } = await import("./render.ts");
+  const { finalToolResult } = await import("./result.ts");
+  const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
+  const base = lifecycleResult("/tmp/not-read");
+  const result = finalToolResult({ ...base, progress: { ...base.progress, fastlaneRequested: true, fastlaneState: "enabled" } });
+  const context = { state: { fastlaneEnabled: true } };
+  const call = renderDelegateCall({ role: "solution-a", prompt: "test", fastlane: true }, theme, context, 1, false);
+  renderDelegateResult(result, { expanded: false, isPartial: false }, theme, context);
+  assert.doesNotMatch(call.render(160).join("\n"), /fastlane/);
+});
+
+test("Fastlane forwarding defaults off and concurrent call, progress, final, and list indicators stay isolated", async (t) => {
+  for (const admittedFirst of ["requested", "defaulted"] as const) {
+    await t.test(`${admittedFirst} admitted first`, async (t) => {
+      const { root, extension } = await loadExtensionForTest(t);
+      const { finalToolResult } = await import("./result.ts");
+      const realpathGates = [
+        { entered: deferred<void>(), release: deferred<void>() },
+        { entered: deferred<void>(), release: deferred<void>() },
+      ];
+      const originalRealpath = fsPromises.realpath;
+      let nextGate = 0;
+      const realpathMock = t.mock.method(fsPromises, "realpath", async (candidate: string) => {
+        const gate = realpathGates[nextGate++];
+        const cwd = await originalRealpath(candidate);
+        if (gate) {
+          gate.entered.resolve();
+          await gate.release.promise;
+        }
+        return cwd;
+      });
+      // Update index.ts's named builtin import so admission waits for these gates.
+      syncBuiltinESMExports();
+      t.after(() => {
+        realpathMock.mock.restore();
+        syncBuiltinESMExports();
+      });
+      const admissions = new Map(["requested", "defaulted", "false"].map((prompt) => [prompt, deferred<void>()]));
+      let tool: ToolDefinition<DelegateToolParams> | undefined;
+      const commands = new Map<string, { handler: (args: string, ctx: unknown) => unknown }>();
+      const pending = new Map<string, { options: RunOptions; done: ReturnType<typeof deferred<DelegateRunResult>> }>();
+      extension({
+        on: () => {},
+        registerCommand: (name, command) => { commands.set(name, command as unknown as { handler: (args: string, ctx: unknown) => unknown }); },
+        registerTool: (config: { name: string }) => { if (config.name === "delegate_run") tool = config as ToolDefinition<DelegateToolParams>; },
+      }, {
+        createUsageCache: async () => ({ getFreshSnapshot: () => Object.freeze({}), invalidate: async () => {}, refresh: async () => {} }),
+        runDelegate: (options) => {
+          const done = deferred<DelegateRunResult>();
+          pending.set(options.prompt, { options, done });
+          admissions.get(options.prompt)!.resolve();
+          return done.promise;
+        },
+        finalizeDelegateRun: async (result) => finalToolResult(result),
+      });
+      assert.ok(tool);
+      const ctx = { cwd: root, modelRegistry: { getProviderAuth: async () => undefined } };
+      const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text };
+      const requested = { role: "solution-a", prompt: "requested", fastlane: true };
+      const defaulted = { role: "solution-a", prompt: "defaulted" };
+      const updates: ToolResult[] = [];
+      const first = tool.execute("first", requested, undefined, (result) => updates.push(result), ctx);
+      const second = tool.execute("second", defaulted, undefined, undefined, ctx);
+      await Promise.all(realpathGates.map((gate) => gate.entered.promise));
+      const firstGate = admittedFirst === "requested" ? 0 : 1;
+      realpathGates[firstGate]!.release.resolve();
+      await admissions.get(admittedFirst)!.promise;
+      assert.equal(pending.size, 1);
+      realpathGates[1 - firstGate]!.release.resolve();
+      await Promise.all([admissions.get("requested")!.promise, admissions.get("defaulted")!.promise]);
+      assert.equal(pending.get("requested")!.options.fastlane, true);
+      assert.equal(pending.get("defaulted")!.options.fastlane, false);
+      assert.doesNotMatch(tool.renderCall!(requested, theme, { toolCallId: "first" }).render(160).join("\n"), /fastlane/);
+      const base = lifecycleResult(root);
+      const enabled = { ...base.progress, state: "running" as const, fastlaneRequested: true, fastlaneState: "enabled" as const };
+      const omitted = { ...enabled, fastlaneRequested: false };
+      pending.get("requested")!.options.onProgress!(enabled);
+      const requestedId = updates.at(-1)!.details?.delegateId;
+      assert.equal(requestedId, admittedFirst === "requested" ? 1 : 2);
+      pending.get("defaulted")!.options.onProgress!(omitted);
+      assert.match(tool.renderCall!(requested, theme, { toolCallId: "first" }).render(160).join("\n"), /fastlane/);
+      assert.doesNotMatch(tool.renderCall!(defaulted, theme, { toolCallId: "second" }).render(160).join("\n"), /fastlane/);
+      assert.match(tool.renderResult!(updates.at(-1)!, { expanded: false, isPartial: true }, theme, {}).render(160).join("\n"), /fastlane/);
+      let labels: string[] = [];
+      const list = async () => commands.get("delegate:list")!.handler("", { hasUI: true, ui: {
+        select: async (_title: string, options: string[]) => { labels = options; return undefined; },
+      } });
+      await list();
+      assert.equal(labels.length, 2);
+      const requestedPrefix = `#${requestedId}  `;
+      const requestedLabel = labels.find((label) => label.startsWith(requestedPrefix));
+      const defaultedLabel = labels.find((label) => !label.startsWith(requestedPrefix));
+      assert.ok(requestedLabel);
+      assert.ok(defaultedLabel);
+      assert.notEqual(defaultedLabel, requestedLabel);
+      assert.match(requestedLabel, /fastlane/);
+      assert.doesNotMatch(defaultedLabel, /fastlane/);
+      pending.get("requested")!.options.onProgress!({ ...enabled, state: "catalog_check", phase: "catalog" });
+      await list();
+      assert.doesNotMatch(labels.join("\n"), /fastlane/);
+      assert.doesNotMatch(tool.renderCall!(requested, theme, { toolCallId: "first", state: { fastlaneEnabled: true } }).render(160).join("\n"), /fastlane/);
+      pending.get("requested")!.done.resolve({ ...base, progress: { ...enabled, state: "completed" } });
+      pending.get("defaulted")!.done.resolve({ ...base, progress: omitted });
+      const [firstResult, secondResult] = await Promise.all([first, second]);
+      assert.match(tool.renderResult!(JSON.parse(JSON.stringify(firstResult)), { expanded: false, isPartial: false }, theme, {}).render(160).join("\n"), /fastlane/);
+      assert.doesNotMatch(tool.renderResult!(secondResult, { expanded: false, isPartial: false }, theme, {}).render(160).join("\n"), /fastlane/);
+      const third = tool.execute("third", { ...defaulted, prompt: "false", fastlane: false }, undefined, undefined, ctx);
+      await admissions.get("false")!.promise;
+      assert.equal(pending.get("false")!.options.fastlane, false);
+      pending.get("false")!.done.resolve(base);
+      await third;
+      const source = await readFile(new URL("./index.ts", import.meta.url), "utf8");
+      assert.doesNotMatch(source, /fastlane:state/);
+    });
+  }
+});
 
 test("the synchronous child factory never initializes the usage cache or loads routing", async (t) => {
   const { extension } = await loadExtensionForTest(t);
@@ -1022,13 +1250,15 @@ test("the fixed child extension profile excludes package, presentation, and proj
     "../web-search/index.ts",
     "../context-mode/src/index.ts",
     "../codegraph/index.ts",
+    "../fastlane/index.ts",
   ]);
   // Extension selection stays fixed by the policy: local presentation
   // extensions, configured package extensions, and every project or future
   // extension stay outside the allowlist, so delegated children register no
-  // BTW, Claude Bridge, Cursor, Fastlane, footer, or theme behavior.
+  // BTW, Claude Bridge, Cursor, footer, or theme behavior. Fastlane is the
+  // fixed runtime-only exception and adds no model-visible child tool.
   const extensionsText = JSON.stringify(policy.extensions);
-  for (const forbidden of ["fastlane", "footer", "theme-overrides", "pi-blackhole", "pi-btw", "pi-browser-harness", "pi-claude-bridge", "pi-cursor"]) {
+  for (const forbidden of ["footer", "theme-overrides", "pi-blackhole", "pi-btw", "pi-browser-harness", "pi-claude-bridge", "pi-cursor"]) {
     assert.ok(!extensionsText.includes(forbidden), `the child resource policy must not load ${forbidden}`);
   }
   // Extension selection is never model-controlled.

@@ -4,8 +4,10 @@
 
 /** Mutable state scoped to one Pi session. */
 export type SessionState = {
-	/** Whether Fastlane was enabled for this session. */
+	/** Whether Fastlane is enabled for the current model and auth. */
 	enabled: boolean;
+	startupRequested: boolean;
+	manualOverride: boolean;
 };
 
 /** Current model eligibility for the initial Fastlane backend. */
