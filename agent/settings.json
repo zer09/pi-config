@@ -26,7 +26,7 @@
   ],
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-6.1-sol",
-  "defaultThinkingLevel": "high",
+  "defaultThinkingLevel": "xhigh",
   "cacheWarming": "off",
   "theme": "dark",
   "transport": "websocket-cached",

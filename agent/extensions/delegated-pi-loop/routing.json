@@ -478,7 +478,7 @@
       "tiers": [
         {
           "model": "gpt-6.1-sol",
-          "thinking": "high",
+          "thinking": "xhigh",
           "providers": [
             "openai-codex",
             "openai-codex-cgpt1",
@@ -503,7 +503,7 @@
       "tiers": [
         {
           "model": "gpt-6.1-sol",
-          "thinking": "high",
+          "thinking": "xhigh",
           "providers": [
             "openai-codex",
             "openai-codex-cgpt1",
