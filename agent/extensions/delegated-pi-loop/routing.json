@@ -351,6 +351,14 @@
         }
       }
     },
+    "claude-haiku-5-5": {
+      "providers": {
+        "opencode-go": {
+          "thinking": ["off", "low", "medium", "high", "xhigh", "max"],
+          "default": "max"
+        }
+      }
+    },
     "claude-sonnet-5-5": {
       "providers": {
         "commandcode": { "thinking": ["xhigh"], "default": "xhigh" }
@@ -423,6 +431,11 @@
     },
     "gate-d": {
       "tiers": [
+        {
+          "model": "claude-haiku-5-5",
+          "thinking": "max",
+          "providers": ["opencode-go"]
+        },
         {
           "model": "deepseek-v4-flash-vision-exp",
           "thinking": "max",
