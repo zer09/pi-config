@@ -369,6 +369,9 @@ interface RoundState {
   agentEndCount: number;
   finalAgentEndSeen: boolean;
   settledSeen: boolean;
+  aborted: boolean;
+  retryAttempt?: number;
+  cancelledRetrySeen: boolean;
   finalReport?: string;
   outcome?: Outcome;
   reason?: TerminalReason;
@@ -413,6 +416,8 @@ function emptyRound(): RoundState {
     agentEndCount: 0,
     finalAgentEndSeen: false,
     settledSeen: false,
+    aborted: false,
+    cancelledRetrySeen: false,
   };
 }
 
@@ -652,6 +657,8 @@ export class PiRpcMonitor {
         return;
       }
       state.agentRunning = true;
+      state.retryAttempt = undefined;
+      state.cancelledRetrySeen = false;
       state.agentStartCount += 1;
       this.agentSummary = emptySummary();
     } else if (eventType === "agent_end") {
@@ -668,13 +675,20 @@ export class PiRpcMonitor {
       state.agentRunning = false;
       state.agentEndCount += 1;
       state.finalAgentEndSeen = event.willRetry !== true;
+      state.retryAttempt = undefined;
+      state.cancelledRetrySeen = false;
       this.recordAgentCheckpoint(event);
     } else if (eventType === "agent_settled") {
-      if (!state.finalAgentEndSeen || state.agentRunning || state.settledSeen) {
+      // Pi ends a cancelled retry during backoff without another agent_end.
+      // Only the matched idle retry boundary can replace that final event.
+      const cancelledRetry = event.aborted === true && state.cancelledRetrySeen
+        && !state.turnOpen && this.activeTools.size === 0;
+      if ((!state.finalAgentEndSeen && !cancelledRetry) || state.agentRunning || state.settledSeen) {
         this.addError("agent_settled_before_final_agent_end");
         return;
       }
       state.settledSeen = true;
+      state.aborted = event.aborted === true;
       // Final settlement is always novel: the lifecycle validator already
       // rejects a second settled event in the same round.
       this.structuralCheckpoint();
@@ -749,10 +763,21 @@ export class PiRpcMonitor {
       this.recordTurnCheckpoint();
     }
     if (eventType === "auto_retry_start") {
+      // A replacement start must not reuse an older attempt if validation fails.
+      state.retryAttempt = undefined;
+      state.cancelledRetrySeen = false;
+      if (!state.agentRunning && !state.turnOpen && !state.finalAgentEndSeen && state.agentEndCount > 0
+        && Number.isSafeInteger(event.attempt) && (event.attempt as number) > 0) {
+        state.retryAttempt = event.attempt as number;
+      }
       const category = categoryFromRecord(event);
       if (category !== undefined) this.recordProviderFailure(state, category);
-    } else if (eventType === "auto_retry_end" && event.success === false) {
-      this.recordProviderFailure(state, categoryFromRecord(event) ?? "provider_unavailable");
+    } else if (eventType === "auto_retry_end") {
+      state.cancelledRetrySeen = state.retryAttempt !== undefined && event.attempt === state.retryAttempt
+        && event.success === false && event.finalError === "Retry cancelled"
+        && !state.agentRunning && !state.turnOpen && !state.finalAgentEndSeen;
+      state.retryAttempt = undefined;
+      if (event.success === false) this.recordProviderFailure(state, categoryFromRecord(event) ?? "provider_unavailable");
     } else if (eventType === "compaction_end" && event.aborted === false && event.result === null) {
       const category = categoryFromRecord(event);
       if (category !== undefined) this.recordProviderFailure(state, category);
@@ -795,6 +820,7 @@ export class PiRpcMonitor {
   classifyRound(round: ReportRound, processEnded = false): DelegateState | "running" {
     const state = this.rounds[round];
     if (this.errorsValue.length > 0) return "invalid_stream";
+    if (state.settledSeen && state.aborted) return "child_failed";
     if (state.outcome === "blocked") return "blocked";
     if (state.outcome === "failed") return "delegate_failed";
     if (state.outcome === "completed") {

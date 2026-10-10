@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -145,8 +145,9 @@ function piWithoutGitRoot(): ExtensionAPI {
 
 async function indexedRoot(prefix: string): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), prefix));
-  await mkdir(path.join(root, ".codegraph"));
-  await writeFile(path.join(root, ".codegraph", "codegraph.db"), "");
+  // Root discovery now checks the schema, so an empty database file is not an index.
+  const initialized = await CodeGraph.init(root, { index: false });
+  initialized.close();
   return root;
 }
 

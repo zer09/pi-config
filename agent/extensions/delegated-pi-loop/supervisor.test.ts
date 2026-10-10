@@ -8,6 +8,7 @@ import { createPrivateDirectory } from "./artifacts.ts";
 import { REPORT_RECOVERY_PROMPT } from "./instructions.ts";
 import { PiRpcMonitor } from "./monitor.ts";
 import { createPersistedPiSession } from "./persisted-session.ts";
+import { cancelledTargetRetry } from "./target-retry.fixture.ts";
 import {
   DEFAULT_PROGRESS_STALL_MS,
   DEFAULT_PROGRESS_WARNING_MS,
@@ -427,6 +428,76 @@ test("one persistent child PID handles exact initial and recovery prompts", asyn
   const report = await readFile(path.join(attemptDir, "report.md"), "utf8");
   assert.match(report, /^Recovered report/m);
   assert.doesNotMatch(report, /first invalid/);
+});
+
+test("unexpected aborted settlement fails without completion or report recovery", async () => {
+  for (const report of [undefined, "invalid", "Done\n\nDELEGATE_RESULT: COMPLETED"]) {
+    const events = completed(report);
+    if (report === undefined) events.splice(1, 1);
+    events[events.length - 1] = { type: "agent_settled", aborted: true };
+    const { status, root } = await run(eventScript([events]));
+    assert.equal(status.state, "child_failed");
+    assert.equal(status.completionCleanupPerformed, false);
+    assert.equal(status.reportNudgeCount, 0);
+    assert.equal(status.reportRound, 1);
+    assert.deepEqual(status.streamErrors, []);
+    assert.equal((await readFile(path.join(root, "commands.jsonl"), "utf8")).trim().split("\n").length, 1);
+  }
+  const recovery = completed("Recovered\n\nDELEGATE_RESULT: COMPLETED");
+  recovery[recovery.length - 1] = { type: "agent_settled", aborted: true };
+  const { status, root } = await run(eventScript([missing(), recovery]));
+  assert.equal(status.state, "child_failed");
+  assert.equal(status.reportNudgeCount, 1);
+  assert.equal(status.reportRound, 2);
+  assert.equal(status.reportRecoveryAccepted, true);
+  assert.equal(status.completionCleanupPerformed, false);
+  assert.equal((await readFile(path.join(root, "commands.jsonl"), "utf8")).trim().split("\n").length, 2);
+});
+
+test("target native-provider cancelled retry is child_failed without report recovery", async () => {
+  const events = await cancelledTargetRetry();
+  const monitor = new PiRpcMonitor(0, "2026-01-01T00:00:00.000Z");
+  monitor.acceptPrompt(1);
+  for (const event of events) monitor.consumeEvent(1, { ...event });
+  assert.equal(monitor.classifyRound(1), "child_failed");
+  assert.deepEqual(monitor.snapshot().errors, []);
+  assert.equal(monitor.snapshot().agentEndSeen, false, "no fabricated final agent_end");
+  const { status, root } = await run(eventScript([events]));
+  assert.equal(status.state, "child_failed");
+  assert.equal(status.agentEndCount, 1);
+  assert.equal(status.agentEndSeen, false);
+  assert.equal(status.agentSettledSeen, true);
+  assert.equal(status.reportNudgeCount, 0);
+  assert.equal(status.completionCleanupPerformed, false);
+  assert.deepEqual(status.streamErrors, []);
+  assert.equal((await readFile(path.join(root, "commands.jsonl"), "utf8")).trim().split("\n").length, 1);
+});
+
+test("accepted parent cancellation wins an aborted-settlement race, including target retry", async (t) => {
+  const retry = await cancelledTargetRetry();
+  const ordinary = completed();
+  ordinary[ordinary.length - 1] = { type: "agent_settled", aborted: true };
+  for (const events of [ordinary, retry]) {
+    const controller = new AbortController();
+    const original = PiRpcMonitor.prototype.consumeEvent;
+    const hook = t.mock.method(PiRpcMonitor.prototype, "consumeEvent", function (this: PiRpcMonitor, ...args: Parameters<PiRpcMonitor["consumeEvent"]>) {
+      original.apply(this, args);
+      // Cancel after validated settlement arrives, before the supervisor classifies it.
+      if (args[1].type === "agent_settled") controller.abort("delegate_stop");
+    });
+    try {
+      const { status } = await run(eventScript([events]), { signal: controller.signal });
+      assert.equal(controller.signal.aborted, true);
+      assert.equal(status.state, "interrupted");
+      assert.equal(status.interruptionSource, "delegate_stop");
+      assert.equal(status.agentSettledSeen, true);
+      assert.equal(status.reportNudgeCount, 0);
+      assert.equal(status.completionCleanupPerformed, false);
+      assert.deepEqual(status.streamErrors, []);
+    } finally {
+      hook.mock.restore();
+    }
+  }
 });
 
 test("accepts bounded lifecycle events that arrive before prompt acceptance", async () => {

@@ -333,6 +333,151 @@ test("tracks retry lifecycle and provisional completed result through settlement
   assert.equal(instance.snapshot().agentStartCount, 2);
 });
 
+test("aborted settlement overrides reports and cannot accept report recovery", () => {
+  for (const report of [undefined, "invalid", "Done\n\nDELEGATE_RESULT: COMPLETED"]) {
+    const { monitor: instance } = monitor();
+    instance.acceptPrompt(1);
+    consume(instance, 1, { type: "agent_start" });
+    if (report !== undefined) consume(instance, 1, assistant(report));
+    consume(instance, 1, { type: "agent_end", willRetry: false });
+    consume(instance, 1, { type: "agent_settled", aborted: true });
+    assert.equal(instance.classifyRound(1), "child_failed");
+    instance.acceptPrompt(2);
+    assert.equal(instance.classifyRound(1), "invalid_stream");
+    assert.ok(instance.snapshot().errors.includes("recovery_prompt_before_eligible_settlement"));
+  }
+  const { monitor: instance } = monitor();
+  instance.acceptPrompt(1);
+  settle(instance, 1);
+  instance.acceptPrompt(2);
+  consume(instance, 2, { type: "agent_start" });
+  consume(instance, 2, assistant("Recovered\n\nDELEGATE_RESULT: COMPLETED"));
+  consume(instance, 2, { type: "agent_end", willRetry: false });
+  consume(instance, 2, { type: "agent_settled", aborted: true });
+  assert.equal(instance.classifyRound(2), "child_failed");
+});
+
+test("only a matched idle cancelled retry permits aborted settlement without a final agent_end", () => {
+  const start = { type: "auto_retry_start", attempt: 1 };
+  const end = { type: "auto_retry_end", attempt: 1, success: false, finalError: "Retry cancelled" };
+  const cases = [
+    ["matched cancellation", [start, end], true, "child_failed"],
+    ["valid replacement cancellation", [start, { ...start, attempt: 2 }, { ...end, attempt: 2 }], true, "child_failed"],
+    ["same-attempt replacement cancellation", [start, start, end], true, "child_failed"],
+    ["superseded valid retry attempt", [start, { ...start, attempt: 2 }, end], true, "invalid_stream"],
+    ["superseded cancellation", [start, end, start], true, "invalid_stream"],
+    ["non-aborted cancellation", [start, end], false, "invalid_stream"],
+    ["retry still pending", [start], true, "invalid_stream"],
+    ["no retry start", [end], true, "invalid_stream"],
+    ["wrong retry attempt", [start, { ...end, attempt: 2 }], true, "invalid_stream"],
+    ["failed retry, not cancellation", [start, { ...end, finalError: "Unavailable" }], true, "invalid_stream"],
+    ["successful retry", [start, { ...end, success: true }], true, "invalid_stream"],
+    ["active retry run", [start, end, { type: "agent_start" }], true, "invalid_stream"],
+    ["duplicate retry end", [start, end, end], true, "invalid_stream"],
+  ] as const;
+  for (const [name, events, aborted, expected] of cases) {
+    const { monitor: instance, tick } = monitor();
+    instance.acceptPrompt(1);
+    consume(instance, 1, { type: "agent_start" });
+    consume(instance, 1, { type: "agent_end", willRetry: true });
+    for (const event of events) consume(instance, 1, event);
+    const before = instance.snapshot();
+    tick();
+    consume(instance, 1, { type: "agent_settled", aborted });
+    assert.equal(instance.classifyRound(1), expected, name);
+    if (expected === "invalid_stream") {
+      assert.equal(instance.snapshot().structuralProgressCount, before.structuralProgressCount, name);
+      assert.equal(instance.snapshot().lastActivityMonotonic, before.lastActivityMonotonic, name);
+    } else {
+      consume(instance, 1, { type: "agent_settled", aborted });
+      assert.equal(instance.classifyRound(1), "invalid_stream", "duplicate settlement stays invalid");
+    }
+  }
+  const { monitor: active } = monitor();
+  active.acceptPrompt(1);
+  for (const event of [{ type: "agent_start" }, { type: "tool_execution_start", toolCallId: "still-active", toolName: "read" },
+    { type: "agent_end", willRetry: true }, start, end, { type: "agent_settled", aborted: true }]) {
+    consume(active, 1, event);
+  }
+  assert.equal(active.classifyRound(1), "invalid_stream", "an active tool cannot use the idle retry boundary");
+  for (const events of [[], [{ type: "agent_start" }], [{ type: "agent_start" }, start, end]]) {
+    const { monitor: instance } = monitor();
+    instance.acceptPrompt(1);
+    for (const event of events) consume(instance, 1, event);
+    consume(instance, 1, { type: "agent_settled", aborted: true });
+    assert.equal(instance.classifyRound(1), "invalid_stream", "premature abortion stays invalid");
+  }
+});
+
+for (const [name, fields] of [
+  ["zero", { attempt: 0 }],
+  ["missing", {}],
+  ["negative", { attempt: -1 }],
+  ["fractional", { attempt: 1.5 }],
+  ["wrong-type", { attempt: "1" }],
+  ["unsafe-integer", { attempt: Number.MAX_SAFE_INTEGER + 1 }],
+] as const) {
+  test(`a ${name} superseding retry start cannot authorize aborted settlement`, () => {
+    const { monitor: instance, tick } = monitor();
+    instance.acceptPrompt(1);
+    consume(instance, 1, { type: "agent_start" });
+    consume(instance, 1, { type: "agent_end", willRetry: true });
+    consume(instance, 1, { type: "auto_retry_start", attempt: 1 });
+    consume(instance, 1, { type: "auto_retry_start", ...fields });
+    consume(instance, 1, { type: "auto_retry_end", attempt: 1, success: false, finalError: "Retry cancelled" });
+    const before = instance.snapshot();
+    assert.deepEqual(before.errors, []);
+    assert.equal(instance.classifyRound(1), "running");
+    tick();
+    consume(instance, 1, { type: "agent_settled", aborted: true });
+    const after = instance.snapshot();
+    assert.equal(instance.classifyRound(1), "invalid_stream");
+    assert.equal(after.agentSettledSeen, false);
+    assert.deepEqual(after.errors, ["agent_settled_before_final_agent_end"]);
+    assert.equal(after.activityEventCount, before.activityEventCount);
+    assert.equal(after.lastActivityMonotonic, before.lastActivityMonotonic);
+    assert.equal(after.structuralProgressCount, before.structuralProgressCount);
+    assert.equal(after.lastStructuralProgressMonotonic, before.lastStructuralProgressMonotonic);
+  });
+}
+
+test("a legacy missing-attempt retry replacement still allows normal completion", () => {
+  const { monitor: instance } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  consume(instance, 1, { type: "agent_end", willRetry: true });
+  consume(instance, 1, { type: "auto_retry_start", attempt: 1 });
+  consume(instance, 1, { type: "auto_retry_start" });
+  consume(instance, 1, { type: "auto_retry_end", success: true });
+  settle(instance, 1, "Done\n\nDELEGATE_RESULT: COMPLETED");
+  assert.equal(instance.classifyRound(1), "completed");
+  assert.deepEqual(instance.snapshot().errors, []);
+});
+
+test("durationMs and aborted metadata never create novel task progress", () => {
+  const { monitor: instance, tick } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  const message = assistant("Same report");
+  consume(instance, 1, message);
+  const before = instance.snapshot();
+  tick();
+  consume(instance, 1, { ...message, durationMs: 123, aborted: true,
+    message: { ...(message.message as Record<string, unknown>), durationMs: 456, aborted: true } });
+  assert.equal(instance.snapshot().structuralProgressCount, before.structuralProgressCount);
+  assert.equal(instance.snapshot().lastStructuralProgressMonotonic, before.lastStructuralProgressMonotonic);
+  consume(instance, 1, { type: "agent_end", willRetry: true, durationMs: 321 });
+  const ended = instance.snapshot();
+  consume(instance, 1, { type: "agent_start" });
+  consume(instance, 1, message);
+  consume(instance, 1, { type: "agent_end", willRetry: true, durationMs: 999, aborted: true });
+  assert.equal(instance.snapshot().structuralProgressCount, ended.structuralProgressCount);
+  const retry = instance.snapshot();
+  consume(instance, 1, { type: "auto_retry_start", attempt: 1, durationMs: 10 });
+  consume(instance, 1, { type: "auto_retry_end", attempt: 1, success: false, finalError: "Retry cancelled", durationMs: 20 });
+  assert.equal(instance.snapshot().structuralProgressCount, retry.structuralProgressCount);
+});
+
 test("BLOCKED and FAILED become terminal immediately", () => {
   for (const [marker, expected] of [["BLOCKED", "blocked"], ["FAILED", "delegate_failed"]] as const) {
     const { monitor: instance } = monitor();
