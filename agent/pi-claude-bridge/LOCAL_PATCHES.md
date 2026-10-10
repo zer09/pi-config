@@ -1,5 +1,48 @@
 # Local Claude Bridge patch
 
+## 2026-10-10: isolated `pi-claude-bridge@0.9.2` on Pi 1.1.0, not deployed
+
+The candidate settings pin is exact `0.9.2`. The isolated runtime tests exact
+Claude Agent SDK `0.3.296`, the latest stable tested candidate, with its Linux x64
+glibc package at the same version. Bridge allows `^0.3.293`; that minimum was not
+selected. Archive SHA-512 SRI, installed manifests and complete package hashes
+match verified npm artifacts. All 23 published Bridge files also match official
+`v0.9.2` at `b2e7255ece0b8bfd3a6429fd5c147fd59984c785`.
+
+The ordering patch is **retired only for this isolated 0.9.2 candidate**. Stock
+upstream ranks unknown sections after all built-ins and preserves their replay
+order. Existing literal replay, tool deltas, non-system filtering, exact capture
+lookup and four real-Pi lifecycle turns prove equivalence with patched 0.9.1.
+The real SDK encoder sends four requests through a fake CLI transport. Stock
+0.9.2 also forwards captured custom sections; SDK 0.3.296 encodes the empty tool
+list as `--tools=`. RUN-only assertions check those exact upstream contracts.
+No 0.9.2 reapply helper or source patch exists. Historical helpers and tests remain
+unchanged. The existing live 0.9.1 patch remains untouched and required there.
+
+Checks pass: 5/5 ordering/lifecycle/package-loader tests, 296/296 upstream offline
+unit tests, 7/7 unchanged historical guard tests, the upstream typecheck, all 18
+installed production TypeScript roots and both strict transcript adapters.
+The copied unit oracle expects Haiku 5.5 from Pi 1.1.0's catalog and also checks
+reversed ordering and exact Haiku 4.5 selection. The unchanged oracle passes
+22/22 on isolated Pi 0.99.2. No configured model or model-selection source changed.
+
+Compatible package-owned versions remain intentional: MCP SDK `1.30.1` rather
+than latest `1.32.1`, `cc-session-io@0.4.0`, `change-case@5.4.4`, and `zod@4.6.5`.
+Existing host-owned Anthropic SDK `0.129.0` and TypeBox `1.3.27` remain unchanged.
+Scripts stay disabled. File reconciliation preserves all 16,816 prior runtime
+file/link bytes and mtimes, including 138 Blackhole and seven BTW patched files.
+
+Stock installed `src/transcript.ts` SHA-256:
+`c6cafa9ce6f9a33ce5eb9eb445bd239564136a744d468b529d24dd8bc3b25a3e`.
+Evidence, exact commands/exits, SRIs, source/entrypoint hashes, graph and RUN-only
+fixture adaptations are under `/home/gc/worktrees/pi-config-1.1.0-UkWvry/reports/`
+in `bridge-d-*.json`, `bridge-d-*.log`, `bridge-d-evidence.md` and `commands.jsonl`.
+Execution uses sanitized HOME/config/child environments, private RUN-backed temp
+storage, network isolation, warming off and blocked real auth/browser/subprocess
+transport. No live integration script, SDK executable, login, inference or
+activation ran. Combined final smoke and later dependency increments remain
+outside this increment.
+
 ## 2026-10-01: isolated `pi-claude-bridge@0.9.1` on Pi 0.99.2, not deployed
 
 The worktree pin and disposable runtime use exact Bridge `0.9.1` and exact

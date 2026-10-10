@@ -1,5 +1,21 @@
 # Local pi-btw patches
 
+## 2026-10-10: isolated `pi-btw@0.7.1` candidate on Pi 1.1.0, not deployed
+
+Increment C pins the worktree and isolated runtime to exactly 0.7.1. The original installation remains unchanged. The verified npm archive SRI is `sha512-XVHTwc6QNYHEXvdobqbUrlkvoEo/pq3pWgq4OPT/BMiyjZpjlhUW/aBO+NjFdyu1app9QL8kyGP+tsB18S1GqA==`. All seven published file fingerprints were checked. Both production sources are byte-identical to 0.7.0. Only the manifest and README changed upstream; the three Pi peers now permit `>=0.85.1 <2`. There are no runtime dependencies or install lifecycle scripts.
+
+`reapply-model-runtime-patch-0.7.1.mjs` retains only `{ signal: ctx.signal }` in `setRuntimeApiKey()`. It preserves the 0.7.0 helper's explicit disposable OS-temp target, repository/node_modules exclusion, canonical path, package identity, shared/linked file, whole-package fingerprint and source-drift guards. All seven files are checked before any write, including an already-patched pass. The helper has no default or live target. Historical helpers and tests remain unchanged.
+
+Five focused port tests pass: stock-to-patch, reinstall, byte/mtime idempotence, whole-package/identity/anchor/isolation refusal, signal identity, and real Pi 1.1.0 credential cancellation through an offline fake native provider. All six established regressions pass in RUN-only copies bound to the published target CLI: patch reapplication, two-turn canonical context, summary failure/retry, branch/reset restoration, shutdown cancellation/fresh turn, and two-process persisted restart. All behavior and security assertions remain active.
+
+The npm archive omits tests. The official `v0.7.1` tag resolves to `d0d1ba5404b66058c501ed3e286733660df56aa9`; its production sources and manifest match npm. Stock and patched upstream suites each pass 144/144 tests in three files, with no skips, using the tag's locked Vitest 4.1.11 and TypeScript 6.0.3. The patched fixture supplies a real command signal and checks its exact identity in both credential-call expectations. Strict production typechecks pass for both files in stock and patched packages against explicitly bound Pi 1.1.0 declarations.
+
+A disposable npm inspector installed the exact verified archive offline with `--ignore-scripts --save-exact`, without force or legacy-peer bypasses. Reconciliation added only the seven patched BTW files and its manifest/lock entries. All pre-existing runtime dependency bytes, links and mtimes remain unchanged, including all 138 patched Blackhole files and the target host. The installed manifest resolves `extensions/btw.ts`; target package-origin loading executes that exact source with one offline fake response. Loading reports zero errors, zero BTW tools, and the same ten commands and four events as stock 0.7.0 and 0.7.1.
+
+No `btw.json`, child-extension sources or new settings were added. Trusted and untrusted defaults remain `[]`; no BTW-owned child install exists. Conversation, read-only and summary tool scopes remain covered by the upstream suite and established regressions. The only settings change in C is the BTW pin.
+
+Evidence is under `/home/gc/worktrees/pi-config-1.1.0-UkWvry/`: `btw-c-*.mjs`, `btw-c-fixtures/`, disposable stock/patched suites and test tools, and `reports/btw-c-*.json`, `reports/btw-c-*.log`, `reports/btw-c-evidence.md` and `reports/commands.jsonl`. Execution uses the existing sanitized offline sandbox, private `/tmp`, synthetic HOME/sessions and fake providers. One initial load check incorrectly expected a `session_switch` handler; stock source and stock loader execution established the unchanged four-event inventory, and the corrected exact comparison passed. No production change or assertion relaxation was used to conceal a regression. No live reapply, deployment, real auth, network inference or interactive acceptance was performed. Later increments remain deferred.
+
 ## 2026-10-01: isolated `pi-btw@0.7.0` candidate on Pi 0.99.2, not deployed
 
 The worktree pin and disposable runtime now use exactly 0.7.0. The original installation remains unchanged. The registry archive SRI is `sha512-bvEbqKWRFi6wMa0+tX0yHDEwvqkWhfsS7p7jayl/RNSD4x6GehzJhlb/X+lZcTitFTByTOZuq/66djPEANJ0VQ==`. All seven extracted files match the captured archive. There are no new runtime dependencies; the three Pi peer ranges remain `>=0.85.1 <1`.

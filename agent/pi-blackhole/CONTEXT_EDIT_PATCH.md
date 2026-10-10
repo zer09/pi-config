@@ -1,5 +1,15 @@
 # Local context-edit compaction repair
 
+## Current isolated port: Blackhole 0.5.12 with Pi 1.1.0
+
+The new `reapply-context-edit-compaction-patch-0.5.12.mjs` retains this repair's exact transformations. Stock 0.5.12 still has the hook bytes recorded below. Its version-specific prerequisites pin the complete percentage and nullable-header ports before the hook changes. Apply the three `-0.5.12.mjs` helpers in that order to an explicit disposable extraction under `TMPDIR`, never an installed `node_modules` target. The manifest selects patched `index.ts`.
+
+The isolated target SDK passed the existing context-edit fixture mode, including 162 unedited cut/cancel comparisons, active/latest/off-branch edits, both tail policies, checkpoint preservation, raw references, fresh summaries, raw recall, and unchanged prior JSONL. All four existing settled/queued/replacement/shutdown fixtures also passed in RUN-adapted copies with their assertions intact. The repair still changes only fresh compaction input. It does not rewrite raw history or earlier memory.
+
+See `LOCAL_PATCHES.md` for the three-patch SRI, guards, worker checks, package suite, and baseline quiet-setting limit. Evidence is under `/home/gc/worktrees/pi-config-1.1.0-UkWvry/reports/blackhole-b-*`. This is preparation, not live deployment.
+
+## Historical 0.5.8 repair
+
 This increment targets `pi-blackhole@0.5.8` with Pi `0.87.1`.
 It changes only the installed `src/hooks/before-compact.ts`.
 The existing percentage and nullable-header helpers remain unchanged.

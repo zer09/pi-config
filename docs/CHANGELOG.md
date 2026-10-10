@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed change records live under [`docs/changelogs/`](./changelogs/).
 
+## Pi 1.1.0 compatibility preparation
+
+Details: [`docs/changelogs/pi-to-1.1.0-compatibility-preparation.md`](./changelogs/pi-to-1.1.0-compatibility-preparation.md).
+
+- **Prepared in an isolated worktree, not deployed.** Tested exact Pi 1.1.0. Preserve regular TUI mode and reject aborted delegated completion, including cancelled retries. Update Blackhole, BTW, Bridge, Cursor, local CodeGraph, standalone TypeBox, and the isolated Claude SDK. Keep disabled built-ins, filters, models, routing, Fastlane defaults, compaction policy, and `lastChangelogVersion: "0.99.2"`.
+- Retain three guarded Blackhole patches and BTW cancellation. Retire Bridge ordering only for the tested upstream candidate. Final combined SDK/CLI/RPC smoke and focused suites pass; reproduced baseline type/Unicode-renderer limitations and unexecuted live/visual checks remain explicit. Original files, index, and live Pi 0.99.2 remain unchanged.
+
 ## Delegated Fastlane: isolated worktree preparation
 
 - Added optional invocation-local `delegate_run.fastlane`, default off. Explicit `true` requests eligible child priority service and increases subscription usage. Fastlane is the sixth fixed runtime extension, loaded last; catalog preflight stays alias-only. Only requested runtime children receive `--fastlane`. Child eligibility, protected tiers, and fresh provider-hook confirmation remain authoritative; parent Fastlane, footer, routing, and dependencies are unchanged.

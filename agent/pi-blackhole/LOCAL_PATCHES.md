@@ -2,6 +2,39 @@
 
 These notes track local changes made under `~/.pi/agent/npm/node_modules/pi-blackhole/`. Package upgrades or reinstalls can overwrite those files, so re-check this file after every `pi-blackhole` upgrade.
 
+## Pi 1.1.0 preparation: `pi-blackhole@0.5.12` isolated port, not deployed
+
+The worktree settings pin exactly **0.5.12**. The isolated runtime uses Pi **1.1.0**. No live package, original settings, or original sessions were changed. Historical helpers remain unchanged. There is no 0.5.12 live entrypoint.
+
+Official `v0.5.12` resolves to `a2e4c136bb0e8775cca0e8b2583f5d24e86776fb`. Upstream widens Pi peers to `<2.0.0` and changes worker budgeting, completion, and stream refusal handling. Stock still lacks all three local patches. Their transformations are identical to the accepted 0.5.10 transformations. Fingerprints and complete prerequisite hashes were rederived from the published 0.5.12 archive, not bypassed with a version change.
+
+Pinned npm archive SRI:
+
+`sha512-Py9Dv01rv6Fz4pnVqNJWGemmUralYbFnkQC1BRyoEddsBtGCfPRiIKX5BYmLZG3ukSwY2PXLItw4k284kuySuQ==`
+
+Extract that archive into an explicit disposable package root under `TMPDIR`, outside the repository and outside `node_modules`. Apply the new helpers in order:
+
+```bash
+node agent/pi-blackhole/reapply-compact-after-percent-patch-0.5.12.mjs "$TMPDIR/isolated-package"
+node agent/pi-blackhole/reapply-nullable-provider-headers-patch-0.5.12.mjs "$TMPDIR/isolated-package"
+node agent/pi-blackhole/reapply-context-edit-compaction-patch-0.5.12.mjs "$TMPDIR/isolated-package"
+```
+
+The helpers retain canonical-path, version, exact-source, prerequisite, link, partial-state, and drift refusal guards. They require an explicit target. Repeat application preserves bytes and mtimes. Preflight does not make the writes atomic; stop and inspect an interrupted application. The manifest changes only `pi.extensions` to `["./index.ts"]`. The stock bundle and all other package files remain unchanged.
+
+Verification in `/home/gc/worktrees/pi-config-1.1.0-UkWvry`:
+
+- `port-0.5.12.test.mjs`: 11/11 passed, including clean application, order, reinstall, byte/mtime idempotence, bad SRI, malformed identity, version/source/prerequisite drift, partial states, and links.
+- Stock and patched strict production typechecks: all 129 TypeScript files passed against exact target declarations. Six nullable-header assignment checks fail on stock as expected and pass on patched source.
+- The official-tag upstream suite: stock and patched each passed 2,613/2,613 tests across 138 files. All 129 published production files match the official tag before patching. Tests ran offline with isolated dependencies and synthetic HOME.
+- RUN-adapted copies of the four existing lifecycle fixtures: 4/4 passed without weakening lifecycle assertions. Settled and queued compaction preserve projected summaries and raw history. Replacement and shutdown skip stale deferred compaction.
+- Existing context-edit fixture mode passed 162 stock cut/cancel comparisons plus active/latest/off-branch edits, omitted boundaries, both tail policies, tool checkpoints, compiler references, raw recall, and synthetic JSONL checks.
+- `port-0.5.12-workers.test.mjs`: 13/13 passed through the target agent loop, auth facade, attribution, and fake HTTP transport. Observer, reflector, and dropper cover success, cancellation, HTTP refusal, and synchronous stream refusal. Null headers delete the provider's User-Agent and the attribution client header before fake dispatch.
+
+Configuration bytes, model identities and fallback order, fixed worker budgets, `midRunCompaction: "off"`, dropper pressure, theme, and configured quiet switches are unchanged. **Reproduced baseline limit:** the file loader ignores `showPreCompactionMessage: false` and returns its default `true`. Untouched 0.5.10 with isolated Pi 0.99.2 and stock 0.5.12 with Pi 1.1.0 reproduce the same behavior. This port does not add a fourth patch to change it. `statusBar` and `showWorkerNotifications` remain effectively false.
+
+The runtime contains all 138 exact patched package-owned files. SDK package discovery resolves patched `index.ts`, not `dist/index.js`. Installation preserved 16,671 pre-existing dependency files or links, including bytes and file mtimes. The existing AWS compatibility pins remain in the runtime locks. Exact commands, exits, manifests, source hashes, fixture adaptations, type bindings, and graph evidence are under `RUN/reports/blackhole-b-*` and `RUN/reports/commands.jsonl`. No real inference, credentials, browser, delegation, or live activation was tested. Later package increments remain deferred.
+
 ## 2026-10-01: `pi-blackhole@0.5.10` isolated port, not deployed
 
 The isolated compatibility candidate and worktree settings pin exactly **0.5.10** against Pi **0.99.2**. The original `~/.pi` installation is unchanged. The three new `-0.5.10.mjs` helpers preserve the accepted percentage threshold, nullable provider headers, and fresh `context_edit` summary transformations. They retain version/source, prerequisite, isolation, link, partial-state, drift, and byte/mtime idempotence guards. All older helpers remain unchanged. There is no 0.5.10 live entrypoint.
