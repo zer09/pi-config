@@ -356,7 +356,13 @@
         "opencode-go": {
           "thinking": ["off", "low", "medium", "high", "xhigh", "max"],
           "default": "max"
-        }
+        },
+        "claude-bridge": { "thinking": ["xhigh"], "default": "xhigh" }
+      }
+    },
+    "claude-opus-5-5": {
+      "providers": {
+        "claude-bridge": { "thinking": ["medium"], "default": "medium" }
       }
     },
     "claude-sonnet-5-5": {
@@ -433,13 +439,8 @@
       "tiers": [
         {
           "model": "claude-haiku-5-5",
-          "thinking": "max",
-          "providers": ["opencode-go"]
-        },
-        {
-          "model": "deepseek-v4-flash-vision-exp",
-          "thinking": "max",
-          "providers": ["opencode-go"]
+          "thinking": "xhigh",
+          "providers": ["claude-bridge"]
         }
       ]
     },
@@ -539,7 +540,7 @@
     }
   },
   "assignments": {
-    "solution": ["gate-a", "gate-b", "gate-c"],
+    "solution": ["gate-a", "gate-b", "gate-c", "gate-d"],
     "review": ["gate-a", "gate-b"],
     "implementation": "implementation",
     "remediation": "implementation",

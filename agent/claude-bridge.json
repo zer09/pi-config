@@ -1,5 +1,10 @@
 {
   "askClaude": {
     "enabled": false
-  }
+  },
+  "provider": {
+    "plan": "max",
+    "strictMcpConfig": true
+  },
+  "startupNoticeShown": "2026-10-12"
 }
