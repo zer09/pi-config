@@ -2,6 +2,8 @@
 
 Quantitative calibration date: 2026-07-01
 
+Delegated policy-reason guidance update: 2026-10-11 (tool-compatible assignment guidance adds 43 local `o200k_base` parent guideline tokens; reason-selection and disclosure guidance adds 143 tokens to each fixed child prompt. Offline attribution is below. Provider calibration and full-context totals were not rerun.)
+
 Delegated Fastlane update: 2026-10-04 (optional invocation-local `delegate_run.fastlane`; offline parent schema attribution increases by 62 local `o200k_base` tokens and the tool description by 13. Provider calibration and full-context totals were not rerun. The isolated attribution is below.)
 
 Offline skill-catalog refresh: 2026-09-30 (installed Pi 0.87.1; refreshed only `## Skills` from the current 38 local roots after accepted maintenance Increments 1-19. Explicit-only `crit` and `impeccable` leave 36 automatically visible skills. Outpour membership records inventory only, not maintenance acceptance. Provider calibration and the full tool-schema/structural inventory were not rerun. Version labels, measured totals, and Browser Harness package/tool data outside `## Skills` remain historical snapshots, not current full-context totals.)
@@ -216,6 +218,24 @@ pi "${COMMON[@]}" hi > /tmp/pi-full-hi.jsonl
 - Local `tiktoken` totals are not guaranteed to equal provider totals. Provider tokenization, Responses API framing, tool framing, and hidden/backend protocol all differ from plain local string counting.
 - Token counts are not always additive because BPE token boundaries change when sections are joined.
 - Prompt templates, extension command metadata, full `SKILL.md` files, tool results, and prior session history are not startup model context unless invoked/read/sent in a later turn.
+
+## 2026-10-11 delegated policy-reason attribution
+
+Measured offline with cached `tiktoken 0.14.0` / `o200k_base` through `uv run --offline --with tiktoken`. Before values use the unchanged prompt components and the terminal instructions from the pre-change `HEAD` revision. Parent counts use `delegateRunPromptGuidelines` with three solution roles and two review roles, joined with one newline. Child counts use `buildDelegatePrompt`, cwd `/tmp/project`, and assignment `Do the assigned work.`; solution and review use the `-a` role id.
+
+| Surface | Before | After | Delta |
+|---|---:|---:|---:|
+| Parent `delegate_run` guidelines | 1,079 | 1,122 | +43 |
+| Complete solution child prompt | 769 | 912 | +143 |
+| Complete review child prompt | 772 | 915 | +143 |
+| Complete implementation child prompt | 882 | 1,025 | +143 |
+| Complete remediation child prompt | 762 | 905 | +143 |
+| Complete verification child prompt | 863 | 1,006 | +143 |
+| Complete oracle child prompt | 791 | 934 | +143 |
+
+The parent guidance grows from 6,223 to 6,508 characters and from 16 to 17 guidelines. Each measured child prompt grows by 842 characters. Child rows are alternatives, not additive costs for one invocation. Tool schemas, descriptions, catalog guidance, role contracts, attempt limits, restart and recovery prompts, and `agent/AGENTS.md` are unchanged. The fixed policy summary now attributes the verdict to the delegate; result text is not startup context.
+
+Explicit project and assignment acceptance rules remain binding. These changes add semantic guidance, not runtime breach detection, report-body enforcement, sandboxing, or a replay path. Local counts do not establish provider-billed usage or live model compliance. No provider calibration or full startup inventory ran; earlier measured totals remain historical snapshots.
 
 ## 2026-09-13 live and persisted fallback continuation attribution
 

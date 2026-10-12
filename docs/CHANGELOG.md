@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed change records live under [`docs/changelogs/`](./changelogs/).
 
+## Delegated policy reason guidance and reporting
+
+- Added one parent-facing assignment-policy guideline: state explicit tool-compatible execution and acceptance requirements, preserve user/project requirements, and do not invent irrevocable failure rules for harmless corrected procedural deviations.
+- Child terminal guidance now distinguishes material policy breaches from failed commands, rejected-before-execution launchers, unknown runner environments, and harmless diagnostics. Corrected or rejected procedural deviations require disclosure. Explicit terminal project/assignment rules still take precedence; completion requires finished work and required checks with no material breach or applicable terminal deviation rule. Required verification that remains failed or invalid uses `verification_failure`; a policy preventing work before a breach uses `BLOCKED`/`policy_restriction`. Passing checks do not erase material breaches, relax explicit acceptance rules, or relabel historical failures.
+- Changed the fixed `policy_violation` summary to “The delegate reported a policy violation.” Reasons remain child self-reports, not runtime incident detection. Reason enums, error marking, permissions, workflow ordering, routing, terminal parsing, fallback, recovery, diagnostics, and historical outcomes are unchanged.
+- Added synthetic regressions for every role family's prompt and both result surfaces. Regenerated the canonical reference sections. No live model/provider compliance claim is made; context-cost accounting remains parent-owned.
+
 ## Pi 1.1.0 compatibility preparation
 
 Details: [`docs/changelogs/pi-to-1.1.0-compatibility-preparation.md`](./changelogs/pi-to-1.1.0-compatibility-preparation.md).

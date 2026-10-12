@@ -73,3 +73,7 @@ Round 2 never receives another recovery prompt. Provider failure, prompt rejecti
 - Parent workflow terms remain absent from child prompt templates.
 - Same-process, same-session, one-round recovery tests remain unchanged except for the canonical recovery text.
 - `npm run render:instructions-doc`, the full delegated-pi-loop suite, strict TypeScript, and whitespace checks must pass.
+
+## Current-policy amendment: assignment rules and self-reported policy reasons
+
+The parent now receives one additional `delegate_run [Assignment policy]` guideline requiring tool-compatible execution and acceptance requirements without invented irrevocable failure rules or silent relaxation. Child terminal guidance distinguishes material breaches from harmless corrected or rejected procedural deviations, requires disclosure, and preserves explicit project or assignment rules that make deviations terminal. Passing checks do not erase breaches, relax acceptance rules, or relabel historical failures. The fixed summary attributes `policy_violation` to the delegate's report, not runtime detection. Instruction ownership, role permissions, workflow ordering, terminal enums, parsing, recovery, fallback, and diagnostics remain unchanged. Offline regressions do not establish live model compliance.

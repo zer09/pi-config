@@ -55,7 +55,7 @@ const REASON_SUMMARIES: Readonly<Record<string, string>> = {
   execution_failure: "Executing the assigned work failed.",
   verification_failure: "A required verification did not pass.",
   internal_inconsistency: "The result contradicts itself or the observed state.",
-  policy_violation: "A policy rule was violated during execution.",
+  policy_violation: "The delegate reported a policy violation.",
 };
 const REASON_MISSING_SUMMARY = "No terminal reason code was provided; the outcome stands.";
 const REASON_REJECTED_SUMMARY = "The terminal reason line was invalid and was discarded; the outcome stands.";

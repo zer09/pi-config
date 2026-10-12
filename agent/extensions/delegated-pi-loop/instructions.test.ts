@@ -177,6 +177,39 @@ test("BLOCKED and FAILED require a complete self-contained handoff from every ro
   }
 });
 
+test("policy reason guidance preserves strict rules and corrected-deviation disclosure in every role prompt", () => {
+  for (const family of ROLE_FAMILIES) {
+    const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
+    assert.match(prompt, /Use policy_violation for an actual unauthorized action, secret exposure, or another material policy breach/);
+    assert.match(prompt, /or when a project or assignment rule explicitly makes a procedural deviation terminal\./);
+    assert.match(prompt, /Failed commands, launchers rejected before execution, unknown runner environments, and harmless diagnostics alone do not prove a material breach\./);
+    assert.match(prompt, /Disclose corrected or rejected procedural deviations in the report\./);
+    assert.match(prompt, /COMPLETED is permitted only when assigned work and required checks finish, no material breach occurred, and no applicable rule makes the deviation terminal\./);
+    assert.match(prompt, /Use verification_failure when required verification remains failed or invalid\./);
+    assert.match(prompt, /If a policy prevents work before any breach, use BLOCKED with policy_restriction\./);
+    assert.match(prompt, /Passing checks must not erase material breaches, relax explicit acceptance rules, or relabel historical failures\./);
+  }
+});
+
+test("shared safety and terminal safeguards remain in every role prompt", () => {
+  for (const family of ROLE_FAMILIES) {
+    const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
+    assert.match(prompt, /Follow applicable project instructions; more specific wins\./);
+    assert.match(prompt, /Preserve user changes; never reset, clean, stash, overwrite, or revert\./);
+    assert.match(prompt, /Do not stage, commit, push, deploy, or write hosted services unless this assignment explicitly authorizes that action\./);
+    assert.match(prompt, /Never expose credentials, tokens, cookies, or private keys\./);
+    assert.ok(prompt.includes(CHILD_ATTEMPT_BUDGET));
+    assert.ok(prompt.includes("End with exactly one form and no text after it:\n\nDELEGATE_RESULT: COMPLETED"));
+    assert.match(prompt, /DELEGATE_REASON: <blocked-code>\nDELEGATE_RESULT: BLOCKED/);
+    assert.match(prompt, /DELEGATE_REASON: <failed-code>\nDELEGATE_RESULT: FAILED/);
+    assert.ok(prompt.includes(`BLOCKED codes: ${BLOCKED_REASON_CODES.join(", ")}.`));
+    assert.ok(prompt.includes(`FAILED codes: ${FAILED_REASON_CODES.join(", ")}.`));
+    assert.match(prompt, /DELEGATE_RESULT appears once as the final nonblank line; DELEGATE_REASON appears once directly above it\. COMPLETED has no reason\./);
+    assert.match(prompt, /A review that finishes its analysis returns COMPLETED with or without findings and with optional-check limits\./);
+    assert.match(prompt, /After BLOCKED or FAILED, stop\./);
+  }
+});
+
 test("child prompts carry no parent workflow, waiver, or gate instruction beyond the role contract", () => {
   for (const family of ROLE_FAMILIES) {
     const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
@@ -187,6 +220,7 @@ test("child prompts carry no parent workflow, waiver, or gate instruction beyond
       "delegate_run",
       "delegate_model_catalog",
       "promptGuidelines",
+      "Assignment policy",
       "waive",
       "waiver",
       "solution gate",
@@ -260,6 +294,17 @@ test("parent guidelines scope and gate each increment before integrated final re
   assert.match(guidelines, /On the final increment, review the accumulated diff against the whole task contract and run overall acceptance checks/);
   assert.match(guidelines, /Any non-completed required role stops automatic advancement to the next increment/);
   assert.doesNotMatch(guidelines, /run exactly one implementation delegate\.|After finalizing a contract for delegated implementation, run one implementation delegate\./);
+});
+
+test("parent assignment policy requires tool-compatible checks without invented terminal rules or silent relaxation", () => {
+  const guidelines = delegateRunPromptGuidelines(SOLUTION_ROLE_FIXTURE, REVIEW_ROLE_FIXTURE);
+  const matching = guidelines.filter((line) => line.startsWith("delegate_run [Assignment policy]:"));
+  assert.equal(matching.length, 1);
+  const guideline = matching[0]!;
+  assert.match(guideline, /State explicit execution and acceptance requirements compatible with the selected tools\./);
+  assert.match(guideline, /Preserve explicit user and project requirements; never relax them silently\./);
+  assert.match(guideline, /Do not invent irrevocable failure rules for harmless corrected procedural deviations\./);
+  assert.ok(!MODEL_CATALOG_PROMPT_GUIDELINES.includes(guideline));
 });
 
 test("parent evidence handoff is optional and requires no extra discovery", () => {
@@ -348,7 +393,7 @@ test("the parent guidelines stay dynamic, compact, and tool-attributed", () => {
     SOLUTION_ROLE_FIXTURE,
     REVIEW_ROLE_FIXTURE,
   );
-  assert.equal(guidelines.length, 16);
+  assert.equal(guidelines.length, 17);
   assert.ok(guidelines.every((line) => line.startsWith("delegate_run ")));
   const text = guidelines.join("\n");
   assert.match(text, /solution-a, solution-b, and solution-c concurrently/);

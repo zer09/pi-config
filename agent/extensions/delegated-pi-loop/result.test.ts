@@ -497,6 +497,38 @@ test("failure Markdown shows only the accepted reason enum with a fixed summary"
   assert.match(text, /The delegate ended with DELEGATE_RESULT: BLOCKED\.\nThe attempt budget was exhausted before a required result was available\./);
 });
 
+test("policy violation summaries attribute the reason to the delegate without changing failure details", () => {
+  const result = failedResult({
+    state: "delegate_failed",
+    delegateOutcome: "failed",
+    terminalReason: "policy_violation",
+    reasonStatus: "accepted",
+    report: "Synthetic failure report.\n\nDELEGATE_REASON: policy_violation\nDELEGATE_RESULT: FAILED",
+    progress: progress({
+      state: "delegate_failed",
+      delegateOutcome: "failed",
+      terminalReason: "policy_violation",
+      reasonStatus: "accepted",
+    }),
+  });
+  const toolResult = finalToolResult(result) as ToolResult;
+  for (const text of [failureMarkdown(result), toolResult.content[0]!.text]) {
+    assert.match(text, /- state: delegate_failed/);
+    assert.match(text, /- terminal reason: policy_violation/);
+    assert.match(text, /The delegate ended with DELEGATE_RESULT: FAILED\.\nThe delegate reported a policy violation\./);
+    assert.match(text, /Synthetic failure report\./);
+    assert.doesNotMatch(text, /A policy rule was violated during execution\./);
+    assert.doesNotMatch(text, /^DELEGATE_REASON:|^DELEGATE_RESULT:/m);
+  }
+  assert.equal(toolResult.details?.state, "delegate_failed");
+  assert.equal(toolResult.details?.delegateOutcome, "failed");
+  assert.equal(toolResult.details?.terminalReason, "policy_violation");
+  assert.equal(toolResult.details?.reasonStatus, "accepted");
+  assert.equal((toolResult.details?.progress as DelegateProgress).terminalReason, "policy_violation");
+  assert.deepEqual(delegateToolResultPatch({ toolName: "delegate_run", details: toolResult.details }), { isError: true });
+  assert.doesNotMatch(JSON.stringify(toolResult), /SECRET-REPORT-BODY|delegated-pi-solution-a-abc/);
+});
+
 test("failure Markdown pins the finding_reported misuse to the COMPLETED contract", () => {
   const text = failureMarkdown(blockedRun({
     terminalReason: "finding_reported",

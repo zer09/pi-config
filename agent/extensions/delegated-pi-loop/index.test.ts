@@ -16,7 +16,7 @@ test("registration guidelines encode the compact automatic delegation policy wit
     ["solution-a", "solution-b", "solution-c"],
     ["review-a", "review-b"],
   );
-  assert.equal(lines.length, 16);
+  assert.equal(lines.length, 17);
   assert.ok(lines.every((line) => line.startsWith("delegate_run ")));
   const guidelines = lines.join("\n");
 
@@ -256,7 +256,7 @@ test("the registered availableSkills schema carries the description on the array
       [...delegateRunPromptGuidelines(roleIdsInFamily(snapshot, "solution"), roleIdsInFamily(snapshot, "review"))],
       "delegate_run must register the canonical guidelines exactly once",
     );
-    assert.equal(registrations[0]?.promptGuidelines?.length, 16);
+    assert.equal(registrations[0]?.promptGuidelines?.length, 17);
     assert.deepEqual(registrations[1]?.promptGuidelines, [...MODEL_CATALOG_PROMPT_GUIDELINES]);
     // JSON round-trip mirrors the serialization providers receive: plain
     // JSON Schema keys survive and symbol markers do not.
