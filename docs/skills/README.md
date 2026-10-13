@@ -91,6 +91,7 @@ Installing a new skill means:
 - `installed-skills-trim-verdict.md`: tracked inventory of installed skill slimming decisions.
 - `agent-toolkit-skills-update-process.md`: update workflow for the remaining softaworks agent-toolkit skills.
 - `agentmemory-pi-extension-update-process.md`: retired-skill notes and reinstall checklist for the former Pi-native AgentMemory extension's bundled skill metadata.
+- [anydoc-update-process.md](anydoc-update-process.md): update workflow, MIT provenance, and the bundled AnyDoc CLI wrapper/tests for local-first conversion, one official OCR retry, opt-outs, and safe replay/output handling.
 - `astral-python-tools-update-process.md`: update workflow for Astral uv, Ruff, and ty skills.
 - `chrome-devtools-skills-update-process.md`: retired-skill notes and reinstall checklist for the former Chrome DevTools MCP skill group.
 - `context7-cli-update-process.md`: retired-skill notes and reinstall checklist for the former Context7 CLI skill.

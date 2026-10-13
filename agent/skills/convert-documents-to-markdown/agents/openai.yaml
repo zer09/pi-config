@@ -1,0 +1,4 @@
+interface:
+  display_name: "Convert Documents to Markdown"
+  short_description: "Convert office files and PDFs to Markdown"
+  default_prompt: "Use $convert-documents-to-markdown to inspect this document as Markdown locally first, with one official Firecrawl OCR retry if needed, unless I request no upload."

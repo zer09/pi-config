@@ -4,7 +4,7 @@ Basis: rating means how well I can do the task from base model memory without th
 
 Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed; `x` = addressed and removed.
 
-Current inventory (2026-09-30): 38 installed `agent/skills/*/SKILL.md` roots, comprising 37 retained/classified skills and the blank, deferred `outpour-mcp` TODO row. Outpour is excluded from this maintenance; inventory membership does not mean acceptance or hardening. Impeccable is also excluded from this update and remains untouched pending future removal; its existing row is unchanged.
+Current inventory: 39 installed `agent/skills/*/SKILL.md` roots, comprising 38 retained/classified skills and the blank, deferred `outpour-mcp` TODO row. Outpour is excluded from this maintenance; inventory membership does not mean acceptance or hardening. Impeccable is also excluded from this update and remains untouched pending future removal; its existing row is unchanged.
 
 Not installed as Local Skill roots: `context-mode`, `ctx-doctor`, `ctx-insight`, `ctx-purge`, `ctx-stats`, `ctx-upgrade`, and `librarian`. Earlier retained rows described package-provided workflows, not the current installed roots. Their absence does not authorize restoring skills or retiring extensions; no current keep/slim/remove decision is assigned to them.
 
@@ -19,6 +19,7 @@ All four `developing-genkit-*` skills remain `make it slim`. Their current origi
 | x | codegraph | Weak | 3 | remove it | Removed as a standalone Local Skill; CodeGraph remains available through Pi's native graph-first tooling and global guidance. |
 | x | context-watcher | Weak | 2 | remove it | Retired from the old pasted skills to avoid a broad orchestration runtime skill; preserve routing guidance in global/project instructions instead. |
 | x | context7-cli | Medium | 5 | remove it | Retired because docs lookup can use normal research tools and Context7 skill/setup workflows are not frequent enough to justify a runtime skill. Reinstall only for a dedicated `ctx7` workflow. |
+| ✓ | convert-documents-to-markdown | Medium | 5 | keep it | Adapted from firecrawl/anydoc with a bundled CLI wrapper and offline tests for local-first conversion, one official OCR retry, stdin replay, and safe output. Explicit opt-outs and sensitive-data rules remain; custom destinations stop for separate approval/manual handling. See the [update process](anydoc-update-process.md). |
 | ✓ | crit | Medium | 5 | keep it | Retained because the interactive inline review loop is local tool-specific and benefits from exact CLI behavior. |
 | ✓ | crit-cli | Medium | 5 | make it slim | Slimmed to local/hosted action gates, task routing, correctness, and completion; exact commands, JSON schemas, and niche review semantics live in a selective runtime reference. Interactive review remains explicit crit. |
 | x | debug-optimize-lcp | Strong | 8 | remove it | Retired with the old pasted Chrome DevTools MCP skill group; handle LCP work with Pi browser tools plus focused performance docs when needed. |
