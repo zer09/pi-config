@@ -510,6 +510,11 @@
             "openai-codex-cgpt13",
             "openai-codex-cgpt14"
           ]
+        },
+        {
+          "model": "claude-opus-5-5",
+          "thinking": "medium",
+          "providers": ["claude-bridge"]
         }
       ]
     },
@@ -540,7 +545,7 @@
     }
   },
   "assignments": {
-    "solution": ["gate-a", "gate-b"],
+    "solution": ["gate-a", "gate-b", "gate-d"],
     "review": ["gate-a", "gate-b"],
     "implementation": "implementation",
     "remediation": "implementation",
