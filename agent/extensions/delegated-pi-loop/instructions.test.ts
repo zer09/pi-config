@@ -388,6 +388,20 @@ test("no model or provider catalog enumeration enters permanent prompt content",
   }
 });
 
+test("routing and catalog guidance defer to profile policy for every role", () => {
+  const routing = delegateRunPromptGuidelines(SOLUTION_ROLE_FIXTURE, REVIEW_ROLE_FIXTURE)
+    .find((line) => line.startsWith("delegate_run [Routing]:"))!;
+  const catalog = MODEL_CATALOG_PROMPT_GUIDELINES.join("\n");
+  for (const text of [routing, catalog]) {
+    assert.match(text, /assigned profile's overridePolicy, including oracle/);
+    assert.match(text, /explicit user or project/);
+    assert.doesNotMatch(text, /never override oracle|never allowed for oracle/);
+  }
+  assert.match(routing, /Routing and operational fallback are automatic/);
+  assert.match(routing, /Never change permissions or concurrency/);
+  assert.match(catalog, /Lookup changes nothing/);
+});
+
 test("the parent guidelines stay dynamic, compact, and tool-attributed", () => {
   const guidelines = delegateRunPromptGuidelines(
     SOLUTION_ROLE_FIXTURE,

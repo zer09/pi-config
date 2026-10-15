@@ -424,22 +424,6 @@ test("config validation rejects structural violations", () => {
       },
       pattern: /profiles keys must not be empty or whitespace-only/,
     },
-    {
-      name: "oracle profile policy omitted",
-      mutate: (document) => {
-        const profiles = document.profiles as Record<string, Record<string, unknown>>;
-        delete profiles.pinned!.overridePolicy;
-      },
-      pattern: /profiles\.pinned\.overridePolicy must be "rejected" for the oracle role/,
-    },
-    {
-      name: "oracle profile policy allowed",
-      mutate: (document) => {
-        const profiles = document.profiles as Record<string, Record<string, unknown>>;
-        profiles.pinned!.overridePolicy = "allowed";
-      },
-      pattern: /profiles\.pinned\.overridePolicy must be "rejected" for the oracle role/,
-    },
   ];
   for (const item of cases) {
     assert.throws(() => syntheticConfig({ mutate: item.mutate }), item.pattern, item.name);
@@ -1223,7 +1207,7 @@ test("single-provider Codex pools and explicit Pro Lite pins remain deterministi
   }
   assert.throws(() => selectRoutes(providerPoolConfig(), "oracle", {
     provider: "openai-codex", reason: "rejected pin",
-  }, options), /routingOverride is not allowed for the oracle role/);
+  }, options), /routingOverride is not allowed for this role's routing profile/);
 });
 
 test("exclusions, disabled providers, tier allowlists, and capabilities apply before Codex reserve ordering", () => {
@@ -1806,51 +1790,73 @@ test("malformed runtime overrides fail validation before any field read", () => 
   );
 });
 
-test("a malformed oracle override still receives the oracle-specific rejection first", () => {
-  const config = loadRoutingConfig();
-  // The family-based rejection fires before shape validation, so even
-  // malformed oracle overrides never reach field reads or a shape error.
-  assert.throws(
-    () => selectRoutes(config, "oracle", null as never),
-    /routingOverride is not allowed for the oracle role/,
-  );
-  assert.throws(
-    () => selectRoutes(config, "oracle", { excludeProviders: "provider-a" } as never),
-    /routingOverride is not allowed for the oracle role/,
-  );
+test("Oracle accepts explicit allowed and omitted profile policy through the common selector", () => {
+  for (const policy of ["allowed", undefined]) {
+    const config = syntheticConfig({
+      mutate: (document) => {
+        const profiles = document.profiles as Record<string, Record<string, unknown>>;
+        if (policy === undefined) delete profiles.pinned!.overridePolicy;
+        else profiles.pinned!.overridePolicy = policy;
+      },
+    });
+    assert.equal(config.profiles.pinned!.overridePolicy, "allowed");
+    const reason = "explicit user request";
+    const cases = [
+      { override: { model: "model-y", reason }, routes: ["prov-a/model-y:low"] },
+      { override: { provider: "prov-b", reason }, routes: ["prov-b/model-x:high"] },
+      { override: { model: "model-x", thinking: "max", reason }, routes: ["prov-a/model-x:max"] },
+      { override: { excludeProviders: ["prov-a"], reason }, routes: ["prov-b/model-x:high"] },
+      { override: { provider: "prov-a", model: "model-y", thinking: "low", reason }, routes: ["prov-a/model-y:low"] },
+    ];
+    for (const item of cases) {
+      assert.deepEqual(selectRoutes(config, "oracle", item.override).map(routeKey), item.routes);
+    }
+    // Routing never changes the role's permission or concurrency class.
+    assert.equal(roleIsReadOnly(requireRole(config, "oracle")), true);
+    assert.equal(roleIsExclusive(requireRole(config, "oracle")), true);
+    assert.equal(roleIsReadOnly(requireRole(config, "implementation")), false);
+    assert.equal(roleIsExclusive(requireRole(config, "implementation")), true);
+    assert.equal(roleIsReadOnly(requireRole(config, "verification")), true);
+  }
 });
 
-test("the oracle role rejects every override even when the profile policy is mutated", () => {
-  const config = loadRoutingConfig();
-  assert.throws(
-    () => selectRoutes(config, "oracle", { model: "model-c", reason: "attempted override" }),
-    /routingOverride is not allowed for the oracle role/,
-  );
-  assert.throws(
-    () => selectRoutes(config, "oracle", { excludeProviders: ["provider-a"], reason: "attempted exclusion" }),
-    /routingOverride is not allowed for the oracle role/,
-  );
-  // Defense in depth: simulate an in-memory mutation that flips the oracle
-  // profile policy to "allowed". Validation would reject this config, but
-  // the selector still rejects the override by family alone.
-  const base = syntheticConfig({});
-  const mutated: RoutingConfig = {
-    ...base,
-    profiles: {
-      ...base.profiles,
-      pinned: { ...base.profiles.pinned!, overridePolicy: "allowed" },
+test("Oracle and ordinary roles enforce rejected profile policy after common shape validation", () => {
+  const config = syntheticConfig({
+    mutate: (document) => {
+      (document.assignments as Record<string, unknown>).verification = "pinned";
     },
-  };
-  assert.throws(
-    () => selectRoutes(mutated, "oracle", { model: "model-y", reason: "attempted override" }),
-    /routingOverride is not allowed for the oracle role/,
-  );
-  // Non-oracle roles keep override support through the same mutated config,
-  // and overrides never change role classification: permissions and
-  // concurrency stay a function of the resolved role.
-  assert.ok(selectRoutes(mutated, "implementation", { model: "model-x", reason: "explicit request" }, { random: () => 0 }).length > 0);
-  assert.equal(roleIsReadOnly(requireRole(mutated, "implementation")), false);
-  assert.equal(roleIsExclusive(requireRole(mutated, "implementation")), true);
-  assert.equal(roleIsReadOnly(requireRole(mutated, "verification")), true);
-  assert.equal(roleIsExclusive(requireRole(mutated, "oracle")), true);
+  });
+  for (const role of ["oracle", "verification"]) {
+    assert.throws(
+      () => selectRoutes(config, role, { model: "model-y", reason: "explicit request" }),
+      /routingOverride is not allowed for this role's routing profile/,
+    );
+    assert.throws(() => selectRoutes(config, role, null as never), /routingOverride must be an object/);
+  }
+});
+
+test("allowed Oracle overrides use common malformed, no-op, and capability failures", () => {
+  const config = syntheticConfig({
+    mutate: (document) => {
+      (document.assignments as Record<string, unknown>).oracle = "all";
+    },
+  });
+  const reason = "explicit user request";
+  const cases = [
+    { override: null, pattern: /routingOverride must be an object/ },
+    { override: { model: "model-y" }, pattern: /requires a non-empty reason/ },
+    { override: { model: "model-y", reason: " " }, pattern: /requires a non-empty reason/ },
+    { override: { reason }, pattern: /routingOverride is a no-op/ },
+    { override: { thinking: "high", reason }, pattern: /thinking requires routingOverride.model/ },
+    { override: { excludeProviders: "prov-a", reason }, pattern: /excludeProviders must be a non-empty array/ },
+    { override: { provider: 7, reason }, pattern: /provider must be a non-empty string/ },
+    { override: { model: "unknown", reason }, pattern: /has no capability record/ },
+    { override: { model: "model-y", provider: "prov-b", reason }, pattern: /has no capability record for model/ },
+    { override: { model: "model-y", provider: "prov-a", thinking: "high", reason }, pattern: /does not support model/ },
+    { override: { model: "model-y", thinking: "unknown", reason }, pattern: /is not a configured thinking level/ },
+    { override: { excludeProviders: ["prov-a", "prov-b"], reason }, pattern: /routing produced no eligible route/ },
+  ];
+  for (const item of cases) {
+    assert.throws(() => selectRoutes(config, "oracle", item.override as never), item.pattern);
+  }
 });

@@ -2972,10 +2972,11 @@ test("report recovery remains eligible after total elapsed time exceeds any form
   });
 });
 
-test("an oracle routing override is rejected before any child spawns", async () => {
+test("a rejected Oracle profile rejects routing overrides before artifacts or children", async () => {
   const fixture = await fakePi(
     ["provider-i/model-c", "provider-a/model-a"],
     { "provider-i/model-c": "complete", "provider-a/model-a": "complete" },
+    { spawnMarker: true },
   );
   await assert.rejects(
     () => runDelegate(baseOptions(fixture, {
@@ -2983,8 +2984,104 @@ test("an oracle routing override is rejected before any child spawns", async () 
       prompt: "Review only.",
       routingOverride: { provider: "provider-i", model: "model-c", reason: "explicit user request" },
     })),
-    /routingOverride is not allowed for the oracle role/,
+    /routingOverride is not allowed for this role's routing profile/,
   );
+  await assertNoOwnedArtifacts("rejected profile policy must precede artifacts");
+  await assert.rejects(() => stat(fixture.spawnMarkerPath!), enoent);
+});
+
+test("an allowed Oracle override executes a non-parent model with one route selection", async () => {
+  const fixture = await fakePi(["provider-a/model-b"], {}, { spawnMarker: true });
+  const base = loadRoutingFixture();
+  const profile = base.roles.get("oracle")!.profile;
+  const routingConfig = {
+    ...base,
+    profiles: { ...base.profiles, [profile]: { ...base.profiles[profile]!, overridePolicy: "allowed" as const } },
+  };
+  let randomCalls = 0;
+  let clockReads = 0;
+  await runAndFinalize(baseOptions(fixture, {
+    role: "oracle",
+    parentModelId: "model-c",
+    routingConfig,
+    routingOverride: { model: "model-b", thinking: "high", reason: "explicit user request" },
+    random: () => { randomCalls += 1; return 0.4; },
+    now: () => { clockReads += 1; return Date.now(); },
+  }), async (result) => {
+    assert.equal(result.state, "completed");
+    assert.equal(result.label, "oracle");
+    assert.equal(result.selectedRoute, "provider-a/model-b:high");
+    assert.equal(result.attempts[0]?.state, "catalog_unavailable");
+    assert.equal(result.attempts[0]?.route, "provider-d/model-b:high");
+    assert.equal(randomCalls, 1, "catalog fallback must reuse the single route selection");
+    assert.equal(clockReads, 1);
+    await stat(fixture.spawnMarkerPath!);
+  });
+});
+
+test("allowed Oracle overrides preserve configured skips and reject selected parent models before resources", async () => {
+  const fixture = await fakePi(["provider-i/model-c"], {}, { spawnMarker: true });
+  const base = loadRoutingFixture();
+  const profile = base.roles.get("oracle")!.profile;
+  const routingConfig = {
+    ...base,
+    profiles: { ...base.profiles, [profile]: { ...base.profiles[profile]!, overridePolicy: "allowed" as const } },
+  };
+  for (const parentModelId of ["model-a", "model-c"]) {
+    let clockReads = 0;
+    const options = baseOptions(fixture, {
+      role: "oracle",
+      parentModelId,
+      routingConfig,
+      routingOverride: { model: "model-c", reason: "explicit user request" },
+      now: () => { clockReads += 1; return Date.now(); },
+    });
+    Object.defineProperty(options, "resourceSelection", {
+      get: () => assert.fail("the Oracle skip must run before resource selection"),
+    });
+    await assert.rejects(
+      () => runDelegate(options),
+      new RegExp(`Skip the oracle role.*parent session already runs ${parentModelId}`),
+    );
+    await assertNoOwnedArtifacts("configured and selected model skips must precede artifacts");
+    assert.equal(clockReads, parentModelId === "model-a" ? 0 : 1);
+    await assert.rejects(() => stat(fixture.spawnMarkerPath!), enoent);
+  }
+});
+
+test("Oracle rejects a parent model in the selected fallback before resources, artifacts, or children", async () => {
+  const fixture = await fakePi(["prov-a/model-x", "prov-a/model-z"], {}, { spawnMarker: true });
+  const base = twoTierOracleRoutingConfig();
+  const profile = base.profiles["two-tier-oracle"]!;
+  const routingConfig = {
+    ...base,
+    models: { ...base.models, "model-z": base.models["model-y"]! },
+    profiles: { ...base.profiles, "two-tier-oracle": { ...profile, overridePolicy: "allowed" as const } },
+  };
+  let clockReads = 0;
+  const options = baseOptions(fixture, {
+    role: "oracle",
+    parentModelId: "model-z",
+    routingConfig,
+    routingOverride: { provider: "prov-a", reason: "explicit user request" },
+    now: () => {
+      clockReads += 1;
+      // Simulate in-memory policy drift after the configured-model guard.
+      // Only the selected fallback now matches the parent; the primary stays safe.
+      Object.assign(profile.tiers[1]!, { model: "model-z" });
+      return Date.now();
+    },
+  });
+  Object.defineProperty(options, "resourceSelection", {
+    get: () => assert.fail("the selected fallback guard must precede resource selection"),
+  });
+  await assert.rejects(
+    () => runDelegate(options),
+    /Skip the oracle role.*parent session already runs model-z/,
+  );
+  await assertNoOwnedArtifacts("selected fallback model skip must precede artifacts");
+  assert.equal(clockReads, 1);
+  await assert.rejects(() => stat(fixture.spawnMarkerPath!), enoent);
 });
 
 test("an exceptional routing override pins an exact route for one run", async () => {
@@ -3028,7 +3125,7 @@ test("rejected routing overrides create no private artifact directory", async ()
   );
   const base = baseOptions(fixture, { role: "implementation", prompt: "Implement only." });
   // Route and override selection completes before createArtifactDir, so a
-  // no-op override, an invalid model, and an oracle override all fail
+  // no-op override, an invalid model, and a rejected Oracle profile all fail
   // without leaving a private artifact directory behind.
   await assertCreatesNoArtifact(() => runDelegate({
     ...base,

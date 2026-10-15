@@ -2,6 +2,13 @@
 
 This document summarizes local Pi configuration changes. Detailed change records live under [`docs/changelogs/`](./changelogs/).
 
+## Profile-controlled Oracle routing overrides
+
+- Removed Oracle-only override rejection from config validation and route selection. Every role now follows its assigned profile's `overridePolicy`; omission defaults to `allowed`. Common reason, shape, no-op, capability, and rejected-profile checks remain authoritative.
+- Kept the configured-tier Oracle self-review skip. Added a second guard over the complete selected route chain, including overrides and fallbacks, before runner resource selection, artifacts, or children. Selection still runs exactly once.
+- Updated canonical routing/catalog guidance, generated instruction references, current docs, and offline context-cost accounting. Explicit operational authorization, automatic routing, read-only/exclusive roles, permissions, concurrency, and fallback remain unchanged. Shipped `routing.json` and `resources.json` are untouched; Oracle overrides remain disabled by shipped policy.
+- Added policy-driven selector and fake-Pi runner regressions. No paid inference or live provider smoke ran.
+
 ## Delegated Claude Bridge provider
 
 - Delegated children can now use `claude-bridge/*` routes. Before this change, catalog preflight and runtime children never loaded `pi-claude-bridge`, so every such route failed with `catalog_unavailable`.

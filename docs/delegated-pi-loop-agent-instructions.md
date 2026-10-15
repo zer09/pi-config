@@ -96,7 +96,7 @@ These instructions are injected by `delegate_run` through `promptGuidelines`, ge
 
 13. delegate_run [Remediation]: Send only verification-confirmed findings to one focused remediation, then repeat the full review gate until no blocking findings remain.
 
-14. delegate_run [Routing]: Routing and operational fallback are automatic. Use delegate_model_catalog and routingOverride only for an explicit user or project one-run operational route request; never override oracle or change permissions or concurrency.
+14. delegate_run [Routing]: Routing and operational fallback are automatic. Use delegate_model_catalog and routingOverride only for an explicit user or project one-run operational route request, subject to the assigned profile's overridePolicy, including oracle. Never change permissions or concurrency.
 
 15. delegate_run [Failure and authority]: Treat every non-completed state as a failed tool-error delegation and report it. Any non-completed required role stops automatic advancement to the next increment. Do not retry automatically beyond bounded fallback. Follow the user's ordinary next instruction; continue, resume, or retry requires no special syntax. Delegate completion never authorizes staging, committing, pushing, deploying, or hosted-service mutation; each requires separate explicit authorization.
 
@@ -434,7 +434,7 @@ npm run check:routing
 
 For multi-provider pools, the extension randomly selects one primary provider. It then appends the remaining providers in stable configuration order. See `selectRoutes` in `agent/extensions/delegated-pi-loop/routing.ts`.
 
-The oracle rejects all routing overrides. If the parent already runs any model reachable through the oracle profile, the oracle is skipped before creating artifacts or spawning a process.
+Every role, including oracle, follows its assigned profile's `overridePolicy`: `allowed` or `rejected`, with omission defaulting to `allowed`. The shipped Oracle profile remains `rejected`. The runner first skips an oracle whose configured profile includes the parent model. After exactly one route selection, it also skips if any selected model, including an override or fallback route, matches the parent. Both guards precede resource selection, artifacts, and child processes.
 
 ### Model catalog lookup
 
@@ -454,10 +454,10 @@ Guidelines:
 
 1. delegate_model_catalog: Use only to resolve a partial or unknown model in an explicit user or project request for a one-run operational override; choose only a returned compatible combination.
 
-2. delegate_model_catalog: Lookup changes nothing. Automatic routing remains default; routingOverride stays exceptional and is never allowed for oracle.
+2. delegate_model_catalog: Lookup changes nothing. Automatic routing remains default; routingOverride stays exceptional and follows the assigned profile's overridePolicy, including oracle.
 <!-- pi-delegated-instructions:end:model-catalog-tool -->
 
-Each returned match carries the model and only its compatible configured routes (provider, supported thinking levels, default thinking); filters that remove every route omit the model, disabled providers never appear, and a zero-match result never dumps the catalog. Truncation is flagged when `totalMatches` exceeds the returned matches. The tool never invokes `pi --list-models`, never runs a delegate, and never enumerates combinations in the `delegate_run` schema; routing overrides stay exceptional and are never valid for the oracle role.
+Each returned match carries the model and only its compatible configured routes (provider, supported thinking levels, default thinking); filters that remove every route omit the model, disabled providers never appear, and a zero-match result never dumps the catalog. Truncation is flagged when `totalMatches` exceeds the returned matches. The tool never invokes `pi --list-models`, never runs a delegate, and never enumerates combinations in the `delegate_run` schema; routing overrides stay exceptional and follow the assigned profile's policy, including for oracle.
 
 ## 10. Machine-enforced concurrency
 

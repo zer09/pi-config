@@ -16,7 +16,8 @@ export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 /**
  * Exceptional one-run routing change. Routing is automatic from the
  * extension-owned routing configuration; an override is valid only for an
- * explicit user or project operational request, never for the oracle role.
+ * explicit user or project operational request, subject to the assigned
+ * profile's overridePolicy for every role, including oracle.
  * An override never changes role permissions or concurrency.
  */
 export interface RoutingOverride {

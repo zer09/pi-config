@@ -24,9 +24,10 @@ export function roleLabel(role: ResolvedRole): string {
 /**
  * Pre-spawn oracle guard, enforced before any artifact or child process:
  * main-model skip detection is model-id based against every model
- * reachable through the configured Oracle profile (all tiers), so the exact
- * model on any parent provider skips the oracle instead of reviewing
- * itself. Returning undefined means the run may proceed; the thrown message
+ * reachable through the configured Oracle profile (all tiers) and then the
+ * selected route chain (including overrides and fallbacks). The exact model
+ * on any parent provider skips the oracle instead of reviewing itself.
+ * Returning undefined means the run may proceed; the thrown message
  * stays bounded and model-visible so no fabricated oracle report is
  * produced.
  */

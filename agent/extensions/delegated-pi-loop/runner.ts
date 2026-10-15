@@ -441,6 +441,10 @@ export async function runDelegate(options: RunOptions): Promise<DelegateRunResul
     scheduler: options.scheduler,
     now: options.now,
   });
+  // An allowed override can add models outside the configured Oracle tiers.
+  // Check the entire selected chain, including fallbacks, before resources or artifacts.
+  const selectedGuard = oracleGuard(role, options.parentModelId, new Set(routes.map((route) => route.model)));
+  if (selectedGuard) throw selectedGuard;
 
   // The child resource selection is built (and its extension and skill
   // paths fully re-verified) exactly once for the whole invocation, before

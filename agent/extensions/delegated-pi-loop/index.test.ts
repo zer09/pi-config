@@ -55,7 +55,8 @@ test("registration guidelines encode the compact automatic delegation policy wit
   assert.match(guidelines, /repeat the full review gate until no blocking findings remain/);
 
   assert.match(guidelines, /Routing and operational fallback are automatic/);
-  assert.match(guidelines, /never override oracle or change permissions or concurrency/);
+  assert.match(guidelines, /subject to the assigned profile's overridePolicy, including oracle/);
+  assert.match(guidelines, /Never change permissions or concurrency/);
   assert.match(guidelines, /Do not retry automatically beyond bounded fallback/);
   assert.match(guidelines, /separate explicit authorization/);
   assert.match(guidelines, /Selection exposes skills but never forces full loading/);
@@ -395,7 +396,7 @@ test("the model catalog guidance stays concise and keeps overrides exceptional",
   assert.match(instructions, /Use only to resolve a partial or unknown model in an explicit user or project request for a one-run operational override/);
   assert.match(instructions, /choose only a returned compatible combination/);
   assert.match(instructions, /Lookup changes nothing/);
-  assert.match(instructions, /never allowed for oracle/);
+  assert.match(instructions, /routingOverride stays exceptional and follows the assigned profile's overridePolicy, including oracle/);
   // The catalog is never appended to the delegate_run schema or guidance.
   const delegateRunRegistration = source.slice(
     source.indexOf(`name: DELEGATE_RUN_TOOL.name`),

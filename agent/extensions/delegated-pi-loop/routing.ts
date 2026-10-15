@@ -370,14 +370,6 @@ export function validateRoutingConfig(value: unknown): RoutingConfig {
 
   const roles = parseAssignments(value.assignments, profiles);
 
-  // The oracle invariant must be explicit: a missing policy defaults to
-  // "allowed", and an allowed policy would let the oracle role be rerouted.
-  const oracleRole = roles.get("oracle")!;
-  const oracleProfile = profiles[oracleRole.profile]!;
-  if (oracleProfile.overridePolicy !== "rejected") {
-    fail(`profiles.${oracleRole.profile}.overridePolicy must be "rejected" for the oracle role`);
-  }
-
   // A disabled provider must never silently empty a configured tier: disabling
   // a provider that a tier depends on requires updating that tier explicitly.
   for (const [name, profile] of Object.entries(profiles)) {
@@ -690,13 +682,6 @@ export function selectRoutes(
 ): readonly PiRoute[] {
   // Registry-owned role validation: an unknown id fails closed here.
   const resolved = requireRole(config, role);
-  // Defense in depth: the oracle role rejects every override by family, so not
-  // even a mutated in-memory profile policy can reroute the oracle. This fires
-  // before shape validation so every malformed oracle override still gets the
-  // oracle-specific rejection.
-  if (resolved.family === "oracle" && override !== undefined) {
-    throw new Error("routingOverride is not allowed for the oracle role");
-  }
   const profile = config.profiles[resolved.profile]!;
   // The override is validated and narrowed once, before the exclusion Set is
   // built: a string excludeProviders must never become character exclusions.

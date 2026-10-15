@@ -2,6 +2,8 @@
 
 Quantitative calibration date: 2026-07-01
 
+Oracle profile-policy guidance update: parent `delegate_run` guidelines add 9 local `o200k_base` tokens; catalog guidelines add 5. Offline attribution is below. Provider calibration and full-context totals were not rerun.
+
 Delegated policy-reason guidance update: 2026-10-11 (tool-compatible assignment guidance adds 43 local `o200k_base` parent guideline tokens; reason-selection and disclosure guidance adds 143 tokens to each fixed child prompt. Offline attribution is below. Provider calibration and full-context totals were not rerun.)
 
 Delegated Fastlane update: 2026-10-04 (optional invocation-local `delegate_run.fastlane`; offline parent schema attribution increases by 62 local `o200k_base` tokens and the tool description by 13. Provider calibration and full-context totals were not rerun. The isolated attribution is below.)
@@ -218,6 +220,17 @@ pi "${COMMON[@]}" hi > /tmp/pi-full-hi.jsonl
 - Local `tiktoken` totals are not guaranteed to equal provider totals. Provider tokenization, Responses API framing, tool framing, and hidden/backend protocol all differ from plain local string counting.
 - Token counts are not always additive because BPE token boundaries change when sections are joined.
 - Prompt templates, extension command metadata, full `SKILL.md` files, tool results, and prior session history are not startup model context unless invoked/read/sent in a later turn.
+
+## Oracle profile-policy guidance attribution
+
+Measured offline with cached `tiktoken 0.14.0` / `o200k_base` through `uv run --offline --with tiktoken`. Before values use `instructions.ts` from the pre-change `HEAD`; after values use the working tree. Parent counts use `delegateRunPromptGuidelines` with three solution roles and two review roles, joined with one newline. Catalog counts use `MODEL_CATALOG_PROMPT_GUIDELINES`, joined with one newline.
+
+| Surface | Before | After | Delta |
+|---|---:|---:|---:|
+| Parent `delegate_run` guidelines | 1,122 | 1,131 | +9 |
+| Parent `delegate_model_catalog` guidelines | 58 | 63 | +5 |
+
+Parent guidelines grow from 6,508 to 6,557 characters; catalog guidelines grow from 342 to 378 characters. The guideline counts stay 17 and 2. The wording now defers to the assigned profile's `overridePolicy` for every role, including Oracle, while preserving explicit operational authorization and automatic routing. Tool schemas, descriptions, child prompts, role contracts, restart/recovery text, and `agent/AGENTS.md` are unchanged. Shipped routing policy remains unchanged, including Oracle's `rejected` policy. No provider calibration, full startup inventory, or paid inference ran; these isolated local text counts are not billed-token estimates, and earlier full-context totals remain historical snapshots.
 
 ## 2026-10-11 delegated policy-reason attribution
 
