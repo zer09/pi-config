@@ -52,6 +52,7 @@ const FIXTURE_ENTRY = {
   contextMode: "../context-mode/src/index.ts",
   codegraph: "../codegraph/index.ts",
   fastlane: "../fastlane/index.ts",
+  claudeBridge: "../claude-bridge-provider/delegate-entry.ts",
   codegraphAlternate: "../codegraph/alt.ts",
   footer: "../footer/index.ts",
 } as const;
@@ -68,7 +69,7 @@ interface FixtureOptions {
 /**
  * One self-contained policy sandbox that mirrors the real layout: an
  * extensions root with the delegated-pi-loop directory holding the policy, a
- * sibling skills root, and the six required extension directories. Every
+ * sibling skills root, and the seven required extension directories. Every
  * file is created empty; only structure matters to the validator.
  */
 async function createFixturePolicy(options: FixtureOptions = {}): Promise<{
@@ -90,6 +91,7 @@ async function createFixturePolicy(options: FixtureOptions = {}): Promise<{
     path.join(extensionsRoot, "context-mode", "src"),
     path.join(extensionsRoot, "codegraph"),
     path.join(extensionsRoot, "fastlane"),
+    path.join(extensionsRoot, "claude-bridge-provider"),
   ]) {
     await mkdir(dir, { recursive: true });
   }
@@ -100,6 +102,7 @@ async function createFixturePolicy(options: FixtureOptions = {}): Promise<{
   await writeFile(path.join(extensionsRoot, "context-mode", "src", "index.ts"), "");
   await writeFile(path.join(extensionsRoot, "codegraph", "index.ts"), "");
   await writeFile(path.join(extensionsRoot, "fastlane", "index.ts"), "");
+  await writeFile(path.join(extensionsRoot, "claude-bridge-provider", "delegate-entry.ts"), "");
   // Contained-but-unapproved siblings that mirror the real extensions
   // root: an unrelated footer extension plus alternate entry files inside
   // two required extension directories. Listing any of them in a policy
@@ -117,7 +120,7 @@ async function createFixturePolicy(options: FixtureOptions = {}): Promise<{
   const document = {
     version: 1,
     extensions: {
-      catalog: options.catalog ?? [FIXTURE_ENTRY.alias],
+      catalog: options.catalog ?? [FIXTURE_ENTRY.alias, FIXTURE_ENTRY.claudeBridge],
       runtime: options.runtime ?? [
         FIXTURE_ENTRY.child,
         FIXTURE_ENTRY.alias,
@@ -125,6 +128,7 @@ async function createFixturePolicy(options: FixtureOptions = {}): Promise<{
         FIXTURE_ENTRY.contextMode,
         FIXTURE_ENTRY.codegraph,
         FIXTURE_ENTRY.fastlane,
+        FIXTURE_ENTRY.claudeBridge,
       ],
     },
     skills: {
@@ -156,15 +160,15 @@ function assertPolicyFailure(run: () => unknown, fragment: RegExp): Promise<void
 
 test("the shipped resources.json validates with the exact policy inventory", () => {
   const resources = readResourcesFile(shippedResourcesPath);
-  assert.equal(resources.catalogExtensions.length, 1);
+  assert.equal(resources.catalogExtensions.length, 2);
   assert.ok(resources.catalogExtensions[0]!.endsWith(path.join("openai-codex-aliases", "index.ts")));
   // The context-mode entry lives under src/, so compare each entry's exact
   // extensions-root-relative file identity: the validator now requires the
   // exact canonical entry files in the exact canonical order.
   const extensionsRoot = path.resolve(path.dirname(resources.catalogExtensions[0]!), "..");
-  assert.equal(
-    path.relative(extensionsRoot, resources.catalogExtensions[0]!),
-    path.join("openai-codex-aliases", "index.ts"),
+  assert.deepEqual(
+    resources.catalogExtensions.map((entry) => path.relative(extensionsRoot, entry)),
+    [path.join("openai-codex-aliases", "index.ts"), path.join("claude-bridge-provider", "delegate-entry.ts")],
   );
   assert.deepEqual(
     resources.runtimeExtensions.map((entry) => path.relative(extensionsRoot, entry)),
@@ -175,6 +179,7 @@ test("the shipped resources.json validates with the exact policy inventory", () 
       path.join("context-mode", "src", "index.ts"),
       path.join("codegraph", "index.ts"),
       path.join("fastlane", "index.ts"),
+      path.join("claude-bridge-provider", "delegate-entry.ts"),
     ],
   );
   assert.deepEqual(allowedDelegateSkillNames(resources), [...SHIPPED_ALLOWED_SKILLS]);
@@ -186,7 +191,7 @@ test("the shipped resources.json validates with the exact policy inventory", () 
 
 test("the shipped policy resolves through the public loader", () => {
   const resources = loadDelegateResources();
-  assert.equal(resources.runtimeExtensions.length, 6);
+  assert.equal(resources.runtimeExtensions.length, 7);
   assert.equal(resources.allowedSkills.size, SHIPPED_ALLOWED_SKILLS.length);
 });
 
@@ -481,18 +486,44 @@ test("a missing model-tool extension in runtime fails", async () => {
   }
 });
 
-test("Fastlane is required only at the end of runtime and never enters catalog preflight", async () => {
+test("Fastlane is required in runtime order and never enters catalog preflight", async () => {
   const { policyPath } = await createFixturePolicy();
   const base = JSON.parse(await readFileText(policyPath));
   const missing = structuredClone(base);
-  missing.extensions.runtime.pop();
-  await assertPolicyFailure(() => validateResourcePolicy(missing, rootsFor(policyPath)), /exactly the six canonical entries in order/);
+  missing.extensions.runtime = base.extensions.runtime.filter((entry: string) => entry !== FIXTURE_ENTRY.fastlane);
+  await assertPolicyFailure(() => validateResourcePolicy(missing, rootsFor(policyPath)), /exactly the seven canonical entries in order/);
   const polluted = structuredClone(base);
   polluted.extensions.catalog.push(FIXTURE_ENTRY.fastlane);
-  await assertPolicyFailure(() => validateResourcePolicy(polluted, rootsFor(policyPath)), /exactly one canonical entry/);
+  await assertPolicyFailure(() => validateResourcePolicy(polluted, rootsFor(policyPath)), /exactly the two canonical entries in order/);
   const reordered = structuredClone(base);
-  reordered.extensions.runtime.unshift(reordered.extensions.runtime.pop());
-  await assertPolicyFailure(() => validateResourcePolicy(reordered, rootsFor(policyPath)), /exactly the six canonical entries in order/);
+  reordered.extensions.runtime = [
+    FIXTURE_ENTRY.fastlane,
+    ...base.extensions.runtime.filter((entry: string) => entry !== FIXTURE_ENTRY.fastlane),
+  ];
+  await assertPolicyFailure(() => validateResourcePolicy(reordered, rootsFor(policyPath)), /exactly the seven canonical entries in order/);
+});
+
+test("the claude-bridge provider entry is required last in both profiles", async () => {
+  const { policyPath } = await createFixturePolicy();
+  const base = JSON.parse(await readFileText(policyPath));
+  const noCatalogBridge = structuredClone(base);
+  noCatalogBridge.extensions.catalog = [FIXTURE_ENTRY.alias];
+  await assertPolicyFailure(
+    () => validateResourcePolicy(noCatalogBridge, rootsFor(policyPath)),
+    /extensions\.catalog must resolve to exactly the two canonical entries in order: openai-codex-aliases\/index\.ts, claude-bridge-provider\/delegate-entry\.ts/,
+  );
+  const reorderedCatalog = structuredClone(base);
+  reorderedCatalog.extensions.catalog = [FIXTURE_ENTRY.claudeBridge, FIXTURE_ENTRY.alias];
+  await assertPolicyFailure(
+    () => validateResourcePolicy(reorderedCatalog, rootsFor(policyPath)),
+    /exactly the two canonical entries in order/,
+  );
+  const noRuntimeBridge = structuredClone(base);
+  noRuntimeBridge.extensions.runtime.pop();
+  await assertPolicyFailure(
+    () => validateResourcePolicy(noRuntimeBridge, rootsFor(policyPath)),
+    /exactly the seven canonical entries in order: .*fastlane\/index\.ts, claude-bridge-provider\/delegate-entry\.ts/,
+  );
 });
 
 test("a model-tool extension in the catalog profile fails", async () => {
@@ -529,11 +560,11 @@ test("an extra footer entry in catalog or runtime fails canonical resolution", a
   // profile resolution can reject it: accepting and emitting it would load
   // an unapproved extension in every child.
   const catalogExtra = await createFixturePolicy({
-    catalog: [FIXTURE_ENTRY.alias, FIXTURE_ENTRY.footer],
+    catalog: [FIXTURE_ENTRY.alias, FIXTURE_ENTRY.claudeBridge, FIXTURE_ENTRY.footer],
   });
   await assertPolicyFailure(
     () => readResourcesFile(catalogExtra.policyPath),
-    /extensions\.catalog must resolve to exactly one canonical entry, openai-codex-aliases\/index\.ts/,
+    /extensions\.catalog must resolve to exactly the two canonical entries in order: openai-codex-aliases\/index\.ts, claude-bridge-provider\/delegate-entry\.ts/,
   );
 
   const runtimeExtra = await createFixturePolicy({
@@ -544,12 +575,13 @@ test("an extra footer entry in catalog or runtime fails canonical resolution", a
       FIXTURE_ENTRY.contextMode,
       FIXTURE_ENTRY.codegraph,
       FIXTURE_ENTRY.fastlane,
+      FIXTURE_ENTRY.claudeBridge,
       FIXTURE_ENTRY.footer,
     ],
   });
   await assertPolicyFailure(
     () => readResourcesFile(runtimeExtra.policyPath),
-    /extensions\.runtime must resolve to exactly the six canonical entries in order/,
+    /extensions\.runtime must resolve to exactly the seven canonical entries in order/,
   );
 });
 
@@ -564,11 +596,12 @@ test("reordered runtime entries fail the canonical profile order", async () => {
       FIXTURE_ENTRY.contextMode,
       FIXTURE_ENTRY.codegraph,
       FIXTURE_ENTRY.fastlane,
+      FIXTURE_ENTRY.claudeBridge,
     ],
   });
   await assertPolicyFailure(
     () => readResourcesFile(fixture.policyPath),
-    /extensions\.runtime must resolve to exactly the six canonical entries in order/,
+    /extensions\.runtime must resolve to exactly the seven canonical entries in order/,
   );
 });
 
@@ -577,11 +610,11 @@ test("alternate same-directory entry files fail canonical entry identity", async
   // extension directories, so per-directory counting alone accepts them;
   // canonical resolution must require the exact index.ts entry files.
   const catalogAlternate = await createFixturePolicy({
-    catalog: [FIXTURE_ENTRY.aliasAlternate],
+    catalog: [FIXTURE_ENTRY.aliasAlternate, FIXTURE_ENTRY.claudeBridge],
   });
   await assertPolicyFailure(
     () => readResourcesFile(catalogAlternate.policyPath),
-    /extensions\.catalog must resolve to exactly one canonical entry, openai-codex-aliases\/index\.ts/,
+    /extensions\.catalog must resolve to exactly the two canonical entries in order: openai-codex-aliases\/index\.ts, claude-bridge-provider\/delegate-entry\.ts/,
   );
 
   const runtimeAlternate = await createFixturePolicy({
@@ -592,11 +625,12 @@ test("alternate same-directory entry files fail canonical entry identity", async
       FIXTURE_ENTRY.contextMode,
       FIXTURE_ENTRY.codegraphAlternate,
       FIXTURE_ENTRY.fastlane,
+      FIXTURE_ENTRY.claudeBridge,
     ],
   });
   await assertPolicyFailure(
     () => readResourcesFile(runtimeAlternate.policyPath),
-    /extensions\.runtime must resolve to exactly the six canonical entries in order/,
+    /extensions\.runtime must resolve to exactly the seven canonical entries in order/,
   );
 });
 
@@ -725,7 +759,7 @@ test("the complete allowed set emits every skill exactly once with no count limi
   assert.deepEqual(new Set(emitted).size, emitted.length);
 });
 
-test("catalog arguments disable all discovery, load only the alias entry, and carry no skills", () => {
+test("catalog arguments disable all discovery, load only the provider entries, and carry no skills", () => {
   const resources = loadDelegateResources();
   const args = buildCatalogResourceArgs(resources);
   assert.deepEqual(args, [
@@ -736,6 +770,8 @@ test("catalog arguments disable all discovery, load only the alias entry, and ca
     "--no-context-files",
     "-e",
     resources.catalogExtensions[0]!,
+    "-e",
+    resources.catalogExtensions[1]!,
   ]);
   assert.ok(!args.includes("--skill"));
   for (const forbidden of ["web-search", "context-mode", "codegraph", "delegated-pi-loop"]) {
@@ -743,7 +779,7 @@ test("catalog arguments disable all discovery, load only the alias entry, and ca
   }
 });
 
-test("runtime arguments keep context files enabled, load exactly the six entries, then skills", () => {
+test("runtime arguments keep context files enabled, load exactly the seven entries, then skills", () => {
   const resources = loadDelegateResources();
   const args = buildRuntimeResourceArgs(resources, resolveDelegateSkills(resources, ["uv"]));
   for (const flag of ["--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes"]) {
@@ -880,7 +916,7 @@ test("post-selection symlink swaps fail the pre-spawn verification closures", { 
 
   // A selected-skill directory swap after selection fails both closures:
   // the catalog closure re-verifies every selected skill as a fail-closed
-  // precondition (the catalog argv itself stays alias-only), so the swap
+  // precondition (the catalog argv itself stays provider-only), so the swap
   // blocks the first catalog spawn too, not only the runtime spawn that
   // would carry the `--skill` path.
   const skillFixture = await createFixturePolicy();

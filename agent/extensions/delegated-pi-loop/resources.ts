@@ -36,6 +36,9 @@ const MODEL_TOOL_EXTENSION_DIRS: readonly string[] = ["web-search", "context-mod
 /** Extension directory that registers the routed `openai-codex-*` alias providers. */
 const ALIAS_EXTENSION_DIR = "openai-codex-aliases";
 
+/** Extension directory whose delegate entry registers the `claude-bridge` provider without tools. */
+const CLAUDE_BRIDGE_EXTENSION_DIR = "claude-bridge-provider";
+
 /** Base discovery-disable flags shared by the catalog and runtime profiles. */
 const BASE_ISOLATION_FLAGS: readonly string[] = [
   "--no-extensions",
@@ -47,13 +50,17 @@ const BASE_ISOLATION_FLAGS: readonly string[] = [
 /**
  * The canonical delegated child profiles: the exact entry files each policy
  * list must resolve to, in the exact order children must load them. The
- * catalog profile carries only the alias providers; the runtime profile is
- * the fixed six-entry lean child. Entries are policy-relative (resolved
+ * catalog profile carries only the provider registrations; the runtime
+ * profile is the fixed seven-entry lean child. Entries are policy-relative (resolved
  * against the policy directory like a listed entry); display names are
  * extensions-root-relative identities for bounded failure messages.
  */
 const CATALOG_PROFILE: readonly { readonly entry: string; readonly display: string }[] = [
   { entry: `../${ALIAS_EXTENSION_DIR}/index.ts`, display: `${ALIAS_EXTENSION_DIR}/index.ts` },
+  {
+    entry: `../${CLAUDE_BRIDGE_EXTENSION_DIR}/delegate-entry.ts`,
+    display: `${CLAUDE_BRIDGE_EXTENSION_DIR}/delegate-entry.ts`,
+  },
 ];
 
 const RUNTIME_PROFILE: readonly { readonly entry: string; readonly display: string }[] = [
@@ -63,6 +70,10 @@ const RUNTIME_PROFILE: readonly { readonly entry: string; readonly display: stri
   { entry: "../context-mode/src/index.ts", display: "context-mode/src/index.ts" },
   { entry: "../codegraph/index.ts", display: "codegraph/index.ts" },
   { entry: "../fastlane/index.ts", display: "fastlane/index.ts" },
+  {
+    entry: `../${CLAUDE_BRIDGE_EXTENSION_DIR}/delegate-entry.ts`,
+    display: `${CLAUDE_BRIDGE_EXTENSION_DIR}/delegate-entry.ts`,
+  },
 ];
 
 function fail(message: string): never {
@@ -419,7 +430,7 @@ export function validateResourcePolicy(value: unknown, roots: ContainmentRoots):
   const canonicalCatalog = CATALOG_PROFILE.map((profile) => resolveExtensionEntry(profile.entry, roots));
   if (!resolvesToCanonicalProfile(catalogExtensions, canonicalCatalog)) {
     fail(
-      `extensions.catalog must resolve to exactly one canonical entry, ${
+      `extensions.catalog must resolve to exactly the two canonical entries in order: ${
         CATALOG_PROFILE.map((profile) => profile.display).join(", ")
       }`,
     );
@@ -427,7 +438,7 @@ export function validateResourcePolicy(value: unknown, roots: ContainmentRoots):
   const canonicalRuntime = RUNTIME_PROFILE.map((profile) => resolveExtensionEntry(profile.entry, roots));
   if (!resolvesToCanonicalProfile(runtimeExtensions, canonicalRuntime)) {
     fail(
-      `extensions.runtime must resolve to exactly the six canonical entries in order: ${
+      `extensions.runtime must resolve to exactly the seven canonical entries in order: ${
         RUNTIME_PROFILE.map((profile) => profile.display).join(", ")
       }`,
     );
@@ -653,7 +664,7 @@ export function buildCatalogResourceArgs(resources: ResolvedDelegateResources): 
 
 /**
  * Delegated RPC child arguments: discovery disabled (context files stay
- * enabled), the six fixed extension entry files in policy order, then one
+ * enabled), the seven fixed extension entry files in policy order, then one
  * explicit `--skill` path per selected and approved skill in policy order.
  * Construction re-verifies every runtime entry and selected skill so a
  * vanished or swapped path fails before arguments exist.
@@ -679,7 +690,7 @@ export function buildRuntimeResourceArgs(
  * re-run the same fail-closed checks immediately before every catalog or
  * runtime spawn, including fallback attempts: the catalog closure re-checks
  * every approved catalog entry and every selected skill as a precondition
- * (the catalog argv itself stays alias-only; no skill ever reaches the
+ * (the catalog argv itself stays provider-only; no skill ever reaches the
  * catalog CLI), and the runtime closure re-checks every runtime entry and
  * selected skill. A post-validation symlink swap of any approved path thus
  * fails closed before any child command line exists while the argument

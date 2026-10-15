@@ -3307,6 +3307,7 @@ async function fixtureResourcePolicy(): Promise<{
     path.join(extensionsRoot, "context-mode", "src"),
     path.join(extensionsRoot, "codegraph"),
     path.join(extensionsRoot, "fastlane"),
+    path.join(extensionsRoot, "claude-bridge-provider"),
     path.join(skillsRoot, "alpha"),
   ]) {
     await mkdir(dir, { recursive: true });
@@ -3318,6 +3319,7 @@ async function fixtureResourcePolicy(): Promise<{
     path.join(extensionsRoot, "context-mode", "src", "index.ts"),
     path.join(extensionsRoot, "codegraph", "index.ts"),
     path.join(extensionsRoot, "fastlane", "index.ts"),
+    path.join(extensionsRoot, "claude-bridge-provider", "delegate-entry.ts"),
   ]) {
     await writeFile(file, "");
   }
@@ -3325,7 +3327,7 @@ async function fixtureResourcePolicy(): Promise<{
   await writeFile(path.join(policyDir, "resources.json"), `${JSON.stringify({
     version: 1,
     extensions: {
-      catalog: ["../openai-codex-aliases/index.ts"],
+      catalog: ["../openai-codex-aliases/index.ts", "../claude-bridge-provider/delegate-entry.ts"],
       runtime: [
         "./index.ts",
         "../openai-codex-aliases/index.ts",
@@ -3333,6 +3335,7 @@ async function fixtureResourcePolicy(): Promise<{
         "../context-mode/src/index.ts",
         "../codegraph/index.ts",
         "../fastlane/index.ts",
+        "../claude-bridge-provider/delegate-entry.ts",
       ],
     },
     skills: {
@@ -3374,17 +3377,21 @@ test("catalog preflight uses the lean catalog resource profile", async () => {
     for (const flag of ["--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files"]) {
       assert.equal(argv.filter((arg) => arg === flag).length, 1, flag);
     }
-    // The only explicit extension is the alias provider extension.
+    // The only explicit extensions are the two provider registrations.
     const entries = argv.filter((_, index) => argv[index - 1] === "-e");
-    assert.equal(entries.length, 1);
+    assert.equal(entries.length, 2);
     assert.ok(entries[0]!.endsWith(path.join("agent", "extensions", "openai-codex-aliases", "index.ts")), entries[0]);
+    assert.ok(
+      entries[1]!.endsWith(path.join("agent", "extensions", "claude-bridge-provider", "delegate-entry.ts")),
+      entries[1],
+    );
     // No skills and no model-tool or delegated-loop extensions reach catalog preflight.
     assert.ok(!argv.includes("--skill"));
     for (const forbidden of ["web-search", "context-mode", "codegraph", "delegated-pi-loop"]) {
       assert.ok(!argv.some((arg) => arg.includes(forbidden)), `catalog must not load ${forbidden}`);
     }
     // The route request follows the resource arguments.
-    assert.equal(argv[argv.indexOf("--list-models") - 1], entries[0]);
+    assert.equal(argv[argv.indexOf("--list-models") - 1], entries[1]);
   }
 });
 
@@ -3406,10 +3413,10 @@ test("every fallback attempt receives byte-for-byte identical runtime resource a
   for (const argv of runtimeArgv) {
     assert.deepEqual(runtimeResourceSlice(argv), first);
   }
-  // The default policy loads the six fixed runtime entries exactly once each.
+  // The default policy loads the seven fixed runtime entries exactly once each.
   const entries = first.filter((_, index) => first[index - 1] === "-e");
-  assert.equal(entries.length, 6);
-  assert.equal(new Set(entries).size, 6);
+  assert.equal(entries.length, 7);
+  assert.equal(new Set(entries).size, 7);
   assert.ok(!first.includes("--no-context-files"), "runtime children keep context files enabled");
   // Provider, model, and thinking arguments remain unchanged after --mode rpc.
   const argv = runtimeArgv[0]!;
@@ -3498,7 +3505,7 @@ test("a post-selection selected-skill symlink swap fails before any spawn", { sk
   );
   // Replace the selected alpha skill directory with an outside-root symlink
   // after selection: the catalog pre-spawn verifier checks the selection's
-  // skills as a fail-closed precondition (the catalog argv stays alias-only),
+  // skills as a fail-closed precondition (the catalog argv stays provider-only),
   // so neither a catalog preflight nor a runtime child may spawn.
   const outsideDir = path.join(root, "outside-skill");
   await mkdir(outsideDir);

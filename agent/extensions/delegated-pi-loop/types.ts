@@ -571,7 +571,7 @@ export interface ResolvedDelegateResources {
 export interface DelegateResourceSelection {
   readonly catalogArgs: readonly string[];
   readonly runtimeArgs: readonly string[];
-  /** Fail-closed re-verification of the catalog extension entries and every selected skill, run immediately before each catalog preflight spawn; the catalog argv itself stays alias-only. */
+  /** Fail-closed re-verification of the catalog extension entries and every selected skill, run immediately before each catalog preflight spawn; the catalog argv itself stays provider-only. */
   readonly verifyCatalogSpawn: () => void;
   /** Fail-closed re-verification of the runtime extension entries and every selected skill, run immediately before each runtime child spawn. */
   readonly verifyRuntimeSpawn: () => void;

@@ -1243,7 +1243,10 @@ test("the fixed child extension profile excludes package, presentation, and proj
   const policy = JSON.parse(await readFile(new URL("./resources.json", import.meta.url), "utf8")) as {
     extensions: { catalog: string[]; runtime: string[] };
   };
-  assert.deepEqual(policy.extensions.catalog, ["../openai-codex-aliases/index.ts"]);
+  assert.deepEqual(policy.extensions.catalog, [
+    "../openai-codex-aliases/index.ts",
+    "../claude-bridge-provider/delegate-entry.ts",
+  ]);
   assert.deepEqual(policy.extensions.runtime, [
     "./index.ts",
     "../openai-codex-aliases/index.ts",
@@ -1251,14 +1254,17 @@ test("the fixed child extension profile excludes package, presentation, and proj
     "../context-mode/src/index.ts",
     "../codegraph/index.ts",
     "../fastlane/index.ts",
+    "../claude-bridge-provider/delegate-entry.ts",
   ]);
   // Extension selection stays fixed by the policy: local presentation
   // extensions, configured package extensions, and every project or future
   // extension stay outside the allowlist, so delegated children register no
-  // BTW, Claude Bridge, Cursor, footer, or theme behavior. Fastlane is the
-  // fixed runtime-only exception and adds no model-visible child tool.
+  // BTW, Cursor, footer, or theme behavior. Fastlane is the fixed
+  // runtime-only exception and adds no model-visible child tool. Claude
+  // Bridge enters only through the local provider-only entry, never as the
+  // package entry itself, so the AskClaude tool stays out of children.
   const extensionsText = JSON.stringify(policy.extensions);
-  for (const forbidden of ["footer", "theme-overrides", "pi-blackhole", "pi-btw", "pi-browser-harness", "pi-claude-bridge", "pi-cursor"]) {
+  for (const forbidden of ["footer", "theme-overrides", "pi-blackhole", "pi-btw", "pi-browser-harness", "pi-claude-bridge", "pi-cursor", "node_modules"]) {
     assert.ok(!extensionsText.includes(forbidden), `the child resource policy must not load ${forbidden}`);
   }
   // Extension selection is never model-controlled.

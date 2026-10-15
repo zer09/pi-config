@@ -215,7 +215,7 @@ test("a successful supervisor result does not carry an active bash command", asy
 });
 
 test("runtime child argv follows the fixed resource-argument ordering", async () => {
-  const extensions = ["/x/delegated-pi-loop/index.ts", "/x/openai-codex-aliases/index.ts", "/x/web-search/index.ts", "/x/context-mode/src/index.ts", "/x/codegraph/index.ts", "/x/fastlane/index.ts"];
+  const extensions = ["/x/delegated-pi-loop/index.ts", "/x/openai-codex-aliases/index.ts", "/x/web-search/index.ts", "/x/context-mode/src/index.ts", "/x/codegraph/index.ts", "/x/fastlane/index.ts", "/x/claude-bridge-provider/delegate-entry.ts"];
   const resourceArgs = [
     "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes",
     ...extensions.flatMap((entry) => ["-e", entry]),

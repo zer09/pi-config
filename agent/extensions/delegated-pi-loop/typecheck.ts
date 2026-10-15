@@ -67,7 +67,9 @@ export function createTypecheckConfig(host: Pick<ReturnType<typeof loadTypecheck
       typeRoots: host.typeRoots,
       paths: host.paths,
     },
-    include: ["**/*.ts"],
+    // The delegate-only Claude Bridge entry lives in a sibling directory but
+    // is part of the delegated child policy, so it is checked here too.
+    include: ["**/*.ts", "../claude-bridge-provider/delegate-entry.ts"],
     exclude: ["**/node_modules/**"],
   };
 }

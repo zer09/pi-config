@@ -2,6 +2,16 @@
 
 This document summarizes local Pi configuration changes. Detailed change records live under [`docs/changelogs/`](./changelogs/).
 
+## Delegated Claude Bridge provider
+
+- Delegated children can now use `claude-bridge/*` routes. Before this change, catalog preflight and runtime children never loaded `pi-claude-bridge`, so every such route failed with `catalog_unavailable`.
+- Added `agent/extensions/claude-bridge-provider/delegate-entry.ts`. It loads the installed package with an allowlisted API, so only provider and hook registration reach Pi and AskClaude never reaches a child. Registrations commit only after activation succeeds. A missing package, failed activation, or project `.pi/claude-bridge.json` registers nothing and leaves the child running on other routes. The file is not named `index.ts`, so the parent session does not load it.
+- A registration call that throws during replay undoes the earlier ones, including native provider objects by `id`. A provider that Pi rejects later, during its own deferred validation, is reported by Pi and is not undone. Diagnostics are a single bounded line.
+- ADR 0010 limits `claude-bridge/*` delegate routes to trusted repositories. The entry does not sandbox Claude Code, which still loads project `.claude/` settings and hooks, and the bridge re-reads project config for compaction summaries. A local bridge patch to close these paths was deferred.
+- ADR 0010 records an accepted retention exception: `claude-bridge/*` delegates leave Claude Code session files, normally under `~/.claude/projects/`, outside the run directory.
+- `resources.json` and the validator now require two catalog entries (Codex aliases, then Claude Bridge) and seven runtime entries (Fastlane, then Claude Bridge, last). ADR 0010 records the amendment.
+- Added `claude-bridge-provider.test.ts`, added the entry to the maintained typecheck, and updated the resource, runner, index, supervisor, and typecheck fixtures. Fixed ADR 0010's current tool count (18 = 4 + 14) and its `web-search` tool list. Lean-catalog `pi --list-models` lists `claude-bridge/claude-opus-5-5` and `claude-bridge/claude-haiku-5-5`. No paid delegated run was made.
+
 ## Delegated policy reason guidance and reporting
 
 - Added one parent-facing assignment-policy guideline: state explicit tool-compatible execution and acceptance requirements, preserve user/project requirements, and do not invent irrevocable failure rules for harmless corrected procedural deviations.

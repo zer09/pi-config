@@ -109,9 +109,9 @@ async function routeIsCatalogued(
   const catalogDeadline = performance.now() + catalogTimeoutMs;
   const catalogDeadlineCause: DeadlineCause = "catalog_preflight";
   // The lean catalog profile disables every discovery flag and explicitly
-  // loads only the approved catalog extension entries (the provider alias
-  // extension), so catalog preflights never load model-tool extensions,
-  // skills, context files, or presentation resources.
+  // loads only the approved catalog extension entries (the Codex alias and
+  // Claude Bridge provider entries), so catalog preflights never load
+  // model-tool extensions, skills, context files, or presentation resources.
   const args = [
     ...invocation.prefixArgs,
     ...catalogResourceArgs,
@@ -121,7 +121,7 @@ async function routeIsCatalogued(
   // Fail-closed boundary recheck immediately before this catalog spawn:
   // every approved catalog entry is re-resolved to its validated canonical
   // regular file inside the extensions root, and every selected skill is
-  // re-verified as a precondition even though the alias-only catalog argv
+  // re-verified as a precondition even though the provider-only catalog argv
   // never receives a `--skill` path, so a post-validation swap of either
   // fails closed before the catalog child command line exists.
   verifyCatalog();

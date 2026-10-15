@@ -4,6 +4,8 @@
 
 Accepted (2026-08-25). Supersedes the inherited extension and skill discovery for delegated children that ADR 0008 documented; every other supervision, routing, privacy, and concurrency decision from ADR 0007 through ADR 0009 stands.
 
+Amended 2026-10-15: the user approved the `claude-bridge` provider for delegated children. A provider-only entry, `claude-bridge-provider/delegate-entry.ts`, joins both profiles. `claude-bridge/*` delegate routes are approved for trusted repositories only. See "Provider-only Claude Bridge entry" below.
+
 ## Context
 
 Every delegated child Pi process previously started with only mode, session, trust, provider, model, and thinking flags. Without resource-discovery flags, each child inherited global extensions, configured package extensions, approved project extensions, global and project skills, prompt templates, and themes.
@@ -35,22 +37,23 @@ Every delegated launch disables discovery with `--no-extensions`, `--no-skills`,
 
 ### Model-visible versus infrastructure extensions
 
-The runtime child profile loads exactly six extension entry files:
+The runtime child profile loads exactly seven extension entry files:
 
 | Extension | Child purpose | Model-visible child context |
 |---|---|---|
 | `delegated-pi-loop` | Parent watchdog and recursive-tool suppression | None |
 | `openai-codex-aliases` | Required `openai-codex-*` provider aliases | None |
-| `web-search` | `web_search`, `fetch_contents` | Yes |
+| `web-search` | `web_search`, `web_code_search`, `fetch_contents` | Yes |
 | `context-mode` | `ctx_execute_file`, `ctx_batch_execute`, `ctx_search` | Yes |
 | `codegraph` | Indexed source exploration tools | Yes |
 | `fastlane` | Invocation-local priority service configuration | None |
+| `claude-bridge-provider` | Required `claude-bridge` provider through `delegate-entry.ts` | None |
 
-`delegated-pi-loop` inside the child keeps the parent-disappearance watchdog active and keeps recursive `delegate_run` unavailable, while adding no delegate tool schema or orchestration guidelines to child context. After canonical resolution the validator requires the runtime list to equal exactly these six canonical entry files in this exact order; extra contained entries, missing entries, reordered entries, and alternate same-directory entry files all fail closed. Focused per-directory invariants keep their detailed first-failure diagnostics ahead of that exact-profile boundary.
+`delegated-pi-loop` inside the child keeps the parent-disappearance watchdog active and keeps recursive `delegate_run` unavailable, while adding no delegate tool schema or orchestration guidelines to child context. After canonical resolution the validator requires the runtime list to equal exactly these seven canonical entry files in this exact order; extra contained entries, missing entries, reordered entries, and alternate same-directory entry files all fail closed. Focused per-directory invariants keep their detailed first-failure diagnostics ahead of that exact-profile boundary.
 
 ### Invocation-local Fastlane
 
-`fastlane/index.ts` is the sixth fixed runtime entry. It adds no child tool schema. `delegate_run.fastlane` is optional and defaults to false. Only an explicit true passes `--fastlane` to runtime children, including every fresh fallback or replacement. Catalog preflight stays alias-only. Parent Fastlane state never supplies child intent. Requesting Fastlane increases subscription usage; ineligible routes continue normally.
+`fastlane/index.ts` is a fixed runtime entry. It adds no child tool schema. `delegate_run.fastlane` is optional and defaults to false. Only an explicit true passes `--fastlane` to runtime children, including every fresh fallback or replacement. Catalog preflight never loads Fastlane. Parent Fastlane state never supplies child intent. Requesting Fastlane increases subscription usage; ineligible routes continue normally.
 
 The parent consumes only `setStatus` records with the fixed key `delegate-fastlane`. Exact `enabled` and `inactive` values become bounded configuration states; missing, cleared, malformed, or other values become `unknown` and clear confirmation. Arbitrary UI text, status errors, and provider or auth details never reach delegate status. Generic UI handling and dialog cancellation stay unchanged.
 
@@ -60,7 +63,32 @@ Accepted status renews RPC health only. It never renews accepted activity or str
 
 ### Separate catalog profile
 
-Catalog preflight needs only the live model catalog. It disables extension, skill, prompt-template, theme, and context-file discovery and loads exactly the `openai-codex-aliases` entry file, because the routed Codex alias providers come from that extension rather than Pi core. After canonical resolution the validator requires the catalog list to resolve to exactly the canonical `openai-codex-aliases/index.ts` entry; any additional, different, or reordered entry fails closed, as does every model-tool extension or the delegated child entry. Built-in providers continue to come from Pi core.
+Catalog preflight needs only the live model catalog. It disables extension, skill, prompt-template, theme, and context-file discovery and loads exactly the `openai-codex-aliases/index.ts` and `claude-bridge-provider/delegate-entry.ts` entry files, because the routed Codex alias providers and the `claude-bridge` provider come from extensions rather than Pi core. After canonical resolution the validator requires the catalog list to resolve to exactly these two canonical entries in this order; any additional, different, or reordered entry fails closed, as does every model-tool extension or the delegated child entry. Built-in providers continue to come from Pi core.
+
+### Provider-only Claude Bridge entry
+
+The `claude-bridge` provider comes from the `pi-claude-bridge` npm package under `agent/npm/node_modules/`, which is outside the extensions root and cannot be a policy entry. `agent/extensions/claude-bridge-provider/delegate-entry.ts` is a contained entry that imports the installed package by fixed relative path. The entry has these properties:
+
+- It is not named `index.ts`, so parent discovery never loads it. The parent keeps loading the package through `agent/settings.json`.
+- It passes the package an allowlisted API. Only `on` and `registerProvider` reach Pi; every other call, including `registerTool`, `registerMcpServer`, and `registerCommand`, is ignored. AskClaude therefore never reaches a child, even if a config file enables it.
+- Registrations are held until the package's factory returns or resolves without error. If activation throws or rejects, nothing is registered, including hooks or a provider registered before the failure. If a registration call throws while held registrations are replayed, the ones already made are undone in reverse order with `unregisterProvider` (by the string name or the native provider's `id`) and the hook's unsubscribe function. This covers failures of the registration calls themselves. During Pi's initial load, `registerProvider` only queues the provider; Pi validates it later, after the entry has committed. A rejection at that point is reported through Pi's non-fatal extension-error channel (`register_provider`), not the entry's diagnostic. It leaves the bridge's hooks registered without the provider, so `claude-bridge/*` routes fail catalog preflight. The entry limits Pi registrations only. A failed activation can still leave the bridge's module-level state, such as its global stream key and `process.env` changes, inside that child process.
+- If a project `.pi/claude-bridge.json` exists in the child's working directory at startup, the entry does not load the package. That file overrides global bridge settings, including `pathToClaudeCodeExecutable` and `strictMcpConfig`. In such repositories, `claude-bridge/*` routes fail catalog preflight and the route chain moves on. This check is a startup safeguard only; see "Trusted repositories only" below.
+- Every failure path the entry handles, including a missing package, a failed import, a failed activation, a registration call that throws during replay, or a project config, writes one stderr line of at most 300 characters and returns normally. Line breaks and other control characters in error text become spaces. The entry is loaded by every runtime child, so a bridge problem only makes `claude-bridge/*` routes unavailable and never stops a child on another route.
+- The bridge reads the global `agent/claude-bridge.json` and runs Claude Code with the inherited environment. Children normally use the same Claude Code login as the parent, but Claude Code's own settings and environment decide the account, plan, and endpoint. For example, Anthropic environment variables can redirect the Claude Code process.
+- Bridge upgrades require review of this entry: confirm the package still needs only `on` and `registerProvider`, and that no new config field or activation behavior widens the child boundary.
+
+#### Trusted repositories only
+
+The entry controls what the bridge registers in Pi. It does not sandbox the bridge or Claude Code, and two project-controlled paths remain open:
+
+- The bridge leaves Claude Code's `settingSources` unset for normal requests, so Claude Code loads user, project, and local settings: `~/.claude/settings.json`, `.claude/settings.json`, and `.claude/settings.local.json`. Those files can define hooks that run shell commands automatically during a turn, with no model action and no Pi project-trust check.
+- The bridge reads project `.pi/claude-bridge.json` again for compaction summaries, so a file created after startup can still set `pathToClaudeCodeExecutable` for those requests.
+
+The user accepted this on 2026-10-15: `claude-bridge/*` routes are approved for delegated children in trusted repositories only, the same trust the parent session already needs when it uses `claude-bridge`. Do not route delegates for an untrusted repository to `claude-bridge/*`. Closing these paths requires a local bridge patch that forces global-only bridge config and `settingSources: ["user"]` in delegated children. That patch was deferred because every bridge upgrade would need it reapplied.
+
+#### Retention exception
+
+`claude-bridge/*` delegates store conversation copies outside the supervised run directory. The bridge imports the conversation into Claude Code session files, and Claude Code persists sessions by default, normally under `~/.claude/projects/`. Deleting the private Pi session or run artifacts does not delete these copies, and bridge debug or stream-recording environment variables can write more raw output. The same files already exist for parent sessions that use `claude-bridge`. This is an accepted exception to the delegated privacy boundary for `claude-bridge/*` routes only. Moving the copies to a per-run `CLAUDE_CONFIG_DIR` was rejected for now because that directory also holds the Claude Code login.
 
 ### Runtime children keep context files
 
@@ -86,7 +114,7 @@ The runner builds one immutable resource selection per delegate invocation and r
 
 ### Stability and privacy preserved
 
-Routing policy and ordering, Oracle self-review prevention, role contracts, gate concurrency and waiver rules, deadlines, idle policy, output bounds, RPC framing, report recovery, terminal markers and typed reasons, restart-after-work notes, manager IDs and targeted cancellation, diagnostics schemas and privacy exclusions, and Git/hosted-service authorization rules are unchanged. Selected skill names never enter failure diagnostics, progress, rendering, or logs. `delegateEnvironment()` is unchanged: provider credentials inherit from the parent and stale parent session metadata stays scrubbed.
+Routing policy and ordering, Oracle self-review prevention, role contracts, gate concurrency and waiver rules, deadlines, idle policy, output bounds, RPC framing, report recovery, terminal markers and typed reasons, restart-after-work notes, manager IDs and targeted cancellation, diagnostics schemas and privacy exclusions, and Git/hosted-service authorization rules are unchanged. Selected skill names never enter failure diagnostics, progress, rendering, or logs. `delegateEnvironment()` is unchanged: provider credentials inherit from the parent and stale parent session metadata stays scrubbed. Claude Code session files written for `claude-bridge/*` routes are the one documented exception; see "Retention exception" above.
 
 ### Parent and package settings unchanged
 
@@ -94,9 +122,10 @@ No package is uninstalled or disabled. `agent/settings.json` keeps `pi-browser-h
 
 ## Consequences
 
-- A delegated child starts with 17 active tools (4 built-ins plus 13 from the three model-visible extensions) instead of 56, and with only orchestrator-selected skill descriptions instead of all 34.
+- A delegated child starts with 18 active tools (4 built-ins plus 14 from the three model-visible extensions) instead of 56, and with only orchestrator-selected skill descriptions instead of all 34. The 17-tool figure in Context was measured at acceptance, before `web_code_search` was added.
 - The largest per-child reduction is the absence of `pi-browser-harness`: 38 `browser_*` tool schemas and the `pi-browser-harness` skill description disappear from every child.
-- Excluded local extensions (`footer`, `theme-overrides`), package extensions (`pi-blackhole`, `pi-btw`, `pi-browser-harness`, `pi-claude-bridge`, `pi-cursor`), every project-local extension, and every future extension are absent from children unless explicitly added to the policy.
+- Excluded local extensions (`footer`, `theme-overrides`), package extensions (`pi-blackhole`, `pi-btw`, `pi-browser-harness`, `pi-cursor`), every project-local extension, and every future extension are absent from children unless explicitly added to the policy. `pi-claude-bridge` reaches children only through the provider-only entry.
+- `claude-bridge/*` routes bill whatever account and plan Claude Code resolves, normally the parent's Claude subscription, and each child runs its own Claude Code process. The routes are approved for trusted repositories only. Repositories with a project `.pi/claude-bridge.json` cannot use these routes in delegates. Catalog preflight with the bridge entry measured about 1-2 seconds against the fixed 15-second catalog deadline.
 - Risk accepted: excluding all project extensions also excludes project-specific safety hooks. The delegated role contract, global and project context files, process supervision, and separate mutation authorization remain the safety boundary. A future repository that requires a project safety extension in children must add it to the policy explicitly after review.
 - Catalog preflight no longer exercises unrelated extensions, so an unrelated extension failure cannot spuriously fail a route catalog check; conversely, an alias extension failure now reports alias routes unavailable through the existing catalog behavior without any broad-discovery fallback.
 - The `availableSkills` parameter enum adds a small one-time parent schema cost; the parent already carries the complete skill catalog and needs the exact machine-visible delegated allowlist.

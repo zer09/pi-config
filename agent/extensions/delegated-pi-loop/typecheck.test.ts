@@ -84,7 +84,7 @@ test("CLI setup failure is one bounded line with no fallback, paths, stack, or a
   assert.deepEqual(readdirSync(root), []);
 });
 
-test("the in-memory config pins all governed options and includes every extension TypeScript file", () => {
+test("the in-memory config pins all governed options and includes every extension TypeScript file plus the Claude Bridge delegate entry", () => {
   const paths = { fixture: ["/host/fixture/index.d.ts"] };
   const typeRoots = ["/host/@types"];
   assert.deepEqual(createTypecheckConfig({ paths, typeRoots }), {
@@ -105,7 +105,7 @@ test("the in-memory config pins all governed options and includes every extensio
       typeRoots,
       paths,
     },
-    include: ["**/*.ts"],
+    include: ["**/*.ts", "../claude-bridge-provider/delegate-entry.ts"],
     exclude: ["**/node_modules/**"],
   });
 });

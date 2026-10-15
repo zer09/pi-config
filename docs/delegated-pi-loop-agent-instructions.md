@@ -369,6 +369,9 @@ The child receives exactly these extensions, in order:
 4. `context-mode/src/index.ts`
 5. `codegraph/index.ts`
 6. `fastlane/index.ts`
+7. `claude-bridge-provider/delegate-entry.ts`
+
+The last entry loads the installed `pi-claude-bridge` package so `claude-bridge/*` routes work in children. Only provider and hook registration reach Pi, so the AskClaude tool never reaches a child. The entry skips the bridge when the working directory has a project `.pi/claude-bridge.json`, and any bridge failure only makes `claude-bridge/*` routes unavailable. The entry does not sandbox Claude Code, which still loads project `.claude/` settings and hooks, so `claude-bridge/*` delegate routes are for trusted repositories only (ADR 0010). Catalog preflight loads only `openai-codex-aliases/index.ts` and this entry.
 
 Source:
 
