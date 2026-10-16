@@ -11,7 +11,7 @@
     "provider": "openai-codex",
     "id": "gpt-5.6-terra",
     "thinking": "xhigh",
-    "cooldownHours": 1,
+    "cooldownHours": 0,
     "contextWindow": 272000
   },
   "observerFallbackModels": [
@@ -22,14 +22,6 @@
       "thinking": "low",
       "cooldownHours": 1,
       "contextWindow": 1000000
-    },
-    {
-      "_comment": "Second non-Cursor fallback for observer on another provider: DeepSeek V4 Pro with high thinking.",
-      "provider": "opencode-go",
-      "id": "deepseek-v4-pro",
-      "thinking": "high",
-      "cooldownHours": 1,
-      "contextWindow": 1000000
     }
   ],
   "reflectorModel": {
@@ -37,20 +29,12 @@
     "provider": "openai-codex",
     "id": "gpt-5.6-terra",
     "thinking": "high",
-    "cooldownHours": 1,
+    "cooldownHours": 0,
     "contextWindow": 272000
   },
   "reflectorFallbackModels": [
     {
-      "_comment": "Non-Cursor fallback for reflector; strong long-context max reasoning.",
-      "provider": "opencode-go",
-      "id": "deepseek-v4-pro",
-      "thinking": "max",
-      "cooldownHours": 1,
-      "contextWindow": 1000000
-    },
-    {
-      "_comment": "Second non-Cursor fallback for reflector on another provider.",
+      "_comment": "Non-Cursor fallback for reflector on another provider.",
       "provider": "google",
       "id": "gemini-3.5-flash-lite",
       "thinking": "medium",
@@ -63,20 +47,12 @@
     "provider": "openai-codex",
     "id": "gpt-5.6-terra",
     "thinking": "max",
-    "cooldownHours": 1,
+    "cooldownHours": 0,
     "contextWindow": 272000
   },
   "dropperFallbackModels": [
     {
-      "_comment": "Non-Cursor fallback for dropper: DeepSeek V4 Pro with max thinking.",
-      "provider": "opencode-go",
-      "id": "deepseek-v4-pro",
-      "thinking": "max",
-      "cooldownHours": 1,
-      "contextWindow": 1000000
-    },
-    {
-      "_comment": "Second non-Cursor fallback for dropper on another provider.",
+      "_comment": "Non-Cursor fallback for dropper on another provider.",
       "provider": "google",
       "id": "gemini-3.5-flash-lite",
       "thinking": "low",
@@ -119,6 +95,7 @@
     "Fallbacks use providers different from the OpenAI Codex worker primaries.",
     "Final emergency fallback remains the session model because sessionFallback is true: openai-codex/gpt-5.6-sol.",
     "2026-06-12: Disabled debug/debugLog after transient Cursor proxy debugging; worker/fallback cooldownHours remain 1 hour.",
+    "2026-10-16: Terra worker primaries use cooldownHours 0. Codex WebSocket drops are transport failures, not model faults, so a failure skips Terra only for the rest of that stage instead of benching it for an hour. Removed opencode-go/deepseek-v4-pro fallbacks; Google Gemini Flash Lite is the only non-Codex fallback before the session model.",
     "LOCAL PATCH 2026-08-09: preserve Pi 0.84.1 nullable ProviderHeaders for worker requests so null deletion markers remain effective."
   ]
 }
