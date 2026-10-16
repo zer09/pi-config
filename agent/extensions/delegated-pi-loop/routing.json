@@ -463,7 +463,7 @@
       ]
     },
     "oracle": {
-      "overridePolicy": "rejected",
+      "overridePolicy": "allowed",
       "tiers": [
         {
           "model": "gpt-6-astra",
