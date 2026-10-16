@@ -2,7 +2,7 @@
   "lastChangelogVersion": "1.1.0",
   "tuiMode": "regular",
   "packages": [
-    "npm:pi-blackhole@0.5.12",
+    "npm:pi-blackhole@0.5.13",
     "npm:pi-btw@0.7.1",
     {
       "source": "npm:pi-browser-harness@0.11.0",

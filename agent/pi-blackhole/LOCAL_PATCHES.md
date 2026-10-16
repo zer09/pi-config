@@ -2,6 +2,31 @@
 
 These notes track local changes made under `~/.pi/agent/npm/node_modules/pi-blackhole/`. Package upgrades or reinstalls can overwrite those files, so re-check this file after every `pi-blackhole` upgrade.
 
+## 2026-10-16: `pi-blackhole@0.5.13` live upgrade
+
+The live package, npm manifest/lock, and Pi settings pin **0.5.13** on Pi 1.1.0. The 0.5.13 changelog adds thinking-only worker models, observer turn-cap partial coverage, notice dedupe, and quieter fold debug logs. Stock still lacks all three local patches.
+
+The `-0.5.13.mjs` helpers are the 0.5.12 helpers with the version and every stock, patched, and prerequisite hash rederived from the published 0.5.13 archive. All edit anchors are unchanged. The patch delta (stock to patched) is line-identical to the 0.5.12 delta. Archive SRI:
+
+`sha512-wBFrl4xH9FFWZeD54N54mX4i1TgfruOTzVM8KNDx4H8ygfciv0WGavD/R17KOl16w3rT6kG63e1kxOy5sBUuTw==`
+
+Apply them in the same order to an extracted package under `TMPDIR` (they refuse `node_modules`), then copy the ten changed files into the live package after confirming the live stock bytes match the archive:
+
+```bash
+node agent/pi-blackhole/reapply-compact-after-percent-patch-0.5.13.mjs "$TMPDIR/isolated-package"
+node agent/pi-blackhole/reapply-nullable-provider-headers-patch-0.5.13.mjs "$TMPDIR/isolated-package"
+node agent/pi-blackhole/reapply-context-edit-compaction-patch-0.5.13.mjs "$TMPDIR/isolated-package"
+```
+
+Verification:
+
+- The live patched 0.5.12 package matched the 0.5.12 helper output byte-for-byte before the upgrade.
+- Second helper passes return `already patched`.
+- Official tag `v0.5.13` (`1907ede09b5f81922a149ff1622a42325b60b87e`) sources match the npm archive. With the pnpm lockfile, `tsc --noEmit` passes on patched sources. Stock and patched each pass 2,698/2,699 tests. The one failure, `writeConfig blocks a real-home-like dir`, also fails on stock under a synthetic `HOME`.
+- Live package equals the patched candidate; `pi.extensions` is `["./index.ts"]`. A fresh `pi -p` run answered, and RPC `get_commands` lists `blackhole`, `blackhole-export`, `blackhole-memory`, and `blackhole-recall`.
+
+The npm install also added 100 optional `@aws-sdk/*` and related packages that `@earendil-works/pi-ai@1.3.0` declares and the old lock omitted. No existing package changed version. Rollback copy of patched 0.5.12, npm manifest/lock, settings, and config: `/home/gc/.pi-upgrade-rollback-blackhole-0.5.13-3AnPia`.
+
 ## Pi 1.1.0 preparation: `pi-blackhole@0.5.12` isolated port, not deployed
 
 The worktree settings pin exactly **0.5.12**. The isolated runtime uses Pi **1.1.0**. No live package, original settings, or original sessions were changed. Historical helpers remain unchanged. There is no 0.5.12 live entrypoint.
