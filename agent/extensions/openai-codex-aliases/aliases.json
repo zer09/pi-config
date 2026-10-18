@@ -27,6 +27,14 @@
     {
       "slug": "cgpt7",
       "name": "cgpt7 danGoldman"
+    },
+    {
+      "slug": "cgpt8",
+      "name": "cgpt8 SoulCalibre1"
+    },
+    {
+      "slug": "cgpt9",
+      "name": "cgpt9 SoulCalibre2"
     }
   ]
 }
