@@ -6,7 +6,7 @@ Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed
 
 Current inventory: 39 installed `agent/skills/*/SKILL.md` roots, comprising 38 retained/classified skills and the blank, deferred `outpour-mcp` TODO row. Outpour is excluded from this maintenance; inventory membership does not mean acceptance or hardening. Impeccable is also excluded from this update and remains untouched pending future removal; its existing row is unchanged.
 
-Not installed as Local Skill roots: `context-mode`, `ctx-doctor`, `ctx-insight`, `ctx-purge`, `ctx-stats`, `ctx-upgrade`, and `librarian`. Earlier retained rows described package-provided workflows, not the current installed roots. Their absence does not authorize restoring skills or retiring extensions; no current keep/slim/remove decision is assigned to them.
+Not installed as Local Skill roots: `context-mode`, `ctx-doctor`, `ctx-insight`, `ctx-purge`, `ctx-stats`, `ctx-upgrade`, and `librarian`. Earlier retained rows described package-provided workflows, not the current installed roots. Their absence does not authorize restoring skills; no current keep/slim/remove decision is assigned to them. CodeGraph and Context Mode extensions are separately retained-but-retired and excluded from normal loading. References in removed-skill rationale below describe historical replacements, not active tool recommendations.
 
 All four `developing-genkit-*` skills remain `make it slim`. Their current origin is `genkit-ai/skills` at `cbb4df32dedd2e2140a71550c3ae6ece7a18fdb6`, selectively synchronized in accepted Increments 18 (JS/Go) and 19 (Dart/Python); see the [grouped source record](firebase-skills-update-process.md#source-of-truth). Intent Layer remains a retained snapshot because its verified upstream path is absent; its independent audit/write design is unchanged.
 
@@ -16,7 +16,7 @@ All four `developing-genkit-*` skills remain `make it slim`. Their current origi
 | x | agentmemory | Weak | 3 | remove it | Retired from the old pasted skills; do not restore the Pi AgentMemory extension or bundled skill unless explicitly requested. |
 | x | chrome-devtools | Good | 7 | remove it | Retired with the old pasted Chrome DevTools MCP skill group; use Pi browser tools and focused docs lookup instead. |
 | x | chrome-devtools-cli | Medium | 5 | remove it | Retired with the old pasted Chrome DevTools MCP skill group; reinstall only for a dedicated `chrome-devtools-mcp` CLI workflow. |
-| x | codegraph | Weak | 3 | remove it | Removed as a standalone Local Skill; CodeGraph remains available through Pi's native graph-first tooling and global guidance. |
+| x | codegraph | Weak | 3 | remove it | Removed as a standalone Local Skill; its retained extension is now also retired. Use native file reads and bounded shell searches. |
 | x | context-watcher | Weak | 2 | remove it | Retired from the old pasted skills to avoid a broad orchestration runtime skill; preserve routing guidance in global/project instructions instead. |
 | x | context7-cli | Medium | 5 | remove it | Retired because docs lookup can use normal research tools and Context7 skill/setup workflows are not frequent enough to justify a runtime skill. Reinstall only for a dedicated `ctx7` workflow. |
 | ✓ | convert-documents-to-markdown | Medium | 5 | keep it | Adapted from firecrawl/anydoc with a bundled CLI wrapper and offline tests for local-first conversion, one official OCR retry, stdin replay, and safe output. Explicit opt-outs and sensitive-data rules remain; custom destinations stop for separate approval/manual handling. See the [update process](anydoc-update-process.md). |
@@ -75,5 +75,5 @@ All four `developing-genkit-*` skills remain `make it slim`. Their current origi
 | x | understand-domain | Low-medium | 4 | remove it | Same as above; domain extraction is not core. |
 | x | understand-explain | Low-medium | 4 | remove it | Same as above; explanation can use normal code tools. |
 | x | understand-knowledge | Low-medium | 4 | remove it | Same as above; niche knowledge graph workflow replaced by CodeGraph. |
-| x | understand-onboard | Low-medium | 4 | remove it | Same as above; onboarding can be done with CodeGraph or normal code tools. |
+| x | understand-onboard | Low-medium | 4 | remove it | Same as above; onboarding uses native file reads and bounded shell searches. |
 | ✓ | uv | Good | 7 | make it slim | Slimmed to uv command/configuration work and execution/dependency handling in uv projects; preserve manager detection, invocation conventions, and mutation/install/migration gates without routing all Python code. |

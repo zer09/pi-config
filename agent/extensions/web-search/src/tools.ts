@@ -892,7 +892,7 @@ export function createToolRegistrations(): ToolRegistration[] {
         "Do not send web_search terse keyword/list queries such as 'MJML Vim Neovim syntax highlighting plugin .mjml filetype vim-mjml current status'. Rewrite them as a question or investigation task.",
         "For web_search, use one rich query before trying multiple variants; split searches only when the external fact or source target differs.",
         "A single task may use both web_search and web_code_search when it needs both current facts and implementation examples.",
-        "Do not use web_search to inspect the current local repository; use CodeGraph or local file tools instead.",
+        "Do not use web_search to inspect the current local repository; use targeted native file reads and bounded shell searches instead.",
       ],
       parameters: webSearchSchema,
       renderCall: createWebSearchCallRenderer("web_search"),
@@ -911,7 +911,7 @@ export function createToolRegistrations(): ToolRegistration[] {
       name: "web_code_search",
       label: "Web Code Search",
       description:
-        'Search public developer sources and implementation context. Use focus="developer_sources" for authoritative documentation, READMEs, issues, pull requests, error discussions, API contracts, and change history. Use focus="implementation_examples" for exact SDK or API syntax, working snippets, framework usage, configuration examples, and implementation patterns. Use CodeGraph or local file tools for the current repository.',
+        'Search public developer sources and implementation context. Use focus="developer_sources" for authoritative documentation, READMEs, issues, pull requests, error discussions, API contracts, and change history. Use focus="implementation_examples" for exact SDK or API syntax, working snippets, framework usage, configuration examples, and implementation patterns. Use targeted native file reads and bounded shell searches for the current repository.',
       promptSnippet:
         "Search public developer sources with focus=developer_sources, or implementation examples with focus=implementation_examples.",
       promptGuidelines: [
@@ -919,7 +919,7 @@ export function createToolRegistrations(): ToolRegistration[] {
         "Use web_code_search with focus=implementation_examples for exact SDK or API syntax, working snippets, framework usage, configuration examples, and implementation patterns.",
         "For web_code_search, phrase the query as a complete question or task and embed exact package, SDK, API, and configuration names inside a sentence.",
         "A single task may use both web_search and web_code_search when it needs both current facts and implementation examples.",
-        "Use CodeGraph or local file tools for the current repository; web_code_search covers only public developer sources.",
+        "Use targeted native file reads and bounded shell searches for the current repository; web_code_search covers only public developer sources.",
       ],
       parameters: webCodeSearchSchema,
       renderCall: createWebSearchCallRenderer("web_code_search"),

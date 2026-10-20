@@ -12,7 +12,7 @@ Before and after updates, apply [local-skill-update-invariants.md](local-skill-u
 - Keep compact roots with boundaries, domain grounding, the requested conversation, completion, and maintenance. Load directly linked formats or design/report references only when the selected task needs them; do not duplicate long formats or examples.
 - Review and planning are read-only by default. Do not edit source, `CONTEXT.md`, `CONTEXT-MAP.md`, ADRs, or repository reports without explicit instruction for those repository changes.
 - Agreement on a term/design or selecting a candidate is not write authorization. An explicit documentation request authorizes only its stated scope; a glossary request does not authorize unrelated ADRs or source changes. Do not require repeated approval for already-authorized writes.
-- Preserve CodeGraph-first source exploration and domain/ADR grounding. Prefer code/docs evidence to questions the repository can answer. Do not introduce automatic delegation or implementation handoffs.
+- Preserve targeted native file reads, bounded shell searches/history, and domain/ADR grounding. Do not restore CodeGraph/Context Mode mandates. Prefer code/docs evidence to questions the repository can answer. Do not introduce automatic delegation or implementation handoffs.
 - Ask one material question at a time and include a recommendation. Stop when decisions needed for the requested plan/design are resolved or remaining uncertainties are explicit, not after exhausting every aspect or branch.
 - Keep format, interface-design, dependency/testing, and HTML references consistent with root gates. Imperative examples are not permission to write, implement, delete tests, or launch delegates.
 - Keep metadata aligned with read-only assessment/planning. Preserve exact `$skill-name` default-prompt tokens, 25–64 character short descriptions, and any intentional dependencies. Both current skills remain `keep it` while their roots stay compact and useful.
@@ -104,7 +104,7 @@ Validation: both target validators and all 38 Local Skill validators passed, inc
 ## Update workflow
 
 1. Load `skill-creator` and `gh-cli`, then read this file.
-2. Resolve the canonical default branch, commit, and complete recursive tree with authenticated `gh` GET requests through Context Mode. Substitute the returned values for `BRANCH`, `TREE_SHA`, and `BLOB_SHA`:
+2. Resolve the canonical default branch, commit, and complete recursive tree with authenticated `gh` GET requests with native `bash` from an explicit repository working directory and bounded output. Substitute the returned values for `BRANCH`, `TREE_SHA`, and `BLOB_SHA`:
 
 ```bash
 gh api --method GET repos/mattpocock/skills --jq .default_branch

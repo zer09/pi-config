@@ -408,7 +408,7 @@ raise SystemExit(0 if all(checks.values()) else 1)
 ## Update workflow
 
 1. Load `skill-creator`, `gh-cli`, and the relevant Firebase skill before editing.
-2. Fetch upstream files with authenticated `gh` CLI through Context Mode when an upstream path exists, for example:
+2. Fetch upstream files with authenticated `gh` CLI through native `bash` when an upstream path exists, using an explicit repository working directory and bounded output, for example:
 
 ```bash
 gh api repos/firebase/skills/contents/skills/firebase-firestore/SKILL.md?ref=main

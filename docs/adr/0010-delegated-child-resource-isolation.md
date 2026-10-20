@@ -6,6 +6,8 @@ Accepted (2026-08-25). Supersedes the inherited extension and skill discovery fo
 
 Amended 2026-10-15: the user approved the `claude-bridge` provider for delegated children. A provider-only entry, `claude-bridge-provider/delegate-entry.ts`, joins both profiles. `claude-bridge/*` delegate routes are approved for trusted repositories only. See "Provider-only Claude Bridge entry" below.
 
+Amended for CodeGraph/Context Mode retirement: prepared in an isolated worktree, not deployed. The current runtime decision below has five ordered entries and seven model-visible tools (4 core + 3 web). The two-entry catalog, context loading, containment, pre-spawn checks, provider trust, and retention exceptions remain unchanged. Historical measurements below are evidence from earlier loadouts, not new measurements or current totals.
+
 ## Context
 
 Every delegated child Pi process previously started with only mode, session, trust, provider, model, and thinking flags. Without resource-discovery flags, each child inherited global extensions, configured package extensions, approved project extensions, global and project skills, prompt templates, and themes.
@@ -17,9 +19,9 @@ That inheritance wasted repeated child context. Each of the many fresh solution,
 - the complete 34-skill catalog descriptions even though a delegate needs at most a task-relevant few;
 - prompt-template and theme discovery that RPC delegates never use.
 
-Measured with a no-inference real-Pi RPC probe (see `docs/config-context-cost.md`), the inherited child started with 56 active tools (54,001 serialized tool-definition bytes, 11,835 local `o200k_base` tokens) and 34 skill catalog descriptions (9,865 characters, 2,149 tokens). The lean profile below starts with 17 tools (19,506 bytes, 4,125 tokens) and zero unselected skills.
+Measured with a no-inference real-Pi RPC probe (see `docs/config-context-cost.md`), the inherited child started with 56 active tools (54,001 serialized tool-definition bytes, 11,835 local `o200k_base` tokens) and 34 skill catalog descriptions (9,865 characters, 2,149 tokens). The lean profile measured at original acceptance started with 17 tools (19,506 bytes, 4,125 tokens) and zero unselected skills.
 
-The parent session must keep its normal extensions and the complete skill catalog. Only delegated subprocesses should receive the lean profile.
+The parent session keeps its normal extensions except the now-retired CodeGraph and Context Mode entries, and keeps the complete skill catalog. Only delegated subprocesses receive the lean allowlisted profile.
 
 ## Decision
 
@@ -33,23 +35,21 @@ Validation enforces an exact document shape (`version` exactly `1`, `extensions.
 
 ### Allowlists, not denylists
 
-Every delegated launch disables discovery with `--no-extensions`, `--no-skills`, `--no-prompt-templates`, and `--no-themes`, then explicitly loads approved extension entry files with repeated `-e` arguments. Pi has no general extension denylist, and a denylist would silently admit every newly installed extension. The allowlist fails closed: a future package or project extension enters delegated context only through an explicit policy update.
+Every delegated launch disables discovery with `--no-extensions`, `--no-skills`, `--no-prompt-templates`, and `--no-themes`, then explicitly loads approved extension entry files with repeated `-e` arguments. Child isolation does not rely on parent settings exclusions, which would silently admit every newly installed extension. The allowlist fails closed: a future package or project extension enters delegated context only through an explicit policy update.
 
 ### Model-visible versus infrastructure extensions
 
-The runtime child profile loads exactly seven extension entry files:
+The current runtime child profile loads exactly five extension entry files, in this order:
 
 | Extension | Child purpose | Model-visible child context |
 |---|---|---|
-| `delegated-pi-loop` | Parent watchdog and recursive-tool suppression | None |
-| `openai-codex-aliases` | Required `openai-codex-*` provider aliases | None |
-| `web-search` | `web_search`, `web_code_search`, `fetch_contents` | Yes |
-| `context-mode` | `ctx_execute_file`, `ctx_batch_execute`, `ctx_search` | Yes |
-| `codegraph` | Indexed source exploration tools | Yes |
-| `fastlane` | Invocation-local priority service configuration | None |
-| `claude-bridge-provider` | Required `claude-bridge` provider through `delegate-entry.ts` | None |
+| `delegated-pi-loop/index.ts` | Parent watchdog and recursive-tool suppression | None |
+| `openai-codex-aliases/index.ts` | Required `openai-codex-*` provider aliases | None |
+| `web-search/index.ts` | `web_search`, `web_code_search`, `fetch_contents` | Yes |
+| `fastlane/index.ts` | Invocation-local priority service configuration | None |
+| `claude-bridge-provider/delegate-entry.ts` | Required `claude-bridge` provider only | None |
 
-`delegated-pi-loop` inside the child keeps the parent-disappearance watchdog active and keeps recursive `delegate_run` unavailable, while adding no delegate tool schema or orchestration guidelines to child context. After canonical resolution the validator requires the runtime list to equal exactly these seven canonical entry files in this exact order; extra contained entries, missing entries, reordered entries, and alternate same-directory entry files all fail closed. Focused per-directory invariants keep their detailed first-failure diagnostics ahead of that exact-profile boundary.
+`delegated-pi-loop` inside the child keeps the parent-disappearance watchdog active and keeps recursive `delegate_run` unavailable, while adding no delegate tool schema or orchestration guidelines to child context. After canonical resolution the validator requires the runtime list to equal exactly these five canonical entry files in this exact order; extra contained entries, missing entries, reordered entries, and alternate same-directory entry files all fail closed. Focused per-directory invariants keep their detailed first-failure diagnostics ahead of that exact-profile boundary.
 
 ### Invocation-local Fastlane
 
@@ -116,13 +116,15 @@ The runner builds one immutable resource selection per delegate invocation and r
 
 Routing policy and ordering, Oracle self-review prevention, role contracts, gate concurrency and waiver rules, deadlines, idle policy, output bounds, RPC framing, report recovery, terminal markers and typed reasons, restart-after-work notes, manager IDs and targeted cancellation, diagnostics schemas and privacy exclusions, and Git/hosted-service authorization rules are unchanged. Selected skill names never enter failure diagnostics, progress, rendering, or logs. `delegateEnvironment()` is unchanged: provider credentials inherit from the parent and stale parent session metadata stays scrubbed. Claude Code session files written for `claude-bridge/*` routes are the one documented exception; see "Retention exception" above.
 
-### Parent and package settings unchanged
+### Parent retirement amendment; packages retained
 
-No package is uninstalled or disabled. `agent/settings.json` keeps `pi-browser-harness` and every other configured package for the parent session, which retains full discovery. The isolation is child-only.
+No package is uninstalled or disabled. `agent/settings.json` keeps `pi-browser-harness` and every other configured package. It now excludes the retained `codegraph/index.ts` and `context-mode/src/index.ts` extensions and the retained `codegraph-upgrade.md` prompt from normal parent discovery. Child isolation remains separately allowlisted.
+
+Do not re-enable the retired resources, load them explicitly with `-e`, change child profiles to restore them, or bypass retirement with their CLIs. Use native file reads and bounded shell searches/history/diagnostics. Retain source, prompt, dependencies, indexes, state, and caches. Normal loading exclusions are not an OS security boundary. After user-authorized deployment, finish active children and restart fresh parent, child, and side sessions; do not reload or deploy during worktree preparation.
 
 ## Consequences
 
-- A delegated child starts with 18 active tools (4 built-ins plus 14 from the three model-visible extensions) instead of 56, and with only orchestrator-selected skill descriptions instead of all 34. The 17-tool figure in Context was measured at acceptance, before `web_code_search` was added.
+- The current delegated child exposes 7 model-visible tools: 4 core tools plus 3 from `web-search`, with only orchestrator-selected skill descriptions. Historical evidence: the inherited loadout measured 56 tools; original isolation measured 17, and the later pre-retirement profile had 18 (4 built-ins + 14 extension tools, after `web_code_search` was added). Those historical byte/token measurements were not rerun for retirement.
 - The largest per-child reduction is the absence of `pi-browser-harness`: 38 `browser_*` tool schemas and the `pi-browser-harness` skill description disappear from every child.
 - Excluded local extensions (`footer`, `theme-overrides`), package extensions (`pi-blackhole`, `pi-btw`, `pi-browser-harness`, `pi-cursor`), every project-local extension, and every future extension are absent from children unless explicitly added to the policy. `pi-claude-bridge` reaches children only through the provider-only entry.
 - `claude-bridge/*` routes bill whatever account and plan Claude Code resolves, normally the parent's Claude subscription, and each child runs its own Claude Code process. The routes are approved for trusted repositories only. Repositories with a project `.pi/claude-bridge.json` cannot use these routes in delegates. Catalog preflight with the bridge entry measured about 1-2 seconds against the fixed 15-second catalog deadline.
@@ -133,7 +135,7 @@ No package is uninstalled or disabled. `agent/settings.json` keeps `pi-browser-h
 
 ## Alternatives rejected
 
-- **Deny selected extensions while keeping discovery:** rejected because Pi has no extension denylist and new installs would enter delegates automatically.
+- **Deny selected extensions while keeping discovery:** rejected for child isolation because new installs would enter delegates automatically. The retirement amendment uses exact parent settings exclusions without replacing the strict child allowlist.
 - **Uninstall `pi-browser-harness`:** rejected because the parent session still uses browser tools; child-only CLI isolation solves the delegate-context problem without changing global package state.
 - **Give every delegate all non-excluded skills:** rejected as the default because it retains unrelated skill descriptions in every child; the orchestrator can still select the complete approved set when a task needs it.
 - **Force every selected skill to load:** rejected because candidates are not requirements; forced full reads defeat progressive disclosure and can load irrelevant instructions.

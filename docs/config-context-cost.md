@@ -1,5 +1,7 @@
 # Config context cost
 
+CodeGraph and Context Mode retirement: prepared in a separate worktree, not deployed to the live setup. Settings exclude both retained extensions and `/codegraph-upgrade`. The delegated runtime profile has five entries; its two-entry catalog is unchanged. An isolated production-loader regression confirms zero retired imports or tool registrations, prompt exclusion, and retained context loading. Token attribution, provider calibration, and full-context totals were not rerun. The measurements below remain historical and do not describe the retired tool loadout.
+
 Quantitative calibration date: 2026-07-01
 
 Oracle profile-policy guidance update: parent `delegate_run` guidelines add 9 local `o200k_base` tokens; catalog guidelines add 5. Offline attribution is below. Provider calibration and full-context totals were not rerun.
@@ -999,11 +1001,11 @@ Loaded extensions/packages with no direct startup LLM-context tokens in this mea
 - npm package: `pi-btw@0.4.1` (commands/UI; filters its own visible BTW messages out of model context)
 - npm package: `pi-claude-bridge@0.5.0` (provider)
 
-## Active tool schemas
+## Historical active tool schemas (2026-07-19)
 
-Current structural inventory: 57 registered tools and 54 active tools, including 36 `browser_*` tools. Pi 0.80.10 registers seven built-ins but keeps only `read`, `bash`, `edit`, and `write` active; all 50 extension/package tools are active.
+Structural inventory at measurement time: 57 registered tools and 54 active tools, including 36 `browser_*` tools. Pi 0.80.10 registered seven built-ins but kept only `read`, `bash`, `edit`, and `write` active; all 50 extension/package tools were active. This inventory predates retirement and does not describe the current configuration.
 
-Current offline `tiktoken` attribution:
+Offline `tiktoken` attribution for that historical snapshot:
 
 | Origin | Active tools | Schema tokens | Guideline tokens | Combined |
 |---|---:|---:|---:|---:|
@@ -1027,11 +1029,11 @@ The historical token table immediately below remains the 2026-07-01 measurement 
 | npm package: `pi-blackhole@0.3.9` | 269 |
 | **Total active tool schemas** | **6,983** |
 
-### Non-browser active tools
+### Non-browser active tools (historical snapshot)
 
 `read`, `bash`, `edit`, `write`, `codegraph_explore`, `codegraph_search`, `codegraph_files`, `codegraph_callers`, `codegraph_callees`, `codegraph_impact`, `codegraph_node`, `codegraph_status`, `ctx_execute_file`, `ctx_batch_execute`, `ctx_search`, `web_search`, `fetch_contents`, `recall`.
 
-### Browser active tools
+### Browser active tools (historical snapshot)
 
 `browser_setup`, `browser_click`, `browser_type`, `browser_fill`, `browser_select_option`, `browser_focus`, `browser_press_key`, `browser_dispatch_key`, `browser_scroll`, `browser_page_info`, `browser_wait`, `browser_wait_for`, `browser_wait_for_load`, `browser_handle_dialog`, `browser_screenshot`, `browser_navigate`, `browser_open_urls`, `browser_go_back`, `browser_go_forward`, `browser_reload`, `browser_list_tabs`, `browser_current_tab`, `browser_switch_tab`, `browser_new_tab`, `browser_close_tab`, `browser_upload_file`, `browser_download`, `browser_print_to_pdf`, `browser_viewport_resize`, `browser_drag_and_drop`, `browser_http_get`, `browser_network_requests`, `browser_console`, `browser_snapshot`, `browser_execute_js`, `browser_run_script`.
 
@@ -1136,13 +1138,13 @@ Extension command metadata is available to command routing and UI, but is not in
 - The calibration prompt `hi` is tiny locally, but the provider-reported full input was 14,704 because startup context dominates.
 - User prompt cost is variable and is added per request.
 - Conversation history, assistant messages, tool calls, and tool results are not startup config cost, but they are included in later provider calls until compaction or branching removes/summarizes them.
-- Tool outputs are often the largest avoidable context growth source; prefer Context Mode tools for noisy diagnostics and large files.
+- Tool outputs are often the largest avoidable context growth source. Use targeted native file reads and bounded shell diagnostics for noisy output and large files.
 
 ## Optimization levers
 
 1. **Browser harness tools:** largest local direct startup surface (~6.2k local attributed tokens). Consider disabling browser tools by default if browser automation is not needed in most sessions.
 2. **Skill catalog:** 3,569 startup tokens. Slim descriptions or set `disable-model-invocation: true` for rarely used skills that should be explicit-only.
-3. **CodeGraph:** ~2.0k local direct tokens. High value, but largest non-browser coding extension surface.
+3. **CodeGraph (historical):** ~2.0k local direct tokens in the measured loadout. The retirement configuration excludes this extension; no current token saving was measured.
 4. **`AGENTS.md`:** 1,674 provider/local tokens. Keep global instructions compact and move long detail into linked docs when possible.
 5. **Prompt templates:** zero baseline, but `/ts-split-scope` adds ~3.4k tokens when invoked. Keep large templates intentional.
 

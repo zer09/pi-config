@@ -2,7 +2,9 @@
 
 Centralized maintenance notes for local Pi skills.
 
-Skill updates are manual. Updating a skill means syncing from upstream, classifying whether to keep/slim/remove it, and reapplying local invariants before validation. Upstream content is input, not final truth.
+Skill updates are manual. An upstream update means syncing from upstream, classifying whether to keep/slim/remove it, and reapplying local invariants before validation. Upstream content is input, not final truth.
+
+Explicitly authorized local adaptations, including CodeGraph/Context Mode retirement, do not require an upstream sync or source-pin change. Preserve classifications and metadata unless the local change requires otherwise. Use targeted native file reads and bounded shell searches, history, and diagnostics. Do not restore retired tool mandates, re-enable the extensions, or load them explicitly through CLI entries or their CLIs. Preserve authenticated `gh` routing and the full, unfiltered native Linear CLI exception in the [local invariants](local-skill-update-invariants.md).
 
 [ADR 0020](../adr/0020-gpt-6-astra-skill-maintenance-policy.md) refines ADR 0001 with model-neutral guidance for precise routing, compact runtime instructions, risk-based boundaries, and completion.
 

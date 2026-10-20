@@ -13,6 +13,7 @@ import { createRouteScheduler, validateRoutingConfig } from "./routing.ts";
 import { loadRoutingFixture } from "./routing.test-fixture.ts";
 import { finalizeDelegateRun } from "./result.ts";
 import { isOperationalFailureState, runDelegate } from "./runner.ts";
+import { withFixtureStartupClock } from "./startup-clock.fixture.ts";
 import { terminationProbes, type TerminationProbes } from "./supervisor.ts";
 import type { DelegateProgress, DelegateRunResult, RunOptions, ToolResult } from "./types.ts";
 
@@ -769,6 +770,7 @@ async function waitForFixtureGroup(
 async function resistantPi(options: {
   readonly catalogHangRoute?: string;
   readonly supervisionHangRoute?: string;
+  readonly runtimeStartupMs?: number;
 }): Promise<{ root: string; invocation: { command: string; prefixArgs: string[] } }> {
   const root = await mkdtemp(path.join(os.tmpdir(), "delegate-runner-resistant-"));
   fixtureRoots.push(root);
@@ -819,10 +821,11 @@ if (args.includes("--list-models")) {
   const provider = args[args.indexOf("--provider") + 1];
   const model = args[args.indexOf("--model") + 1];
   const route = provider + "/" + model;
-  const { createFixtureSession } = await import(${JSON.stringify(new URL("./persisted-session.fixture.ts", import.meta.url).href)});
-  const persistPrompt = createFixtureSession(args);
+  if (${options.runtimeStartupMs ?? 0}) await new Promise((resolve) => setTimeout(resolve, ${options.runtimeStartupMs ?? 0}));
   const emit = (event) => console.log(JSON.stringify(event));
   if (route === ${JSON.stringify(options.supervisionHangRoute ?? null)}) {
+    const { createFixtureSession } = await import(${JSON.stringify(new URL("./persisted-session.fixture.ts", import.meta.url).href)});
+    const persistPrompt = createFixtureSession(args);
     hangResistently();
     let buffer = "";
     process.stdin.on("data", (chunk) => {
@@ -2658,24 +2661,34 @@ test("the activity warning fires once per renewable lease and a silent route fal
   });
 });
 
-test("fallback route starts only after positive leader and group death proof", { skip: process.platform !== "linux" }, async () => {
-  const fixture = await resistantPi({ supervisionHangRoute: "prov-a/model-x" });
+test("fallback route starts only after positive leader and group death proof", { skip: process.platform !== "linux" }, async (t) => {
+  const fixture = await resistantPi({ supervisionHangRoute: "prov-a/model-x", runtimeStartupMs: 1100 });
   const group = { leader: -1, descendant: -1 };
   try {
-    const resultPromise = runDelegate(baseOptions(fixture, {
+    await withFixtureStartupClock(t, baseOptions(fixture, {
       routingConfig: twoTierOracleRoutingConfig(),
       activityWarningMs: 100,
       activityIdleMs: 300,
       graceMs: 100,
       cleanupTimeoutMs: 1000,
-    }));
-    const recorded = await waitForFixtureGroup(fixture.root, "resistant-group.json");
-    group.leader = recorded.leader;
-    group.descendant = recorded.descendant;
-    safetyGroups.push({ ...group });
-    await settleAndFinalize(resultPromise, async (result) => {
+    }), async (result, runtime) => {
+      const recorded = await waitForFixtureGroup(fixture.root, "resistant-group.json");
+      group.leader = recorded.leader;
+      group.descendant = recorded.descendant;
+      safetyGroups.push({ ...group });
       assert.equal(result.state, "completed");
       assert.deepEqual(result.attempts.map((attempt) => attempt.state), ["stalled", "completed"]);
+      assert.equal(result.attempts[0]!.deadlineCause, "idle_deadline");
+      assert.equal(result.attempts[0]!.stallCause, "rpc_silent");
+      assert.equal(runtime.length, 2, "exactly two execution children start");
+      assert.ok(runtime.every((entry) => entry.readyAt! - entry.spawnedAt >= 1100), "both cold starts exceed the unchanged 300 ms idle lease");
+      const first = runtime[0]!;
+      const idleMs = first.cleanupClock! - first.readyClock!;
+      assert.ok(idleMs >= 300, "the original idle lease starts at parsed prompt acknowledgement");
+      assert.ok(Math.abs(idleMs - (first.cleanupAt! - first.readyAt!)) < 25, "post-readiness idle consumes real elapsed time");
+      const term = first.signals.find((signal) => signal.name === "SIGTERM")!;
+      const kill = first.signals.find((signal) => signal.name === "SIGKILL")!;
+      assert.ok(kill.at - term.at >= 100, "the resistant group consumes the real termination grace before SIGKILL");
       const start = JSON.parse(await readFile(path.join(fixture.root, "route-two-start.json"), "utf8")) as Record<string, {
         leaderGone: boolean;
         descendantGone: boolean;
@@ -2688,6 +2701,25 @@ test("fallback route starts only after positive leader and group death proof", {
   } finally {
     killOwned(group.leader, group.descendant);
   }
+});
+
+test("runtime readiness guard aborts unready startup and restores every hook", async (t) => {
+  const fixture = await resistantPi({ runtimeStartupMs: 2000 });
+  const originals = { now: performance.now, build: terminationProbes.build, accept: PiRpcMonitor.prototype.acceptPrompt };
+  const started = performance.now();
+  let reachedBody = false;
+  await assert.rejects(withFixtureStartupClock(t, baseOptions(fixture, {
+    routingConfig: twoTierOracleRoutingConfig(), activityWarningMs: 100, activityIdleMs: 300,
+    graceMs: 100, cleanupTimeoutMs: 1000,
+  }), async () => {
+    reachedBody = true;
+  }, { guardMs: 1000 }), /Fixture startup guard expired before readiness or settlement/);
+  assert.equal(reachedBody, false);
+  assert.ok(performance.now() - started >= 1000, "the independent readiness guard uses real time");
+  assert.equal(performance.now, originals.now);
+  assert.equal(terminationProbes.build, originals.build);
+  assert.equal(PiRpcMonitor.prototype.acceptPrompt, originals.accept);
+  await assertNoOwnedArtifacts("readiness guard rejection follows exact child cleanup and finalization");
 });
 
 test("a supervision cleanup failure fails the chain closed before route two starts", { skip: process.platform !== "linux" }, async () => {
@@ -3401,8 +3433,6 @@ async function fixtureResourcePolicy(): Promise<{
     policyDir,
     path.join(extensionsRoot, "openai-codex-aliases"),
     path.join(extensionsRoot, "web-search"),
-    path.join(extensionsRoot, "context-mode", "src"),
-    path.join(extensionsRoot, "codegraph"),
     path.join(extensionsRoot, "fastlane"),
     path.join(extensionsRoot, "claude-bridge-provider"),
     path.join(skillsRoot, "alpha"),
@@ -3413,8 +3443,6 @@ async function fixtureResourcePolicy(): Promise<{
     path.join(policyDir, "index.ts"),
     path.join(extensionsRoot, "openai-codex-aliases", "index.ts"),
     path.join(extensionsRoot, "web-search", "index.ts"),
-    path.join(extensionsRoot, "context-mode", "src", "index.ts"),
-    path.join(extensionsRoot, "codegraph", "index.ts"),
     path.join(extensionsRoot, "fastlane", "index.ts"),
     path.join(extensionsRoot, "claude-bridge-provider", "delegate-entry.ts"),
   ]) {
@@ -3429,8 +3457,6 @@ async function fixtureResourcePolicy(): Promise<{
         "./index.ts",
         "../openai-codex-aliases/index.ts",
         "../web-search/index.ts",
-        "../context-mode/src/index.ts",
-        "../codegraph/index.ts",
         "../fastlane/index.ts",
         "../claude-bridge-provider/delegate-entry.ts",
       ],
@@ -3485,7 +3511,7 @@ test("catalog preflight uses the lean catalog resource profile", async () => {
     // No skills and no model-tool or delegated-loop extensions reach catalog preflight.
     assert.ok(!argv.includes("--skill"));
     for (const forbidden of ["web-search", "context-mode", "codegraph", "delegated-pi-loop"]) {
-      assert.ok(!argv.some((arg) => arg.includes(forbidden)), `catalog must not load ${forbidden}`);
+      assert.ok(!argv.some((arg) => arg.split(path.sep).includes(forbidden)), `catalog must not load ${forbidden}`);
     }
     // The route request follows the resource arguments.
     assert.equal(argv[argv.indexOf("--list-models") - 1], entries[1]);
@@ -3510,10 +3536,16 @@ test("every fallback attempt receives byte-for-byte identical runtime resource a
   for (const argv of runtimeArgv) {
     assert.deepEqual(runtimeResourceSlice(argv), first);
   }
-  // The default policy loads the seven fixed runtime entries exactly once each.
+  // The default policy loads the five fixed runtime entries in the exact order.
   const entries = first.filter((_, index) => first[index - 1] === "-e");
-  assert.equal(entries.length, 7);
-  assert.equal(new Set(entries).size, 7);
+  const extensionsRoot = path.resolve(path.dirname(entries[0]!), "..");
+  assert.deepEqual(entries.map((entry) => path.relative(extensionsRoot, entry)), [
+    path.join("delegated-pi-loop", "index.ts"),
+    path.join("openai-codex-aliases", "index.ts"),
+    path.join("web-search", "index.ts"),
+    path.join("fastlane", "index.ts"),
+    path.join("claude-bridge-provider", "delegate-entry.ts"),
+  ]);
   assert.ok(!first.includes("--no-context-files"), "runtime children keep context files enabled");
   // Provider, model, and thinking arguments remain unchanged after --mode rpc.
   const argv = runtimeArgv[0]!;

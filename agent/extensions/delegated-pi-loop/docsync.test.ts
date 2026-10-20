@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { posix } from "node:path";
 import {
   INSTRUCTION_DOC_SECTION_IDS,
   applyInstructionDocSections,
@@ -51,6 +52,32 @@ test("applying the rendered sections is idempotent", async () => {
     extractInstructionDocSections(repaired).get("restart-note"),
     rendered.get("restart-note"),
   );
+});
+
+test("current manual runtime profiles match the production resource policy", async () => {
+  const policy = JSON.parse(await readFile(new URL("./resources.json", import.meta.url), "utf8")) as {
+    extensions: { runtime: string[]; catalog: string[] };
+  };
+  const runtime = policy.extensions.runtime.map((entry) => posix.normalize(posix.join("delegated-pi-loop", entry)));
+  const catalog = policy.extensions.catalog.map((entry) => posix.normalize(posix.join("delegated-pi-loop", entry)));
+  const reference = await readFile(DOC_URL, "utf8");
+  const maintenance = await readFile(new URL("../../../docs/skills/delegated-pi-loop-update-process.md", import.meta.url), "utf8");
+  const adr = await readFile(new URL("../../../docs/adr/0010-delegated-child-resource-isolation.md", import.meta.url), "utf8");
+  for (const [text, pattern] of [
+    [reference, /The child receives exactly these extensions, in order:\n\n([\s\S]*?)\n\n/],
+    [maintenance, /2\. The runtime child explicitly loads exactly five extension entry files in policy order: ([^\n]+)/],
+    [adr, /The current runtime child profile loads exactly five extension entry files, in this order:\n\n([\s\S]*?)\n\n/],
+  ] as const) {
+    const section = text.match(pattern)?.[1];
+    assert.ok(section, "the current runtime profile must be documented");
+    assert.deepEqual([...section.matchAll(/`([\w/-]+\.ts)`/g)].map((match) => match[1]), runtime);
+  }
+  const catalogSection = maintenance.match(/3\. The catalog preflight loads exactly ([^\n]+?) and never loads/)?.[1];
+  assert.ok(catalogSection);
+  assert.deepEqual([...catalogSection.matchAll(/`([\w/-]+\.ts)`/g)].map((match) => match[1]), catalog);
+  assert.match(reference, /3 web tools plus 4 core tools = 7/);
+  assert.match(maintenance, /7 tools: 4 core plus 3 web/);
+  assert.match(adr, /7 model-visible tools: 4 core tools plus 3 from `web-search`/);
 });
 
 test("extract fails closed on a duplicated section", () => {

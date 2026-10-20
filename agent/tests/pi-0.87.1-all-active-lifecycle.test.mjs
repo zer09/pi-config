@@ -27,7 +27,7 @@ const piRoot = join(globalModules, "@earendil-works/pi-coding-agent");
 const aiRoot = join(globalModules, "@earendil-works/pi-ai");
 const npmRoot = join(repository, "agent/npm/node_modules");
 const localEntries = [
-  "codegraph/index.ts", "context-mode/src/index.ts", "delegated-pi-loop/index.ts",
+  "delegated-pi-loop/index.ts",
   "fastlane/index.ts", "footer/index.ts", "github-ci/index.ts",
   "openai-codex-aliases/index.ts", "theme-overrides/index.ts", "web-search/index.ts",
 ].map((entry) => join(repository, "agent/extensions", entry));
@@ -143,8 +143,6 @@ async function installGuards(root, tracked, canary) {
   const sourceFiles = new Set([...tracked, filename].map((path) => resolve(path)));
   const dependencyRoots = [
     globalModules, npmRoot,
-    join(repository, "agent/extensions/codegraph/node_modules"),
-    join(repository, "agent/extensions/context-mode/node_modules"),
   ];
   const sourceDirectories = new Set();
   for (const path of [...sourceFiles, ...dependencyRoots, root]) {
@@ -478,8 +476,10 @@ async function runFixture(root, canary) {
     await loader.reload();
     const loaded = loader.getExtensions();
     // A missing native/optional binary is a hard failure. Never replace a package with a stub.
-    assert.deepEqual(loaded.errors, [], "all 13 real extensions must load without errors");
-    assert.equal(loaded.extensions.length, 14, "13 active extensions plus the passive observer");
+    assert.deepEqual(loaded.errors, [], "all 11 real extensions must load without errors");
+    assert.equal(loaded.extensions.length, 12, "11 active extensions plus the passive observer");
+    const registeredTools = loaded.extensions.flatMap((extension) => [...extension.tools.keys()]);
+    assert.ok(registeredTools.every((name) => !/^(?:codegraph_|ctx_)/.test(name)), "retired tools stay unregistered");
     for (const path of localEntries) {
       const extension = loaded.extensions.find((item) => item.path === path);
       assert.ok(extension, `missing local extension: ${path}`);
@@ -494,7 +494,7 @@ async function runFixture(root, canary) {
       assert.deepEqual(extension.sourceInfo, { path, source: pkg.root, scope: "user", origin: "package", baseDir: pkg.root });
     }
     assert.ok(loader.getSkills().skills.every((skill) => !within(packages[2].root, skill.filePath)), "Browser Harness skills: [] must apply");
-    console.log("PASS discovery: 9 local + 4 pinned packages + observer; sourceInfo exact; load errors=0; browser skills=0");
+    console.log("PASS discovery: 7 local + 4 pinned packages + observer; sourceInfo exact; load errors=0; browser skills=0");
 
     const manager = pi.SessionManager.create(cwd, sessionDir);
     assert.equal(manager.isPersisted(), true);

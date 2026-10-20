@@ -55,7 +55,7 @@ For a fresh install or reinstall from upstream, copy the upstream runtime resour
 ## Update workflow
 
 1. Load `skill-creator` and `gh-cli`, then read this file.
-2. Fetch upstream files with authenticated `gh` CLI through Context Mode, for example:
+2. Fetch upstream files with authenticated `gh` CLI through native `bash`, using an explicit repository working directory and bounded output, for example:
 
 ```bash
 gh api repos/softaworks/agent-toolkit/contents/skills/session-handoff/SKILL.md?ref=main

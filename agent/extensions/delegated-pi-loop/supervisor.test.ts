@@ -8,6 +8,8 @@ import { createPrivateDirectory } from "./artifacts.ts";
 import { REPORT_RECOVERY_PROMPT } from "./instructions.ts";
 import { PiRpcMonitor } from "./monitor.ts";
 import { createPersistedPiSession } from "./persisted-session.ts";
+import { RpcJsonlProtocol } from "./protocol.ts";
+import { interceptRpcStdout } from "./rpc-stdout.fixture.ts";
 import { cancelledTargetRetry } from "./target-retry.fixture.ts";
 import {
   DEFAULT_PROGRESS_STALL_MS,
@@ -215,7 +217,7 @@ test("a successful supervisor result does not carry an active bash command", asy
 });
 
 test("runtime child argv follows the fixed resource-argument ordering", async () => {
-  const extensions = ["/x/delegated-pi-loop/index.ts", "/x/openai-codex-aliases/index.ts", "/x/web-search/index.ts", "/x/context-mode/src/index.ts", "/x/codegraph/index.ts", "/x/fastlane/index.ts", "/x/claude-bridge-provider/delegate-entry.ts"];
+  const extensions = ["/x/delegated-pi-loop/index.ts", "/x/openai-codex-aliases/index.ts", "/x/web-search/index.ts", "/x/fastlane/index.ts", "/x/claude-bridge-provider/delegate-entry.ts"];
   const resourceArgs = [
     "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes",
     ...extensions.flatMap((entry) => ["-e", entry]),
@@ -1709,6 +1711,83 @@ test("the anonymous multi-tool watchdog stalls on the stalest silent tool by nam
   const withTools = progress.filter((item) => (item.activeToolCount ?? 0) > 0);
   assert.ok(withTools.length > 0);
   assert.ok(withTools.every((item) => item.activeToolName === "read"));
+});
+
+test("stdout cap preserves only the in-budget protocol prefix at the receiving boundary", async (t) => {
+  const ack = Buffer.from(JSON.stringify({ id: "prompt-1", type: "response", command: "prompt", success: true }) + "\n");
+  const start = Buffer.from(JSON.stringify({ type: "agent_start" }) + "\n");
+  const end = Buffer.from(JSON.stringify({ type: "agent_end", willRetry: false }) + "\n");
+  const prefix = Buffer.concat([ack, start]);
+  const lifecycle = Buffer.from(completed().map((event) => JSON.stringify(event) + "\n").join(""));
+  const missingLifecycle = Buffer.from(missing().map((event) => JSON.stringify(event) + "\n").join(""));
+  const utf8 = Buffer.from(JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "終" }] } }) + "\r\n");
+  const utf8Cut = prefix.length + utf8.indexOf(Buffer.from("終")) + 1;
+  const crlfAck = Buffer.from(ack.toString().replace("\n", "\r\n"));
+  const flood = Buffer.alloc(20000, "x");
+  const promptBytes = Buffer.byteLength(new RpcJsonlProtocol().beginPrompt(1, "test"));
+  const cases = [
+    { name: "coalesced ack, event, and flood", payload: Buffer.concat([prefix, flood]), budget: prefix.length + 3, accepted: true, starts: 1 },
+    { name: "split ack, event, and flood", payload: Buffer.concat([prefix, flood]), budget: prefix.length + 3, splits: [ack.length, prefix.length], accepted: true, starts: 1 },
+    { name: "crossing and after-budget records", payload: Buffer.concat([prefix, end]), budget: prefix.length - 1, splits: [prefix.length], accepted: true, starts: 0 },
+    { name: "zero remaining after outbound prompt", payload: prefix, budget: 0, accepted: false, starts: 0 },
+    { name: "stderr spends shared budget", payload: prefix, budget: ack.length, stderr: "stderr bytes", accepted: true, starts: 0 },
+    { name: "zero remaining after stderr", payload: prefix, budget: 0, stderr: "stderr bytes", accepted: false, starts: 0 },
+    { name: "acknowledgement LF exactly at cap", payload: prefix, budget: ack.length, splits: [ack.length - 1], accepted: true, starts: 0 },
+    { name: "acknowledgement LF just beyond cap", payload: prefix, budget: ack.length - 1, splits: [ack.length - 1], accepted: false, starts: 0 },
+    { name: "split UTF8 cutoff", payload: Buffer.concat([prefix, utf8, end]), budget: utf8Cut, splits: [utf8Cut], accepted: true, starts: 1 },
+    { name: "split UTF8 and CRLF accepted through LF", payload: Buffer.concat([prefix, utf8, end]), budget: prefix.length + utf8.length, splits: [utf8Cut, prefix.length + utf8.length - 1], accepted: true, starts: 1 },
+    { name: "split CRLF cutoff before LF", payload: Buffer.concat([crlfAck, start]), budget: crlfAck.length - 1, splits: [crlfAck.length - 1], accepted: false, starts: 0 },
+    { name: "split CRLF accepted through LF", payload: Buffer.concat([crlfAck, start]), budget: crlfAck.length, splits: [crlfAck.length - 1], accepted: true, starts: 0 },
+    { name: "completed lifecycle followed by overflow", payload: Buffer.concat([ack, lifecycle, flood]), budget: ack.length + lifecycle.length, accepted: true, starts: 1, report: true },
+    { name: "whole chunk counted before recovery callbacks", payload: Buffer.concat([ack, missingLifecycle, flood]), budget: ack.length + missingLifecycle.length, accepted: true, starts: 1 },
+    { name: "cleanup failure dominates overflow", payload: Buffer.concat([prefix, flood]), budget: prefix.length, accepted: true, starts: 1, cleanupFails: true },
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async (t) => {
+      let pending = Buffer.alloc(0);
+      const received = interceptRpcStdout(t, (child, chunk, deliver) => {
+        pending = Buffer.concat([pending, chunk]);
+        if (pending.length < scenario.payload.length) return;
+        assert.deepEqual(pending, scenario.payload);
+        if (scenario.stderr) child.stderr!.emit("data", Buffer.from(scenario.stderr));
+        let offset = 0;
+        for (const end of [...(scenario.splits ?? []), pending.length]) {
+          deliver(pending.subarray(offset, end));
+          offset = end;
+        }
+      });
+      const fed: Buffer[] = [];
+      const feed = RpcJsonlProtocol.prototype.feed;
+      t.mock.method(RpcJsonlProtocol.prototype, "feed", function (this: RpcJsonlProtocol, ...args: Parameters<typeof feed>) {
+        fed.push(args[0]);
+        return feed.apply(this, args);
+      });
+      if (scenario.cleanupFails) {
+        const build = terminationProbes.build;
+        t.mock.method(terminationProbes, "build", (child: Parameters<typeof build>[0]) => ({ ...build(child), groupExists: () => true }));
+      }
+      const script = `process.stdin.once("data", () => process.stdout.write(Buffer.from(${JSON.stringify(scenario.payload.toString("base64"))}, "base64"))); setInterval(() => {}, 1000);`;
+      const { status, progress, attemptDir } = await run(script, {
+        maxOutputBytes: promptBytes + Buffer.byteLength(scenario.stderr ?? "") + scenario.budget,
+      });
+      assert.deepEqual(received.map((chunk) => chunk.length),
+        [...(scenario.splits ?? []), scenario.payload.length].map((end, index, ends) => end - (ends[index - 1] ?? 0)));
+      assert.deepEqual(Buffer.concat(fed), scenario.payload.subarray(0, scenario.budget), "never feed a byte beyond the shared budget");
+      assert.equal(status.outputBytes, promptBytes + Buffer.byteLength(scenario.stderr ?? "") + scenario.payload.length);
+      assert.equal(status.state, scenario.cleanupFails ? "cleanup_failed" : "output_limit");
+      assert.equal(status.sessionSeen, scenario.accepted);
+      assert.equal(status.agentStartCount, scenario.starts);
+      assert.equal(status.agentEndCount, scenario.name.includes("lifecycle") || scenario.name.includes("callbacks") ? 1 : 0);
+      assert.equal(status.reportPresent, scenario.report === true);
+      assert.equal(status.reportNudgeCount, 0, "an overflowing chunk must not send a recovery prompt");
+      assert.ok(!status.streamErrors.includes("rpc_malformed_json"), "a UTF8 or CRLF cutoff must not become a parsed record");
+      assert.equal(status.cleanupFailureReason, scenario.cleanupFails ? "group_alive" : undefined);
+      assert.equal(progress.at(-1)?.state, status.state);
+      const persisted = JSON.parse(await readFile(path.join(attemptDir, "status.json"), "utf8"));
+      assert.equal(persisted.state, status.state);
+      assert.equal((await stat(path.join(attemptDir, "stderr.log"))).mode & 0o777, 0o600);
+    });
+  }
 });
 
 test("output bytes accumulate across the initial and recovery commands", async () => {

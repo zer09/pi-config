@@ -7,16 +7,25 @@ import { buildDelegatePrompt, LIVE_CONTINUATION_PROMPT, REPORT_RECOVERY_PROMPT, 
 import { requireRole, validateRoutingConfig } from "./routing.ts";
 import { runDelegate } from "./runner.ts";
 import { finalizeDelegateRun } from "./result.ts";
+import { fixtureAttemptSummary, withFixtureStartupClock } from "./startup-clock.fixture.ts";
 import { terminationProbes, type TerminationProbes } from "./supervisor.ts";
 import type { AttemptStatus, DelegateProgress, DelegateRunResult, RunOptions } from "./types.ts";
 
 const root = await mkdtemp(path.join(os.tmpdir(), "delegate-live-test-"));
+const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
 process.env.PI_DELEGATE_ARTIFACT_PARENT = root;
+process.env.PI_CODING_AGENT_DIR = path.join(root, "diagnostics");
 after(async () => {
   delete process.env.PI_DELEGATE_ARTIFACT_PARENT;
+  if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+  else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
   await rm(root, { recursive: true, force: true });
 });
 
+// Test-only cold-start allowance. Deliberate liveness cases override the short lease.
+const TEST_SUCCESS_ALLOWANCES = {
+  catalogTimeoutMs: 5000, activityIdleMs: 2500, progressWarningMs: 5000, progressStallMs: 10000,
+};
 const routes = ["prov-a/model-a", "prov-b/model-b", "prov-c/model-c", "prov-d/model-d"];
 const levels = ["high", "low", "off", "medium"];
 const routingConfig = validateRoutingConfig({
@@ -61,11 +70,9 @@ async function fixture(settings: FixtureOptions = {}) {
   await writeFile(script, `
 import { appendFileSync } from "node:fs";
 import { spawn } from "node:child_process";
-import { createFixtureSession } from ${JSON.stringify(new URL("./persisted-session.fixture.ts", import.meta.url).href)};
 const settings = ${JSON.stringify(settings)};
 const routes = ${JSON.stringify(fixtureRoutes)};
 const args = process.argv.slice(2);
-const persistPrompt = createFixtureSession(args);
 const trace = (entry) => appendFileSync("trace.jsonl", JSON.stringify({ pid: process.pid, ...entry }) + "\\n", { mode: 0o600 });
 if (args.includes("--list-models")) {
   const route = args[args.indexOf("--list-models") + 1];
@@ -83,6 +90,8 @@ if (args.includes("--list-models")) {
   else done();
 } else {
   if (settings.runtimeStartupMs) await new Promise((resolve) => setTimeout(resolve, settings.runtimeStartupMs));
+  const { createFixtureSession } = await import(${JSON.stringify(new URL("./persisted-session.fixture.ts", import.meta.url).href)});
+  const persistPrompt = createFixtureSession(args);
   let provider = args[args.indexOf("--provider") + 1];
   let model = args[args.indexOf("--model") + 1];
   let thinking = args[args.indexOf("--thinking") + 1];
@@ -192,10 +201,22 @@ if (args.includes("--list-models")) {
     }) : routingConfig,
     random: () => 0,
     resourceSelection: { catalogArgs: ["--no-extensions"], runtimeArgs: ["--no-extensions", "--no-skills"], verifyCatalogSpawn() {}, verifyRuntimeSpawn() {} },
-    activityWarningMs: 200, activityIdleMs: 600, progressWarningMs: 1000, progressStallMs: 2000,
-    reportRecoveryIdleMs: 500, graceMs: 100, cleanupTimeoutMs: 1000, catalogTimeoutMs: 500, liveSwitchTimeoutMs: 300,
+    ...TEST_SUCCESS_ALLOWANCES, activityWarningMs: 200,
+    reportRecoveryIdleMs: 500, graceMs: 100, cleanupTimeoutMs: 1000, liveSwitchTimeoutMs: 300,
   };
   return { cwd, options, trace: async (): Promise<Trace[]> => (await readFile(path.join(cwd, "trace.jsonl"), "utf8")).trim().split("\n").map((line) => JSON.parse(line)) };
+}
+
+for (const phase of ["catalog", "runtime"] as const) {
+  test(`shared success allowance covers delayed ${phase} startup beyond old leases`, async () => {
+    await check({ behaviors: ["provider", "complete"], [`${phase}StartupMs`]: 1100 }, (result, trace, status) => {
+      assert.equal(result.state, "completed", fixtureAttemptSummary(result));
+      assert.deepEqual(result.attempts.map((entry) => entry.state), ["provider_failed", "completed"]);
+      assert.equal(trace.filter((entry) => entry.kind === "start").length, 1);
+      assert.deepEqual(status.map((entry) => entry.liveReused), [false, true]);
+      assert.equal(trace.filter((entry) => entry.kind === "prompt").at(-1)!.command!.message, LIVE_CONTINUATION_PROMPT);
+    });
+  });
 }
 
 test("Fastlane fresh fallback and failed switches pass runtime-only intent to every spawn", async () => {
@@ -282,12 +303,12 @@ async function statuses(result: DelegateRunResult): Promise<PrivateStatus[]> {
   return Promise.all(entries.map(async (name) => JSON.parse(await readFile(path.join(result.artifactDir, name, "status.json"), "utf8"))));
 }
 
-async function check(settings: FixtureOptions, body: (result: DelegateRunResult, trace: Trace[], status: PrivateStatus[]) => void | Promise<void>, overrides: Partial<RunOptions> = {}, control?: RetainedCatalogControl) {
+async function check(settings: FixtureOptions, body: (result: DelegateRunResult, trace: Trace[], status: PrivateStatus[]) => void | Promise<void>, overrides: Partial<RunOptions> = {}, control?: RetainedCatalogControl | { t: TestContext; runtimeReadiness: true }) {
   const f = await fixture(settings);
   let result: DelegateRunResult | undefined;
   const verify = async (received: DelegateRunResult) => {
     result = received;
-    const trace = await f.trace();
+    const trace = await readScenarioTrace(f);
     await body(result, trace, await statuses(result));
     const starts = trace.filter((entry) => entry.kind === "start");
     for (const entry of starts) {
@@ -302,14 +323,16 @@ async function check(settings: FixtureOptions, body: (result: DelegateRunResult,
   };
   try {
     const options = { ...f.options, ...overrides };
-    if (control) await runRetainedCatalogScenario(f, options, control, verify);
+    if (control && "runtimeReadiness" in control) await withFixtureStartupClock(control.t, options, verify);
+    else if (control) await runRetainedCatalogScenario(f, options, control, verify);
     else await verify(await runDelegate(options));
+  } catch (error) {
+    if (result && error instanceof Error) error.message += `\n${fixtureAttemptSummary(result)}`;
+    throw error;
   } finally {
     if (result) await rm(result.artifactDir, { recursive: true, force: true });
     // The opt-in driver also owns children with no trace before abort.
-    let trace: Trace[];
-    if (control) trace = await readScenarioTrace(f);
-    else trace = await f.trace();
+    const trace = await readScenarioTrace(f);
     for (const entry of trace) {
       if (entry.kind !== "start" && !(control && entry.kind === "catalog")) continue;
       if (gone(entry.pid) && (!control || gone(-entry.pid))) continue;
@@ -745,16 +768,34 @@ for (const [behavior, expected] of [
   ["stalled", "stalled"], ["output", "output_limit"], ["invalid-stream", "invalid_stream"],
   ["exit", "child_failed"], ["active-provider", "provider_failed"],
 ] as const) {
-  test(`${behavior} never retains a child`, async () => {
-    await check({ behaviors: [behavior, "complete"] }, (result, trace, status) => {
+  test(`${behavior} never retains a child`, async (t) => {
+    const liveness = behavior === "stalled";
+    await check({ behaviors: [behavior, "complete"], runtimeStartupMs: liveness ? 1100 : undefined }, (result, trace, status) => {
       assert.equal(result.state, "completed");
       assert.equal(status[0]!.state, expected);
       assert.equal(trace.filter((entry) => entry.kind === "control").length, 0);
       assert.equal(trace.filter((entry) => entry.kind === "start").length, 2);
       assert.ok(status.every((entry) => !entry.liveReused));
-    }, { maxOutputBytes: 9000 });
+      if (liveness) {
+        assert.equal(status[0]!.deadlineCause, "idle_deadline");
+        assert.equal(status[0]!.stallCause, "rpc_silent");
+        assert.ok(status[0]!.activityIdleSeconds >= 0.6);
+      }
+    }, {
+      maxOutputBytes: 9000,
+      ...(liveness ? { activityIdleMs: 600, progressWarningMs: 1000, progressStallMs: 2000 } : {}),
+    }, liveness ? { t, runtimeReadiness: true } : undefined);
   });
 }
+
+test("never-ready runtime still consumes the real production idle lease", async () => {
+  await check({ runtimeStartupMs: 2000 }, (result, trace, status) => {
+    assert.equal(result.state, "routes_unavailable");
+    assert.equal(trace.filter((entry) => entry.kind === "prompt").length, 0);
+    assert.equal(status.length, routes.length);
+    assert.ok(status.every((entry) => entry.state === "stalled" && entry.deadlineCause === "idle_deadline" && entry.stallCause === "rpc_silent"));
+  }, { activityIdleMs: 600, progressWarningMs: 1000, progressStallMs: 2000 });
+});
 
 test("live output accounting includes controls and resets the per-route limit", async () => {
   // Leave room for the expanded child policy within each route's byte limit.

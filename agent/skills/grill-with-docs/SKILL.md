@@ -13,7 +13,7 @@ This is a grilling and planning skill, not an implementation workflow. Keep sour
 
 ## Bounded conversation
 
-Ask one material question at a time and wait for feedback. Include a recommended answer and its reason. Prefer code/docs evidence when the repository can answer a question; use CodeGraph first for source exploration.
+Ask one material question at a time and wait for feedback. Include a recommended answer and its reason. Prefer code/docs evidence when the repository can answer a question; use targeted native file reads and bounded shell searches for source exploration.
 
 Focus on decisions needed for the requested plan, including dependencies between those decisions. Stop when those decisions are resolved or remaining uncertainties are explicit. Do not exhaust every possible design branch.
 

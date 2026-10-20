@@ -11,6 +11,8 @@ function schemaFor(name: string) {
   return fetchContentsSchema;
 }
 
+const retiredRecommendation = /(?:^|[.!?;]\s+)(?:use|prefer|call|run|load)\s+(?:CodeGraph|Context[- ]Mode|`?(?:codegraph|ctx)_[\w*]+`?)/i;
+
 describe("public tool registration", () => {
   const tools = createToolRegistrations();
 
@@ -62,16 +64,49 @@ describe("public tool registration", () => {
     }
   });
 
-  it("distinguishes public web, public code context, URL fetching, and local CodeGraph in descriptions", () => {
+  it("distinguishes public web, public code context, URL fetching, and native repository inspection in descriptions", () => {
     const [webSearch, codeSearch, fetchContents] = tools;
     expect(webSearch.description).toContain("inline citations");
     expect(webSearch.description).toContain("Prefer web_code_search");
     expect(webSearch.description).toContain("Do not use this tool to inspect the current local repository");
     expect(codeSearch.description).toContain("developer_sources");
     expect(codeSearch.description).toContain("implementation_examples");
-    expect(codeSearch.description).toContain("Use CodeGraph or local file tools for the current repository");
+    expect(codeSearch.description).toContain("Use targeted native file reads and bounded shell searches for the current repository");
     expect(fetchContents.description).toContain("explicit public URLs");
     expect(fetchContents.description).toContain("does not discover URLs");
+  });
+
+  it("keeps every description, prompt snippet, and prompt guideline free of retired-tool recommendations", () => {
+    for (const tool of tools) {
+      const metadata = {
+        description: tool.description,
+        promptSnippet: tool.promptSnippet ?? "",
+        ...Object.fromEntries((tool.promptGuidelines ?? []).map((text, index) => [`promptGuidelines[${index}]`, text])),
+      };
+      for (const [field, text] of Object.entries(metadata)) {
+        expect(text, `${tool.name}.${field}`).not.toMatch(retiredRecommendation);
+      }
+    }
+  });
+
+  it("detects affirmative retired-tool routing without banning history or retirement prohibitions", () => {
+    for (const text of [
+      "Use CodeGraph or local file tools for the current repository.",
+      "Do not use web_search locally; use CodeGraph instead.",
+      "Prefer Context Mode for diagnostics.",
+      "Call `codegraph_explore` for local code.",
+      "Run ctx_batch_execute for tests.",
+    ]) {
+      expect(text).toMatch(retiredRecommendation);
+    }
+    for (const text of [
+      "Historically, CodeGraph and Context Mode provided repository tools.",
+      "CodeGraph and Context Mode are retired; do not re-enable them.",
+      "Do not use CodeGraph or ctx_batch_execute.",
+      "Use native file reads instead of CodeGraph.",
+    ]) {
+      expect(text).not.toMatch(retiredRecommendation);
+    }
   });
 
   it("allows a single task to call both web tools", () => {

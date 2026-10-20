@@ -21,7 +21,7 @@ If the standalone skill is explicitly requested later:
 
 1. Read `docs/skills/README.md` and `docs/skills/local-skill-update-invariants.md`.
 2. Load `skill-creator`.
-3. Fetch upstream runtime content from `makenotion/skills` and inspect local `ntn` behavior through Context Mode.
+3. Load `gh-cli` and fetch upstream runtime content from `makenotion/skills` with authenticated `gh` through bounded native `bash`. Inspect local `ntn` only within the offline isolation limits in `notion-update-process.md`.
 4. Preserve hosted-service mutation gates: Notion API writes, page creates/updates, comments, file uploads, worker deploys, worker execution, login, and logout require exact explicit user instruction.
 5. Do not print or document token values. Refer to `NOTION_API_TOKEN` by name only.
 6. Keep `SKILL.md` concise and limit frontmatter to `name` and `description`.

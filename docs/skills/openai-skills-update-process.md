@@ -56,7 +56,7 @@ Apply these local overlays after every upstream comparison or sync. [ADR 0020](.
 ## Update workflow
 
 1. Load `skill-creator`, then read this file. Load `gh-cli` only when fetching upstream GitHub content or checking command syntax.
-2. Fetch upstream files with authenticated `gh` CLI through Context Mode, for example:
+2. Fetch upstream files with authenticated `gh` CLI through native `bash`, using an explicit repository working directory and bounded output, for example:
 
 ```bash
 gh api repos/openai/skills/contents/skills/.system/skill-creator/SKILL.md?ref=main

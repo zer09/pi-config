@@ -15,7 +15,12 @@
     "-builtin:mcp",
     "-builtin:llama.cpp",
     "-builtin:codemode",
-    "-builtin:tool-search"
+    "-builtin:tool-search",
+    "-extensions/codegraph/index.ts",
+    "-extensions/context-mode/src/index.ts"
+  ],
+  "prompts": [
+    "-prompts/codegraph-upgrade.md"
   ],
   "enabledModels": [
     "openai-codex/gpt-6.1-sol",

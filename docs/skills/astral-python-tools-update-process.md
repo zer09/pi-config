@@ -69,7 +69,7 @@ These checks do not prove model routing/compliance or exercise project synchroni
 ## Update workflow
 
 1. Load `skill-creator` and `gh-cli`, then read this file.
-2. Fetch upstream files with authenticated `gh` CLI through Context Mode, for example:
+2. Fetch upstream files with authenticated `gh` CLI through native `bash`, using an explicit repository working directory and bounded output, for example:
 
 ```bash
 gh api repos/astral-sh/claude-code-plugins/contents/plugins/astral/skills/uv/SKILL.md?ref=main

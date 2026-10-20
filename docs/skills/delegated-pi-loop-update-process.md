@@ -80,13 +80,15 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 ### Delegated child resource boundary
 
 1. Every delegated child disables discovery with `--no-extensions`, `--no-skills`, `--no-prompt-templates`, and `--no-themes`; the runtime child keeps context-file discovery enabled, the catalog preflight additionally passes `--no-context-files`.
-2. The runtime child explicitly loads exactly seven extension entry files in policy order: `delegated-pi-loop/index.ts` (watchdog and recursive-tool suppression only), `openai-codex-aliases/index.ts` (provider aliases only), `web-search/index.ts`, `context-mode/src/index.ts`, `codegraph/index.ts`, `fastlane/index.ts` (runtime-only priority-service configuration), and `claude-bridge-provider/delegate-entry.ts` (the `claude-bridge` provider only). Only `web-search`, `context-mode`, and `codegraph` add model-visible child tools; Fastlane adds none, and the Claude Bridge entry drops all tool registration, so AskClaude never reaches a child. This preserves the 4 built-ins plus 14 extension tools.
+2. The runtime child explicitly loads exactly five extension entry files in policy order: `delegated-pi-loop/index.ts` (watchdog and recursive-tool suppression only), `openai-codex-aliases/index.ts` (provider aliases only), `web-search/index.ts`, `fastlane/index.ts` (runtime-only priority-service configuration), and `claude-bridge-provider/delegate-entry.ts` (the `claude-bridge` provider only). Only `web-search` adds model-visible child tools; Fastlane adds none, and the Claude Bridge entry drops all tool registration, so AskClaude never reaches a child. The current profile exposes 7 tools: 4 core plus 3 web. CodeGraph and Context Mode are retained but retired; do not re-enable them, load them explicitly with `-e`, alter child profiles to restore them, or bypass retirement with their CLIs.
 3. The catalog preflight loads exactly the `openai-codex-aliases/index.ts` and `claude-bridge-provider/delegate-entry.ts` entry files and never loads `delegated-pi-loop`, `web-search`, `context-mode`, `codegraph`, `fastlane`, any skill, context files, or presentation resources.
 4. `resources.json` is the single authority for these allowlists. It is strictly validated by `resources.ts` when the parent extension instance starts, and a missing or invalid policy fails closed before `delegate_run` registration with no broad-discovery fallback. `/reload` re-reads it with the rest of the extension runtime.
-5. Validation enforces version `1`, an exact document shape, unique non-blank relative paths only, regular-file entry files, per-skill regular `SKILL.md` files, canonical containment under the `agent/extensions` and `agent/skills` roots (symlink resolution may not escape either root, including a symlinked `SKILL.md`), no allowed/excluded skill overlap, repeated keys rejected in every object scope through object-scope-correct duplicate-aware parsing (`JSON.parse` alone silently keeps the last duplicate; a flat textual scan misses nested container keys and risks false positives inside string values), and exact canonical profile identity and order: catalog must resolve to exactly `openai-codex-aliases/index.ts` and `claude-bridge-provider/delegate-entry.ts` in that order, and runtime to exactly `delegated-pi-loop/index.ts`, `openai-codex-aliases/index.ts`, `web-search/index.ts`, `context-mode/src/index.ts`, `codegraph/index.ts`, `fastlane/index.ts`, and `claude-bridge-provider/delegate-entry.ts` in that order; extra contained entries, reordered entries, and alternate same-directory entry files all fail closed after canonical resolution.
+5. Validation enforces version `1`, an exact document shape, unique non-blank relative paths only, regular-file entry files, per-skill regular `SKILL.md` files, canonical containment under the `agent/extensions` and `agent/skills` roots (symlink resolution may not escape either root, including a symlinked `SKILL.md`), no allowed/excluded skill overlap, repeated keys rejected in every object scope through object-scope-correct duplicate-aware parsing (`JSON.parse` alone silently keeps the last duplicate; a flat textual scan misses nested container keys and risks false positives inside string values), and exact canonical profile identity and order: catalog must resolve to exactly `openai-codex-aliases/index.ts` and `claude-bridge-provider/delegate-entry.ts` in that order, and runtime to exactly `delegated-pi-loop/index.ts`, `openai-codex-aliases/index.ts`, `web-search/index.ts`, `fastlane/index.ts`, and `claude-bridge-provider/delegate-entry.ts` in that order; extra contained entries, reordered entries, and alternate same-directory entry files all fail closed after canonical resolution.
 6. Argument construction and every catalog or runtime spawn re-verify canonical identity, containment, and regular-file/directory/`SKILL.md` invariants for each approved extension entry and selected skill. Initial selection fails before artifact creation. The final runtime recheck runs after asynchronous prompt preparation and immediately before session metadata validation and spawn. A vanished or symlink-swapped approved path fails closed before spawn and closes the open attempt cleanly. Immutable argument arrays stay byte-for-byte identical across attempts; retained reuse runs no spawn checks.
 7. One immutable resource selection covers the whole delegate invocation: every route attempt, catalog preflight, and report-recovery round reuses byte-for-byte identical resource arguments, and provider fallback never changes the child's extensions or candidate skills.
 8. Installing a new skill or extension does not make it delegate-available: it requires an explicit `resources.json` update. The excluded skill names implement the requested patterns (`crit*`, `developing-*`, `directus*`, `grill-with-docs`, `improve-codebase-arch*`, `intent-layer`, `nlm-skill`, `pi-browser-harness`, `session-handoff`, `skill-creator`) against the current inventory; the runtime stays allowlist-based and fails closed.
+
+The retirement configuration is prepared in an isolated worktree, not deployed. Preserve retained source, prompt, dependencies, indexes, state, and caches. Use targeted native file reads and bounded shell searches/history/diagnostics, authenticated `gh`, and full unfiltered native Linear reads. Normal loading exclusions are not an OS security boundary. Once the user deploys, finish active children and restart fresh parent, child, and side sessions; do not reload or deploy during preparation. Historical token/tool measurements remain evidence of their original loadouts, not current totals; retirement does not authorize remeasurement.
 
 ### Invocation-local Fastlane
 
@@ -200,21 +202,23 @@ The retired runtime skill and the removed direct Claude CLI backend must not be 
 
 Diagnostics and analyzer maintenance: schema-version changes to run telemetry must update `SCHEMA_VERSION` in `diagnostics.ts`, the analyzer's eligibility rules in `analyze-progress-gaps.ts`, both test files, and the ADR/changelog current-policy text together; the production success-retention constant stays 4,096 and tests use the injectable lower limit. The analyzer command is `npm --prefix agent/extensions/delegated-pi-loop run analyze:progress-gaps`; it is read-only, aggregate-only, and never part of automated gates.
 
+Run each command block from the checkout being maintained, not the live Pi config. Use an explicit working directory and bounded output. Do not deploy or reload as a validation step.
+
 Run the extension suite:
 
 ```bash
-cd ~/.pi/agent/extensions/delegated-pi-loop
+cd agent/extensions/delegated-pi-loop
 npm test
 ```
 
 Run the maintained strict TypeScript check. Do not improvise a temporary `tsconfig`:
 
 ```bash
-cd ~/.pi/agent/extensions/delegated-pi-loop
+cd agent/extensions/delegated-pi-loop
 npm run typecheck
 ```
 
-`typecheck.ts` builds its config in memory and checks every extension `**/*.ts` file, excluding `**/node_modules/**`. It enables `strict`, `noUnusedLocals`, `noUnusedParameters`, and `noEmit`; `typecheck.test.ts` pins the complete compiler options. Use the same command through Context Mode with the extension directory as `cwd`.
+`typecheck.ts` builds its config in memory and checks every extension `**/*.ts` file, excluding `**/node_modules/**`. It enables `strict`, `noUnusedLocals`, `noUnusedParameters`, and `noEmit`; `typecheck.test.ts` pins the complete compiler options. Use the same command through bounded native `bash` with the extension directory as `cwd`.
 
 Host declaration discovery uses `PI_DELEGATED_TYPECHECK_NODE_MODULES` when set. Otherwise it uses `$BUN_INSTALL/install/global/node_modules`, or `~/.bun/install/global/node_modules` when `BUN_INSTALL` is unset. The override must name an absolute directory containing `@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, `@earendil-works/pi-tui`, `typebox`, `typescript`, and `@types/node`. The driver follows each package's `types` or `typings` metadata, including `.d.mts` declarations, and points `typeRoots` at the host's `@types` directory. It loads the host TypeScript compiler, not the Pi runtime.
 
@@ -222,19 +226,19 @@ The check makes no network requests, installs no packages, and writes no config 
 
 If host declarations or the compiler are unavailable, the driver exits 1 with one fixed, bounded stderr line and no local fallback. It does not expose discovered paths, environment values, raw filesystem errors, or stack traces. The exact line is `typecheck: host declarations or compiler unavailable; set PI_DELEGATED_TYPECHECK_NODE_MODULES to an absolute Bun global node_modules directory containing Pi, typebox, TypeScript, and @types/node.`
 
-The nested CLI setup-failure test copies the environment, omits only ambient `NODE_OPTIONS`, and retains the explicit host override. This prevents preload telemetry from altering stderr without weakening the production one-line-error assertion. The test must pass both normally and under Context Mode's inherited preload.
+The nested CLI setup-failure test copies the environment, omits only ambient `NODE_OPTIONS`, and retains the explicit host override. This prevents preload telemetry from altering stderr without weakening the production one-line-error assertion. Preserve the inherited-`NODE_OPTIONS` regression. Context Mode's preload was the historical motivating case, not a required active runner.
 
 Regenerate the instruction reference document after any instruction change and confirm it is current:
 
 ```bash
-cd ~/.pi/agent/extensions/delegated-pi-loop
+cd agent/extensions/delegated-pi-loop
 npm run render:instructions-doc
 ```
 
 Validate the complete live routing policy without inference:
 
 ```bash
-cd ~/.pi/agent/extensions/delegated-pi-loop
+cd agent/extensions/delegated-pi-loop
 npm run check:routing
 ```
 
@@ -248,7 +252,7 @@ Also verify:
 - the normalized role registry derives ordered role ids with zero-based slots, the `delegate_run` role enum and dynamic role guidance regenerate from the snapshot, unknown role ids fail closed at the registry boundary before admission, artifacts, or spawn, and `delegate_model_catalog` query, provider, thinking, and limit filters, zero-match bounding, truncation flags, and disabled-provider exclusion behave as specified;
 - `resources.json` passes the strict validator, the shipped policy inventory matches the pinned allowed and excluded sets, and a missing, invalid, escaping, overlapping, or profile-violating policy fails closed before `delegate_run` registration with no broad-discovery fallback; the catalog and runtime lists must resolve to the exact canonical entry files in the exact canonical order (extra contained entries such as a listed `footer` extension, reordered fixed entries, and alternate same-directory entry files all fail closed); repeated keys are rejected in every object scope, including the nested `extensions.catalog`, `extensions.runtime`, `skills.allowed`, and `skills.excluded` containers, while key-like text inside string values stays accepted;
 - post-validation symlink swaps of an approved extension entry or selected skill directory fail closed at argument construction and again immediately before every catalog or runtime spawn, including fallback attempts; a post-selection selected-skill directory or `SKILL.md` invalidation additionally fails the catalog pre-spawn verifier itself, so no catalog or runtime child command line exists, while an invalidated unselected skill does not fail it; and a defined non-array `availableSkills` value fails with the exact bounded error before manager admission, artifact creation, or spawn;
-- catalog preflight argv carries the isolation flags plus only the alias and Claude Bridge provider `-e` entries and no `--skill` argument; runtime argv carries exactly the seven fixed `-e` entries with Fastlane then the Claude Bridge provider entry last, selected `--skill` paths in policy order, and no `--no-context-files`; only explicitly requested runtime invocations add `--fastlane`, never catalog preflight; every fallback attempt receives byte-for-byte identical resource arguments;
+- catalog preflight argv carries the isolation flags plus only the alias and Claude Bridge provider `-e` entries and no `--skill` argument; runtime argv carries exactly the five fixed `-e` entries with Fastlane then the Claude Bridge provider entry last, selected `--skill` paths in policy order, and no `--no-context-files`; only explicitly requested runtime invocations add `--fastlane`, never catalog preflight; every fallback attempt receives byte-for-byte identical resource arguments;
 - the Claude Bridge delegate entry forwards only `on` and `registerProvider`, commits them only after synchronous or asynchronous activation succeeds, undoes replayed registrations if a later registration call throws (native provider objects by `id`), keeps the `on` unsubscribe contract and replay order, registers nothing after a load or activation failure or when a project `.pi/claude-bridge.json` exists, and writes one bounded single-line stderr diagnostic instead of stopping the child (covered by `claude-bridge-provider.test.ts`; the entry is part of the maintained typecheck); after a `pi-claude-bridge` upgrade, re-confirm the package uses only those two APIs and re-check the ADR 0010 "Trusted repositories only" paths (`settingSources` and later project-config reads); lean-catalog `pi --list-models` lists each configured `claude-bridge/*` route;
 - `availableSkills` accepts the complete allowed set with no count limit, rejects unknown, excluded, blank, and non-string names before manager admission, artifact creation, or spawn, and never reads or appends selected skill content;
 - no-inference real-Pi resource probes with the production child resource arguments show only intended tools and skills, no `browser_*` tool, no `delegate_run`, context files present for runtime probes, and no prompt-template commands; paid provider calibration is rerun only under separate authorization;

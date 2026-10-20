@@ -53,7 +53,7 @@ Keep each metadata prompt aligned with exactly one matching `$mysql` or `$postgr
 ## Update workflow
 
 1. Load `skill-creator`, `gh-cli`, and the relevant database skill, then read this file.
-2. Fetch upstream files with authenticated `gh` CLI through Context Mode, for example:
+2. Fetch upstream files with authenticated `gh` CLI through native `bash`, using an explicit repository working directory and bounded output, for example:
 
 ```bash
 gh api repos/planetscale/database-skills/contents/skills/mysql/SKILL.md?ref=main

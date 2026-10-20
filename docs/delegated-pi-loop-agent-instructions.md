@@ -366,10 +366,12 @@ The child receives exactly these extensions, in order:
 1. `delegated-pi-loop/index.ts`
 2. `openai-codex-aliases/index.ts`
 3. `web-search/index.ts`
-4. `context-mode/src/index.ts`
-5. `codegraph/index.ts`
-6. `fastlane/index.ts`
-7. `claude-bridge-provider/delegate-entry.ts`
+4. `fastlane/index.ts`
+5. `claude-bridge-provider/delegate-entry.ts`
+
+Only `web-search` adds model-visible child tools: 3 web tools plus 4 core tools = 7. CodeGraph and Context Mode sources remain retained but retired; do not re-enable them, load them explicitly with `-e`, change child profiles to restore them, or bypass retirement with their CLIs. Use targeted native file reads and bounded shell searches/history/diagnostics, preserving authenticated `gh` and full unfiltered native Linear reads. These loading exclusions are not an OS security boundary.
+
+This profile is prepared in an isolated worktree, not deployed. Once the user deploys it, finish active children and restart fresh parent, child, and side sessions. Do not reload or deploy during preparation. Historical tool/token measurements remain historical; no remeasurement is implied.
 
 The last entry loads the installed `pi-claude-bridge` package so `claude-bridge/*` routes work in children. Only provider and hook registration reach Pi, so the AskClaude tool never reaches a child. The entry skips the bridge when the working directory has a project `.pi/claude-bridge.json`, and any bridge failure only makes `claude-bridge/*` routes unavailable. The entry does not sandbox Claude Code, which still loads project `.claude/` settings and hooks, so `claude-bridge/*` delegate routes are for trusted repositories only (ADR 0010). Catalog preflight loads only `openai-codex-aliases/index.ts` and this entry.
 

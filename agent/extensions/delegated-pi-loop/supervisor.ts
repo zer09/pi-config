@@ -929,12 +929,13 @@ export async function supervisePi(options: SupervisePiOptions, retained?: Retain
   };
   const ignoreStdinError = () => {};
   const onStdoutData = (chunk: Buffer) => {
+    const remainingBytes = Math.max(0, options.maxOutputBytes - outputBytes);
     outputBytes += chunk.byteLength;
-    if (outputBytes > options.maxOutputBytes) {
-      requestTermination("output_limit");
-      return;
+    // Keep in-budget acknowledgements even when an overflow shares their chunk.
+    if (remainingBytes > 0) {
+      protocol.feed(chunk.byteLength <= remainingBytes ? chunk : chunk.subarray(0, remainingBytes), handleProtocolRecord);
     }
-    protocol.feed(chunk, handleProtocolRecord);
+    if (outputBytes > options.maxOutputBytes) requestTermination("output_limit");
   };
   const onStderrData = (chunk: Buffer) => {
     outputBytes += chunk.byteLength;

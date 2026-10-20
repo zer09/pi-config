@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
-import { after, test } from "node:test";
+import { after, test, type TestContext } from "node:test";
 import { chmodSync, mkdirSync, readdirSync, rmSync, symlinkSync } from "node:fs";
-import { lstat, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { buildDelegatePrompt, LIVE_CONTINUATION_PROMPT, REPORT_RECOVERY_PROMPT, RESTART_AFTER_WORK_NOTE } from "./instructions.ts";
 import { finalizeDelegateRun } from "./result.ts";
 import { requireRole, validateRoutingConfig } from "./routing.ts";
 import { HistoryValidationError, runDelegate } from "./runner.ts";
+import { interceptRpcStdout } from "./rpc-stdout.fixture.ts";
+import { fixtureAttemptSummary, withFixtureStartupClock } from "./startup-clock.fixture.ts";
 import { terminationProbes } from "./supervisor.ts";
 import type { AttemptStatus, DelegateProgress, DelegateRunResult, RunOptions } from "./types.ts";
 
@@ -22,6 +24,10 @@ after(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
+// Test-only cold-start allowance. Deliberate liveness cases override the short lease.
+const TEST_SUCCESS_ALLOWANCES = {
+  catalogTimeoutMs: 5000, activityIdleMs: 2500, progressWarningMs: 5000, progressStallMs: 10000,
+};
 const routes = ["prov-a/model-a", "prov-b/model-b", "prov-c/model-c"];
 const levels = ["high", "low", "off"];
 const sentinel = "PERSISTED-CONTEXT-SENTINEL";
@@ -49,6 +55,8 @@ interface Settings {
   catalog?: string[];
   history?: string[];
   restartAttempts?: number[];
+  catalogStartupMs?: number;
+  runtimeStartupMs?: number;
 }
 
 async function fixture(settings: Settings = {}) {
@@ -68,10 +76,12 @@ const trace = (entry) => appendFileSync("trace.jsonl", JSON.stringify({ pid: pro
 const gone = (pid) => { try { process.kill(pid, 0); return false; } catch { return true; } };
 if (args.includes("--list-models")) {
   const route = args[args.indexOf("--list-models") + 1];
+  if (settings.catalogStartupMs) await new Promise((resolve) => setTimeout(resolve, settings.catalogStartupMs));
   trace({ kind: "catalog", route, args });
   if ((settings.catalog ?? routes).includes(route)) console.log(route.replace("/", " ") + " 100 100 yes yes");
   process.exit(0);
 }
+if (settings.runtimeStartupMs) await new Promise((resolve) => setTimeout(resolve, settings.runtimeStartupMs));
 const { buildSessionProjection } = await (await import(${JSON.stringify(new URL("./pi-session-projection.fixture.ts", import.meta.url).href)})).loadTargetSessionManager();
 const assignment = ${JSON.stringify(buildDelegatePrompt(role, cwd, prompt))};
 const restartAssignment = ${JSON.stringify(buildDelegatePrompt(role, cwd, prompt, { restartAfterWork: true }))};
@@ -229,8 +239,8 @@ setInterval(() => {}, 1000);
     role: "solution-a", prompt, cwd, routingConfig,
     piInvocation: { command: process.execPath, prefixArgs: [script] },
     resourceSelection: { catalogArgs: ["--no-extensions"], runtimeArgs: ["--no-extensions", "--no-skills"], verifyCatalogSpawn() {}, verifyRuntimeSpawn() {} },
-    activityWarningMs: 250, activityIdleMs: 800, progressWarningMs: 1500, progressStallMs: 3000,
-    reportRecoveryIdleMs: 600, graceMs: 150, cleanupTimeoutMs: 1500, catalogTimeoutMs: 1000, liveSwitchTimeoutMs: 500,
+    ...TEST_SUCCESS_ALLOWANCES, activityWarningMs: 250,
+    reportRecoveryIdleMs: 600, graceMs: 150, cleanupTimeoutMs: 1500, liveSwitchTimeoutMs: 500,
     maxOutputBytes: 12000,
   };
   return { cwd, options, trace: async (): Promise<Trace[]> => {
@@ -243,12 +253,12 @@ function gone(pid: number): boolean {
   try { process.kill(pid, 0); return false; } catch { return true; }
 }
 
-async function check(settings: Settings, body: (result: DelegateRunResult, trace: Trace[], status: AttemptStatus[]) => void | Promise<void>, overrides: Partial<RunOptions> = {}) {
+async function check(settings: Settings, body: (result: DelegateRunResult, trace: Trace[], status: AttemptStatus[]) => void | Promise<void>, overrides: Partial<RunOptions> = {}, startup?: TestContext) {
   const f = await fixture(settings);
   const progress: DelegateProgress[] = [];
   let result: DelegateRunResult | undefined;
-  try {
-    result = await runDelegate({ ...f.options, ...overrides, onProgress: (entry) => progress.push(entry) });
+  const verify = async (received: DelegateRunResult, finalize = () => finalizeDelegateRun(received)) => {
+    result = received;
     const trace = await f.trace();
     const starts = trace.filter((entry) => entry.kind === "start");
     const statuses: AttemptStatus[] = await Promise.all((await readdir(result.artifactDir)).filter((name) => name.startsWith("attempt-")).sort()
@@ -275,7 +285,7 @@ async function check(settings: Settings, body: (result: DelegateRunResult, trace
     assert.equal(prompts[0]!.command!.message, original);
     assert.ok(prompts.every((entry) => entry.command!.message!.split(RESTART_AFTER_WORK_NOTE).length <= 2));
     if (restarted.length === 0) assert.ok(prompts.every((entry) => !entry.command!.message!.includes(RESTART_AFTER_WORK_NOTE)));
-    const toolResult = await finalizeDelegateRun(result);
+    const toolResult = await finalize();
     let diagnostic = "";
     const diagnosticPath = toolResult.details?.diagnosticPath;
     if (typeof diagnosticPath === "string") diagnostic = await readFile(diagnosticPath, "utf8");
@@ -285,6 +295,20 @@ async function check(settings: Settings, body: (result: DelegateRunResult, trace
     }
     await assert.rejects(lstat(starts[0]!.file!), { code: "ENOENT" });
     await assert.rejects(lstat(result.artifactDir), { code: "ENOENT" });
+  };
+  try {
+    const options = { ...f.options, ...overrides, onProgress: (entry: DelegateProgress) => progress.push(entry) };
+    if (startup) {
+      const diagnostics = path.join(root, "diagnostics", "logs", "delegated-pi-loop");
+      await mkdir(diagnostics, { recursive: true });
+      const before = new Set(await readdir(diagnostics));
+      await withFixtureStartupClock(startup, options, (received, _runtime, finalize) => verify(received, finalize));
+      const added = (await readdir(diagnostics)).filter((name) => name.startsWith("success-v9-") && !before.has(name));
+      assert.equal(added.length, 1, "readiness-driven session resume finalizes exactly once");
+    } else await verify(await runDelegate(options));
+  } catch (error) {
+    if (result && error instanceof Error) error.message += `\n${fixtureAttemptSummary(result)}`;
+    throw error;
   } finally {
     if (result) await rm(result.artifactDir, { recursive: true, force: true });
     for (const entry of await f.trace()) {
@@ -294,13 +318,26 @@ async function check(settings: Settings, body: (result: DelegateRunResult, trace
   }
 }
 
+for (const phase of ["catalog", "runtime"] as const) {
+  test(`shared success allowance covers delayed ${phase} startup beyond old leases`, async () => {
+    await check({ behaviors: ["provider", "recover"], [`${phase}StartupMs`]: 1100 }, (result, trace) => {
+      assert.equal(result.state, "completed", fixtureAttemptSummary(result));
+      assert.deepEqual(result.attempts.map((entry) => entry.state), ["provider_failed", "completed"]);
+      assert.deepEqual(trace.filter((entry) => entry.kind === "start").map((entry) => entry.context), [false, true]);
+      const replacement = trace.filter((entry) => entry.kind === "prompt").slice(1);
+      assert.deepEqual(replacement.map((entry) => entry.command!.message), [LIVE_CONTINUATION_PROMPT, REPORT_RECOVERY_PROMPT]);
+    });
+  });
+}
+
 for (const [behavior, state] of [
   ["provider", "provider_failed"], ["tools-provider", "provider_failed"], ["stalled", "stalled"],
   ["invalid-stream", "invalid_stream"], ["output", "output_limit"], ["dead", "child_failed"],
   ["active-tool", "provider_failed"], ["recovery-provider", "provider_failed"], ["reject", "prompt_rejected"],
 ] as const) {
-  test(`persisted replacement after ${behavior} reads prior context before the correct prompt`, async () => {
-    await check({ behaviors: [behavior, "recover"] }, (result, trace, status) => {
+  test(`persisted replacement after ${behavior} reads prior context before the correct prompt`, async (t) => {
+    const liveness = behavior === "stalled";
+    await check({ behaviors: [behavior, "recover"], runtimeStartupMs: liveness ? 1100 : undefined }, (result, trace, status) => {
       assert.equal(result.state, "completed");
       assert.deepEqual(result.attempts.map((entry) => entry.state), [state, "completed"]);
       assert.deepEqual(result.attempts.map((entry) => entry.route), routes.slice(0, 2).map((route, i) => `${route}:${levels[i]}`));
@@ -321,9 +358,47 @@ for (const [behavior, state] of [
       if (["stalled", "invalid-stream", "output", "dead", "active-tool"].includes(behavior)) {
         assert.equal(trace.filter((entry) => entry.kind === "control").length, 0);
       } else assert.equal(trace.filter((entry) => entry.kind === "control").length, 1);
-    });
+      if (liveness) {
+        assert.equal(status[0]!.deadlineCause, "idle_deadline");
+        assert.equal(status[0]!.stallCause, "rpc_silent");
+        assert.ok(status[0]!.activityIdleSeconds >= 0.8);
+      }
+    }, liveness ? { activityIdleMs: 800, progressWarningMs: 1500, progressStallMs: 3000 } : {}, liveness ? t : undefined);
   });
 }
+
+test("coalesced output-limit acknowledgement resumes durable history with the continuation prompt", async (t) => {
+  const expected = Buffer.from(JSON.stringify({ id: "prompt-1", type: "response", command: "prompt", success: true }) + "\n"
+    + JSON.stringify({ type: "agent_start" }) + "\n" + "x".repeat(20000));
+  let pending = Buffer.alloc(0);
+  const received = interceptRpcStdout(t, (child, chunk, deliver) => {
+    if (!child.spawnargs.includes("prov-a")) { deliver(chunk); return; }
+    pending = Buffer.concat([pending, chunk]);
+    if (pending.length < expected.length) return;
+    assert.deepEqual(pending, expected);
+    deliver(pending);
+  });
+  await check({ behaviors: ["output", "recover"] }, (result, trace, status) => {
+    assert.deepEqual(received[0], expected, "acknowledgement, event, and full flood reach onStdoutData together");
+    assert.equal(result.state, "completed");
+    assert.deepEqual(result.attempts.map((entry) => entry.state), ["output_limit", "completed"]);
+    assert.deepEqual(result.attempts.map((entry) => entry.route), routes.slice(0, 2).map((route, i) => `${route}:${levels[i]}`));
+    const starts = trace.filter((entry) => entry.kind === "start");
+    assert.equal(starts.length, 2);
+    assert.notEqual(starts[0]!.pid, starts[1]!.pid);
+    assert.equal(starts[1]!.context, true, "replacement verifies model-visible durable assignment history");
+    const replacement = trace.filter((entry) => entry.kind === "prompt" && entry.pid === starts[1]!.pid);
+    assert.ok(trace.indexOf(starts[1]!) < trace.indexOf(replacement[0]!));
+    assert.equal(replacement[0]!.command!.message, LIVE_CONTINUATION_PROMPT);
+    assert.equal(replacement[1]!.command!.message, REPORT_RECOVERY_PROMPT);
+    assert.deepEqual(status.map((entry) => entry.reportNudgeCount), [0, 1]);
+    assert.equal(status[0]!.sessionSeen, true);
+    assert.equal(status[0]!.agentStartCount, 1);
+    const promptBytes = trace.find((entry) => entry.kind === "prompt")!.bytes!;
+    assert.equal(status[0]!.outputBytes, promptBytes + expected.length);
+    assert.equal(trace.filter((entry) => entry.kind === "control").length, 0);
+  });
+});
 
 test("failed final live-switch boundary resumes the same target without a synthetic attempt", async () => {
   await check({ behaviors: ["recovery-provider", "complete"], faultStep: 4 }, (result, trace) => {

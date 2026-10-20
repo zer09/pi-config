@@ -39,6 +39,8 @@ For retained or slimmed skills:
 
 ## Update workflow
 
+An explicitly authorized local adaptation can skip upstream retrieval and comparison without changing source pins. All local safety and validation checks still apply. Preserve the retirement routing in [local-skill-update-invariants.md](local-skill-update-invariants.md): native reads and bounded shell, authenticated `gh`, and full unfiltered native Linear reads, not mandatory CodeGraph/Context Mode.
+
 When updating a skill:
 
 1. Read `docs/skills/README.md`.

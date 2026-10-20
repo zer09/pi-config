@@ -21,10 +21,10 @@ npm_config_offline=true uv run --no-project --offline python <skill-dir>/scripts
 
 - Supported inputs: `.doc`, `.docx`, `.docm`, `.odt`, `.rtf`, `.epub`, `.pdf`, `.ppt`, `.pps`, `.pot`, `.pptx`, `.pptm`, `.ppsx`, `.ppsm`, `.odp`, `.xls`, `.xlsx`, `.xlsm`, `.xlsb`, `.ods`, `.csv`.
 - Detection uses content, with extension fallback for signature-less CSV. Use `-f` / `--format csv` for CSV stdin or CSV with a missing/wrong extension. Use `--format <name>` when detection cannot identify the intended format. For option-like filenames, use `./-name.pdf` or place the input after `--`.
-- Prefer stdout for read-only inspection. Use Context Mode for potentially large stdout or diagnostics, with explicit project `cwd` and focused queries. Use native `read` with targeted ranges for converted files.
+- Prefer stdout for read-only inspection. Use bounded native shell commands for potentially large stdout or diagnostics, with explicit project `cwd` and focused output. Use native `read` with targeted ranges for converted files.
 - Persistent `-o` / `--output` requires requested or authorized output. Add `--overwrite` only for explicitly authorized replacement. The wrapper refuses output aliases of path/regular-file stdin inputs, output symlinks (including parent directories), and multiply linked existing outputs, even with `--overwrite`. For piped input, do not authorize output to the producer's source file: the wrapper cannot identify that file. Use stable, trusted directories. Markdown is buffered and written only after successful conversion; an output I/O failure can leave a partial authorized file.
 - The wrapper buffers original stdin bytes for replay, without temporary input files. Terminal stdin returns usage error. Markdown also stays in memory until success. Subprocess limits are **120 seconds local / 360 seconds hosted**; the hosted limit covers AnyDoc's native 300-second timeout. See the maintenance guide for platform and buffering limits.
-- For large-document inspection, use Context Mode stdout or, only if host policy permits, a task-scoped temporary directory outside the repository. Remove only task-created artifacts after checking symlink boundaries. Do not turn inspection into persistent repository changes.
+- For large-document inspection, bound stdout to the needed sections or, only if host policy permits, use a task-scoped temporary directory outside the repository. Remove only task-created artifacts after checking symlink boundaries. Do not turn inspection into persistent repository changes.
 
 ## Retry and recovery
 

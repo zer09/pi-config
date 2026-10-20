@@ -11,9 +11,9 @@ Retired custom skills:
 
 - `context-watcher`: retired during the old pasted-skills re-setup. Do not restore unless the user explicitly asks for a broad orchestration runtime skill again.
 - `delegated-pi-loop`: replaced by the native TypeScript `delegate_run` extension. Maintain it through `delegated-pi-loop-update-process.md`; do not restore the runtime skill unless explicitly requested.
-- `codegraph`: removed as a standalone Local Skill. CodeGraph remains available through Pi's native graph-first tools and global/project guidance.
+- `codegraph`: removed as a standalone Local Skill. Its retained extension is also retired and excluded from normal loading; use native file reads and bounded shell searches instead.
 - `edge-case-analysis`: removed during the skill slimming pass because the base model can perform this generic reasoning workflow without a runtime skill.
-- `codebase-memory-mcp`: replaced by CodeGraph. See `../adr/0002-codegraph-replaces-codebase-memory-mcp.md`.
+- `codebase-memory-mcp`: historically replaced by CodeGraph. See `../adr/0002-codegraph-replaces-codebase-memory-mcp.md`; that history does not authorize using the now-retired tools.
 
 ## Update workflow
 
@@ -34,21 +34,20 @@ Do not recreate `agent/skills/context-watcher/` from old backups or pasted skill
 
 If the user explicitly asks to reinstall it:
 
-1. Confirm why global/project instructions and the native CodeGraph/browser/shell tools are insufficient.
+1. Confirm why global/project instructions and native file, browser, and shell tools are insufficient.
 2. Keep it compact; do not restore large routing manuals wholesale.
-3. Preserve external hosted-service mutation gates, private GitHub routing, large-output handling, and graph-first CodeGraph guidance.
-4. Keep CodeGraph details in a runtime reference file rather than duplicating them in `SKILL.md`.
+3. Preserve external hosted-service mutation gates, authenticated `gh` routing, bounded shell output, and the full unfiltered native Linear CLI exception.
+4. Do not restore CodeGraph/Context Mode mandates in roots or references.
 5. Validate the skill and update this document plus `installed-skills-trim-verdict.md`.
 
-## CodeGraph capability rules
+## Retained-but-retired tools
 
-CodeGraph is a native graph-first capability, not a standalone Local Skill in this setup.
+CodeGraph and Context Mode sources remain for reference, not active runtime use. A skill update or reinstall does not authorize reversing that retirement.
 
-- Do not recreate `agent/skills/codegraph/` unless the user explicitly reverses the retirement decision.
-- Keep `codegraph init`, `codegraph index`, `codegraph sync`, and `codegraph uninit` deliberate local index mutations; ask or require explicit authorization when setup/indexing/freshness/deletion is not directly requested.
-- Use optional `projectPath` for worktrees, multi-repo tasks, and repos outside the session root.
-- Keep `.codegraph/` ignored in repositories where indexes are initialized.
-- Remove stale examples that describe tools or parameters not present in the current MCP schema.
+- Do not recreate `agent/skills/codegraph/`, re-enable the extensions, load them explicitly with `-e`, alter child profiles to include them, or bypass retirement with their CLIs.
+- Use targeted native file reads and bounded shell searches, history, and diagnostics with an explicit working directory.
+- Preserve existing indexes, state, and caches. Keep `.codegraph/` ignored; do not initialize, refresh, or delete indexes as part of skill maintenance.
+- Follow [local-skill-update-invariants.md](local-skill-update-invariants.md) for GitHub, Linear, privacy, and write gates. Loading exclusions are not an OS security boundary.
 
 ## Validation
 

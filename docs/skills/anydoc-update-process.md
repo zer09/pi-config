@@ -19,7 +19,7 @@ Preserve these differences during every sync:
 - Precise file-conversion and unreadable-document inspection triggers; exclude existing Markdown editing and web scraping.
 - Two-key frontmatter and quoted UI metadata. Keep `short_description` within 25-64 characters and `$convert-documents-to-markdown` in `default_prompt`.
 - A compact runtime root and the necessary conversion helper/tests. Do not add extra resources or evaluation scaffolds without a real requirement.
-- Context Mode for large stdout/diagnostics, explicit project `cwd`, and native `read` for targeted converted output.
+- Bounded native shell commands for large stdout/diagnostics, explicit project `cwd`, and native `read` for targeted converted output. Do not restore CodeGraph/Context Mode mandates.
 - Read-only inspection prefers stdout. Persistent output and overwriting need authorization. Temporary artifacts follow host policy and stay task-scoped outside the repository; preserve originals.
 - Route normal conversion through the wrapper. It starts with explicit `--ocr reject`, removing the key and endpoint from the local child environment. Only exit 3 / `NeedsOcr` permits one hosted invocation, preserving input, format, and authorized output. Stdin bytes are buffered for exact replay; terminal stdin stops with exit 2.
 - The user's standing authorization covers one necessary official Firecrawl OCR retry for requested conversion/inspection, not other services or work. Explicit local-only/no-upload/no-hosted-OCR/no-network requests and host sensitive-data/redaction rules still prohibit uploads.
@@ -53,7 +53,7 @@ npm_config_offline=true uv run --no-project --offline python <skill-dir>/scripts
 
 1. Start with the [maintenance README](README.md), [local invariants](local-skill-update-invariants.md), [slimming process](skill-slimming-process.md), and [ADR 0020](../adr/0020-gpt-6-astra-skill-maintenance-policy.md).
 2. Load `skill-creator` and `gh-cli`. Inspect local changes before editing. Preserve user changes and the deferred Outpour/Impeccable exclusions.
-3. Use authenticated `gh` through Context Mode from the repository root. Fetch the pinned source for comparison with these read-only commands:
+3. Use authenticated `gh` with native `bash` and bounded output from the repository root. Fetch the pinned source for comparison with these read-only commands:
 
    ```bash
    gh api 'repos/firecrawl/anydoc/contents/skills/convert-documents-to-markdown?ref=261fc257d17c3eab0f673be31c408fd9fdc2171a' --jq 'map(.path)'
@@ -72,7 +72,7 @@ npm_config_offline=true uv run --no-project --offline python <skill-dir>/scripts
 
 ## Validation
 
-From the repository root, use Context Mode with explicit repository `cwd` for diagnostics. Use `-B`/`PYTHONDONTWRITEBYTECODE=1` to avoid bytecode artifacts. Isolate uv from caller projects and block network access. Use cached PyYAML and Ruff; missing offline resources must stop, never retry online:
+From the repository root, use bounded native shell diagnostics with explicit repository `cwd`. Use `-B`/`PYTHONDONTWRITEBYTECODE=1` to avoid bytecode artifacts. Isolate uv from caller projects and block network access. Use cached PyYAML and Ruff; missing offline resources must stop, never retry online:
 
 ```bash
 env -u FIRECRAWL_API_KEY -u FIRECRAWL_API_URL UV_PYTHON_DOWNLOADS=never PYTHONDONTWRITEBYTECODE=1 uv run --no-project --offline python -B -m unittest discover -s agent/skills/convert-documents-to-markdown/scripts -p 'test_*.py' -v

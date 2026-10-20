@@ -30,9 +30,9 @@ Apply the **deletion test**: if deleting a module makes complexity vanish, it wa
 
 ## Explore the requested area
 
-Start with the named module, subsystem, or pain point. Otherwise, inspect a useful span of recent Git history through Context Mode and prioritize recurring hot spots. Widen only when history has no clear concentration.
+Start with the named module, subsystem, or pain point. Otherwise, inspect a bounded span of recent Git history with native shell commands and prioritize recurring hot spots. Widen only when history has no clear concentration.
 
-Read the domain glossary, any context map, and relevant ADRs first. Use CodeGraph first for source flows and relationships. Explore directly; delegate only if the user or project workflow explicitly requests delegation.
+Read the domain glossary, any context map, and relevant ADRs first. Use targeted native file reads and bounded shell searches to trace source flows, callers, and dependencies. Explore directly; delegate only if the user or project workflow explicitly requests delegation.
 
 Look for evidence of shallow modules, understanding split across small modules, tightly-coupled modules leaking across seams, or tests that miss caller behaviour. Apply the deletion test to suspected pass-throughs. Domain language names useful seams; ADRs record decisions not to re-litigate without evidence.
 

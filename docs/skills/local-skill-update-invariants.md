@@ -6,6 +6,8 @@ Canonical update meaning: sync from the relevant upstream source, then reapply l
 
 Canonical install meaning: add the skill as a Local Skill, treat upstream content as input when applicable, document future maintenance in `docs/skills/`, then apply these invariants before validation and commit.
 
+Explicitly authorized local adaptations do not require upstream retrieval or source-pin changes. Apply the same classification, safety, structure, and semantic checks; skip only upstream comparison steps that do not apply.
+
 Read this file before and after using any skill update-process document. [ADR 0020](../adr/0020-gpt-6-astra-skill-maintenance-policy.md) refines ADR 0001 with model-neutral routing, runtime, and completion policy for manual updates. All existing safety and compatibility rules remain mandatory.
 
 ## Update contract
@@ -65,8 +67,10 @@ When installing a new Local Skill:
 
 - Preserve hosted-service mutation gates. External hosted services are read-only by default.
 - Require explicit user instruction for exact remote mutations such as GitHub writes, Linear changes, Figma writes, NotebookLM changes, Firebase/GCP deploys, database destructive operations, and similar hosted-service actions.
-- Preserve GitHub routing through the `gh-cli` skill and authenticated `gh` CLI through Context Mode.
-- Preserve Pi's global/project routing rules for shell commands, large output, code review, browser automation, and graph-first CodeGraph exploration without relying on a retired orchestration runtime skill.
+- Preserve GitHub routing through the `gh-cli` skill and authenticated `gh` CLI with native `bash`. Do not use browser/web tools on github.com unless explicitly asked for public web research.
+- CodeGraph (`codegraph_*`) and Context Mode (`ctx_*`) are retired. Do not restore mandatory use, re-enable either extension, load it explicitly (including `-e` entries or child-profile changes), or use its CLI to bypass retirement. Retain sources, the disabled upgrade prompt, indexes, state, and caches; normal loading exclusions are not an OS security boundary.
+- Use targeted native file reads and bounded shell searches, history, and diagnostics with an explicit working directory and focused output. Preserve global/project code-review and browser-automation gates.
+- Preserve the Linear CLI exception: load `linear-cli` and use direct `bash` so full read responses enter context without intentional summarizing, filtering, or bounding. Retrieve hard-truncated missing sections with the Linear CLI, never retired tools.
 - Preserve database safety gates in MySQL/Postgres skills.
 - Use `<api-key>` or environment variable names as placeholders. Do not use realistic secret-looking values.
 - Do not print, commit, or document secrets, cookies, tokens, private keys, OAuth headers, or user-specific home paths.
@@ -117,11 +121,14 @@ When installing a new Local Skill:
 Run these checks after every skill update:
 
 ```bash
-for skill_dir in ~/.pi/agent/skills/*; do
+# Run from the checkout being updated, not the live Pi config.
+for skill_dir in agent/skills/*; do
   test -f "$skill_dir/SKILL.md" || continue
-  uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py "$skill_dir" || exit 1
+  PYTHONDONTWRITEBYTECODE=1 UV_PYTHON_DOWNLOADS=never uv run --no-project --offline --with pyyaml python -B agent/skills/skill-creator/scripts/quick_validate.py "$skill_dir" || exit 1
 done
 ```
+
+Use an existing cached Python/PyYAML environment. Missing offline resources must stop; do not install dependencies merely to satisfy this check.
 
 Review changed skills semantically as well as structurally:
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Runtime skill packaging was later superseded by ADR 0003 and then by the old pasted-skills re-setup; CodeGraph remains the active graph-first provider through native Pi tooling and global/project guidance.
+Accepted. Runtime skill packaging was later superseded by ADR 0003 and then by the old pasted-skills re-setup. Provider and routing guidance is superseded by the [ADR 0010 retirement amendment](0010-delegated-child-resource-isolation.md#parent-retirement-amendment-packages-retained). The remaining sections preserve the migration history.
 
 ## Context
 

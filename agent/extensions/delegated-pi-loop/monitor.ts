@@ -92,9 +92,9 @@ export const ACTIVE_BASH_COMMAND_MAX_BYTES = 4 * 1024;
 const ANONYMOUS_TOOL_KEY_PREFIX = "anonymous:";
 /** Fixed cap on distinct checkpoint digests retained by one turn or agent summary. */
 const MAX_SUMMARY_DISTINCT_DIGESTS = 64;
-/** Fixed label for any child-supplied tool name outside the live allowlist. */
+/** Fixed label for any child-supplied tool name outside the recognized event labels. */
 const UNKNOWN_TOOL_NAME = "unknown";
-/** Fixed allowlist of tool names delegated runtime children can execute: the Pi core read/bash/edit/write tools plus the tools of the runtime resource-policy extensions (web-search, context-mode, codegraph). Any other child string maps to `unknown`. */
+/** Bounded set of recognized tool-event labels, including retained CodeGraph and Context Mode labels. This set does not grant execution access; other child strings map to `unknown`. */
 const LIVE_TOOL_NAMES: ReadonlySet<string> = new Set([
   "read",
   "bash",
@@ -954,10 +954,10 @@ export class PiRpcMonitor {
 
   private toolName(event: Record<string, unknown>): string {
     // Ingress sanitization: a child-supplied name is stored, matched,
-    // emitted, and persisted only when it is exactly one of the tools the
-    // runtime resource policy makes available to children. Everything
-    // else, including seeded paths, credentials, and provider bodies,
-    // becomes the fixed label "unknown".
+    // emitted, and persisted only when it matches a recognized event label,
+    // including retained retired-tool labels. This does not grant tool access.
+    // Everything else, including seeded paths, credentials, and provider
+    // bodies, becomes the fixed label "unknown".
     const name = event.toolName;
     return typeof name === "string" && LIVE_TOOL_NAMES.has(name) ? name : UNKNOWN_TOOL_NAME;
   }

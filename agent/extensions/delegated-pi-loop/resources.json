@@ -9,8 +9,6 @@
       "./index.ts",
       "../openai-codex-aliases/index.ts",
       "../web-search/index.ts",
-      "../context-mode/src/index.ts",
-      "../codegraph/index.ts",
       "../fastlane/index.ts",
       "../claude-bridge-provider/delegate-entry.ts"
     ]

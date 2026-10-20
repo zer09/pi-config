@@ -2,6 +2,20 @@
 
 This document summarizes local Pi configuration changes. Detailed change records live under [`docs/changelogs/`](./changelogs/).
 
+## Delegated stdout-cap acknowledgement fix
+
+- Fixed lost prompt acknowledgements by parsing only the in-budget prefix after counting each complete stdout chunk. Bytes beyond the shared cap are never parsed.
+- Fresh fallback still verifies durable history before continuation. Valid history without the assignment uses the existing restart path; invalid history fails closed. Output-limit classification, cleanup-failure precedence, and production timeout defaults remain unchanged.
+- Added deterministic receiving-chunk and persisted-continuation regressions.
+
+## CodeGraph and Context Mode retirement: isolated worktree preparation
+
+- **Prepared in an isolated worktree, not deployed.** Settings exclude both retained extension entries and the retained `/codegraph-upgrade` prompt. Sources, prompt contents, dependencies, indexes, state, and caches remain unchanged; no uninstall or data removal is part of retirement.
+- Delegated runtime now requires five entries in order: `delegated-pi-loop/index.ts`, `openai-codex-aliases/index.ts`, `web-search/index.ts`, `fastlane/index.ts`, and provider-only `claude-bridge-provider/delegate-entry.ts`. The two-entry catalog, isolation flags, context loading, containment, pre-spawn checks, provider trust, and retention exceptions remain unchanged. Current child tools are 4 core + 3 web = 7; historical measurements are not recast or remeasured.
+- Active instructions, three retained skills, and maintenance guidance use targeted native reads and bounded shell searches/history/diagnostics. Authenticated `gh`, full unfiltered native Linear reads, hosted-service write gates, domain/planning pauses, and conversion privacy/OCR/output boundaries remain intact. Do not re-enable retired resources, load them explicitly through CLI entries, or bypass retirement with their CLIs. Normal loading exclusions are not an OS security boundary or absolute shell prevention.
+- Added production-loader and focused static regressions. Validation is offline and makes no model/provider/browser calls. No live Pi runtime, installed dependency, Git index, commit, push, or hosted service is changed by this preparation.
+- Activation requires user-authorized deployment, finishing active children, and restarting fresh parent, child, and side sessions. Do not deploy or reload during worktree preparation.
+
 ## Profile-controlled Oracle routing overrides
 
 - Removed Oracle-only override rejection from config validation and route selection. Every role now follows its assigned profile's `overridePolicy`; omission defaults to `allowed`. Common reason, shape, no-op, capability, and rejected-profile checks remain authoritative.

@@ -1252,8 +1252,6 @@ test("the fixed child extension profile excludes package, presentation, and proj
     "./index.ts",
     "../openai-codex-aliases/index.ts",
     "../web-search/index.ts",
-    "../context-mode/src/index.ts",
-    "../codegraph/index.ts",
     "../fastlane/index.ts",
     "../claude-bridge-provider/delegate-entry.ts",
   ]);
@@ -1265,7 +1263,7 @@ test("the fixed child extension profile excludes package, presentation, and proj
   // Bridge enters only through the local provider-only entry, never as the
   // package entry itself, so the AskClaude tool stays out of children.
   const extensionsText = JSON.stringify(policy.extensions);
-  for (const forbidden of ["footer", "theme-overrides", "pi-blackhole", "pi-btw", "pi-browser-harness", "pi-claude-bridge", "pi-cursor", "node_modules"]) {
+  for (const forbidden of ["context-mode", "codegraph", "footer", "theme-overrides", "pi-blackhole", "pi-btw", "pi-browser-harness", "pi-claude-bridge", "pi-cursor", "node_modules"]) {
     assert.ok(!extensionsText.includes(forbidden), `the child resource policy must not load ${forbidden}`);
   }
   // Extension selection is never model-controlled.

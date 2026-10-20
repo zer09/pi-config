@@ -31,7 +31,7 @@ export const RESOURCE_POLICY_VERSION = 1;
  * Extension directories that contribute model-visible child tools. The
  * catalog preflight profile must not load any of them.
  */
-const MODEL_TOOL_EXTENSION_DIRS: readonly string[] = ["web-search", "context-mode", "codegraph"];
+const MODEL_TOOL_EXTENSION_DIRS: readonly string[] = ["web-search"];
 
 /** Extension directory that registers the routed `openai-codex-*` alias providers. */
 const ALIAS_EXTENSION_DIR = "openai-codex-aliases";
@@ -51,7 +51,7 @@ const BASE_ISOLATION_FLAGS: readonly string[] = [
  * The canonical delegated child profiles: the exact entry files each policy
  * list must resolve to, in the exact order children must load them. The
  * catalog profile carries only the provider registrations; the runtime
- * profile is the fixed seven-entry lean child. Entries are policy-relative (resolved
+ * profile is the fixed five-entry lean child. Entries are policy-relative (resolved
  * against the policy directory like a listed entry); display names are
  * extensions-root-relative identities for bounded failure messages.
  */
@@ -67,8 +67,6 @@ const RUNTIME_PROFILE: readonly { readonly entry: string; readonly display: stri
   { entry: "./index.ts", display: "delegated-pi-loop/index.ts" },
   { entry: `../${ALIAS_EXTENSION_DIR}/index.ts`, display: `${ALIAS_EXTENSION_DIR}/index.ts` },
   { entry: "../web-search/index.ts", display: "web-search/index.ts" },
-  { entry: "../context-mode/src/index.ts", display: "context-mode/src/index.ts" },
-  { entry: "../codegraph/index.ts", display: "codegraph/index.ts" },
   { entry: "../fastlane/index.ts", display: "fastlane/index.ts" },
   {
     entry: `../${CLAUDE_BRIDGE_EXTENSION_DIR}/delegate-entry.ts`,
@@ -438,7 +436,7 @@ export function validateResourcePolicy(value: unknown, roots: ContainmentRoots):
   const canonicalRuntime = RUNTIME_PROFILE.map((profile) => resolveExtensionEntry(profile.entry, roots));
   if (!resolvesToCanonicalProfile(runtimeExtensions, canonicalRuntime)) {
     fail(
-      `extensions.runtime must resolve to exactly the seven canonical entries in order: ${
+      `extensions.runtime must resolve to exactly the five canonical entries in order: ${
         RUNTIME_PROFILE.map((profile) => profile.display).join(", ")
       }`,
     );
@@ -664,7 +662,7 @@ export function buildCatalogResourceArgs(resources: ResolvedDelegateResources): 
 
 /**
  * Delegated RPC child arguments: discovery disabled (context files stay
- * enabled), the seven fixed extension entry files in policy order, then one
+ * enabled), the five fixed extension entry files in policy order, then one
  * explicit `--skill` path per selected and approved skill in policy order.
  * Construction re-verifies every runtime entry and selected skill so a
  * vanished or swapped path fails before arguments exist.
