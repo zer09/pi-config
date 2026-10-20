@@ -433,7 +433,13 @@
       ]
     },
     "gate-c": {
-      "tiers": [{ "model": "glm-5.3", "thinking": "max", "providers": ["zai"] }]
+      "tiers": [
+        {
+          "model": "claude-opus-5-5",
+          "thinking": "medium",
+          "providers": ["claude-bridge"]
+        }
+      ]
     },
     "gate-d": {
       "tiers": [
@@ -545,7 +551,7 @@
     }
   },
   "assignments": {
-    "solution": ["gate-a", "gate-b", "gate-d"],
+    "solution": ["gate-a", "gate-b", "gate-c"],
     "review": ["gate-a", "gate-b"],
     "implementation": "implementation",
     "remediation": "implementation",
