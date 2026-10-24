@@ -1,5 +1,19 @@
 # Local pi-btw patches
 
+## Pi 1.4.0: isolated `pi-btw@0.8.0` candidate, not deployed
+
+Increment C selects exactly 0.8.0 from 0.7.1. The captured registry latest is 0.8.0. The verified archive SRI is `sha512-vOelcQM1l2CjBPVfa6oBs4vgd11t4sZ+VqE5KCVjEPkKWbW3Qn7iS5bHWFFrf53r7nsC5WRvqlWWx7ZR6MdSKA==`. All eight published files match official tag `v0.8.0`, commit `2bf85893c3755a09e987ce23468757d82bc20e16`. There are no runtime dependencies or install lifecycle scripts.
+
+`reapply-model-runtime-patch-0.8.0.mjs` changes only the credential call to `setRuntimeApiKey(model.provider, auth.apiKey, { signal: ctx.signal })`. It checks stock/patched whole-package fingerprints before writing. Explicit canonical disposable OS-temp targets, repository/node_modules exclusions, identity, links/shared files, missing/extra files, drift and partial-anchor refusal remain guarded. Repeat application preserves bytes and mtimes. Historical helpers and tests remain unchanged.
+
+Six focused tests pass against exact Pi 1.4.0 and TypeScript 6.0.3. Stock credential synchronization remains pending after command cancellation; the patched call receives the exact signal and cancels during synchronization. Six RUN-adapted historical regressions pass: reapplication, two-turn canonical context, failed summary/retry, branch/reset restoration, shutdown/fresh turn and persisted restart. The copies retain their assertions, with exact target bindings and the upstream removal of parent tool deltas reflected in expected child context. Official stock and patched suites each pass 173/173 tests in five files, with no skips. All three production files pass strict target-bound typechecks.
+
+Package-origin loading executes stock and patched source with one fake response each, zero extension errors and unchanged inventories: zero BTW tools, ten commands, four events and the same skill. Inherited `toolsAdded`/`toolsRemoved` filtering preserves parent content and enforces contextual/read-only child scopes. Default child-extension sources remain empty, and the workspace remains local. No BTW or SSH configuration was added.
+
+Offline lock inspection used the verified local archive with scripts disabled. Reconciliation changed only BTW package files and manifest/lock entries. Complete before/after inventories preserve every unrelated dependency byte, link, mode and mtime, including all 138 patched Blackhole files. Its three-patch gate passes 11/11 checks. Factory target loading reports twelve entries, seven extension tools and zero errors. Those seven are not the full post-session parent inventory. Harness `skills: []` and `lastChangelogVersion: "1.1.0"` remain unchanged.
+
+Evidence and isolated drivers are under `/home/gc/worktree/pi-config-1.4.0-eZjOuk/`: `c-*.mjs`, `c-fixtures/`, `c-upstream-*`, `reports/c-*.json` and `logs/c-*.log`. Tests use `offline.mjs` with network denial, a hidden original installation, synthetic HOME/config/sessions and RUN-backed private OS-temp fixtures. Corrected harness diagnostics are recorded separately. No live helper, real inference, external provider/SSH operation or deployment ran. Later Bridge/dependency updates and combined checks passed; see the [final preparation report](../../docs/changelogs/pi-to-1.4.0-compatibility-preparation.md).
+
 ## 2026-10-10: isolated `pi-btw@0.7.1` candidate on Pi 1.1.0, not deployed
 
 Increment C pins the worktree and isolated runtime to exactly 0.7.1. The original installation remains unchanged. The verified npm archive SRI is `sha512-XVHTwc6QNYHEXvdobqbUrlkvoEo/pq3pWgq4OPT/BMiyjZpjlhUW/aBO+NjFdyu1app9QL8kyGP+tsB18S1GqA==`. All seven published file fingerprints were checked. Both production sources are byte-identical to 0.7.0. Only the manifest and README changed upstream; the three Pi peers now permit `>=0.85.1 <2`. There are no runtime dependencies or install lifecycle scripts.

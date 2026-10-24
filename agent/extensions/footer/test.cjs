@@ -6,6 +6,12 @@ const os = require("node:os");
 const path = require("node:path");
 
 function resolveGlobalNodeModules() {
+	if (process.env.PI_TEST_NODE_MODULES) {
+		const root = fs.realpathSync(process.env.PI_TEST_NODE_MODULES);
+		assert.ok(path.isAbsolute(root));
+		assert.ok(fs.existsSync(path.join(root, "@earendil-works/pi-coding-agent/package.json")));
+		return root;
+	}
 	const candidates = [];
 	try {
 		candidates.push(execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim());
@@ -26,7 +32,7 @@ const piPackageRoot = path.join(globalNodeModules, "@earendil-works", "pi-coding
 process.env.NODE_PATH = [
 	path.join(piPackageRoot, "node_modules"),
 	globalNodeModules,
-	process.env.NODE_PATH,
+	process.env.PI_TEST_NODE_MODULES ? undefined : process.env.NODE_PATH,
 ].filter(Boolean).join(path.delimiter);
 Module._initPaths();
 
@@ -41,6 +47,9 @@ function requirePiDependency(name) {
 
 const { createJiti } = requirePiDependency("jiti");
 const { visibleWidth } = require("@earendil-works/pi-tui");
+if (process.env.PI_TEST_NODE_MODULES) {
+	assert.ok(fs.realpathSync(require.resolve("@earendil-works/pi-tui")).startsWith(globalNodeModules + path.sep));
+}
 
 const extensionPath = path.join(__dirname, "index.ts");
 const ansiPattern = /\x1b\[[0-9;]*m/g;
@@ -123,6 +132,7 @@ async function createFooter(options = {}) {
 	let branch = Object.hasOwn(options, "branch") ? options.branch : "main";
 	let statuses = options.statuses ?? new Map();
 	let renderRequests = 0;
+	let pendingMessages = false;
 	let footerFactory;
 	const eventHandlers = new Map();
 	const events = {
@@ -159,6 +169,7 @@ async function createFooter(options = {}) {
 			getEntries: () => options.entries ?? [],
 		},
 		getContextUsage: () => options.contextUsage,
+		hasPendingMessages: () => pendingMessages,
 		ui: {
 			theme,
 			getAllThemes() {
@@ -209,6 +220,9 @@ async function createFooter(options = {}) {
 		setStatuses(value) {
 			statuses = value;
 		},
+		setPendingMessages(value) {
+			pendingMessages = value;
+		},
 		getRenderRequests() {
 			return renderRequests;
 		},
@@ -233,6 +247,121 @@ async function run() {
 }
 
 async function runTests() {
+	const customStart = { messageType: "custom", message: { role: "custom", customType: "fixture", content: "context", display: false, timestamp: 0 } };
+	const userStart = { messageType: "user", prompt: "hello", images: [] };
+
+	{
+		const footer = await createFooter();
+		await footer.emit("before_agent_start", customStart);
+		assert.ok(!footer.renderPlain().includes("\uf017"), "a custom start without user input must not start a user timer");
+		await footer.emit("input", { source: "interactive", text: "queued during custom work", images: [], streamingBehavior: "followUp" });
+		assert.ok(!footer.renderPlain().includes("\uf46c"), "awaiting admission is not yet queued");
+		footer.setPendingMessages(true);
+		await footer.emit("message_start", { message: customStart.message });
+		assert.ok(footer.renderPlain().includes("\uf46c queued"), "custom delivery must preserve the host pending indicator");
+		footer.setPendingMessages(false);
+		await footer.emit("message_start", { message: { role: "user" } });
+		assert.ok(!footer.renderPlain().includes("\uf46c"));
+		assert.ok(!footer.renderPlain().includes("\uf017"), "queued delivery during a custom-only run must not start a user timer");
+		await footer.emit("agent_settled");
+		assert.ok(!footer.renderPlain().includes("\uf00c"), "a custom-only run must not fabricate a completed user timer");
+		await footer.emit("session_shutdown");
+	}
+
+	{
+		const footer = await createFooter();
+		const originalNow = Date.now;
+		try {
+			let now = 10000;
+			Date.now = () => now;
+			await footer.emit("input", { source: "interactive", text: "hello", images: [] });
+			now += 400;
+			await footer.emit("before_agent_start", customStart);
+			assert.ok(!footer.renderPlain().includes("\uf017"), "custom starts must leave pending user input untimed");
+			await footer.emit("message_start", { message: customStart.message });
+			await footer.emit("agent_settled");
+			now += 500;
+			await footer.emit("before_agent_start", userStart);
+			assert.ok(footer.renderPlain().includes("\uf017 0.9s"), "the later user start must retain the original pending timestamp");
+			await footer.emit("agent_settled");
+			await footer.emit("before_agent_start", customStart);
+			assert.ok(footer.renderPlain().includes("\uf00c 0.9s"), "custom starts must preserve the last completed user duration");
+		} finally {
+			Date.now = originalNow;
+			await footer.emit("session_shutdown");
+		}
+	}
+
+	{
+		const footer = await createFooter();
+		const originalNow = Date.now;
+		try {
+			let now = 20000;
+			Date.now = () => now;
+			await footer.emit("before_agent_start", userStart);
+			now += 1000;
+			await footer.emit("input", { source: "interactive", text: "first", images: [], streamingBehavior: "followUp" });
+			now += 500;
+			await footer.emit("input", { source: "interactive", text: "second", images: [], streamingBehavior: "followUp" });
+			now += 500;
+			footer.setPendingMessages(true);
+			await footer.emit("message_start", { message: { role: "user" } });
+			assert.ok(footer.renderPlain().includes("\uf46c queued"), "the initial user message leaves pending work indicated");
+			await footer.emit("agent_settled", { aborted: true });
+			await footer.emit("before_agent_start", customStart);
+			assert.ok(footer.renderPlain().includes("\uf00c 2.0s"), "custom starts must preserve the completed user timer");
+			assert.ok(footer.renderPlain().includes("\uf46c queued"), "custom starts must preserve the retained queue indicator");
+			await footer.emit("message_start", { message: customStart.message });
+			now += 500;
+			await footer.emit("message_start", { message: { role: "user" } });
+			assert.ok(footer.renderPlain().includes("\uf00c 2.0s"), "queued delivery during custom work must not restart a settled user timer");
+			assert.ok(footer.renderPlain().includes("\uf46c queued"));
+			now += 500;
+			footer.setPendingMessages(false);
+			await footer.emit("message_start", { message: { role: "user" } });
+			assert.ok(footer.renderPlain().includes("\uf00c 2.0s"), "all retained deliveries must preserve the last user duration");
+			assert.ok(!footer.renderPlain().includes("\uf46c"));
+			footer.setPendingMessages(false);
+			await footer.emit("agent_settled");
+		} finally {
+			Date.now = originalNow;
+			await footer.emit("session_shutdown");
+		}
+	}
+
+	{
+		const footer = await createFooter();
+		const originalNow = Date.now;
+		try {
+			let now = 100000;
+			Date.now = () => now;
+			await footer.emit("input", { source: "interactive", text: "initial", images: [] });
+			await footer.emit("before_agent_start", userStart);
+			now = 101000;
+			await footer.emit("input", { source: "interactive", text: "cancelled follow-up", images: [], streamingBehavior: "followUp" });
+			await footer.emit("input", { source: "interactive", text: "cancelled steering", images: [], streamingBehavior: "steer" });
+			footer.setPendingMessages(true);
+			assert.ok(footer.renderPlain().includes("\uf46c queued"));
+			await footer.emit("message_start", { message: { role: "user" } });
+			assert.ok(footer.renderPlain().includes("\uf46c queued"));
+			footer.setPendingMessages(false);
+			assert.ok(!footer.renderPlain().includes("\uf46c"), "dequeue hides the indicator before settlement");
+			now = 102000;
+			await footer.emit("agent_settled", { aborted: true });
+			assert.ok(!footer.renderPlain().includes("\uf46c"), "host-cleared queues stay hidden at settlement");
+			assert.ok(footer.renderPlain().includes("\uf00c 2.0s"), "queue cleanup must retain the last duration");
+			now = 110000;
+			await footer.emit("input", { source: "rpc", text: "later user", images: [] });
+			await footer.emit("before_agent_start", userStart);
+			await footer.emit("message_start", { message: { role: "user" } });
+			assert.ok(footer.renderPlain().includes("\uf017 0.0s"), "cancelled follow-ups must not time later user runs");
+			await footer.emit("agent_settled");
+		} finally {
+			Date.now = originalNow;
+			await footer.emit("session_shutdown");
+		}
+	}
+
 	{
 		const footer = await createFooter({ thinkingLevel: "off" });
 		for (const [level, glyph] of [
@@ -532,7 +661,7 @@ async function runTests() {
 
 			await footer.emit("input", { source: "interactive", text: "hello", images: [] });
 			now += 1200;
-			await footer.emit("before_agent_start");
+			await footer.emit("before_agent_start", userStart);
 			assert.ok(footer.renderPlain().includes("\uf017 1.2s"), "running timer should show clock glyph and elapsed duration");
 
 			now += 3400;
@@ -554,7 +683,7 @@ async function runTests() {
 			let now = 200000;
 			Date.now = () => now;
 
-			await footer.emit("before_agent_start");
+			await footer.emit("before_agent_start", userStart);
 			now += 2000;
 			await footer.emit("ui_prompt_start", { kind: "confirm", title: "private title" });
 			const waitingLine = footer.renderPlain();
@@ -591,7 +720,7 @@ async function runTests() {
 
 			await footer.emit("input", { source: "interactive", text: "/skill:demo hello", images: [] });
 			now += 900;
-			await footer.emit("before_agent_start");
+			await footer.emit("before_agent_start", userStart);
 			assert.ok(footer.renderPlain().includes("\uf017 0.9s"), "slash prompt expansion time should be counted");
 			await footer.emit("agent_settled");
 		} finally {
@@ -606,7 +735,7 @@ async function runTests() {
 			let now = 600000;
 			Date.now = () => now;
 
-			await footer.emit("before_agent_start");
+			await footer.emit("before_agent_start", userStart);
 			now += 600000;
 			assert.ok(footer.renderPlain().includes("\uf017 10:00"), "long running timer should use m:ss format");
 
@@ -625,19 +754,21 @@ async function runTests() {
 			Date.now = () => now;
 
 			await footer.emit("input", { source: "interactive", text: "first", images: [] });
-			await footer.emit("before_agent_start");
+			await footer.emit("before_agent_start", userStart);
+			await footer.emit("message_start", { message: { role: "user" } });
 			now += 1000;
 			await footer.emit("input", { source: "interactive", text: "queued", images: [], streamingBehavior: "followUp" });
-			assert.ok(footer.renderPlain().includes("\uf46c 1"), "queued follow-up count should be visible while waiting");
+			footer.setPendingMessages(true);
+			assert.ok(footer.renderPlain().includes("\uf46c queued"), "pending work should be indicated while waiting");
 			now += 1000;
 			await footer.emit("agent_end");
 			assert.ok(footer.renderPlain().includes("\uf017"), "queued follow-ups should keep the timer running after agent_end");
 			now += 500;
-			await footer.emit("before_agent_start");
+			footer.setPendingMessages(false);
 			await footer.emit("message_start", { message: { role: "user" } });
 			const queuedLine = footer.renderPlain();
-			assert.ok(queuedLine.includes("\uf017 1.5s"), "queued follow-up timer should start when the follow-up was submitted");
-			assert.ok(!queuedLine.includes("\uf46c"), "queued follow-up count should hide after the queued prompt starts");
+			assert.ok(queuedLine.includes("\uf017 2.5s"), "follow-up delivery must preserve the whole-run timer");
+			assert.ok(!queuedLine.includes("\uf46c"), "the queue indicator should hide when Pi has no pending work");
 			await footer.emit("agent_settled");
 		} finally {
 			Date.now = originalNow;
@@ -646,10 +777,44 @@ async function runTests() {
 
 	{
 		const footer = await createFooter();
+		const originalNow = Date.now;
+		try {
+			let now = 100000;
+			Date.now = () => now;
+			await footer.emit("before_agent_start", userStart);
+			await footer.emit("message_start", { message: { role: "user" } });
+			now = 101000;
+			await footer.emit("input", { source: "interactive", text: "same payload", images: [], streamingBehavior: "followUp" });
+			await footer.emit("input", { source: "interactive", text: "same payload", images: [], streamingBehavior: "steer" });
+			footer.setPendingMessages(true);
+			assert.ok(footer.renderPlain().includes("\uf46c queued"));
+			now = 104000;
+			await footer.emit("message_start", { message: { role: "user", content: [{ type: "text", text: "transformed payload" }], timestamp: 101250 } });
+			assert.ok(footer.renderPlain().includes("\uf46c queued"));
+			assert.ok(footer.renderPlain().includes("\uf017 4.0s"), "an already-selected follow-up must not reset timing");
+			now = 105000;
+			footer.setPendingMessages(false);
+			await footer.emit("message_start", { message: { role: "user", content: [{ type: "text", text: "same payload" }], timestamp: 101000 } });
+			assert.ok(!footer.renderPlain().includes("\uf46c"));
+			assert.ok(footer.renderPlain().includes("\uf017 5.0s"), "late steering must not reset timing or require input matching");
+			now = 106000;
+			await footer.emit("agent_settled");
+			assert.ok(footer.renderPlain().includes("\uf00c 6.0s"));
+		} finally {
+			Date.now = originalNow;
+			await footer.emit("session_shutdown");
+		}
+	}
+
+	{
+		const footer = await createFooter();
 		await footer.emit("input", { source: "interactive", text: "steer", images: [], streamingBehavior: "steer" });
-		assert.ok(footer.renderPlain().includes("\uf46c 1"), "steering prompts should be counted while queued");
+		assert.ok(!footer.renderPlain().includes("\uf46c"), "an unadmitted steering input is not pending");
+		footer.setPendingMessages(true);
+		assert.ok(footer.renderPlain().includes("\uf46c queued"), "admitted steering work should be indicated");
+		footer.setPendingMessages(false);
 		await footer.emit("message_start", { message: { role: "user" } });
-		assert.ok(!footer.renderPlain().includes("\uf46c"), "steering queue count should hide after the queued prompt starts");
+		assert.ok(!footer.renderPlain().includes("\uf46c"), "delivered steering work is no longer pending");
 	}
 
 
@@ -663,7 +828,7 @@ async function runTests() {
 			await footer.emit("input", { source: "interactive", text: "handled by another extension", images: [] });
 			await new Promise((resolve) => setImmediate(resolve));
 			now += 5000;
-			await footer.emit("before_agent_start");
+			await footer.emit("before_agent_start", userStart);
 			now += 200;
 			assert.ok(footer.renderPlain().includes("\uf017 0.2s"), "handled inputs should not leave stale start times for later prompts");
 			await footer.emit("agent_settled");
@@ -779,10 +944,12 @@ async function runTests() {
 			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
 		});
 		await footer.emit("input", { source: "interactive", text: "queued", images: [], streamingBehavior: "followUp" });
+		footer.setPendingMessages(true);
+		assert.ok(footer.renderPlain(240).includes("\uf46c queued"));
 		const compactLine = footer.renderPlain(90);
 		assert.ok(compactLine.includes("(main) path"), "compact layout should show branch before cwd basename");
 		assert.ok(!compactLine.includes("↑"), "compact layout should hide token totals");
-		assert.ok(!compactLine.includes("\uf46c"), "compact layout should hide queued follow-up count");
+		assert.ok(!compactLine.includes("\uf46c"), "compact layout should hide the queue indicator");
 		assert.ok(compactLine.includes("(45%)"), "compact layout should keep context percentage");
 		assert.ok(!compactLine.includes("/272k"), "compact layout should omit full context window details");
 		assert.ok(compactLine.includes("codex/gpt-5.5"), "compact layout should shorten Codex model name");
@@ -795,7 +962,7 @@ async function runTests() {
 		assert.ok(minimalLine.includes("gpt-5.5"), "minimal layout should keep model");
 		assert.ok(minimalLine.includes("◇"), "minimal layout should keep thinking glyph");
 		assert.ok(!minimalLine.includes("↑"), "minimal layout should hide token totals");
-		assert.ok(!minimalLine.includes("\uf46c"), "minimal layout should hide queued follow-up count");
+		assert.ok(!minimalLine.includes("\uf46c"), "minimal layout should hide the queue indicator");
 	}
 
 
@@ -804,7 +971,7 @@ async function runTests() {
 			cwd: path.join(process.env.HOME ?? "/home/test", "very", "long", "project", "path"),
 			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
 		});
-		await footer.emit("before_agent_start");
+		await footer.emit("before_agent_start", userStart);
 		const line = footer.renderPlain(35);
 		assert.ok(line.includes("(45%)"), "minimal layout should keep context usage instead of the prompt timer");
 		assert.ok(line.includes("gpt-5.5"), "minimal layout should keep model instead of the prompt timer");
@@ -855,6 +1022,8 @@ async function runTests() {
 			entries: [assistantEntry({ input: 123456, output: 45678, cacheRead: 98765, cacheWrite: 8765 })],
 			contextUsage: { tokens: 123456, contextWindow: 272000, percent: 45.4 },
 		});
+		footer.setPendingMessages(true);
+		assert.ok(footer.renderPlain(240).includes("\uf46c queued"), "host queues need no local input record");
 		for (let width = 0; width <= 140; width += 1) {
 			assert.doesNotThrow(() => footer.render(width), `render should not throw at width ${width}`);
 			assert.ok(visibleWidth(footer.render(width)) <= width, `render should fit width ${width}`);

@@ -35,6 +35,7 @@ export type RenderSnapshot = {
 	readonly experimentalFeaturesEnabled: boolean;
 	readonly fastlaneActive: boolean;
 	readonly formattedStatuses: readonly FormattedExtensionStatus[];
+	readonly hasPendingMessages: boolean;
 	readonly modelContextWindow: number | undefined;
 	readonly modelId: string | undefined;
 	readonly modelProvider: string | undefined;
@@ -53,8 +54,6 @@ export type FooterData = ReadonlyFooterDataProvider;
 export type PromptTimerState = {
 	pendingStartedAt: number | undefined;
 	pendingClearImmediate: ReturnType<typeof setImmediate> | undefined;
-	queuedStartedAts: number[];
-	queuedCount: number;
 	startedAt: number | undefined;
 	lastDurationMs: number | undefined;
 	interval: ReturnType<typeof setInterval> | undefined;

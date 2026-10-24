@@ -1,5 +1,45 @@
 # Local Claude Bridge patch
 
+## 2026-10-23: isolated `pi-claude-bridge@0.9.3` on Pi 1.4.0, not deployed
+
+The candidate pin is exact `0.9.3`. All 25 published files match official
+`v0.9.3` at `874fa7c2678456336f23b64e784e2057e608d83e`. The transcript ordering
+patch stays retired for this candidate. No new helper or package-source patch
+exists. Historical helpers and the live installation remain unchanged.
+
+The isolated graph selects Claude Agent SDK and Linux x64 `0.3.309`, protobuf
+`2.16.0`, MCP SDK `1.32.1`, and Zod `4.6.7`. Archive SRI, exact source, manifests,
+entrypoints, engine/peer ranges, lock inspection and sibling preservation evidence
+are under `/home/gc/worktree/pi-config-1.4.0-eZjOuk/reports/d-*.json`.
+TypeBox `1.3.27`, Anthropic API SDK `0.129.0`, sharp `0.33.5`, ws `8.22.0`,
+cc-session-io `0.4.0`, and change-case `5.4.4` stay unchanged.
+
+Bridge no longer takes over compaction or tree summaries. Its before hooks only
+remember session association. Pi and Blackhole retain summary ownership. Offline
+checks cover native split-turn summaries, extension ownership, cancellation,
+errors, rewrite/resume handling, exact capture, interrupted tools and usage.
+The actual patched Blackhole compacts with Bridge loaded and makes zero Bridge
+SDK requests. The real selected SDK encoder uses a fake process only.
+
+AskClaude stays disabled. The child entry still forwards only hooks and provider
+registration, with buffered replay/rollback and project-config refusal. ADR 0010's
+trusted-repository and retention exceptions do not change: ordinary requests leave
+`settingSources` unset and persist sessions by default. Project `.claude` hooks
+can execute commands; the entry is not a sandbox. Native summaries explicitly use
+empty settings sources, no tools, strict MCP config and no session persistence.
+
+Only Haiku 5.5's registered context changes, from 200,000 to 1,000,000. The unchanged
+65% Blackhole policy therefore moves its threshold from 130,000 to 650,000.
+Separately, Pi 1.4.0 removes native summary output caps in favor of the model limit;
+this is not a trigger change and can increase summary output cost. Bridge's
+isolated path does not forward Pi's `maxTokens`, as before.
+
+The upstream offline suite passes 330/330, and its own non-strict typecheck passes.
+Strict target checks pass for the child entry, SDK options and transcript/model/
+capture/session adapters. Whole-source strict diagnostics remain recorded, not
+claimed as passing. No live Claude executable, login, refresh or paid transport
+ran. Combined final checks passed; see the [Pi 1.4.0 preparation report](../../docs/changelogs/pi-to-1.4.0-compatibility-preparation.md).
+
 ## 2026-10-10: isolated `pi-claude-bridge@0.9.2` on Pi 1.1.0, not deployed
 
 The candidate settings pin is exact `0.9.2`. The isolated runtime tests exact

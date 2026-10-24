@@ -72,6 +72,34 @@ test("normal startup injects a write-free initial theme and preserves argv", () 
   }
 });
 
+test("synthetic Windows detection selects light or dark and rejects invalid output", () => {
+  const f = fixture();
+  try {
+    const registry = join(f.root, "reg.exe");
+    const env = { ...f.env, PATH: `${f.root}:${f.env.PATH}` };
+    const args = ["--theme", "/tmp/custom theme.json", "prompt with spaces"];
+    for (const [output, expected] of [
+      ["AppsUseLightTheme REG_DWORD 0x1", "light"],
+      ["AppsUseLightTheme REG_DWORD 0x0", "dark"],
+      ["invalid registry output", undefined],
+    ]) {
+      writeFileSync(registry, `#!/usr/bin/env node\nprocess.stdout.write(${JSON.stringify(output)});\n`);
+      chmodSync(registry, 0o755);
+      const actual = run(env, args);
+      if (expected) {
+        assert.deepEqual(actual.args, ["--use-theme", expected, ...args]);
+        assert.equal(actual.injected, "1");
+        assertUnchanged(run(env, ["--use-theme", "custom", ...args]), ["--use-theme", "custom", ...args]);
+      } else {
+        assertUnchanged(actual, args);
+      }
+      assert.equal(existsSync(join(f.agentDir, "settings.json")), false);
+    }
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
 test("an explicit use-theme wins and every original argument stays in order", () => {
   const f = fixture();
   try {

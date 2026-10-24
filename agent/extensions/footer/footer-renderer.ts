@@ -8,14 +8,14 @@
 
 import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { FOOTER_PROFILES } from "./constants";
+import { FOOTER_PROFILES, QUEUE_GLYPH } from "./constants";
 import { formatExtensionStatusEntries, formatExtensionStatuses } from "./extension-status";
 import { areExperimentalFeaturesEnabled, formatExperimentalMarker } from "./experimental-format";
 import { formatGitBranch } from "./git-format";
 import { joinFooterSections, measureFooterParts } from "./layout";
 import { formatModelName } from "./model-format";
 import { formatCwd } from "./path-format";
-import { formatPromptQueue, formatPromptTimer, formatWaitingForUser } from "./prompt-timer";
+import { formatPromptTimer, formatWaitingForUser } from "./prompt-timer";
 import { formatThinkingDot } from "./thinking-format";
 import { formatContextUsage, formatSessionTokenTotals } from "./token-format";
 import type {
@@ -80,6 +80,7 @@ function createRenderSnapshot(
 		experimentalFeaturesEnabled: areExperimentalFeaturesEnabled(),
 		fastlaneActive,
 		formattedStatuses: formatExtensionStatusEntries(footerData.getExtensionStatuses(), theme),
+		hasPendingMessages: ctx.hasPendingMessages(),
 		modelContextWindow: ctx.model?.contextWindow,
 		modelId: ctx.model?.id,
 		modelProvider: ctx.model?.provider,
@@ -107,7 +108,8 @@ function buildFooterParts(
 	const right = joinSegments([
 		!minimal ? formatWaitingForUser(promptTimer, theme) : undefined,
 		!minimal ? formatPromptTimer(promptTimer, theme, snapshot.now) : undefined,
-		full ? formatPromptQueue(promptTimer, theme) : undefined,
+		// Input handlers run before admission, so only Pi can confirm pending work.
+		full && snapshot.hasPendingMessages ? theme.fg("warning", `${QUEUE_GLYPH} queued`) : undefined,
 		full ? formatSessionTokenTotals(ctx, theme) : undefined,
 		formatContextUsage(snapshot.contextUsage, snapshot.modelContextWindow, theme, full ? "full" : "compact"),
 		theme.fg("muted", formatModelName(snapshot.modelProvider, snapshot.modelId, profile)),

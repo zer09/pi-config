@@ -2,6 +2,14 @@
 
 These notes track local changes made under `~/.pi/agent/npm/node_modules/pi-blackhole/`. Package upgrades or reinstalls can overwrite those files, so re-check this file after every `pi-blackhole` upgrade.
 
+## Pi 1.4.0 preparation: retain `pi-blackhole@0.5.13`, not deployed
+
+The isolated candidate retains 0.5.13 and all three existing helpers in the documented order. Latest 0.5.15 changes tail/projection/supersession behavior and would require patch redesign. No fourth patch or native `compactAfterRatio` substitution was added.
+
+Exact Pi 1.4.0 checks pass: 11 guard tests, 13 fake worker-transport tests, four deferred/queued/replacement/shutdown fixtures, 162 stock projection comparisons plus retained pairing/omission/raw-history assertions, and strict stock/patched production types. The installed entry remains patched `./index.ts`; repeated application preserves bytes and mtimes. Actual Blackhole ownership with selected Bridge 0.9.3 makes zero Bridge SDK requests.
+
+The 65% policy, 180,000 fallback, fixed worker budgets, quiet controls and disabled mid-run compaction remain unchanged. Larger Codex and Haiku context windows raise effective thresholds. Native summary output-cap removal is separate. The inherited `showPreCompactionMessage` loader limitation remains. These are offline checks, not a new live-installation or full upstream-suite claim. See the [Pi 1.4.0 preparation report](../../docs/changelogs/pi-to-1.4.0-compatibility-preparation.md) for calculations, evidence and limits.
+
 ## 2026-10-16: `pi-blackhole@0.5.13` live upgrade
 
 The live package, npm manifest/lock, and Pi settings pin **0.5.13** on Pi 1.1.0. The 0.5.13 changelog adds thinking-only worker models, observer turn-cap partial coverage, notice dedupe, and quieter fold debug logs. Stock still lacks all three local patches.

@@ -18,7 +18,6 @@ import {
 import {
 	clearPromptTimer,
 	createPromptTimerState,
-	markQueuedPromptStarted,
 	recordPendingPromptStart,
 	setWaitingForUser,
 	startPromptTimer,
@@ -95,14 +94,9 @@ export default function footer(pi: ExtensionAPI): void {
 		recordPendingPromptStart(promptTimer, event.source, event.text, event.images, event.streamingBehavior);
 	});
 
-	pi.on("before_agent_start", async (_event, ctx) => {
-		if (ctx.mode !== "tui") return;
+	pi.on("before_agent_start", async (event, ctx) => {
+		if (ctx.mode !== "tui" || event.messageType !== "user") return;
 		startPromptTimer(promptTimer, takePendingPromptStart(promptTimer) ?? Date.now());
-	});
-
-	pi.on("message_start", async (event, ctx) => {
-		if (ctx.mode !== "tui" || event.message.role !== "user") return;
-		markQueuedPromptStarted(promptTimer);
 	});
 
 	pi.on("thinking_level_select", async () => {

@@ -1,13 +1,13 @@
 /**
- * Prompt timing and queued follow-up tracking for footer.
+ * Whole-run user prompt timing for footer.
  *
- * This module records when interactive prompts are submitted, carries that start
+ * This module records when user prompts are submitted, carries that start
  * time through Pi's input/agent lifecycle, and formats running or completed
  * durations for the footer.
  */
 
 import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
-import { QUEUE_GLYPH, TIMER_DONE_GLYPH, TIMER_RUNNING_GLYPH } from "./constants";
+import { TIMER_DONE_GLYPH, TIMER_RUNNING_GLYPH } from "./constants";
 import { requestFooterRender } from "./render-request";
 import type { PromptTimerState } from "./types";
 
@@ -20,8 +20,6 @@ export function createPromptTimerState(): PromptTimerState {
 	return {
 		pendingStartedAt: undefined,
 		pendingClearImmediate: undefined,
-		queuedStartedAts: [],
-		queuedCount: 0,
 		startedAt: undefined,
 		lastDurationMs: undefined,
 		interval: undefined,
@@ -30,7 +28,7 @@ export function createPromptTimerState(): PromptTimerState {
 }
 
 /**
- * Record the submit time for an interactive prompt before the agent starts.
+ * Record interactive startup timing without timing queued submissions.
  *
  * @param timer - Prompt timer state.
  * @param source - Pi input source.
@@ -46,26 +44,22 @@ export function recordPendingPromptStart(
 	streamingBehavior: "steer" | "followUp" | undefined,
 ): void {
 	const hasContent = text.trim().length > 0 || Boolean(images?.length);
-	if (source !== "interactive" || !hasContent) {
+	if (!hasContent) {
 		clearPendingPromptStart(timer);
 		return;
 	}
 
+	if (source !== "interactive" || streamingBehavior === "steer" || streamingBehavior === "followUp") {
+		clearPendingPromptStart(timer);
+		return;
+	}
 	const startedAt = Date.now();
-	if (streamingBehavior === "steer" || streamingBehavior === "followUp") {
-		clearPendingPromptStart(timer);
-		timer.queuedCount += 1;
-		if (streamingBehavior === "followUp") timer.queuedStartedAts.push(startedAt);
-		requestFooterRender();
-		return;
-	}
-
 	timer.pendingStartedAt = startedAt;
 	schedulePendingPromptStartClear(timer, startedAt);
 }
 
 /**
- * Consume the pending or queued prompt start time for a new agent run.
+ * Consume the pending prompt start time for a new agent run.
  *
  * @param timer - Prompt timer state.
  * @returns The recorded submit timestamp, if available.
@@ -73,7 +67,7 @@ export function recordPendingPromptStart(
 export function takePendingPromptStart(timer: PromptTimerState): number | undefined {
 	const startedAt = timer.pendingStartedAt;
 	clearPendingPromptStart(timer);
-	return startedAt ?? timer.queuedStartedAts.shift();
+	return startedAt;
 }
 
 /**
@@ -108,14 +102,12 @@ export function stopPromptTimer(timer: PromptTimerState): boolean {
 }
 
 /**
- * Reset all prompt timer and queue state.
+ * Reset all prompt timer state.
  *
  * @param timer - Prompt timer state.
  */
 export function clearPromptTimer(timer: PromptTimerState): void {
 	clearPendingPromptStart(timer);
-	timer.queuedStartedAts = [];
-	timer.queuedCount = 0;
 	timer.startedAt = undefined;
 	timer.lastDurationMs = undefined;
 	timer.waitingForUser = false;
@@ -167,29 +159,6 @@ export function formatPromptTimer(
 	const glyph = running ? TIMER_RUNNING_GLYPH : TIMER_DONE_GLYPH;
 	const glyphColor: ThemeColor = running ? "accent" : "success";
 	return `${theme.fg(glyphColor, glyph)} ${theme.fg("muted", formatDuration(durationMs))}`;
-}
-
-/**
- * Format the queued prompt count for the footer.
- *
- * @param timer - Prompt timer state.
- * @param theme - Active Pi theme.
- * @returns The themed queue segment, or `undefined` when no prompts are queued.
- */
-export function formatPromptQueue(timer: PromptTimerState, theme: Theme): string | undefined {
-	if (!timer.queuedCount) return undefined;
-	return theme.fg("warning", `${QUEUE_GLYPH} ${timer.queuedCount}`);
-}
-
-/**
- * Mark one queued prompt as started so the displayed queue count decreases.
- *
- * @param timer - Prompt timer state.
- */
-export function markQueuedPromptStarted(timer: PromptTimerState): void {
-	if (!timer.queuedCount) return;
-	timer.queuedCount -= 1;
-	requestFooterRender();
 }
 
 function schedulePendingPromptStartClear(timer: PromptTimerState, startedAt: number): void {

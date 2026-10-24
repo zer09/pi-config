@@ -2,6 +2,15 @@
 
 This document summarizes local Pi configuration changes. Detailed change records live under [`docs/changelogs/`](./changelogs/).
 
+## Pi 1.4.0 compatibility preparation
+
+Details: [`docs/changelogs/pi-to-1.4.0-compatibility-preparation.md`](./changelogs/pi-to-1.4.0-compatibility-preparation.md).
+
+- **Prepared on a separate branch/worktree, not deployed.** Exact Pi 1.4.0 passes isolated SDK and bundled/unbundled CLI/RPC checks. Changes remain unstaged; `lastChangelogVersion` stays `1.1.0`.
+- Guard footer user/custom starts and retain the approved whole-run timer. Replace numeric queue counts with the user-approved `queued` indicator from Pi's actual pending state. Count delegated tool execution only at matching duration-bearing ends; defer tool-bearing reports and reject parser/schema/length-rejected work while allowing valid recovery. Update both theme schema references without changing colors or the wrapper.
+- Select BTW 0.8.0, Bridge 0.9.3 and tested active dependencies. Retain three Blackhole patches and port only BTW's credential-cancellation patch. Hold Blackhole 0.5.13 and Browser Harness 0.11.0 to preserve behavior and tools. Retired resources, five runtime child entries, seven child tools and current policies remain unchanged.
+- Full delegated tests pass 1,632/1,632; target startup/theme checks pass 19/19. Refreshed combined SDK and bundled/unbundled CLI/RPC checks pass after independent-review remediation. Larger Codex/Haiku windows and removed native summary caps can increase context/output cost. Upstream limits, unexecuted live/visual checks, earlier false readiness claims, isolation deviations and outside settings/global-manifest/index changes remain explicit in the report.
+
 ## Delegated stdout-cap acknowledgement fix
 
 - Fixed lost prompt acknowledgements by parsing only the in-budget prefix after counting each complete stdout chunk. Bytes beyond the shared cap are never parsed.

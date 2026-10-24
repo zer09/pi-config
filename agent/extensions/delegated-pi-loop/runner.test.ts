@@ -570,7 +570,7 @@ if (args.includes("--list-models")) {
           if (updates < 6) return;
           clearInterval(timer);
           if (behavior === "tool-active") {
-            emit({ type: "tool_execution_end", toolCallId: "active-1", toolName: "ctx_batch_execute", result: {}, isError: false });
+            emit({ type: "tool_execution_end", toolCallId: "active-1", toolName: "ctx_batch_execute", result: {}, isError: false, durationMs: 0 });
           }
           emit({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "Completed on " + route + ".\\n\\nDELEGATE_RESULT: COMPLETED" }] } });
           emit({ type: "agent_end", willRetry: false });

@@ -304,7 +304,7 @@ function semanticContentItem(item: unknown): unknown {
   const type = item.type;
   if (type === "text" && typeof item.text === "string") return { type, text: item.text };
   if (type === "thinking" && typeof item.thinking === "string") return { type, thinking: item.thinking };
-  if (type === "tool_call") return { type, toolName: item.toolName, arguments: item.arguments };
+  if (type === "toolCall") return { type, toolName: item.name, arguments: item.arguments };
   return { type };
 }
 
@@ -372,6 +372,7 @@ interface RoundState {
   aborted: boolean;
   retryAttempt?: number;
   cancelledRetrySeen: boolean;
+  invalidToolArguments: boolean;
   finalReport?: string;
   outcome?: Outcome;
   reason?: TerminalReason;
@@ -418,6 +419,7 @@ function emptyRound(): RoundState {
     settledSeen: false,
     aborted: false,
     cancelledRetrySeen: false,
+    invalidToolArguments: false,
   };
 }
 
@@ -544,6 +546,10 @@ export class PiRpcMonitor {
   private toolExecutionCountValue = 0;
   private activeToolSequence = 0;
   private readonly activeTools = new Map<string, ActiveTool>();
+  private readonly invalidToolCallIds = new Set<string>();
+  private toolArgumentsUnavailable = false;
+  private toolMessagePending = false;
+  private pendingToolCallCount = 0;
   private lastQueueSignature: string | undefined;
   private reportRoundValue: ReportRound = 1;
   private readonly errorsValue: string[] = [];
@@ -677,7 +683,7 @@ export class PiRpcMonitor {
       state.finalAgentEndSeen = event.willRetry !== true;
       state.retryAttempt = undefined;
       state.cancelledRetrySeen = false;
-      this.recordAgentCheckpoint(event);
+      if (!state.invalidToolArguments || this.agentSummary.distinct.size > 0) this.recordAgentCheckpoint(event);
     } else if (eventType === "agent_settled") {
       // Pi ends a cancelled retry during backoff without another agent_end.
       // Only the matched idle retry boundary can replace that final event.
@@ -689,9 +695,8 @@ export class PiRpcMonitor {
       }
       state.settledSeen = true;
       state.aborted = event.aborted === true;
-      // Final settlement is always novel: the lifecycle validator already
-      // rejects a second settled event in the same round.
-      this.structuralCheckpoint();
+      // Settlement is unique, but an unrepaired malformed call is not progress.
+      if (!state.invalidToolArguments) this.structuralCheckpoint();
     } else if (CORE_ACTIVITY_EVENTS.has(eventType) && !state.agentRunning) {
       this.addError(`${eventType.slice(0, 60)}_outside_agent_lifecycle`);
       return;
@@ -760,7 +765,18 @@ export class PiRpcMonitor {
         return;
       }
       state.turnOpen = false;
-      this.recordTurnCheckpoint();
+      if (this.toolMessagePending) {
+        // The turn carries the final message again, so no raw message buffer is needed.
+        const message = event.message;
+        if (this.pendingToolCallCount !== 0 || this.activeTools.size !== 0
+          || !isRecord(message) || message.role !== "assistant") {
+          state.invalidToolArguments = true;
+        }
+        if (!state.invalidToolArguments && isRecord(message)) this.commitMessage(state, message);
+        this.toolMessagePending = false;
+        this.pendingToolCallCount = 0;
+      }
+      if (!state.invalidToolArguments || this.turnSummary.distinct.size > 0) this.recordTurnCheckpoint();
     }
     if (eventType === "auto_retry_start") {
       // A replacement start must not reuse an older attempt if validation fails.
@@ -799,21 +815,31 @@ export class PiRpcMonitor {
     if (eventType === "message_end") {
       const message = event.message;
       if (!isRecord(message) || message.role !== "assistant") return;
-      this.recordMessageCheckpoint(message);
+      // A later valid message can recover; malformed calls do not poison the round.
+      state.invalidToolArguments = this.recordToolArgumentErrors(message, state.invalidToolArguments);
+      // Starts precede target validation. Wait for all outcomes before trusting call-bearing text.
+      state.finalReport = undefined;
+      state.outcome = undefined;
+      state.reason = undefined;
+      if (!state.invalidToolArguments && !this.toolMessagePending) this.commitMessage(state, message);
       if (message.stopReason === "error") {
         this.recordProviderFailure(state, categoryFromRecord(message) ?? "provider_unavailable");
       }
-      const report = assistantText(message);
-      state.finalReport = report;
-      const terminal = report === undefined ? undefined : parseDelegateTerminal(report);
-      state.outcome = terminal?.outcome;
-      state.reason = terminal?.reason;
-      if (report !== undefined && state.outcome === undefined && machineErrorEnvelope(report)) {
-        this.recordProviderFailure(
-          state,
-          classifyProviderFailure(report.slice(MACHINE_ERROR_PREFIX.length).trimStart()) ?? "provider_unavailable",
-        );
-      }
+    }
+  }
+
+  private commitMessage(state: RoundState, message: Record<string, unknown>): void {
+    this.recordMessageCheckpoint(message);
+    const report = assistantText(message);
+    state.finalReport = report;
+    const terminal = report === undefined ? undefined : parseDelegateTerminal(report);
+    state.outcome = terminal?.outcome;
+    state.reason = terminal?.reason;
+    if (report !== undefined && state.outcome === undefined && machineErrorEnvelope(report)) {
+      this.recordProviderFailure(
+        state,
+        classifyProviderFailure(report.slice(MACHINE_ERROR_PREFIX.length).trimStart()) ?? "provider_unavailable",
+      );
     }
   }
 
@@ -853,6 +879,10 @@ export class PiRpcMonitor {
     this.novelty.clear();
     this.toolUpdateKey = undefined;
     this.toolArgsKey = undefined;
+    this.invalidToolCallIds.clear();
+    this.toolArgumentsUnavailable = false;
+    this.toolMessagePending = false;
+    this.pendingToolCallCount = 0;
     // The turn and agent summary digest sets are ephemeral digest state too:
     // they are dropped here with the keys so no retained digest survives the
     // attempt. Later checkpoints cannot earn novelty anyway, because the
@@ -946,6 +976,43 @@ export class PiRpcMonitor {
     };
   }
 
+  /** Keep only bounded correlation ids, never the error text that can contain raw arguments. */
+  private recordToolArgumentErrors(message: Record<string, unknown>, previouslyRejected: boolean): boolean {
+    this.invalidToolCallIds.clear();
+    this.toolArgumentsUnavailable = false;
+    this.toolMessagePending = false;
+    this.pendingToolCallCount = 0;
+    const content = message.content;
+    if (!Array.isArray(content)) return previouslyRejected;
+    // An over-budget message cannot prove which calls are safe to credit.
+    if (content.length > MAX_MESSAGE_CONTENT_ITEMS) {
+      this.toolArgumentsUnavailable = true;
+      return true;
+    }
+    let invalid = false;
+    let hasContent = false;
+    for (const item of content) {
+      if (!isRecord(item)) continue;
+      if (item.type !== "toolCall") {
+        if ((item.type === "text" && typeof item.text === "string" && /\S/.test(item.text))
+          || (item.type === "thinking" && typeof item.thinking === "string" && /\S/.test(item.thinking))) hasContent = true;
+        continue;
+      }
+      hasContent = true;
+      this.toolMessagePending = true;
+      this.pendingToolCallCount += 1;
+      if (!item.argumentsError && message.stopReason !== "length") continue;
+      invalid = true;
+      if (typeof item.id !== "string" || item.id.length === 0 || this.invalidToolCallIds.size >= MAX_ACTIVE_TOOLS) {
+        this.toolArgumentsUnavailable = true;
+        continue;
+      }
+      this.invalidToolCallIds.add(item.id);
+    }
+    // An empty follow-up is not a correction and cannot rescue rejection-only progress.
+    return invalid || (previouslyRejected && !hasContent);
+  }
+
   private toolKey(event: Record<string, unknown>): string | undefined {
     return typeof event.toolCallId === "string" && event.toolCallId.length > 0
       ? `id:${event.toolCallId}`
@@ -982,10 +1049,12 @@ export class PiRpcMonitor {
       return false;
     }
     this.activeToolSequence += 1;
-    this.toolExecutionCountValue += 1;
+    // Pi emits start/end even when argument validation prevents execution.
+    const invalidArguments = this.toolArgumentsUnavailable
+      || (typeof event.toolCallId === "string" && this.invalidToolCallIds.has(event.toolCallId));
     const now = this.monotonicNow();
     let bashCommand: ActiveBashCommand | undefined;
-    if (name === "bash" && isRecord(event.args) && typeof event.args.command === "string") {
+    if (!invalidArguments && name === "bash" && isRecord(event.args) && typeof event.args.command === "string") {
       const command = event.args.command;
       const { text, truncatedBytes } = truncateUtf8(command, ACTIVE_BASH_COMMAND_MAX_BYTES);
       bashCommand = { text, totalBytes: Buffer.byteLength(command, "utf8"), truncatedBytes };
@@ -995,7 +1064,7 @@ export class PiRpcMonitor {
       name,
       startedMonotonic: now,
       sequence: this.activeToolSequence,
-      argsDigest: this.toolArgsDigest(event.args),
+      argsDigest: invalidArguments ? undefined : this.toolArgsDigest(event.args),
       bashCommand,
       lastNovelUpdateMonotonic: now,
       lastUpdateDigest: undefined,
@@ -1042,6 +1111,13 @@ export class PiRpcMonitor {
       return false;
     }
     this.activeTools.delete(tool.key);
+    if (this.pendingToolCallCount > 0) this.pendingToolCallCount -= 1;
+    // Pi 1.4 includes duration, even zero, only when execute actually ran.
+    if (typeof event.durationMs !== "number" || !Number.isFinite(event.durationMs) || event.durationMs < 0) {
+      this.rounds[this.reportRoundValue].invalidToolArguments = true;
+      return true;
+    }
+    this.toolExecutionCountValue += 1;
     // Semantic novelty identity combines the mapped tool name, the stored
     // start-args digest, the final result, and the error status. When the
     // args digest is unavailable (key dropped at finalization or an

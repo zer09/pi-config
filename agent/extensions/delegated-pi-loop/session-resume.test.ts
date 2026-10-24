@@ -222,7 +222,7 @@ process.stdin.on("data", (chunk) => {
     if (behavior === "output") { process.stdout.write("x".repeat(20000)); continue; }
     if (behavior === "active-tool" || behavior === "tools-provider") {
       emit({ type: "tool_execution_start", toolCallId: "work", toolName: "read", args: {} });
-      if (behavior === "tools-provider") emit({ type: "tool_execution_end", toolCallId: "work", toolName: "read", result: {}, isError: false });
+      if (behavior === "tools-provider") emit({ type: "tool_execution_end", toolCallId: "work", toolName: "read", result: {}, isError: false, durationMs: 0 });
     }
     if (["provider", "active-tool", "tools-provider"].includes(behavior) || (behavior === "recovery-provider" && round === 2)) {
       emit({ type: "message_update", assistantMessageEvent: { type: "error", errorMessage: "503 PRIVATE-PROVIDER-ERROR " + sentinel + " " + file } });

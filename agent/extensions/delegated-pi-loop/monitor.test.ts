@@ -59,7 +59,8 @@ test("records sanitized last event, tool name, and receipt time", () => {
   const snapshot = instance.snapshot();
   assert.equal(snapshot.lastEvent, "tool_execution_start");
   assert.equal(snapshot.lastEventDetail, "read");
-  assert.equal(snapshot.toolExecutionCount, 1);
+  assert.equal(snapshot.toolExecutionCount, 0, "starts do not prove execution");
+  assert.equal(snapshot.activeToolCount, 1);
   assert.doesNotMatch(JSON.stringify(snapshot), /PRIVATE_PATH/);
 });
 
@@ -509,6 +510,8 @@ test("cumulative round-1 tool counts are preserved and round-2 tool starts are r
   instance.acceptPrompt(1);
   consume(instance, 1, { type: "agent_start" });
   consume(instance, 1, { type: "tool_execution_start", toolName: "read" });
+  consume(instance, 1, { type: "tool_execution_end", toolName: "read", durationMs: 0 });
+  consume(instance, 1, { type: "tool_execution_start", toolName: "bash" });
   consume(instance, 1, assistant("invalid"));
   consume(instance, 1, { type: "agent_end", willRetry: false });
   consume(instance, 1, { type: "agent_settled" });
@@ -701,9 +704,10 @@ test("completed tool ends are novel checkpoints and exact repeated cycles are du
     consume(instance, 1, { type: "tool_execution_start", toolCallId: "t", toolName: "read" });
     tick();
     const before = instance.snapshot();
-    consume(instance, 1, { type: "tool_execution_end", toolCallId: "t", toolName: "read", result: { ok: true }, isError: false });
+    consume(instance, 1, { type: "tool_execution_end", toolCallId: "t", toolName: "read", result: { ok: true }, isError: false, durationMs: cycle });
     const after = instance.snapshot();
     assert.equal(after.activeToolCount, 0);
+    assert.equal(after.toolExecutionCount, cycle + 1, "duration changes neither lose executions nor create novelty");
     if (cycle === 0) {
       assert.ok(after.lastStructuralProgressMonotonic > before.lastStructuralProgressMonotonic);
       assert.equal(after.duplicateCheckpointCount, 0);
@@ -849,32 +853,44 @@ test("volatile-only assistant message differences are duplicate checkpoints", ()
   assert.equal(snapshot.duplicateCheckpointCount, 1);
   // A thinking signature and volatile tool-call id inside content are volatile too.
   tick();
-  consume(instance, 1, {
+  consume(instance, 1, { type: "turn_start" });
+  const first = {
     type: "message_end",
     message: {
       role: "assistant",
-      stopReason: "tool_use",
+      stopReason: "toolUse",
       content: [
         { type: "thinking", thinking: "plan", signature: "sig-A" },
-        { type: "tool_call", toolCallId: "call-1", toolName: "read", arguments: { path: "PRIVATE" } },
+        { type: "toolCall", id: "call-1", name: "read", arguments: { path: "PRIVATE" } },
       ],
     },
-  });
+  };
+  consume(instance, 1, first);
+  consume(instance, 1, { type: "tool_execution_start", toolCallId: "call-1", toolName: "read", args: { path: "PRIVATE" } });
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "call-1", result: { ok: true }, durationMs: 0 });
+  consume(instance, 1, { type: "turn_end", message: first.message });
+  const duplicateBefore = instance.snapshot().duplicateCheckpointCount;
   tick();
-  consume(instance, 1, {
+  consume(instance, 1, { type: "turn_start" });
+  const second = {
     type: "message_end",
     message: {
       role: "assistant",
-      stopReason: "tool_use",
+      stopReason: "toolUse",
       usage: { total: 1 },
       content: [
         { type: "thinking", thinking: "plan", signature: "sig-B-different-opaque" },
-        { type: "tool_call", toolCallId: "call-2-different-volatile-id", toolName: "read", arguments: { path: "PRIVATE" } },
+        { type: "toolCall", id: "call-2-different-volatile-id", name: "read", arguments: { path: "PRIVATE" } },
       ],
     },
-  });
+  };
+  consume(instance, 1, second);
+  assert.equal(instance.snapshot().duplicateCheckpointCount, duplicateBefore, "message credit remains deferred");
+  consume(instance, 1, { type: "tool_execution_start", toolCallId: "call-2-different-volatile-id", toolName: "read", args: { path: "PRIVATE" } });
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "call-2-different-volatile-id", result: { ok: true }, durationMs: 7 });
+  consume(instance, 1, { type: "turn_end", message: second.message });
   snapshot = instance.snapshot();
-  assert.equal(snapshot.duplicateCheckpointCount, 2);
+  assert.equal(snapshot.duplicateCheckpointCount, duplicateBefore + 3, "tool, deferred message, and turn stay duplicate");
   assert.doesNotMatch(JSON.stringify(snapshot), /PRIVATE|sig-B|call-2/);
 });
 
@@ -883,8 +899,8 @@ test("semantic assistant changes are novel checkpoints", () => {
     { stopReason: "length" },
     { content: [{ type: "text", text: "changed text" }] },
     { content: [{ type: "thinking", thinking: "changed thinking" }] },
-    { content: [{ type: "tool_call", toolName: "bash", arguments: { cmd: "ls" } }] },
-    { content: [{ type: "tool_call", toolName: "read", arguments: { path: "other" } }] },
+    { content: [{ type: "toolCall", name: "bash", arguments: { cmd: "ls" } }] },
+    { content: [{ type: "toolCall", name: "read", arguments: { path: "other" } }] },
   ];
   for (const change of semanticChanges) {
     const { monitor: instance, tick } = monitor();
@@ -896,11 +912,19 @@ test("semantic assistant changes are novel checkpoints", () => {
     });
     const before = instance.snapshot();
     tick();
-    consume(instance, 1, {
-      type: "message_end",
-      message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "same" }], ...change },
-    });
+    const message = { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "same" }], ...change };
+    consume(instance, 1, { type: "turn_start" });
+    consume(instance, 1, { type: "message_end", message });
+    if (message.content.some((item) => item.type === "toolCall")) {
+      consume(instance, 1, { type: "tool_execution_start", toolName: "read", args: {} });
+      consume(instance, 1, { type: "tool_execution_end", toolName: "read", durationMs: 0 });
+    }
+    const beforeTurn = instance.snapshot();
+    consume(instance, 1, { type: "turn_end", message });
     const after = instance.snapshot();
+    if (message.content.some((item) => item.type === "toolCall")) {
+      assert.equal(after.structuralProgressCount, beforeTurn.structuralProgressCount + 2, "deferred message and turn each earn credit");
+    }
     assert.ok(after.lastStructuralProgressMonotonic > before.lastStructuralProgressMonotonic, JSON.stringify(change));
   }
 });
@@ -913,7 +937,7 @@ test("tool checkpoints ignore volatile call ids and react to semantic changes", 
   for (const id of ["call-1", "call-2"]) {
     tick();
     consume(instance, 1, { type: "tool_execution_start", toolCallId: id, toolName: "read", args: { path: "PRIVATE" } });
-    consume(instance, 1, { type: "tool_execution_end", toolCallId: id, toolName: "read", result: { ok: true } });
+    consume(instance, 1, { type: "tool_execution_end", toolCallId: id, toolName: "read", result: { ok: true }, durationMs: id === "call-1" ? 0 : 27 });
   }
   let snapshot = instance.snapshot();
   assert.equal(snapshot.duplicateCheckpointCount, 1);
@@ -922,7 +946,7 @@ test("tool checkpoints ignore volatile call ids and react to semantic changes", 
   // completed calls with no ids at all stay duplicates.
   tick();
   consume(instance, 1, { type: "tool_execution_start", toolName: "read", args: { path: "PRIVATE" } });
-  consume(instance, 1, { type: "tool_execution_end", toolName: "read", result: { ok: true } });
+  consume(instance, 1, { type: "tool_execution_end", toolName: "read", result: { ok: true }, durationMs: 4 });
   snapshot = instance.snapshot();
   assert.equal(snapshot.duplicateCheckpointCount, 2);
   assert.equal(snapshot.lastStructuralProgressMonotonic, duplicateAt);
@@ -937,7 +961,7 @@ test("tool checkpoints ignore volatile call ids and react to semantic changes", 
     const before = instance.snapshot();
     tick();
     consume(instance, 1, { type: "tool_execution_start", ...start });
-    consume(instance, 1, { type: "tool_execution_end", ...end });
+    consume(instance, 1, { type: "tool_execution_end", durationMs: 0, ...end });
     assert.ok(
       instance.snapshot().lastStructuralProgressMonotonic > before.lastStructuralProgressMonotonic,
       JSON.stringify(start),
@@ -946,13 +970,71 @@ test("tool checkpoints ignore volatile call ids and react to semantic changes", 
   assert.doesNotMatch(JSON.stringify(instance.snapshot()), /PRIVATE|OTHER/);
 });
 
+test("absent or invalid execution duration cannot credit a matching rejected call or its report", () => {
+  for (const durationMs of [undefined, null, "0", -1, NaN, Infinity]) {
+    const { monitor: instance, tick } = monitor();
+    instance.acceptPrompt(1);
+    consume(instance, 1, { type: "agent_start" });
+    consume(instance, 1, { type: "turn_start" });
+    const message = {
+      role: "assistant", stopReason: "stop", content: [
+        { type: "text", text: "DELEGATE_RESULT: COMPLETED" },
+        { type: "toolCall", id: "rejected", name: "write", arguments: { private: "PRIVATE-REJECTED-ARG" } },
+      ],
+    };
+    const baseline = instance.snapshot();
+    consume(instance, 1, { type: "message_end", message });
+    consume(instance, 1, { type: "tool_execution_start", toolCallId: "rejected", toolName: "write", args: { private: "PRIVATE-REJECTED-ARG" } });
+    assert.equal(instance.snapshot().activeToolCount, 1);
+    assert.equal(instance.snapshot().toolExecutionCount, 0);
+    tick();
+    consume(instance, 1, { type: "tool_execution_end", toolCallId: "rejected", durationMs, isError: false, result: "PRIVATE-REJECTED-RESULT" });
+    consume(instance, 1, { type: "turn_end", message });
+    consume(instance, 1, { type: "agent_end", willRetry: false });
+    consume(instance, 1, { type: "agent_settled" });
+    const after = instance.snapshot();
+    assert.equal(after.toolExecutionCount, 0);
+    assert.equal(after.activeToolCount, 0);
+    assert.equal(after.structuralProgressCount, baseline.structuralProgressCount);
+    assert.equal(after.lastStructuralProgressMonotonic, baseline.lastStructuralProgressMonotonic);
+    assert.equal(after.outcome, undefined);
+    assert.equal(after.finalReport, undefined);
+    assert.equal(instance.classifyRound(1), "missing_report");
+    assert.deepEqual(after.errors, []);
+    assert.doesNotMatch(JSON.stringify(instance), /PRIVATE-REJECTED/);
+  }
+});
+
+test("a tool-bearing report stays unavailable until every call has a matching outcome", () => {
+  const { monitor: instance } = monitor();
+  instance.acceptPrompt(1);
+  consume(instance, 1, { type: "agent_start" });
+  consume(instance, 1, { type: "turn_start" });
+  const message = {
+    role: "assistant", stopReason: "stop", content: [
+      { type: "text", text: "DELEGATE_RESULT: COMPLETED" },
+      { type: "toolCall", id: "one", name: "read", arguments: {} },
+      { type: "toolCall", id: "two", name: "read", arguments: {} },
+    ],
+  };
+  consume(instance, 1, { type: "message_end", message });
+  consume(instance, 1, { type: "tool_execution_start", toolCallId: "one", toolName: "read", args: {} });
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "one", durationMs: 0 });
+  const beforeTurn = instance.snapshot();
+  consume(instance, 1, { type: "turn_end", message });
+  assert.equal(instance.snapshot().outcome, undefined);
+  assert.equal(instance.snapshot().finalReport, undefined);
+  assert.equal(instance.snapshot().toolExecutionCount, 1, "the valid sibling stays counted");
+  assert.equal(instance.snapshot().structuralProgressCount, beforeTurn.structuralProgressCount + 1, "only the enclosing valid-tool summary earns credit");
+});
+
 test("wide, compact-numeric, multibyte, and near-limit payloads digest boundedly without novelty", () => {
-  const payloadMessage = (payload: unknown): Record<string, unknown> => ({
+  const payloadMessage = (payload: unknown, id: string): Record<string, unknown> => ({
     type: "message_end",
     message: {
       role: "assistant",
-      stopReason: "stop",
-      content: [{ type: "text", text: "cover" }, { type: "tool_call", toolName: "bash", arguments: payload }],
+      stopReason: "toolUse",
+      content: [{ type: "text", text: "cover" }, { type: "toolCall", id, name: "bash", arguments: payload }],
     },
   });
   const adversarial = [
@@ -970,29 +1052,60 @@ test("wide, compact-numeric, multibyte, and near-limit payloads digest boundedly
     // Deep nesting past the depth cap.
     { deep: nest(64) },
   ];
-  for (const payload of adversarial) {
+  const control = { small: true };
+  for (const payload of [control, ...adversarial]) {
     const { monitor: instance, tick } = monitor();
+    const messageCredit = payload === control ? 1 : 0;
+    let argumentReads = 0;
+    // Observe real traversal without replacing the digest or retaining its input.
+    const args = { get payload() { argumentReads += 1; return payload; } };
     instance.acceptPrompt(1);
     consume(instance, 1, { type: "agent_start" });
-    const baseline = instance.snapshot();
+    for (let repetition = 0; repetition < 2; repetition += 1) {
+      const toolCallId = `call-${repetition}`;
+      const event = payloadMessage(args, toolCallId);
+      const baseline = instance.snapshot();
+      tick();
+      consume(instance, 1, { type: "turn_start" });
+      consume(instance, 1, event);
+      consume(instance, 1, { type: "tool_execution_start", toolCallId, toolName: "bash", args });
+      consume(instance, 1, { type: "tool_execution_end", toolCallId, toolName: "bash", result: { ok: true }, durationMs: repetition });
+      const beforeTurn = instance.snapshot();
+      const beforeTurnReads = argumentReads;
+      tick();
+      consume(instance, 1, { type: "turn_end", message: event.message });
+      const snapshot = instance.snapshot();
+      assert.ok(argumentReads > beforeTurnReads, "message arguments must actually reach digestion at turn end");
+      assert.equal(snapshot.toolExecutionCount, repetition + 1);
+      assert.equal(snapshot.activeToolCount, 0);
+      assert.deepEqual(snapshot.errors, []);
+      // Tool-end credit is separate from the deferred message and turn summary.
+      assert.equal(beforeTurn.structuralProgressCount - baseline.structuralProgressCount, repetition === 0 ? messageCredit : 0);
+      assert.equal(beforeTurn.duplicateCheckpointCount - baseline.duplicateCheckpointCount, repetition * messageCredit);
+      if (repetition === 0) {
+        assert.equal(snapshot.structuralProgressCount - beforeTurn.structuralProgressCount, messageCredit + 1, "message plus legitimate turn summary");
+        assert.equal(snapshot.duplicateCheckpointCount, beforeTurn.duplicateCheckpointCount);
+        assert.ok(snapshot.lastStructuralProgressMonotonic > beforeTurn.lastStructuralProgressMonotonic);
+      } else {
+        // Oversized messages add no duplicate; only their turn summary repeats.
+        assert.equal(snapshot.structuralProgressCount, beforeTurn.structuralProgressCount);
+        assert.equal(snapshot.duplicateCheckpointCount - beforeTurn.duplicateCheckpointCount, messageCredit + 1, "message duplicates stay separate from summary duplicates");
+        assert.equal(snapshot.lastStructuralProgressMonotonic, beforeTurn.lastStructuralProgressMonotonic);
+      }
+    }
+    // A later valid message still digests normally after an over-budget one.
+    const beforeRecovery = instance.snapshot();
     tick();
-    consume(instance, 1, payloadMessage(payload));
-    let snapshot = instance.snapshot();
-    // Over-budget digestion earns no structural novelty and no duplicate count.
-    assert.equal(snapshot.lastStructuralProgressMonotonic, baseline.lastStructuralProgressMonotonic);
-    assert.equal(snapshot.structuralProgressCount, baseline.structuralProgressCount);
-    assert.equal(snapshot.duplicateCheckpointCount, 0);
-    // A second identical over-budget payload still earns nothing: it never
-    // becomes a duplicate and never renews.
-    tick();
-    consume(instance, 1, payloadMessage(payload));
-    snapshot = instance.snapshot();
-    assert.equal(snapshot.lastStructuralProgressMonotonic, baseline.lastStructuralProgressMonotonic);
-    assert.equal(snapshot.duplicateCheckpointCount, 0);
-    // A later semantic payload still digests normally after the over-budget one.
-    tick();
-    consume(instance, 1, assistant("still digests"));
-    assert.ok(instance.snapshot().lastStructuralProgressMonotonic > baseline.lastStructuralProgressMonotonic);
+    consume(instance, 1, { type: "turn_start" });
+    const recovery = assistant("still digests");
+    consume(instance, 1, recovery);
+    const recovered = instance.snapshot();
+    assert.equal(recovered.structuralProgressCount, beforeRecovery.structuralProgressCount + 1);
+    assert.equal(recovered.duplicateCheckpointCount, beforeRecovery.duplicateCheckpointCount);
+    assert.ok(recovered.lastStructuralProgressMonotonic > beforeRecovery.lastStructuralProgressMonotonic);
+    consume(instance, 1, { type: "turn_end", message: recovery.message });
+    assert.equal(instance.snapshot().structuralProgressCount, recovered.structuralProgressCount + 1);
+    assert.deepEqual(instance.snapshot().errors, []);
   }
   function nest(depth: number): unknown {
     let value: unknown = { leaf: true };
@@ -1231,7 +1344,7 @@ test("bash novelty still uses full argument digests, not the retained command pr
     tick();
     consume(instance, 1, { type: "tool_execution_start", toolCallId: String(index), toolName: "bash", args: { command: prefix + suffix } });
     assert.equal(instance.snapshot().activeBashCommand?.text, prefix);
-    consume(instance, 1, { type: "tool_execution_end", toolCallId: String(index), result: { ok: true } });
+    consume(instance, 1, { type: "tool_execution_end", toolCallId: String(index), result: { ok: true }, durationMs: 0 });
     assert.equal(instance.snapshot().structuralProgressCount, index === 0 ? 2 : index + 1);
   }
   assert.equal(instance.snapshot().duplicateCheckpointCount, 1);
@@ -1530,7 +1643,7 @@ test("tool start arguments are digested once at start and never retained raw", (
   assert.equal(reads, 1, "args are read exactly once for the start digest");
   const before = instance.snapshot();
   tick();
-  consume(instance, 1, { type: "tool_execution_end", toolCallId: "t", toolName: "read", result: { ok: true } });
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "t", toolName: "read", result: { ok: true }, durationMs: 0 });
   assert.equal(reads, 1, "the end reuses the stored digest, never the raw args");
   const snapshot = instance.snapshot();
   assert.equal(snapshot.activeToolCount, 0);
@@ -1539,7 +1652,7 @@ test("tool start arguments are digested once at start and never retained raw", (
   // A second identical call under a fresh id keeps the same digest identity:
   // the semantic duplicate is detected without any args retention.
   consume(instance, 1, { type: "tool_execution_start", toolCallId: "t2", toolName: "read", args: { path: "PRIVATE-ARGS" } });
-  consume(instance, 1, { type: "tool_execution_end", toolCallId: "t2", toolName: "read", result: { ok: true } });
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "t2", toolName: "read", result: { ok: true }, durationMs: 0 });
   assert.equal(instance.snapshot().duplicateCheckpointCount, 1);
 });
 
@@ -1555,7 +1668,7 @@ test("an active tool with unavailable args digestion earns no structural novelty
     toolName: "bash",
     args: { huge: "x".repeat(8 * 1024 * 1024 - 512) },
   });
-  consume(instance, 1, { type: "tool_execution_end", toolCallId: "t", toolName: "bash", result: { ok: true } });
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "t", toolName: "bash", result: { ok: true }, durationMs: 0 });
   const snapshot = instance.snapshot();
   // The over-budget args digest is unavailable, so the completed tool earns
   // no structural novelty and no duplicate count; the tool is still removed.
@@ -1577,7 +1690,7 @@ test("64 maximum-length tool-call ids stay accepted and the 65th start keeps the
   }
   const capped = instance.snapshot();
   assert.equal(capped.activeToolCount, 64);
-  assert.equal(capped.toolExecutionCount, 64);
+  assert.equal(capped.toolExecutionCount, 0, "active starts are not completed executions");
   assert.equal(capped.errors.length, 0);
   tick();
   consume(instance, 1, { type: "tool_execution_start", toolCallId: id(64), toolName: "bash", args: {} });
@@ -1585,7 +1698,7 @@ test("64 maximum-length tool-call ids stay accepted and the 65th start keeps the
   assert.equal(instance.classifyRound(1), "invalid_stream");
   assert.ok(snapshot.errors.includes("too_many_active_tools"));
   assert.equal(snapshot.activeToolCount, 64, "the rejected start is never inserted");
-  assert.equal(snapshot.toolExecutionCount, 64, "the rejected start earns no tool count");
+  assert.equal(snapshot.toolExecutionCount, 0, "the rejected start earns no tool count");
   assert.equal(snapshot.lastActivityMonotonic, capped.lastActivityMonotonic, "no activity credit");
   assert.equal(snapshot.lastStructuralProgressMonotonic, capped.lastStructuralProgressMonotonic, "no progress credit");
 });
@@ -1599,14 +1712,14 @@ test("the 65th concurrent unique tool start is a bounded stream error before any
   }
   const capped = instance.snapshot();
   assert.equal(capped.activeToolCount, 64);
-  assert.equal(capped.toolExecutionCount, 64);
+  assert.equal(capped.toolExecutionCount, 0);
   tick();
   consume(instance, 1, { type: "tool_execution_start", toolCallId: "t65", toolName: "bash", args: {} });
   const snapshot = instance.snapshot();
   assert.equal(instance.classifyRound(1), "invalid_stream");
   assert.ok(snapshot.errors.includes("too_many_active_tools"));
   assert.equal(snapshot.activeToolCount, 64, "the rejected start is never inserted");
-  assert.equal(snapshot.toolExecutionCount, 64, "the rejected start earns no tool count");
+  assert.equal(snapshot.toolExecutionCount, 0, "the rejected start earns no tool count");
   assert.equal(snapshot.lastActivityMonotonic, capped.lastActivityMonotonic, "no activity credit");
   assert.equal(snapshot.lastStructuralProgressMonotonic, capped.lastStructuralProgressMonotonic, "no progress credit");
 });
@@ -1656,7 +1769,7 @@ test("an anonymous unallowlisted update or end cannot touch an anonymous allowli
     assert.ok(snapshot.errors.includes(expectedError), unmatched.type);
     assert.equal(snapshot.activeToolCount, 1, `the allowlisted tool stays active (${unmatched.type})`);
     assert.equal(snapshot.activeToolName, "bash", unmatched.type);
-    assert.equal(snapshot.toolExecutionCount, 1, `no tool count credit (${unmatched.type})`);
+    assert.equal(snapshot.toolExecutionCount, 0, `no tool count credit (${unmatched.type})`);
     assert.equal(snapshot.lastActivityMonotonic, before.lastActivityMonotonic, `no activity credit (${unmatched.type})`);
     assert.equal(snapshot.activeToolLastNovelUpdateMonotonic, before.activeToolLastNovelUpdateMonotonic, `no tool novelty renewal (${unmatched.type})`);
     assert.equal(snapshot.lastStructuralProgressMonotonic, before.lastStructuralProgressMonotonic, `no structural credit (${unmatched.type})`);
@@ -1751,7 +1864,7 @@ test("tool execution update and end events are also rejected in the recovery rou
     const snapshot = instance.snapshot();
     assert.equal(instance.classifyRound(2), "invalid_stream", event.type);
     assert.ok(snapshot.errors.includes("tool_execution_in_recovery_round"), event.type);
-    assert.equal(snapshot.toolExecutionCount, 1);
+    assert.equal(snapshot.toolExecutionCount, 0);
     assert.equal(snapshot.activeToolCount, 1);
     assert.equal(snapshot.activeToolLastNovelUpdateMonotonic, before.activeToolLastNovelUpdateMonotonic, event.type);
     assert.equal(snapshot.lastActivityMonotonic, before.lastActivityMonotonic, event.type);
@@ -1771,7 +1884,7 @@ test("message_update toolcall events are rejected in the recovery round for all 
     instance.acceptPrompt(1);
     consume(instance, 1, { type: "agent_start" });
     consume(instance, 1, { type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: {} });
-    consume(instance, 1, { type: "tool_execution_end", toolCallId: "r1", toolName: "read", result: { ok: true } });
+    consume(instance, 1, { type: "tool_execution_end", toolCallId: "r1", toolName: "read", result: { ok: true }, durationMs: 0 });
     consume(instance, 1, { type: "agent_end", willRetry: false });
     consume(instance, 1, { type: "agent_settled" });
     instance.acceptPrompt(2);
@@ -1844,7 +1957,7 @@ test("a completed web_code_search checkpoint stays distinct from an unallowliste
   consume(instance, 1, { type: "tool_execution_start", toolCallId: "w1", toolName: "web_code_search", args });
   assert.equal(instance.snapshot().activeToolName, "web_code_search");
   const beforeFirstEnd = instance.snapshot();
-  consume(instance, 1, { type: "tool_execution_end", toolCallId: "w1", toolName: "web_code_search", result });
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "w1", toolName: "web_code_search", result, durationMs: 0 });
   assert.ok(instance.snapshot().lastStructuralProgressMonotonic > beforeFirstEnd.lastStructuralProgressMonotonic);
 
   // An unallowlisted name with identical args and result maps to the fixed
@@ -1854,7 +1967,7 @@ test("a completed web_code_search checkpoint stays distinct from an unallowliste
   consume(instance, 1, { type: "tool_execution_start", toolCallId: "u", toolName: "not-a-real-tool", args });
   assert.equal(instance.snapshot().activeToolName, "unknown");
   const beforeUnknownEnd = instance.snapshot();
-  consume(instance, 1, { type: "tool_execution_end", toolCallId: "u", toolName: "not-a-real-tool", result });
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "u", toolName: "not-a-real-tool", result, durationMs: 0 });
   const afterUnknown = instance.snapshot();
   assert.ok(
     afterUnknown.lastStructuralProgressMonotonic > beforeUnknownEnd.lastStructuralProgressMonotonic,
@@ -1867,7 +1980,7 @@ test("a completed web_code_search checkpoint stays distinct from an unallowliste
   tick();
   consume(instance, 1, { type: "tool_execution_start", toolCallId: "w2", toolName: "web_code_search", args });
   const beforeRepeatEnd = instance.snapshot();
-  consume(instance, 1, { type: "tool_execution_end", toolCallId: "w2", toolName: "web_code_search", result });
+  consume(instance, 1, { type: "tool_execution_end", toolCallId: "w2", toolName: "web_code_search", result, durationMs: 0 });
   const after = instance.snapshot();
   assert.equal(after.lastStructuralProgressMonotonic, beforeRepeatEnd.lastStructuralProgressMonotonic, "the repeat renews nothing");
   assert.equal(after.duplicateCheckpointCount, 1);
@@ -1923,7 +2036,7 @@ test("a no-ID update or end never matches an ID-backed tool of the same name", (
     // No activity, tool, or structural credit, and the tool stays active.
     assert.equal(snapshot.activeToolCount, 1, unmatched.type);
     assert.equal(snapshot.activeToolName, "bash", unmatched.type);
-    assert.equal(snapshot.toolExecutionCount, 1, unmatched.type);
+    assert.equal(snapshot.toolExecutionCount, 0, unmatched.type);
     assert.equal(snapshot.activityEventCount, before.activityEventCount, unmatched.type);
     assert.equal(snapshot.lastActivityMonotonic, before.lastActivityMonotonic, unmatched.type);
     assert.equal(snapshot.activeToolLastNovelUpdateMonotonic, before.activeToolLastNovelUpdateMonotonic, unmatched.type);

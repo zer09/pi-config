@@ -391,7 +391,7 @@ test("uses Pi RPC arguments and one prompt for normal success", async () => {
     { type: "agent_start" },
     { type: "message_update", assistantMessageEvent: { type: "thinking_delta", delta: "PRIVATE_THOUGHT" } },
     { type: "tool_execution_start", toolCallId: "1", toolName: "read", args: { path: "PRIVATE_PATH" } },
-    { type: "tool_execution_end", toolCallId: "1", toolName: "read", result: { content: "PRIVATE_RESULT" } },
+    { type: "tool_execution_end", toolCallId: "1", toolName: "read", result: { content: "PRIVATE_RESULT" }, durationMs: 0 },
     ...completed().slice(1),
   ];
   const { status, root, attemptDir } = await run(eventScript([events]));
@@ -547,6 +547,7 @@ test("provider failure after a tool remains provider_failed and records work", a
   const events = [
     { type: "agent_start" },
     { type: "tool_execution_start", toolCallId: "1", toolName: "read", args: { path: "PRIVATE" } },
+    { type: "tool_execution_end", toolCallId: "1", toolName: "read", result: {}, durationMs: 0 },
     { type: "message_update", assistantMessageEvent: { type: "error" } },
     { type: "agent_end", willRetry: false },
     { type: "agent_settled" },
@@ -1650,7 +1651,7 @@ setInterval(() => {}, 1000);
     assert.ok(status.streamErrors.includes(expectedError), poison.type);
     assert.equal(status.activeToolCount, 1, poison.type);
     assert.equal(status.activeToolName, "ctx_batch_execute", poison.type);
-    assert.equal(status.toolExecutionCount, 1, poison.type);
+    assert.equal(status.toolExecutionCount, 0, poison.type);
     assert.equal(status.lastEvent, "tool_execution_start", poison.type);
   }
 });
@@ -2139,7 +2140,7 @@ test("recovery-round tool lifecycle events terminate as invalid_stream for all t
   const round1 = [
     { type: "agent_start" },
     { type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: { path: "PRIVATE" } },
-    { type: "tool_execution_end", toolCallId: "r1", toolName: "read", result: { ok: true } },
+    { type: "tool_execution_end", toolCallId: "r1", toolName: "read", result: { ok: true }, durationMs: 0 },
     { type: "agent_end", willRetry: false },
     { type: "agent_settled" },
   ];
@@ -2218,7 +2219,7 @@ setInterval(() => {}, 1000);
     assert.equal(status.state, "invalid_stream", label);
     assert.ok(status.streamErrors.includes("rpc_tool_call_id_too_long"), `${label}: ${JSON.stringify(status.streamErrors)}`);
     assert.equal(status.activeToolCount, activeTools, label);
-    assert.equal(status.toolExecutionCount, activeTools, label);
+    assert.equal(status.toolExecutionCount, 0, label);
     assert.ok(
       status.rpcIdleSeconds >= 0.3,
       `${label}: rpc idle ${status.rpcIdleSeconds}s must include the pre-error gap`,
@@ -2258,7 +2259,7 @@ test("recovery-round streamed toolcall events terminate as invalid_stream for al
   const round1 = [
     { type: "agent_start" },
     { type: "tool_execution_start", toolCallId: "r1", toolName: "read", args: { path: "PRIVATE" } },
-    { type: "tool_execution_end", toolCallId: "r1", toolName: "read", result: { ok: true } },
+    { type: "tool_execution_end", toolCallId: "r1", toolName: "read", result: { ok: true }, durationMs: 0 },
     { type: "agent_end", willRetry: false },
     { type: "agent_settled" },
   ];

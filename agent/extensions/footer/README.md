@@ -8,7 +8,7 @@ Custom Pi footer extension for a compact local status line.
 - Node.js runtime used by Pi.
 - A Nerd Font configured in your terminal. Timer, queue, MCP status, agentmemory status, and experimental-feature indicators use Nerd Font glyphs.
   - Timer glyphs use `\uf017` while running and `\uf00c` after completion, with `4.1s` under a minute and `m:ss` after.
-  - Queued follow-ups use `\uf46c 1`.
+  - Pending work uses `\uf46c queued`.
   - Experimental Pi features use a red `\uf00d` marker when `PI_EXPERIMENTAL=1`.
   - Thinking uses Unicode-only shapes for every level: `○` off, `·` minimal, `◦` low, `◇` medium, `◆` high, `●` xhigh, and `✦` max.
   - When the local `fastlane` extension reports active state, the thinking glyph is repeated three times, for example `●●●`. No `fast` text indicator is shown.
@@ -25,14 +25,14 @@ Enabled segments are fixed in code:
 - extension statuses
 - notification-only `? waiting` state for blocking extension UI prompts
 - prompt timer
-- queued follow-up count
+- pending-work indicator
 - token totals and latest cache-hit rate
 - context-window usage
 - model name
 - thinking glyph
 - experimental marker when `PI_EXPERIMENTAL=1`
 
-Narrow terminals use compact layouts before falling back to truncation: cwd basename, percent-only context, and shortened model names. Compact layout hides token totals and queued follow-up count first. Minimal layout keeps model, context usage, and thinking level while hiding waiting state, prompt timer, queued follow-up count, and token totals.
+Narrow terminals use compact layouts before falling back to truncation: cwd basename, percent-only context, and shortened model names. Compact layout hides token totals and the pending-work indicator first. Minimal layout keeps model, context usage, and thinking level while hiding waiting state, prompt timer, the pending-work indicator, and token totals.
 
 Canonical Codex labels remain `codex/Sol` in full or compact layouts and `Sol` in minimal layouts.
 Valid Codex aliases retain account identity in every layout.
@@ -72,7 +72,10 @@ After adding or editing formatter files, run `/reload` in Pi.
 
 - Git branches stay compact but add useful state when available: `(main*)`, `(main +2)`, `(main -1)`, or `(main +2/-1*)`.
 - Git status is cached and refreshed asynchronously with a short TTL, so footer rendering does not run `git status` directly or block on slow repositories.
-- The prompt timer stops on Pi's session-level `agent_settled` event, after retries, compactions, and queued continuations drain; low-level `agent_end` events do not stop it.
+- One wall-clock timer runs from the initial user start through Pi's session-level `agent_settled`, including retries, compactions, and queued work. Interactive submission and prompt expansion time are included. Low-level `agent_end` events do not stop it.
+- The full layout shows `\uf46c queued` only when Pi's public `ctx.hasPendingMessages()` reports pending work. The indicator does not claim an exact count. Input awaiting admission is not yet queued. Dequeue and delivery hide the indicator when Pi has no pending work, without restarting the timer.
+- Custom starts do not consume pending user timing. A custom-only run has no user timer, and queued deliveries during custom work do not start one. Custom work preserves the last completed user duration.
+- Settlement preserves the last duration. A bare SDK abort that retains pending work also retains the queue indicator. The footer stores no local queue count or provisional queue records.
 - Pi 0.84.4+ `ui_prompt_start` / `ui_prompt_end` events set and clear `? waiting`. The state stores no prompt title or text, does not pause the wall-clock timer, does not imply `agent_settled`, and clears on session shutdown.
 - When Pi experimental features are enabled with `PI_EXPERIMENTAL=1`, footer shows a red Nerd Font `\uf00d` marker at the end of the footer.
 

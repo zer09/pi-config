@@ -173,7 +173,7 @@ if (args.includes("--list-models")) {
       if (behavior === "output") { process.stdout.write("x".repeat(20000)); continue; }
       if (behavior === "tools-provider" || behavior === "active-provider") {
         emit({ type: "tool_execution_start", toolCallId: "work", toolName: "bash", args: { command: "TOOL-PRIVATE-SENTINEL" } });
-        if (behavior === "tools-provider") emit({ type: "tool_execution_end", toolCallId: "work", toolName: "bash", result: {}, isError: false });
+        if (behavior === "tools-provider") emit({ type: "tool_execution_end", toolCallId: "work", toolName: "bash", result: {}, isError: false, durationMs: 0 });
       }
       if (behavior.endsWith("provider") && (behavior !== "recover-provider" || round === 2)) {
         emit({ type: "message_update", assistantMessageEvent: { type: "error", errorMessage: "503 PROVIDER-PRIVATE-SENTINEL" }, padding: "x".repeat(settings.padding ?? 0) });
