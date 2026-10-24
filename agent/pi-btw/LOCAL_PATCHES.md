@@ -1,5 +1,11 @@
 # Local pi-btw patches
 
+## C2 combined preparation: 0.8.0, not deployed
+
+The fresh isolated C2 graph retains the unchanged `reapply-model-runtime-patch-0.8.0.mjs` helper. Its only production change passes `{ signal: ctx.signal }` into runtime credential synchronization. The helper runs on verified TMPDIR source, never directly on an installation.
+
+C2 passes six guarded/cancellation/default-resource checks, six history/lifecycle/restart checks, and the available upstream stock and patched suites, 173 tests each. The restart proof uses two actual offline Pi CLI processes with synthetic sessions and fake providers. SSH and child-extension features remain inactive in production. Exact commands, source identities and corrected runner diagnostics are in `RUN/reports/increment-c2/`. No live repair or deployment is recorded here.
+
 ## Pi 1.4.0: isolated `pi-btw@0.8.0` candidate, not deployed
 
 Increment C selects exactly 0.8.0 from 0.7.1. The captured registry latest is 0.8.0. The verified archive SRI is `sha512-vOelcQM1l2CjBPVfa6oBs4vgd11t4sZ+VqE5KCVjEPkKWbW3Qn7iS5bHWFFrf53r7nsC5WRvqlWWx7ZR6MdSKA==`. All eight published files match official tag `v0.8.0`, commit `2bf85893c3755a09e987ce23468757d82bc20e16`. There are no runtime dependencies or install lifecycle scripts.

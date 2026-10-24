@@ -2,7 +2,29 @@
 
 These notes track local changes made under `~/.pi/agent/npm/node_modules/pi-blackhole/`. Package upgrades or reinstalls can overwrite those files, so re-check this file after every `pi-blackhole` upgrade.
 
-## Pi 1.4.0 preparation: retain `pi-blackhole@0.5.13`, not deployed
+## C2 combined preparation: 0.5.15, not deployed
+
+The candidate now pins 0.5.15. A fresh scripts-disabled offline `npm ci` reconstructs the selected Pi 1.4.0 graph under `RUN/reports/increment-c2/target/agent/npm`. The supported Pi installer preserves settings filters and manifest/lock bytes. The reviewed three-helper chain runs only on fresh canonical TMPDIR extractions; complete verified package bytes are then copied into that isolated cache.
+
+The C2 graph passes all 52 focused tests and three strict checks, including B1 custom-message capacity, 396 no-edit cut/cancellation comparisons, actual source discovery, lifecycle and summary ownership. With Bridge present, Blackhole owns its summary and makes zero Bridge SDK requests. Raw history, recall, OM ownership, quiet configuration and fixed worker budgets remain unchanged. Upstream memory behavior remains accepted; the inherited `showPreCompactionMessage` loader limitation remains unrepaired.
+
+Commands, fingerprints, corrected fixture failures and the explicit-target offline smoke entrypoint are in `RUN/reports/increment-c2/`. C2 is isolated preparation, not a record of live installation or current-session activation. Historical preparation evidence below remains unchanged.
+
+## Pi 1.4.0 / Blackhole 0.5.15 isolated preparation, not deployed
+
+Increment B's three-helper 0.5.15 preparation chain includes the verified B1 capacity remediation. This is preparation, not deployment. It does not select or install that version in user settings or the active package graph. The accepted percentage/header helpers and their behavior/worker tests remain byte-identical. Historical helpers and existing configuration remain unchanged.
+
+Use the SRI-verified `pi-blackhole@0.5.15` archive with SHA-256 `b3c25b2e4d4b7970313a09ac4fa9c2a6c907dddaf88848c774cd2513f2d1d397`. Apply `reapply-compact-after-percent-patch-0.5.15.mjs`, `reapply-nullable-provider-headers-patch-0.5.15.mjs`, then `reapply-context-edit-compaction-patch-0.5.15.mjs` to an explicit canonical extracted package under a disposable `TMPDIR`. Never target the repository or an installed `node_modules` tree. The helpers preflight exact prerequisites, version, source, links and patch state. Clean reinstall reproduces all patched bytes. Repeated application preserves bytes and mtimes. The manifest selects patched `./index.ts`; `dist/index.js` remains stock. Preflight is not an atomic transaction.
+
+The context helper changes only the 0.5.15 hook. Normal and unobserved fresh summaries remain message-only. The separate pressure/final capacity view honors canonical active custom-message omissions and replacements. Omitted custom entries keep zero-content anchors with original IDs/order. It preserves source identity/ref alignment, raw history/recall, previous summaries, OM ownership and tool pairing. It retains stock no-edit cuts/cancellations and the new minimal split-turn behavior. It does not restore the old hook or add a fourth repair. New upstream supersession, deterministic decision capture and reflection timestamps remain unchanged.
+
+Repaired hook SHA-256: `b9f771eb57d8d0580ced08553a5241d72c478f9b0632db21e8b0873381fdc823`. Context helper SHA-256: `6d3b7a30473eb5f2a697544203c3f3991da36b038c77426fb3cbb5b367368da8`. Stock hook remains `8bf4a1eeb40fe2016b911aaa1b0f178d9a53da594644bbe0f7e69cdf0e83afaa`. The prior hook `6dbbf1f056cc828d5b154141d42f5ff0243ecee60628b374856faf3cd8ea07e1` is superseded, not a deployment source.
+
+The repaired complete-chain suite passes 52 tests: 10 guards, 8 context groups, 4 lifecycle fixtures, 5 percentage/config tests and 25 fake worker-transport tests. Strict stock, patched and nullable-header contract checks pass against Pi 1.4.0 with zero diagnostics. Context tests retain 396 stock cut/cancel comparisons plus projected and stock pressure/append capacity checks. B1's public Pi omission/growth matrix now has zero mismatches across eight combinations and eight passing no-edit controls, versus eight historical mismatches. Custom content stays excluded from fresh summaries. Boundary anchors, latest/off-branch edits and raw history/ID/ledger preservation pass. Unobserved and pressure settings are synthetic test inputs only. The inherited `showPreCompactionMessage` loader limitation remains, without a repair.
+
+See [the context port notes](CONTEXT_EDIT_PATCH.md) and `/home/gc/worktree/pi-extensions-1.4.0-iZ3kXz/reports/increment-b/remediation-b1/handoff.md` for current hashes, fresh roots, exact commands, corrected fixture failures and limits. Pre-remediation B roots/logs remain historical evidence; the earlier B handoff's completion claim did not cover B1. A evidence remains under `reports/increment-a`; its two-patch roots are not complete deployment sources. All-package reconciliation, combined acceptance and live deployment are deferred.
+
+## Earlier Pi 1.4.0 preparation: retain `pi-blackhole@0.5.13`, not deployed
 
 The isolated candidate retains 0.5.13 and all three existing helpers in the documented order. Latest 0.5.15 changes tail/projection/supersession behavior and would require patch redesign. No fourth patch or native `compactAfterRatio` substitution was added.
 

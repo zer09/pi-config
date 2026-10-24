@@ -1,6 +1,25 @@
 # Local context-edit compaction repair
 
-## Current isolated port: Blackhole 0.5.12 with Pi 1.1.0
+## Current isolated preparation: Blackhole 0.5.15 with Pi 1.4.0
+
+The three `-0.5.15.mjs` helpers are isolated preparation, not a live deployment. Settings, package pins and configuration bytes remain unchanged. Apply percentage, nullable-header and context-edit helpers in that order to an explicit canonical disposable extraction under `TMPDIR`. The helpers refuse repository, `node_modules`, linked, shared, wrong-version, drifted and partial targets before writing. The manifest selects patched `./index.ts`; the published bundle remains stock.
+
+The context helper changes only `src/hooks/before-compact.ts`. It applies the public Pi projection to normal and early unobserved fresh-summary inputs. Fresh summaries remain message-only. The separate capacity view also applies selected active custom-message omissions and replacements. Omitted custom entries retain their raw IDs/order as zero-content anchors so tail slicing and pressure cuts remain valid. Raw branch entries still own source IDs, references, recall, coverage and OM ledger operations. Previous summaries and existing OM content are not redacted. No-edit cuts retain stock 0.5.15 behavior, including its later minimal split-turn cut.
+
+Hook SHA-256 values:
+
+- Stock: `8bf4a1eeb40fe2016b911aaa1b0f178d9a53da594644bbe0f7e69cdf0e83afaa`
+- Repaired patched hook: `b9f771eb57d8d0580ced08553a5241d72c478f9b0632db21e8b0873381fdc823`
+- Repaired context helper: `6d3b7a30473eb5f2a697544203c3f3991da36b038c77426fb3cbb5b367368da8`
+- Superseded pre-remediation hook: `6dbbf1f056cc828d5b154141d42f5ff0243ecee60628b374856faf3cd8ea07e1`
+
+The repaired focused complete-chain suite passes 52 tests and three strict typechecks against exact Pi 1.4.0. The eight context groups include 396 stock cut/cancel comparisons, active/latest/off-branch edits, omitted boundaries, actual fresh summaries and append segments, source-index gaps, conversion drops, tool pairing, raw synthetic JSONL/recall, previous summaries and OM preservation. Pressure tests exercise three bridges, twelve cancellations and three preferred-tail results. The four adapted historical settled/queued/replacement/shutdown fixtures retain their lifecycle assertions.
+
+B1 remediation corrects the earlier capacity view, which left custom messages raw. Public Pi omission/growth controls now match canonical projected-stock decisions in all eight combinations, with eight matching no-edit controls. A 20,011-character omission now permits compaction (projected context 176 tokens). Growth from five to 20,017 characters now cancels (otherwise 5,181 tokens), against capacity 900. Retained custom boundary anchors, latest edits, off-branch exclusion and raw history/ID/ledger preservation also pass. The test comparator now projects custom content instead of leaving it raw. Earlier B success claims did not cover this defect.
+
+Repaired evidence, fresh roots and exact commands: `/home/gc/worktree/pi-extensions-1.4.0-iZ3kXz/reports/increment-b/remediation-b1/`. Pre-remediation B roots and logs remain historical reproduction evidence. Tests use cleared environments, disposable state and network denial. Optional unobserved and pressure settings appear only in synthetic fixtures, not user configuration. Upstream supersession, decision capture and reflection timestamps remain stock. The inherited `showPreCompactionMessage` loader limitation remains. Combined package reconciliation and deployment are deferred.
+
+## Historical isolated port: Blackhole 0.5.12 with Pi 1.1.0
 
 The new `reapply-context-edit-compaction-patch-0.5.12.mjs` retains this repair's exact transformations. Stock 0.5.12 still has the hook bytes recorded below. Its version-specific prerequisites pin the complete percentage and nullable-header ports before the hook changes. Apply the three `-0.5.12.mjs` helpers in that order to an explicit disposable extraction under `TMPDIR`, never an installed `node_modules` target. The manifest selects patched `index.ts`.
 

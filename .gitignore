@@ -38,6 +38,14 @@ agent/pi-blackhole/**
 !agent/pi-blackhole/reapply-context-edit-compaction-patch-0.5.12.mjs
 !agent/pi-blackhole/port-0.5.12.test.mjs
 !agent/pi-blackhole/port-0.5.12-workers.test.mjs
+!agent/pi-blackhole/reapply-compact-after-percent-patch-0.5.15.mjs
+!agent/pi-blackhole/reapply-nullable-provider-headers-patch-0.5.15.mjs
+!agent/pi-blackhole/reapply-context-edit-compaction-patch-0.5.15.mjs
+!agent/pi-blackhole/port-0.5.15-context.test.mjs
+!agent/pi-blackhole/port-0.5.15-lifecycle.test.mjs
+!agent/pi-blackhole/port-0.5.15.test.mjs
+!agent/pi-blackhole/port-0.5.15-behavior.test.mjs
+!agent/pi-blackhole/port-0.5.15-workers.test.mjs
 !agent/pi-blackhole/port-0.5.9-integration.test.mjs
 !agent/pi-blackhole/port-0.5.9-package-discovery.test.mjs
 !agent/pi-blackhole/port-0.5.9-lifecycle.test.mjs

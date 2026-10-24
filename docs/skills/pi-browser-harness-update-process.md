@@ -9,7 +9,17 @@
 
 Upstream/package guidance is input, not final truth. A local overlay edit is not a package sync and does not change package versions or recorded provenance.
 
-## Reviewed package: 0.11.0
+## Prepared package: 0.13.0, isolated and not deployed
+
+The active-extension candidate selects 0.13.0 on exact Pi 1.4.0. It adds `browser_set_headers` and `browser_clear_headers`, bringing the browser inventory to 42. A guarded local repair tracks registration per receiving Pi API, so cached Harness modules can register into replacement runtimes. See [the repair and guarded application procedure](../../agent/pi-browser-harness/LOCAL_PATCHES.md).
+
+Apply the version-specific helper only to a fresh verified canonical TMPDIR extraction. Copy complete verified package bytes into an isolated cache after supported exact-version reconciliation. Never run the helper directly on `node_modules` or a live installation. Preserve the object-form `skills: []` filter, browser configuration and all local overlays below.
+
+Header overrides persist per owned tab. Clear them before cross-origin navigation, tab reuse or handoff. Tool results omit header values, but access consent does not authorize sending secrets or making unrequested mutations. The local skill runtime files need no rewrite for this package preparation.
+
+C2 evidence is under `RUN/reports/increment-c2/`. It covers fresh offline reconstruction, fake-client headers, exact parent/child boundaries, SDK and bundled/unbundled CLI/RPC replacement and real tree restoration. It does not prove real browser/provider behavior or live deployment. The 0.11.0 installation record below remains historical.
+
+## Historical reviewed package: 0.11.0
 
 This authorized package sync upgrades `npm:pi-browser-harness@0.10.2` to `npm:pi-browser-harness@0.11.0`. The classification remains `make it slim`; the inventory and UI metadata need no change.
 

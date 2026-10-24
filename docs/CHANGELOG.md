@@ -2,6 +2,19 @@
 
 This document summarizes local Pi configuration changes. Detailed change records live under [`docs/changelogs/`](./changelogs/).
 
+## Active extensions installed on Pi 1.4.0
+
+Details: [`docs/changelogs/pi-1.4.0-active-extension-update.md`](./changelogs/pi-1.4.0-active-extension-update.md).
+
+- Installed Blackhole 0.5.15, BTW 0.8.0, Harness 0.13.0, Bridge 0.9.3 and Cursor 0.5.3 with the reviewed local repairs. Both final reviews and the 28-test installed-copy smoke passed.
+- Preserved user settings, unrelated packages and retired extensions. Changes remain unstaged. Start a fresh Pi session to load the updates; Windows shutdown was cancelled.
+
+## Active-extension C2 preparation on Pi 1.4.0
+
+- **Prepared in a fresh isolated graph, not deployed.** Select Blackhole 0.5.15 with three reviewed repairs, BTW 0.8.0 with cancellation repair, and Harness 0.13.0 with guarded per-runtime registration. Bridge 0.9.3 and Cursor 0.5.3 remain stock. Exact support pins and package skill filters remain unchanged.
+- Offline SDK and bundled/unbundled CLI/RPC checks retain 12 parent entries, 57 registered / 53 active tools, 42 browser tools and 24 commands through reload, resume and real tree restoration. Children retain five runtime entries, two catalog entries and seven active tools. Header guidance requires clearing persistent overrides before cross-origin navigation or reuse; local browser policy is unchanged.
+- Blackhole 52-test/three-strict acceptance, Harness focused checks, BTW/Bridge/Cursor suites, 1,632 serialized delegated tests, the 58-file strict check and local extension checks pass against C2. Corrected fixture failures and upstream type/packaging limits remain recorded under `RUN/reports/increment-c2/`. Reviews, live deployment and installed-state verification remain parent-owned.
+
 ## Pi 1.4.0 compatibility preparation
 
 Details: [`docs/changelogs/pi-to-1.4.0-compatibility-preparation.md`](./changelogs/pi-to-1.4.0-compatibility-preparation.md).
