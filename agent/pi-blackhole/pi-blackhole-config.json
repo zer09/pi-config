@@ -1,5 +1,5 @@
 {
-  "_comment": "Recommended pi-blackhole config for openai-codex/gpt-5.6-sol daily driver; auto compaction; Luna xhigh observer; mixed-provider worker fallbacks.",
+  "_comment": "pi-blackhole config; auto compaction; GPT-6.1 Terra high observer; mixed-provider worker fallbacks.",
   "compaction": "auto",
   "compactionEngine": "blackhole",
   "tailBehavior": "pi-default",
@@ -7,12 +7,12 @@
   "memory": true,
   "fullFoldAlways": true,
   "observerModel": {
-    "_comment": "OpenAI Codex GPT-5.6 Luna at xhigh; selected after a three-sample observer comparison showed better task retention and signal-to-noise than Cursor Grok 4.5 low or Luna max.",
+    "_comment": "OpenAI Codex GPT-6.1 Terra at high.",
     "provider": "openai-codex",
-    "id": "gpt-5.6-terra",
-    "thinking": "xhigh",
+    "id": "gpt-6.1-terra",
+    "thinking": "high",
     "cooldownHours": 0,
-    "contextWindow": 272000
+    "contextWindow": 500000
   },
   "observerFallbackModels": [
     {
@@ -25,12 +25,12 @@
     }
   ],
   "reflectorModel": {
-    "_comment": "Default reflector outside globalswitchboard: OpenAI Codex GPT-5.6 Luna at high.",
+    "_comment": "OpenAI Codex GPT-6.1 Terra at high.",
     "provider": "openai-codex",
-    "id": "gpt-5.6-terra",
+    "id": "gpt-6.1-terra",
     "thinking": "high",
     "cooldownHours": 0,
-    "contextWindow": 272000
+    "contextWindow": 500000
   },
   "reflectorFallbackModels": [
     {
@@ -43,12 +43,12 @@
     }
   ],
   "dropperModel": {
-    "_comment": "OpenAI Codex GPT-5.6 Luna at max; selected after a three-sample, six-model comparison for the safest conservative pruning under low budget pressure.",
+    "_comment": "OpenAI Codex GPT-6.1 Terra at max.",
     "provider": "openai-codex",
-    "id": "gpt-5.6-terra",
+    "id": "gpt-6.1-terra",
     "thinking": "max",
     "cooldownHours": 0,
-    "contextWindow": 272000
+    "contextWindow": 500000
   },
   "dropperFallbackModels": [
     {
@@ -91,7 +91,8 @@
     "retainedToolOutputMaxTokens and recallResponseMaxChars are explicitly 0 to preserve the previous provider-visible tool-output and recall-output policies.",
     "reflectionsPoolMaxTokens is explicitly 0 to preserve the previously uncapped reflection pool; showPreCompactionMessage, statusBar, and showWorkerNotifications are false to avoid new display surfaces and a second footer writer.",
     "dropperPressureThreshold is 1 to disable 0.5.9's newly effective pool-pressure trigger without disabling normal dropper cadence or adding provider calls by default.",
-    "Observer primary is openai-codex/gpt-5.6-terra at xhigh with 272K context; a three-sample comparison found it preserved the user's request in 3/3 chunks while cursor/grok-4.5 low missed it in 3/3, and Luna max was about 1.95x slower with 22% more memory output. Reflector and dropper primaries also use OpenAI Codex Luna. The largest worker input cap is 160K.",
+    "Worker primaries use openai-codex/gpt-6.1-terra with 500K context from the local model catalog: observer high, reflector high, and dropper max. The largest worker input cap remains 160K.",
+    "Historical GPT-5.6 Luna observer comparison: a three-sample comparison found it preserved the user's request in 3/3 chunks while cursor/grok-4.5 low missed it in 3/3, and Luna max was about 1.95x slower with 22% more memory output. The earlier dropper selection used a three-sample, six-model comparison for conservative pruning under low budget pressure.",
     "Fallbacks use providers different from the OpenAI Codex worker primaries.",
     "Final emergency fallback remains the session model because sessionFallback is true: openai-codex/gpt-5.6-sol.",
     "2026-06-12: Disabled debug/debugLog after transient Cursor proxy debugging; worker/fallback cooldownHours remain 1 hour.",
