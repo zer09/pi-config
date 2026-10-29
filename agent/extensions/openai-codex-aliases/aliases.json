@@ -1,6 +1,14 @@
 {
   "aliases": [
     {
+      "slug": "cgpt1",
+      "name": "cgpt1 srussell"
+    },
+    {
+      "slug": "cgpt2",
+      "name": "cgpt2 bparker"
+    },
+    {
       "slug": "cgpt3",
       "name": "cgpt3 christineMunoz"
     },

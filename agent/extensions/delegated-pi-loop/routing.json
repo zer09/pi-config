@@ -69,6 +69,14 @@
           "thinking": ["medium", "high", "max"],
           "default": "high"
         },
+        "openai-codex-cgpt1": {
+          "thinking": ["medium", "high", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt2": {
+          "thinking": ["medium", "high", "max"],
+          "default": "high"
+        },
         "openai-codex-cgpt3": {
           "thinking": ["medium", "high", "max"],
           "default": "high"
@@ -122,6 +130,14 @@
     "gpt-6.1-sol": {
       "providers": {
         "openai-codex": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt1": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt2": {
           "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
@@ -181,6 +197,14 @@
           "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
           "default": "high"
         },
+        "openai-codex-cgpt1": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "openai-codex-cgpt2": {
+          "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
         "openai-codex-cgpt3": {
           "thinking": ["off", "minimal", "low", "medium", "high", "xhigh"],
           "default": "high"
@@ -234,6 +258,14 @@
     "gpt-5.6-sol": {
       "providers": {
         "openai-codex": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt1": {
+          "thinking": ["minimal", "medium", "high", "xhigh", "max"],
+          "default": "high"
+        },
+        "openai-codex-cgpt2": {
           "thinking": ["minimal", "medium", "high", "xhigh", "max"],
           "default": "high"
         },
@@ -357,6 +389,8 @@
           "thinking": "high",
           "providers": [
             "openai-codex",
+            "openai-codex-cgpt1",
+            "openai-codex-cgpt2",
             "openai-codex-cgpt3",
             "openai-codex-cgpt4",
             "openai-codex-cgpt5",
@@ -380,6 +414,8 @@
           "thinking": "high",
           "providers": [
             "openai-codex",
+            "openai-codex-cgpt1",
+            "openai-codex-cgpt2",
             "openai-codex-cgpt3",
             "openai-codex-cgpt4",
             "openai-codex-cgpt5",
@@ -408,6 +444,8 @@
           "thinking": "max",
           "providers": [
             "openai-codex",
+            "openai-codex-cgpt1",
+            "openai-codex-cgpt2",
             "openai-codex-cgpt3",
             "openai-codex-cgpt4",
             "openai-codex-cgpt5",
@@ -459,6 +497,8 @@
           "thinking": "max",
           "providers": [
             "openai-codex",
+            "openai-codex-cgpt1",
+            "openai-codex-cgpt2",
             "openai-codex-cgpt3",
             "openai-codex-cgpt4",
             "openai-codex-cgpt5",
@@ -482,6 +522,8 @@
           "thinking": "xhigh",
           "providers": [
             "openai-codex",
+            "openai-codex-cgpt1",
+            "openai-codex-cgpt2",
             "openai-codex-cgpt3",
             "openai-codex-cgpt4",
             "openai-codex-cgpt5",
@@ -510,6 +552,8 @@
           "thinking": "xhigh",
           "providers": [
             "openai-codex",
+            "openai-codex-cgpt1",
+            "openai-codex-cgpt2",
             "openai-codex-cgpt3",
             "openai-codex-cgpt4",
             "openai-codex-cgpt5",
