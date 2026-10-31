@@ -8,8 +8,7 @@
       "source": "npm:pi-browser-harness@0.13.0",
       "skills": []
     },
-    "npm:pi-claude-bridge@0.9.3",
-    "npm:@schultzp2020/pi-cursor@0.5.3"
+    "npm:pi-claude-bridge@0.9.3"
   ],
   "extensions": [
     "-builtin:mcp",
@@ -19,7 +18,9 @@
     "-extensions/codegraph/index.ts",
     "-extensions/context-mode/src/index.ts"
   ],
-  "prompts": ["-prompts/codegraph-upgrade.md"],
+  "prompts": [
+    "-prompts/codegraph-upgrade.md"
+  ],
   "enabledModels": [
     "openai-codex/gpt-6.1-sol",
     "openai-codex-cgpt1/gpt-5.6-sol",
