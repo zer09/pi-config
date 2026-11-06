@@ -4,7 +4,7 @@ Basis: rating means how well I can do the task from base model memory without th
 
 Status legend: blank = not addressed yet; `✓` = addressed and retained/slimmed; `x` = addressed and removed.
 
-Current inventory: 39 installed `agent/skills/*/SKILL.md` roots, comprising 38 retained/classified skills and the blank, deferred `outpour-mcp` TODO row. Outpour is excluded from this maintenance; inventory membership does not mean acceptance or hardening. Impeccable is also excluded from this update and remains untouched pending future removal; its existing row is unchanged.
+Current inventory: 39 installed `agent/skills/*/SKILL.md` roots, all retained/classified, including `outpour-mcp`. Impeccable is excluded from this update and remains untouched pending future removal; its existing row is unchanged.
 
 Not installed as Local Skill roots: `context-mode`, `ctx-doctor`, `ctx-insight`, `ctx-purge`, `ctx-stats`, `ctx-upgrade`, and `librarian`. Earlier retained rows described package-provided workflows, not the current installed roots. Their absence does not authorize restoring skills; no current keep/slim/remove decision is assigned to them. CodeGraph and Context Mode extensions are separately retained-but-retired and excluded from normal loading. References in removed-skill rationale below describe historical replacements, not active tool recommendations.
 
@@ -55,7 +55,7 @@ All four `developing-genkit-*` skills remain `make it slim`. Their current origi
 | ✓ | nlm-skill | Weak | 3 | make it slim | Slimmed to intent routing, CLI/MCP choice, exact action/target gates, correctness, and completion; command/workflow details stay in selected references with auth, deletion, Studio confirmation, and remote MCP safety intact. |
 | ✓ | notion | Medium | 5 | make it slim | Slimmed to official `ntn` workspace intent, read-only defaults, exact write authority, separate install/auth gates, and selected workflow recipes; bare mentions and companion writes do not expand scope. |
 | x | notion-cli | Medium | 5 | remove it | Standalone predecessor remains retired; superseded by the active combined `notion` skill. |
-|  | outpour-mcp |  |  |  |  |
+| ✓ | outpour-mcp | Weak | 3 | keep it | Custom headless tooling and niche MCP schemas warrant retention with financial/contact privacy rules and exact write gates. See the [update process](outpour-mcp-update-process.md). |
 | ✓ | pi-browser-harness | Weak | 3 | make it slim | Slimmed to per-task user setup consent, profile/account and login boundaries, tool routing, and completion; tool catalogs, diagnostics, and script APIs live in references, with screenshots visual-only. |
 | ✓ | playwright-cli | Medium | 5 | make it slim | Installed from the bundled CLI skill with a compact router and selective session, snapshot, mocking, recording, and test-debug references; preserves Browser Harness ownership and local openSUSE limits. |
 | ✓ | postgres | Strong | 8 | make it slim | Slimmed to PostgreSQL database design, tuning, and operations with proportional discovery and production safety; ordinary app code and Data Connect product work do not imply PostgreSQL diagnosis. |

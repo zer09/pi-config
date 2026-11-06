@@ -113,6 +113,7 @@ Installing a new skill means:
 - `notion-update-process.md`: update workflow for the active slim Notion skill sourced from the official `ntn` CLI skill and Notion Claude plugin workflows.
 - `notion-cli-update-process.md`: retired-skill notes for the former standalone Notion CLI skill, now superseded by the combined `notion` skill.
 - `openai-skills-update-process.md`: update workflow for OpenAI-derived skills, including skill-creator and Figma skills.
+- [outpour-mcp-update-process.md](outpour-mcp-update-process.md): update workflow for the custom Outpour headless helper, manual-key fallback, privacy/write gates, and offline acceptance checks.
 - `pi-browser-harness-update-process.md`: update workflow for the user-owned Browser Harness skill and durable per-task browser consent overlays.
 - `planetscale-database-skills-update-process.md`: update workflow for PlanetScale MySQL and Postgres skills.
 - `playwright-cli-update-process.md`: update workflow for the package-derived Playwright CLI skill, isolated-session routing, and local openSUSE compatibility overlay.
@@ -122,7 +123,6 @@ Installing a new skill means:
 
 ## Deferred maintenance
 
-- TODO: `outpour-mcp` is intentionally excluded from the current update. Its blank inventory row records presence only, not maintenance acceptance or hardening. Later work must complete maintenance integration, harden custom-endpoint credential safety, fix the known `call` argument-parsing defect (the tool name is selected as the JSON argument), and add offline regression tests. No Outpour remediation occurred in this update.
 - `impeccable` is excluded from the current update and remains untouched, explicit-only, pending future removal. This exclusion does not authorize removal.
 
 ## Retired skills

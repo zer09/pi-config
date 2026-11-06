@@ -1,0 +1,4 @@
+interface:
+  display_name: "Outpour MCP"
+  short_description: "Inspect Outpour data and gated contact/task edits"
+  default_prompt: "Use $outpour-mcp to inspect Outpour features with read-only requests."
