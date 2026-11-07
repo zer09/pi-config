@@ -109,6 +109,7 @@ export type GroundingSource = {
 export type GroundingSupport = {
   text: string;
   groundingChunkIndices: number[];
+  /** Absolute JS UTF-16 offsets into the original concatenated answer. */
   startIndex?: number;
   endIndex?: number;
   /** Total chunk indices before the per-support storage cap (stored form only). */

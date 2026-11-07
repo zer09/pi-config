@@ -18,8 +18,8 @@ web_code_search({ query: string, focus: "developer_sources" | "implementation_ex
 fetch_contents({ uris: string[], maxCharacters?: number, maxAgeHours?: number })
 ```
 
-- `depth` omitted or `"standard"` uses Parallel mode `basic`, Exa `fast` with 5 results and 2000 highlight characters on fallback, and Tavily `search_depth: "basic"` with `max_results: 5` on the final fallback.
-- `depth: "deep"` uses Parallel mode `advanced`, Exa `fast` with 10 results and 4000 highlight characters on fallback, and Tavily `search_depth: "advanced"` with `max_results: 10` on the final fallback.
+- `depth` omitted or `"standard"` uses Parallel mode `basic`, Gemini + Exa grounding type `fast` with 5 results and 2000 highlight characters on fallback, and Tavily `search_depth: "basic"` with `max_results: 5` on the final fallback.
+- `depth: "deep"` uses Parallel mode `advanced`, Gemini + Exa grounding type `fast` with 10 results and 4000 highlight characters on fallback, and Tavily `search_depth: "advanced"` with `max_results: 10` on the final fallback.
 - When a Gemini grounded answer is unavailable, `web_search` may return a degraded ordered source document (`## Search results` with titled URL entries) instead of provider-written prose; the calling model synthesizes the answer from that document and cites its URLs itself.
 - `focus` is required and selects the provider order; it is never inferred from the query.
 - `fetch_contents` accepts at most 25 explicit URLs per call and `maxCharacters` at most 50000; the runtime rejects larger inputs as `invalid_input` before any config load, cache read, provider call, or cache write, so invalid input always wins over a failing config loader. Exceeding the URL cap fails with `uris must contain at most 25 URLs` and exceeding the character cap with `maxCharacters must be a positive integer no greater than 50000`; only safe metadata (the URL count and any valid numeric limit fields supplied) is stored for these preflight failures. Input validation is config-independent (`validateFetchContentsInput`); the absent `maxAgeHours` default resolves only after the config loads from `contents.defaultMaxAgeHours`.
@@ -51,7 +51,7 @@ An optional `config.json` next to `index.ts` (not tracked; never put credentials
   "firecrawl": { "apiKeyEnv": "FIRECRAWL_API_KEY" },
   "tavily": { "apiKeyEnv": "TAVILY_API_KEY" },
   "webSearch": {
-    "model": "gemini-3.5-flash",
+    "model": "gemini-3.8-flash",
     "defaultDepth": "standard",
     "parallel": { "standardMode": "basic", "deepMode": "advanced" },
     "exaGrounding": {
@@ -72,7 +72,11 @@ An optional `config.json` next to `index.ts` (not tracked; never put credentials
 }
 ```
 
-Legacy settings from `google.cloudApiKeyEnv`, `exa.apiKeyEnv`, and `geminiExaGrounding` (`model`, `cacheDir`, `rawResponseTtlMs`, `contentCacheTtlMs`, `numResults`, `maxHighlightCharacters`) keep loading when the new sections are absent. The legacy single Exa budget applies to both depth budgets; the legacy `searchType` value is ignored because the extension uses Exa type `fast` only. `contents.concurrency` is honored only for integers 1 through 10 (default 3); every other value silently falls back to 3, and the orchestrator additionally hard-caps concurrent scrapes at 10 even for injected configurations. `webSearch.tavily` accepts `searchDepth` only as `basic` or `advanced` and `maxResults` only as an integer 1 through 20; invalid fields silently use the corresponding depth default.
+`webSearch.model` selects the shared model for both Gemini + Parallel and Gemini + Exa grounding and defaults to `gemini-3.8-flash`. Requests do not set generation or thinking options. Each depth in `webSearch.exaGrounding` supports only type `fast` (the default); missing types, `auto`, and other invalid values silently normalize to `fast` without changing valid numeric budgets.
+
+This type policy belongs to Google's managed Exa grounding (`exaAiSearch`), not direct Exa Search. Google rejected a live `auto` request with HTTP 400: `Value 'auto' is not allowed for key 'type'. Allowed values: fast, instant.` Direct Exa Search describing `fast` as legacy does not make `fast` invalid through Google. A separate authorized live check of `gemini-3.8-flash` with `fast` returned HTTP 200 with a usable grounded answer.
+
+Legacy settings from `google.cloudApiKeyEnv`, `exa.apiKeyEnv`, and `geminiExaGrounding` (`model`, `cacheDir`, `rawResponseTtlMs`, `contentCacheTtlMs`, `numResults`, `maxHighlightCharacters`) keep loading when the new sections are absent. The legacy single Exa numeric budget applies to both depth budgets and inherits default type `fast`; the legacy `searchType` value stays ignored. Explicit `webSearch.model` and per-depth `webSearch.exaGrounding` values take precedence over legacy values. `contents.concurrency` is honored only for integers 1 through 10 (default 3); every other value silently falls back to 3, and the orchestrator additionally hard-caps concurrent scrapes at 10 even for injected configurations. `webSearch.tavily` accepts `searchDepth` only as `basic` or `advanced` and `maxResults` only as an integer 1 through 20; invalid fields silently use the corresponding depth default.
 
 ## Provider request contracts
 

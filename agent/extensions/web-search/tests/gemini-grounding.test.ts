@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { callGeminiExaGroundingAttempts, callGeminiParallelGrounding } from "../src/gemini-grounding.js";
+import { configFromRaw } from "../src/config.js";
 import {
   cleanGroundingBody,
   EXA_EMPTY_QUERY_MESSAGE,
@@ -11,10 +12,10 @@ import {
 import type { ExaGroundingBudget } from "../src/types.js";
 
 const config = testConfig();
-const STANDARD_BUDGET: ExaGroundingBudget = { type: "fast", numResults: 5, maxHighlightCharacters: 2000 };
-const DEEP_BUDGET: ExaGroundingBudget = { type: "fast", numResults: 10, maxHighlightCharacters: 4000 };
+const STANDARD_BUDGET = config.webSearch.exa.standard;
+const DEEP_BUDGET = config.webSearch.exa.deep;
 
-const GEMINI_URL = "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.5-flash:generateContent";
+const GEMINI_URL = "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.8-flash:generateContent";
 
 function groundingTool(body: any): Record<string, any> {
   return body.tools[0];
@@ -34,7 +35,7 @@ function install(handler: Parameters<typeof mockFetch>[0]) {
 
 function callParallel(mode: "basic" | "advanced", parallelApiKey?: string, signal?: AbortSignal) {
   return callGeminiParallelGrounding({
-    query: "Does gemini-3.5-flash support Parallel grounding?",
+    query: "Does gemini-3.8-flash support Parallel grounding?",
     googleCloudApiKey: "google-key",
     parallelApiKey,
     mode,
@@ -45,7 +46,7 @@ function callParallel(mode: "basic" | "advanced", parallelApiKey?: string, signa
 
 function callExaAttempts(budget: ExaGroundingBudget, signal?: AbortSignal) {
   return callGeminiExaGroundingAttempts({
-    query: "Does gemini-3.5-flash support Exa grounding?",
+    query: "Does gemini-3.8-flash support Exa grounding?",
     googleCloudApiKey: "google-key",
     exaApiKey: "exa-key",
     budget,
@@ -62,6 +63,8 @@ describe("Gemini + Parallel grounding request shape", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]!.url).toBe(GEMINI_URL);
     expect(calls[0]!.headers["x-goog-api-key"]).toBe("google-key");
+    expect(calls[0]!.body).not.toHaveProperty("generationConfig");
+    expect(calls[0]!.body).not.toHaveProperty("thinkingConfig");
     expect(groundingTool(calls[0]!.body).parallelAiSearch).toEqual({
       api_key: "parallel-key",
       customConfigs: { mode: "basic" },
@@ -72,6 +75,9 @@ describe("Gemini + Parallel grounding request shape", () => {
     const calls = install([jsonResponse(cleanGroundingBody())]);
     await callParallel("advanced", "parallel-key");
 
+    expect(calls[0]!.url).toBe(GEMINI_URL);
+    expect(calls[0]!.body).not.toHaveProperty("generationConfig");
+    expect(calls[0]!.body).not.toHaveProperty("thinkingConfig");
     expect(groundingTool(calls[0]!.body).parallelAiSearch.customConfigs).toEqual({ mode: "advanced" });
   });
 
@@ -92,6 +98,9 @@ describe("Gemini + Exa grounding request shape", () => {
     await callExaAttempts(STANDARD_BUDGET);
 
     expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe(GEMINI_URL);
+    expect(calls[0]!.body).not.toHaveProperty("generationConfig");
+    expect(calls[0]!.body).not.toHaveProperty("thinkingConfig");
     expect(groundingTool(calls[0]!.body).exaAiSearch).toEqual({
       api_key: "exa-key",
       customConfigs: {
@@ -106,10 +115,44 @@ describe("Gemini + Exa grounding request shape", () => {
     const calls = install([jsonResponse(cleanGroundingBody())]);
     await callExaAttempts(DEEP_BUDGET);
 
+    expect(calls[0]!.url).toBe(GEMINI_URL);
+    expect(calls[0]!.body).not.toHaveProperty("generationConfig");
+    expect(calls[0]!.body).not.toHaveProperty("thinkingConfig");
     const customConfigs = groundingTool(calls[0]!.body).exaAiSearch.customConfigs;
     expect(customConfigs.type).toBe("fast");
     expect(customConfigs.numResults).toBe(10);
     expect(customConfigs.contents.highlights.maxCharacters).toBe(4000);
+  });
+
+  it.each(["auto", "fast"])("sends only fast for configured type %s at both depths", async (type) => {
+    const configured = configFromRaw({
+      webSearch: {
+        exaGrounding: {
+          standard: { type, numResults: 3, maxHighlightCharacters: 900 },
+          deep: { type, numResults: 20, maxHighlightCharacters: 8000 },
+        },
+      },
+    });
+    const calls = install([jsonResponse(cleanGroundingBody()), jsonResponse(cleanGroundingBody())]);
+    await callExaAttempts(configured.webSearch.exa.standard);
+    await callExaAttempts(configured.webSearch.exa.deep);
+
+    expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      expect(call.url).toBe(GEMINI_URL);
+      expect(call.body).not.toHaveProperty("generationConfig");
+      expect(call.body).not.toHaveProperty("thinkingConfig");
+    }
+    expect(groundingTool(calls[0]!.body).exaAiSearch.customConfigs).toEqual({
+      type: "fast",
+      numResults: 3,
+      contents: { highlights: { maxCharacters: 900 } },
+    });
+    expect(groundingTool(calls[1]!.body).exaAiSearch.customConfigs).toEqual({
+      type: "fast",
+      numResults: 20,
+      contents: { highlights: { maxCharacters: 8000 } },
+    });
   });
 });
 
@@ -121,6 +164,7 @@ describe("Exa empty-query retry orchestration", () => {
     expect(calls).toHaveLength(1);
     expect(attempts).toHaveLength(1);
     expect(attempts[0]!.normalized?.cleanSuccess).toBe(true);
+    expect(attempts[0]!.normalized?.modelVersion).toBe("gemini-3.5-flash");
     expect(attempts[0]!.provider).toBe("gemini-exa-grounding");
     expect(attempts[0]!.partner).toBe("exa");
   });

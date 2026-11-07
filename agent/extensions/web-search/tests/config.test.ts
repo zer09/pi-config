@@ -10,7 +10,7 @@ describe("config defaults", () => {
     expect(config.exaApiKeyEnv).toBe("EXA_API_KEY");
     expect(config.firecrawlApiKeyEnv).toBe("FIRECRAWL_API_KEY");
     expect(config.tavilyApiKeyEnv).toBe("TAVILY_API_KEY");
-    expect(config.model).toBe("gemini-3.5-flash");
+    expect(config.model).toBe("gemini-3.8-flash");
     expect(config.webSearch.defaultDepth).toBe("standard");
     expect(config.webSearch.parallel).toEqual({ standardMode: "basic", deepMode: "advanced" });
     expect(config.webSearch.exa.standard).toEqual({ type: "fast", numResults: 5, maxHighlightCharacters: 2000 });
@@ -58,8 +58,8 @@ describe("config defaults", () => {
     expect(config.model).toBe("gemini-3.5-pro");
     expect(config.webSearch.defaultDepth).toBe("deep");
     expect(config.webSearch.parallel.standardMode).toBe("advanced");
-    expect(config.webSearch.exa.standard.numResults).toBe(3);
-    expect(config.webSearch.exa.deep.maxHighlightCharacters).toBe(8000);
+    expect(config.webSearch.exa.standard).toEqual({ type: "fast", numResults: 3, maxHighlightCharacters: 900 });
+    expect(config.webSearch.exa.deep).toEqual({ type: "fast", numResults: 20, maxHighlightCharacters: 8000 });
     expect(config.webSearch.tavily.standard).toEqual({ searchDepth: "advanced", maxResults: 3 });
     expect(config.webSearch.tavily.deep).toEqual({ searchDepth: "basic", maxResults: 20 });
     expect(config.codeSearch.exaCode.tokensNum).toBe(2000);
@@ -69,6 +69,37 @@ describe("config defaults", () => {
     expect(config.rawResponseTtlMs).toBe(1000);
     expect(config.contentCacheTtlMs).toBe(2000);
   });
+
+  it("loads explicit Exa type fast for both depths", () => {
+    const config = configFromRaw({
+      webSearch: {
+        exaGrounding: {
+          standard: { type: "fast", numResults: 3, maxHighlightCharacters: 900 },
+          deep: { type: "fast", numResults: 20, maxHighlightCharacters: 8000 },
+        },
+      },
+    });
+
+    expect(config.webSearch.exa.standard).toEqual({ type: "fast", numResults: 3, maxHighlightCharacters: 900 });
+    expect(config.webSearch.exa.deep).toEqual({ type: "fast", numResults: 20, maxHighlightCharacters: 8000 });
+  });
+
+  it.each([undefined, null, "", "auto", "lite", "instant", "neural", "deep", "AUTO", 42, {}])(
+    "normalizes missing or invalid Exa type %j to fast without changing numeric budgets",
+    (type) => {
+      const config = configFromRaw({
+        webSearch: {
+          exaGrounding: {
+            standard: { type, numResults: 3, maxHighlightCharacters: 900 },
+            deep: { type, numResults: 20, maxHighlightCharacters: 8000 },
+          },
+        },
+      });
+
+      expect(config.webSearch.exa.standard).toEqual({ type: "fast", numResults: 3, maxHighlightCharacters: 900 });
+      expect(config.webSearch.exa.deep).toEqual({ type: "fast", numResults: 20, maxHighlightCharacters: 8000 });
+    },
+  );
 
   it("silently falls back to the per-depth Tavily defaults for invalid fields", () => {
     const config = configFromRaw({
@@ -124,8 +155,9 @@ describe("legacy config compatibility", () => {
 
   it("prefers the new exaGrounding section over the legacy budget", () => {
     const config = configFromRaw({
-      geminiExaGrounding: { numResults: 7, maxHighlightCharacters: 1500 },
+      geminiExaGrounding: { model: "legacy-model", numResults: 7, maxHighlightCharacters: 1500 },
       webSearch: {
+        model: "configured-model",
         exaGrounding: {
           standard: { type: "fast", numResults: 4, maxHighlightCharacters: 1200 },
           deep: { type: "fast", numResults: 12, maxHighlightCharacters: 5000 },
@@ -133,14 +165,38 @@ describe("legacy config compatibility", () => {
       },
     });
 
-    expect(config.webSearch.exa.standard.numResults).toBe(4);
-    expect(config.webSearch.exa.deep.numResults).toBe(12);
+    expect(config.model).toBe("configured-model");
+    expect(config.webSearch.exa.standard).toEqual({ type: "fast", numResults: 4, maxHighlightCharacters: 1200 });
+    expect(config.webSearch.exa.deep).toEqual({ type: "fast", numResults: 12, maxHighlightCharacters: 5000 });
   });
 
-  it("ignores the legacy searchType value", () => {
-    const config = configFromRaw({ geminiExaGrounding: { searchType: "auto" } });
-    expect(config.webSearch.exa.standard.type).toBe("fast");
-    expect(config.webSearch.exa.deep.type).toBe("fast");
+  it.each(["auto", "fast"])("ignores the legacy searchType value %s", (searchType) => {
+    const config = configFromRaw({ geminiExaGrounding: { searchType } });
+    expect(config.webSearch.exa.standard).toEqual({ type: "fast", numResults: 5, maxHighlightCharacters: 2000 });
+    expect(config.webSearch.exa.deep).toEqual({ type: "fast", numResults: 10, maxHighlightCharacters: 4000 });
+
+    const legacyBudget = configFromRaw({ geminiExaGrounding: { searchType, numResults: 7, maxHighlightCharacters: 1500 } });
+    expect(legacyBudget.webSearch.exa.standard).toEqual({ type: "fast", numResults: 7, maxHighlightCharacters: 1500 });
+    expect(legacyBudget.webSearch.exa.deep).toEqual({ type: "fast", numResults: 7, maxHighlightCharacters: 1500 });
+  });
+
+  it.each([
+    { numResults: 7 },
+    { numResults: 7, maxHighlightCharacters: -1 },
+    { maxHighlightCharacters: 1500 },
+    { numResults: 0, maxHighlightCharacters: 1500 },
+  ])("keeps legacy single-budget numeric fallbacks for %j", (budget) => {
+    const config = configFromRaw({
+      geminiExaGrounding: { ...budget, searchType: "fast" },
+      webSearch: { exaGrounding: { standard: { type: "instant" }, deep: {} } },
+    });
+    const expected = {
+      type: "fast",
+      numResults: budget.numResults === 7 ? 7 : 5,
+      maxHighlightCharacters: budget.maxHighlightCharacters === 1500 ? 1500 : 2000,
+    };
+    expect(config.webSearch.exa.standard).toEqual(expected);
+    expect(config.webSearch.exa.deep).toEqual(expected);
   });
 
   it("falls back to defaults for invalid enum and range values", () => {

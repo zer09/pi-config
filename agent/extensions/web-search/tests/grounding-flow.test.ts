@@ -7,6 +7,7 @@ import { join } from "node:path";
 // Imported dynamically so the pi-tui stub is registered before tools.ts loads render.ts.
 const { executeWebSearch } = await import("../src/tools.js");
 const { responsePath } = await import("../src/storage.js");
+const { configFromRaw } = await import("../src/config.js");
 const {
   cleanGroundingBody,
   cleanTavilyBody,
@@ -21,7 +22,7 @@ const {
   testConfig,
 } = await import("./helpers.js");
 
-const GEMINI_URL = "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.5-flash:generateContent";
+const GEMINI_URL = "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.8-flash:generateContent";
 const TAVILY_URL = "https://api.tavily.com/search";
 
 function safetyBlockedBody(): unknown {
@@ -116,6 +117,11 @@ describe("web_search grounding orchestration", () => {
     const result = await run();
 
     expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      expect(call.url).toBe(GEMINI_URL);
+      expect(call.body).not.toHaveProperty("generationConfig");
+      expect(call.body).not.toHaveProperty("thinkingConfig");
+    }
     expect(toolOf(calls[1]!.body).exaAiSearch.api_key).toBe(TEST_KEYS.exa);
     expect(toolOf(calls[1]!.body).exaAiSearch.customConfigs.type).toBe("fast");
     expect(toolOf(calls[1]!.body).exaAiSearch.customConfigs.numResults).toBe(5);
@@ -134,9 +140,60 @@ describe("web_search grounding orchestration", () => {
     ]);
     await run({ depth: "deep" });
 
+    expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      expect(call.url).toBe(GEMINI_URL);
+      expect(call.body).not.toHaveProperty("generationConfig");
+      expect(call.body).not.toHaveProperty("thinkingConfig");
+    }
     const customConfigs = toolOf(calls[1]!.body).exaAiSearch.customConfigs;
+    expect(customConfigs.type).toBe("fast");
     expect(customConfigs.numResults).toBe(10);
     expect(customConfigs.contents.highlights.maxCharacters).toBe(4000);
+  });
+
+  it.each(["auto", "fast"])("forwards only fast for configured Exa type %s at both depths", async (type) => {
+    const configured = testConfig({
+      cacheDir,
+      webSearch: configFromRaw({
+        webSearch: {
+          exaGrounding: {
+            standard: { type, numResults: 3, maxHighlightCharacters: 900 },
+            deep: { type, numResults: 20, maxHighlightCharacters: 8000 },
+          },
+        },
+      }).webSearch,
+    });
+    install([
+      jsonResponse(googleErrorBody("upstream unavailable", 503, "UNAVAILABLE")),
+      jsonResponse(cleanGroundingBody()),
+      jsonResponse(googleErrorBody("upstream unavailable", 503, "UNAVAILABLE")),
+      jsonResponse(cleanGroundingBody()),
+    ]);
+
+    for (const depth of ["standard", "deep"] as const) {
+      const result = await executeWebSearch({ query: "How does Gemini use Exa grounding?", depth }, undefined, {
+        config: configured,
+      });
+      expect(result.details.answerProvider).toBe("gemini-exa-grounding");
+    }
+
+    expect(calls).toHaveLength(4);
+    for (const call of calls) {
+      expect(call.url).toBe(GEMINI_URL);
+      expect(call.body).not.toHaveProperty("generationConfig");
+      expect(call.body).not.toHaveProperty("thinkingConfig");
+    }
+    expect(toolOf(calls[1]!.body).exaAiSearch.customConfigs).toEqual({
+      type: "fast",
+      numResults: 3,
+      contents: { highlights: { maxCharacters: 900 } },
+    });
+    expect(toolOf(calls[3]!.body).exaAiSearch.customConfigs).toEqual({
+      type: "fast",
+      numResults: 20,
+      contents: { highlights: { maxCharacters: 8000 } },
+    });
   });
 
   it("does not treat a non-empty answer without sources as grounded success", async () => {

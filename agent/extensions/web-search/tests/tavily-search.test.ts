@@ -43,7 +43,7 @@ const {
   tavilyResults,
 } = await import("./helpers.js");
 
-const GEMINI_URL = "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.5-flash:generateContent";
+const GEMINI_URL = "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.8-flash:generateContent";
 const TAVILY_URL = "https://api.tavily.com/search";
 
 let cacheDir: string;

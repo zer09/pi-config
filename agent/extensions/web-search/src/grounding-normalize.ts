@@ -1,8 +1,23 @@
-import { asArray, asFiniteNumber as asNumber, asRecord, asString } from "./value-guards.js";
+import { asArray, asRecord, asString } from "./value-guards.js";
 import type { GroundingSource, GroundingSupport, NormalizedGeminiGroundingResponse } from "./types.js";
 
 function asIntegerArray(value: unknown): number[] {
   return asArray(value).filter((item): item is number => typeof item === "number" && Number.isInteger(item) && item >= 0);
+}
+
+function utf8OffsetToUtf16(text: string, offset: unknown): number | undefined {
+  if (typeof offset !== "number" || !Number.isInteger(offset) || offset < 0) return undefined;
+
+  let byteIndex = 0;
+  let utf16Index = 0;
+  for (const character of text) {
+    if (byteIndex === offset) return utf16Index;
+    byteIndex += Buffer.byteLength(character, "utf8");
+    utf16Index += character.length;
+    // An offset inside a UTF-8 character has no matching string position.
+    if (byteIndex > offset) return undefined;
+  }
+  return byteIndex === offset ? utf16Index : undefined;
 }
 
 /**
@@ -16,7 +31,15 @@ export function normalizeGeminiGroundingResponse(response: unknown): NormalizedG
   const candidate = asRecord(asArray(root.candidates)[0]);
   const content = asRecord(candidate?.content);
   const parts = asArray(content?.parts);
-  const answer = parts.map((part) => asString(asRecord(part)?.text) ?? "").join("");
+  let answerLength = 0;
+  // Keep original Part indices, including entries without text.
+  const textParts = parts.map((part) => {
+    const text = asString(asRecord(part)?.text);
+    const startIndex = answerLength;
+    answerLength += text?.length ?? 0;
+    return { text, startIndex };
+  });
+  const answer = textParts.map((part) => part.text ?? "").join("");
 
   const groundingMetadata = asRecord(candidate?.groundingMetadata) ?? {};
   const groundingChunks = asArray(groundingMetadata.groundingChunks);
@@ -36,12 +59,32 @@ export function normalizeGeminiGroundingResponse(response: unknown): NormalizedG
     .map((support) => {
       const supportObject = asRecord(support) ?? {};
       const segment = asRecord(supportObject.segment) ?? {};
-      return {
+      const normalized: GroundingSupport = {
         text: asString(segment.text) ?? "",
-        startIndex: asNumber(segment.startIndex),
-        endIndex: asNumber(segment.endIndex),
+        startIndex: undefined,
+        endIndex: undefined,
         groundingChunkIndices: asIntegerArray(supportObject.groundingChunkIndices),
       };
+
+      // Recorded responses without partIndex use offsets across the whole answer.
+      let text = answer;
+      let baseIndex = 0;
+      if (Object.hasOwn(segment, "partIndex")) {
+        const partIndex = segment.partIndex;
+        if (typeof partIndex !== "number" || !Number.isInteger(partIndex) || partIndex < 0) return normalized;
+        const part = textParts[partIndex];
+        if (part?.text === undefined) return normalized;
+        text = part.text;
+        baseIndex = part.startIndex;
+      }
+
+      const startIndex = utf8OffsetToUtf16(text, Object.hasOwn(segment, "startIndex") ? segment.startIndex : 0);
+      const endIndex = utf8OffsetToUtf16(text, segment.endIndex);
+      if (startIndex !== undefined && endIndex !== undefined && startIndex <= endIndex) {
+        normalized.startIndex = baseIndex + startIndex;
+        normalized.endIndex = baseIndex + endIndex;
+      }
+      return normalized;
     })
     .filter((support) => support.text.length > 0 || support.groundingChunkIndices.length > 0);
 

@@ -20,7 +20,7 @@ export const DEFAULT_CONFIG: SearchConfig = {
   exaApiKeyEnv: "EXA_API_KEY",
   firecrawlApiKeyEnv: "FIRECRAWL_API_KEY",
   tavilyApiKeyEnv: "TAVILY_API_KEY",
-  model: "gemini-3.5-flash",
+  model: "gemini-3.8-flash",
   webSearch: {
     defaultDepth: "standard",
     parallel: { standardMode: "basic", deepMode: "advanced" },
@@ -88,10 +88,9 @@ function optionalConcurrency(value: unknown, fallback: number): number {
 
 function optionalExaBudget(value: unknown, fallback: ExaGroundingBudget): ExaGroundingBudget {
   const record = asRecordOrEmpty(value);
-  // Only "fast" is used by this extension: "instant" trades search depth for
-  // latency and is not the accepted grounding profile.
   return {
-    type: asTrimmedNonEmptyString(record.type) === "fast" ? "fast" : fallback.type,
+    // Google rejects auto for managed Exa grounding, so normalize saved types to fast.
+    type: "fast",
     numResults: optionalPositiveInteger(record.numResults, fallback.numResults),
     maxHighlightCharacters: optionalPositiveInteger(record.maxHighlightCharacters, fallback.maxHighlightCharacters),
   };
@@ -160,7 +159,7 @@ export function configFromRaw(raw: Record<string, unknown>): SearchConfig {
     asPositiveInteger(legacyGrounding.numResults) !== undefined ||
     asPositiveInteger(legacyGrounding.maxHighlightCharacters) !== undefined
       ? {
-          type: "fast",
+          type: DEFAULT_CONFIG.webSearch.exa.standard.type,
           numResults: optionalPositiveInteger(legacyGrounding.numResults, DEFAULT_CONFIG.webSearch.exa.standard.numResults),
           maxHighlightCharacters: optionalPositiveInteger(
             legacyGrounding.maxHighlightCharacters,
