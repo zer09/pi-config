@@ -12,7 +12,7 @@ Use the local `posthog-pp-cli` for PostHog reads and carefully gated writes. Pos
 - Verify the binary before use: `command -v posthog-pp-cli && posthog-pp-cli --version`.
 - If missing, suggest `npx -y @mvanhorn/printing-press-library install posthog --cli-only`; do not install unless the user asks.
 - Verify connectivity with `posthog-pp-cli doctor` only within an authorized authenticated-read task. For offline maintenance, use version and help checks only. Do not print tokens, OAuth headers, config secrets, cookies, `api_token`, or full config files.
-- Prefer `--agent` for read-only commands and add `--select` to keep output small.
+- Prefer `--agent` for read-only commands. Use `--select` for output filtering only when the subcommand's `--help` defines that meaning; see the [command reference](references/commands.md#project-scoped-reads) for the events exception.
 - Do not print raw `users retrieve @me` output. It can include email and team tokens; parse only the fields needed, usually `.results.team.project_id`.
 - Treat `posthog-pp-cli sync` as local cache hydration: it reads from PostHog and writes local SQLite. Run it when the user asks to hydrate, sync, search offline, or refresh stale cache.
 - For remote mutations, do a `--dry-run` first when supported and ask for confirmation unless the user has already requested that exact mutation. Remember `--agent` includes `--yes`, so do not use it casually on destructive commands.
@@ -36,7 +36,7 @@ Use the local `posthog-pp-cli` for PostHog reads and carefully gated writes. Pos
    posthog-pp-cli --help
    posthog-pp-cli projects feature-flags list --help
    ```
-4. Run bounded read commands with `--agent` and `--select`:
+4. Run bounded reads with `--agent` and help-confirmed output filtering:
    ```bash
    posthog-pp-cli projects feature-flags list <project_id> --limit 20 --agent --select id,key,active
    ```

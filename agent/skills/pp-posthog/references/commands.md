@@ -4,7 +4,7 @@ Use these as starting points, then inspect `--help` on the installed binary beca
 
 ## Current release safety notes
 
-The installed CLI is `posthog-pp-cli 2026.9.1`. The release ledger identifies `81f5764eda401077520268afe74913c0f21f5b7e` as its source commit.
+The installed CLI is `posthog-pp-cli 2026.10.1`, built from stamped release-ledger commit `986b1df61eb325952a0a9fe0fed98c8bdd64e740`. The ledger records `ec9c86e0eb3a3cba12a001972231bbefa5d8ada3` as the source commit, not the stamped build commit. The 2026.9.1 safety behavior below still applies.
 
 - Ambiguous transport and 5xx retries are limited to GET, HEAD, and OPTIONS. Other methods are not replayed on these failures; bounded authentication and rate-limit recovery remain available. Do not replay an ambiguous write without checking the target state and obtaining authorization for the retry.
 - Path parameters are percent-encoded, including special handling for `.` and `..` values.
@@ -37,7 +37,7 @@ posthog-pp-cli api projects
 posthog-pp-cli projects feature-flags list --help
 ```
 
-Known drift confirmed on `posthog-pp-cli 2026.9.1`: top-level `organizations` and `query` commands from some README examples remain absent. Use `projects ...`, `users ...`, `api`, and `--help` from the installed binary. The `which` command uses fuzzy matching and may omit the direct CRUD namespace; treat its results as hints and verify them with `--help`.
+Known drift confirmed on `posthog-pp-cli 2026.10.1`: top-level `organizations` and `query` commands remain absent from the installed binary, despite historical examples. Use `projects ...`, `users ...`, `api`, and `--help` from the installed binary. The `which` command uses fuzzy matching and may omit the direct CRUD namespace; treat its results as hints and verify them with `--help`.
 
 ## Project-scoped reads
 
@@ -45,12 +45,14 @@ Most resource commands need `<project_id>`. Resolve it from the current user res
 
 ```bash
 posthog-pp-cli projects feature-flags list <project_id> --limit 20 --agent --select id,key,active,created_at
-posthog-pp-cli projects events list <project_id> --limit 20 --agent --select id,event,timestamp
+posthog-pp-cli projects events list <project_id> --limit 20 --agent
 posthog-pp-cli projects insights list <project_id> --limit 20 --agent --select id,name,short_id
 posthog-pp-cli projects dashboards list <project_id> --limit 20 --agent --select id,name
 posthog-pp-cli projects experiments list <project_id> --limit 20 --agent --select id,name,feature_flag_key
 posthog-pp-cli projects persons list <project_id> --limit 20 --agent --select id,distinct_ids,created_at
 ```
+
+Exception: `projects events list --select` is an experimental JSON-serialized array of HogQL query expressions sent to the API, not the root's comma-separated output-field selector. Do not use it to filter output fields; check the subcommand's `--help` for flag meanings.
 
 ## Feature flag safety
 
@@ -81,7 +83,7 @@ Summarize `sync_summary` and warning counts. Permission warnings for unavailable
 ```bash
 posthog-pp-cli dashboard health --stale-days 7 --agent
 posthog-pp-cli experiments pre-check --agent
-posthog-pp-cli persons at-risk --cohort <cohort-key-or-id> --silent-days 14 --agent
+posthog-pp-cli persons at-risk --cohort <cohort-id> --silent-days 14 --agent
 posthog-pp-cli events property-drift <event-name> --agent
 posthog-pp-cli llm cost-attribution --flag <flag-key> --since 2026-01-01 --agent
 ```
