@@ -42,8 +42,11 @@ Rule severity flags can be useful, but verify current support first:
 ```bash
 ty check --error possibly-unresolved-reference
 ty check --warn division-by-zero
-ty check --ignore unresolved-import
+ty check --ignore import-not-found
+ty explain rule import-not-found
 ```
+
+Use `ty explain rule <rule-name>` for the local rule description and history. Keep severity overrides scoped to the requested check, not blanket rule suppression.
 
 ## Config shape
 

@@ -11,6 +11,7 @@ REPO = Path(__file__).resolve().parents[3]
 SKILL = REPO / "agent/skills/firebase-basics"
 PACKAGE = None
 HELP = None
+EXPECTED_VERSION = "15.32.0"
 
 
 def adjacent_gate_errors(text):
@@ -40,7 +41,7 @@ class FirebaseBasicsContract(unittest.TestCase):
     def test_package_identity_runtime_and_lifecycle(self):
         package = json.loads((PACKAGE / "package.json").read_text())
         self.assertEqual(package["name"], "firebase-tools")
-        self.assertEqual(package["version"], "15.32.0")
+        self.assertEqual(package["version"], EXPECTED_VERSION)
         self.assertEqual(package["bin"], {"firebase": "./lib/bin/firebase.js"})
         self.assertEqual(package["engines"]["node"], ">=20.0.0 || >=22.0.0 || >=24.0.0")
         self.assertFalse(package.get("scripts"))
@@ -65,7 +66,7 @@ class FirebaseBasicsContract(unittest.TestCase):
                 self.assertIn("Usage:", text)
                 for term in expected:
                     self.assertIn(term, text)
-        self.assertEqual((HELP / "version.txt").read_text().strip(), "15.32.0")
+        self.assertEqual((HELP / "version.txt").read_text().strip(), EXPECTED_VERSION)
 
     def test_android_command_shapes_and_config_output(self):
         android = self.refs["android_setup"]
@@ -138,7 +139,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package-dir", type=Path, required=True)
     parser.add_argument("--help-dir", type=Path, required=True)
+    parser.add_argument("--expected-version", choices=("15.32.0", "15.36.0"), default="15.32.0")
     args, remaining = parser.parse_known_args()
+    EXPECTED_VERSION = args.expected_version
     PACKAGE = args.package_dir.resolve(strict=True)
     HELP = args.help_dir.resolve(strict=True)
     unittest.main(argv=[__file__, *remaining])

@@ -7,6 +7,12 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
 function resolveGlobalNodeModules() {
+	if (Object.hasOwn(process.env, "PI_TEST_NODE_MODULES")) {
+		assert.ok(path.isAbsolute(process.env.PI_TEST_NODE_MODULES), "PI_TEST_NODE_MODULES must be an absolute target path");
+		const root = fs.realpathSync(process.env.PI_TEST_NODE_MODULES);
+		assert.ok(fs.existsSync(path.join(root, "@earendil-works/pi-coding-agent/package.json")));
+		return root;
+	}
 	const candidates = [];
 	try {
 		candidates.push(execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim());
@@ -27,7 +33,7 @@ const piPackageRoot = path.join(globalNodeModules, "@earendil-works", "pi-coding
 process.env.NODE_PATH = [
 	path.join(piPackageRoot, "node_modules"),
 	globalNodeModules,
-	process.env.NODE_PATH,
+	Object.hasOwn(process.env, "PI_TEST_NODE_MODULES") ? undefined : process.env.NODE_PATH,
 ].filter(Boolean).join(path.delimiter);
 Module._initPaths();
 
@@ -49,6 +55,13 @@ function resolvePiAiRoot(packageRoot, globalRoot) {
 const { createJiti } = requirePiDependency("jiti");
 const { visibleWidth } = requirePiDependency("@earendil-works/pi-tui");
 const piAiRoot = resolvePiAiRoot(piPackageRoot, globalNodeModules);
+if (Object.hasOwn(process.env, "PI_TEST_NODE_MODULES")) {
+	assert.equal(process.env.NODE_PATH, [path.join(piPackageRoot, "node_modules"), globalNodeModules].join(path.delimiter));
+	for (const name of ["jiti", "@earendil-works/pi-tui"]) {
+		assert.ok(fs.realpathSync(require.resolve(name)).startsWith(globalNodeModules + path.sep));
+	}
+	assert.ok(fs.realpathSync(piAiRoot).startsWith(globalNodeModules + path.sep));
+}
 // Pi AI's package exports are import-only; use its installed entry in this CJS harness.
 const { createAssistantMessageEventStream, normalizeContext } = require(
 	path.join(piAiRoot, "dist", "index.js"),

@@ -38,10 +38,9 @@ Remote operation involves two separate credentials:
 - The gateway must authenticate the MCP client.
 - `nlm login` must maintain the Google browser session used for Gemini Notebook.
 
-The MCP server uses one process-wide Gemini Notebook profile. Every caller operates
-the same Google account, and `nlm login switch <profile>` changes the account
-for the whole server. An OAuth gateway controls access to the endpoint but does
-not create per-user Gemini Notebook isolation. `usage_get(profile=...)` is an account-specific read exception; it does not switch other tools or make one server safe for multiple users.
+The MCP server uses one process-wide Gemini Notebook profile. Every caller operates the same Google account. A requested MCP `profile(action="switch", name=...)` sets a session override until the server restarts, affecting every chat that shares the process. `make_default=True` additionally changes the saved default and requires a separate exact request. `nlm login switch <profile>` changes the saved default, but an active MCP session override still takes precedence. Environment cookies override saved profiles; never remove them automatically to enable switching.
+
+Prefer CLI `--profile` for an account-specific task without switching MCP. Never change the account as automatic recovery. If a result contains `active_profile_note`, tell the user which account is in use. An OAuth gateway controls access to the endpoint but does not create per-user Gemini Notebook isolation. `usage_get(profile=...)` is an account-specific read exception; it does not switch other tools or make one server safe for multiple users.
 
 Google can require interactive sign-in again at any time. Persistent local
 browser profiles give the best recovery behavior. VPS and container

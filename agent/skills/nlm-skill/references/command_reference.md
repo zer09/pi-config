@@ -1,6 +1,6 @@
 # Gemini Notebook (formerly Google NotebookLM) CLI - Command Reference
 
-Runtime command guidance for `nlm 0.13.0`. Use installed command help for options not listed here.
+Runtime command guidance for `nlm 0.16.2`. Use installed command help for options not listed here.
 
 Apply the [root authorization rules](../SKILL.md#safety-and-authorization) before executing examples. Reads do not authorize writes. Setup, auth recovery, exports, uploads, and configuration each retain their own scope; delete always needs explicit target confirmation. Batch and pipeline generation must not bypass Studio confirmation.
 
@@ -108,10 +108,10 @@ nlm login switch work
 ### nlm auth refresh
 
 ```bash
-nlm auth refresh [--profile <profile>]
+nlm auth refresh [--profile <profile>] [--http-only]
 ```
 
-Runs a non-interactive headless-browser refresh against a saved profile and writes renewed credentials. It exits non-zero on failure. This is auth recovery, not an offline status check. Use only for authorized recovery or expressly requested unattended maintenance; do not install a scheduler as an adjacent step. `NOTEBOOKLM_COOKIES` or `NOTEBOOKLM_DISABLE_HEADLESS_REFRESH=1` prevents this refresh. Never print secret values or unset those controls automatically.
+Runs a non-interactive headless-browser refresh against a saved profile and writes renewed credentials. It exits non-zero on failure. This is auth recovery, not an offline status check. Use only for authorized recovery or expressly requested unattended maintenance; do not install a scheduler as an adjacent step. `NOTEBOOKLM_COOKIES` prevents refresh. `NOTEBOOKLM_DISABLE_HEADLESS_REFRESH=1` prevents browser-based refresh; explicitly requested `--http-only` recovery remains available without launching a browser. HTTP-only mode validates an authenticated API response before saving, but cannot renew browser-dependent PSIDTS cookies or revive a fully expired login. Explicit refresh bypasses the automatic recovery budget; do not use it as an automatic retry. Never print secret values or unset those controls automatically.
 
 ---
 
@@ -125,7 +125,7 @@ nlm usage --profile <profile>
 
 This account-level read reports measured compute usage, not estimated request counts. Inspect both `rolling` and `weekly` windows: `percent_used`, `percent_remaining`, and `resets_at`. JSON timestamps are UTC; table timestamps use local time. `tier` appears when available. Check usage before quota-limited work when the remaining budget matters.
 
-MCP `usage_get(profile="<profile>")` checks one saved account without switching the default used by other tools. An explicit profile takes precedence over environment cookies; a missing profile errors rather than falling back. Auth failure does not mean exhausted quota and does not authorize account switching or automatic login.
+MCP `usage_get(profile="<profile>")` checks one saved account without switching the active account used by other tools. An explicit profile takes precedence over environment cookies; a missing profile errors rather than falling back. Auth failure does not mean exhausted quota and does not authorize account switching or automatic login.
 
 ---
 
@@ -251,7 +251,7 @@ nlm source list <notebook-id> [OPTIONS]
 | `--profile` | `-p` | Use specific profile |
 
 When freshness is skipped, `stale`/`is_stale` is `null` (unknown), not
-`false` (fresh).
+`false` (fresh). JSON includes original web/YouTube `url` values; `--url` prints ID-to-URL pairs. MCP `source_list_drive` and `source_get_content` omit that field; use CLI when the original URL is needed, unless the user explicitly requires MCP.
 
 ### nlm source add
 
@@ -293,7 +293,7 @@ nlm source add <notebook-id> [OPTIONS]
 
 ### nlm source get
 
-Get source metadata.
+Get source metadata. `--json` includes the original web/YouTube `url`.
 
 ```bash
 nlm source get <source-id> [OPTIONS]
@@ -342,7 +342,7 @@ nlm source stale <notebook-id> [OPTIONS]
 
 ### nlm source sync
 
-Sync Drive sources with latest content.
+Sync Drive sources with latest content only when requested. Without `--source-ids`, only confirmed stale sources eligible for automatic sync are selected. Unknown freshness and stale sources that cannot sync are reported separately, even if other sources succeed. Explicit IDs bypass freshness selection, not authorization.
 
 ```bash
 nlm source sync <notebook-id> [OPTIONS]
@@ -1034,7 +1034,7 @@ nlm config set <key> <value>
 | `output.short_ids` | `true` | Show shortened IDs |
 | `auth.browser` | `auto` | Preferred login browser: auto, chrome, arc, dia, comet, brave, edge, chromium, firefox, vivaldi, opera. Falls back to auto if a preferred named browser is unavailable. |
 | `auth.browser_path` | empty | Explicit Chromium-compatible executable; `NLM_BROWSER_PATH` overrides named discovery. |
-| `auth.default_profile` | `default` | Profile to use when `--profile` not specified. **Note:** The MCP Server always uses the active default profile. Changing this setting will instantaneously switch the MCP server's Google account. |
+| `auth.default_profile` | `default` | Profile to use when `--profile` not specified. **Note:** MCP can have a process-wide session override until restart. Changing the saved default does not override that session choice. See the [account-isolation boundary](remote-mcp.md#authentication-and-account-isolation); never switch accounts automatically. |
 
 **Example**: Set default profile to avoid typing `--profile` for every command:
 
@@ -1106,7 +1106,7 @@ Run `nlm <family> <command> --help` for selector and profile options.
 
 ## Setup, Skill, and Diagnostics
 
-The distribution remains `notebooklm-mcp-cli` at 0.13.0, with executables `nlm` and `notebooklm-mcp`. New MCP connections use `gemini-notebook-mcp`. An old connection name is not a package rename or permission to replace a working configuration.
+The distribution remains `notebooklm-mcp-cli` at 0.16.2, with executables `nlm` and `notebooklm-mcp`. New MCP connections use `gemini-notebook-mcp`. An old connection name is not a package rename or permission to replace a working configuration.
 
 ```bash
 nlm setup                      # Interactive wizard for a human in a terminal
@@ -1136,7 +1136,7 @@ the selected Claude profile before adding or removing MCP configuration. The
 CLI refuses to write while the active Claude executable is running, including
 when Relay AI launched it. User-level skill installation likewise requires the target tool to be detected.
 
-The wizard offers status, add MCP, add skill, remove, copy setup, and exit; Esc returns to the previous screen. It lists detected tools, starts connection selection empty, and offers `notebooklm-mcp` or `notebooklm` connections under **Needs a fix**. Renaming to `gemini-notebook-mcp` is a separate configuration write that preserves other settings. Do not drive the interactive wizard as maintenance validation or choose adjacent writes.
+The wizard offers status, add MCP, add skill, remove, credential protection, copy setup, and exit; Esc returns to the previous screen. It lists detected tools, starts connection selection empty, and offers `notebooklm-mcp` or `notebooklm` connections under **Needs a fix**. Renaming to `gemini-notebook-mcp` is a separate configuration write that preserves other settings. Do not drive the interactive wizard as maintenance validation or choose adjacent writes.
 
 MCP configuration defaults to app/user scope and uses the executable's full path. Codex CLI and ChatGPT desktop share a configuration on the same host. The wizard uses GitHub Copilot's VS Code user profile; direct `nlm setup add github-copilot` defaults to project scope unless `--scope user` is supplied. Skills default to **All my projects** (user level); choose `--level project` only for an authorized project install. Current/newer skill versions are kept. Replacing older or unversioned skills requires confirmation and backs up the old directory. Do not let this replace the locally adapted skill or its safety overlays.
 

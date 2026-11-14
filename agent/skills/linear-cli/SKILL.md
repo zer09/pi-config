@@ -17,7 +17,7 @@ Use the local `linear` command for Linear reads and carefully gated writes. Line
 
 ## Syntax and identifier discovery
 
-Bundled command references match Linear CLI 2.6.0. Resolve command syntax in this order:
+Bundled command references match Linear CLI 3.1.0. Resolve command syntax in this order:
 
 1. Open the smallest bundled family reference, such as [issue](references/issue.md), and use its documented signature and flags.
 2. Construct the command from that reference.
@@ -44,22 +44,23 @@ When a Linear mutation is blocked with a message that begins `Hosted-service mut
 
 Open the smallest command-family reference directly. Use [commands](references/commands.md) as the family index when the relevant family is unclear:
 
-- [api](references/api.md) - Make a raw GraphQL API request
-- [auth](references/auth.md) - Manage Linear authentication
-- [config](references/config.md) - Interactively generate .linear.toml configuration
-- [cycle](references/cycle.md) - Manage Linear team cycles
-- [document](references/document.md) - Manage Linear documents
-- [initiative](references/initiative.md) - Manage Linear initiatives
-- [initiative-update](references/initiative-update.md) - Manage initiative status updates (timeline posts)
-- [issue](references/issue.md) - Manage Linear issues
-- [label](references/label.md) - Manage Linear issue labels
+- [api](references/api.md) - Send a raw GraphQL request to the Linear API
+- [auth](references/auth.md) - Log in to workspaces and manage their credentials
+- [config](references/config.md) - Write a .linear.toml for the current repository
+- [cycle](references/cycle.md) - View team cycles
+- [document](references/document.md) - Manage documents
+- [initiative](references/initiative.md) - Manage initiatives
+- [initiative-update](references/initiative-update.md) - Post and list initiative status updates
+- [issue](references/issue.md) - Manage issues
+- [label](references/label.md) - Manage issue labels
 - [markdown](references/markdown.md) - Linear-flavored Markdown: mentions and collapsible sections
-- [milestone](references/milestone.md) - Manage Linear project milestones
-- [project](references/project.md) - Manage Linear projects
-- [project-update](references/project-update.md) - Manage project status updates
-- [schema](references/schema.md) - Print the GraphQL schema to stdout
-- [team](references/team.md) - Manage Linear teams
-- [user](references/user.md) - Manage Linear users
+- [milestone](references/milestone.md) - Manage project milestones
+- [project](references/project.md) - Manage projects
+- [project-update](references/project-update.md) - Post and list project status updates
+- [schema](references/schema.md) - Print the Linear GraphQL schema
+- [team](references/team.md) - Manage teams
+- [template](references/template.md) - Browse issue, project and document templates
+- [user](references/user.md) - List workspace members
 
 For curated organization workflows, see [organization-features](references/organization-features.md).
 
@@ -82,9 +83,10 @@ Known gotchas:
 - `document create` requires exactly one attachment target. See [document](references/document.md) for target flags, including cycle/team scoping.
 - Use `--add-label` or `--remove-label` to change selected labels without replacing the full set. Repeated `--label` flags replace the full label set.
 - `issue list` defaults to priority sorting; override with `--sort manual` or configure `issue_sort` / `LINEAR_ISSUE_SORT`.
-- `issue list` is an alias of `issue mine` and shows your issues; use `issue query` for all assignees or team/project-wide filtering.
-- `issue list` usually needs `--team <key>` unless team inference is verified.
-- `--no-pager` is only supported on `issue list`; do not pass it to commands like `project list`.
+- `issue list` is the canonical name (`issue mine` remains an alias) and shows your issues by default. Use `--assignee`, `--all-assignees`, or `--unassigned` to change that filter, or `issue query` for broader searches.
+- `issue list` needs `--team <key>` unless team inference is verified.
+- `--no-pager` works on issue list/query, long views, and comment lists, but not `project list`. Check the family reference before using it.
+- `--limit` accepts a positive number or `all`, not `0`. List JSON is an array of entities; view JSON is one object.
 - For an image that should render inline, use `linear issue comment add <ISSUE-ID> --attach <image-path>`; `linear issue attach` creates a sidebar link attachment.
 
 ## GraphQL fallback

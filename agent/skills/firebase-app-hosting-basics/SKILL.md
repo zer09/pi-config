@@ -9,7 +9,8 @@ Use Firebase App Hosting for framework-backed web apps such as Next.js or Angula
 
 ## Hosted service safety
 
-- Reads, local config edits, local builds, and emulation are allowed.
+- Non-enabling reads, local config edits, local builds, and emulation are allowed.
+- `apphosting:backends:list` and `apphosting:backends:get` can silently enable `firebaseapphosting.googleapis.com` before reading. Before either command, require verified non-enabling evidence that this exact service is already enabled in the exact target project, or explicit user authority to enable this exact service in that project. If the service is disabled or its state is unknown without that authority, stop before invocation. Never use list/get themselves as the preflight. Authentication, `silent=true`, billing, backend, or general-read authority does not authorize service enablement.
 - Creating backends, connecting repos, changing rollout settings, setting secrets, changing service accounts, enabling services, upgrading billing plans, or deploying requires exact user instruction.
 - Confirm the Firebase project, backend ID, region, branch, and rollout target before any hosted mutation.
 - Never print or commit secret values. Refer to Firebase secrets and environment variables by name only.
@@ -28,6 +29,8 @@ Use Firebase App Hosting for framework-backed web apps such as Next.js or Angula
 7. For deploy or backend changes, provide a dry-run/checklist first unless the user explicitly requested the exact command.
 
 ## Command reminders
+
+The backend-list command below requires the service-enablement gate in Hosted service safety; command help does not verify service state.
 
 ```bash
 firebase --version

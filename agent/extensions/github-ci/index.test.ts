@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type {
   ExtensionAPI,
-  ExtensionContext,
+  ExtensionToolContext,
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import githubCiExtension from "./index.ts";
@@ -28,6 +28,7 @@ test("entry registers the public tool and returns normal FAIL without progress",
         return {
           code: 0,
           killed: false,
+          truncated: false,
           stdout: JSON.stringify(data),
           stderr: "UNRETURNED_STDERR",
         };
@@ -47,6 +48,28 @@ test("entry registers the public tool and returns normal FAIL without progress",
     /duplicate run ID 1/,
   );
   const signal = new AbortController().signal;
+  const unusedContext = () => assert.fail("github_ci_wait must not use the tool context.");
+  const context: ExtensionToolContext = {
+    get ui() { return unusedContext(); },
+    mode: "print",
+    hasUI: false,
+    cwd: "/unused",
+    get sessionManager() { return unusedContext(); },
+    get modelRegistry() { return unusedContext(); },
+    model: undefined,
+    scopedModels: [],
+    isIdle: unusedContext,
+    isProjectTrusted: unusedContext,
+    signal,
+    abort: unusedContext,
+    hasPendingMessages: unusedContext,
+    shutdown: unusedContext,
+    getContextUsage: unusedContext,
+    compact: unusedContext,
+    getSystemPrompt: unusedContext,
+    tools: [],
+    executeTool: unusedContext,
+  };
   let updates = 0;
   const result = await tool.execute(
     "test",
@@ -55,7 +78,7 @@ test("entry registers the public tool and returns normal FAIL without progress",
     () => {
       updates++;
     },
-    {} as ExtensionContext,
+    context,
   );
   assert.equal(updates, 0);
   assert.equal(result.details.outcome, "FAIL");

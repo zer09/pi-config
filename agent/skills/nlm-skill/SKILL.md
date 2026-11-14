@@ -39,7 +39,7 @@ Load only the reference needed for the requested task. Examples are command guid
 ## Key correctness rules
 
 - Authenticate only when needed: `nlm login` for first-time setup or confirmed stale credentials; `nlm login --check` when useful. Cookies can remain usable for weeks, so elapsed time alone does not require login.
-- Auth status `unverified` is not expiry. Check connectivity or try a safe API call first; the CLI retries transient failures and performs automatic auth recovery.
+- Auth status `unverified` is not expiry. Check connectivity or try a safe API call first; the CLI retries eligible reads and connection failures and performs bounded automatic auth recovery. Do not replay a write after an uncertain response or switch profiles as recovery.
 - Never use `nlm chat start`, which opens an interactive REPL. Use `nlm notebook query` for one-shot Q&A. It continues persistent chat by default; use `--new-conversation` for an independent question.
 - Research needs an authorized destination: `--notebook-id <id>` for an existing notebook or `--title <title>` for requested creation. Research status does not authorize import; stale sources do not authorize sync. Check existing aliases before creating another alias.
 - Keep output bounded when it may exceed 20 lines: compact output, `--quiet`, filtered `--json`, or temp files. Prefer compact status, `--quiet` for captured IDs, and JSON only for programmatic parsing.

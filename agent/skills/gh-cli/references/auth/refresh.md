@@ -1,7 +1,7 @@
 # gh auth refresh
 
 Source: https://cli.github.com/manual/gh_auth_refresh
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help auth refresh`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help auth refresh`.
 
 ## Summary
 
@@ -31,6 +31,16 @@ If you have multiple accounts in `gh auth status` and want to refresh the creden
 inactive account, you will have to use `gh auth switch` to that account first before using
 this command, and then switch back when you are done.
 
+Use `--expiring` to prefer expiring credentials that gh refreshes automatically, or
+`--expiring=false` to prefer a non-expiring token. This is a preference, not a guarantee:
+whether expiring tokens are issued depends on the host and the OAuth app configuration. A host
+without support issues a non-expiring token instead, and a host configured for them may issue
+expiring tokens even without the flag. Without the flag, refresh keeps the current token's kind,
+so an expiring token stays expiring and a non-expiring token stays non-expiring.
+When using expiring credentials for git operations, git 2.46 or newer is recommended so
+gh can mark the token as non-cacheable; with older git a credential caching helper may store
+and reuse an expired token.
+
 For more information on OAuth scopes, see
 <https://docs.github.com/en/developers/apps/building-oauth-apps/scopes-for-oauth-apps/>.
 
@@ -40,6 +50,7 @@ USAGE
 
 FLAGS
   -c, --clipboard               Copy one-time OAuth device code to clipboard
+      --expiring                Prefer expiring credentials that gh refreshes automatically, if the host supports them
   -h, --hostname string         The GitHub host to use for authentication
       --insecure-storage        Save authentication credentials in plain text instead of credential store
   -r, --remove-scopes strings   Authentication scopes to remove from gh

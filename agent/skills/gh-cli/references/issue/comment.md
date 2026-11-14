@@ -1,7 +1,7 @@
 # gh issue comment
 
 Source: https://cli.github.com/manual/gh_issue_comment
-Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help issue comment`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help issue comment`.
 
 ## Summary
 
@@ -21,8 +21,9 @@ interactively prompt for the comment text.
 
 Use `--attach` to upload an image or video. If the body already references an
 attached file, such as `![alt](./login.png)`, that reference is rewritten to point
-at the uploaded asset. Any attached file the body does not reference is appended
-to the end of the comment.
+at the uploaded asset. Paths in a `--body-file` are relative to its directory,
+falling back to the working directory. Any attached file the body does not reference
+is appended to the end of the comment.
 You can attach up to 50 files per command.
 
 Alt text for an image follows the path after `#`, as in

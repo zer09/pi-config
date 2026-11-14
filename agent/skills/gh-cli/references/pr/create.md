@@ -1,7 +1,7 @@
 # gh pr create
 
 Source: https://cli.github.com/manual/gh_pr_create
-Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help pr create`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help pr create`.
 
 ## Summary
 
@@ -44,7 +44,8 @@ will automatically get closed when the pull request gets merged.
 
 Use `--attach` to upload an image or video. The attachment is appended to the
 body. If the body references an attached file, such as `![alt](./login.png)`, that
-reference is rewritten to point at the uploaded asset instead.
+reference is rewritten to point at the uploaded asset instead. Paths in a
+`--body-file` are relative to its directory, falling back to the working directory.
 You can attach up to 50 files per command.
 
 Alt text for an image follows the path after `#`, as in

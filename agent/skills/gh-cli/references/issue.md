@@ -1,7 +1,7 @@
 # gh issue
 
 Source: https://cli.github.com/manual/gh_issue
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help issue`.
 
 ## Summary
 
@@ -12,6 +12,7 @@ Work with GitHub issues.
 - [`create`](issue/create.md) - Create a new issue
 - [`list`](issue/list.md) - List issues in a repository
 - [`status`](issue/status.md) - Show status of relevant issues
+- [`artifact`](issue/artifact.md) - Work with issue artifacts (preview)
 - [`close`](issue/close.md) - Close issue
 - [`comment`](issue/comment.md) - Add a comment to an issue
 - [`delete`](issue/delete.md) - Delete issue
@@ -39,6 +40,7 @@ GENERAL COMMANDS
   status:        Show status of relevant issues
 
 TARGETED COMMANDS
+  artifact:      Work with issue artifacts (preview)
   close:         Close issue
   comment:       Add a comment to an issue
   delete:        Delete issue

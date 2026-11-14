@@ -27,33 +27,28 @@ The tracked config root is `agent/`, which maps to the local Pi agent config dir
 
 ## Current settings snapshot
 
-`agent/settings.json` is the main tracked settings file.
+**Pi 1.5.2 is installed and verified.** See the [installation record](docs/changelogs/pi-1.5.2-full-setup-installation.md) for actual software, checks, remaining limits and rollback evidence. The [preparation record](docs/changelogs/pi-1.5.2-full-setup-maintenance-preparation.md) remains historical.
+
+`agent/settings.json` is the main tracked settings file. The snapshot below describes the installed selection; defaults and accounts remain unchanged.
 
 Current defaults:
 
 | Setting                | Value                       |
 | ---------------------- | --------------------------- |
-| Default provider       | `orcarouter`                         |
-| Default model          | `deepseek/deepseek-v4-flash-free`    |
-| Default thinking level | `high`                      |
+| Default provider       | Unchanged; see `agent/settings.json`. |
+| Default model          | Unchanged; see `agent/settings.json`. |
+| Default thinking level | `max`                       |
 | Theme                  | `dark` saved baseline; startup wrapper uses write-free `--use-theme` selection |
 | Transport              | `websocket-cached`          |
 
-Enabled models:
+The existing `enabledModels` selection and provider/account aliases remain authoritative in `agent/settings.json`. TUI mode remains `regular`; cache warming remains `off`.
 
-- `openai-codex/gpt-6-sol`
-- `openai-codex-cgpt1/gpt-5.6-sol`
-- `openai-codex-cgpt2/gpt-5.6-sol`
-- `openai-codex-cgpt5/gpt-5.6-sol`
-- `openai-codex-cgpt6/gpt-5.6-sol`
-- `orcarouter/deepseek/deepseek-v4-flash-free`
+Installed package pins:
 
-Configured packages:
-
-- `npm:pi-blackhole@0.5.9`
-- `npm:pi-btw@0.6.1`
-- object-form `npm:pi-browser-harness@0.10.2` with `skills: []`
-- `npm:pi-claude-bridge@0.8.0`
+- `npm:pi-blackhole@0.5.15`
+- `npm:pi-btw@0.8.1`
+- object-form `npm:pi-browser-harness@0.13.0` with `skills: []`
+- `npm:pi-claude-bridge@0.9.3`
 
 Cursor is not configured. OpenAI Codex account aliases are configured separately under `agent/extensions/openai-codex-aliases/`; the canonical provider and every alias keep independent stored credentials. Cache warming is explicitly `off` to avoid automatic provider requests.
 
@@ -108,11 +103,11 @@ Local extensions live under `agent/extensions/`.
 
 ### Retained-but-retired CodeGraph and Context Mode
 
-**Prepared in this isolated worktree, not deployed to the live Pi setup.** `agent/settings.json` excludes the retained entries with `-extensions/codegraph/index.ts` and `-extensions/context-mode/src/index.ts`. It also excludes the retained upgrade prompt with `-prompts/codegraph-upgrade.md`. The delegated runtime profile omits both extensions and requires exactly five entries in order: `delegated-pi-loop/index.ts`, `openai-codex-aliases/index.ts`, `web-search/index.ts`, `fastlane/index.ts`, and provider-only `claude-bridge-provider/delegate-entry.ts`. The two-entry catalog is unchanged.
+**CodeGraph and Context Mode remain retired in the installed setup.** `agent/settings.json` excludes the retained entries with `-extensions/codegraph/index.ts` and `-extensions/context-mode/src/index.ts`. It also excludes the retained upgrade prompt with `-prompts/codegraph-upgrade.md`. The delegated runtime profile omits both extensions and requires exactly five entries in order: `delegated-pi-loop/index.ts`, `openai-codex-aliases/index.ts`, `web-search/index.ts`, `fastlane/index.ts`, and provider-only `claude-bridge-provider/delegate-entry.ts`. The two-entry catalog is unchanged.
 
 Do not re-enable these resources, load them explicitly through CLI `-e` entries, alter child profiles to restore them, or bypass retirement with their CLIs. Use targeted native file reads and bounded shell searches/history/diagnostics instead. Preserve authenticated `gh` and the full unfiltered native Linear CLI exception. Sources, the prompt, installed dependencies, indexes, state, and caches remain retained; this retirement removes none of them.
 
-Normal loading exclusions and model instructions are not an OS security boundary. Shell access can still execute programs; no absolute shell prevention is claimed. Once the user deploys the prepared configuration, finish active children and restart fresh parent, child, and side sessions. No deployment, reload, or live runtime change is part of this preparation.
+Normal loading exclusions and model instructions are not an OS security boundary. Shell access can still execute programs; no absolute shell prevention is claimed. The Pi 1.5.2 installation verifies fresh synthetic parent/child processes and keeps these resources excluded. The instance that requested installation still uses Pi 1.4.0 in memory and requires a full restart to activate 1.5.2. The installer does not reload resources or start a new interactive process.
 
 Delegated implementation follows one small, independently reviewable increment per fresh delegate, with code and regression tests together. The parent checks and reviews each increment before assigning the next, then reviews the integrated task. Children use small edit-and-check steps and existing patterns. These are model instructions, not runtime size limits; routing, supervision, fallback, and report parsing are unchanged. See [ADR 0019](docs/adr/0019-delegated-incremental-implementation.md).
 
@@ -122,7 +117,7 @@ Delegated routing overrides follow the assigned profile's `overridePolicy` for e
 
 Delegated fallback preserves one conversation across providers intentionally. Live reuse is primary. After positive cleanup of an unusable child, the selected route resumes the same private Pi session with `--session-dir` and an exact `--session` file. The run precreates an empty 0600 file under its 0700 artifact directory. Prompt preparation and history I/O finish before the final synchronous runtime-resource and session-metadata checks, in that order, immediately before every execution spawn. Finalization deletes this ephemeral run-scoped session. Session contents, path, and ID never enter telemetry or ToolResult data. Prompt success acknowledges acceptance, not persistence. After cleanup, an acknowledged replacement requires positive durable active-history verification before spawn. The check validates every parsed branch and projects the active branch using Pi 0.99.2's latest compaction boundary and latest `context_edit` per target. A null edit omits its target, and a replacement contributes only its validated content. Legacy `retainedTail` is validated but cannot make an assignment visible because Pi 0.99.2 ignores it; `firstKeptEntryId` controls retained ancestry, and a self-boundary retains none. A user string or array of only text blocks must concatenate exactly to the original built assignment or its canonical restart-note form; compacted-away ancestry and mixed image content do not count. Verified history selects the exact canonical continuation with no restart count. Valid history without the assignment uses the one context-free replay fail-safe on the same selected route: original assignment plus one restart note, cleared acknowledgement, one count increment, and attribution to the prior acknowledged supervised attempt. Unacknowledged live and fresh fallback resend the selected assignment prompt: the base assignment before degradation, or the same restart prompt with exactly one note after degradation. Rejection adds no increment or attribution. Invalid identity, unsafe structure, or history beyond fixed 64 MiB file, 4 MiB line, or 100,000 physical-record limits fails closed before spawn with a fixed sanitized error. Continuity does not guarantee exactly-once execution of interrupted side effects.
 
-Extension-specific docs live inside the extension directories where available. Retained retired-extension docs describe historical behavior, not instructions to activate those extensions. Run local checks after extension edits; deploy and restart only when authorized. This worktree preparation does not authorize a live reload.
+Extension-specific docs live inside the extension directories where available. Retained retired-extension docs describe historical behavior, not instructions to activate those extensions. Run local checks after extension edits; deploy and restart only when authorized. Later live reloads or runtime updates require separate user authorization.
 
 ## Themes
 
@@ -220,13 +215,15 @@ Active patch notes currently cover:
 - Pi 0.84.1+ nullable provider-header preservation for Blackhole workers
 - Pi 0.87.1 active `context_edit` projection for fresh Blackhole compaction input
 
-`pi-blackhole@0.5.9` is configured with `retainedToolOutputMaxTokens: 0`, quiet worker notifications, disabled pool-pressure dropper requests, and disabled new recall/reflection display budgets. Three local patches remain active; raw recall, stored history, and prior summaries are unchanged. Pi 0.87.1 tests cover a settled turn, queued continuation, session replacement, and graceful runtime shutdown. Fresh-process activation and the daily-use acceptance matrix pass. The public custom-provider discovery patch and old OM auth fallback remain retired.
+`pi-blackhole@0.5.15` retains the three guarded repairs and existing compaction/budget/quiet settings. Raw recall, history and prior summaries remain unchanged. Pi 1.5.2 acceptance combines 51 retained cases with the one revised shutdown case; it is not a new single-run 52-case result. Newer 0.5.18 remains held. Earlier public-provider and OM-auth repairs stay retired.
 
-`pi-btw@0.6.1` includes the child `ModelRuntime` and canonical session-context migration upstream. A local patch remains for cancellation of runtime-only credential propagation. Six offline tests under `agent/pi-btw/` cover two turns, summary retry, in-memory restore, session-replacement cancellation, and persisted restoration across two isolated Pi processes.
+Prepared `pi-btw@0.8.1` retains only cancellation-aware runtime credential propagation. Its version-specific helper targets verified disposable TMPDIR source, never live `node_modules`. Existing child-context, restore, retry and restart checks pass; optional SSH remains inactive.
 
-`pi-claude-bridge@0.8.0` has a local-only prompt-ordering patch under `agent/pi-claude-bridge/`. It keeps extension-defined sections after known canonical sections so exact prompt captures resolve. The real Pi lifecycle and fake SDK serialization tests pass.
+`pi-browser-harness@0.13.0` retains per-receiving-API registration and 42 tools. Its three identical stock/repaired upstream type diagnostics remain disclosed; browser/profile/Windows acceptance is not claimed.
 
-Package upgrades or reinstalls can overwrite ignored installed-source edits. After upgrading Blackhole, BTW, or Claude Bridge, review each package's `LOCAL_PATCHES.md` and reapply or port the local patches as needed.
+`pi-claude-bridge@0.9.3` is stock. Its old prompt-ordering repair remains retired; do not reapply a historical helper. Trusted-repository and Claude-session retention boundaries remain unchanged.
+
+Package reinstalls can overwrite Blackhole, BTW and Harness repairs. Review their `LOCAL_PATCHES.md` records, prepare verified private repaired copies, and recheck every sibling after a transaction. These preparation notes authorize no live helper or deployment.
 
 ## Changelog and decisions
 

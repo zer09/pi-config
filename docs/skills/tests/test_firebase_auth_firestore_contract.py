@@ -15,6 +15,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 SKILLS = REPO / "agent/skills"
 PACKAGE = None
+EXPECTED_VERSION = "15.32.0"
 
 
 def client_setup_errors(text):
@@ -457,7 +458,7 @@ class FirestoreSafetyContract(unittest.TestCase):
 
     def test_documented_cli_flags_match_source_without_execution(self):
         package = json.loads((PACKAGE / "package.json").read_text())
-        self.assertEqual((package["name"], package["version"]), ("firebase-tools", "15.32.0"))
+        self.assertEqual((package["name"], package["version"]), ("firebase-tools", EXPECTED_VERSION))
         count = 0
         for path in self.skill.rglob("*.md"):
             for block in re.findall(r"```bash\n(.*?)```", path.read_text(), re.DOTALL):
@@ -510,6 +511,8 @@ class FirestoreSafetyContract(unittest.TestCase):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package-dir", type=Path, required=True)
+    parser.add_argument("--expected-version", choices=("15.32.0", "15.36.0"), default="15.32.0")
     args, remaining = parser.parse_known_args()
+    EXPECTED_VERSION = args.expected_version
     PACKAGE = args.package_dir.resolve(strict=True)
     unittest.main(argv=[__file__, *remaining])

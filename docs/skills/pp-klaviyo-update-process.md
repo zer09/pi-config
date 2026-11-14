@@ -19,6 +19,14 @@ Use this Skill Maintenance Doc for the local `pp-klaviyo` skill, which wraps the
 
 Treat upstream as input, not final truth. Local Pi secret handling, customer-data controls, mutation gates, compactness, and installed-binary behavior win.
 
+## Pi 1.5.2 preparation: retain 2026.9.3, hold 2026.11.7
+
+The existing user-local binary still reports 2026.9.3 and remains unchanged. Its private byte-identical copy passes version, root/representative help and Go build-info checks; the existing preflight regression passes without real credentials. The binary records Go 1.26.8 but omits VCS revision, so these checks are not exact build-source attestation or live API/cache acceptance.
+
+Authenticated source reads verify release 2026.11.7 at stamped build commit `1d0f487fb308e46275a10cb714de6061f8e3c258`, ledger source commit `33f9f600c1cb2c06f751a0c18cb6b645adae2f31`. Its released credential/config relocation and platform cache/session changes exceed this compatibility-first update; hold the migration rather than relabeling the existing binary or building/installing it automatically. The held source also hardens credential routing from untrusted configuration; that protection is not backported. Help checks do not certify the retained binary's real credential routing. Review the migration before future credentialed use. Preserve current key/base-URL, customer-cache, ambiguous-write and exact send/mutation gates.
+
+See the [full preparation record](../changelogs/pi-1.5.2-full-setup-maintenance-preparation.md). Public source snapshots, exact native hashes and safe command logs are under `RUN/reports/local-audit`. No customer/API/doctor/sync/auth operation, global update or deployment ran. The source/install facts below remain historical reviewed inputs, not a claim that the held release was installed.
+
 ## Update workflow
 
 1. Read `docs/skills/README.md`.

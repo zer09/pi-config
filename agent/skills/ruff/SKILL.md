@@ -26,7 +26,7 @@ uv run ruff check path/to/file.py
 uv run ruff format --diff path/to/file.py
 ```
 
-Use `uvx ruff ...` for one-off checks when Ruff is not a project dependency. Use global `ruff ...` only when that is the repo convention.
+Use `uvx ruff ...` for one-off checks when Ruff is not a project dependency. Use global `ruff ...` only when that is the repo convention. Keep `uv run ruff format` for a project-pinned formatter; `uv format` selects Ruff independently of the project's lockfile by default.
 
 ## Core commands
 
@@ -44,11 +44,15 @@ ruff rule E501
 
 ## Safe workflow
 
-1. Run `ruff check --diff` on the changed files.
+Read-only lint/format requests authorize diagnostics and previews, not applied fixes or formatting.
+
+1. Run `ruff check` for diagnostics and `ruff check --diff` to preview available fixes on the changed files.
 2. Apply safe lint fixes with `ruff check --fix` only on the intended files.
 3. Preview formatting with `ruff format --diff`.
 4. Format only the intended files if the diff is acceptable.
-5. Use `--unsafe-fixes` only after previewing with `--diff` and reviewing the rule with `ruff rule <CODE>`.
+5. Use `--unsafe-fixes` only with explicit approval, after previewing with `--diff` and reviewing the rule with `ruff rule <CODE>`.
+
+A diagnostic suggestion is not necessarily an automatic fix. `--fix` applies available safe fixes; unsafe fixes also require `--unsafe-fixes`, and manual-only suggestions require a manual edit. A fix preview does not show every remaining diagnostic.
 
 Run lint fixes before formatting because fixes can reorder imports or change code structure.
 
@@ -58,8 +62,7 @@ Ruff is usually configured in `pyproject.toml` or `ruff.toml`:
 
 ```toml
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
-ignore = ["E501"]
+extend-select = ["I", "UP"]  # Add import sorting and pyupgrade to the defaults
 ```
 
 ## Docs

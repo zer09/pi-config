@@ -2,7 +2,7 @@
 
 Use this index when the command family, exact flags, or output fields are not obvious. Each command reference was generated from local `gh help` output and includes the manual URL, summary, subcommand links, and full help text.
 
-Verified against `gh version 2.101.0 (2026-09-15)`: 229 command/alias pages, eight help topics, and [root help](gh.md). Unchanged pages retain their earlier generator attribution after a complete normalized help comparison.
+Verified against the prepared `gh version 2.103.3 (2026-10-26)` candidate: 236 command/alias pages, eight help topics, and [root help](gh.md). Unchanged pages retain their earlier generator attribution after a complete normalized help comparison.
 
 Runtime route: identify the repository as `OWNER/REPO`; convert obvious GitHub HTTPS or SSH URLs directly to the matching `gh` command; use `../scripts/normalize_github_url.py` only when conversion is unclear, the URL is complex, or deterministic JSON output is useful. Keep read-only command output bounded with filters or temp files when output may be large.
 
@@ -40,7 +40,7 @@ Before running writes such as create, edit, delete, comment, review, merge, rele
 - [`codespace`](codespace.md) - code, cp, create, delete, edit, jupyter, list, logs, ports, ports forward, ports visibility, rebuild, ssh, stop, view.
 - [`discussion`](discussion.md) - create, list, comment, edit, view.
 - [`gist`](gist.md) - clone, create, delete, edit, list, rename, view.
-- [`issue`](issue.md) - create, list, status, close, comment, delete, develop, edit, lock, pin, reopen, transfer, unlock, unpin, view.
+- [`issue`](issue.md) - create, list, status, artifact, artifact create, artifact delete, artifact download, artifact edit, artifact list, artifact view, close, comment, delete, develop, edit, lock, pin, reopen, transfer, unlock, unpin, view.
 - [`org`](org.md) - list.
 - [`pr`](pr.md) - create, list, status, checkout, checks, close, comment, diff, edit, lock, merge, ready, reopen, revert, review, unlock, update-branch, view.
 - [`project`](project.md) - close, copy, create, delete, edit, field-create, field-delete, field-list, item-add, item-archive, item-create, item-delete, item-edit, item-list, link, list, mark-template, unlink, view.

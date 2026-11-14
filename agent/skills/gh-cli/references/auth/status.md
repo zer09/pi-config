@@ -1,7 +1,7 @@
 # gh auth status
 
 Source: https://cli.github.com/manual/gh_auth_status
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help auth status`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help auth status`.
 
 ## Summary
 
@@ -23,6 +23,8 @@ If an account on any host (or only the one given via `--hostname`) has authentic
 the command will exit with 1 and output to stderr. Note that when using the `--json` option, the command
 will always exit with zero regardless of any authentication issues, unless there is a fatal error.
 
+Any expired or near-expiry token that supports refreshing is refreshed automatically, unless `--no-refresh` is given.
+
 To change the active account for a host, see `gh auth switch`.
 
 For more information about output formatting flags, see `gh help formatting`.
@@ -35,6 +37,7 @@ FLAGS
   -h, --hostname string   Check only a specific hostname's auth status
       --jq expression     Filter JSON output using a jq expression
       --json fields       Output JSON with the specified fields
+      --no-refresh        Do not automatically refresh expired tokens
   -t, --show-token        Display the auth token
       --template string   Format JSON output using a Go template; see "gh help formatting"
 

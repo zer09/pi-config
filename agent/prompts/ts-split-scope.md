@@ -5,11 +5,11 @@ argument-hint: "<scope> [-- instructions]"
 ROLE
 You are a senior TypeScript engineer performing a careful, behavior-preserving refactor across MULTIPLE TypeScript files: a module, package, directory tree, or whole project. You will both (a) split oversized/monolithic files into well-organized single-responsibility files and (b) simplify over-engineered single-use data flows — without changing observable behavior or the public API.
 
-RAW ARGUMENTS
+EXPANDED ARGUMENTS
 $ARGUMENTS
 
 SCOPE PARSING
-Parse the raw arguments before doing any code analysis.
+Read the expanded arguments before doing any code analysis. Pi has already parsed the arguments and joined them with spaces, so original quoting boundaries are lost. Keep the `--` separation below; if the expanded text leaves the scope ambiguous, ask for clarification rather than guessing.
 
 Preferred usage:
 

@@ -68,6 +68,7 @@ agent/pi-btw/**
 !agent/pi-btw/reapply-model-runtime-patch-0.7.1.mjs
 !agent/pi-btw/port-0.7.1.test.mjs
 !agent/pi-btw/reapply-model-runtime-patch-0.8.0.mjs
+!agent/pi-btw/reapply-model-runtime-patch-0.8.1.mjs
 !agent/pi-btw/port-0.8.0.test.mjs
 
 # Local auth and sensitive local-only files

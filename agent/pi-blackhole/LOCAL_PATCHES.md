@@ -1,6 +1,16 @@
 # Local pi-blackhole patches
 
+## Pi 1.5.2 installed
+
+The live cache now contains 0.5.15 with all three accepted repairs and the source entrypoint. Complete installed-byte and fresh SDK/RPC checks pass; no live helper or package reinstall ran. The 51 retained plus one revised shutdown result remains historical validation, not a new 52-case rerun. See the [installation record](../../docs/changelogs/pi-1.5.2-full-setup-installation.md). The preparation sections below remain historical.
+
 These notes track local changes made under `~/.pi/agent/npm/node_modules/pi-blackhole/`. Package upgrades or reinstalls can overwrite those files, so re-check this file after every `pi-blackhole` upgrade.
+
+## Pi 1.5.2 full-setup preparation, not deployed
+
+Retain 0.5.15 and the identical three-helper repair chain. Exact-target acceptance covers 51 retained cases plus one revised shutdown case, with cancellation/no-extra-work assertions intact; the original 51/52 run remains failed evidence. Stock/repaired production and nullable-header strict checks pass using Pi 1.5.2's actual filesystem-extension declarations. The selected-graph SDK and bundled/unbundled RPC check also passes. No production source/configuration or historical fixture changed, and 0.5.18 remains held.
+
+See the [full preparation record](../../docs/changelogs/pi-1.5.2-full-setup-maintenance-preparation.md) and `RUN/reports/s10` and `RUN/reports/s10-fix` for exact bindings, results and limits. Helpers still target verified private TMPDIR extractions, never live packages. This is not installed-byte or live-provider acceptance.
 
 ## C2 combined preparation: 0.5.15, not deployed
 

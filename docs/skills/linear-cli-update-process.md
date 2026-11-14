@@ -10,7 +10,62 @@ Classification remains **make it slim**. Keep the root and template as a compact
 
 The description and `agents/openai.yaml` remain unchanged. Linear resource requests belong here; GitHub operations belong to `gh-cli`. An update request authorizes neither hosted mutations nor unrelated package upgrades. The installed-skill inventory decision is unchanged.
 
-## Pinned 2.6.0 provenance
+## Current 3.1.0 alignment, prepared but not deployed
+
+The installed and captured latest package is already `@schpet/linear-cli@3.1.0`. This increment updates the skill, not the global installation. Bun remains the deployment owner: `~/.bun/bin/linear` points to the Bun global package's `run-linear.js`, which launches `node_modules/.bin_real/linear`. No global package command, installer, auth/config/keyring operation, or workspace action ran.
+
+### Exact source and private executable
+
+- Repository: https://github.com/schpet/linear-cli
+- Release: `v3.1.0`, published `2026-10-22T19:43:12Z`.
+- Tag commit and release target: `02571d34be662e5487204841fb80bf23ed79b4f0`, resolved with authenticated `gh`.
+- Official npm metadata: https://registry.npmjs.org/@schpet%2flinear-cli/3.1.0
+- npm archive: https://registry.npmjs.org/@schpet/linear-cli/-/linear-cli-3.1.0.tgz
+- npm SHA-1: `e2e3ac0371f0da23adbdcce2153ee3df3b761614`.
+- npm integrity: `sha512-5vYKu38lCmoQ09UzktNoAmH/VSa9YqrnGZkXWq0T9tG5QnoG6HT0w2uc3uAsnbNvOrSOJKpZNa9GtT9HrAXZdg==`.
+- The previously verified npm archive SHA-256 is `42fb53c2cb38aaf2c2b1c95273f878923a47774bc49d739f917e2434beb549db`; the release lists the same digest for its npm artifact.
+- Official release source: https://github.com/schpet/linear-cli/releases/download/v3.1.0/source.tar.gz
+- Source archive SHA-256: `c288405be2d6d90b5c0bec8e0df3ce7721070192b67b60a46c3094f4894f6dfb`.
+- Native release archive: https://github.com/schpet/linear-cli/releases/download/v3.1.0/linear-x86_64-unknown-linux-gnu.tar.xz
+- Native archive SHA-256: `bf7712097ce6a01e8a379de8357eca66d5748050201d336ba787b6ad3687f3e7`.
+- Extracted executable SHA-256: `c75bbcdf08aaf89731a3cd2672f940ac5ac9e142c8a132f86fd0ccf2da223628`, identical to the read-only installed executable.
+
+Release source and native archives were downloaded through authenticated `gh` into the private run directory. Both archive digests matched GitHub's asset digests. Existing npm metadata, extraction, and SRI verification were reused. No moving branch or installer execution supplied provenance. License and third-party notices remain with the private source/native artifacts; no upstream runtime code was imported into the skill.
+
+### Contracts and retained overlays
+
+3.0 rewrites the CLI in Rust. Inspect `crates/linear-cli/src/main.rs`, `cli/mod.rs`, and `app.rs` before help: parsing exits for help/version before configuration, credentials, or command dispatch. The npm launcher can download a missing executable and create its installation directory, so maintenance invokes only the verified native executable.
+
+| Area | Alignment or retained boundary |
+| --- | --- |
+| Help and generation | Clap puts descriptions before `Usage:` and adds a recursive `help` command. Adapt only those two generator seams. Retain deterministic sorting, alias handling for older fixtures, right-padding normalization, completion exclusion, failure-before-write, curated preservation, standalone imports, and reference-first navigation. |
+| Command library | Generate 17 families and 106 help blocks, including the new `template` family, delegate flags, and comment resolve/unresolve help. These are factual command references, not adoption of new workflows or permission to mutate. Every block matches the pinned upstream reference after right-padding normalization. |
+| Root corrections | `issue list` is canonical, with `mine` retained as an alias and explicit assignee filters available. `--no-pager` now covers long views and comment lists too. `--limit` accepts a positive number or `all`, not `0`; list JSON is an entity array and view JSON an object. Preserve team verification, sorting, document attachment targets, and inline-image guidance. |
+| Curated reference | Retain the organization reference and its existing recipes. Correct only the obsolete `label list --workspace` example to `--workspace-only`; `--workspace` now selects a named credential globally. Do not import upstream's additional project-update recipes. |
+| Markdown and text input | Preserve file-based Markdown guidance, plain-URL mentions, team-first lookup, and confirmation before a workspace-wide people search. Source inspection confirms body/description/content file flags accept `-` for stdin, read through EOF, strip a leading BOM and trailing whitespace, and reject a required empty body. |
+| API and schema | Preserve heredoc queries with variables and non-null markers. Source confirms the API takes one document or stdin, coerces variables, and paginates one connection. Schema uses batched introspection and prints SDL by default, with JSON/output-file options. The local initial-read rule still forbids redirecting or filtering the initial API/schema response. |
+| Exits | Source and root help distinguish success `0`, failure `1`, usage `2`, not found `3`, authentication `4`, unavailable `5`, and cancellation `130`. An unavailable mutation may already have taken effect; these notes do not authorize a retry. |
+| Safety and metadata | Preserve exact hosted-write authority, token secrecy, direct-bash complete responses, hard-truncation recovery with Linear, and unchanged-command guard retries within 10 minutes. The description, UI metadata, draft-only eval, classification, and inventory remain unchanged. |
+
+Schema, query, stdin, body-file, JSON, and exit behavior were checked against released implementation and existing upstream mock-test source, not by invoking command actions. No Rust build, new test suite, CLI wrapper project, live API proof, or model inference is part of this increment.
+
+### Current isolation and checks
+
+Use a cleared environment and Bubblewrap `--unshare-all --die-with-parent`. Hide the actual home and expose only system runtimes, read-only source/native inputs, and explicit private generated outputs/caches/temp/logs. Leave `HOME`, XDG, auth, keyring, completion, and proxy variables unset; set `LINEAR_IGNORE_ENV_FILE=1` and `NO_COLOR=1`. A private guard accepts only a sole `--version` or command words ending in `--help`. Never invoke schema/API, auth, config, resource actions, or browser/download workflows to test maintenance.
+
+The existing Deno 2.7.9 executable was copied privately from the prepared cache. Generation ran twice into a private skill copy with the existing permission-limited command below; native file edits then applied the verified generated bytes to the candidate. Bun 1.3.14 ran the existing tests. Python 3.13.16 and PyYAML 6.0.3 were bound read-only from the prepared environment and invoked through offline uv with an explicit interpreter, without downloads.
+
+Current recorded results:
+
+- The existing 12 offline generator/safety tests pass with 311 assertions. Only the existing version-specific test was extended; help extraction and the draft signature assertion were adapted to Clap's format.
+- All 17 family references match 106 pinned upstream help blocks after right-padding normalization. Generated source bytes and expanded root/template navigation agree.
+- Target validation and all 39 canonical Local Skill validations pass, including metadata and links. Impeccable receives structural validation only; none of its scripts or dependencies run.
+- Deno typecheck and formatting checks pass. The root remains 114 lines and the template 98 lines.
+- The draft-only eval retains SHA-256 `c35c08fa413919616bdba0052f749c280f82ab25106cf7cfa7757959c9056b08`. UI metadata is unchanged. Scoped link, artifact, secret-pattern, and literal-home-path checks pass.
+
+Private command, exit, timing, source-contract, and corrected check-setup records accompany this increment under `reports/s1/handoff.md` in the run directory. These results prove source/help alignment and local safety contracts, not live workspace behavior, credential migration, or model adherence. Final combined acceptance, other skills/CLIs, deployment, and parent-wide provenance tables remain separate work.
+
+## Historical 2.6.0 provenance
 
 - Repository: https://github.com/schpet/linear-cli
 - Release: `v2.6.0`, published `2026-09-02T19:28:31Z`.
@@ -36,9 +91,9 @@ Upstream file SHA-256 values at the pinned commit:
 | `SKILL.template.md` | `62df07cfeffb2e1522690de06e0653d1b2ce5f2c1c8e857e31856e6db2ded04c` |
 | `scripts/generate-docs.ts` | `3cbf705ea6245fe4e6ac94b3fa96255c690e320caa491b20d7b9508fccc099c1` |
 
-## Installation boundary
+## Historical 2.6.0 installation boundary
 
-The approved upgrade used the existing user-local Bun global installation:
+These commands record the earlier approved upgrade, not an instruction to repeat it during current maintenance. The approved upgrade used the existing user-local Bun global installation:
 
 ```bash
 bun add --global --exact --ignore-scripts @schpet/linear-cli@2.6.0
@@ -50,7 +105,7 @@ Before installation, compare the npm wrapper and installer sources. For this upg
 
 `~/.bun/bin/linear` remains a symlink to the Bun global package's `run-linear.js`. The wrapper and native binary reported `linear 2.6.0` inside isolation. All 14 unrelated top-level global package versions remained unchanged, with 851 packages in the global listing before and after. Do not inspect or modify Linear auth, keyring, or configuration files to verify an upgrade.
 
-## Source comparison decisions
+## Historical 2.6.0 source comparison decisions
 
 | Area | Decision |
 | --- | --- |
@@ -62,9 +117,9 @@ Before installation, compare the npm wrapper and installer sources. For this upg
 | Generator | Preserve reference-first index text, terminal right-padding cleanup, failure-before-write behavior, curated-reference preservation, and standalone formatting flags. Replace only `@std/path` with Deno's built-in `node:path` import so standalone checks and generation need no remote import map. |
 | Curated reference and eval | `organization-features.md` matches upstream unchanged. Preserve the existing draft-only eval unchanged; add deterministic mocked generator and safety tests. |
 
-## Offline help boundary
+## Historical 2.6.0 offline help boundary
 
-Do not assume that `--help` or `--version` avoids startup reads. At the pinned commit, `src/config.ts` eagerly loads environment/configuration files, and `src/credentials.ts` eagerly loads credentials and can populate a keyring cache before argument parsing.
+The current 3.1.0 boundary is described above. Do not assume that `--help` or `--version` avoids startup reads. At the pinned commit, `src/config.ts` eagerly loads environment/configuration files, and `src/credentials.ts` eagerly loads credentials and can populate a keyring cache before argument parsing.
 
 Before each invocation route, inspect the wrapper, startup imports, and generator. For maintenance, allow only `--version`, `--help`, and source-only/mock checks. Never execute command actions, including auth token output, login/logout, config, schema/API calls, or workspace reads and writes. Do not access existing Linear credential/configuration files.
 
@@ -93,17 +148,17 @@ All Linear CLI output used direct `bash`, never Context Mode. GitHub/source comp
 ## Repeatable update workflow
 
 1. Load `skill-creator` and `gh-cli`. Read the governing maintenance documents and inspect local changes.
-2. Fetch official npm metadata for the exact approved version. Resolve the matching GitHub tag with `gh api` and clone that tag through `gh repo clone` into a new temporary directory.
+2. Fetch official npm metadata for the exact approved version. Resolve the matching GitHub tag with `gh api`. Fetch the exact release source/native archives through authenticated `gh`, or clone the resolved tag into a new temporary directory. Verify release source and archive digests; never use a moving branch.
 3. Verify the commit, npm integrity, release artifact digest, wrapper/installer source, runtime source, template, references, and generator. Never fetch a moving `main` as release provenance.
-4. Treat a CLI upgrade as a separate change requiring explicit approval. Use the existing installation mechanism and preserve unrelated packages and auth/configuration.
+4. Treat a CLI upgrade as a separate change requiring explicit approval. Preserve its existing owner and unrelated packages/auth/configuration. When the installed version is already current, stage the exact native artifact privately without running a global package command or installer.
 5. Establish the offline boundary before any version/help invocation. Use mocks or source inspection when safe isolation is unavailable; do not test against a real workspace.
 6. Update the slim template, including the bundled-reference version. Regenerate with the local generator, not an upstream root replacement.
-7. Confirm that `SKILL.md` matches its template after reference navigation expands. Compare every generated help block with the pinned upstream references and confirm that every discovered command is represented. Exclude shell completions deliberately; aliases remain in parent help.
+7. Confirm that `SKILL.md` matches its template after reference navigation expands. Compare every generated help block with the pinned upstream references and confirm that every discovered action command is represented. Exclude shell completions and Clap's recursive `help` command deliberately. Hidden aliases may remain supported in source without appearing in help.
 8. Preserve exact-mutation approval, token secrecy, Markdown body files, reference-first discovery, direct-bash complete responses, no Context Mode recovery, and unchanged-command authorization retries within 10 minutes.
 9. Run the checks below and the canonical all-skill validation. Scan scoped changes for secrets, literal home paths, broken links, and generated artifacts. Record provenance, decisions, and limits here.
 10. Stop after the assigned checks pass. Do not stage, commit, push, deploy, or change unrelated skill families without a separate instruction.
 
-## Checks and recorded results
+## Checks and historical 2.6.0 results
 
 From the repository root:
 
@@ -117,7 +172,7 @@ git diff --check -- agent/skills/linear-cli docs/skills/linear-cli-update-proces
 
 Use the isolated temporary Deno binary when Deno is not installed. The tests execute the real generator with an in-memory `Deno` mock. They do not spawn Linear, contact a model, or inspect credentials.
 
-Recorded results for this increment:
+Historical results for the 2.6.0 increment:
 
 - **12 offline tests passed**, with 268 assertions: nested discovery/aliases, completion exclusion, deterministic ordering, failure-before-write, missing-template handling, formatting failure, curated-reference preservation, and local formatting/index overlays.
 - Tests also check complete bundled-help reachability and round-trip generation, root/template synchronization, the original draft-only eval, exact mutation gates, full-response routing, body files, token secrecy, hosted-guard authorization, and new 2.6.0 syntax.

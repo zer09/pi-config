@@ -10,7 +10,7 @@ The earlier installation assessment for `@playwright/cli@0.1.21` reported:
 - WebKit used an Ubuntu fallback build that required unavailable older sonames, including ICU 74 libraries such as `libicuuc.so.74` and `libicui18n.so.74`.
 - The assessed host had ICU 78. A newer major version does not satisfy the older ABI.
 
-These are historical shared-library findings, not proof that every browser feature works. The CLI 0.1.22 update changes its Playwright dependency to `1.64.0-alpha-1790635538000`; browser availability and library compatibility were not rechecked. No browser binaries were downloaded or launched. Recheck for the selected build during separately authorized browser work instead of treating the earlier findings as current verification.
+These are historical shared-library findings, not proof that every browser feature works. CLI 0.1.24 depends on Playwright `1.66.0-alpha-1794252756000`; browser availability and library compatibility were not rechecked. No browser binaries were downloaded or launched. Recheck for the selected build during separately authorized browser work instead of treating the earlier findings as current verification.
 
 ## Choose a compatible runtime
 

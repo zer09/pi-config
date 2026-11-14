@@ -1,7 +1,7 @@
 # gh issue view
 
 Source: https://cli.github.com/manual/gh_issue_view
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue view`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help issue view`.
 
 ## Summary
 
@@ -15,6 +15,9 @@ Display the title, body, and other information about an issue.
 
 ```text
 Display the title, body, and other information about an issue.
+
+When `--comments` is used, terminal output includes the issue details and comments.
+When output is piped or redirected, only the comments are printed.
 
 With `--web` flag, open the issue in a web browser instead.
 

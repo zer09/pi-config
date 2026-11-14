@@ -1,5 +1,5 @@
 <!-- nlm-skill-start -->
-<!-- nlm-version: 0.13.0 -->
+<!-- nlm-version: 0.16.2 -->
 ## NLM - Gemini Notebook (formerly Google NotebookLM) CLI Expert
 
 Use for requested NotebookLM/Gemini Notebook operations or troubleshooting through the `nlm` CLI or MCP, not generic research, podcasts, or document critique.
@@ -76,7 +76,7 @@ Use the installed skill's [command reference](command_reference.md), [troublesho
 
 ```bash
 # Install via uv
-uv tool install 'notebooklm-mcp-cli==0.13.0'
+uv tool install 'notebooklm-mcp-cli==0.16.2'
 
 # Then install/update skill for your AI tool
 nlm skill install <tool>  # Install (claude-code, agents, opencode, etc)

@@ -1,7 +1,7 @@
 # gh search prs
 
 Source: https://cli.github.com/manual/gh_search_prs
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help search prs`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help search prs`.
 
 ## Summary
 
@@ -23,7 +23,10 @@ GitHub search syntax is documented at:
 <https://docs.github.com/search-github/searching-on-github/searching-issues-and-pull-requests>
 
 On supported GitHub hosts, advanced issue search syntax can be used in the
-`--search` query. For more information about advanced issue search, see:
+search query. Advanced search syntax, like boolean operators `OR`/`AND`,
+and parentheses for nesting, must be passed as separate arguments, rather
+than within a quoted multi-word string. This syntax is not supported with
+`--web`. For more information about advanced issue search, see:
 <https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/filtering-and-searching-issues-and-pull-requests#building-advanced-filters-for-issues>
 
 For more information on handling search queries containing a hyphen, run `gh search --help`.

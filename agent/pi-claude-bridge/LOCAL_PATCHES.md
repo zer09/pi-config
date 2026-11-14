@@ -1,5 +1,15 @@
 # Local Claude Bridge patch
 
+## Pi 1.5.2 installed
+
+The live cache retains stock 0.9.3; the ordering repair remains retired. Installed-byte and synthetic SDK/RPC checks pass without a Claude binary, account request or project-hook change. Trusted-repository and external-session retention limits remain. See the [installation record](../../docs/changelogs/pi-1.5.2-full-setup-installation.md). Earlier preparation facts remain unchanged below.
+
+## Pi 1.5.2 full-setup preparation, not deployed
+
+Retain stock 0.9.3 with SDK/platform package 0.3.309. The ordering repair remains retired. Eight target lifecycle checks with 13 fake queries, existing provider-wrapper checks and final selected-graph loading pass; no real Claude executable or account was invoked. Provider replacement/reload ownership and the exact SDK system-prompt append are covered.
+
+Hold 0.12.0 for session/settings changes and AskClaude separation, not loss of a billing guard in the baseline: 0.9.3 itself lacks that later guard. Trusted-repository use, project-hook exposure and ADR 0010's external Claude-session retention exception remain unchanged. See the [full preparation record](../../docs/changelogs/pi-1.5.2-full-setup-maintenance-preparation.md) and `RUN/reports/c6c-fixes` for evidence and limits. No source patch, global Claude upgrade or deployment occurred.
+
 ## 2026-10-23: isolated `pi-claude-bridge@0.9.3` on Pi 1.4.0, not deployed
 
 The candidate pin is exact `0.9.3`. All 25 published files match official

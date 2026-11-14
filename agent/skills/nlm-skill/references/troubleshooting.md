@@ -47,9 +47,17 @@ nlm login --check
 
 `nlm auth refresh --profile <profile>` renews saved credentials through a headless browser. It is a networked state change, not a status check. Use it only for authorized recovery or specifically requested unattended maintenance. Do not install cron/launchd jobs merely because a session failed.
 
-`NOTEBOOKLM_COOKIES` overrides saved credentials unless an operation explicitly selects a profile. The refresh command refuses to run when that variable is set. `NOTEBOOKLM_DISABLE_HEADLESS_REFRESH=1` disables both automatic headless recovery and explicit refresh; some Workspace accounts revoke sessions when the saved browser profile relaunches. Respect this control rather than unsetting it automatically.
+`NOTEBOOKLM_COOKIES` overrides saved credentials unless an operation explicitly selects a profile. The refresh command refuses to run when that variable is set. `NOTEBOOKLM_DISABLE_HEADLESS_REFRESH=1` disables automatic headless recovery and explicit browser-based refresh; some Workspace accounts revoke sessions when the saved browser profile relaunches. Explicitly requested `nlm auth refresh --http-only --profile <profile>` remains available with that control set and forces HTTP even if CDP transport is configured. It validates an authenticated API response before saving, but cannot renew browser-dependent PSIDTS cookies or revive a fully expired login. Respect the opt-out rather than unsetting it or substituting another recovery automatically.
+
+Automatic browser recovery has a per-process, per-profile cooldown of 900 seconds and a three-failure limit by default; concurrent calls share recovery. Explicit refresh bypasses those limits. A deferred recovery is not permission to retry repeatedly, switch profiles, or disable the limits.
 
 If refresh fails, diagnose missing/stale credentials before requesting interactive login. Do not delete profiles, use `--force`/`--clear`, replace cookies, or switch the default account as automatic recovery. `nlm login --check` itself makes live requests. Never print cookies, OAuth tokens, raw auth headers, or browser-profile contents in a recovery report.
+
+### Login success and credential storage
+
+A notebook URL, HTTP 200, or anonymous `NID` cookie does not prove sign-in. Current builtin login waits for signed-in cookies and the actual CSRF token; a timeout leaves an existing login untouched. For confirmed missing/stale credentials, use the same requested profile, not deletion or invented tokens. `nlm login --check --profile <profile>` makes live requests and exits 0 for valid credentials or 2 for a failed/inconclusive check. An inconclusive network result alone does not authorize login.
+
+New-profile login can ask where to store credentials. Protected storage depends on the OS credential store; storage conversion, conflict resolution, discarding credentials, and keyring changes are separate local writes, not automatic repairs or adjacent setup steps. Do not proactively migrate storage or run setup/doctor to diagnose an ordinary read failure.
 
 ### Browser Doesn't Launch
 
@@ -183,8 +191,7 @@ Error: Rate limit exceeded
    # Retry command
    ```
 
-   Built-in retries use a short 1/2/4-second backoff for transient failures.
-   They do not wait through a minute-scale Studio quota window.
+   Built-in retries use a short 1/2/4-second backoff for eligible read-only requests or connection failures before a request reaches the server. Ambiguous mutation responses are not replayed. Do not add an automatic write retry; inspect the requested target/status first. These retries do not wait through a minute-scale Studio quota window.
 
 2. **Implement throttling in scripts:**
    ```bash
@@ -449,4 +456,4 @@ Claude Desktop Chat/Cowork and claude.ai do not load local skill folders. `nlm s
    ```
 
 4. **GitHub Issues:**
-   https://github.com/jacob-bd/notebooklm-cli/issues
+   https://github.com/jacob-bd/gemini-notebook-mcp-cli/issues

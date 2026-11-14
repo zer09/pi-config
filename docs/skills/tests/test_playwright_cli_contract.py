@@ -18,7 +18,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 SKILL = REPO / "agent/skills/playwright-cli"
 PACKAGE = None
-VERSION = "1.64.0-alpha-1790635538000"
+VERSION = "1.66.0-alpha-1794252756000"
 
 
 def shell_commands(block):
@@ -94,7 +94,7 @@ class PlaywrightSkillContract(unittest.TestCase):
     def test_exact_package_and_dependency_versions(self):
         package = json.loads((PACKAGE / "package.json").read_text())
         self.assertEqual(package["name"], "@playwright/cli")
-        self.assertEqual(package["version"], "0.1.22")
+        self.assertEqual(package["version"], "0.1.24")
         self.assertEqual(package["dependencies"], {"playwright": VERSION, "playwright-core": VERSION})
         for name in ("playwright", "playwright-core"):
             dependency = json.loads((PACKAGE / "node_modules" / name / "package.json").read_text())
@@ -157,16 +157,25 @@ class PlaywrightSkillContract(unittest.TestCase):
         self.assertIn('context[name] = globalThis[name]', source)
         self.assertIn('toolName: "browser_run_code_unsafe"', source)
 
+    def test_raw_output_keeps_snapshots(self):
+        source = (self.core / "lib/coreBundle.js").read_text()
+        sections = re.search(r"const rawSections = \[(.*?)\];", source)
+        self.assertIsNotNone(sections)
+        self.assertEqual(re.findall(r'"([^"]+)"', sections.group(1)),
+                         ["Error", "Result", "WebMCP tools", "Snapshot"])
+        self.assertIn("allSections.filter((section) => rawSections.includes(section.title))", source)
+        self.assertIn("keeps results, errors, WebMCP tools, and snapshots", self.docs["sessions-and-snapshots.md"])
+
     def test_help_and_version_exit_before_session_loading(self):
         source = (self.core / "lib/tools/cli-client/program.js").read_text()
         start = source.index("async function program(")
         load = source.index("await import_registry.Registry.load()", start)
         for marker in ("if (args.version || args.v)", "if (args.help || args.h || !commandName)"):
             branch = source.index(marker, start)
-            self.assertLess(branch, source.index("process.exit(0)", branch))
-            self.assertLess(source.index("process.exit(0)", branch), load)
+            self.assertLess(branch, source.index("(0, import_bootstrap.processExit)(0)", branch))
+            self.assertLess(source.index("(0, import_bootstrap.processExit)(0)", branch), load)
         entry = (PACKAGE / "playwright-cli.js").read_text()
-        check = entry.index("async function checkForUpdates()")
+        check = entry.index("async function checkForUpdates(args)")
         guard = entry.index("if (process.env.NO_UPDATE_NOTIFIER || process.env.CI)", check)
         self.assertLess(entry.index("return;", guard), entry.index("const cache = readCache()", check))
 

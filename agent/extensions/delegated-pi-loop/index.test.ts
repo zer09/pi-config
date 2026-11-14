@@ -517,6 +517,7 @@ test("installed Pi call-first restored partial and final rows refresh Fastlane b
     ...finalToolResult(base), details: { state: "completed", delegateId: 7, progress },
   });
   let renderRequests = 0;
+  let argumentUpdateRequests = 0;
   const order: string[] = [];
   const definition = { ...tool,
     renderCall: (...args: Parameters<NonNullable<ToolDefinition<DelegateToolParams>["renderCall"]>>) => { order.push("call"); return tool!.renderCall!(...args); },
@@ -559,12 +560,19 @@ test("installed Pi call-first restored partial and final rows refresh Fastlane b
     for (const requested of [undefined, false, "true", 1]) {
       const unrequested = row(`unrequested-${String(requested)}`, requested);
       // Undefined is an omitted argument, not the helper's default true.
-      if (requested === undefined) unrequested.updateArgs({ role: "solution-a", prompt: "omitted" });
+      if (requested === undefined) {
+        const beforeArgumentUpdate = renderRequests;
+        // Check earlier results before allowing the host's deliberate argument redraw.
+        assert.equal(beforeArgumentUpdate, argumentUpdateRequests, "result refresh must not recurse through invalidate/requestRender");
+        unrequested.updateArgs({ role: "solution-a", prompt: "omitted" });
+        assert.equal(renderRequests, beforeArgumentUpdate + 1, "host argument update must request exactly one redraw");
+        argumentUpdateRequests++;
+      }
       unrequested.updateResult(resultWith(enabled), isPartial);
       assert.doesNotMatch(callLine(unrequested), /fastlane/);
     }
   }
-  assert.equal(renderRequests, 0, "result refresh must not recurse through invalidate/requestRender");
+  assert.equal(renderRequests, argumentUpdateRequests, "result refresh must not recurse through invalidate/requestRender");
 });
 
 test("call-first result refresh keeps active manager false authoritative over restored confirmation", async (t) => {

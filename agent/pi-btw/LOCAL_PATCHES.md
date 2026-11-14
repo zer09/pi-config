@@ -1,5 +1,23 @@
 # Local pi-btw patches
 
+## Pi 1.5.2 installed
+
+The live cache now contains 0.8.1 with the guarded cancellation repair. Installed bytes and fresh SDK/RPC checks pass. No helper ran on live packages; credentials, saved sessions and optional SSH settings were not migrated. See the [installation record](../../docs/changelogs/pi-1.5.2-full-setup-installation.md). The preparation statements below describe their earlier phase.
+
+## Final Pi 1.5.2 acceptance, prepared not deployed
+
+The selected 0.8.1 graph now also passes the final SDK and bundled/unbundled RPC resource/lifecycle check after skill/CLI maintenance. Live BTW remains 0.8.0. P1's scoped evidence and historical facts below remain intact; the [full preparation record](../../docs/changelogs/pi-1.5.2-full-setup-maintenance-preparation.md) records completed preparation checks, held updates, remaining limits and separately authorized integration/rollback steps. No live helper, package install or restart occurred.
+
+## P1: 0.8.1 on Pi 1.5.2, prepared in a separate worktree, not deployed
+
+P1 selects exact `pi-btw@0.8.1`. The verified npm archive has SRI `sha512-Aol1JFiillvkAjtv4elc9sVg8Cb8XqIvEsPUMm4AD4csLELHrqvcRqCEJxAH4oLFYjxJ3uHO+sPYz1BD1B6o9A==`; all eight published files match official tag `v0.8.1`, commit `374465f0a2bd3df502c4f981405e61567d92046b`. There are no runtime dependencies or install lifecycle scripts. The bundled BTW skill remains byte-identical to 0.8.0 and package-owned.
+
+`reapply-model-runtime-patch-0.8.1.mjs` faithfully ports the 0.8.0 helper's guards and changes only the credential call to pass `{ signal: ctx.signal }`. Apply it only to verified private canonical TMPDIR extractions, never installed or live `node_modules`. Historical helpers and tests remain unchanged.
+
+Six adapted port/cancellation checks, six existing history/lifecycle/restart regressions, 17 sibling guard checks, and stock/patched upstream suites of 177 tests each pass offline on exact Pi 1.5.2. All three production files pass strict TypeScript 6.0.3 checks. Package-origin loading executes the actual candidate entry with a fake provider, preserving zero BTW tools, ten commands, four events, local scope and empty child-extension defaults. SSH remains inactive.
+
+The separate `RUN/graph-candidate` changes only BTW and its npm manifest/lock entries. Exact registry URL/SRI, all Pi/legacy 1.5.2 identities, sibling repairs and every unrelated byte, link, mode and mtime are preserved; `RUN/graph-baseline` is unchanged. `lastChangelogVersion` remains 1.4.0. Commands, source identities, corrected fixture diagnostics and limits are in `RUN/reports/p1/handoff.md`. Skill/CLI units, final combined acceptance and deployment remain deferred.
+
 ## C2 combined preparation: 0.8.0, not deployed
 
 The fresh isolated C2 graph retains the unchanged `reapply-model-runtime-patch-0.8.0.mjs` helper. Its only production change passes `{ signal: ctx.signal }` into runtime credential synchronization. The helper runs on verified TMPDIR source, never directly on an installation.

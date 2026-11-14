@@ -1,7 +1,7 @@
 # gh discussion view
 
 Source: https://cli.github.com/manual/gh_discussion_view
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help discussion view`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help discussion view`.
 
 ## Summary
 
@@ -18,6 +18,8 @@ Display the title, body, and other information about a discussion.
 
 To see the comments on a discussion, pass `--comments`. A few latest replies
 of each comment will also be retrieved regardless of the selected ordering.
+When `--comments` is used, terminal output includes the discussion details and comments.
+When output is piped or redirected, only the comments are printed.
 
 To see the full reply thread of a single comment, pass a comment node ID or
 comment URL as the argument instead of a discussion

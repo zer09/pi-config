@@ -13,10 +13,18 @@ import { buildDelegatePrompt, LIVE_CONTINUATION_PROMPT, RESTART_AFTER_WORK_NOTE 
 const root = await mkdtemp(path.join(os.tmpdir(), "delegate-session-test-"));
 after(async () => { await rm(root, { recursive: true, force: true }); });
 
+for (const packageRoot of ["", "relative/package"]) {
+  test(`projection oracle requires an explicit absolute target: ${JSON.stringify(packageRoot)}`, async () => {
+    await assert.rejects(loadTargetSessionManager(packageRoot), {
+      name: "AssertionError", code: "ERR_ASSERTION", message: "select an isolated exact Pi 1.5.2 package",
+    });
+  });
+}
+
 for (const [name, manifest, expected] of [
-  ["wrong package identity", { name: "pi-coding-agent", version: "1.4.0" }, "@earendil-works/pi-coding-agent"],
-  ...["0.87.1", "0.99.1", "0.99.2", "0.99.3", "1.0.0", "1.0.1", "1.1.0", "1.1.1", "1.3.0", "1.4.1", "1.4.0-dev", "", undefined].map((version) => [
-    `unsupported version ${JSON.stringify(version)}`, { name: "@earendil-works/pi-coding-agent", version }, "1.4.0",
+  ["wrong package identity", { name: "pi-coding-agent", version: "1.5.2" }, "@earendil-works/pi-coding-agent"],
+  ...["0.87.1", "0.99.1", "0.99.2", "0.99.3", "1.0.0", "1.0.1", "1.1.0", "1.1.1", "1.3.0", "1.4.0", "1.4.1", "1.4.0-dev", "1.5.1", "1.5.3", "1.5.2-dev", "", undefined].map((version) => [
+    `unsupported version ${JSON.stringify(version)}`, { name: "@earendil-works/pi-coding-agent", version }, "1.5.2",
   ] as const),
 ] as const) {
   test(`projection oracle preflight rejects ${name} before helper import`, async () => {
@@ -33,7 +41,7 @@ export const SessionManager = { open() {} };
 `);
     await assert.rejects(loadTargetSessionManager(directory), {
       name: "AssertionError", code: "ERR_ASSERTION", expected,
-      actual: expected === "1.4.0" ? manifest.version : manifest.name,
+      actual: expected === "1.5.2" ? manifest.version : manifest.name,
     });
     await assert.rejects(access(marker), { code: "ENOENT" });
   });
@@ -47,11 +55,11 @@ for (const [name, source, message] of [
   ["missing writer open", "export function buildSessionProjection() {} export const SessionManager = {};", "target session writer must be available"],
   ["non-callable writer open", "export function buildSessionProjection() {} export const SessionManager = { open: 1 };", "target session writer must be available"],
 ] as const) {
-  test(`projection oracle preflight rejects ${name} on Pi 1.4.0`, async () => {
+  test(`projection oracle preflight rejects ${name} on Pi 1.5.2`, async () => {
     const directory = await mkdtemp(path.join(root, "oracle-helper-"));
     await mkdir(path.join(directory, "dist", "core"), { recursive: true });
     await writeFile(path.join(directory, "package.json"), JSON.stringify({
-      name: "@earendil-works/pi-coding-agent", version: "1.4.0", type: "module",
+      name: "@earendil-works/pi-coding-agent", version: "1.5.2", type: "module",
     }));
     await writeFile(path.join(directory, "dist", "core", "session-manager.js"), source);
     await assert.rejects(loadTargetSessionManager(directory), {
@@ -291,7 +299,7 @@ for (const [name, changes] of [
   });
 }
 
-// Synthetic schemas pin Pi 1.4.0 acceptance without a Pi runtime import or resolver.
+// Synthetic schemas pin Pi 1.5.2 acceptance without a Pi runtime import or resolver.
 for (const [name, schema, expected] of [
   ["empty object", { type: "object" }, "usable"],
   ["optional property auto-fixed by Pi", { type: "object", properties: { path: { type: "string" } } }, "usable"],
@@ -342,7 +350,7 @@ for (const [name, schema, expected] of [
   ] as const),
 ] as const) {
   for (const strict of ["require", "prefer"] as const) {
-    test(`strict ${strict} schema ${name} matches Pi 1.4.0 readiness`, async () => {
+    test(`strict ${strict} schema ${name} matches Pi 1.5.2 readiness`, async () => {
       const directory = await mkdtemp(path.join(root, "strict-schema-"));
       const session = await createPersistedPiSession(directory);
       const message = { ...system, toolsAdded: [{ ...toolDefinition,
@@ -382,6 +390,7 @@ for (const [name, changes] of [
   ["arbitrary kind", { kind: "extension/future-operation", note: "Fixture usage" }],
   ["empty kind and note", { kind: "", note: "" }],
   ["optional counters", { usage: { ...usage, cacheWrite1h: 2, reasoning: 1 } }],
+  ["provider-reported cost", { usage: { ...usage, cost: { ...usage.cost, totalFromProvider: true } } }],
   ["zero counters and cost", { usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cacheWrite1h: 0, reasoning: 0,
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } }],
   ["finite fractional counter", { usage: { ...usage, input: 0.5 } }],
@@ -554,7 +563,7 @@ const projectionCases: [string, unknown[], "usable" | "assignment_absent"][] = [
 ];
 
 for (const [name, entries, expected] of projectionCases) {
-  test(`Pi 1.4.0 projection differential: ${name}`, async () => {
+  test(`Pi 1.5.2 projection differential: ${name}`, async () => {
     const { buildSessionProjection } = await loadTargetSessionManager();
     const directory = await mkdtemp(path.join(root, "projection-"));
     const session = await createPersistedPiSession(directory);
@@ -653,7 +662,7 @@ for (const [name, entries] of [
   }
 }
 
-test("Pi 1.4.0 writes accepted context edits with normalized target-role content", async () => {
+test("Pi 1.5.2 writes accepted context edits with normalized target-role content", async () => {
   const { SessionManager } = await loadTargetSessionManager();
   const directory = await mkdtemp(path.join(root, "pi-written-"));
   const session = await createPersistedPiSession(directory);
@@ -673,6 +682,58 @@ test("Pi 1.4.0 writes accepted context edits with normalized target-role content
   manager.appendContextEdit(assignment, { content: original });
   manager.appendCompaction("Summary", assignment, 100);
   assert.equal(await session.historyReadiness(original, restarted), "usable");
+});
+
+test("Pi 1.5.2 preserves response and cost metadata through edits, compaction, restore, fork, and branch", async () => {
+  const { SessionManager } = await loadTargetSessionManager();
+  const directory = await mkdtemp(path.join(root, "pi-metadata-"));
+  const session = await createPersistedPiSession(directory);
+  const file = session.args[3]!;
+  const manager = SessionManager.open(file, directory, directory);
+  const assignment = manager.appendMessage({ role: "user", content: original, timestamp: 1 });
+  const billedUsage = { ...usage, cost: { ...usage.cost, totalFromProvider: true } } satisfies Usage;
+  const responseModel = "fixture-concrete-response-model";
+  const response = manager.appendMessage({
+    role: "assistant", content: [{ type: "text", text: "Fixture response" }], timestamp: 2,
+    api: "openai-responses", provider: "fixture", model: "fixture-request-model", responseModel,
+    stopReason: "stop", usage: billedUsage,
+  });
+  manager.appendUsage("fixture-operation", "fixture", "fixture-request-model", billedUsage);
+  manager.appendContextEdit(response, { content: original });
+  manager.appendContextEdit(assignment, { content: restarted });
+  manager.appendCompaction("Fixture summary", assignment, 100);
+  const text = await readFile(file, "utf8");
+  const before = await lstat(file);
+  const restored = SessionManager.open(file, directory, directory);
+  const projected = restored.buildSessionProjection().messages;
+  const assistantMessage = projected.find((message) => message.role === "assistant");
+  assert.ok(assistantMessage?.role === "assistant");
+  assert.equal(assistantMessage.responseModel, responseModel);
+  assert.equal(assistantMessage.usage.cost.totalFromProvider, true);
+  assert.deepEqual(assistantMessage.content, [{ type: "text", text: original }]);
+  const operation = restored.getEntries().find((entry) => entry.type === "usage");
+  assert.ok(operation?.type === "usage");
+  assert.equal(operation.usage.cost.totalFromProvider, true);
+  assert.equal(await session.historyReadiness(original, restarted), "usable");
+  assert.equal(session.assignmentAccepted, false, "metadata and projection never acknowledge the assignment");
+  assert.equal(await readFile(file, "utf8"), text);
+  assert.equal((await lstat(file)).mtimeMs, before.mtimeMs);
+
+  const forkDirectory = await mkdtemp(path.join(root, "pi-metadata-fork-"));
+  const fork = SessionManager.forkFrom(file, directory, forkDirectory);
+  assert.deepEqual(fork.buildSessionProjection().messages, projected);
+  const forkCheck = await createPersistedPiSession(await mkdtemp(path.join(root, "pi-metadata-fork-check-")));
+  await writeFile(forkCheck.args[3]!, await readFile(fork.getSessionFile()!));
+  assert.equal(await forkCheck.historyReadiness(original, restarted), "usable");
+  assert.equal(forkCheck.assignmentAccepted, false);
+
+  // A new branch sees the raw user message, not edits on the abandoned branch.
+  restored.branch(assignment);
+  restored.appendContextEdit(assignment, null);
+  assert.equal(await session.historyReadiness(original, restarted), "assignment_absent");
+  restored.appendContextEdit(assignment, { content: original });
+  assert.equal(await session.historyReadiness(original, restarted), "usable");
+  assert.equal(session.assignmentAccepted, false);
 });
 
 for (const key of ["id", "timestamp", "cwd"] as const) {

@@ -19,12 +19,12 @@ The narrower historical `notion-cli` skill remains retired; see `notion-cli-upda
 - CLI runtime path: `skills/notion-cli/SKILL.md`
 - Last CLI commit compared: `10e976aa591995fd60c75ef13beba1a8aa827fcc`. The runtime path is unchanged from the previously integrated `423af2bf546cd0354e5cc871017251945d9ad14f`; the repository advanced five commits.
 - Workflow repository: https://github.com/makenotion/claude-code-notion-plugin
-- Last workflow commit compared: `9847f2aa1a15f25df35ed1fb7b4557dbb60cd651`, unchanged from the previous integration.
-- Compared workflow paths: `skills/notion/{knowledge-capture,meeting-intelligence,research-documentation,spec-to-implementation}/SKILL.md`, `commands/{create-database-row,create-page,create-task,database-query,find,search}.md`, and `commands/tasks/{build,explain-diff,plan,setup}.md`.
-- Both repository heads and source contents were retrieved with authenticated `gh api` at these exact commits.
-- Runtime command source: isolated installed version/help output for `ntn 0.23.11`, upgraded from independently verified `0.21.9`.
+- Last workflow commit compared: `016c74ffc568920a385186fb9d2d9d2801e0be09`, against prior `9847f2aa1a15f25df35ed1fb7b4557dbb60cd651`.
+- Compared workflow paths: `skills/notion/{knowledge-capture,meeting-intelligence,research-documentation,spec-to-implementation}/SKILL.md`, their relevant changed `reference/` files, `commands/{create-database-row,create-page,create-task,database-query,find,search}.md`, and `commands/tasks/{build,explain-diff,plan,setup}.md`.
+- The parent captured exact repository commits and mapped snapshots through authenticated `gh`. S5 rechecked archive digests and every mapped Git blob locally; it made no new GitHub request.
+- Current runtime command source: isolated version and static help from the exact published `ntn 0.23.29` package, byte-matched against the already-installed Bun-global package. No global upgrade occurred in S5.
 
-## Pinned package provenance
+## Historical 0.23.11 package provenance
 
 | Evidence | Value |
 | --- | --- |
@@ -42,9 +42,9 @@ The downloaded archive matched both public npm hashes before installation. Both 
 
 The package README identifies `makenotion/cli` and the same official `ntn.dev` installation source referenced by `makenotion/skills`. Authenticated GitHub commit and tree reads for the declared build commit returned HTTP 404. The build commit is recorded as npm metadata, not independently verified source. No further source-access retries were made.
 
-## Bun-global installation and isolation
+## Historical Bun-global installation and isolation
 
-The approved upgrade used the existing Bun-global installation, not a new installer or `ntn update`:
+The prior approved upgrade used the existing Bun-global installation, not a new installer or `ntn update`:
 
 ```bash
 bun add --global --exact --ignore-scripts ntn@0.23.11
@@ -61,7 +61,40 @@ Before running the CLI, inspect the launcher, installer, and packaged executable
 
 Keep isolation mandatory when startup safety cannot be established. If isolation is unavailable, stop CLI execution and report the verification limit instead of using the user's environment.
 
-## Adopt, adapt, reject
+## S5 preparation: ntn 0.23.29 and selective workflow comparison
+
+Status: **prepared in a separate worktree, not deployed**. The installed/latest version captured on November 12, 2026 is already `0.23.29`; retain the Bun-global owner and existing launcher path. Do not run a global upgrade, installer, or lifecycle script for this preparation. The historical deployment records above and below remain historical facts.
+
+| Current published input | Verified value |
+| --- | --- |
+| Package and license | `ntn@0.23.29`, `Notion CLI`, MIT; binary entry `bin/ntn` |
+| npm metadata | https://registry.npmjs.org/ntn/0.23.29 |
+| npm archive | https://registry.npmjs.org/ntn/-/ntn-0.23.29.tgz |
+| SHA-512 integrity | `sha512-M2SCIHGcnacte5MUudgPWCRNKr5Z+xfsFDjQP+No/QkLwtLb4J821WqONh83nXWT77Df++FXecEZYRuZLzX5OA==` |
+| SHA-1 | `263ef6d8bbdc3c5a3dc58e74cc1a55ac5b3abcfa` |
+| Archive SHA-256 | `25a13b5ad902cade3b5fe193d3491e0eb72cee67ea5e8246da78a903cca5d9d3` |
+| Linux x64 native SHA-256 | `afe07be6e41696639aac2b028081336cd4ea014c45fafd7fe36ddba9e6c1c76b` |
+| Declared npm build commit | `3fb1d7549732128ea8ef3b2228e3286526d4c481`; not independently source-verified |
+
+The private archive copy and ten-file extraction under `RUN/reports/s5` match the accepted npm metadata and original verified extraction. All ten installed package files match those published bytes. Read-only identity checks confirm that `~/.bun/bin/ntn` resolves to the Bun-global package's JavaScript launcher, which selects `dist/ntn-linux-x64/ntn`. Its install script copies the native payload into `bin/`; no install script runs here. The native payload is a compiled Rust Linux x64 ELF with config/keyring/update-check strings. Startup source is unavailable, so static help/version isolation remains mandatory. Closed source is an explicit limit; no repeated source-access retries or reproducible source-build claim are warranted. npm integrity and packaged-native identity do not prove build reproducibility. Historical registry-signature verification is not claimed anew for this release.
+
+All execution uses a cleared environment and Bubblewrap `--unshare-all --clearenv --new-session --die-with-parent`, including OS network denial. Actual HOME, keyring/config, user PATH, credentials, original checkout and graphs are hidden. Package/source/check inputs are read-only; only RUN report staging, logs, cache and temporary paths are writable. The candidate launcher runs with an explicit Node path. The current installed launcher/native are inspected and byte-compared, not executed in the real environment.
+
+| Selected input | Outcome |
+| --- | --- |
+| CLI-source skill at `10e976aa591995fd60c75ef13beba1a8aa827fcc` | No mapped change. Keep self-discovery, local setup/write/privacy gates, and `edit`, not upstream's stale `pages update` wording. |
+| Current static page help | Keep Markdown/frontmatter output, `unknown_block_ids`, fetch/preserve-before-replace, explicit deletion confirmation, and API-only property updates. Create accepts content/stdin and page/database/data-source parents; frontmatter only supplies a create title, not arbitrary properties. |
+| Current data-source, API and file help | Retain resolve-before-query and database/data-source distinctions. Query exposes `--limit`, `--start-cursor`, JSON/plain output and filters. API body inputs can infer POST; discovery remains task-specific and excluded from maintenance. File-list help warns that only the first page is returned. No new command surface is adopted. |
+| Four existing workflow roots | Adapt only faithful decision/proposal capture, selective supplied-URL retrieval, effective-date/completeness caveats, requested meeting materials with audience-safe links/placement, independently verifiable tasks, preserved history and evidence-based implementation completion. |
+| Relevant changed workflow references | Retain existing schema/citation/depth gates; adopt no fixed task duration and checking uncertain creates/partial failures before retrying missing work. The new meeting-to-actions guide supports that recovery rule, not automatic follow-up tasks. Customer-feedback specialization and copied templates remain held. |
+| Ten existing command files | All mapped blobs are unchanged. Preserve local exact-write, draft-only, task-board, no automatic companion-write/polling, and code-explanation overlays. |
+| Other upstream changes | New specialist skills, evaluations, images, MCP/tool-prefix assumptions, broad workflow expansion, notifications and implicit hub/link writes are not installed. A workspace convention never replaces exact write authority. |
+
+S5 checks pass: exact npm SRI/SHA-1/SHA-256 and native identity, all ten installed file comparisons, all 269 mapped source blobs across the CLI and both workflow snapshots, twelve version/help calls, target and all 39 canonical validators, metadata/UI/link/secret/artifact checks, and scoped preservation. Python 3.13.16 with cached PyYAML 6.0.3 runs through offline uv in the same network-denied sandbox without installs or project sync. The root changes only its reviewed version; description, UI metadata, classification, maintenance pointer and all shared gates remain unchanged. Private commands, exits, timings, source decisions and limits are recorded in `RUN/reports/s5/handoff.md`.
+
+No account/profile command, `whoami`, login/logout, API path/spec/docs/schema, worker command, workspace read/write, model inference or live acceptance runs. Help/static checks establish the documented contract, not hosted behavior. Other families, independent parent reviews and final combined acceptance remain deferred.
+
+## Adopt, adapt, reject (historical 0.23.11 comparison)
 
 | Source behavior | Local decision |
 | --- | --- |
@@ -86,9 +119,9 @@ Missing tooling/authentication is a blocker, not permission to install or log in
 
 1. Read `docs/skills/README.md`, `local-skill-update-invariants.md`, and `skill-slimming-process.md`.
 2. Use authenticated `gh` to verify exact upstream commits and compare the source paths above with `agent/skills/notion/`.
-3. Before an authorized package upgrade, record the installed version, launcher target, global manifest/lock entries, unrelated package fingerprints, and existing repository changes. Verify the exact public npm archive integrity and review package startup and lifecycle scripts.
+3. Before candidate execution, inspect the package launcher, lifecycle scripts and native startup evidence. Record the installed owner/version, launcher target, global manifest/lock fingerprints and existing repository changes without reading auth/config. Verify the exact public npm archive integrity; stage a byte-verified private copy/extraction and compare installed bytes read-only.
 4. Use only isolated `--version` and static command `--help` through bounded native `bash` with an explicit working directory. Do not run `whoami`, auth commands, API path help, `api ls`, `--spec`, `--docs`, workspace reads/writes, workers, or browser actions during maintenance. Do not read or change user auth/config. Product-route discovery is not an offline check.
-5. Upgrade only the approved version through the existing Bun-global mechanism above. Compare installed files with the verified archive, check isolated version/help, and prove unrelated global packages and repository changes remain intact. Retain only runtime-relevant syntax/procedures; preserve database/data-source distinctions.
+5. Prepare and check only the approved exact candidate under RUN. If installed already matches it, keep the Bun owner and do not upgrade globally. Any later deployment requires separate authorization through the existing Bun-global mechanism. Prove installed package/owner, Git/index and unrelated source preservation. Retain only runtime-relevant syntax/procedures; preserve database/data-source distinctions.
 6. Reconcile upstream workflow changes into `references/workflows.md`. Preserve capability while compressing repeated templates into short structures and selection rules.
 7. Preserve the external hosted-service mutation gate: creating/editing/trashing pages, changing properties/comments, uploading files, deploying/executing workers, and every other Notion write require an exact explicit user request. Preserve the separate user request/agreement gate for persistent CLI installation and login/logout.
 8. Preserve the rule that `ntn pages edit` replaces page content: fetch first, retain unrequested content, and require confirmation before `--allow-deleting-content` or non-interactive trashing.
@@ -105,7 +138,7 @@ Missing tooling/authentication is a blocker, not permission to install or log in
 - Do not add scripts unless a repeated deterministic operation proves necessary.
 - Do not add the hosted Notion MCP as a dependency unless Pi is deliberately configured to expose and authenticate it.
 
-## Increment 7 acceptance evidence
+## Increment 7 acceptance evidence (historical)
 
 - Package checks: exact `0.21.9` baseline and `0.23.11` installed version; verified npm archive/signatures; all ten installed files matched; launcher target preserved.
 - Offline CLI checks: `--version`, `--help`, `pages --help`, `pages {get,create,edit,trash} --help`, `datasources --help`, `datasources {resolve,query} --help`, `api --help` without a path, and `files --help`. All 12 checks exited zero for the prior, candidate, and installed package. Only version output changed.

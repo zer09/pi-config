@@ -1,7 +1,7 @@
 # gh auth token
 
 Source: https://cli.github.com/manual/gh_auth_token
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help auth token`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help auth token`.
 
 ## Summary
 
@@ -20,12 +20,16 @@ Without the `--hostname` flag, the default host is chosen.
 
 Without the `--user` flag, the active account for the host is chosen.
 
+If the token is an expired or near-expiry token that supports refreshing, it is refreshed
+automatically before being printed, unless `--no-refresh` is given.
+
 
 USAGE
   gh auth token [flags]
 
 FLAGS
   -h, --hostname string   The hostname of the GitHub instance authenticated with
+      --no-refresh        Do not automatically refresh an expired token
   -u, --user string       The account to output the token for
 
 INHERITED FLAGS

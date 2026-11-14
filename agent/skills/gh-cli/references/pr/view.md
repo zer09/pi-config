@@ -1,7 +1,7 @@
 # gh pr view
 
 Source: https://cli.github.com/manual/gh_pr_view
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help pr view`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help pr view`.
 
 ## Summary
 
@@ -18,6 +18,9 @@ Display the title, body, and other information about a pull request.
 
 Without an argument, the pull request that belongs to the current branch
 is displayed.
+
+When `--comments` is used, terminal output includes the pull request details, comments,
+and reviews. When output is piped or redirected, only comments and reviews are printed.
 
 With `--web` flag, open the pull request in a web browser instead.
 

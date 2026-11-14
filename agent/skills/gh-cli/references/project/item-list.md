@@ -1,7 +1,7 @@
 # gh project item-list
 
 Source: https://cli.github.com/manual/gh_project_item-list
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help project item-list`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help project item-list`.
 
 ## Summary
 
@@ -16,8 +16,8 @@ List the items in a project.
 ```text
 List the items in a project.
 
-If supported by the API host (github.com and GHES 3.20+), the --query option can
-be used to perform advanced search. For the full syntax, see:
+If supported by the API host, the --query option can be used to perform
+advanced search. For the full syntax, see:
 https://docs.github.com/en/issues/planning-and-tracking-with-projects/customizing-views-in-your-project/filtering-projects
 
 For more information about output formatting flags, see `gh help formatting`.

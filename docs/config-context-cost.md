@@ -1,5 +1,7 @@
 # Config context cost
 
+Pi 1.5.2 full-setup preparation: prepared in a separate worktree, not deployed. Local skill descriptions/UI and global/delegated instructions remain unchanged; selected skill/reference bodies and the scoped TypeScript prompt changed. No provider calibration, full-context benchmark or new token attribution was run. Pi host/version changes prevent inferring a zero startup delta from unchanged local metadata. All quantitative tables below remain historical. See the [preparation record](changelogs/pi-1.5.2-full-setup-maintenance-preparation.md).
+
 CodeGraph and Context Mode retirement: prepared in a separate worktree, not deployed to the live setup. Settings exclude both retained extensions and `/codegraph-upgrade`. The delegated runtime profile has five entries; its two-entry catalog is unchanged. An isolated production-loader regression confirms zero retired imports or tool registrations, prompt exclusion, and retained context loading. Token attribution, provider calibration, and full-context totals were not rerun. The measurements below remain historical and do not describe the retired tool loadout.
 
 Quantitative calibration date: 2026-07-01

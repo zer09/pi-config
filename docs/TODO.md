@@ -1,6 +1,14 @@
 # Maintenance TODOs
 
-## Recheck upstream package compatibility fixes
+## Pi 1.5.2 installed; remaining limits
+
+The [installation record](changelogs/pi-1.5.2-full-setup-installation.md) records the authorized source/software cutover and actual installed checks. The installed runtime is 1.5.2 with Blackhole 0.5.15, BTW 0.8.1, Harness 0.13.0 and stock Bridge 0.9.3. The existing interactive instance still needs a full restart to use the new runtime. Bridge's ordering repair stays retired. Source changes remain unstaged; defaults, accounts and private data are preserved.
+
+Real-account generation, visual/Windows/browser/cloud acceptance and the documented Harness/Firebase limits remain unverified. Blackhole 0.5.18, Harness 0.17.0, Bridge 0.12.0 and Klaviyo 2026.11.7 remain held. Outpour is active and Impeccable excluded. This TODO authorizes no additional install, hosted issue/PR, login or product action. The earlier [preparation record](changelogs/pi-1.5.2-full-setup-maintenance-preparation.md) remains historical.
+
+## Historical 2026-09-27 package review
+
+The following versions and helpers are historical, not current installation instructions.
 
 Status: rechecked on 2026-09-27. Keep every package patch local; do not publish it or open an upstream issue or pull request. Recheck against published sources before porting to a newer version.
 

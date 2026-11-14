@@ -1,5 +1,9 @@
 # Updating the gh-cli skill
 
+## Pi 1.5.2 installation
+
+The prepared official gh 2.103.3 binary is now installed at its existing user-local path and passes a network-denied native version check. No GitHub product/write/login action ran. The refreshed manuals and authorization rules remain unchanged. See the [installation record](../changelogs/pi-1.5.2-full-setup-installation.md); older preparation facts below remain historical.
+
 Purpose: keep `agent/skills/gh-cli/SKILL.md` as a small runtime router, keep `references/index.md` as the command-family map, and keep exact command syntax in one reference file per command or subcommand.
 
 ## Local invariants
@@ -12,9 +16,28 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
 
 - Manual root: https://cli.github.com/manual/
 - Command index: https://cli.github.com/manual/gh
-- Local generator source: `gh help` output from the installed GitHub CLI. The current comparison used `gh version 2.101.0 (2026-09-15)`. Earlier generation used 2.95.0, 2.96.0, and 2.97.0; unchanged pages retain their earlier attribution after a complete command-tree comparison found identical normalized help text.
+- Local generator source: built-in `gh help` output from the verified official GitHub CLI. The current comparison used the prepared `gh version 2.103.3 (2026-10-26)` candidate, not the live binary. Earlier generation used 2.95.0, 2.96.0, 2.97.0, and 2.101.0; unchanged pages retain their earlier attribution after a complete command-tree comparison found identical normalized help text.
 
-## Approved CLI upgrade and provenance
+## Prepared candidate and provenance (S3)
+
+The 2.103.3 candidate is **prepared in a separate worktree, not deployed**. The live `~/.local/bin/gh` remains 2.101.0 with user-local ownership. The skill remains `make it slim`; its root, description, UI metadata, URL normalizer, and local routing/safety rules are unchanged.
+
+- Official release: https://github.com/cli/cli/releases/tag/v2.103.3, published 2026-10-26.
+- Exact tag commit: `63837fb778d6a39f02be0ce76ff89f2bc8d74bdc`.
+- Linux amd64 artifact: https://github.com/cli/cli/releases/download/v2.103.3/gh_2.103.3_linux_amd64.tar.gz.
+- Published checksums: https://github.com/cli/cli/releases/download/v2.103.3/gh_2.103.3_checksums.txt.
+- Archive SHA-256: `4c806978ffce1cec70853302a56d70ac6da4f19bae7adca4e1a8ab00633dd91d`.
+- Checksum-manifest SHA-256: `f756e7859d90dbb5e85aae5194206c37da220bec9bac23d3d659078a8e766fdc`.
+- Candidate binary SHA-256: `b768184570b12536be4ac1528893f6340d1c6a7b40b56ad45bca9cd0e87ad34d`.
+- Candidate location: `RUN/reports/s3/native/gh`, mode 0755. Later deployment requires separate authorization and must preserve the `~/.local/bin/gh` owner/path; `/usr/bin/gh` is not a deployment target.
+
+Authenticated installed `gh` performed only the exact upstream tag read and release-asset downloads in a separate network-enabled phase. Both downloaded files matched the recorded GitHub asset digests and sizes; the archive also matched its exact checksums-manifest entry before extraction or execution. No installer, build, manager change, live replacement, auth/config change, or extension update ran.
+
+Candidate execution used only `--version` and `help` in an OS network-denied namespace, with no real HOME, keyring, credentials, aliases, or extensions. Empty `GH_CONFIG_DIR` and `XDG_DATA_HOME`, disabled notifiers/telemetry/prompts/colors, read-only source/native inputs, and RUN-only scratch kept the capture separate from installed state. Normalization changed only portable home/config/data paths, trailing line whitespace, and the final newline. Full commands, timings, artifact evidence, and protected-state results are recorded in `RUN/reports/s3/handoff.md` and its linked logs.
+
+The new issue-artifact help and changed authentication help are factual references, not permission to use those features. In particular, help now documents automatic refresh by `auth status` and `auth token` unless `--no-refresh` is supplied. No account/auth command or hosted product action was exercised, and no new auth policy was adopted.
+
+## Historical approved CLI upgrade and provenance (2026-09-29)
 
 The 2026-09-29 update replaced only `~/.local/bin/gh`, selected by PATH, from 2.97.0 to 2.101.0. The skill remains `make it slim`; its trigger intent, hosted-write gate, and metadata are unchanged.
 
@@ -25,13 +48,13 @@ The 2026-09-29 update replaced only `~/.local/bin/gh`, selected by PATH, from 2.
 - Checksum-manifest SHA-256, also matched to the release API asset digest: `f8bbc37fc5568a6a162d1a67b1e9c1afa9139f7b5a46dcde4a57bdaa0db33b60`.
 - Installed binary SHA-256: `ea857a3f0f7d4276cf5848b236542c5048e2eaa7bdd1b6ddec238f8793e74bff`.
 
-Future CLI upgrades require explicit approval for the target version and installation path. Download the archive and checksum manifest with `gh release download <tag> --repo github.com/cli/cli` into a temporary directory. Verify the archive against its exact entry in the published manifest before extraction or execution. Copy the verified binary to a temporary file beside `~/.local/bin/gh`, set mode 0755, compare the copy, and rename it atomically over the approved path. Verify `command -v gh` and `gh --version` afterward. Do not replace `/usr/bin/gh` or change authentication, tokens, extensions, repositories, or hosted state.
+Future CLI upgrades require explicit approval for the target version and installation path. Download the archive and checksum manifest with `gh release download <tag> --repo github.com/cli/cli` into a temporary directory. Verify both downloaded files against their GitHub release-asset digests, and verify the archive against its exact entry in the published manifest before extraction or execution. Copy the verified binary to a temporary file beside `~/.local/bin/gh`, set mode 0755, compare the copy, and rename it atomically over the approved path. Verify `command -v gh` and `gh --version` afterward. Do not replace `/usr/bin/gh` or change authentication, tokens, extensions, repositories, or hosted state.
 
 ## Extension boundary: gh stack
 
 `gh extension list`, `gh stack --version`, and `gh stack --help` identified [github/gh-stack](https://github.com/github/gh-stack) v0.1.1. Its help advertises stack management, remote operations, navigation, and utilities. It is an installed extension, not a missing built-in command page.
 
-Keep extension-generated help out of the core references and comprehensive `gh help reference` snapshot. Use the installed extension's own `--help` at runtime, as directed by `references/index.md`. The core inventory includes the built-in `gh extension` management family, but not commands listed under `EXTENSION COMMANDS`. This update neither upgraded nor changed gh-stack. Any future stored extension reference needs a separate namespace and explicit extension source/version attribution, not the core CLI generator version.
+Keep extension-generated help out of the core references and comprehensive `gh help reference` snapshot. Use the installed extension's own `--help` at runtime, as directed by `references/index.md`. The core inventory includes the built-in `gh extension` management family, but not commands listed under `EXTENSION COMMANDS`. Neither the historical update nor S3 upgraded or changed gh-stack. The skill mentions this installed extension for separate help discovery; core help capture and the URL normalizer do not depend on it. S3 did not execute or load the extension or run extension discovery. Any future stored extension reference needs a separate namespace and explicit extension source/version attribution, not the core CLI generator version.
 
 ## File model
 
@@ -48,7 +71,7 @@ Keep extension-generated help out of the core references and comprehensive `gh h
 ## Update workflow for a future agent
 
 1. Load the `skill-creator` and `gh-cli` skills, then read this file.
-2. Check the official manual and installed CLI version: `gh --version`, https://cli.github.com/manual/, and https://cli.github.com/manual/gh. Treat the approved installed version as authoritative if the live manual has moved ahead.
+2. Check the official manual and exact approved CLI version: `gh --version`, https://cli.github.com/manual/, and https://cli.github.com/manual/gh. For a prepared candidate, use its explicit executable path, verify release provenance before execution, and do not replace the installed binary. Treat the approved executable's help as authoritative if the live manual has moved ahead.
 3. Capture core help with empty temporary `GH_CONFIG_DIR` and `XDG_DATA_HOME` directories. Disable update checks, telemetry, colors, and prompting with `GH_NO_UPDATE_NOTIFIER=1`, `GH_NO_EXTENSION_UPDATE_NOTIFIER=1`, `GH_TELEMETRY=false`, `NO_COLOR=1`, and `GH_PROMPT_DISABLED=1`. Clear inherited tokens, host/repo overrides, debug logging, and forced-TTY settings from the capture process without changing user configuration. Walk all `* COMMANDS` sections recursively, except `EXTENSION COMMANDS`, and capture every root `HELP TOPICS` entry. Include the default `co` alias; do not create duplicate pages for alternate command spellings in `ALIASES` sections.
 4. Save root help to `references/gh.md`. For each command path, write exactly one reference file using this mapping:
    - `gh auth` -> `agent/skills/gh-cli/references/auth.md`
@@ -63,11 +86,23 @@ Keep extension-generated help out of the core references and comprehensive `gh h
 11. Run `uv run python -B ~/.pi/agent/skills/gh-cli/scripts/test_normalize_github_url.py`. The suite covers HTTPS and both SSH repo forms, PRs, issues, discussions, comments/reviews, commits, action runs, releases, comparisons, blobs, trees, fallback routes, and slash-ref ambiguity. Valid results have exactly top-level `references` and `gh.argv`, with no `gh.references` or `clone_argv`. Invalid results use unsupported JSON and exit 2. Tests block network/process calls and cover every ASCII control character, raw and percent-decoded, including HTTPS path parameters and SSH query/fragment inputs. Malformed authorities must not raise parser exceptions. Compile Python files with `PYTHONPYCACHEPREFIX` set to a temporary directory, not the skill folder.
 12. Verify exact set equality between the recursively discovered pages, reference files, and inventory below. Check index families, subcommand links, source/version attribution, `git diff --check`, and artifact/secret/home-path scans. Compare protected binary/config/extension and unrelated-file fingerprints to the pre-update state. Do not stage, commit, push, or mutate hosted services as part of validation.
 
-## Current inventory (2.101.0)
+## Current inventory (prepared 2.103.3)
 
-The core snapshot contains 238 help pages: root help, 229 command/alias pages, and eight help topics. The 2.97.0 to 2.101.0 comparison changed 15 existing manuals and left 222 identical. No built-in command or topic was added or removed. Root help is now stored explicitly. The normalized URL routes remain unchanged; rejection now also covers malformed authorities and decoded controls in SSH query/fragment inputs and HTTPS path parameters.
+The core snapshot contains 245 help pages: root help, 236 command/alias pages, and eight help topics. The complete comparison against the existing 2.101.0-verified snapshot changed 23 existing manuals, preserved 215 pages byte-for-byte, and added seven issue-artifact pages. No generated page was removed. The default `co` alias is included; alternate spellings in `ALIASES` sections have no duplicate pages. The comprehensive core reference independently matches all 236 command/alias paths.
 
-### Validation record (2026-09-29)
+### Validation record (S3, prepared only)
+
+- All 245 complete normalized manuals, all 244 child/topic links, source/version attribution, index families, and the inventory below matched the isolated candidate capture.
+- The target validator and all 39 canonical Local Skill validators passed through offline uv using the existing prepared Python/PyYAML environment. No validator dependencies were installed.
+- The existing eight offline URL-normalizer tests passed, including the 396 control-character cases. CLI-entrypoint and temporary-cache compilation checks passed; normalizer source and tests are unchanged.
+- Metadata, local links, portable paths, secret patterns, runtime artifacts, and scoped `git diff --check` passed. Fingerprints preserved unrelated candidate source, Git identity/index, live binaries, auth/config, extensions, and protected original/graph inputs.
+- Static semantic review preserved authenticated GitHub routing, HTTPS/SSH normalization, bounded read output, exact hosted-write authorization, token redaction, and selective reference loading. No model evaluation, extension execution, product/account call, or live deployment ran.
+
+### Historical comparison (2.101.0)
+
+The 2.101.0 core snapshot contained 238 help pages: root help, 229 command/alias pages, and eight help topics. The 2.97.0 to 2.101.0 comparison changed 15 existing manuals and left 222 identical. No built-in command or topic was added or removed. That update stored root help explicitly and strengthened malformed-authority and decoded-control rejection without changing valid URL routes.
+
+### Historical validation record (2026-09-29)
 
 - Target validator and all 38 Local Skill validators passed, including frontmatter and `agents/openai.yaml` checks.
 - A fresh recursive capture matched all 238 normalized manuals. The comprehensive reference independently listed all 229 command/alias pages. All 237 child links, index families, and inventory entries matched.
@@ -160,6 +195,13 @@ The core snapshot contains 238 help pages: root help, 229 command/alias pages, a
 - `gh gpg-key delete` -> `references/gpg-key/delete.md`
 - `gh gpg-key list` -> `references/gpg-key/list.md`
 - `gh issue` -> `references/issue.md`
+- `gh issue artifact` -> `references/issue/artifact.md`
+- `gh issue artifact create` -> `references/issue/artifact/create.md`
+- `gh issue artifact delete` -> `references/issue/artifact/delete.md`
+- `gh issue artifact download` -> `references/issue/artifact/download.md`
+- `gh issue artifact edit` -> `references/issue/artifact/edit.md`
+- `gh issue artifact list` -> `references/issue/artifact/list.md`
+- `gh issue artifact view` -> `references/issue/artifact/view.md`
 - `gh issue close` -> `references/issue/close.md`
 - `gh issue comment` -> `references/issue/comment.md`
 - `gh issue create` -> `references/issue/create.md`

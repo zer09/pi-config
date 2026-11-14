@@ -51,7 +51,7 @@ nlm login
 
 # Step 2: Verify authentication
 nlm login --check
-# Expected: "Authentication valid! Notebooks found: N"
+# Expected: "Authentication valid!"; notebook count is best-effort metadata
 
 # Step 3: Create a notebook
 nlm notebook create "My First Notebook" --json
@@ -205,15 +205,15 @@ nlm source list <notebook-id> --drive -S
 nlm source stale <notebook-id>
 # Lists sources that have been modified in Drive since import
 
-# Step 4: Sync all stale sources
+# Step 4: Sync confirmed stale, syncable sources only when requested
 nlm source sync <notebook-id> --confirm
 
 # Step 5: Sync specific sources only
 nlm source sync <notebook-id> --source-ids <id1>,<id2> --confirm
 
-# Step 6: Verify all fresh
+# Step 6: Verify the requested sync
 nlm source stale <notebook-id>
-# Should show no stale sources
+# Unknown freshness is not proof that every source is fresh
 ```
 
 ---
@@ -221,6 +221,8 @@ nlm source stale <notebook-id>
 ## Workflow 7: Multi-Account Management
 
 ### Goal: Work with multiple Google accounts
+
+Prefer CLI `--profile` for an account-specific task without changing the MCP account. Login and default/session switches are separate authorized changes, not prerequisites for a read. A shared MCP server's session override affects every chat until restart; see the [account-isolation boundary](remote-mcp.md#authentication-and-account-isolation).
 
 ```bash
 # Step 1: Login to work account

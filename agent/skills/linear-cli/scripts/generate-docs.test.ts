@@ -180,8 +180,8 @@ describe("offline documentation generator", () => {
     }
     for (const [, family] of families) {
       const reference = read(`references/${family}.md`)
-      for (const match of reference.matchAll(/```\n(Usage:[\s\S]*?)\n```/g)) {
-        const usage = match[1].split("\n")[0].replace(/^Usage:\s+linear\s*/, "")
+      for (const match of reference.matchAll(/```\n([\s\S]*?)\n```/g)) {
+        const usage = match[1].match(/^Usage:\s+linear\s*(.*)$/m)![1]
         const path = usage.match(/^[a-z][-a-z]*(?: [a-z][-a-z]*)*/)?.[0]
         expect(path).toBeDefined()
         expect(helpByPath[path!]).toBeUndefined()
@@ -225,7 +225,7 @@ describe("local runtime safety and discovery contract", () => {
     expect(skill.indexOf("Open the smallest bundled family reference"))
       .toBeLessThan(skill.indexOf("Consult live"))
     expect(read("references/issue.md")).toMatch(
-      /Usage:\s+linear issue update \[issueId\]/,
+      /Usage:\s+linear issue update \[OPTIONS\] \[ISSUE\]/,
     )
     expect(read("references/issue.md")).toContain("--title")
   })
@@ -247,8 +247,28 @@ describe("local runtime safety and discovery contract", () => {
     ) expect(skill).toContain(rule)
   })
 
-  test("2.6.0 discovery exposes Markdown, document targets, and PR template flags", () => {
-    expect(skill).toContain("Bundled command references match Linear CLI 2.6.0")
+  test("3.1.0 discovery retains Markdown/body files and reflects the rewritten command grammar", () => {
+    expect(skill).toContain("Bundled command references match Linear CLI 3.1.0")
+    expect(read("references/commands.md")).toContain(
+      "[template](./template.md)",
+    )
+    expect(read("references/issue.md")).toContain("--delegate <AGENT>")
+    expect(read("references/issue.md")).toContain("--clear-delegate")
+    expect(read("references/issue.md")).toContain("##### resolve")
+    expect(read("references/issue.md")).toContain("##### unresolve")
+    expect(skill).toContain("`issue list` is the canonical name")
+    expect(skill).toContain(
+      "`--limit` accepts a positive number or `all`, not `0`",
+    )
+    expect(read("references/issue.md")).toContain("--all-assignees")
+    expect(read("references/organization-features.md")).toContain(
+      "--workspace-only",
+    )
+    expect(read("references/issue.md")).toContain("(- for stdin)")
+    expect(read("references/schema.md")).toContain("-o, --output <FILE>")
+    expect(read("references/api.md")).toContain(
+      "Usage: linear api [OPTIONS] [DOCUMENT]",
+    )
     expect(read("references/commands.md")).toContain(
       "[markdown](./markdown.md)",
     )

@@ -1,7 +1,7 @@
 # gh ruleset view
 
 Source: https://cli.github.com/manual/gh_ruleset_view
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help ruleset view`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help ruleset view`.
 
 ## Summary
 
@@ -41,7 +41,7 @@ EXAMPLES
   $ gh ruleset view
 
   # Interactively choose a ruleset to view from only rulesets configured in the current repository
-  $ gh ruleset view --no-parents
+  $ gh ruleset view --parents=false
 
   # View a ruleset configured in the current repository or any of its parents
   $ gh ruleset view 43

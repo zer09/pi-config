@@ -5,7 +5,7 @@ description: "Read Notion workspace content or perform explicitly requested Noti
 
 # Notion
 
-Use the official `ntn` CLI (reviewed: `0.23.11`). Treat it as self-documenting; discover current syntax instead of guessing.
+Use the official `ntn` CLI (reviewed: `0.23.29`). Treat it as self-documenting; discover current syntax instead of guessing.
 
 ## Guardrails
 

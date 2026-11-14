@@ -1,7 +1,7 @@
 # gh config
 
 Source: https://cli.github.com/manual/gh_config
-Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help config`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help config`.
 
 ## Summary
 
@@ -25,6 +25,7 @@ Current respected settings:
 - `editor`: the text editor program to use for authoring text
 - `prompt`: toggle interactive prompting in the terminal `{enabled | disabled}` (default `enabled`)
 - `prefer_editor_prompt`: toggle preference for editor-based interactive prompting in the terminal `{enabled | disabled}` (default `disabled`)
+- `expiring_credentials`: toggle preference for expiring credentials that gh refreshes automatically when logging in `{enabled | disabled}` (default `disabled`)
 - `pager`: the terminal pager program to send standard output to
 - `http_unix_socket`: the path to a Unix socket through which to make an HTTP connection
 - `browser`: the web browser to use for opening URLs

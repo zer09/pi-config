@@ -1,6 +1,6 @@
 # Updating Astral Python tool skills
 
-Purpose: keep the Astral Python tooling skills aligned with `astral-sh/claude-code-plugins` while preserving local OpenAI skill-creator conventions.
+Purpose: keep the Astral Python tooling skills aligned with `astral-sh/agent-plugins` while preserving local OpenAI skill-creator conventions.
 
 ## Local invariants
 
@@ -8,9 +8,10 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 
 ## Source of truth
 
-- Upstream repository: https://github.com/astral-sh/claude-code-plugins
-- Current upstream commit checked locally: `f3ce88a7ba830f53afd6d944c1d0278ed318e142`
-- Installed CLIs reviewed: `uv`/`uvx 0.12.21`, `ruff 0.16.9`, and `ty 0.0.84`
+- Canonical upstream repository: https://github.com/astral-sh/agent-plugins (verified redirect from `astral-sh/claude-code-plugins`).
+- Current upstream commit compared: `855418fb9ebfada49a8345a5c3ada9db2cdc2419` on `main`.
+- Prior comparison: `f3ce88a7ba830f53afd6d944c1d0278ed318e142`.
+- Current installed/latest captured CLIs reviewed: `uv`/`uvx 0.13.7`, `ruff 0.17.4`, and `ty 0.0.101`. The older versions below are historical, not downgrade targets.
 
 | Local skill | Upstream path |
 | --- | --- |
@@ -37,7 +38,26 @@ Inspect only manager/configuration inputs that affect the task. Preserve uv proj
 
 Read-only advice does not authorize `uv init`, `uv add/remove/sync`, or other project/environment writes. Keep read-only checks in an existing environment without unrequested synchronization. Persistent tool installation requires an explicit request. Preserve `uv run`/`uvx` invocation conventions and exactly one `$uv` token in its metadata prompt. A routing-only pass does not change the source SHA or reviewed CLI versions.
 
-## Increment 15: source no-op and CLI refresh
+## Pi 1.5.2 candidate: S2 alignment, not deployed
+
+This alignment is **prepared in a separate worktree, not deployed**. The parent-captured official source comparison and CLI metadata are the fixed inputs; no moving-target lookup, build, install, or global update ran. The six cached prior/current skill files match their recorded SHA256 and Git blob IDs.
+
+All three skills remain `make it slim`. Descriptions, routing scope, UI metadata, inventory, and classification stay unchanged.
+
+- **uv:** adopt the sync/lockfile distinction and project-tool versus isolated-tool guidance. `--locked` does not make environment writes read-only. Retain `--no-sync` for prepared-environment checks, existing Poetry/PDM ownership, scoped discovery, and explicit mutation/install gates.
+- **Ruff:** adopt additive `extend-select` configuration and distinguish diagnostic suggestions, safe automatic fixes, unsafe fixes, and manual edits. Retain scoped previews, explicit unsafe-fix approval, and `uv run ruff format` for the project-pinned formatter. Do not replace it with `uv format`, which selects Ruff independently by default.
+- **ty:** adopt `import-not-found` and local `ty explain rule` guidance. Local help records the rename in 0.0.97 and retains `unresolved-import` as a compatibility alias. Retain rule-specific suppressions, no blanket suppression, existing manager ownership, and help/docs verification.
+- **Held:** do not adopt `uv check` or `uv format` as automatic workflow replacements, upstream installers, migration catalogs, broad routing, plugin language-server claims, or unrelated new features.
+
+The already-current native binaries were copied and SHA256-compared under the isolated RUN directory. Cargo still owns `uv`/`uvx` at `<cargo-root>/bin/`; uv tool still owns Ruff and ty through `<uv-tool-dir>/<tool>/bin/` and the existing user-bin links. Read-only owner receipts and symlink resolution confirm these paths. No owner or live binary changed, and no CLI upgrade is needed for these captured versions.
+
+OS-network-denied checks used a cleared environment, hidden real HOME, read-only candidate/source/native inputs and existing Python 3.13.16/PyYAML 6.0.3, with only RUN scratch/cache/log output writable. Exact versions, relevant help, and the local import rule explanation passed. Eight Ruff and nine ty fixture cases passed with expected 0/1/2 exits and unchanged fixture bytes/inventory. These cover lint/format previews, manual-only suggestions, type errors, import rules, rule-specific suppression, Python/platform targeting, and invalid usage. Initial test assumptions about Ruff error wording and ty's unknown-rule exit were corrected from native evidence; those failed runs remain recorded.
+
+Target validators and all 39 local validators passed through offline uv without dependency installation or project synchronization. Metadata, source identity, links, secret/artifact scans, and static positive/near-miss routing checks passed. Commands, exits, timings, owner paths, preservation checks and limits are recorded in `RUN/reports/s2/handoff.md`. Static review does not prove model adherence. No real project, auth/account, hosted service, model, browser, synchronization, applied fix/format, installation, or deployment behavior was exercised. Other skill families and final combined acceptance remain separate work.
+
+## Historical Increment 15: source no-op and CLI refresh
+
+The following source and installation facts describe the earlier maintenance pass, not the current candidate.
 
 The cached authenticated GitHub comparison confirms the prior and current source commit are both `f3ce88a7ba830f53afd6d944c1d0278ed318e142`, with tree `f233c51a66e631ab64ddb765b0573317fdb544df`. The complete tree inventory contains the three mapped skill roots. Downloaded bytes match the tree's Git blob IDs and the comparison's SHA256 hashes; all three report `priorEqualsCurrent: true`.
 
@@ -72,7 +92,7 @@ These checks do not prove model routing/compliance or exercise project synchroni
 2. Fetch upstream files with authenticated `gh` CLI through native `bash`, using an explicit repository working directory and bounded output, for example:
 
 ```bash
-gh api repos/astral-sh/claude-code-plugins/contents/plugins/astral/skills/uv/SKILL.md?ref=main
+gh api 'repos/astral-sh/agent-plugins/contents/plugins/astral/skills/uv/SKILL.md?ref=<verified-commit>'
 ```
 
 3. Compare upstream runtime files with local skill folders.
@@ -82,12 +102,14 @@ gh api repos/astral-sh/claude-code-plugins/contents/plugins/astral/skills/uv/SKI
 7. Preserve the scoped-fix safeguards in `ruff` and the docs-verification warning for advanced `ty` flags.
 8. Regenerate or update `agents/openai.yaml` if a skill description changes.
 9. Update the upstream commit SHA in this file when source content changes.
-10. Validate all Astral skills:
+10. Validate all Astral skills from the checkout being updated using existing cached Python/PyYAML, then run all local validators from `local-skill-update-invariants.md`:
 
 ```bash
 for skill in uv ruff ty; do
-  uv run --with pyyaml python ~/.pi/agent/skills/skill-creator/scripts/quick_validate.py ~/.pi/agent/skills/$skill || exit 1
+  PYTHONDONTWRITEBYTECODE=1 UV_PYTHON_DOWNLOADS=never uv run --no-project --offline --with pyyaml python -B agent/skills/skill-creator/scripts/quick_validate.py "agent/skills/$skill" || exit 1
 done
 ```
+
+An existing prepared Python/PyYAML environment may instead be selected with `--python <existing-venv>/bin/python`, omitting `--with pyyaml`. Keep it read-only and offline; a cache miss does not authorize installation.
 
 11. Scan changed files for literal home paths and secret values before committing.

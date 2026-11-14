@@ -1,7 +1,7 @@
 # gh attestation verify
 
 Source: https://cli.github.com/manual/gh_attestation_verify
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help attestation verify`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help attestation verify`.
 
 ## Summary
 
@@ -74,6 +74,15 @@ To instead fetch attestations from your artifact's OCI registry, use the
 
 For offline verification using attestations stored on disk (c.f. the download command)
 provide a path to the `--bundle` flag.
+
+When you load attestations with `--bundle` or `--bundle-from-oci`, this command
+compares the `--repo` or `--owner` value only with the repository and owner
+names recorded in the attestation's certificate when the attestation was
+created. It cannot detect whether the repository or owner has since been
+renamed, or whether a different repository or owner now uses that name. To
+confirm that an attestation belongs to the repository or owner that currently
+has the name, omit `--bundle` and `--bundle-from-oci` so that this command
+fetches attestations from the GitHub API.
 
 ## Additional Policy Enforcement
 

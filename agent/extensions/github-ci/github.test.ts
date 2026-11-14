@@ -10,6 +10,7 @@ function response(value: unknown): ExecResult {
   return {
     code: 0,
     killed: false,
+    truncated: false,
     stdout: JSON.stringify(value),
     stderr: "UNRETURNED_STDERR",
   };
@@ -92,9 +93,10 @@ test("failure summaries retain only failed jobs and failed step names", async ()
 });
 
 for (const raw of [
-  { code: 1, killed: false, stdout: "RAW_STDOUT", stderr: "RAW_STDERR" },
-  { code: 0, killed: true, stdout: "RAW_STDOUT", stderr: "RAW_STDERR" },
-  { code: 0, killed: false, stdout: "{INVALID_JSON_RAW", stderr: "RAW_STDERR" },
+  { code: 1, killed: false, truncated: false, stdout: "RAW_STDOUT", stderr: "RAW_STDERR" },
+  { code: 0, killed: true, truncated: false, stdout: "RAW_STDOUT", stderr: "RAW_STDERR" },
+  { code: 0, killed: false, truncated: false, stdout: "{INVALID_JSON_RAW", stderr: "RAW_STDERR" },
+  { code: 143, killed: true, truncated: true, stdout: JSON.stringify(snapshot()), stderr: "RAW_STDERR" },
 ]) {
   test("command and JSON errors expose no stdout or stderr", async () => {
     const queries = createQueries({ exec: async () => raw });
@@ -137,7 +139,7 @@ for (const mode of ["AbortError", "killed"] as const) {
         if (++calls <= 2) {
           if (mode === "AbortError")
             throw Object.assign(new Error("RAW_ABORT"), { name: mode });
-          return { code: 143, killed: true, stdout: "RAW", stderr: "RAW" };
+          return { code: 143, killed: true, truncated: false, stdout: "RAW", stderr: "RAW" };
         }
         return response(snapshot());
       },
@@ -196,7 +198,7 @@ for (const mode of ["reject", "killed"] as const) {
           throw new Error("unreachable");
         } catch (error) {
           if (mode === "reject") throw error;
-          return { code: 143, killed: true, stdout: "RAW", stderr: "RAW" };
+          return { code: 143, killed: true, truncated: false, stdout: "RAW", stderr: "RAW" };
         } finally {
           pending--;
         }

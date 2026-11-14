@@ -16,8 +16,8 @@ const SKILL_TEMPLATE = join(SKILL_DIR, "SKILL.template.md")
 // Files to preserve (not generated from help)
 const PRESERVED_FILES = ["organization-features.md"]
 
-// Commands to skip (shell completions, not useful for docs)
-const SKIP_COMMANDS = ["completions"]
+// Clap adds a recursive help command; neither it nor completions needs docs.
+const SKIP_COMMANDS = ["completions", "help"]
 
 interface CommandInfo {
   name: string
@@ -106,7 +106,7 @@ function parseCommands(helpText: string): string[] {
         return state
       }
       const match = line.match(/^\s{2}([a-z][-a-z]*)(?:,|\s)/)
-      if (match) {
+      if (match && !SKIP_COMMANDS.includes(match[1])) {
         return { names: [...state.names, match[1]], done: false }
       }
       if (state.names.length > 0 && line.trim() === "") {
@@ -136,7 +136,10 @@ async function discoverCommand(cmdPath: string[]): Promise<DiscoveryResult> {
 
   // Extract description from help text
   const descMatch = help.match(/Description:\s*\n\s*(.+)/)
-  const description = descMatch ? descMatch[1].trim() : ""
+  // Rust/Clap help puts the description before Usage, without a heading.
+  const description = descMatch
+    ? descMatch[1].trim()
+    : help.split(/\n\s*\n/)[0].replace(/\s+/g, " ").trim()
 
   // Discover subcommands recursively
   const subcommandNames = parseCommands(help)

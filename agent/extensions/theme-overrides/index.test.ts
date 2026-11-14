@@ -3,7 +3,7 @@ import * as childProcess from "node:child_process"
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
 import * as os from "node:os"
 import { join } from "node:path"
-import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent"
+import type { ExecResult, ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent"
 
 const originalAgentDir = process.env.PI_CODING_AGENT_DIR
 const testAgentDir = mkdtempSync(join(os.tmpdir(), "theme-overrides-"))
@@ -46,12 +46,13 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve }
 }
 
-function validLightResult(): { stdout: string; stderr: string; code: number; killed: boolean } {
+function validLightResult(): ExecResult {
   return {
     stdout: "AppsUseLightTheme REG_DWORD 0x1\nuint32 2\n",
     stderr: "",
     code: 0,
     killed: false,
+    truncated: false,
   }
 }
 

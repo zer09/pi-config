@@ -1,6 +1,19 @@
 # Changelog
 
+## Pi 1.5.2 active setup installed
+
+Installed and verified at 2026-11-14T07:01:51.846Z. See the [installation record](changelogs/pi-1.5.2-full-setup-installation.md). The normal Bun-owned Pi 1.5.2 runtime, protobufjs 7.6.6 security pin, selected repaired package cache, gh 2.103.3 and Crit 0.23.2 pass actual installed-software checks. The reviewed source is integrated unstaged with local settings formatting preserved. No commit, hosted write, private-data copy or automatic model prompt occurred. Historical preparation results and remaining limitations stay explicit.
+
 This document summarizes local Pi configuration changes. Detailed change records live under [`docs/changelogs/`](./changelogs/).
+
+## Pi 1.5.2 full active-setup maintenance preparation
+
+Details: [the full preparation record](./changelogs/pi-1.5.2-full-setup-maintenance-preparation.md).
+
+- **Prepared in a separate worktree, not deployed.** Select exact Pi 1.5.2 and BTW 0.8.1; retain repaired Blackhole 0.5.15/Harness 0.13.0 and stock Bridge 0.9.3. Hold behavior-changing updates and preserve defaults, accounts, disabled/retired resources, cache warming off and `lastChangelogVersion: "1.4.0"`.
+- Maintain all 38 in-scope local skills, including Outpour; leave Impeccable unchanged. Prepare gh 2.103.3 and Crit 0.23.2 without installing them. Align already-current CLIs and retain explicit SDK/credential/cache migration holds.
+- Correct App Hosting's hidden API-enablement risk before list/get. Preserve semantic/security guards and target-bound SDK, process, provider, session, prompt and theme contracts. Final SDK/bundled/unbundled RPC passes; Blackhole accounting is retained 51 plus one revised shutdown pass, not a fresh 52-case run.
+- Harness's three reproduced upstream type diagnostics, Firebase's transitive Node-engine mismatch, unperformed live/visual checks, earlier failed attempts and containment exceptions remain explicit. All changes stay unstaged; integration, installation, restart and rollback require separate authorization.
 
 ## Active extensions installed on Pi 1.4.0
 

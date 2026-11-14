@@ -43,8 +43,8 @@ Controls the resources allocated to the Cloud Run service that serves your app.
 Defines environment variables available during build and/or runtime.
 
 - `variable`: The name of the env var (e.g., `NEXT_PUBLIC_API_URL`).
-- `value`: A literal string value.
-- `secret`: The name of a secret in Cloud Secret Manager. use `npx -y firebase-tools@latest apphosting:secrets:set` to create these.
+- `value`: A literal string value for non-sensitive configuration only. Use `secret:` for sensitive keys; never copy secret values from local `.env*` files into this field.
+- `secret`: The name of an existing secret in Cloud Secret Manager. Creating a secret or granting access requires explicit user instruction for the exact action, secret, backend, and target project; see the [CLI commands](cli_commands.md). Local configuration does not authorize secret creation or publication.
 - `availability`: Where the variable is needed.
   - `BUILD`: Available during the `npm run build` process.
   - `RUNTIME`: Available when the app is serving requests.

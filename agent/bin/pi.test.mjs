@@ -123,6 +123,8 @@ test("management and non-interactive invocations bypass theme selection exactly"
   try {
     const cases = [
       ["auth", "check", "--provider", "fixture"],
+      ["auth", "login", "--provider", "fixture"],
+      ["auth", "logout", "--provider", "fixture"],
       ["update"],
       ["install", "npm:fixture@1.0.0"],
       ["remove", "npm:fixture@1.0.0"],

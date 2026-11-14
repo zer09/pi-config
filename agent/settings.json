@@ -3,7 +3,7 @@
   "tuiMode": "regular",
   "packages": [
     "npm:pi-blackhole@0.5.15",
-    "npm:pi-btw@0.8.0",
+    "npm:pi-btw@0.8.1",
     {
       "source": "npm:pi-browser-harness@0.13.0",
       "skills": []

@@ -13,13 +13,13 @@ import { loadTargetSessionManager } from "./pi-session-projection.fixture.ts";
 
 // These tests must use the selected installation, never a local or live fallback.
 const root = process.env.PI_SESSION_PROJECTION_PACKAGE_ROOT;
-assert.ok(root && path.isAbsolute(root), "select an isolated exact Pi 1.4.0 package");
+assert.ok(root && path.isAbsolute(root), "select an isolated exact Pi 1.5.2 package");
 await loadTargetSessionManager(root);
 const require = createRequire(path.join(root, "package.json"));
 for (const name of ["pi-agent-core", "pi-ai", "pi-tui"]) {
   const manifest = JSON.parse(readFileSync(path.join(root, "..", name, "package.json"), "utf8"));
   assert.equal(manifest.name, `@earendil-works/${name}`);
-  assert.equal(manifest.version, "1.4.0");
+  assert.equal(manifest.version, "1.5.2");
 }
 const pi: typeof import("@earendil-works/pi-coding-agent") = await import(pathToFileURL(path.join(root, "dist/index.js")).href);
 const ai: typeof import("@earendil-works/pi-ai") = await import(pathToFileURL(path.join(root, "../pi-ai/dist/index.js")).href);

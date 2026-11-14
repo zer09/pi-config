@@ -1,7 +1,7 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(
@@ -10,14 +10,16 @@ const root = join(
   "global",
   "node_modules",
 );
-const require = createRequire(join(root, "typescript", "package.json"));
-const ts = require("typescript");
+const hostRoot = resolve(process.env.PI_GITHUB_CI_HOST_NODE_MODULES ?? root);
+const compilerRoot = resolve(process.env.PI_GITHUB_CI_COMPILER_NODE_MODULES ?? root);
+const require = createRequire(import.meta.url);
+const ts = require(join(compilerRoot, "typescript"));
 const paths = {};
 for (const name of ["@earendil-works/pi-coding-agent", "typebox"]) {
   const manifest = JSON.parse(
-    readFileSync(join(root, name, "package.json"), "utf8"),
+    readFileSync(join(hostRoot, name, "package.json"), "utf8"),
   );
-  paths[name] = [join(root, name, manifest.types ?? manifest.typings)];
+  paths[name] = [realpathSync(join(hostRoot, name, manifest.types ?? manifest.typings))];
 }
 const directory = fileURLToPath(new URL(".", import.meta.url));
 const config = ts.parseJsonConfigFileContent(
@@ -34,7 +36,7 @@ const config = ts.parseJsonConfigFileContent(
       allowImportingTsExtensions: true,
       verbatimModuleSyntax: true,
       types: ["node"],
-      typeRoots: [join(root, "@types")],
+      typeRoots: [join(compilerRoot, "@types")],
       paths,
     },
     include: ["*.ts"],

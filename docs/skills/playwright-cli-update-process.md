@@ -3,10 +3,10 @@
 ## Source and ownership
 
 - Runtime destination: `agent/skills/playwright-cli/` only. Do not install another copy under `.agents/skills/` or `~/.agents/skills/`.
-- Upstream input: the skill bundled with global `@playwright/cli@0.1.22`, maintained in [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli).
+- Upstream input: the skill bundled with global `@playwright/cli@0.1.24`, maintained in [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli).
 - Bundled source path: `$(npm root -g)/@playwright/cli/skills/playwright-cli/`.
-- Supporting sources: the same package's `package.json`, `README.md`, [0.1.22 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.22), installed help, and exact dependency source.
-- Classification: `make it slim`, unchanged. The 0.1.22 upstream root has 489 lines; its root plus ten references total 2,233 lines. The local root remains a 42-line router.
+- Supporting sources: the same package's `package.json`, `README.md`, exact registry metadata, verified archives, installed help, and exact dependency source. The earlier [0.1.22 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.22) remain historical input, not evidence for 0.1.24.
+- Classification: `make it slim`, unchanged. The 0.1.24 upstream root has 493 lines; its root plus ten references total 2,249 lines. The local root remains an unchanged 42-line router.
 
 This is a package-derived Local Skill with local overlays, not a custom skill with no upstream. The initial install read the bundle in place and selectively adapted it. It did not install packages, launch browsers, or run the upstream skill installer.
 
@@ -19,9 +19,46 @@ upstream="$package_dir/skills/playwright-cli"
 node -p 'require(process.argv[1]).version' "$package_dir/package.json"
 ```
 
-Confirm that the source package and executable belong to the intended installation. Inspect startup before executing help/version, using the isolation described below. `@playwright/cli` and the project's Playwright test runner have separate versions. CLI 0.1.22 depends on Playwright `1.64.0-alpha-1790635538000`; do not assume project support for `--debug=cli`, installed matching browser binaries, or a matching container image.
+Confirm that the source package and executable belong to the intended installation. Inspect startup before executing help/version, using the isolation described below. `@playwright/cli` and the project's Playwright test runner have separate versions. CLI 0.1.24 pins Playwright and Playwright Core to `1.66.0-alpha-1794252756000`. That alpha is part of the stable CLI distribution, not permission to substitute another dependency or download a browser. Do not assume project support for `--debug=cli`, installed matching browser binaries, or a matching container image.
 
-## Verified 0.1.21 to 0.1.22 update
+## Prepared 0.1.24 alignment, not deployed
+
+S7 verifies the already-installed CLI under the active nvm npm-global prefix, using Node `v26.13.1`. The executable resolves to that prefix's `lib/node_modules/@playwright/cli/playwright-cli.js`; no global installation or project dependency change occurs. A private archive-derived copy and provenance live under the maintenance run's `reports/s7/`, outside skill discovery. All 192 installed package files match archive bytes and modes. Internal dependency resolution stays inside the private copy.
+
+| Package | Exact version | Registry source commit | Registry metadata |
+| --- | --- | --- | --- |
+| `@playwright/cli` | `0.1.24` | `261206400b18cd0629a8b45dd14ea5488fcf261f` | [Exact CLI record](https://registry.npmjs.org/@playwright%2fcli/0.1.24) |
+| `playwright` | `1.66.0-alpha-1794252756000` | `95e5dca31981bcd0970165853fcc713269d2433a` | [Exact Playwright record](https://registry.npmjs.org/playwright/1.66.0-alpha-1794252756000) |
+| `playwright-core` | `1.66.0-alpha-1794252756000` | `95e5dca31981bcd0970165853fcc713269d2433a` | [Exact Core record](https://registry.npmjs.org/playwright-core/1.66.0-alpha-1794252756000) |
+
+The CLI declares Node `>=18`; both dependencies require Node `>=20`. The CLI pins both dependencies exactly; Playwright pins the same Core, which has no dependencies. There are no optional dependencies or install lifecycle scripts. Only the CLI declares `scripts.test`.
+
+| Package | Verified `dist.integrity` |
+| --- | --- |
+| `@playwright/cli` | `sha512-AIO0AiPHh1ZB9e+i+ZiRwSTfqlkJtWcojgtPnW/BbBCgr96OojlL15dc1jWWclfbjdwPv5900qxuDyEHghjSqw==` |
+| `playwright` | `sha512-/9xFhtBUua3Qu3ZIwg1ZoR+bNj+laHp6GxZXvc4gUN5TngCaKbIUPGTTIofnss0mRAkGfY7zUiF/xu/H2CqTFQ==` |
+| `playwright-core` | `sha512-AiVQEDLnkpZfEhfXOpqzZA06guT1drbfdcDbV5gePzcr/GdB/9RXnc8FrvV2YNgju0w4JERJllO24n5PmZDQ+A==` |
+
+The parent supplied verified 0.1.24 metadata/archive. S7 independently rechecks its SHA-512/SHA-1 and published extraction, and retrieves both exact dependency records/archives through separate public registry GETs. Registry URL, integrity, shasum, commit, closure and per-file hashes are retained privately. S7 does not independently verify registry signatures, SLSA attestations or the 0.1.24 GitHub tag/release.
+
+### Selective source decisions
+
+- Correct `--raw`: it omits page status and generated code but retains results, errors, WebMCP tools and snapshots or snapshot links. Explain structured `--json` replies and inline versus file snapshots without treating either output mode as a privacy boundary.
+- Retain existing command examples: all documented shapes match 0.1.24 help. The local trace-open-before-start ordering already matches the upstream correction. Existing function-expression/globals guidance remains correct; update its version and the historical openSUSE compatibility caveat.
+- Hold new catalogs and optional recipes: isolated tab contexts, cookie-domain deletion, mouse-wheel guidance, event-listener examples, assertion catalogs, bootstrap/install, user-browser attachment, uploads and broad cleanup do not need new local workflows. The upstream assertion correction is not present in local examples.
+- Preserve the root, description, UI metadata, five-reference router, task-session ownership, Browser Harness consent/profile boundary, credential/privacy gates, exact hosted writes, artifact limits and project runner ownership. Retired and disabled resources remain untouched.
+
+### Startup and isolated checks
+
+The entry imports the core and skill checker, then calls `parseArgs` before `checkForUpdates(args)` and `program`. The notifier now spawns `npm view` for selected workflow commands, but `NO_UPDATE_NOTIFIER=1` or `CI=1` returns before cache access, skill checks or spawning npm. Keep both controls set during checks; no npm resolution runs. The core help/version branches call `bootstrap.processExit(0)` before flag validation, `Registry.load()` and session dispatch. `createClientInfo()` still checks `.playwright` ancestors and computes HOME/cache paths before those exits. Startup imports are not a sandbox.
+
+Execution uses a cleared environment, empty synthetic HOME/cwd, OS network denial through bwrap, hidden real HOME/profiles/browser/keyring/runtime sockets, read-only source/dependencies, and run-owned cache/tmp/log paths. Browser downloads remain disabled with `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`; only version/help forms execute the CLI. No browser, daemon, server, trace, page, endpoint or existing session is used. Source downloads are a separate phase, never product execution.
+
+The existing contract file has eight passing tests against the exact private closure, including one focused source/documentation case for retained raw snapshots. Necessary updates replace the old versions and source signatures, without relaxing assertions. Version, root help and 32 referenced command-help calls pass; command help matches released `help.json`. Target and all 39 skill validators pass with the cached offline Python `3.13.16` / PyYAML `6.0.3` environment. Metadata, local links, maintenance pointers, source artifacts and preservation checks are recorded in the private S7 handoff.
+
+These checks establish source, syntax and static help contracts only. They do not establish model routing compliance, browser availability/library compatibility, launches, page behavior, credentials, request interception, saved state, tracing/recording, WebMCP execution or test-debug attachment. Browser acceptance and final combined maintenance acceptance remain deferred.
+
+## Verified 0.1.21 to 0.1.22 update (historical)
 
 The authorized update used the active Node `v24.18.0` / npm `12.0.2` global prefix. The `bin/playwright-cli` symlink still targets `../lib/node_modules/@playwright/cli/playwright-cli.js`. Only the CLI and its two nested dependencies changed; no project test dependency changed.
 
@@ -115,23 +152,23 @@ Use a fresh `mktemp -d` location for comparison copies when staging is needed. K
 From the repository root, validate the target:
 
 ```bash
-uv run --with pyyaml python agent/skills/skill-creator/scripts/quick_validate.py agent/skills/playwright-cli
+PYTHONDONTWRITEBYTECODE=1 UV_PYTHON_DOWNLOADS=never uv run --no-project --offline --python "$validator_python" python -B agent/skills/skill-creator/scripts/quick_validate.py agent/skills/playwright-cli
 ```
 
-Run the all-local-skill loop in [local invariants](local-skill-update-invariants.md#post-update-validation-checklist). Parse every `agents/openai.yaml`; check required interface fields, prompt tokens, and short-description length. Validate changed Markdown links, README process pointers, and frontmatter keys.
+Set `validator_python` to an existing prepared Python/PyYAML environment; do not download or install validator dependencies. Run inside the isolated environment above. Run the all-local-skill loop in [local invariants](local-skill-update-invariants.md#post-update-validation-checklist). Parse every `agents/openai.yaml`; check required interface fields, prompt tokens, and short-description length. Validate changed Markdown links, README process pointers, and frontmatter keys.
 
 Inspect changed files for literal home paths and secret-like values. Compare the artifact inventory against the pre-edit baseline so unrelated caches are preserved, not deleted. Confirm no generated caches, browser outputs, duplicate skill copies, or unapproved package changes were introduced. Check `git diff --check` and confirm unrelated changes and Git staging remain untouched.
 
 Run the offline regression file against the verified installation:
 
 ```bash
-uv run --offline python -B docs/skills/tests/test_playwright_cli_contract.py --package-dir "$package_dir" -v
-uv run --offline --with ruff ruff check --no-cache docs/skills/tests/test_playwright_cli_contract.py
+uv run --no-project --offline --python "$validator_python" python -B docs/skills/tests/test_playwright_cli_contract.py --package-dir "$package_dir" -v
+uv run --no-project --offline --python "$validator_python" ruff check --no-cache docs/skills/tests/test_playwright_cli_contract.py
 ```
 
-The seven tests passed for 0.1.22. They check exact dependencies/lifecycle declarations, documented command/flag/argument shapes, task-session flags, `find` output, rejected unsafe recipes, Bash and function-expression syntax, runtime globals, and help/version early exits. They read source/JSON; parser subprocesses never run the CLI or a project test runner. This is not a complete shell/CLI grammar or a browser-behavior test.
+Use the verified private copy as `package_dir` and an existing prepared Ruff executable, not package resolution. Historically, the seven tests passed for 0.1.22; the eight-test 0.1.24 result is recorded above. They check exact dependencies/lifecycle declarations, documented command/flag/argument shapes, task-session flags, `find` output, rejected unsafe recipes, Bash and function-expression syntax, runtime globals, and help/version early exits. They read source/JSON; parser subprocesses never run the CLI or a project test runner. This is not a complete shell/CLI grammar or a browser-behavior test.
 
-Target validation and all 38 Local Skill validators passed, including frontmatter, YAML metadata, prompt tokens, description lengths, and local skill links. Unrelated content fingerprints covered 3,772 repository files, 43,955 global-package entries, 15 executable entries, 424 project dependency manifests/locks, and the Git index. The existing skill artifact inventory was preserved. README and inventory entries remain accurate; neither needed an edit.
+In the historical 0.1.22 update, target validation and all 38 Local Skill validators passed, including frontmatter, YAML metadata, prompt tokens, description lengths, and local skill links. Unrelated content fingerprints covered 3,772 repository files, 43,955 global-package entries, 15 executable entries, 424 project dependency manifests/locks, and the Git index. The existing skill artifact inventory was preserved. README and inventory entries remain accurate; neither needed an edit.
 
 ### Focused semantic review
 

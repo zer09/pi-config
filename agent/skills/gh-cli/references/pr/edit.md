@@ -1,7 +1,7 @@
 # gh pr edit
 
 Source: https://cli.github.com/manual/gh_pr_edit
-Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help pr edit`.
+Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help pr edit`.
 
 ## Summary
 
@@ -25,7 +25,8 @@ To authorize, run `gh auth refresh -s project`.
 Use `--attach` to upload an image or video. Without a body flag the pull
 request keeps the body it already has and the attachment is appended to it. If the
 body references an attached file, such as `![alt](./login.png)`, that reference
-is rewritten to point at the uploaded asset instead.
+is rewritten to point at the uploaded asset instead. Paths in a `--body-file` are
+relative to its directory, falling back to the working directory.
 You can attach up to 50 files per command.
 
 Alt text for an image follows the path after `#`, as in

@@ -1,5 +1,15 @@
 # Browser Harness local repair
 
+## Pi 1.5.2 installed
+
+The live cache retains 0.13.0 with per-receiving-API registration, all 42 tools and the skills filter. Installed bytes and fresh SDK/RPC checks pass without launching a browser. The three upstream type diagnostics and untested visual/Windows behavior remain limitations. See the [installation record](../../docs/changelogs/pi-1.5.2-full-setup-installation.md). Earlier preparation facts remain unchanged below.
+
+## Pi 1.5.2 full-setup preparation, not deployed
+
+Retain 0.13.0 and the unchanged per-receiving-API repair. Actual selected-graph SDK and bundled/unbundled RPC loading preserves all 42 browser tools across reload/resume/tree operations with lazy disconnected startup. The `skills: []` filter, settings and consent/profile/header boundaries remain unchanged. Version 0.17.0 stays held because it changes tools/setup and persistent recipe behavior.
+
+Stock and repaired source reproduce the same three upstream strict diagnostics on exact Pi 1.5.2; registry/public-boundary diagnostics remain zero. This is not a clean whole-source typecheck or browser/Windows acceptance. See the [full preparation record](../../docs/changelogs/pi-1.5.2-full-setup-maintenance-preparation.md) and `RUN/reports/s10`. No helper ran on a live package and no browser/daemon was launched.
+
 ## C2 combined preparation, not deployed
 
 C2 reconstructs a fresh offline graph and applies the accepted helper only to canonical TMPDIR source. All 99 package files are verified before and after copying into the isolated cache. The sole production delta remains `src/registry.ts`; the published source entrypoint and 42 tools remain unchanged.

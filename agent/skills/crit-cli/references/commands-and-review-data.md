@@ -66,7 +66,7 @@ Field rules:
 
 ## Authoring comments
 
-Use these commands only for user-requested local comment writes or replies.
+Use these commands only for user-requested local comment writes or replies. The review/file/line authoring forms below target code/file reviews, not live/HTML preview sessions; do not repurpose them for page comments.
 
 ```bash
 # Review-level (general feedback)
@@ -161,7 +161,7 @@ GitHub requires authenticated `gh`; GitLab requires authenticated `glab`, not `g
 
 Crit auto-detects the provider and PR/MR when omitted. Verify the host, repository/project, change request, and local review match the requested target. `--forge auto|github|gitlab` selects the provider for `pull` and `push`; do not guess across providers. Preserve `--session <id>` when selecting a local review.
 
-`--event` values: `comment` (default), `approve`, `request-changes`. `-m` adds a review-level body message. Approval and change-request events must match the user's explicit instruction.
+`--event` values: `comment` (default), `approve`, `request-changes`. `-m` / `--message` adds a review-level body message and is required for `request-changes`. Approval and change-request events must match the user's explicit instruction.
 
 ## Sharing
 
@@ -182,6 +182,8 @@ crit unpublish --share-url <url> [file...]           # Select the original deplo
 - `--qr` is terminal-only. Skip it in mobile apps, web chat UIs, or anywhere Unicode block characters will not render correctly.
 - `--org <slug>` shares under an organization. Visibility defaults to `organization` (members only). Override with `--visibility` (`organization`, `unlisted`, `public`).
 - `--share-url` selects among configured `share_targets` or overrides the destination for one invocation. Multiple targets without a default require an explicit choice. Do not change configuration or authentication to make that choice. A CLI override takes precedence over `CRIT_SHARE_URL`; an empty `CRIT_SHARE_URL=` disables sharing unless a CLI override is supplied.
-- `crit share --preview` publishes HTML; it is not an offline preview or dry-run. In v0.21.0 it honors `--org`, `--visibility`, and `--qr` and preserves the original HTML path. Apply the same publication gates.
+- `crit share --preview` publishes HTML; it is not an offline preview or dry-run. It honors `--org`, `--visibility`, and `--qr` and preserves the original HTML path. Apply the same publication gates.
 - If a review file exists, comments for the shared files are included automatically. Include them when checking the authorized publication scope.
-- Unpublish uses the persisted delete token in the review file. Use `--share-url` for the intended non-default deployment; do not guess a different destination or expose the token. Do not send credentials or delete tokens to an unapproved deployment.
+- Legacy reviews without `share_base_url` no longer fall back to the current/default deployment. If Crit cannot identify the originating deployment, stop. Rebinding with `crit share --share-url <url> <file...>` requires a configured target and separate authorization for that exact publication, included comments, destination, and visibility. It is not a read-only repair; the binding can persist even if publication fails. Do not add targets or change authentication as a workaround.
+- An already-bound review rejects a different deployment. Moving it requires separately authorized unpublishing at the original deployment before separately authorized publication elsewhere.
+- Unpublish uses the persisted delete token in the review file. Use `--share-url` for the intended non-default deployment; do not guess a different destination or expose the token. Do not send credentials or delete tokens to an unapproved deployment. If target resolution fails, Crit retains the token; report the incomplete deletion instead of clearing local share state or retrying another deployment.

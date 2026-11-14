@@ -6,7 +6,37 @@ Keep `agent/skills/nlm-skill` aligned with the published NotebookLM CLI and MCP 
 
 Apply [local skill invariants](local-skill-update-invariants.md) and the [slimming process](skill-slimming-process.md) before and after a sync. Classification remains `make it slim`; the installed-skill decision did not change. Upstream is input, not permission to replace local behavior.
 
-## Verified source and installation
+## Current 0.16.2 preparation
+
+Reviewed on 2026-11-13 in a separate maintenance worktree, not deployed. The installed/latest distribution is already `notebooklm-mcp-cli 0.16.2`; no install, upgrade, uninstall, sync, profile/auth operation, MCP server, browser, or product call ran. Keep uv ownership, the existing receipt requirement, both executable names, UI metadata, MCP dependency `notebooklm-mcp`, and classification `make it slim` unchanged.
+
+| Item | Exact current provenance |
+| --- | --- |
+| Repository and release | [Official v0.16.2](https://github.com/jacob-bd/gemini-notebook-mcp-cli/releases/tag/v0.16.2), also returned by authenticated GitHub latest-release lookup |
+| Tag commit | `a73d3bebfed0fba428b73d2e768c8e0be0495390` |
+| Packaged skill source | `src/notebooklm_tools/data`; all eight skill/reference files compared with exact 0.13.0 source |
+| Distribution | [notebooklm-mcp-cli 0.16.2](https://pypi.org/project/notebooklm-mcp-cli/0.16.2/), Python `>=3.11` |
+| Wheel | `notebooklm_mcp_cli-0.16.2-py3-none-any.whl`, SHA-256 `3f89d3b15e472230a345bd87bf922f6c76f3635e49bc365780bc72f2fe8362d3` |
+| Sdist | `notebooklm_mcp_cli-0.16.2.tar.gz`, SHA-256 `5502467ff1f876c62b6c4e32f6d5cddbbc069c1174895f2cd0998f7502f0c407` |
+| Git archive SHA-256 observed | `888baea9b27e9064566b119ee3a03bff7889449052a6e2aff1ec9437d99cfb91` |
+| Existing owner and receipt | uv tool environment; requirement `notebooklm-mcp-cli` is currently unpinned, not the historical exact 0.13.0 requirement |
+| Entry points | `nlm = notebooklm_tools.cli.main:cli_main`; `notebooklm-mcp = notebooklm_tools.mcp.server:main` |
+
+The PyPI archive hashes match the parent's November 12 metadata. All 384 Git archive files match the resolved commit's blob IDs. All 139 wheel runtime/data files match Git source and sdist; `pyproject.toml` also matches sdist. Wheel `RECORD` verifies all packaged members. All 143 non-RECORD wheel files match the installed distribution, and all 147 hashed installed `RECORD` entries verify, including launchers and uv metadata. Installed symlinks/launcher imports and `INSTALLER=uv` establish the current owner. The historical installation below is not a claim about today's unpinned receipt. There is still no distribution rename; a connection alias never authorizes changing ownership or MCP dependency metadata.
+
+Adopt only corrections for existing workflows:
+
+- Distinguish retryable reads and pre-send connection failures from uncertain writes; never add automatic mutation retries. Automatic browser recovery has a per-process/profile cooldown and failure budget, not an elapsed-time login policy.
+- Correct the headless opt-out description: it blocks browser refresh, not explicitly requested `--http-only` recovery. HTTP-only validates before saving, cannot renew browser-dependent cookies or revive fully expired login, and is not an automatic fallback. Preserve same-profile recovery and secret boundaries.
+- Explain the process-wide MCP session override and saved-default distinction. Keep explicit CLI/profile preference, no automatic switching, exact local-profile gates, account disclosure and single-user gateway isolation. Do not install a profile workflow or assume one account per chat.
+- Correct source URL retrieval and sync reporting: unknown freshness is not fresh; default sync selects confirmed stale, syncable sources only. Sync and export remain separately authorized.
+- Note current login proof, best-effort notebook count and credential-storage prompts without adopting storage conversion/repair commands or setup automation. Preserve the compact router, root description, selected Studio guides, confirmation and cinematic preview, one-shot chat, scoped downloads, opt-outs and ZIP-versus-hosted-upload boundaries.
+
+Hold new collections, experimental source search, alias tools, chat deletion/save tools, storage-command catalogs, health-monitor additions, scheduled refresh, third-party research and other optional features. The released MCP batch file and pipeline step executor are byte-identical to 0.13.0: batch Studio still ignores both confirmation values, and mutation pipelines still lack granular gates. Retain the stricter local restrictions; no upstream bug-fix claim or workaround relaxation is warranted.
+
+S6 validation uses private source/wheel copies, a read-only prepared Python 3.13.16/PyYAML 6.0.3 environment, cleared environment, hidden real HOME/keyring/browser state and bwrap OS network denial. All 215 current Typer command/group help schemas render using each command's own context class without callbacks. The version callback reports 0.16.2 with only `cli.utils.check_for_updates` mocked at the documented seam; its latest-version message is not evidence. The `cli_main` wrapper is not invoked because successful exit can inspect credential-storage notices; its final TTY update hook also needs isolation. Existing AST/extracted-function regressions pass all 14 tests before and after adaptation, with no test changes. Target/all 39 validators, metadata, exact prompt token, links/anchors, artifact/secret hygiene and scoped preservation pass. These checks prove selected source/help contracts, not live auth, Google behavior, storage migration, UI, hosted uploads or model compliance. Private `reports/s6/handoff.md` records exact commands, failures, timings and preservation scope for this maintenance run; other families and final combined acceptance remain deferred.
+
+## Historical 0.13.0 source and installation
 
 Verified on 2026-09-29:
 
@@ -29,7 +59,7 @@ The exact tag's `pyproject.toml`, PyPI metadata, wheel metadata, and installed r
 
 Integrity verification compared downloaded archives with PyPI SHA-256 values and checked wheel `RECORD` entries. All 302 source archive files matched the Git tree's blob IDs at the commit. All 124 packaged runtime/data files matched that source; sdist runtime files and `pyproject.toml` also matched. After installation, 126 runtime/data/metadata/entry-point files matched the verified wheel. The Git blob comparison is the source-integrity check; an archive's transport hash alone is not provenance.
 
-The former local record `0.9.6` / `fd8bec48b51dc500e4e11a8a93c99d01d58675ee` was stale relative to installed `0.10.1`. This sync replaces that record and updates the adapted AGENTS section marker to `0.13.0`; it does not claim the old installed binary was `0.9.6`.
+The former local record `0.9.6` / `fd8bec48b51dc500e4e11a8a93c99d01d58675ee` was stale relative to installed `0.10.1`. That sync replaced the record and updated the adapted AGENTS section marker to `0.13.0`; it did not claim the old installed binary was `0.9.6`. The current marker now reflects the reviewed 0.16.2 source.
 
 ## Local file model
 
@@ -72,10 +102,10 @@ Compared exact released `SKILL.md`, `AGENTS_SECTION.md`, and all six runtime ref
 
 1. Read the [maintenance README](README.md), local invariants, slimming process, and this document. Load `skill-creator`, `gh-cli`, and `uv`.
 2. Inspect repository status and the tool's symlink/uv receipt without invoking `nlm`. Preserve user changes and unrelated tools. Record non-secret preservation checks without reading browser state or exposing account details.
-3. Resolve the requested release through authenticated `gh` with native `bash`, an explicit repository working directory, and bounded output. For this release, use `gh api repos/jacob-bd/gemini-notebook-mcp-cli/git/ref/tags/v0.13.0`. Fetch source by the resolved commit, not unreleased `main`.
+3. Resolve the requested release through authenticated `gh` with native `bash`, an explicit repository working directory, and bounded output. For the current release, use `gh api repos/jacob-bd/gemini-notebook-mcp-cli/git/ref/tags/v0.16.2`. Fetch source by the resolved commit, not unreleased `main`.
 4. Verify distribution name, exact version, Python requirements, entry points, published archive hashes, wheel `RECORD`, and source blob identity. If a real rename requires removal or risks other executables/state, stop for a decision before destructive changes.
-5. Inspect the Python entry point, imported modules, root callback, and exit/update hooks before running any version/help check. In 0.13.0, `--version` calls `check_for_updates`, which can contact PyPI and create a cache. A TTY exit can also check for updates. Neither is an inherently offline check.
-6. If persistent installation is explicitly authorized, use uv's existing distribution mechanism with an exact requirement. The approved form is `uv --no-config tool install 'notebooklm-mcp-cli==0.13.0' --python <existing-interpreter> --default-index https://pypi.org/simple --no-build`. Do not use `--force`, uninstall, `upgrade --all`, or run setup as part of the upgrade. Compare installed package bytes with the verified wheel afterward.
+5. Inspect the Python entry point, imported modules, root callback, and exit/update hooks before running any version/help check. In 0.16.2, `--version` calls `cli.utils.check_for_updates`, which can contact PyPI and create a cache. `cli_main` can inspect storage notices after successful exit and check updates in its final TTY hook. None is an inherently offline check; do not invoke the wrapper just to render help.
+6. If persistent installation is explicitly authorized, use uv's existing distribution mechanism with an exact requirement. The approved form is `uv --no-config tool install 'notebooklm-mcp-cli==0.16.2' --python <existing-interpreter> --default-index https://pypi.org/simple --no-build`. Do not use `--force`, uninstall, `upgrade --all`, or run setup as part of the upgrade. Compare installed package bytes with the verified wheel afterward.
 7. Use a network-isolated sandbox for installed help/version inspection. Give it an empty HOME/config/data directory, cleared environment, read-only package/runtime mounts, and bytecode/cache paths outside the repository. Do not mount user credentials or browser state. Mock the version update checker; ignore its "latest version" message as evidence when offline.
 8. Render installed command help from Typer command schemas without invoking product callbacks. Use the command's own context class; modern Typer may not share the separately installed Click classes. Source/mock checks are the fallback when isolation is unavailable.
 9. Compare exact released skill files and relevant runtime source with local references. Adapt only applicable changes. Keep root frontmatter to `name` and `description`; track version/SHA here and in the AGENTS marker, not extra root metadata.
@@ -87,7 +117,7 @@ Compared exact released `SKILL.md`, `AGENTS_SECTION.md`, and all six runtime ref
 Target validator:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 uv run --offline --no-project --with pyyaml python \
+PYTHONDONTWRITEBYTECODE=1 uv run --offline --no-project --python <prepared-interpreter> python -B \
   agent/skills/skill-creator/scripts/quick_validate.py agent/skills/nlm-skill
 ```
 
@@ -96,7 +126,7 @@ All Local Skill validators:
 ```bash
 for skill_dir in agent/skills/*; do
   test -f "$skill_dir/SKILL.md" || continue
-  PYTHONDONTWRITEBYTECODE=1 uv run --offline --no-project --with pyyaml python \
+  PYTHONDONTWRITEBYTECODE=1 uv run --offline --no-project --python <prepared-interpreter> python -B \
     agent/skills/skill-creator/scripts/quick_validate.py "$skill_dir" || exit 1
 done
 ```
@@ -107,7 +137,7 @@ Run the [focused command regressions](tests/test_nlm_command_contract.py) agains
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 uv --no-config run --offline --no-project \
-  --no-python-downloads python docs/skills/tests/test_nlm_command_contract.py \
+  --no-python-downloads --python <prepared-interpreter> python -B docs/skills/tests/test_nlm_command_contract.py \
   --source /path/to/verified/source/src/notebooklm_tools
 ```
 
@@ -118,11 +148,11 @@ Required checks:
 - Validate target/all skills, YAML, frontmatter, exact `$nlm-skill` prompt, UI description length, and intentional MCP metadata.
 - Resolve Markdown links and anchors in changed files, including this process and the AGENTS snippet.
 - Compare documented commands with exact source signatures: reject unknown leaf subcommands, unknown options, missing arguments, incorrect option arity, missing required options, and unsupported enum values. Reject unsafe runnable recipes even when their syntax is valid. The earlier 209 rendered command/group schemas and 105 matching prefixes were discovery evidence, not sufficient command acceptance. The focused suite checks leaf signatures and aliases for its seven families, chat registration and inline alias claims, export type and slide format/length enums, and confirmation restrictions.
-- Test source-extracted functions with fake clients/services only. This sync passed nine isolated static/mock tests for report read/status/confirmation, unknown outcomes, batch confirmation limitations, package names, and skill ZIP content/default behavior. No ZIP was built or uploaded during validation.
+- Test source-extracted functions with fake clients/services only. The historical 0.13.0 sync passed nine isolated static/mock tests for report read/status/confirmation, unknown outcomes, batch confirmation limitations, package names, and skill ZIP content/default behavior. No ZIP was built or uploaded during validation.
 - Review representative boundaries: status does not import research; stale sources do not sync; report reads/plans do not generate; generation does not ingest missing sources; a clear generation request needs no repeated approval; deletes stop for explicit confirmation; setup/package requests do not authorize hosted uploads or account changes.
 - Run scoped `git diff --check` and review the diff. Scan changed files for secrets, literal home paths, stale version claims, and accidental artifacts. Keep caches, downloads, source archives, and test output outside the repository.
 - Recheck unrelated uv tools, tool entry points, non-browser auth/profile/config state, UI metadata, and Git index preservation. Do not hash or inspect browser state as an optional extra check.
 
-Increment 8 remediation acceptance: the initial focused regression failed on 13 invalid or unsafe documented examples and the presentation format assertion. The first documentation fix passed all 10 tests. The remaining-findings regression ran 14 tests and failed on the inline `nlm chat list` alias and all three unconditional download defaults before the follow-up fix. After the follow-up fix, all 14 tests passed. Negative controls reject the old sharing/export/slides syntax, unknown options/enums, missing required arguments, batch Studio, and generating pipeline recipes, including invented confirmation flags. Source AST verifies that `chat` registers `configure`/`start` and `chats` registers `list`; negative controls reject `nlm chat list` in prose and fenced examples. Fake calls verify that MCP batch Studio ignores both confirmation values, direct MCP Studio stops without confirmation, and pipeline mutation steps lack granular gates. Fifteen download-root cases execute the extracted resolver with pure fake paths and a private environment mapping: configured values are stripped and expanded; unset, empty, and whitespace-only values use the existing Downloads directory or fall back to application storage when Downloads is missing or not a directory. No product imports or user filesystem access occur in these fake calls. This supersedes prefix-only acceptance for the remediated command families.
+Historical Increment 8 remediation acceptance: the initial focused regression failed on 13 invalid or unsafe documented examples and the presentation format assertion. The first documentation fix passed all 10 tests. The remaining-findings regression ran 14 tests and failed on the inline `nlm chat list` alias and all three unconditional download defaults before the follow-up fix. After the follow-up fix, all 14 tests passed. Negative controls reject the old sharing/export/slides syntax, unknown options/enums, missing required arguments, batch Studio, and generating pipeline recipes, including invented confirmation flags. Source AST verifies that `chat` registers `configure`/`start` and `chats` registers `list`; negative controls reject `nlm chat list` in prose and fenced examples. Fake calls verify that MCP batch Studio ignores both confirmation values, direct MCP Studio stops without confirmation, and pipeline mutation steps lack granular gates. Fifteen download-root cases execute the extracted resolver with pure fake paths and a private environment mapping: configured values are stripped and expanded; unset, empty, and whitespace-only values use the existing Downloads directory or fall back to application storage when Downloads is missing or not a directory. No product imports or user filesystem access occur in these fake calls. This supersedes prefix-only acceptance for the remediated command families.
 
 These checks establish local structure, syntax, provenance, isolation, and selected control-flow behavior. They do not establish live authentication, NotebookLM/Google behavior, wizard UI behavior, hosted uploads, model compliance, or CDN availability.

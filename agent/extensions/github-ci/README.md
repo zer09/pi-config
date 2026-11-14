@@ -44,6 +44,20 @@ node --import ./test-host.ts --test *.test.ts
 node typecheck.mjs
 ```
 
-Tests use `node:test`, fake monotonic time, fake sleeps, and mocked `pi.exec`. They make no GitHub calls and do not wait for real timers. The test loader resolves the installed TypeBox package from Bun's global installation. The type check uses the installed Pi, TypeBox, TypeScript, and Node declarations and checks production code plus tests. Both helpers honor `BUN_INSTALL`; neither installs dependencies.
+Tests use `node:test`, fake monotonic time, fake sleeps, and mocked `pi.exec`. They make no GitHub calls and do not wait for real timers. The type check covers production code and tests.
+
+`PI_GITHUB_CI_HOST_NODE_MODULES` selects the `node_modules` directory containing Pi and TypeBox. The test loader uses its TypeBox package; the type check uses its Pi and TypeBox declarations. `PI_GITHUB_CI_COMPILER_NODE_MODULES` selects the separate `node_modules` directory containing TypeScript and `@types/node` for the type check. Each override independently defaults to `$BUN_INSTALL/install/global/node_modules`, or `~/.bun/install/global/node_modules` when `BUN_INSTALL` is unset. Explicit missing packages or declarations fail instead of falling back. Neither helper installs dependencies.
+
+For a private preparation directory identified by `RUN`, use the existing isolated host and compiler inputs:
+
+```sh
+PI_GITHUB_CI_HOST_NODE_MODULES="$RUN/graph-baseline/agent/npm/node_modules" \
+  node --import ./test-host.ts --test *.test.ts
+PI_GITHUB_CI_HOST_NODE_MODULES="$RUN/graph-baseline/agent/npm/node_modules" \
+PI_GITHUB_CI_COMPILER_NODE_MODULES="$RUN/graph-baseline/test-tools/node_modules" \
+  node typecheck.mjs
+```
+
+These bindings are verified with exact Pi 1.5.2, TypeBox 1.3.27, TypeScript 6.0.3, and `@types/node` 24.13.2. Maintenance acceptance runs the checks in an OS-network-denied sandbox with a synthetic HOME.
 
 Bun's test resolver did not resolve the host TypeBox package in this worktree, so the checks use Node's existing test runner instead. Live GitHub testing and global activation remain outside this increment.

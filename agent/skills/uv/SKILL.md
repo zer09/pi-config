@@ -26,6 +26,8 @@ Inspect manager/configuration only when it affects the task. Generic Python code
 
 Read-only advice does not authorize project mutation. Run `uv init`, `uv add`/`uv remove` (including script dependencies), `uv sync`, or other project/environment writes only when the user's requested local change authorizes them.
 
+`uv sync` updates the environment and may update `uv.lock`. `uv sync --locked` requires an up-to-date lockfile but still writes to the environment; it is not a read-only check.
+
 For read-only checks in a prepared environment, use `uv run --no-sync ...` to avoid unrequested synchronization. Missing setup is not permission to create or sync it; ask before changing it.
 
 ## Commands
@@ -53,6 +55,8 @@ uv run -p 3.12 <command>
 ```
 
 ### One-off tools
+
+Use `uv run <tool> ...` for project dependencies so the command uses the project's pinned tool version and dependencies. Use `uvx` for standalone tools in an isolated environment, not as a substitute for project tools.
 
 ```bash
 uvx ruff check .
