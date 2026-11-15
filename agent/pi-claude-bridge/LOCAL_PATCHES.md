@@ -1,5 +1,77 @@
 # Local Claude Bridge patch
 
+## Stock 0.12.0 installed on Pi 1.5.2
+
+The installed cache contains stock Bridge 0.12.0, SDK/Linux 0.3.321 and cc-session-io 0.4.1. Actual installed-file SDK and bundled/unbundled RPC checks pass, with no real Claude request. The ordering repair stays retired and AskClaude stays absent. Existing Pi sessions need a full manual restart. See the [installation record](../../docs/changelogs/three-extension-upgrade-installation.md). Preparation sections below are historical.
+
+## Increment D: historical combined preparation
+
+The complete final graph passes parent SDK and actual bundled/unbundled Pi 1.5.2 RPC lifecycle checks. The changed provider-only wrapper passes 17 tests, and all ten stock 0.12 focused checks pass again with 20/20 fake SDK handles closed. Synthetic pointer metadata stays inside synthetic agent directories; no real SDK query, account or transcript is used. Stock's 11 identical upstream strict diagnostics remain. See the [combined preparation record](../../docs/changelogs/three-extension-upgrade-preparation.md) for inventory, accepted limits and the unexecuted cutover boundary. The increment A record below remains historical.
+
+## Increment A: stock 0.12.0 prepared on Pi 1.5.2, not installed
+
+The private candidate upgrades only Bridge to `0.12.0`, Claude Agent SDK and
+Linux x64 to `0.3.321`, and `cc-session-io` to `0.4.1`. Registry SHA-512 SRI and
+complete extracted-package comparisons pass for all four archives. Seven other
+SDK platform entries change only in the lockfile as required optional dependency
+closure; they are not installed on this host. No dependencies are added or removed.
+Manifest, lockfile, hidden lockfile and installed versions agree. The candidate
+root is `/home/gc/.pi-extension-upgrade-Jts5jY/candidate/agent/npm`.
+
+Bridge remains complete stock published bytes. Do not reapply a historical
+ordering helper or restore the removed prompt-billing guard. The user accepted
+that guard removal; prompt text can still trigger Anthropic rejection or Extra
+Usage. This preparation makes no claim about live billing or account behavior.
+The live npm tree and settings remain unchanged. Harness and Blackhole upgrades,
+integrated acceptance, and cutover preparation belong to later increments.
+
+The provider-only entry still forwards exactly `on` and `registerProvider`.
+Its only new adapter returns a fresh empty list for `getAllTools`, without
+reading host tools. Stock 0.12 uses this call for a legacy AskClaude warning.
+Stock registers no AskClaude with the legacy setting enabled or disabled, and
+no separate AskClaude package is installed. Buffered registration, rollback,
+project-config refusal and provider replacement/reload ownership remain intact.
+
+Ordinary stock queries now use user-only Claude Code settings and force the
+default output style. Stock Bridge config is global-only and read at activation;
+the child entry nevertheless keeps its project-config refusal and trusted-only
+routing policy. User hooks and inherited environment remain outside the entry's
+control. Isolated native summaries still use no settings sources, no tools,
+strict MCP config and no session persistence.
+
+Stock 0.12 compares content digests and retains safe Claude transcript prefixes
+for history edits, forks and resume. It persists private pointers, prompt/content
+digests and record IDs under the agent directory's `claude-bridge/sessions/`,
+with 0700 directory and 0600 file permissions. Metadata and external Claude
+transcripts survive shutdown. Concurrent processes for the same Pi session are
+unsupported. ADR 0010's external-session retention exception remains in force.
+
+The stock 0.12 lifecycle suite remains local upgrade evidence, not maintained
+repository coverage. It ran with explicit candidate, compiler, output and
+verified archive roots, synthetic HOME, agent and Claude config directories,
+`PI_OFFLINE=1`, `PI_CACHE_WARMING=off`, network-denied `bwrap` and fake
+transports. Maintained coverage for the changed provider-only wrapper remains in
+`agent/extensions/delegated-pi-loop/claude-bridge-provider.test.ts`. The
+historical 0.9.3 lifecycle test stays unchanged.
+
+Acceptance passes 10 lifecycle/public-boundary tests with 20 fake SDK handles,
+all closed, and 17 wrapper tests. Strict wrapper/test declarations and 24 stock
+adapter roots pass. Whole-stock strict diagnostics are **not clean**: both native
+and filesystem-extension views report eight nullable-assistant diagnostics in
+`src/index.ts` and three unknown-catch diagnostics in `src/session-verify.ts`.
+The verified archive control produces the identical 11 diagnostics. No package
+source repair is applied. No real SDK executable, Claude, browser or provider
+runs. Network acquisition is separate from offline execution; dependency scripts
+remain disabled.
+
+Implementation evidence, exact commands/exits, bounded logs, archive identities,
+dependency delta and preserved fingerprints are under
+`/home/gc/.pi-extension-upgrade-Jts5jY/a/`. The independent baseline preserves
+all live npm bytes and links, including canonical/legacy Pi 1.5.2 and repaired
+Blackhole 0.5.15, Harness 0.13.0 and BTW 0.8.1. No sibling repair needed restoring.
+The candidate is prepared only; integrated smoke and cutover preparation remain
+for increment D, with no live installation authorized by increment A.
+
 ## Pi 1.5.2 installed
 
 The live cache retains stock 0.9.3; the ordering repair remains retired. Installed-byte and synthetic SDK/RPC checks pass without a Claude binary, account request or project-hook change. Trusted-repository and external-session retention limits remain. See the [installation record](../../docs/changelogs/pi-1.5.2-full-setup-installation.md). Earlier preparation facts remain unchanged below.
@@ -8,7 +80,7 @@ The live cache retains stock 0.9.3; the ordering repair remains retired. Install
 
 Retain stock 0.9.3 with SDK/platform package 0.3.309. The ordering repair remains retired. Eight target lifecycle checks with 13 fake queries, existing provider-wrapper checks and final selected-graph loading pass; no real Claude executable or account was invoked. Provider replacement/reload ownership and the exact SDK system-prompt append are covered.
 
-Hold 0.12.0 for session/settings changes and AskClaude separation, not loss of a billing guard in the baseline: 0.9.3 itself lacks that later guard. Trusted-repository use, project-hook exposure and ADR 0010's external Claude-session retention exception remain unchanged. See the [full preparation record](../../docs/changelogs/pi-1.5.2-full-setup-maintenance-preparation.md) and `RUN/reports/c6c-fixes` for evidence and limits. No source patch, global Claude upgrade or deployment occurred.
+Historical hold: 0.12.0 was deferred for session/settings changes and AskClaude separation. Correction made during increment A: the earlier claim that baseline 0.9.3 lacks a billing guard was false. Installed 0.9.3 calls `assertSendablePrompt` in `src/prompt-capture.ts:363` and defines it at line 370; upstream's 0.9 changelog also documents the guard. Stock 0.12 removes it, and the user accepted that removal. This correction does not revise the historical validation results. Trusted-repository use, the live 0.9.3 project-hook exposure and ADR 0010's external Claude-session retention exception remain unchanged. See the [full preparation record](../../docs/changelogs/pi-1.5.2-full-setup-maintenance-preparation.md) and `RUN/reports/c6c-fixes` for evidence and limits. No source patch, global Claude upgrade or deployment occurred.
 
 ## 2026-10-23: isolated `pi-claude-bridge@0.9.3` on Pi 1.4.0, not deployed
 

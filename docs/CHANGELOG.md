@@ -1,5 +1,11 @@
 # Changelog
 
+## Three-extension upgrade installed on Pi 1.5.2
+
+Installed and verified on 2026-11-14: Blackhole 0.5.18 with its three guarded repairs, Harness 0.19.1 with the recipe-snapshot repair, and stock Bridge 0.12.0 with SDK/Linux 0.3.321 and cc-session-io 0.4.1. The old Harness registration repair and Bridge ordering repair remain retired. Pi 1.5.2, repaired BTW 0.8.1 and user policies remain unchanged. Only the three package declarations change in settings.
+
+Four actual installed-file integration checks pass, covering SDK and both RPC builds with 58 registered / 54 active tools, 43 browser tools and 25 production extension commands. Children retain five/two extension entries and seven/four active tools. Normal-user directory replacement retains a complete rollback copy; no sudo or custom process-scanning installer was needed. Existing Pi sessions require a full manual restart. See the [installation record](changelogs/three-extension-upgrade-installation.md) for evidence and limits.
+
 ## Pi 1.5.2 active setup installed
 
 Installed and verified at 2026-11-14T07:01:51.846Z. See the [installation record](changelogs/pi-1.5.2-full-setup-installation.md). The normal Bun-owned Pi 1.5.2 runtime, protobufjs 7.6.6 security pin, selected repaired package cache, gh 2.103.3 and Crit 0.23.2 pass actual installed-software checks. The reviewed source is integrated unstaged with local settings formatting preserved. No commit, hosted write, private-data copy or automatic model prompt occurred. Historical preparation results and remaining limitations stay explicit.

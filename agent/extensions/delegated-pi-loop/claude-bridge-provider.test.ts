@@ -69,6 +69,22 @@ test("only provider and hook registrations reach Pi, after activation succeeds",
   assert.equal(errors.mock.callCount(), 0);
 });
 
+test("getAllTools returns a fresh empty list without reading or exposing host tools", async () => {
+  const { pi, api } = recordingPi();
+  let hostCalls = 0;
+  Object.assign(pi, { getAllTools() { hostCalls++; return [{ name: "host-private-tool" }]; } });
+  let kept: LooseApi | undefined;
+  await activateBridge(api, async () => bridgeApi => {
+    kept = bridgeApi as unknown as LooseApi;
+    assert.deepEqual(kept.getAllTools!(), []);
+    (kept.getAllTools!() as unknown[]).push({ name: "not-host-state" });
+  }, await tempDir());
+  assert.deepEqual(kept!.getAllTools!(), []);
+  kept!.registerTool!({ name: "AskClaude" });
+  assert.equal(hostCalls, 0);
+  assert.deepEqual(pi.calls, []);
+});
+
 test("an asynchronous bridge factory is awaited before registrations commit", async () => {
   const { pi, api } = recordingPi();
   const bridge: BridgeFactory = async (bridgeApi) => {

@@ -1,5 +1,33 @@
 # Local pi-blackhole patches
 
+## Blackhole 0.5.18 installed on Pi 1.5.2
+
+The installed cache contains the exact reviewed three-repair package with its source entrypoint. Actual installed-file SDK and bundled/unbundled RPC checks pass. Configuration stays unchanged; existing Pi sessions need a full manual restart. Installation used normal-user operations without sudo and retained the old cache. See the [installation record](../../docs/changelogs/three-extension-upgrade-installation.md). Preparation sections below are historical.
+
+## Historical preparation: Blackhole 0.5.18 with Pi 1.5.2
+
+Increment C prepares only the private candidate. Live 0.5.15, configuration bytes, historical helpers/tests and accepted A/B1 evidence remain unchanged. Increment D's actual SDK and bundled/unbundled RPC checks now pass with the complete final graph, including tree restoration, compaction and graceful shutdown. Cutover/recovery is tested only on disposable trees; no live installation occurred. See the [combined preparation record](../../docs/changelogs/three-extension-upgrade-preparation.md).
+
+The exact registry artifact has gitHead `90dc1aad8bd2e996efbb75fc9909de68e04d12d0`, archive SHA-256 `e65b1881a985e29e1332e981723f5965d9bb4a62c59d66f64eb27cfbd05e277a`, and SRI `sha512-+jvRzBfwmhzWgPEh/wpJO+9Iroouv6LL+0O02VcvlIWhBcnLUXCshJ50N0Oi0dAudj7ILbGL/5G8tdrc/rqDxA==`.
+
+Apply these new helpers, in order, only to a fresh canonical extraction beneath an explicit canonical disposable `TMPDIR`:
+
+1. `reapply-compact-after-percent-patch-0.5.18.mjs` preserves percentage precedence and the fixed-token fallback.
+2. `reapply-nullable-provider-headers-patch-0.5.18.mjs` preserves null deletion markers through auth and attribution.
+3. `reapply-context-edit-compaction-patch-0.5.18.mjs` preserves fresh-summary and capacity projection.
+
+All three retain the exact accepted source transformations, with stock, patched and prerequisite hashes rederived from 0.5.18. They reject repository, installed `node_modules`, wrong-version, linked/shared, drifted and partial targets. Writable-file preflight opens all destinations before writing; repeat application preserves bytes and mtimes. This is not an atomic transaction or a concurrent-writer lock. Copy only the complete verified repaired package after testing. Its 147-file identity is `94240a11a1ac5c5a7c0fc69c7c4ccf3d0fef48ec28ced64d6f592f54c8665ea9`, hashing JSON of sorted `[relativePath, sha256]` pairs. Exactly nine source files and `pi.extensions` differ from stock. The manifest selects `./index.ts`; `dist` stays stock.
+
+The repository retains helper guard, percentage/header, worker-header and edited-context tests for the three local repairs. Broader lifecycle and consolidation/memory suites remain local upgrade evidence.
+
+The final isolated candidate passed 64 focused tests: 10 guards, five percentage/config cases, 25 fake-worker cases, nine context groups and ownership checks, four lifecycle fixtures, and eleven consolidation/memory cases. The 396 cut/cancel comparisons and custom omission/growth matrix remain active. Stock and repaired strict production checks cover all 137 roots against Pi 1.5.2's actual filesystem-extension declarations with zero diagnostics; six nullable-header controls fail on stock and pass on repaired source. Source bundling and manifest discovery pass. Bridge 0.12 is present in the native-summary hook check, but Blackhole owns the summary and makes zero Bridge SDK calls.
+
+The 65% active declared-window policy, 180,000-token fallback, fixed worker budgets/models/fallbacks, `sessionFallback: true`, quiet switches and `midRunCompaction: "off"` remain unchanged. Native `compactAfterRatio` is not a replacement. New stock child-memory defaults, consolidation follow-up/shutdown behavior and other upstream changes remain intact. Pi 1.5.2 aborts and settles before shutdown; the recorded upgrade checks explicitly proved that order. Queued cancellation remains `aborted_agent_start`; replacement/shutdown remain exactly `stale_ctx`.
+
+The inherited file loader still ignores `showPreCompactionMessage: false`; upstream now makes its effective display behavior work after compaction. C accepts that behavior rather than adding a fourth repair or environment wrapper. There is no explicit global `compaction.enabled: false`; C adds none. Native-auto-compaction disabling appears only in synthetic lifecycle fixtures.
+
+Candidate reconciliation uses exact 0.5.18 with scripts disabled. Published `tsup: ^9.0.0`, TypeScript 6.0.3 and `postinstall` remain declared, but no package script runs. Only the required dependency closure changes: 43 installed additions and 25 uninstalled optional lock additions; no unrelated version changes or removals occur. Repaired Harness/BTW and accepted Pi/Bridge bytes stay intact. Exact commands, all dependency/file deltas, helper hashes, corrected fixture failures, logs, preservation proofs and limits are under `/home/gc/.pi-extension-upgrade-Jts5jY/c/REPORT.md`. Checks use Node 26.13.1, synthetic state, network-denied namespaces and fake transports. No live installation, reload, provider, browser or daemon acceptance is claimed.
+
 ## Pi 1.5.2 installed
 
 The live cache now contains 0.5.15 with all three accepted repairs and the source entrypoint. Complete installed-byte and fresh SDK/RPC checks pass; no live helper or package reinstall ran. The 51 retained plus one revised shutdown result remains historical validation, not a new 52-case rerun. See the [installation record](../../docs/changelogs/pi-1.5.2-full-setup-installation.md). The preparation sections below remain historical.

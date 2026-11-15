@@ -2,9 +2,9 @@
 
 ## Pi 1.5.2 installed; remaining limits
 
-The [installation record](changelogs/pi-1.5.2-full-setup-installation.md) records the authorized source/software cutover and actual installed checks. The installed runtime is 1.5.2 with Blackhole 0.5.15, BTW 0.8.1, Harness 0.13.0 and stock Bridge 0.9.3. The existing interactive instance still needs a full restart to use the new runtime. Bridge's ordering repair stays retired. Source changes remain unstaged; defaults, accounts and private data are preserved.
+The [Pi installation record](changelogs/pi-1.5.2-full-setup-installation.md) and [extension installation record](changelogs/three-extension-upgrade-installation.md) document the installed files and checks. The installed runtime is Pi 1.5.2 with Blackhole 0.5.18, BTW 0.8.1, Harness 0.19.1 and stock Bridge 0.12.0. The user completed a full Pi restart on 2026-11-15; the restarted process, installed extension versions and new Browser Harness tools were checked. Bridge's ordering repair stays retired. Source changes remain unstaged; defaults, accounts and private data are preserved.
 
-Real-account generation, visual/Windows/browser/cloud acceptance and the documented Harness/Firebase limits remain unverified. Blackhole 0.5.18, Harness 0.17.0, Bridge 0.12.0 and Klaviyo 2026.11.7 remain held. Outpour is active and Impeccable excluded. This TODO authorizes no additional install, hosted issue/PR, login or product action. The earlier [preparation record](changelogs/pi-1.5.2-full-setup-maintenance-preparation.md) remains historical.
+Real-account generation, visual/Windows/browser/cloud acceptance and the documented Harness/Firebase limits remain unverified. Klaviyo 2026.11.7 remains held. Outpour is active and Impeccable excluded. This TODO authorizes no additional install, hosted issue/PR, login or product action. The earlier [preparation record](changelogs/pi-1.5.2-full-setup-maintenance-preparation.md) remains historical.
 
 ## Historical 2026-09-27 package review
 

@@ -70,14 +70,13 @@ function errorText(error: unknown): string {
  * extension-error channel, which this entry cannot undo.
  *
  * This entry limits what the bridge registers in Pi. It does not sandbox the
- * bridge: Claude Code still loads its own user, project, and local settings,
- * and the bridge re-reads its config later. ADR 0010 limits these routes to
- * trusted repositories for that reason.
+ * bridge: stock 0.12 uses user-only Claude Code settings, but user hooks,
+ * inherited environment, and retained Claude transcripts are not sandboxed.
+ * ADR 0010 still limits these routes to trusted repositories.
  *
- * `cwd` must be the directory the bridge reads project config from (it uses
- * `process.cwd()`). A project `.pi/claude-bridge.json` can override global
- * settings, including the Claude Code executable and MCP isolation, so the
- * bridge is not loaded at all when one exists.
+ * `cwd` identifies the project checked by the startup guard. Keep refusing a
+ * project `.pi/claude-bridge.json` even when newer stock ignores that file;
+ * a package upgrade must not relax the delegated trust policy.
  */
 export async function activateBridge(
 	pi: ExtensionAPI,
@@ -97,6 +96,8 @@ export async function activateBridge(
 	const pending: PendingRegistration[] = [];
 	const api = new Proxy({} as ExtensionAPI, {
 		get(_target, key) {
+			// Bridge 0.12 checks for the retired AskClaude tool; never expose host tools.
+			if (key === "getAllTools") return () => [];
 			if (!FORWARDED_APIS.has(key)) return () => {};
 			return (...args: unknown[]) => {
 				const register = () => (Reflect.get(pi, key) as (...args: unknown[]) => unknown).apply(pi, args);

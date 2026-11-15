@@ -1,5 +1,15 @@
 # Local context-edit compaction repair
 
+## Blackhole 0.5.18 with Pi 1.5.2: prepared, not installed
+
+The new three-helper 0.5.18 chain preserves the accepted 0.5.15 projection transformations exactly. Only fresh summaries and the separate capacity view use selected canonical edits. Raw entries still own IDs, references, recall and OM coverage. Custom-message omissions retain zero-content boundary anchors; custom content does not enter fresh summaries. Previous summaries, existing OM, tool pairing and stock no-edit cuts/cancellations remain unchanged. The new upstream per-session `isMemoryEnabled(ctx)` checks remain in place.
+
+The hook's stock SHA-256 is `ca72b2d0b2f4c27054d527a8988330041801d2584817e809c598e3a14942b8e9`; the repaired SHA-256 is `446ba33a5d11b6a7627a965b03657e518c71a5c18a43f4b5f6d52244e0a873ca`. The context helper's SHA-256 is `c8578528701087356a7001d4795794c01e58ff759673e9c9ffb1d775c389e4b9`.
+
+All nine context groups pass, including the retained 396 cut/cancel comparisons, eight canonical custom omission/growth cases with eight no-edit controls, raw recall/history, capacity/append/pressure checks and native-summary ownership with Bridge present and zero SDK calls. Four maintained explicit-target lifecycle fixtures prove settled, queued, replacement and Pi 1.5.2 abort-before-shutdown behavior without depending on historical RUN paths or failed fixtures. Eleven fake consolidation/memory cases preserve upstream follow-up/shutdown and default child-memory gating. No live configuration or historical helper/test changes occur.
+
+See the new 0.5.18 section in `LOCAL_PATCHES.md` for the archive identity, helper order and limits. Full C-only evidence is `/home/gc/.pi-extension-upgrade-Jts5jY/c/REPORT.md`. The package is prepared only in the isolated candidate; increment D and live activation remain deferred.
+
 ## Current isolated preparation: Blackhole 0.5.15 with Pi 1.4.0
 
 The three `-0.5.15.mjs` helpers are isolated preparation, not a live deployment. Settings, package pins and configuration bytes remain unchanged. Apply percentage, nullable-header and context-edit helpers in that order to an explicit canonical disposable extraction under `TMPDIR`. The helpers refuse repository, `node_modules`, linked, shared, wrong-version, drifted and partial targets before writing. The manifest selects patched `./index.ts`; the published bundle remains stock.

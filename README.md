@@ -29,6 +29,8 @@ The tracked config root is `agent/`, which maps to the local Pi agent config dir
 
 **Pi 1.5.2 is installed and verified.** See the [installation record](docs/changelogs/pi-1.5.2-full-setup-installation.md) for actual software, checks, remaining limits and rollback evidence. The [preparation record](docs/changelogs/pi-1.5.2-full-setup-maintenance-preparation.md) remains historical.
 
+Blackhole 0.5.18, Harness 0.19.1 and stock Bridge 0.12.0 are [installed and verified](docs/changelogs/three-extension-upgrade-installation.md). Installation used normal-user file operations with a retained rollback copy, without sudo. Restart existing Pi sessions fully to activate the upgraded extensions.
+
 `agent/settings.json` is the main tracked settings file. The snapshot below describes the installed selection; defaults and accounts remain unchanged.
 
 Current defaults:
@@ -45,10 +47,10 @@ The existing `enabledModels` selection and provider/account aliases remain autho
 
 Installed package pins:
 
-- `npm:pi-blackhole@0.5.15`
+- `npm:pi-blackhole@0.5.18`
 - `npm:pi-btw@0.8.1`
-- object-form `npm:pi-browser-harness@0.13.0` with `skills: []`
-- `npm:pi-claude-bridge@0.9.3`
+- object-form `npm:pi-browser-harness@0.19.1` with `skills: []`
+- `npm:pi-claude-bridge@0.12.0`
 
 Cursor is not configured. OpenAI Codex account aliases are configured separately under `agent/extensions/openai-codex-aliases/`; the canonical provider and every alias keep independent stored credentials. Cache warming is explicitly `off` to avoid automatic provider requests.
 
@@ -215,13 +217,13 @@ Active patch notes currently cover:
 - Pi 0.84.1+ nullable provider-header preservation for Blackhole workers
 - Pi 0.87.1 active `context_edit` projection for fresh Blackhole compaction input
 
-`pi-blackhole@0.5.15` retains the three guarded repairs and existing compaction/budget/quiet settings. Raw recall, history and prior summaries remain unchanged. Pi 1.5.2 acceptance combines 51 retained cases with the one revised shutdown case; it is not a new single-run 52-case result. Newer 0.5.18 remains held. Earlier public-provider and OM-auth repairs stay retired.
+`pi-blackhole@0.5.18` retains the three guarded repairs and existing compaction/budget/quiet settings. Raw recall, history and prior summaries remain unchanged. Its 64 focused checks and actual installed SDK/RPC acceptance pass. The inherited ignored pre-compaction-message setting remains documented; no fourth repair is added. Earlier public-provider and OM-auth repairs stay retired.
 
 Prepared `pi-btw@0.8.1` retains only cancellation-aware runtime credential propagation. Its version-specific helper targets verified disposable TMPDIR source, never live `node_modules`. Existing child-context, restore, retry and restart checks pass; optional SSH remains inactive.
 
-`pi-browser-harness@0.13.0` retains per-receiving-API registration and 42 tools. Its three identical stock/repaired upstream type diagnostics remain disclosed; browser/profile/Windows acceptance is not claimed.
+`pi-browser-harness@0.19.1` has 43 tools and a guarded recipe-snapshot repair. Upstream supplies per-receiving-API registration, so the old registration repair is retired. Its three unchanged upstream type diagnostics remain disclosed; browser/profile/Windows acceptance is not claimed.
 
-`pi-claude-bridge@0.9.3` is stock. Its old prompt-ordering repair remains retired; do not reapply a historical helper. Trusted-repository and Claude-session retention boundaries remain unchanged.
+`pi-claude-bridge@0.12.0` is stock with SDK/Linux 0.3.321 and cc-session-io 0.4.1. Its old prompt-ordering repair remains retired; do not reapply a historical helper. User-only Claude settings, accepted billing-guard removal and session retention are documented in the installation record. Trusted-repository delegation remains required.
 
 Package reinstalls can overwrite Blackhole, BTW and Harness repairs. Review their `LOCAL_PATCHES.md` records, prepare verified private repaired copies, and recheck every sibling after a transaction. These preparation notes authorize no live helper or deployment.
 

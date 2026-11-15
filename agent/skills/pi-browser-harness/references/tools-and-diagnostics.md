@@ -29,13 +29,19 @@ What do you need to know?
     -> browser_screenshot (visual verification only)
 ```
 
-Prefer snapshot refs such as `ref: "e7"` for `browser_click`, `browser_fill`, `browser_select_option`, and other ref-aware tools. Refs resolve the element at action time; coordinates can go stale after layout changes. After navigation, a major re-render, or `ref is stale`, take a fresh snapshot instead of retrying blindly. When no ref is available, pass fresh snapshot `@(x,y)` to `browser_click` or use a surgical DOM read. Do not take a screenshot to rediscover controls.
+Prefer snapshot refs such as `ref: "e7"` for `browser_click`, `browser_type`, `browser_select_option`, and other ref-aware tools. Refs resolve the element at action time; coordinates can go stale after layout changes. After navigation, a major re-render, or `ref is stale`, take a fresh snapshot instead of retrying blindly. When no ref is available, pass fresh snapshot `@(x,y)` to `browser_click` or use a surgical DOM read. Do not take a screenshot to rediscover controls.
 
-For an authorized form change, prefer `browser_fill` for controlled inputs; use `browser_type` for keystroke-sensitive widgets. Inspect the returned value and any "Page changes" diff, then verify the requested result with a fresh snapshot or surgical read. A page diff is not proof that a remote save succeeded.
+For an authorized text change, use `browser_type({ ref: "e7", text: "example" })`. A `ref` or fallback `selector` focuses the field and replaces its value by default; `clear: false` appends, and `text: ""` empties it. Without a target, typing appends into the focused element. The tool sends real input events and reports the value read back; if typing into a named field fails, it can set the value directly and reports that fallback. Use `browser_select_option` for native selects and `browser_set_checked` for checkboxes or radios. Inspect the returned value and any "Page changes" diff, then verify the requested result with a fresh snapshot or surgical read. A page diff is not proof that a remote save succeeded.
 
 `browser_web_search` uses an isolated tab; `browser_read_page` with `url` opens, reads, and closes an isolated tab; `browser_read_page` with `targetId` reads that existing session-owned tab in place. They still require per-task setup confirmation and use the authorized profile. Search for candidate URLs, then read promising results; reader mode strips page boilerplate. The package no longer supplies a deep-research skill, command, or researcher agent.
 
 Keep tab operations inside the session's owned tabs. Isolation does not authorize access to another profile or the user's unrelated tabs.
+
+## Recipes and journals
+
+After setup confirmation, page-changing calls and supported reads can persist in a per-session journal. Password-field values are omitted, but ordinary typed values, URLs and page changes can remain. Pruning removes journal files idle for more than 30 days, not individual old entries; appending extends retention. Do not enter sensitive values merely because password fields are redacted.
+
+Use `browser_save_recipe` or `browser_run_recipe` only within the user's requested scope. Saving can write and trust a project recipe without a UI; replay runs steps without model review between them. Project approval covers exact file bytes and origin- or file-path-changing params, not permission for unrequested hosted writes. Recipes and setup capabilities do not bypass the root's per-task consent, chosen profile or manual-login boundaries.
 
 ## Diagnose an action that appeared to do nothing
 

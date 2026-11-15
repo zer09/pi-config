@@ -1,5 +1,42 @@
 # Browser Harness local repair
 
+## 0.19.1 with recipe snapshot repair installed on Pi 1.5.2
+
+The installed cache contains the exact reviewed four-source recipe-snapshot repair and all 43 browser tools. Actual installed-file SDK and bundled/unbundled RPC checks pass. The package skills filter, profile configuration and local consent rules stay unchanged. No browser or daemon was launched. See the [installation record](../../docs/changelogs/three-extension-upgrade-installation.md). Preparation sections below are historical.
+
+## Historical preparation: 0.19.1 with recipe snapshot repair
+
+Increment B initially prepared the complete stock npm package privately. Its registry evidence records latest 0.19.1 and gitHead `fdbf178c8ffd9359c43763a807c411e89ba15af3`. The archive integrity is `sha512-Uztbfgcuo6meeXamMcA9OB9JQD7se/Scn14rEgf0z3T4tupgpMlek9mVDad5DsQ0jy+vQaz5DgKxX/hmp0UDMQ==`. Verification B1 then proved that stock could replay a parsed replacement while approving different bytes reread from its pathname. The revised candidate carries only the guarded recipe snapshot repair below. Original stock acceptance and the failing proof remain historical evidence, not repaired acceptance. Upstream 0.14.1 supplies per-API registration; the 0.13.0 registration helper remains historical and must never run on 0.19.1.
+
+The private exact-version reconciliation changes only Harness and adds acorn 8.19.0. The B1 repair preserves all manifests, locks and dependencies. The existing yaml 2.9.0 satisfies the new dependency and remains unchanged. Bridge 0.12.0 and its dependency closure, repaired Blackhole 0.5.15, BTW 0.8.1 and Pi 1.5.2 remain byte-identical to increment A. The live cache still has repaired Harness 0.13.0. This preparation changes no live package, settings, profile or background preference.
+
+Broad stock-package checks remain local upgrade evidence rather than maintained repository tests. The upgrade's acceptance checks covered 43 unique built-ins, removal of `browser_fill`, the replacement `browser_type` contract, recipes, all four header groups, contributions/retry/client closures and real Pi session replacement. Disconnected startup stays lazy with a real client and fake transport. The actual loader preserves package `skills: []` and the local skill. Increment D now verifies the unchanged policy's five ordered runtime entries with seven active tools and two catalog entries with four core tools, with no Harness or package skills in either child. The final parent SDK and both RPC builds retain 43 browser tools across the full lifecycle; 58 tools are registered, 54 are active, and 25 production extension commands load. See the [combined preparation record](../../docs/changelogs/three-extension-upgrade-preparation.md).
+
+The user accepts upstream persistence and setup behavior, not browser-operation authorization for an agent:
+
+- New journal paths use 0700 directories and 0600 files. Exact password-field values are blanked, but ordinary values, URLs and observed page changes can persist. Header values are not captured. Pruning removes files idle for more than 30 days, not entries older than 30 days; appending extends retention, including older entries in that file.
+- Unapproved project recipes fail closed without a UI. Approval tracks exact bytes and parameter values that steer origins or local paths. `confirmAndSave` can write and trust a project recipe noninteractively without a confirmation dialog. Replays can repeat writes without model review between steps.
+- Explicitly called setup can launch a closed browser without confirmation in a noninteractive context with a saved profile pin and an available display. Tests inject installed-browser, launch, discovery and daemon dependencies. A synthetic old profile file without `background` loads with `background: false`; foreground remains the default.
+
+Local per-task setup consent, chosen-profile/account, manual-login and hosted-write gates remain authoritative. The local reference changes only stale text-entry routes and adds a concise recipe/journal caution. Root, metadata, classification and package skill filtering remain unchanged.
+
+Original preparation evidence remains under `RUN/b/`; the independent stock failure remains under `RUN/verification-b1/`. Remediation commands, failures, controls, complete fingerprints and final results are under `RUN/b1/`. Strict TypeScript 6.0.3 checks compare all 120 repaired source roots with stock against exact Pi 1.5.2. Repaired candidate and archive reproduce the same three upstream diagnostics: TS7016 for missing `ws` declarations, and TS2322 in `domains/network.ts:44` and `domains/tabs.ts:112`. Focused registration, setup, journal, recipe, header and typing files report no diagnostics; the public contract adds none. This is not a clean whole-package typecheck. No browser, daemon, provider, real profile or live model test runs. The repaired final graph passes all 49 focused Harness checks again and the combined smoke; parent reviews and live cutover remain pending.
+
+### Guarded 0.19.1 recipe snapshot repair
+
+`reapply-recipe-snapshot-patch-0.19.1.mjs` changes only `src/recipes/store.ts`, `trust.ts`, `run-tool.ts` and `command.ts`. The loader hashes original raw bytes before approval. Approval checks that digest, displays and scopes parameters from the matching parsed recipe, and stores that digest. Replay uses the same parsed recipe. A missing or changed file refuses before approval. Comments, newline forms and even different invalid UTF-8 bytes retain distinct identities. Both the actual tool and slash command approve before browser readiness checks.
+
+Save, repair and `last_run` writes return the digest of the serialized bytes the harness wrote. Automatic trust uses that digest, never another pathname reread. A failed write returns no snapshot to trust. Successful harness writes still need no extra approval; the existing parameter-origin and local-path scope rules remain unchanged. This is a narrow source-identity repair, not a browser sandbox or additional authorization.
+
+Apply the new helper only to a fresh SRI-verified extraction under an explicit canonical disposable `TMPDIR`. Never apply it to live or candidate `node_modules`. It preflights all 127 files, source hashes, exact version, canonical paths, links, isolation and every write destination. It rejects drift and partial repairs without changing bytes or mtimes. An exact repeated application preserves bytes and mtimes. Review the exhaustive stock delta and run the helper guards and explicit-target tests before copying the complete exact package into the private candidate. The source entrypoint, package skills filter, journaling and setup code stay unchanged.
+
+| Complete package identity | SHA-256 |
+| --- | --- |
+| Stock, 127 sorted `[relativePath, sha256]` pairs | `78b72214d79ae3880f36a5a220c94e445154ab7d9ead11d5c3089c7f30dbaa7e` |
+| Exact repaired package, same inventory format | `bdbd68882202b36e31459d3eef0de5431300e505f8904f48dfebc675ba6e0748` |
+
+`reapply-recipe-snapshot-patch-0.19.1.test.mjs` covers SRI, full inventory, every file's drift/omission/link refusal, partial states, write preflight, reinstall and idempotence. `../tests/browser-harness-0.19.1-recipe-snapshot.test.mjs` reproduces B1 against stock and tests repaired tool/command refusal with zero client calls, interactive decisions, exact bytes, parameter behavior and concurrent automatic writes. The shared fixture accepts only the explicitly selected verified stock or exact repaired identity. All 31 existing Harness checks remain in the final suite. No candidate is installed live by this preparation.
+
 ## Pi 1.5.2 installed
 
 The live cache retains 0.13.0 with per-receiving-API registration, all 42 tools and the skills filter. Installed bytes and fresh SDK/RPC checks pass without launching a browser. The three upstream type diagnostics and untested visual/Windows behavior remain limitations. See the [installation record](../../docs/changelogs/pi-1.5.2-full-setup-installation.md). Earlier preparation facts remain unchanged below.

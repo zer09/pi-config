@@ -10,6 +10,8 @@ agent/mcp-oauth/
 agent/mcp-cache.json
 agent/mcp-npx-cache.json
 agent/run-history.jsonl
+agent/browser-harness/
+agent/claude-bridge/sessions/
 
 # Pi blackhole runtime queue; keep config and update helper files tracked
 agent/pi-blackhole/**
@@ -46,6 +48,13 @@ agent/pi-blackhole/**
 !agent/pi-blackhole/port-0.5.15.test.mjs
 !agent/pi-blackhole/port-0.5.15-behavior.test.mjs
 !agent/pi-blackhole/port-0.5.15-workers.test.mjs
+!agent/pi-blackhole/reapply-compact-after-percent-patch-0.5.18.mjs
+!agent/pi-blackhole/reapply-nullable-provider-headers-patch-0.5.18.mjs
+!agent/pi-blackhole/reapply-context-edit-compaction-patch-0.5.18.mjs
+!agent/pi-blackhole/port-0.5.18.test.mjs
+!agent/pi-blackhole/port-0.5.18-behavior.test.mjs
+!agent/pi-blackhole/port-0.5.18-workers.test.mjs
+!agent/pi-blackhole/port-0.5.18-context.test.mjs
 !agent/pi-blackhole/port-0.5.9-integration.test.mjs
 !agent/pi-blackhole/port-0.5.9-package-discovery.test.mjs
 !agent/pi-blackhole/port-0.5.9-lifecycle.test.mjs
