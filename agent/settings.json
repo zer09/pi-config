@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "1.4.0",
+  "lastChangelogVersion": "1.5.2",
   "tuiMode": "regular",
   "packages": [
     "npm:pi-blackhole@0.5.18",
@@ -31,10 +31,8 @@
   ],
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-6.1-sol",
-  "defaultThinkingLevel": "max",
+  "defaultThinkingLevel": "xhigh",
   "cacheWarming": "off",
   "theme": "dark",
-  "transport": "websocket-cached",
-  "hideThinkingBlock": false,
-  "showHardwareCursor": false
+  "transport": "websocket-cached"
 }
