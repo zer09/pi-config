@@ -15,7 +15,7 @@ const config = testConfig();
 const STANDARD_BUDGET = config.webSearch.exa.standard;
 const DEEP_BUDGET = config.webSearch.exa.deep;
 
-const GEMINI_URL = "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.8-flash:generateContent";
+const GEMINI_URL = "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-4-hydrogen:generateContent";
 
 function groundingTool(body: any): Record<string, any> {
   return body.tools[0];
@@ -35,7 +35,7 @@ function install(handler: Parameters<typeof mockFetch>[0]) {
 
 function callParallel(mode: "basic" | "advanced", parallelApiKey?: string, signal?: AbortSignal) {
   return callGeminiParallelGrounding({
-    query: "Does gemini-3.8-flash support Parallel grounding?",
+    query: "Does gemini-4-hydrogen support Parallel grounding?",
     googleCloudApiKey: "google-key",
     parallelApiKey,
     mode,
@@ -46,7 +46,7 @@ function callParallel(mode: "basic" | "advanced", parallelApiKey?: string, signa
 
 function callExaAttempts(budget: ExaGroundingBudget, signal?: AbortSignal) {
   return callGeminiExaGroundingAttempts({
-    query: "Does gemini-3.8-flash support Exa grounding?",
+    query: "Does gemini-4-hydrogen support Exa grounding?",
     googleCloudApiKey: "google-key",
     exaApiKey: "exa-key",
     budget,

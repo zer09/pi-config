@@ -68,3 +68,9 @@ Both Gemini grounding partners now default to `gemini-3.8-flash`. Google's manag
 This type policy applies to Google's managed `exaAiSearch` integration, not direct Exa Search. A live `gemini-3.8-flash` request using `auto` returned HTTP 400: `Value 'auto' is not allowed for key 'type'. Allowed values: fast, instant.` Direct Exa Search describing `fast` as legacy does not make `fast` invalid through Google. This amendment restores `fast` without adding `instant` or other modes. A separate authorized live check of `gemini-3.8-flash` with `fast` returned HTTP 200 with a usable grounded answer.
 
 Explicit `webSearch.model` and legacy model overrides remain supported, with `webSearch.model` taking precedence. Legacy `geminiExaGrounding` numeric budgets retain their existing fallback behavior and precedence, inherit default type `fast`, and still ignore `searchType`. No generation or thinking options are added. Provider routing, other providers, transport, retries, cancellation, caches, diagnostics, and public tool schemas are unchanged by this amendment. Regression verification uses deterministic mocked HTTP, not live model calls.
+
+## Amendment: Gemini 4 Hydrogen default
+
+The shared model for Gemini + Parallel and Gemini + Exa grounding now defaults to `gemini-4-hydrogen`. Explicit model overrides, Exa type `fast`, depth budgets, provider routing, citation handling, and transport remain unchanged. Requests still omit generation and thinking options, so Hydrogen uses its documented default `HIGH` thinking level.
+
+[Google's model documentation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/4-hydrogen.md.txt) lists both grounding partners as supported and classifies Hydrogen as a short-term GA release with at least 45 days' retirement notice. This model update is verified with deterministic mocked HTTP only; the earlier Gemini 3.8 Flash live checks do not establish live Hydrogen compatibility.

@@ -10,7 +10,7 @@ describe("config defaults", () => {
     expect(config.exaApiKeyEnv).toBe("EXA_API_KEY");
     expect(config.firecrawlApiKeyEnv).toBe("FIRECRAWL_API_KEY");
     expect(config.tavilyApiKeyEnv).toBe("TAVILY_API_KEY");
-    expect(config.model).toBe("gemini-3.8-flash");
+    expect(config.model).toBe("gemini-4-hydrogen");
     expect(config.webSearch.defaultDepth).toBe("standard");
     expect(config.webSearch.parallel).toEqual({ standardMode: "basic", deepMode: "advanced" });
     expect(config.webSearch.exa.standard).toEqual({ type: "fast", numResults: 5, maxHighlightCharacters: 2000 });

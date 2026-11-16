@@ -20,7 +20,7 @@ export const DEFAULT_CONFIG: SearchConfig = {
   exaApiKeyEnv: "EXA_API_KEY",
   firecrawlApiKeyEnv: "FIRECRAWL_API_KEY",
   tavilyApiKeyEnv: "TAVILY_API_KEY",
-  model: "gemini-3.8-flash",
+  model: "gemini-4-hydrogen",
   webSearch: {
     defaultDepth: "standard",
     parallel: { standardMode: "basic", deepMode: "advanced" },

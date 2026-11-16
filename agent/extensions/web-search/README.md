@@ -51,7 +51,7 @@ An optional `config.json` next to `index.ts` (not tracked; never put credentials
   "firecrawl": { "apiKeyEnv": "FIRECRAWL_API_KEY" },
   "tavily": { "apiKeyEnv": "TAVILY_API_KEY" },
   "webSearch": {
-    "model": "gemini-3.8-flash",
+    "model": "gemini-4-hydrogen",
     "defaultDepth": "standard",
     "parallel": { "standardMode": "basic", "deepMode": "advanced" },
     "exaGrounding": {
@@ -72,7 +72,9 @@ An optional `config.json` next to `index.ts` (not tracked; never put credentials
 }
 ```
 
-`webSearch.model` selects the shared model for both Gemini + Parallel and Gemini + Exa grounding and defaults to `gemini-3.8-flash`. Requests do not set generation or thinking options. Each depth in `webSearch.exaGrounding` supports only type `fast` (the default); missing types, `auto`, and other invalid values silently normalize to `fast` without changing valid numeric budgets.
+`webSearch.model` selects the shared model for both Gemini + Parallel and Gemini + Exa grounding and defaults to `gemini-4-hydrogen`. Requests do not set generation or thinking options. Each depth in `webSearch.exaGrounding` supports only type `fast` (the default); missing types, `auto`, and other invalid values silently normalize to `fast` without changing valid numeric budgets.
+
+[Gemini 4 Hydrogen](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/4-hydrogen.md.txt) supports both grounding partners, defaults to `HIGH` thinking, and is a short-term GA release with at least 45 days' retirement notice. The Hydrogen model update is verified with mocked HTTP only; the earlier live check below used Gemini 3.8 Flash.
 
 This type policy belongs to Google's managed Exa grounding (`exaAiSearch`), not direct Exa Search. Google rejected a live `auto` request with HTTP 400: `Value 'auto' is not allowed for key 'type'. Allowed values: fast, instant.` Direct Exa Search describing `fast` as legacy does not make `fast` invalid through Google. A separate authorized live check of `gemini-3.8-flash` with `fast` returned HTTP 200 with a usable grounded answer.
 
