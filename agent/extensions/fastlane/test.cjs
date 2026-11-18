@@ -149,7 +149,11 @@ async function run() {
 		assert.equal(await fastlane.beforeProvider({ model: "gpt-5.5" }), undefined, "default-off Fastlane should not inject service tier");
 	}
 
-	for (const modelId of ["gpt-5.4", "gpt-5.5", "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol"]) {
+	for (const modelId of [
+		"gpt-5.4", "gpt-5.5", "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra",
+		"gpt-6-astra", "gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol",
+		"gpt-6.2-astra", "gpt-6.2-sol",
+	]) {
 		const startup = await createFastlane({
 			fastlane: true,
 			model: { provider: "openai-codex", id: modelId, api: "openai-codex-responses" },
@@ -305,6 +309,8 @@ async function run() {
 		{ provider: "anthropic", id: "claude-sonnet-4-5", api: "anthropic-messages" },
 		{ provider: "openai-codex", id: "gpt-5.5", api: "openai-responses" },
 		{ provider: "openai-codex", id: "gpt-5.4-mini", api: "openai-codex-responses" },
+		{ provider: "openai-codex", id: "gpt-6.2", api: "openai-codex-responses" },
+		{ provider: "openai-codex", id: "gpt-6.2-unknown", api: "openai-codex-responses" },
 		{ provider: "openai-codex-", id: "gpt-5.5", api: "openai-codex-responses" },
 	]) {
 		const fastlane = await createFastlane({ fastlane: true, mode: "rpc", model });
