@@ -20,17 +20,13 @@
   ],
   "prompts": ["-prompts/codegraph-upgrade.md"],
   "enabledModels": [
-    "openai-codex/gpt-6.1-sol",
-    "openai-codex-cgpt3/gpt-5.6-sol",
-    "openai-codex-cgpt4/gpt-5.6-sol",
-    "openai-codex-cgpt5/gpt-5.6-sol",
-    "openai-codex-cgpt8/gpt-5.6-sol",
-    "openai-codex-cgpt9/gpt-5.6-sol",
-    "orcarouter/deepseek/deepseek-v4-flash-free",
-    "claude-bridge/claude-opus-5-5"
+    "openai-codex/gpt-6.2-sol",
+    "openai-codex/gpt-6.2-astra",
+    "claude-bridge/claude-opus-5-5",
+    "orcarouter/deepseek/deepseek-v4-flash-free"
   ],
   "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-6.1-sol",
+  "defaultModel": "gpt-6.2-sol",
   "defaultThinkingLevel": "xhigh",
   "cacheWarming": "off",
   "theme": "dark",
