@@ -1,5 +1,7 @@
 # Local pi-btw patches
 
+The only maintained helper is `reapply-model-runtime-patch-0.8.1.mjs`. Run `port-0.8.1.test.mjs` with `PI_BTW_0_8_1_TARBALL`, `PI_BTW_HOST_ROOT` (the isolated Pi 1.5.2 package), and a disposable `TMPDIR`. It checks cancellation against stock and repaired code, exact output, refusals and repeated application. Past helpers and their upgrade tests are available at `d752800`.
+
 ## Pi 1.5.2 installed
 
 The live cache now contains 0.8.1 with the guarded cancellation repair. Installed bytes and fresh SDK/RPC checks pass. No helper ran on live packages; credentials, saved sessions and optional SSH settings were not migrated. See the [installation record](../../docs/changelogs/pi-1.5.2-full-setup-installation.md). The preparation statements below describe their earlier phase.

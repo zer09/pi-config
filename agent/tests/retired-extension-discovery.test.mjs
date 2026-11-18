@@ -117,7 +117,7 @@ if (process.argv[2] === "--fixture") {
       fs.mkdirSync(join(root, dir), { recursive: true });
     }
     // Copy tracked resources, not live state, dependencies, graph indexes, or caches.
-    const tracked = childProcess.execFileSync("git", ["ls-files", "-z", "--", "agent/extensions", "agent/prompts", "agent/skills/*/SKILL.md", "agent/AGENTS.md"], {
+    const tracked = childProcess.execFileSync("git", ["ls-files", "-z", "--", "agent/extensions", "agent/prompts", "agent/skills/*/SKILL.md", "agent/AGENTS.md", ":(exclude)agent/extensions/delegated-pi-loop/tests/**", ":(exclude)agent/extensions/**/*.test.ts", ":(exclude)agent/extensions/**/*fixture*"], {
       cwd: repository, encoding: "utf8", timeout: 10000,
     }).split("\0").filter(Boolean);
     for (const path of tracked) {

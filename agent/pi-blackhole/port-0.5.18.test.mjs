@@ -83,11 +83,7 @@ test("focused isolated pi-blackhole@0.5.18 complete three-helper gate", async (t
   };
   const states = [stock];
   for (let i = 0; i < helpers.length; i++) {
-    await t.test(`${names[i]}: exact old transformations, intended writes, idempotence`, () => {
-      const oldEdits = edits("0.5.15", names[i]);
-      const newEdits = edits("0.5.18", names[i]);
-      const transformations = (specs) => i === 2 ? specs : specs.map(({ rel, edits }) => ({ rel, edits }));
-      assert.deepEqual(transformations(newEdits), transformations(oldEdits));
+    await t.test(`${names[i]}: intended writes and idempotence`, () => {
       const target = clone(states[i]);
       const before = snapshot(target);
       assert.match(helpers[i](target), /^patched:/);
@@ -103,6 +99,10 @@ test("focused isolated pi-blackhole@0.5.18 complete three-helper gate", async (t
     for (const apply of helpers) assert.match(apply(target), /^patched:/);
     const bytes = (root) => Object.fromEntries(Object.entries(snapshot(root)).map(([rel, value]) => [rel, value.split(":")[0]]));
     assert.deepEqual(bytes(target), bytes(states[3]));
+    // Pin the accepted output, independently of any helper's source or prior port.
+    const files = Object.entries(bytes(target)).filter(([, digest]) => digest !== "directory").sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+    assert.equal(files.length, 147);
+    assert.equal(hash(JSON.stringify(files)), "94240a11a1ac5c5a7c0fc69c7c4ccf3d0fef48ec28ced64d6f592f54c8665ea9");
   });
   await t.test("bad SRI refuses extraction without writes", () => {
     const target = join(root, "bad-sri");

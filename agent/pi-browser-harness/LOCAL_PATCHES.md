@@ -1,5 +1,7 @@
 # Browser Harness local repair
 
+Only the `0.19.1` recipe snapshot helper is maintained. The historical `0.13.0` registration helper and tests mentioned below remain at revision `d752800`; upstream supplies that repair. Do not reapply it.
+
 ## 0.19.1 with recipe snapshot repair installed on Pi 1.5.2
 
 The installed cache contains the exact reviewed four-source recipe-snapshot repair and all 43 browser tools. Actual installed-file SDK and bundled/unbundled RPC checks pass. The package skills filter, profile configuration and local consent rules stay unchanged. No browser or daemon was launched. See the [installation record](../../docs/changelogs/three-extension-upgrade-installation.md). Preparation sections below are historical.
@@ -92,7 +94,7 @@ The complete manifest hash covers UTF-8 `JSON.stringify` of all 99 `[relativePat
 - `reapply-runtime-registration-patch-0.13.0.test.mjs`: SRI, full identity, every file's drift/omission/link refusal, first application, byte/mtime idempotence, partial-state refusal, unsafe targets, and write preflight.
 - `../tests/browser-harness-0.13.0-registration.test.mjs`: 42 built-ins on two APIs, repeated notifications, both contribution orderings, cold replacement, atomic duplicates, actual `defineBrowserTool` client closures, and registration retry.
 - `../tests/browser-harness-0.13.0-lifecycle.test.mjs`: actual selected Pi 1.4.0 CLI/RPC same-process resume, fresh/stale API identity, repeated replacement notifications, both headers, and unchanged 24 production commands. The stock control fails only the healthy inventory assertion. The repair retains 57 registered / 53 active / 42 browser tools.
-- `../tests/active-package-inventory.test.mjs`: SDK startup, fake completion, reload, resume, actual tree movement/restoration, and old-loadout invariants. Tree targets differ from the current leaf because Pi treats same-leaf navigation as a no-op.
+- The Pi 1.4.0 inventory snapshot is historical (`git show a64a72c:agent/tests/active-package-inventory.test.mjs`). Its maintained successor checks that old sessions keep current tools after reload, tree navigation and resume, without pinning package-wide tool counts: `node --test agent/tests/retired-session-tools.test.mjs`.
 - `../tests/browser-harness-0.13.0-child-boundaries.test.mjs`: actual runtime/catalog CLI loadouts. Runtime retains five ordered entries and seven active tools, with 11 registered tools including four inactive built-ins. Catalog retains two provider entries. Neither profile loads Harness.
 - `../tests/browser-harness-0.13.0-headers.test.mjs`: all four existing header groups, using fake clients and transports.
 

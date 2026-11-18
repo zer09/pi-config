@@ -1,5 +1,9 @@
 # Changelog
 
+## Extension maintenance cleanup
+
+Keep five patch helpers for the installed packages. Older helpers and port tests remain available at `d752800`; the active Blackhole and BTW checks no longer need them. Separate Pi 1.5.2 upgrade evidence from the everyday package smoke test. Group the delegated loop's tests and fixtures under `tests/` without changing its runtime entry point or registration. The two disabled extensions retain source and lockfiles but no installed dependency trees. See the [test and patch maintenance notes](../README.md#what-to-run-after-an-extension-change).
+
 ## Three-extension upgrade installed on Pi 1.5.2
 
 Installed and verified on 2026-11-14: Blackhole 0.5.18 with its three guarded repairs, Harness 0.19.1 with the recipe-snapshot repair, and stock Bridge 0.12.0 with SDK/Linux 0.3.321 and cc-session-io 0.4.1. The old Harness registration repair and Bridge ordering repair remain retired. Pi 1.5.2, repaired BTW 0.8.1 and user policies remain unchanged. Only the three package declarations change in settings.

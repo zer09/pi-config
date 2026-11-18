@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import test from "node:test";
@@ -67,17 +67,8 @@ function projectedBranch(branch) {
 }
 
 test("existing context fixture mode, bound to exact Pi 1.5.2 and the minimal split-turn policy", () => {
-  let source = readFileSync(join(here, "reapply-context-edit-compaction-patch.test.mjs"), "utf8");
-  source = source.replace('const here = dirname(fileURLToPath(import.meta.url));', `const here = ${JSON.stringify(here)};`)
-    .replace('const piRoot = join(dirname(installed), "@earendil-works/pi-coding-agent");', `const piRoot = ${JSON.stringify(join(deps, "@earendil-works/pi-coding-agent"))};`)
-    .replace('assert.equal(pi.VERSION, "0.87.1");', 'assert.equal(pi.VERSION, "1.5.2");')
-    .replace('const require = createRequire(join(installed, "package.json"));', `const require = createRequire(${JSON.stringify(join(runtime, "package.json"))});`)
-    .replace('const runtime = { config, ensureConfig() {} };', 'const runtime = { config, ensureConfig() {}, isMemoryEnabled() { return this.config.memory !== false; } };')
-    .replace('alias: { "@earendil-works/pi-coding-agent": piPath }', `alias: ${JSON.stringify(alias)}`)
-    .replace('console.log(`PASS stock cut/cancel parity: ${comparisons} cases`);', 'assert.equal(comparisons, 162); console.log(`PASS stock cut/cancel parity: ${comparisons} cases`);');
-  const fixture = join(state, "legacy-fixtures.mjs");
-  writeFileSync(fixture, source);
-  const result = spawnSync(process.execPath, [fixture, "--fixtures", patched, stock, state], { cwd: state, env: { ...process.env, HOME: state, PI_CODING_AGENT_DIR: join(state, "agent"), PI_BLACKHOLE_PACKAGE_ROOT: patched }, encoding: "utf8", timeout: 120000 });
+  const fixture = join(here, "context-projection.fixture.mjs");
+  const result = spawnSync(process.execPath, [fixture, patched, stock, state, runtime, JSON.stringify(alias)], { cwd: state, env: { ...process.env, HOME: state, PI_CODING_AGENT_DIR: join(state, "agent"), PI_BLACKHOLE_PACKAGE_ROOT: patched }, encoding: "utf8", timeout: 120000 });
   console.log(result.stdout);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /fixtures and isolated Pi loader passed/);

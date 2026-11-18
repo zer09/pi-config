@@ -1,0 +1,422 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+import {
+  CHILD_ASSIGNMENT_RULES,
+  CHILD_ATTEMPT_BUDGET,
+  CHILD_RECURSION_PROHIBITION,
+  CHILD_TERMINAL_RESULT_INSTRUCTIONS,
+  DELEGATE_RUN_PARAMETER_DESCRIPTIONS,
+  DELEGATE_RUN_TOOL,
+  LIVE_CONTINUATION_PROMPT,
+  MODEL_CATALOG_PROMPT_GUIDELINES,
+  REPORT_RECOVERY_PROMPT,
+  RESTART_AFTER_WORK_NOTE,
+  buildDelegatePrompt,
+  composeDelegatePrompt,
+  delegateRunPromptGuidelines,
+  roleFamilyContract,
+} from "../instructions.ts";
+import { ROLE_FAMILIES, type ResolvedRole, type RoleFamily } from "../routing.ts";
+import { BLOCKED_REASON_CODES, FAILED_REASON_CODES } from "../types.ts";
+
+/** Test fixture: build a registry-style resolved role for one family. */
+function familyRole(family: RoleFamily, id: string = family): ResolvedRole {
+  return { id, family, profile: `${family}-profile` };
+}
+
+const SOLUTION_ROLE_FIXTURE = ["solution-a", "solution-b", "solution-c"];
+const REVIEW_ROLE_FIXTURE = ["review-a", "review-b"];
+
+test("prompt and instruction text is single-sourced in the canonical module", async () => {
+  const routes = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
+  const protocol = await readFile(new URL("../protocol.ts", import.meta.url), "utf8");
+  const runner = await readFile(new URL("../runner.ts", import.meta.url), "utf8");
+  const supervisor = await readFile(new URL("../supervisor.ts", import.meta.url), "utf8");
+  // Enforcement modules keep no instruction text of their own.
+  assert.ok(!routes.includes("Restart note:"), "routes.ts must not carry the restart note");
+  assert.ok(!routes.includes("## Final protocol"), "routes.ts must not carry the child prompt template");
+  assert.ok(!protocol.includes("The previous response lacked a valid final report"), "protocol.ts must not carry the recovery prompt");
+  // The runtime consumes the centralized builders and text directly.
+  assert.match(runner, /import \{ buildDelegatePrompt \} from "\.\/instructions\.ts";/);
+  assert.match(supervisor, /import \{ LIVE_CONTINUATION_PROMPT, REPORT_RECOVERY_PROMPT \} from "\.\/instructions\.ts";/);
+  assert.ok(!supervisor.includes("Continue the existing delegated assignment from this session"));
+  assert.match(supervisor, /protocol\.beginPrompt\(2, REPORT_RECOVERY_PROMPT\)/);
+});
+
+test("the restart note stays byte-exact and generic", () => {
+  assert.equal(
+    RESTART_AFTER_WORK_NOTE,
+    "Restart: a prior route attempt may have changed the tree. Inspect current work first; treat it as authoritative, continue from it, and do not repeat irreversible actions.",
+  );
+  assert.ok(!RESTART_AFTER_WORK_NOTE.includes("://"));
+});
+
+test("the live continuation prompt stays byte-exact and never replays an assignment", () => {
+  assert.equal(LIVE_CONTINUATION_PROMPT, "Continue the existing delegated assignment from this session's current context and workspace. A prior route failed. Treat completed messages, completed tool results, and current files as authoritative. Continue from the next unfinished step. Do not repeat completed or irreversible actions. Do not rely on partial or failed assistant output. Finish with the required final report and terminal protocol.");
+  assert.doesNotMatch(LIVE_CONTINUATION_PROMPT, /## Assignment|Restart:|:\/\//);
+});
+
+test("the report-recovery prompt stays byte-exact and marker-focused", () => {
+  assert.equal(
+    REPORT_RECOVERY_PROMPT,
+    `The previous response lacked a valid final report.
+
+Do not repeat work or call tools. Using only existing session evidence, return one complete self-contained report.
+
+Follow the original Final protocol. Include exactly one DELEGATE_RESULT line as the final nonblank line; for BLOCKED or FAILED, put one valid DELEGATE_REASON line directly above it; COMPLETED has none. Do not quote or discuss either marker.`,
+  );
+  assert.doesNotMatch(REPORT_RECOVERY_PROMPT, /evidence_inaccessible|execution_failure/);
+});
+
+test("the base child prompt embeds the generic recursion prohibition verbatim", () => {
+  assert.equal(
+    CHILD_RECURSION_PROHIBITION,
+    "Do this role yourself. Do not start or orchestrate another agent process or subagent.",
+  );
+  // The prohibition names no parent tool: it must not mention or explain
+  // delegate_run, so parent orchestration policy stays out of child context.
+  assert.ok(!CHILD_RECURSION_PROHIBITION.includes("delegate_run"));
+  for (const family of ROLE_FAMILIES) {
+    const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
+    assert.match(prompt, /Do not start or orchestrate another agent process or subagent\./);
+  }
+});
+
+test("supplied evidence remains a starting point in every role prompt", () => {
+  const safeguard = `Supplied paths, symbols, line ranges, findings, and hypotheses are non-exhaustive starting points, not limits on investigation.
+Verify supplied evidence against the current tree.
+Follow relevant callers, tests, dependencies, or other discovered evidence beyond supplied locations without expanding the assigned scope.`;
+  assert.ok(CHILD_ASSIGNMENT_RULES.includes(safeguard));
+  for (const family of ROLE_FAMILIES) {
+    const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
+    assert.ok(prompt.includes(safeguard), `the ${family} prompt must preserve independent investigation`);
+  }
+});
+
+test("delegate_run metadata distinguishes intentional reports from sanitized operational failures exactly", () => {
+  assert.equal(
+    DELEGATE_RUN_TOOL.description,
+    "Run one fresh bounded isolated Pi delegate for one role. Routing and operational fallback are automatic. Returns completed and valid intentional BLOCKED/FAILED Markdown reports; operational failures remain sanitized tool errors. The parent remains sole orchestrator. Optional fastlane requests eligible child priority service and increases subscription usage.",
+  );
+  assert.doesNotMatch(DELEGATE_RUN_TOOL.description, /every other terminal state is a sanitized tool error/);
+});
+
+test("the child owns semantic attempt limits while the supervisor owns time", () => {
+  assert.match(CHILD_ATTEMPT_BUDGET, /at most two materially equivalent attempts/);
+  assert.match(CHILD_ATTEMPT_BUDGET, /targeted material change justified by new evidence/);
+  assert.match(CHILD_ATTEMPT_BUDGET, /report BLOCKED/);
+  assert.doesNotMatch(CHILD_ATTEMPT_BUDGET, /minute|hour|clock|time/i);
+});
+
+test("child attempt and evidence rules appear exactly in every role prompt", () => {
+  const expected = `For each required proof or gate, make at most two materially equivalent attempts. An equivalent retry repeats the same proof or gate without a relevant material change to source, configuration, environment, or evidence. A rerun after a targeted material change justified by new evidence is not an equivalent retry and remains allowed, even for the same command.
+Parent-supplied verified evidence satisfies a check unless the assignment explicitly requires independent reproduction. Report an unavailable optional independent check as a limit; it does not justify BLOCKED. If explicitly required evidence or access remains unavailable and you cannot finish the assigned role, stop unrelated work and report BLOCKED.
+Implementation and remediation delegates: do not report BLOCKED for an ordinary compile/test failure you can still investigate and repair within scope. Such failures are not inaccessible evidence.
+Reserve BLOCKED for inability to proceed, such as unavailable required evidence or access, an external dependency, a policy or assignment conflict, or a required user decision.
+If assigned work is otherwise complete but required verification still fails after bounded evidence-driven repair, use DELEGATE_REASON: verification_failure with DELEGATE_RESULT: FAILED, not BLOCKED or budget_exhausted.
+Use budget_exhausted only when a real fixed external, assignment, or tool-enforced attempt quota prevents a required result. Your own count of changed test runs is not such a quota.`;
+  assert.equal(CHILD_ATTEMPT_BUDGET, expected);
+  for (const family of ROLE_FAMILIES) {
+    const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
+    assert.ok(prompt.includes(`## Attempt limits\n\n${expected}\n\n## Final protocol`));
+  }
+});
+
+test("targeted material changes permit reruns of the same command beyond equivalent attempts", () => {
+  assert.match(CHILD_ATTEMPT_BUDGET, /An equivalent retry repeats the same proof or gate without a relevant material change to source, configuration, environment, or evidence\./);
+  assert.match(CHILD_ATTEMPT_BUDGET, /A rerun after a targeted material change justified by new evidence is not an equivalent retry and remains allowed, even for the same command\./);
+});
+
+test("implementation and remediation keep investigating repairable compile and test failures", () => {
+  for (const family of ["implementation", "remediation"] as const) {
+    const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Repair the assigned defect and verify it.");
+    assert.match(prompt, /Implementation and remediation delegates: do not report BLOCKED for an ordinary compile\/test failure you can still investigate and repair within scope\./);
+    assert.match(prompt, /Such failures are not inaccessible evidence\./);
+  }
+});
+
+test("BLOCKED means inability to proceed rather than an ordinary failed verification", () => {
+  assert.match(CHILD_ATTEMPT_BUDGET, /Reserve BLOCKED for inability to proceed, such as unavailable required evidence or access, an external dependency, a policy or assignment conflict, or a required user decision\./);
+  assert.match(CHILD_ATTEMPT_BUDGET, /Report an unavailable optional independent check as a limit; it does not justify BLOCKED\./);
+});
+
+test("required verification failure after bounded evidence-driven repair maps to FAILED", () => {
+  assert.match(CHILD_ATTEMPT_BUDGET, /If assigned work is otherwise complete but required verification still fails after bounded evidence-driven repair, use DELEGATE_REASON: verification_failure with DELEGATE_RESULT: FAILED, not BLOCKED or budget_exhausted\./);
+});
+
+test("budget_exhausted stays compatible but requires a real fixed attempt quota", () => {
+  assert.ok(BLOCKED_REASON_CODES.includes("budget_exhausted"));
+  assert.match(CHILD_ATTEMPT_BUDGET, /Use budget_exhausted only when a real fixed external, assignment, or tool-enforced attempt quota prevents a required result\./);
+  assert.match(CHILD_ATTEMPT_BUDGET, /Your own count of changed test runs is not such a quota\./);
+});
+
+test("finished reviews complete with or without findings and with optional-check limits exactly", () => {
+  const expected = "Use one matching code with no prose, path, or details. DELEGATE_RESULT appears once as the final nonblank line; DELEGATE_REASON appears once directly above it. COMPLETED has no reason. COMPLETED means this role finished; reviews with findings use COMPLETED. A review that finishes its analysis returns COMPLETED with or without findings and with optional-check limits. After BLOCKED or FAILED, stop.";
+  assert.equal(CHILD_TERMINAL_RESULT_INSTRUCTIONS.split("\n\n").at(-1), expected);
+  const prompt = buildDelegatePrompt(familyRole("review"), "/tmp/project", "Review the assigned increment.");
+  assert.ok(prompt.endsWith(`${expected}\n`));
+});
+
+test("terminal instructions derive every closed reason code and keep three exact forms", () => {
+  for (const code of [...BLOCKED_REASON_CODES, ...FAILED_REASON_CODES]) {
+    assert.ok(CHILD_TERMINAL_RESULT_INSTRUCTIONS.includes(code), `terminal instructions must list ${code}`);
+  }
+  assert.match(CHILD_TERMINAL_RESULT_INSTRUCTIONS, /DELEGATE_REASON: <blocked-code>\nDELEGATE_RESULT: BLOCKED/);
+  assert.match(CHILD_TERMINAL_RESULT_INSTRUCTIONS, /DELEGATE_REASON: <failed-code>\nDELEGATE_RESULT: FAILED/);
+  assert.match(CHILD_TERMINAL_RESULT_INSTRUCTIONS, /DELEGATE_RESULT appears once as the final nonblank line/);
+  assert.match(CHILD_TERMINAL_RESULT_INSTRUCTIONS, /reviews with findings use COMPLETED/);
+});
+
+test("BLOCKED and FAILED require a complete self-contained handoff from every role", () => {
+  const required = "For BLOCKED or FAILED, write a complete self-contained handoff report before the terminal pair. Do not return only the terminal pair. Include: work completed; changed paths, or state that no paths changed; the exact blocker or failed requirement; supporting evidence and exact checks and results; current repository or task state; remaining work; and the specific action needed to unblock or safely continue. Never include secrets.";
+  assert.ok(CHILD_TERMINAL_RESULT_INSTRUCTIONS.includes(required));
+  for (const family of ROLE_FAMILIES) {
+    const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
+    assert.ok(prompt.includes(required), `the ${family} prompt must require the handoff report`);
+  }
+});
+
+test("policy reason guidance preserves strict rules and corrected-deviation disclosure in every role prompt", () => {
+  for (const family of ROLE_FAMILIES) {
+    const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
+    assert.match(prompt, /Use policy_violation for an actual unauthorized action, secret exposure, or another material policy breach/);
+    assert.match(prompt, /or when a project or assignment rule explicitly makes a procedural deviation terminal\./);
+    assert.match(prompt, /Failed commands, launchers rejected before execution, unknown runner environments, and harmless diagnostics alone do not prove a material breach\./);
+    assert.match(prompt, /Disclose corrected or rejected procedural deviations in the report\./);
+    assert.match(prompt, /COMPLETED is permitted only when assigned work and required checks finish, no material breach occurred, and no applicable rule makes the deviation terminal\./);
+    assert.match(prompt, /Use verification_failure when required verification remains failed or invalid\./);
+    assert.match(prompt, /If a policy prevents work before any breach, use BLOCKED with policy_restriction\./);
+    assert.match(prompt, /Passing checks must not erase material breaches, relax explicit acceptance rules, or relabel historical failures\./);
+  }
+});
+
+test("shared safety and terminal safeguards remain in every role prompt", () => {
+  for (const family of ROLE_FAMILIES) {
+    const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
+    assert.match(prompt, /Follow applicable project instructions; more specific wins\./);
+    assert.match(prompt, /Preserve user changes; never reset, clean, stash, overwrite, or revert\./);
+    assert.match(prompt, /Do not stage, commit, push, deploy, or write hosted services unless this assignment explicitly authorizes that action\./);
+    assert.match(prompt, /Never expose credentials, tokens, cookies, or private keys\./);
+    assert.ok(prompt.includes(CHILD_ATTEMPT_BUDGET));
+    assert.ok(prompt.includes("End with exactly one form and no text after it:\n\nDELEGATE_RESULT: COMPLETED"));
+    assert.match(prompt, /DELEGATE_REASON: <blocked-code>\nDELEGATE_RESULT: BLOCKED/);
+    assert.match(prompt, /DELEGATE_REASON: <failed-code>\nDELEGATE_RESULT: FAILED/);
+    assert.ok(prompt.includes(`BLOCKED codes: ${BLOCKED_REASON_CODES.join(", ")}.`));
+    assert.ok(prompt.includes(`FAILED codes: ${FAILED_REASON_CODES.join(", ")}.`));
+    assert.match(prompt, /DELEGATE_RESULT appears once as the final nonblank line; DELEGATE_REASON appears once directly above it\. COMPLETED has no reason\./);
+    assert.match(prompt, /A review that finishes its analysis returns COMPLETED with or without findings and with optional-check limits\./);
+    assert.match(prompt, /After BLOCKED or FAILED, stop\./);
+  }
+});
+
+test("child prompts carry no parent workflow, waiver, or gate instruction beyond the role contract", () => {
+  for (const family of ROLE_FAMILIES) {
+    const prompt = buildDelegatePrompt(familyRole(family), "/tmp/project", "Do the assigned work.");
+    // Remove the role-specific contract, then require that the remaining
+    // template carries none of the parent orchestration policy.
+    const template = prompt.replace(roleFamilyContract(family), "<contract>");
+    for (const forbidden of [
+      "delegate_run",
+      "delegate_model_catalog",
+      "promptGuidelines",
+      "Assignment policy",
+      "waive",
+      "waiver",
+      "solution gate",
+      "review gate",
+      "reviewer",
+      "investigator",
+      "solution-a",
+      "review-a",
+      "availableSkills",
+      "routingOverride",
+      "sole orchestrator",
+      "planning and research deliverables",
+    ]) {
+      assert.ok(!template.includes(forbidden), `child template must not carry parent policy "${forbidden}"`);
+    }
+  }
+});
+
+test("every supported role family receives its centralized contract from the registry type", () => {
+  for (const family of ROLE_FAMILIES) {
+    const contract = roleFamilyContract(family);
+    assert.ok(contract.length > 0, `family ${family} must have a contract`);
+    const prompt = buildDelegatePrompt(familyRole(family, `${family}-probe`), "/tmp/project", "Work.");
+    assert.ok(prompt.includes(contract), `the ${family} prompt must embed the centralized contract verbatim`);
+  }
+  // The contracts stay family-distinct policy text, not copies of one blob.
+  const contracts = ROLE_FAMILIES.map((family) => roleFamilyContract(family));
+  assert.equal(new Set(contracts).size, ROLE_FAMILIES.length);
+});
+
+test("implementation prompts require small checked increments without expanding the assignment", () => {
+  const assignment = "Add input validation and its regression tests. API integration is excluded.";
+  const prompt = buildDelegatePrompt(familyRole("implementation"), "/tmp/project", assignment);
+  const contract = roleFamilyContract("implementation");
+  assert.ok(prompt.includes(`## Assignment\n\n${assignment}\n\n## Attempt limits`));
+  assert.ok(prompt.includes(contract));
+  assert.match(contract, /Implement only the assigned increment/);
+  assert.match(contract, /Inspect the current tree before editing/);
+  assert.match(contract, /small coherent edit-and-check steps/);
+  assert.match(contract, /narrowest relevant check after each step before continuing/);
+  assert.match(contract, /simplest repository-compatible change and existing patterns/);
+  assert.match(contract, /avoid speculative abstractions/);
+  assert.match(contract, /Do not implement later increments or silently widen scope/);
+  assert.match(contract, /too broad or needs out-of-scope changes, stop and report BLOCKED with assignment_conflict/);
+  assert.match(contract, /Stop when the increment's acceptance checks pass/);
+  assert.match(contract, /COMPLETED means only this increment is finished/);
+  assert.match(contract, /no known unresolved in-scope regression/);
+  assert.match(contract, /does not mean the whole task is complete/);
+  assert.match(contract, /preserve user-owned changes and stated invariants/);
+  assert.match(contract, /Do not independently approve, perform unrelated cleanup, make Git or hosted transitions, or delegate/);
+  for (const family of ROLE_FAMILIES.filter((family) => family !== "implementation")) {
+    assert.doesNotMatch(roleFamilyContract(family), /edit-and-check steps|COMPLETED means only this increment/);
+  }
+});
+
+test("parent guidelines scope and gate each increment before integrated final review", () => {
+  const guidelines = delegateRunPromptGuidelines(SOLUTION_ROLE_FIXTURE, REVIEW_ROLE_FIXTURE).join("\n");
+  assert.match(guidelines, /smallest practical, independently reviewable change, with its regression tests and acceptance checks/);
+  assert.match(guidelines, /leave the tree in a working state/);
+  assert.match(guidelines, /Split broad increments further/);
+  assert.match(guidelines, /Splitting a non-trivial task does not make its increments parent-direct work/);
+  assert.match(guidelines, /Do not repeat solution or oracle gates merely because another increment starts/);
+  assert.match(guidelines, /ordered increments/);
+  assert.match(guidelines, /Before each run, inspect the current tree and assign only the current increment/);
+  assert.match(guidelines, /overall invariants, parent-verified prior evidence, and explicit exclusions for later work/);
+  assert.match(guidelines, /exactly one fresh implementation delegate per increment/);
+  assert.match(guidelines, /Inspect each increment's diff and check evidence/);
+  assert.match(guidelines, /integration with accepted prior work/);
+  assert.match(guidelines, /future increments are deferred scope, not defects/);
+  assert.match(guidelines, /Complete review and any required verification and remediation with no unresolved blocking findings before assigning the next increment/);
+  assert.match(guidelines, /On the final increment, review the accumulated diff against the whole task contract and run overall acceptance checks/);
+  assert.match(guidelines, /Any non-completed required role stops automatic advancement to the next increment/);
+  assert.doesNotMatch(guidelines, /run exactly one implementation delegate\.|After finalizing a contract for delegated implementation, run one implementation delegate\./);
+});
+
+test("parent assignment policy requires tool-compatible checks without invented terminal rules or silent relaxation", () => {
+  const guidelines = delegateRunPromptGuidelines(SOLUTION_ROLE_FIXTURE, REVIEW_ROLE_FIXTURE);
+  const matching = guidelines.filter((line) => line.startsWith("delegate_run [Assignment policy]:"));
+  assert.equal(matching.length, 1);
+  const guideline = matching[0]!;
+  assert.match(guideline, /State explicit execution and acceptance requirements compatible with the selected tools\./);
+  assert.match(guideline, /Preserve explicit user and project requirements; never relax them silently\./);
+  assert.match(guideline, /Do not invent irrevocable failure rules for harmless corrected procedural deviations\./);
+  assert.ok(!MODEL_CATALOG_PROMPT_GUIDELINES.includes(guideline));
+});
+
+test("parent evidence handoff is optional and requires no extra discovery", () => {
+  const guideline = delegateRunPromptGuidelines(SOLUTION_ROLE_FIXTURE, REVIEW_ROLE_FIXTURE)
+    .find((line) => line.startsWith("delegate_run [Evidence handoff]:"));
+  assert.ok(guideline);
+  assert.match(guideline, /When relevant, include useful evidence already learned/);
+  assert.match(guideline, /paths, symbols, line ranges, observed behavior, findings, or hypotheses/);
+  assert.match(guideline, /Distinguish verified observations from hypotheses when it matters/);
+  assert.match(guideline, /Evidence handoff is optional/);
+  assert.match(guideline, /Supplied locations are non-exhaustive starting points, not restrictions on delegate investigation/);
+
+  const description = DELEGATE_RUN_PARAMETER_DESCRIPTIONS.prompt;
+  assert.match(description, /Include useful evidence already known when relevant/);
+  assert.match(description, /optional known paths, symbols, or line ranges as non-exhaustive starting points/);
+  for (const text of [description, guideline]) {
+    assert.match(text, /[Dd]o not investigate merely to populate evidence or location fields/);
+    assert.match(text, /Unknown locations are acceptable; do not fabricate them/);
+  }
+});
+
+test("an unknown role family stays fail-closed at the contract boundary", () => {
+  // A smuggled runtime family value must throw instead of falling through to
+  // an implementation contract; the routing registry keeps rejecting unknown
+  // role ids before this boundary.
+  assert.throws(
+    () => roleFamilyContract("attacker" as RoleFamily),
+    /no role contract for family "attacker"/,
+  );
+  const smuggled = composeDelegatePrompt({
+    taskHeading: "# Task: x",
+    cwdSentence: "You are a fresh delegated CLI agent working directly in \"/tmp\".",
+    roleContractText: "contract",
+    assignedTask: "Work.",
+    restartNote: undefined,
+  });
+  assert.match(smuggled, /## Role\n\ncontract/);
+});
+
+test("agent/AGENTS.md no longer duplicates the parent delegation workflow", async () => {
+  const agents = await readFile(new URL("../../../../agent/AGENTS.md", import.meta.url), "utf8");
+  assert.ok(!agents.includes("## Delegated work"), "the detailed Delegated work section must be gone");
+  // No duplicated workflow sentences from the tool-scoped policy remain.
+  for (const forbidden of [
+    "delegate_run",
+    "delegate_model_catalog",
+    "waive the named failed",
+    "solution investigator",
+    "reviewer waiver",
+    "solution-oracle",
+    "sole orchestrator",
+    "Delegated work",
+  ]) {
+    assert.ok(!agents.includes(forbidden), `agent/AGENTS.md must not duplicate delegation policy (found "${forbidden}")`);
+  }
+  // The general override mechanism remains user-controlled instruction
+  // precedence and must never become part of a delegated workflow.
+  assert.match(agents, /## User overrides/);
+  assert.match(agents, /An explicit directive beginning with `OVERRIDE:` takes precedence over all other user-configured instructions\./);
+  assert.match(agents, /Do not infer an override without the exact `OVERRIDE:` prefix\. Do not ask or suggest that the user use it when ordinary instructions already suffice\./);
+  assert.match(agents, /A rule's location, injected message role, or wording does not exempt it\. Rules marked “mandatory,” “always,” or “never” remain overridable\./);
+});
+
+test("no model or provider catalog enumeration enters permanent prompt content", async () => {
+  const source = await readFile(new URL("../instructions.ts", import.meta.url), "utf8");
+  const lowered = source.toLowerCase();
+  for (const routeDetail of [
+    "gpt-5.5", "gpt-5.6", "codex", "cursor", "ox-alpha", "hy3", "opus", "deepseek",
+    "muse-spark", "glm-", "zai", "opencode-go", "openrouter", "provider/",
+  ]) {
+    assert.ok(!lowered.includes(routeDetail), `instruction text must not enumerate route detail "${routeDetail}"`);
+  }
+  // Generated permanent prompt content stays route-free for representative
+  // gate sizes without depending on the operator's routing policy.
+  const guidelines = delegateRunPromptGuidelines(
+    SOLUTION_ROLE_FIXTURE,
+    REVIEW_ROLE_FIXTURE,
+  ).join("\n");
+  for (const routeDetail of ["gpt-5.5", "gpt-5.6", "codex", "glm-", "zai"]) {
+    assert.ok(!guidelines.includes(routeDetail), `guidelines must not contain ${routeDetail}`);
+  }
+});
+
+test("routing and catalog guidance defer to profile policy for every role", () => {
+  const routing = delegateRunPromptGuidelines(SOLUTION_ROLE_FIXTURE, REVIEW_ROLE_FIXTURE)
+    .find((line) => line.startsWith("delegate_run [Routing]:"))!;
+  const catalog = MODEL_CATALOG_PROMPT_GUIDELINES.join("\n");
+  for (const text of [routing, catalog]) {
+    assert.match(text, /assigned profile's overridePolicy, including oracle/);
+    assert.match(text, /explicit user or project/);
+    assert.doesNotMatch(text, /never override oracle|never allowed for oracle/);
+  }
+  assert.match(routing, /Routing and operational fallback are automatic/);
+  assert.match(routing, /Never change permissions or concurrency/);
+  assert.match(catalog, /Lookup changes nothing/);
+});
+
+test("the parent guidelines stay dynamic, compact, and tool-attributed", () => {
+  const guidelines = delegateRunPromptGuidelines(
+    SOLUTION_ROLE_FIXTURE,
+    REVIEW_ROLE_FIXTURE,
+  );
+  assert.equal(guidelines.length, 17);
+  assert.ok(guidelines.every((line) => line.startsWith("delegate_run ")));
+  const text = guidelines.join("\n");
+  assert.match(text, /solution-a, solution-b, and solution-c concurrently/);
+  assert.match(text, /review-a and review-b concurrently/);
+  assert.match(text, /wait for every role/);
+  assert.match(text, /follow the user's next instruction/);
+  assert.match(text, /continue, resume, or retry requires no special syntax/);
+  assert.doesNotMatch(text, /OVERRIDE:/);
+  assert.match(text, /at least one completed report/);
+  assert.ok(text.length < 7_000, "the compact parent workflow must stay within its character budget");
+  assert.ok(MODEL_CATALOG_PROMPT_GUIDELINES.every((line) => line.startsWith("delegate_model_catalog:")));
+});

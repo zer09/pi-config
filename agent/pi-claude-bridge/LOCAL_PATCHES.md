@@ -1,5 +1,7 @@
 # Local Claude Bridge patch
 
+No patch helper is maintained for the installed Bridge. Retrieve the retired helpers and their tests from `d752800` only to reproduce an older upgrade. The separate provider-only entry still has its own tests under `../extensions/delegated-pi-loop/tests/`.
+
 ## Stock 0.12.0 installed on Pi 1.5.2
 
 The installed cache contains stock Bridge 0.12.0, SDK/Linux 0.3.321 and cc-session-io 0.4.1. Actual installed-file SDK and bundled/unbundled RPC checks pass, with no real Claude request. The ordering repair stays retired and AskClaude stays absent. Existing Pi sessions need a full manual restart. See the [installation record](../../docs/changelogs/three-extension-upgrade-installation.md). Preparation sections below are historical.
@@ -51,7 +53,7 @@ repository coverage. It ran with explicit candidate, compiler, output and
 verified archive roots, synthetic HOME, agent and Claude config directories,
 `PI_OFFLINE=1`, `PI_CACHE_WARMING=off`, network-denied `bwrap` and fake
 transports. Maintained coverage for the changed provider-only wrapper remains in
-`agent/extensions/delegated-pi-loop/claude-bridge-provider.test.ts`. The
+`agent/extensions/delegated-pi-loop/tests/claude-bridge-provider.test.ts`. The
 historical 0.9.3 lifecycle test stays unchanged.
 
 Acceptance passes 10 lifecycle/public-boundary tests with 20 fake SDK handles,

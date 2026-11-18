@@ -21,7 +21,7 @@ The tracked config root is `agent/`, which maps to the local Pi agent config dir
 | `agent/themes/`            | Custom `dark` and `light` Pi themes.                                                                                 |
 | `agent/pi-blackhole/`      | pi-blackhole config, local patch notes, and patch reapply helpers.                                                   |
 | `agent/pi-btw/`            | Local pi-btw patch helper, notes, and offline regression tests.                                                     |
-| `agent/pi-claude-bridge/`  | Local Claude Bridge ordering patch helper, notes, and fake SDK regression tests.                                   |
+| `agent/pi-claude-bridge/`  | Historical Claude Bridge ordering repair notes. The installed package is stock.                                   |
 | `docs/`                    | Config changelog, upgrade notes, ADRs, and skill maintenance docs.                                                   |
 | `.gitignore`               | Boundary between tracked config and local-only runtime state, caches, secrets, and generated data.                   |
 
@@ -219,13 +219,21 @@ Active patch notes currently cover:
 
 `pi-blackhole@0.5.18` retains the three guarded repairs and existing compaction/budget/quiet settings. Raw recall, history and prior summaries remain unchanged. Its 64 focused checks and actual installed SDK/RPC acceptance pass. The inherited ignored pre-compaction-message setting remains documented; no fourth repair is added. Earlier public-provider and OM-auth repairs stay retired.
 
-Prepared `pi-btw@0.8.1` retains only cancellation-aware runtime credential propagation. Its version-specific helper targets verified disposable TMPDIR source, never live `node_modules`. Existing child-context, restore, retry and restart checks pass; optional SSH remains inactive.
+Installed `pi-btw@0.8.1` retains only cancellation-aware runtime credential propagation. Its version-specific helper targets verified disposable TMPDIR source, never live `node_modules`. Existing child-context, restore, retry and restart checks pass; optional SSH remains inactive.
 
 `pi-browser-harness@0.19.1` has 43 tools and a guarded recipe-snapshot repair. Upstream supplies per-receiving-API registration, so the old registration repair is retired. Its three unchanged upstream type diagnostics remain disclosed; browser/profile/Windows acceptance is not claimed.
 
 `pi-claude-bridge@0.12.0` is stock with SDK/Linux 0.3.321 and cc-session-io 0.4.1. Its old prompt-ordering repair remains retired; do not reapply a historical helper. User-only Claude settings, accepted billing-guard removal and session retention are documented in the installation record. Trusted-repository delegation remains required.
 
 Package reinstalls can overwrite Blackhole, BTW and Harness repairs. Review their `LOCAL_PATCHES.md` records, prepare verified private repaired copies, and recheck every sibling after a transaction. These preparation notes authorize no live helper or deployment.
+
+### What to run after an extension change
+
+From the repository root, run `node --test agent/tests/retired-*.test.mjs` for local discovery and an offline smoke test of the configured npm packages. The smoke test uses a disposable session to check reload, tree navigation and resume. It checks package identities and expected tools, not an exact tool count. It needs the installed packages, Node and Linux bubblewrap. Extension-owned suites stay with their extensions; the delegated loop discovers `tests/*.test.ts` through its `npm test` script.
+
+Use the five current patch helpers only on disposable, verified package extractions. On upgrade, test the required behavior against the **unmodified** package first. If upstream now provides it, retire the helper and keep the relevant behavior check. Otherwise port the helper, verify the repaired bytes and rerun its behavior, refusal and repeated-application checks before copying anything. The most recent [installation record](docs/changelogs/three-extension-upgrade-installation.md) identifies the reviewed package versions.
+
+[`agent/upgrade-checks/`](agent/upgrade-checks/README.md) holds checks for specific Pi upgrade environments, not everyday tests. Superseded patch scripts and older port tests remain in Git: `git show d752800:<old-path>` retrieves a file without restoring it into the live agent directory.
 
 ## Changelog and decisions
 

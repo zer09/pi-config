@@ -1,5 +1,7 @@
 # Local pi-blackhole patches
 
+Only the three `0.5.18` helpers below are maintained. Run `port-0.5.18.test.mjs` and its behavior, worker and context suites against disposable targets. The guard suite checks the full reviewed package digest; the context suite uses `context-projection.fixture.mjs` directly. Historical helpers and suites mentioned in the dated records live at `d752800`, not in the current tree.
+
 ## Blackhole 0.5.18 installed on Pi 1.5.2
 
 The installed cache contains the exact reviewed three-repair package with its source entrypoint. Actual installed-file SDK and bundled/unbundled RPC checks pass. Configuration stays unchanged; existing Pi sessions need a full manual restart. Installation used normal-user operations without sudo and retained the old cache. See the [installation record](../../docs/changelogs/three-extension-upgrade-installation.md). Preparation sections below are historical.

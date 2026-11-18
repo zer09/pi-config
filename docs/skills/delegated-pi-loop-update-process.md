@@ -28,7 +28,7 @@ Purpose: maintain the native TypeScript `delegate_run` extension that runs in th
 | `agent/extensions/delegated-pi-loop/runner.ts` | Catalog preflight, operational route fallback, private persisted-session creation, and route attempts. No chain work budget exists. |
 | `agent/extensions/delegated-pi-loop/persisted-session.ts` | Empty private session-file creation, acknowledgement state, metadata validation, and bounded private read-only active-history readiness with pinned header identity. Returns only a closed enum, never session data. |
 | `agent/extensions/delegated-pi-loop/routing.json` | Tracked operator-owned routing policy: capabilities, profiles, tiers, version-2 family assignments, disabled providers, and override policy. Valid policy edits must not require test or documentation updates. |
-| `agent/extensions/delegated-pi-loop/routing.fixture.json` and `routing.test-fixture.ts` | Fictional test-only policy and loader for deterministic concrete routing tests. Runtime modules never load this fixture. |
+| `agent/extensions/delegated-pi-loop/tests/routing.fixture.json` and `routing.test-fixture.ts` | Fictional test-only policy and loader for deterministic concrete routing tests. Runtime modules never load this fixture. |
 | `agent/extensions/delegated-pi-loop/routing.ts` | Strict routing config loader/validator, the normalized role registry, the one shared route selector, and the registration snapshot loader. |
 | `agent/extensions/delegated-pi-loop/check-routing.ts` | Read-only `npm run check:routing` validator and route-chain summary for the live `routing.json`. |
 | `agent/extensions/delegated-pi-loop/typecheck.ts` | Maintained `npm run typecheck` driver: strict in-memory config, installed host declarations and compiler, no local dependency installation. |
@@ -42,7 +42,7 @@ Purpose: maintain the native TypeScript `delegate_run` extension that runs in th
 | `agent/extensions/delegated-pi-loop/render.ts` | Compact and expanded TUI rendering. |
 | `agent/extensions/delegated-pi-loop/artifacts.ts` | Private temporary artifacts and bounded output helpers. |
 | `agent/extensions/delegated-pi-loop/types.ts` | Runtime, progress, result, and diagnostic contracts. |
-| `agent/extensions/delegated-pi-loop/*.test.ts` | Protocol, monitor, supervisor, runner, privacy, rendering, and policy regressions. |
+| `agent/extensions/delegated-pi-loop/tests/*.test.ts` | Protocol, monitor, supervisor, runner, privacy, rendering, and policy regressions. |
 
 The retired runtime skill and the removed direct Claude CLI backend must not be restored without a new explicit decision.
 
@@ -204,7 +204,7 @@ Diagnostics and analyzer maintenance: schema-version changes to run telemetry mu
 
 Run each command block from the checkout being maintained, not the live Pi config. Use an explicit working directory and bounded output. Do not deploy or reload as a validation step.
 
-Run the extension suite:
+Run the extension suite in an offline test environment with a disposable home. Set `PI_SESSION_PROJECTION_PACKAGE_ROOT` to the absolute path of the isolated `@earendil-works/pi-coding-agent` package (currently 1.5.2), and put its `pi` executable on `PATH`. The session-history tests use that exact SDK; they do not fall back to another version.
 
 ```bash
 cd agent/extensions/delegated-pi-loop
