@@ -1,5 +1,9 @@
 # Changelog
 
+## Windows Chrome from Pi in WSL
+
+Documented the [Windows Chrome setup](windows-chrome-from-wsl.md) for Browser Harness 0.19.1. The user confirmed that `/browser-setup` opened its GitHub test tab in the dedicated Windows Chrome window. This checks the connection, not CPU or memory use. No Pi package or tracked launcher change was needed.
+
 ## Extension maintenance cleanup
 
 Keep five patch helpers for the installed packages. Older helpers and port tests remain available at `d752800`; the active Blackhole and BTW checks no longer need them. Separate Pi 1.5.2 upgrade evidence from the everyday package smoke test. Group the delegated loop's tests and fixtures under `tests/` without changing its runtime entry point or registration. The two disabled extensions retain source and lockfiles but no installed dependency trees. See the [test and patch maintenance notes](../README.md#what-to-run-after-an-extension-change).

@@ -221,7 +221,7 @@ Active patch notes currently cover:
 
 Installed `pi-btw@0.8.1` retains only cancellation-aware runtime credential propagation. Its version-specific helper targets verified disposable TMPDIR source, never live `node_modules`. Existing child-context, restore, retry and restart checks pass; optional SSH remains inactive.
 
-`pi-browser-harness@0.19.1` has 43 tools and a guarded recipe-snapshot repair. Upstream supplies per-receiving-API registration, so the old registration repair is retired. Its three unchanged upstream type diagnostics remain disclosed; browser/profile/Windows acceptance is not claimed.
+`pi-browser-harness@0.19.1` has 43 tools and a guarded recipe-snapshot repair. Upstream supplies per-receiving-API registration, so the old registration repair is retired. The installation checks still report three upstream type diagnostics and did not test a live browser. For the separately confirmed Windows connection, see [Use Windows Chrome from Pi in WSL](docs/windows-chrome-from-wsl.md).
 
 `pi-claude-bridge@0.12.0` is stock with SDK/Linux 0.3.321 and cc-session-io 0.4.1. Its old prompt-ordering repair remains retired; do not reapply a historical helper. User-only Claude settings, accepted billing-guard removal and session retention are documented in the installation record. Trusted-repository delegation remains required.
 
