@@ -14,12 +14,12 @@ Optional: `/browser-background on` asks the harness to keep Chrome in the backgr
 
 **Windows networking.** On Windows 11 22H2 or newer, edit `%USERPROFILE%\.wslconfig`. Add `networkingMode=mirrored` under the existing `[wsl2]` section. Preserve other settings, including `swap=0` on this machine. This lets WSL reach Windows services through `127.0.0.1` ([Microsoft documentation](https://learn.microsoft.com/en-us/windows/wsl/networking#mirrored-mode-networking)).
 
-**WSL launcher.** Keep the existing theme wrapper and pass `BU_CDP_PORTS` only to Pi. The configured block starts at `~/.bashrc:202` on this machine:
+**WSL launcher.** The [Pi launcher](../agent/bin/pi#L9) sets `BU_CDP_PORTS=9223` for Pi. The `pi()` function in `~/.bashrc` only calls the launcher:
 
 ```bash
 PI_THEME_WRAPPER_BIN="$HOME/.pi/agent/bin/pi"
 pi() {
-  BU_CDP_PORTS=9223 command "$PI_THEME_WRAPPER_BIN" "$@"
+  command "$PI_THEME_WRAPPER_BIN" "$@"
 }
 ```
 

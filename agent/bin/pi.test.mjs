@@ -17,7 +17,12 @@ function fixture() {
   mkdirSync(agentDir, { recursive: true });
   writeFileSync(
     realPi,
-    `console.log(JSON.stringify({ args: process.argv.slice(2), injected: process.env.PI_THEME_WRAPPER_INJECTED }));\n`,
+    `console.log(JSON.stringify({
+      args: process.argv.slice(2),
+      injected: process.env.PI_THEME_WRAPPER_INJECTED,
+      browserPorts: process.env.BU_CDP_PORTS,
+      showPreCompactionMessage: process.env.PI_BLACKHOLE_SHOW_PRE_COMPACTION_MESSAGE,
+    }));\n`,
   );
   chmodSync(realPi, 0o755);
   const env = {
@@ -67,6 +72,30 @@ test("normal startup injects a write-free initial theme and preserves argv", () 
     assert.deepEqual(readFileSync(settings), before.bytes);
     assert.equal(after.mode & 0o777, before.stat.mode & 0o777);
     assert.equal(after.mtimeMs, before.stat.mtimeMs);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test("the launcher passes the configured Windows Chrome port directly to Pi", () => {
+  const f = fixture();
+  try {
+    delete f.env.BU_CDP_PORTS;
+    assert.equal(run(f.env, ["hello"]).browserPorts, "9223");
+    assert.equal(run({ ...f.env, BU_CDP_PORTS: "9224" }, ["hello"]).browserPorts, "9223");
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test("startup disables Blackhole pre-compaction output unless explicitly enabled", () => {
+  const f = fixture();
+  try {
+    const key = "PI_BLACKHOLE_SHOW_PRE_COMPACTION_MESSAGE";
+    delete f.env[key];
+    assert.equal(run(f.env, ["hello"]).showPreCompactionMessage, "false");
+    assert.equal(run(f.env, ["--print", "hello"]).showPreCompactionMessage, "false");
+    assert.equal(run({ ...f.env, [key]: "true" }, ["hello"]).showPreCompactionMessage, "true");
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
