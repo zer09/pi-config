@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "1.5.2",
+  "lastChangelogVersion": "1.6.0",
   "tuiMode": "regular",
   "packages": [
     "npm:pi-blackhole@0.5.18",
