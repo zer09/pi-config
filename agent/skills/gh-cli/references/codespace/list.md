@@ -1,7 +1,7 @@
 # gh codespace list
 
 Source: https://cli.github.com/manual/gh_codespace_list
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help codespace list`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help codespace list`.
 
 ## Summary
 
@@ -27,17 +27,17 @@ ALIASES
   gh codespace ls, gh cs ls
 
 FLAGS
-  -q, --jq expression     Filter JSON output using a jq expression
-      --json fields       Output JSON with the specified fields
-  -L, --limit int         Maximum number of codespaces to list (default 30)
-  -o, --org login         The login handle of the organization to list codespaces for (admin-only)
-  -R, --repo string       Repository name with owner: user/repo
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
-  -u, --user username     The username to list codespaces for (used with --org)
-  -w, --web               List codespaces in the web browser, cannot be used with --user or --org
+  -q, --jq expression      Filter JSON output using a jq expression
+      --json fields        Output JSON with the specified fields
+  -L, --limit int          Maximum number of codespaces to list (default 30)
+  -o, --org login          The login handle of the organization to list codespaces for (admin-only)
+  -R, --repo string        Repository name with owner: user/repo
+  -t, --template string    Format JSON output using a Go template; see "gh help formatting"
+  -u, --user username      The username to list codespaces for (used with --org)
+  -w, --web[=true|false]   List codespaces in the web browser, cannot be used with --user or --org
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 JSON FIELDS
   createdAt, displayName, gitStatus, lastUsedAt, machineName, name, owner,

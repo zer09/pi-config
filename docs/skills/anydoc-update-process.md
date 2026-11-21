@@ -3,11 +3,11 @@
 ## Source and classification
 
 - Upstream: [firecrawl/anydoc](https://github.com/firecrawl/anydoc).
-- Pinned commit: `261fc257d17c3eab0f673be31c408fd9fdc2171a`.
-- Skill source: [`skills/convert-documents-to-markdown/SKILL.md`](https://github.com/firecrawl/anydoc/blob/261fc257d17c3eab0f673be31c408fd9fdc2171a/skills/convert-documents-to-markdown/SKILL.md), the only file in that upstream skill folder.
-- CLI sources: `node/cli.js`, `node/anydoc.js`, and `node/package.json` at the same commit. The package is `@firecrawl/anydoc` version `0.2.4`, with Node >=20.
+- Pinned commit: `0a6a4fd29e5c0315972de348fa63de8e767f632e` (release tag `v0.2.5`). The upstream skill, `LICENSE`, and skill-folder Git blobs are byte-identical to the prior pin `261fc257d17c3eab0f673be31c408fd9fdc2171a`.
+- Skill source: [`skills/convert-documents-to-markdown/SKILL.md`](https://github.com/firecrawl/anydoc/blob/0a6a4fd29e5c0315972de348fa63de8e767f632e/skills/convert-documents-to-markdown/SKILL.md), the only file in that upstream skill folder.
+- CLI sources: `node/cli.js`, `node/anydoc.js`, and `node/package.json` at the same commit. The package is `@firecrawl/anydoc` version `0.2.5`, with Node >=20.
 - Local tree: [SKILL.md](../../agent/skills/convert-documents-to-markdown/SKILL.md), [agents/openai.yaml](../../agent/skills/convert-documents-to-markdown/agents/openai.yaml), [scripts/convert_document.py](../../agent/skills/convert-documents-to-markdown/scripts/convert_document.py), and [scripts/test_convert_document.py](../../agent/skills/convert-documents-to-markdown/scripts/test_convert_document.py).
-- The stdlib wrapper and offline unittest suite are locally authored, not imported from upstream. Local maintainers own their safety contract and tests. The wrapper pins the tested CLI version `0.2.4`; review the CLI source and regressions before changing that pin.
+- The stdlib wrapper and offline unittest suite are locally authored, not imported from upstream. Local maintainers own their safety contract and tests. The wrapper pins the tested CLI version `0.2.5`; review the CLI source and regressions before changing that pin.
 - Classification: **keep it**. The compact skill routes conversion through a reusable wrapper with deterministic retry, endpoint, credential, replay, and output checks. Those details are useful beyond generic Markdown editing.
 
 The skill is adapted from upstream MIT-licensed content. Keep the upstream name. The copyright and full license notice appear below because local frontmatter contains only `name` and `description`. Keep this notice with copies of the adapted skill, including when distributing the runtime separately.
@@ -56,12 +56,12 @@ npm_config_offline=true uv run --no-project --offline python <skill-dir>/scripts
 3. Use authenticated `gh` with native `bash` and bounded output from the repository root. Fetch the pinned source for comparison with these read-only commands:
 
    ```bash
-   gh api 'repos/firecrawl/anydoc/contents/skills/convert-documents-to-markdown?ref=261fc257d17c3eab0f673be31c408fd9fdc2171a' --jq 'map(.path)'
-   gh api 'repos/firecrawl/anydoc/contents/skills/convert-documents-to-markdown/SKILL.md?ref=261fc257d17c3eab0f673be31c408fd9fdc2171a' --jq .content | base64 --decode
-   gh api 'repos/firecrawl/anydoc/contents/LICENSE?ref=261fc257d17c3eab0f673be31c408fd9fdc2171a' --jq .content | base64 --decode
-   gh api 'repos/firecrawl/anydoc/contents/node/package.json?ref=261fc257d17c3eab0f673be31c408fd9fdc2171a' --jq .content | base64 --decode
-   gh api 'repos/firecrawl/anydoc/contents/node/cli.js?ref=261fc257d17c3eab0f673be31c408fd9fdc2171a' --jq .content | base64 --decode
-   gh api 'repos/firecrawl/anydoc/contents/node/anydoc.js?ref=261fc257d17c3eab0f673be31c408fd9fdc2171a' --jq .content | base64 --decode
+   gh api 'repos/firecrawl/anydoc/contents/skills/convert-documents-to-markdown?ref=0a6a4fd29e5c0315972de348fa63de8e767f632e' --jq 'map(.path)'
+   gh api 'repos/firecrawl/anydoc/contents/skills/convert-documents-to-markdown/SKILL.md?ref=0a6a4fd29e5c0315972de348fa63de8e767f632e' --jq .content | base64 --decode
+   gh api 'repos/firecrawl/anydoc/contents/LICENSE?ref=0a6a4fd29e5c0315972de348fa63de8e767f632e' --jq .content | base64 --decode
+   gh api 'repos/firecrawl/anydoc/contents/node/package.json?ref=0a6a4fd29e5c0315972de348fa63de8e767f632e' --jq .content | base64 --decode
+   gh api 'repos/firecrawl/anydoc/contents/node/cli.js?ref=0a6a4fd29e5c0315972de348fa63de8e767f632e' --jq .content | base64 --decode
+   gh api 'repos/firecrawl/anydoc/contents/node/anydoc.js?ref=0a6a4fd29e5c0315972de348fa63de8e767f632e' --jq .content | base64 --decode
    ```
 
 4. For a requested newer sync, resolve and record the new commit first. Inspect the CLI and relevant library behavior, not only the upstream skill. Recheck supported formats, version/runtime requirements, exit codes, OCR defaults, and endpoint/credential handling.
@@ -101,6 +101,12 @@ Also check all skill frontmatter/UI metadata, changed local Markdown links, the 
 For future CLI source/version changes, repeat native local regressions with synthetic CSV, RTF, DOCX, image-only/mixed PDF, stdin, format overrides, output, and generic usage/read failures. Use an already cached pinned package, strip the real key, and block external OCR fetches; do not retrieve packages without separate authority. A hosted simulation requires separately authorized test-only loopback interception and a synthetic credential. Verify whole-PDF bytes, multipart fields, environment-key authentication, and exactly one request; test auth, credits, rate-limit, service, network, and missing-Markdown failures. Production endpoint restrictions must remain official-only.
 
 No real document upload, real credential, service request, charge, or model benchmark is required or authorized for maintenance. Remove only task-created temporary artifacts after symlink checks. Do not save private document names, paths, or content as acceptance evidence.
+
+## Pi 1.6.0 maintenance: CLI pin 0.2.4 to 0.2.5
+
+Release [`v0.2.5`](https://github.com/firecrawl/anydoc/releases/tag/v0.2.5) moves the native ZIP reader used for DOCX/XLSX/PPTX/ODF input from `zip` 8.6.0 to 9.5.1. Its notes list five advisories affecting every 8.x release, one critical. It also keeps a table header when a body cell repeats a column label, and adds an optional `--parse-mode auto|fast|ocr` for hosted OCR. The hosted default stays `auto`, matching 0.2.4's request body. Invalid parse modes exit 2 before any request. Exit codes, the `reject` OCR default, `FIRECRAWL_API_KEY`/`FIRECRAWL_API_URL` handling, and `/v2/parse` are unchanged. The wrapper does not pass `--parse-mode`, so its argv and retry contract are unchanged; only the pinned version changed.
+
+The npm root and Linux x64 GNU archives matched registry SHA-512 integrity. `npm audit signatures` verified registry signatures and SLSA provenance attestations for both, and `gitHead` equals the tag commit. Network-denied native checks with synthetic CSV, repeated-label CSV, RTF, DOCX, stdin, an image-only PDF, invalid input, and usage errors returned the expected `0`/`1`/`2`/`3` results. The wrapper ran end to end from an offline private npx cache with no key: local conversions succeeded, and the image-only PDF stopped with exit 3 both with `--no-ocr` and without a key. The 41 existing wrapper tests and focused offline Ruff pass unchanged. No real document, key, hosted request, or global install was used.
 
 ## Historical installation acceptance evidence
 
@@ -179,7 +185,7 @@ Human/agent selection of `--no-ocr` for sensitive data or explicit opt-outs rema
 
 ## Upstream MIT notice
 
-From [`LICENSE`](https://github.com/firecrawl/anydoc/blob/261fc257d17c3eab0f673be31c408fd9fdc2171a/LICENSE) at the pinned commit:
+From [`LICENSE`](https://github.com/firecrawl/anydoc/blob/0a6a4fd29e5c0315972de348fa63de8e767f632e/LICENSE) at the pinned commit:
 
 ```text
 MIT License

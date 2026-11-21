@@ -1,7 +1,7 @@
 # gh pr diff
 
 Source: https://cli.github.com/manual/gh_pr_diff
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help pr diff`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help pr diff`.
 
 ## Summary
 
@@ -34,15 +34,15 @@ USAGE
   gh pr diff [<number> | <url> | <branch>] [flags]
 
 FLAGS
-      --allow-escape-sequences   Allow printing terminal escape sequences
-      --color string             Use color in diff output: {always|never|auto} (default "auto")
-  -e, --exclude patterns         Exclude files matching glob patterns from the diff
-      --name-only                Display only names of changed files
-      --patch                    Display diff in patch format
-  -w, --web                      Open the pull request diff in the browser
+      --allow-escape-sequences[=true|false]   Allow printing terminal escape sequences
+      --color string                          Use color in diff output: {always|never|auto} (default "auto")
+  -e, --exclude patterns                      Exclude files matching glob patterns from the diff
+      --name-only[=true|false]                Display only names of changed files
+      --patch[=true|false]                    Display diff in patch format
+  -w, --web[=true|false]                      Open the pull request diff in the browser
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

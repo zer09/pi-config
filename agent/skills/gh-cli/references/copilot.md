@@ -1,7 +1,7 @@
 # gh copilot
 
 Source: https://cli.github.com/manual/gh_copilot
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help copilot`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help copilot`.
 
 ## Summary
 
@@ -36,10 +36,10 @@ USAGE
   gh copilot [flags] [args]
 
 FLAGS
-  --remove   Remove the downloaded Copilot CLI
+  --remove[=true|false]   Remove the downloaded Copilot CLI
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Download and run the Copilot CLI

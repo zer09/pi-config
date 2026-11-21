@@ -15,23 +15,23 @@ assert.equal(realpathSync(root), root);
 assert.equal(process.env.PI_OFFLINE, "1");
 const json = (path) => JSON.parse(readFileSync(path, "utf8"));
 const hash = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
-assert.equal(json(join(root, "package.json")).version, "0.5.18");
+assert.equal(json(join(root, "package.json")).version, "0.5.19");
 assert.deepEqual(json(join(root, "package.json")).pi.extensions, ["./index.ts"]);
-assert.equal(hash(join(root, "src/om/runtime.ts")), "35afd3017ee4438386ab607bb1c054281061ed8899ea8e81b0d1ad9d43379184");
+assert.equal(hash(join(root, "src/om/runtime.ts")), "a12eb371dd322a9959359d48fc1fabe844e5d3cf2fd9717f74e7b71da5d854bf");
 assert.equal(hash(join(root, "src/om/provider-stream.ts")), "a8ac21e75f7ab08d77acbde8ed431bed0ad2a7dad3deee90119709f9fc6ed0c3");
 const deps = join(runtime, "node_modules");
 const alias = {};
 for (const name of ["pi-ai", "pi-agent-core", "pi-coding-agent", "pi-tui"]) {
   const pkg = join(deps, "@earendil-works", name);
   const manifest = json(join(pkg, "package.json"));
-  assert.equal(manifest.version, "1.5.2");
+  assert.equal(manifest.version, "1.6.0");
   alias[`@earendil-works/${name}`] = join(pkg, manifest.exports?.["."]?.import ?? manifest.main);
 }
 alias["@earendil-works/pi-ai/compat"] = join(deps, "@earendil-works/pi-ai/dist/compat.js");
 alias.typebox = join(deps, "typebox/build/index.mjs");
 const ai = await import(pathToFileURL(alias["@earendil-works/pi-ai"]));
 const pi = await import(pathToFileURL(alias["@earendil-works/pi-coding-agent"]));
-assert.equal(pi.VERSION, "1.5.2");
+assert.equal(pi.VERSION, "1.6.0");
 const { stream, streamSimple } = await import(pathToFileURL(join(deps, "@earendil-works/pi-ai/dist/api/openai-completions.js")));
 const { createJiti } = await import(pathToFileURL(join(deps, "jiti/lib/jiti.mjs")));
 const jiti = createJiti(import.meta.url, { alias, fsCache: false, moduleCache: true });
@@ -98,10 +98,9 @@ test("configured selection, fixed budgets, quiet settings and percentage precede
     assert.equal(config[key], sourceConfig[key], key);
   }
   assert.deepEqual(JSON.parse(protectedConfig), sourceConfig);
-  // Stock 0.5.18 still ignores this file option. Keep the inherited loader
-  // limitation visible instead of adding an unassigned repair.
+  // Upstream 0.5.19 now reads this file option, so the configured false applies.
   assert.equal(sourceConfig.showPreCompactionMessage, false);
-  assert.equal(config.showPreCompactionMessage, true);
+  assert.equal(config.showPreCompactionMessage, false);
   assert.equal(config.tailBehavior, "pi-default");
   assert.equal(config.contextPressureFallback, "off");
   assert.equal(config.observeOnShutdown, false);
@@ -135,7 +134,7 @@ for (const stage of ["observer", "reflector", "dropper"]) {
         return response(stage, wire.length);
       };
       const faux = ai.fauxProvider({ provider: primary.provider, models: [{ id: primary.id, reasoning: true, contextWindow: primary.contextWindow, maxTokens: 16_384 }] });
-      // Explicit model headers outrank auth in Pi 1.5.2. Leave that layer unset
+      // Explicit model headers outrank auth in Pi 1.6.0. Leave that layer unset
       // so this checks auth deletion markers, not a model-level override.
       const model = { ...faux.getModel(), api: "openai-completions", baseUrl: "https://opencode.ai/api" };
       const provider = ai.createProvider({

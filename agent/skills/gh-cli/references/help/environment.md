@@ -1,21 +1,22 @@
 # gh help environment
 
 Source: https://cli.github.com/manual/gh_help_environment
-Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help environment`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help environment`.
 
 ## Summary
 
-Environment variables that can be used with gh
+`GH_TOKEN`, `GITHUB_TOKEN` (in order of precedence): an authentication token that will be used when a command targets `github.com`, a subdomain of `ghe.com`, or `github.localhost`. Setting this avoids being prompted to authenticate and takes precedence over previously stored credentials.
 
 ## Manual
 
 ```text
 `GH_TOKEN`, `GITHUB_TOKEN` (in order of precedence): an authentication token that will be used when
-a command targets either `github.com` or a subdomain of `ghe.com`. Setting this avoids being prompted to
-authenticate and takes precedence over previously stored credentials.
+a command targets `github.com`, a subdomain of `ghe.com`, or `github.localhost`. Setting this avoids
+being prompted to authenticate and takes precedence over previously stored credentials.
 
 `GH_ENTERPRISE_TOKEN`, `GITHUB_ENTERPRISE_TOKEN` (in order of precedence): an authentication
-token that will be used when a command targets a GitHub Enterprise Server host.
+token that will be used when a command targets a GitHub Enterprise Server host. `gh` treats any host other
+than `github.com`, a subdomain of `ghe.com`, or `github.localhost` as a GitHub Enterprise Server host.
 
 `GH_HOST`: specify the GitHub hostname for commands where a hostname has not been provided, or
 cannot be inferred from the context of a local Git repository. If this host was previously

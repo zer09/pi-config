@@ -1,7 +1,7 @@
 # gh cache delete
 
 Source: https://cli.github.com/manual/gh_cache_delete
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help cache delete`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help cache delete`.
 
 ## Summary
 
@@ -23,12 +23,12 @@ USAGE
   gh cache delete [<cache-id> | <cache-key> | --all] [flags]
 
 FLAGS
-  -a, --all                          Delete all caches, can be used with --ref to delete all caches for a specific ref
-  -r, --ref string                   Delete by cache key and ref, formatted as refs/heads/<branch name> or refs/pull/<number>/merge
-      --succeed-on-no-caches --all   Return exit code 0 if no caches found. Must be used in conjunction with --all
+  -a, --all[=true|false]                    Delete all caches, can be used with --ref to delete all caches for a specific ref
+  -r, --ref string                          Delete by cache key and ref, formatted as refs/heads/<branch name> or refs/pull/<number>/merge
+      --succeed-on-no-caches[=true|false]   Return exit code 0 if no caches found. Must be used in conjunction with --all
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

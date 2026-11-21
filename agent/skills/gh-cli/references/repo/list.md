@@ -1,7 +1,7 @@
 # gh repo list
 
 Source: https://cli.github.com/manual/gh_repo_list
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo list`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help repo list`.
 
 ## Summary
 
@@ -29,20 +29,20 @@ ALIASES
   gh repo ls
 
 FLAGS
-      --archived            Show only archived repositories
-      --fork                Show only forks
-  -q, --jq expression       Filter JSON output using a jq expression
-      --json fields         Output JSON with the specified fields
-  -l, --language string     Filter by primary coding language
-  -L, --limit int           Maximum number of repositories to list (default 30)
-      --no-archived         Omit archived repositories
-      --source              Show only non-forks
-  -t, --template string     Format JSON output using a Go template; see "gh help formatting"
-      --topic strings       Filter by topic
-      --visibility string   Filter by repository visibility: {public|private|internal}
+      --archived[=true|false]      Show only archived repositories
+      --fork[=true|false]          Show only forks
+  -q, --jq expression              Filter JSON output using a jq expression
+      --json fields                Output JSON with the specified fields
+  -l, --language string            Filter by primary coding language
+  -L, --limit int                  Maximum number of repositories to list (default 30)
+      --no-archived[=true|false]   Omit archived repositories
+      --source[=true|false]        Show only non-forks
+  -t, --template string            Format JSON output using a Go template; see "gh help formatting"
+      --topic strings              Filter by topic
+      --visibility string          Filter by repository visibility: {public|private|internal}
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 JSON FIELDS
   archivedAt, assignableUsers, codeOfConduct, contactLinks, createdAt,

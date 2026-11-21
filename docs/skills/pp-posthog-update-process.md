@@ -2,6 +2,17 @@
 
 Use this Skill Maintenance Doc for the local `pp-posthog` skill, which wraps the Printing Press PostHog CLI for Pi.
 
+## Installation method (since 2026-11-21)
+
+The CLI is installed with Go, pinned to the reviewed stamped release-ledger commit, like `klaviyo-pp-cli`:
+
+```bash
+GOFLAGS=-trimpath GOBIN="$HOME/.local/bin" go install \
+  github.com/mvanhorn/printing-press-library/library/developer-tools/posthog/cmd/posthog-pp-cli@986b1df61eb325952a0a9fe0fed98c8bdd64e740
+```
+
+It still reports `posthog-pp-cli 2026.10.1`, the latest release; no PostHog changes landed after that ledger commit. `go version -m` records module version `v0.0.0-20261023142436-986b1df61eb3` instead of a local `(devel)` build. On upgrade, pin the next stamped ledger commit. The earlier hand-built copy was removed; its backup was later deleted. The clone-and-copy procedure in "CLI-only installation" below is historical.
+
 ## Source of truth
 
 - Upstream repo: `mvanhorn/printing-press-library`

@@ -1,7 +1,7 @@
 # gh codespace rebuild
 
 Source: https://cli.github.com/manual/gh_codespace_rebuild
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help codespace rebuild`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help codespace rebuild`.
 
 ## Summary
 
@@ -25,12 +25,12 @@ USAGE
 
 FLAGS
   -c, --codespace string    Name of the codespace
-      --full                Perform a full rebuild
+      --full[=true|false]   Perform a full rebuild
   -R, --repo string         Filter codespace selection by repository name (user/repo)
       --repo-owner string   Filter codespace selection by repository owner (username or org)
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

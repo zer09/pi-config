@@ -486,9 +486,19 @@ class FirestoreSafetyContract(unittest.TestCase):
         config = (PACKAGE / "lib/firestore/fsConfig.js").read_text()
         create = (PACKAGE / "lib/commands/firestore-databases-create.js").read_text()
         for term in ("options.config.data.firestore", "firestoreCfg = firestoreCfg[0]",
-                     "if (e.status === 404)", 'locationId: firestoreCfg.location || "nam5"',
-                     "await api.createDatabase(createDatabaseReq)"):
+                     "if (e.status === 404)", "await api.createDatabase(createDatabaseReq)"):
             self.assertIn(term, prepare)
+        # 15.37.0 moves the unchanged nam5 fallback into a constant; real deploys still create.
+        self.assertTrue('locationId: firestoreCfg.location || "nam5"' in prepare
+                        or ('const DEFAULT_FIRESTORE_LOCATION = "nam5"' in prepare
+                            and "firestoreCfg.location || DEFAULT_FIRESTORE_LOCATION" in prepare))
+        if "if (options.dryRun)" in prepare:
+            # Dry run skips creation only after the API-enabling ensure hook.
+            self.assertLess(prepare.index("ensureApiEnabled_1.ensure)(context.projectId"),
+                            prepare.index("await createDatabase(context, options)"))
+            for edition in ("standard", "enterprise"):
+                text = (self.skill / f"references/{edition}/provisioning.md").read_text()
+                self.assertIn("still ensures the Firestore API is enabled first", text)
         for selector in ("rules", "indexes"):
             self.assertIn(f'if (onlyDatabases.has("{selector}"))', config)
         self.assertIn("allDatabases = true", config)
@@ -511,7 +521,7 @@ class FirestoreSafetyContract(unittest.TestCase):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package-dir", type=Path, required=True)
-    parser.add_argument("--expected-version", choices=("15.32.0", "15.36.0"), default="15.32.0")
+    parser.add_argument("--expected-version", choices=("15.32.0", "15.36.0", "15.37.0"), default="15.32.0")
     args, remaining = parser.parse_known_args()
     EXPECTED_VERSION = args.expected_version
     PACKAGE = args.package_dir.resolve(strict=True)

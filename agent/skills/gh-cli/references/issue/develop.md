@@ -1,7 +1,7 @@
 # gh issue develop
 
 Source: https://cli.github.com/manual/gh_issue_develop
-Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help issue develop`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help issue develop`.
 
 ## Summary
 
@@ -25,15 +25,15 @@ USAGE
   gh issue develop {<number> | <url>} [flags]
 
 FLAGS
-  -b, --base string          Name of the remote branch you want to make your new branch from
-      --branch-repo string   Name or URL of the repository where you want to create your new branch
-  -c, --checkout             Checkout the branch after creating it
-  -l, --list                 List linked branches for the issue
-  -n, --name string          Name of the branch to create
-      --worktree path        Check out the branch into a worktree at the given path
+  -b, --base string             Name of the remote branch you want to make your new branch from
+      --branch-repo string      Name or URL of the repository where you want to create your new branch
+  -c, --checkout[=true|false]   Checkout the branch after creating it
+  -l, --list[=true|false]       List linked branches for the issue
+  -n, --name string             Name of the branch to create
+      --worktree path           Check out the branch into a worktree at the given path
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

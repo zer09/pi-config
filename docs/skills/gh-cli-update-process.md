@@ -1,8 +1,18 @@
 # Updating the gh-cli skill
 
+## Installation method (since 2026-11-21)
+
+`gh` comes from the openSUSE package (`zypper`, package `gh`, repository openSUSE-Tumbleweed-Oss) at `/usr/bin/gh`. It was 2.105.0 when the switch was made. The earlier hand-copied `~/.local/bin/gh` was removed (its backup was later deleted), and `gh auth status` still succeeds because authentication lives in `~/.config/gh`. Update the CLI with the system (`sudo zypper up gh`), then regenerate references from the installed `gh`. Do not copy release binaries into `~/.local/bin` again: that directory precedes `/usr/bin` on `PATH` and would shadow the package. The binary-download and copy steps below are historical.
+
 ## Pi 1.5.2 installation
 
 The prepared official gh 2.103.3 binary is now installed at its existing user-local path and passes a network-denied native version check. No GitHub product/write/login action ran. The refreshed manuals and authorization rules remain unchanged. See the [installation record](../changelogs/pi-1.5.2-full-setup-installation.md); older preparation facts below remain historical.
+
+## Pi 1.6.0 maintenance: prepared 2.105.0 (not installed)
+
+The live `~/.local/bin/gh` remains 2.103.3. Official [v2.105.0](https://github.com/cli/cli/releases/tag/v2.105.0), published 2026-11-18, tag commit `e1219499a578b69e3437adaa31cd60614e23c802`, is prepared under `RUN/cli/gh/native/gh` (mode 0755). The archive `gh_2.105.0_linux_amd64.tar.gz` SHA-256 `79e7ab5db738c48777b696e374f8b428f0647debfb424f44d2f426370407fe2f` and checksum manifest SHA-256 `4597138ea96e474c68001370c0a4955ff4834ba603c53900de6ebbef4cb0bed9` match the release-asset digests; the archive matches its manifest entry. Candidate binary SHA-256: `fa7cff06d4db9eee98e00b10ac93beebfe1822109ac04a6cbbf9d806c21d0073`.
+
+Release review (2.104.0, 2.105.0): no auth/credential-format or hosted-write default change. `gh repo delete` now requires `--accept-cascading-deletion-of-private-forks` with `--yes` non-interactively when private forks would be deleted (stricter). 2.105.0 adds the preview `gh event` family (`listen`, `subscription create/list/view/delete`); `listen` creates or reuses a server-side subscription and blocks, so `references/index.md` gates it and subscription create/delete as hosted writes. The pflag 1.1.0 bump renders boolean flags as `--flag[=true|false]` and realigns flag columns, so 241 existing pages changed text; only 11 changed beyond that rendering (`api`, `auth setup-git`, `cache delete`, root help, `help environment`, `help reference`, `pr`, `pr view`, `repo delete`, `run view`, `run watch`). Four help topics are identical; seven `event` pages are new; none were removed. The root, description, UI metadata and URL normalizer are unchanged.
 
 Purpose: keep `agent/skills/gh-cli/SKILL.md` as a small runtime router, keep `references/index.md` as the command-family map, and keep exact command syntax in one reference file per command or subcommand.
 
@@ -16,7 +26,7 @@ Preserve the local GitHub URL normalization rule: when a user supplies a GitHub 
 
 - Manual root: https://cli.github.com/manual/
 - Command index: https://cli.github.com/manual/gh
-- Local generator source: built-in `gh help` output from the verified official GitHub CLI. The current comparison used the prepared `gh version 2.103.3 (2026-10-26)` candidate, not the live binary. Earlier generation used 2.95.0, 2.96.0, 2.97.0, and 2.101.0; unchanged pages retain their earlier attribution after a complete command-tree comparison found identical normalized help text.
+- Local generator source: built-in `gh help` output from the verified official GitHub CLI. The current comparison used the prepared `gh version 2.105.0 (2026-11-17)` candidate, not the live binary. Earlier generation used 2.95.0, 2.96.0, 2.97.0, 2.101.0, and 2.103.3; unchanged pages retain their earlier attribution after a complete command-tree comparison found identical normalized help text.
 
 ## Prepared candidate and provenance (S3)
 
@@ -86,9 +96,11 @@ Keep extension-generated help out of the core references and comprehensive `gh h
 11. Run `uv run python -B ~/.pi/agent/skills/gh-cli/scripts/test_normalize_github_url.py`. The suite covers HTTPS and both SSH repo forms, PRs, issues, discussions, comments/reviews, commits, action runs, releases, comparisons, blobs, trees, fallback routes, and slash-ref ambiguity. Valid results have exactly top-level `references` and `gh.argv`, with no `gh.references` or `clone_argv`. Invalid results use unsupported JSON and exit 2. Tests block network/process calls and cover every ASCII control character, raw and percent-decoded, including HTTPS path parameters and SSH query/fragment inputs. Malformed authorities must not raise parser exceptions. Compile Python files with `PYTHONPYCACHEPREFIX` set to a temporary directory, not the skill folder.
 12. Verify exact set equality between the recursively discovered pages, reference files, and inventory below. Check index families, subcommand links, source/version attribution, `git diff --check`, and artifact/secret/home-path scans. Compare protected binary/config/extension and unrelated-file fingerprints to the pre-update state. Do not stage, commit, push, or mutate hosted services as part of validation.
 
-## Current inventory (prepared 2.103.3)
+## Current inventory (prepared 2.105.0)
 
-The core snapshot contains 245 help pages: root help, 236 command/alias pages, and eight help topics. The complete comparison against the existing 2.101.0-verified snapshot changed 23 existing manuals, preserved 215 pages byte-for-byte, and added seven issue-artifact pages. No generated page was removed. The default `co` alias is included; alternate spellings in `ALIASES` sections have no duplicate pages. The comprehensive core reference independently matches all 236 command/alias paths.
+The core snapshot contains 252 help pages: root help, 243 command/alias pages, and eight help topics. The 2.103.3 to 2.105.0 comparison changed 241 existing pages, preserved four help topics, and added seven `event` pages. The 2.103.3 record follows.
+
+The 2.103.3 snapshot contained 245 help pages: root help, 236 command/alias pages, and eight help topics. The complete comparison against the existing 2.101.0-verified snapshot changed 23 existing manuals, preserved 215 pages byte-for-byte, and added seven issue-artifact pages. No generated page was removed. The default `co` alias is included; alternate spellings in `ALIASES` sections have no duplicate pages. The comprehensive core reference independently matches all 236 command/alias paths.
 
 ### Validation record (S3, prepared only)
 
@@ -173,6 +185,13 @@ The 2.101.0 core snapshot contained 238 help pages: root help, 229 command/alias
 - `gh discussion edit` -> `references/discussion/edit.md`
 - `gh discussion list` -> `references/discussion/list.md`
 - `gh discussion view` -> `references/discussion/view.md`
+- `gh event` -> `references/event.md`
+- `gh event listen` -> `references/event/listen.md`
+- `gh event subscription` -> `references/event/subscription.md`
+- `gh event subscription create` -> `references/event/subscription/create.md`
+- `gh event subscription delete` -> `references/event/subscription/delete.md`
+- `gh event subscription list` -> `references/event/subscription/list.md`
+- `gh event subscription view` -> `references/event/subscription/view.md`
 - `gh extension` -> `references/extension.md`
 - `gh extension browse` -> `references/extension/browse.md`
 - `gh extension create` -> `references/extension/create.md`

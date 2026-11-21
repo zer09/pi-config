@@ -1,7 +1,7 @@
 # gh release delete
 
 Source: https://cli.github.com/manual/gh_release_delete
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help release delete`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help release delete`.
 
 ## Summary
 
@@ -20,11 +20,11 @@ USAGE
   gh release delete <tag> [flags]
 
 FLAGS
-      --cleanup-tag   Delete the specified tag in addition to its release
-  -y, --yes           Skip the confirmation prompt
+      --cleanup-tag[=true|false]   Delete the specified tag in addition to its release
+  -y, --yes[=true|false]           Skip the confirmation prompt
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 LEARN MORE

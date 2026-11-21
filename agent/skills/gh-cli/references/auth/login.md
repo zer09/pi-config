@@ -1,7 +1,7 @@
 # gh auth login
 
 Source: https://cli.github.com/manual/gh_auth_login
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help auth login`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help auth login`.
 
 ## Summary
 
@@ -64,18 +64,18 @@ USAGE
   gh auth login [flags]
 
 FLAGS
-  -c, --clipboard             Copy one-time OAuth device code to clipboard
-      --expiring              Prefer expiring credentials that gh refreshes automatically, if the host supports them
-  -p, --git-protocol string   The protocol to use for git operations on this host: {ssh|https}
-  -h, --hostname string       The hostname of the GitHub instance to authenticate with
-      --insecure-storage      Save authentication credentials in plain text instead of credential store
-  -s, --scopes strings        Additional authentication scopes to request
-      --skip-ssh-key          Skip generate/upload SSH key prompt
-  -w, --web                   Open a browser to authenticate
-      --with-token            Read token from standard input
+  -c, --clipboard[=true|false]          Copy one-time OAuth device code to clipboard
+      --expiring[=true|false]           Prefer expiring credentials that gh refreshes automatically, if the host supports them
+  -p, --git-protocol string             The protocol to use for git operations on this host: {ssh|https}
+  -h, --hostname string                 The hostname of the GitHub instance to authenticate with
+      --insecure-storage[=true|false]   Save authentication credentials in plain text instead of credential store
+  -s, --scopes strings                  Additional authentication scopes to request
+      --skip-ssh-key[=true|false]       Skip generate/upload SSH key prompt
+  -w, --web[=true|false]                Open a browser to authenticate
+      --with-token[=true|false]         Read token from standard input
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Start interactive setup

@@ -1,7 +1,7 @@
 # gh codespace ssh
 
 Source: https://cli.github.com/manual/gh_codespace_ssh
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help codespace ssh`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help codespace ssh`.
 
 ## Summary
 
@@ -51,17 +51,17 @@ USAGE
   gh codespace ssh [<flags>...] [-- <ssh-flags>...] [<command>]
 
 FLAGS
-  -c, --codespace string    Name of the codespace
-      --config              Write OpenSSH configuration to stdout
-  -d, --debug               Log debug data to a file
-      --debug-file string   Path of the file log to
-      --profile string      Name of the SSH profile to use
-  -R, --repo string         Filter codespace selection by repository name (user/repo)
-      --repo-owner string   Filter codespace selection by repository owner (username or org)
-      --server-port int     SSH server port number (0 => pick unused)
+  -c, --codespace string      Name of the codespace
+      --config[=true|false]   Write OpenSSH configuration to stdout
+  -d, --debug[=true|false]    Log debug data to a file
+      --debug-file string     Path of the file log to
+      --profile string        Name of the SSH profile to use
+  -R, --repo string           Filter codespace selection by repository name (user/repo)
+      --repo-owner string     Filter codespace selection by repository owner (username or org)
+      --server-port int       SSH server port number (0 => pick unused)
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   $ gh codespace ssh

@@ -155,7 +155,11 @@ crit pull [number|url]                                  # Fetch PR/MR comments i
 crit push [--dry-run] [--event <type>] [-m <msg>] [number|url]
 crit pull --forge github <number>                       # Select the requested GitHub provider
 crit pull --forge gitlab <number>                       # Select the requested GitLab provider
+crit pull --viewed [number|url]                         # Also merge files ticked viewed on the GitHub PR
+crit push --viewed [number|url]                         # Also tick locally viewed files on the GitHub PR
 ```
+
+`--viewed` is GitHub-only and opt-in. With `pull`, it writes viewed marks into the local review file. With `push`, it changes the PR's viewed state after the review posts, so it needs an explicit request beyond the review push itself. `push --dry-run --viewed` only previews. Crit does not push a file as viewed if it changed after being marked.
 
 GitHub requires authenticated `gh`; GitLab requires authenticated `glab`, not `gh`. Use the `gh-cli` skill and authenticated `gh` for separate GitHub reads. Do not install CLIs or change authentication as a side effect.
 

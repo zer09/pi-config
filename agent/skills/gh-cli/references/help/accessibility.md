@@ -1,7 +1,7 @@
 # gh help accessibility
 
 Source: https://cli.github.com/manual/gh_help_accessibility
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help accessibility`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help accessibility`.
 
 ## Summary
 
@@ -88,10 +88,10 @@ ALIASES
   gh a11y
 
 FLAGS
-  -w, --web   Open the GitHub Accessibility site in your browser
+  -w, --web[=true|false]   Open the GitHub Accessibility site in your browser
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Open the GitHub Accessibility site in your browser

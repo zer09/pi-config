@@ -1,7 +1,7 @@
 # gh extension browse
 
 Source: https://cli.github.com/manual/gh_extension_browse
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help extension browse`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help extension browse`.
 
 ## Summary
 
@@ -39,11 +39,11 @@ USAGE
   gh extension browse [flags]
 
 FLAGS
-      --debug           Log to /tmp/extBrowse-*
-  -s, --single-column   Render TUI with only one column of text
+      --debug[=true|false]           Log to /tmp/extBrowse-*
+  -s, --single-column[=true|false]   Render TUI with only one column of text
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

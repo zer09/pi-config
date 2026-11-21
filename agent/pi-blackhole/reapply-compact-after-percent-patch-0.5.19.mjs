@@ -6,12 +6,12 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Candidate only: no default target, live install, dependency loading, or subprocesses.
-// Usage: node reapply-compact-after-percent-patch-0.5.18.mjs "$TMPDIR/isolated-package"
-// Fingerprints come from the registry-SRI-verified pi-blackhole@0.5.18 tarball.
+// Usage: node reapply-compact-after-percent-patch-0.5.19.mjs "$TMPDIR/isolated-package"
+// Fingerprints come from the registry-SRI-verified pi-blackhole@0.5.19 tarball.
 const patches = [
   {
     rel: "src/core/unified-config.ts",
-    sha256: "2c9b73c002e749b48bbcaa84b6f9f75d13a730adbbe3a4a0d883c5933350d3f8",
+    sha256: "06868f9815ce7ba47bc5b6e0bdb6ac4f2776123c24ce8b8b65f55dc925a95e94",
     edits: [
       [
         `  compactAfterTokens?: number;\n  /**\n   * Context-window-derived auto-compaction threshold (issue #60):`,
@@ -65,7 +65,7 @@ const patches = [
   },
   {
     rel: "package.json",
-    sha256: "cd74bc0bc196304294ea0afd20728326e3fb3c735d1583d639a8ec4d0a3e1577",
+    sha256: "72db9431870578fa18906fe504626b105df925b6e1827ccd9b1744a9d3229200",
     edits: [
       [
         `  "pi": {\n    "extensions": [\n      "./dist/index.js"\n    ]\n  }`,
@@ -78,7 +78,7 @@ const patches = [
 // The source entrypoint and both trigger call sites must still be the audited stock code.
 const unchangedFiles = [
   ["index.ts", "fd386003c4f88da2ca25c0de97042294ed4b8b6621cf3ce550180b58621b0637"],
-  ["src/om/compaction-trigger.ts", "9de44d4d59eab66746f8ea5f406cf60aa9c35ddfd9e3a0da91c7bb7e8d32c64c"],
+  ["src/om/compaction-trigger.ts", "e5259536c5409465da11b04a98ce81d2c76a6095acb6591f4dfeb56ff954025a"],
 ];
 
 function sha256(content) {
@@ -129,7 +129,7 @@ function planPatch(patch, content) {
 
 export function reapplyCompactAfterPercentPatch(target) {
   if (typeof target !== "string" || target.trim() === "") {
-    throw new Error("Supply an explicit isolated pi-blackhole@0.5.18 package directory under the OS temp directory.");
+    throw new Error("Supply an explicit isolated pi-blackhole@0.5.19 package directory under the OS temp directory.");
   }
   if (!process.env.TMPDIR || !isAbsolute(process.env.TMPDIR) || realpathSync(process.env.TMPDIR) !== process.env.TMPDIR) {
     throw new Error("Supply an explicit canonical TMPDIR for disposable extractions.");
@@ -147,8 +147,8 @@ export function reapplyCompactAfterPercentPatch(target) {
 
   const manifest = readIsolatedFile(root, "package.json");
   const pkg = JSON.parse(manifest);
-  if (pkg.name !== "pi-blackhole" || pkg.version !== "0.5.18") {
-    throw new Error("Expected exactly pi-blackhole@0.5.18; no files changed.");
+  if (pkg.name !== "pi-blackhole" || pkg.version !== "0.5.19") {
+    throw new Error("Expected exactly pi-blackhole@0.5.19; no files changed.");
   }
 
   // Preflight every file and anchor before the first write. Partial patch sets are not repaired.
@@ -162,7 +162,7 @@ export function reapplyCompactAfterPercentPatch(target) {
   if (new Set(plans.map((plan) => plan.stock)).size !== 1) {
     throw new Error("Mixed stock and patched files; no files changed.");
   }
-  if (!plans[0].stock) return "already patched: isolated pi-blackhole@0.5.18";
+  if (!plans[0].stock) return "already patched: isolated pi-blackhole@0.5.19";
 
   // Open every destination before writing so a permission failure cannot leave
   // earlier files patched. This does not make the multi-file write atomic.
@@ -185,10 +185,10 @@ export function reapplyCompactAfterPercentPatch(target) {
   } finally {
     for (const { fd } of opened) closeSync(fd);
   }
-  return "patched: isolated pi-blackhole@0.5.18 compactAfterPercent candidate";
+  return "patched: isolated pi-blackhole@0.5.19 compactAfterPercent candidate";
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (process.argv.length !== 3) throw new Error("Usage: helper $TMPDIR/isolated-pi-blackhole-0.5.18-package");
+  if (process.argv.length !== 3) throw new Error("Usage: helper $TMPDIR/isolated-pi-blackhole-0.5.19-package");
   console.log(reapplyCompactAfterPercentPatch(process.argv[2]));
 }

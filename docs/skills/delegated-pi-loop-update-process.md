@@ -204,7 +204,7 @@ Diagnostics and analyzer maintenance: schema-version changes to run telemetry mu
 
 Run each command block from the checkout being maintained, not the live Pi config. Use an explicit working directory and bounded output. Do not deploy or reload as a validation step.
 
-Run the extension suite in an offline test environment with a disposable home. Set `PI_SESSION_PROJECTION_PACKAGE_ROOT` to the absolute path of the isolated `@earendil-works/pi-coding-agent` package (currently 1.5.2), and put its `pi` executable on `PATH`. The session-history tests use that exact SDK; they do not fall back to another version.
+Run the extension suite in an offline test environment with a disposable home. Set `PI_SESSION_PROJECTION_PACKAGE_ROOT` to the absolute path of the isolated `@earendil-works/pi-coding-agent` package (currently 1.6.0), and put its `pi` executable on `PATH`. The session-history tests use that exact SDK; they do not fall back to another version.
 
 ```bash
 cd agent/extensions/delegated-pi-loop

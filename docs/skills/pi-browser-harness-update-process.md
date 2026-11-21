@@ -9,7 +9,11 @@
 
 Upstream/package guidance is input, not final truth. A local overlay edit is not a package sync and does not change package versions or recorded provenance.
 
-## Installed package: 0.19.1 with recipe snapshot repair
+## Installed package: 0.19.2 with recipe snapshot repair
+
+The repaired 0.19.2 package was installed on 2026-11-21. Use only `agent/pi-browser-harness/reapply-recipe-snapshot-patch-0.19.2.mjs` on a fresh SRI-verified extraction. The bundled package skill stays disabled with `skills: []`. See [LOCAL_PATCHES.md](../../agent/pi-browser-harness/LOCAL_PATCHES.md) and the [post-upgrade record](../changelogs/pi-1.6.0-post-upgrade-compatibility-and-skills.md).
+
+## Previously installed package: 0.19.1 with recipe snapshot repair
 
 The reviewed package is installed and passes actual installed-file SDK and bundled/unbundled RPC checks. The package skill exclusion, profile and local consent rules remain unchanged. No live browser call occurred. See the [installation record](../changelogs/three-extension-upgrade-installation.md). The preparation evidence below remains historical.
 

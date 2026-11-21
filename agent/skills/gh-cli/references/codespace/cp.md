@@ -1,7 +1,7 @@
 # gh codespace cp
 
 Source: https://cli.github.com/manual/gh_codespace_cp
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help codespace cp`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help codespace cp`.
 
 ## Summary
 
@@ -40,15 +40,15 @@ USAGE
   gh codespace cp [-e] [-r] [-- [<scp flags>...]] <sources>... <dest>
 
 FLAGS
-  -c, --codespace string    Name of the codespace
-  -e, --expand              Expand remote file names on remote shell
-  -p, --profile string      Name of the SSH profile to use
-  -r, --recursive           Recursively copy directories
-  -R, --repo string         Filter codespace selection by repository name (user/repo)
-      --repo-owner string   Filter codespace selection by repository owner (username or org)
+  -c, --codespace string         Name of the codespace
+  -e, --expand[=true|false]      Expand remote file names on remote shell
+  -p, --profile string           Name of the SSH profile to use
+  -r, --recursive[=true|false]   Recursively copy directories
+  -R, --repo string              Filter codespace selection by repository name (user/repo)
+      --repo-owner string        Filter codespace selection by repository owner (username or org)
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   $ gh codespace cp -e README.md 'remote:/workspaces/$RepositoryName/'

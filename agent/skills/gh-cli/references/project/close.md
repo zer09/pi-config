@@ -1,7 +1,7 @@
 # gh project close
 
 Source: https://cli.github.com/manual/gh_project_close
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project close`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help project close`.
 
 ## Summary
 
@@ -22,14 +22,14 @@ USAGE
   gh project close [<number>] [flags]
 
 FLAGS
-      --format string     Output format: {json}
-  -q, --jq expression     Filter JSON output using a jq expression
-      --owner string      Login of the owner. Use "@me" for the current user.
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
-      --undo              Reopen a closed project
+      --format string       Output format: {json}
+  -q, --jq expression       Filter JSON output using a jq expression
+      --owner string        Login of the owner. Use "@me" for the current user.
+  -t, --template string     Format JSON output using a Go template; see "gh help formatting"
+      --undo[=true|false]   Reopen a closed project
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Close project "1" owned by monalisa

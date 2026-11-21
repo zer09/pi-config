@@ -1,7 +1,7 @@
 # gh issue artifact download
 
 Source: https://cli.github.com/manual/gh_issue_artifact_download
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help issue artifact download`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help issue artifact download`.
 
 ## Summary
 
@@ -33,14 +33,14 @@ USAGE
   gh issue artifact download {<issue> [<artifact-number>...] | <artifact-url>...} [flags]
 
 FLAGS
-      --clobber          Overwrite existing files of the same name
-  -D, --dir directory    The directory to download files into (default ".")
-  -O, --output file      The file to write a single artifact to (use "-" to write to standard output)
-      --skip-existing    Skip downloading when files of the same name exist
-      --version number   Download the version with this number from the edit history
+      --clobber[=true|false]         Overwrite existing files of the same name
+  -D, --dir directory                The directory to download files into (default ".")
+  -O, --output file                  The file to write a single artifact to (use "-" to write to standard output)
+      --skip-existing[=true|false]   Skip downloading when files of the same name exist
+      --version number               Download the version with this number from the edit history
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

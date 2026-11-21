@@ -1,7 +1,7 @@
 # gh extension install
 
 Source: https://cli.github.com/manual/gh_extension_install
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help extension install`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help extension install`.
 
 ## Summary
 
@@ -49,11 +49,11 @@ USAGE
   gh extension install <repository> [flags]
 
 FLAGS
-  --force        Force upgrade extension, or ignore if latest already installed
-  --pin string   Pin extension to a release tag or commit ref
+  --force[=true|false]   Force upgrade extension, or ignore if latest already installed
+  --pin string           Pin extension to a release tag or commit ref
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Install an extension from a remote repository hosted on GitHub

@@ -1,7 +1,7 @@
 # gh pr checks
 
 Source: https://cli.github.com/manual/gh_pr_checks
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help pr checks`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help pr checks`.
 
 ## Summary
 
@@ -31,17 +31,17 @@ USAGE
   gh pr checks [<number> | <url> | <branch>] [flags]
 
 FLAGS
-      --fail-fast         Exit watch mode on first check failure
-  -i, --interval int      Refresh interval in seconds in watch mode (default 10)
-  -q, --jq expression     Filter JSON output using a jq expression
-      --json fields       Output JSON with the specified fields
-      --required          Only show checks that are required
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
-      --watch             Watch checks until they finish
-  -w, --web               Open the web browser to show details about checks
+      --fail-fast[=true|false]   Exit watch mode on first check failure
+  -i, --interval int             Refresh interval in seconds in watch mode (default 10)
+  -q, --jq expression            Filter JSON output using a jq expression
+      --json fields              Output JSON with the specified fields
+      --required[=true|false]    Only show checks that are required
+  -t, --template string          Format JSON output using a Go template; see "gh help formatting"
+      --watch[=true|false]       Watch checks until they finish
+  -w, --web[=true|false]         Open the web browser to show details about checks
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 JSON FIELDS

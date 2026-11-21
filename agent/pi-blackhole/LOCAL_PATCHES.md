@@ -1,6 +1,16 @@
 # Local pi-blackhole patches
 
-Only the three `0.5.18` helpers below are maintained. Run `port-0.5.18.test.mjs` and its behavior, worker and context suites against disposable targets. The guard suite checks the full reviewed package digest; the context suite uses `context-projection.fixture.mjs` directly. Historical helpers and suites mentioned in the dated records live at `d752800`, not in the current tree.
+Only the three `0.5.19` helpers below are maintained. Run `port-0.5.19.test.mjs` with `PI_BLACKHOLE_0_5_19_TARBALL` and a disposable `TMPDIR`, then the behavior, worker and context suites with `PI_BLACKHOLE_STOCK_ROOT`, `PI_BLACKHOLE_PACKAGE_ROOT` and `PI_BLACKHOLE_TEST_RUNTIME` (an isolated Pi 1.6.0 install that also contains stock Bridge 0.13.0). The guard suite checks the full reviewed package digest; the context suite uses `context-projection.fixture.mjs` directly. The 0.5.18 helpers and suites are retrievable with `git show afe1086:<path>`; older ones live at `d752800`.
+
+## 0.5.19 with three repairs installed on Pi 1.6.0
+
+Installed on 2026-11-21 from the verified candidate graph, and unchanged after a fresh Pi start. The backup of the previous cache was later deleted at the user's request. The installed package has the repaired identity below. Before this, the cache held repaired 0.5.18 (`94240a11…`) while settings already pinned 0.5.19. See the [post-upgrade record](../../docs/changelogs/pi-1.6.0-post-upgrade-compatibility-and-skills.md).
+
+Registry artifact: gitHead `db2fcaebbe8a19376ea46f0dbef7aa218edd10ba`, SRI `sha512-higTGzS5JBkSRCcj+30ZHvR8xyaRWGZnENv6Q6l9JVml4bk36lFmGvsyNlLGYxbj62nBVR1dLLNIoo6g9ShXBg==`. Upstream 0.5.19 still lacks all three repairs: stock fails eight of nine context checks and three of five percentage checks.
+
+The helpers keep every guard and transformation. Only stock and prerequisite hashes changed, plus two context-edit anchors: the hook's type import now includes `ExtensionContext`, and the retained-tail predicate is now `isProviderConversationEntry`. The complete stock-to-repaired delta is line-identical to the accepted 0.5.18 delta apart from those two names. The repaired package has 147 files with identity `a78ea6b206254f8b31ae50a69ee45c54585ef890d4cb31c2ac51842673db7fea`; the manifest selects `./index.ts` and `dist` stays stock.
+
+Results on Pi 1.6.0: guards 10/10, behavior 5/5, workers 25/25, context 9/9 including Blackhole-owned summaries with stock Bridge 0.13.0 and zero SDK calls. The worker suite now expects `showPreCompactionMessage: false` because 0.5.19 reads the file option; the wrapper variable still takes precedence. Configuration is unchanged. Upstream's new transient-failure cooldown (5 minutes) applies to the Gemini fallbacks; Terra primaries keep `cooldownHours: 0`. With GPT-6.2 Sol (500K) the effective threshold is 325,000 tokens, and with Astra (272K) it is 176,800.
 
 ## Blackhole 0.5.18 installed on Pi 1.5.2
 

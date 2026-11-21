@@ -1,7 +1,7 @@
 # gh discussion edit
 
 Source: https://cli.github.com/manual/gh_discussion_edit
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help discussion edit`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help discussion edit`.
 
 ## Summary
 
@@ -33,7 +33,7 @@ FLAGS
   -t, --title string             New title for the discussion
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Edit interactively

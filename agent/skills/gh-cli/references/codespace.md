@@ -1,7 +1,7 @@
 # gh codespace
 
 Source: https://cli.github.com/manual/gh_codespace
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help codespace`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help codespace`.
 
 ## Summary
 
@@ -50,7 +50,7 @@ AVAILABLE COMMANDS
   view:          View details about a codespace
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

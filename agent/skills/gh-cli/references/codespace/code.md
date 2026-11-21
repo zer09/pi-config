@@ -1,7 +1,7 @@
 # gh codespace code
 
 Source: https://cli.github.com/manual/gh_codespace_code
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help codespace code`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help codespace code`.
 
 ## Summary
 
@@ -20,14 +20,14 @@ USAGE
   gh codespace code [flags]
 
 FLAGS
-  -c, --codespace string    Name of the codespace
-      --insiders            Use the insiders version of Visual Studio Code
-  -R, --repo string         Filter codespace selection by repository name (user/repo)
-      --repo-owner string   Filter codespace selection by repository owner (username or org)
-  -w, --web                 Use the web version of Visual Studio Code
+  -c, --codespace string        Name of the codespace
+      --insiders[=true|false]   Use the insiders version of Visual Studio Code
+  -R, --repo string             Filter codespace selection by repository name (user/repo)
+      --repo-owner string       Filter codespace selection by repository owner (username or org)
+  -w, --web[=true|false]        Use the web version of Visual Studio Code
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

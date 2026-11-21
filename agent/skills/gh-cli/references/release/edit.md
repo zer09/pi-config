@@ -1,7 +1,7 @@
 # gh release edit
 
 Source: https://cli.github.com/manual/gh_release_edit
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help release edit`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help release edit`.
 
 ## Summary
 
@@ -21,18 +21,18 @@ USAGE
 
 FLAGS
       --discussion-category string   Start a discussion in the specified category when publishing a draft
-      --draft                        Save the release as a draft instead of publishing it
-      --latest                       Explicitly mark the release as "Latest"
+      --draft[=true|false]           Save the release as a draft instead of publishing it
+      --latest[=true|false]          Explicitly mark the release as "Latest"
   -n, --notes string                 Release notes
   -F, --notes-file file              Read release notes from file (use "-" to read from standard input)
-      --prerelease                   Mark the release as a prerelease
+      --prerelease[=true|false]      Mark the release as a prerelease
       --tag string                   The name of the tag
       --target branch                Target branch or full commit SHA (default [main branch])
   -t, --title string                 Release title
-      --verify-tag                   Abort in case the git tag doesn't already exist in the remote repository
+      --verify-tag[=true|false]      Abort in case the git tag doesn't already exist in the remote repository
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

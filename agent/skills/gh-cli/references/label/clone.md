@@ -1,7 +1,7 @@
 # gh label clone
 
 Source: https://cli.github.com/manual/gh_label_clone
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help label clone`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help label clone`.
 
 ## Summary
 
@@ -30,10 +30,10 @@ USAGE
   gh label clone <source-repository> [flags]
 
 FLAGS
-  -f, --force   Overwrite labels in the destination repository
+  -f, --force[=true|false]   Overwrite labels in the destination repository
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

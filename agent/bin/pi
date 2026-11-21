@@ -9,7 +9,8 @@ unset PI_THEME_WRAPPER_INJECTED
 run_real_pi() {
   # Include the port used by the dedicated Windows Chrome profile.
   export BU_CDP_PORTS=9223
-  # Blackhole 0.5.18 ignores showPreCompactionMessage in its config file.
+  # Blackhole 0.5.18 ignores showPreCompactionMessage in its config file. 0.5.19 reads it,
+  # but this variable still takes precedence; keep it until the 0.5.19 repair is active.
   export PI_BLACKHOLE_SHOW_PRE_COMPACTION_MESSAGE="${PI_BLACKHOLE_SHOW_PRE_COMPACTION_MESSAGE:-false}"
   exec node --liftoff-only "$REAL_PI" "$@"
 }

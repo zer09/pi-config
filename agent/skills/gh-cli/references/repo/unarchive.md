@@ -1,7 +1,7 @@
 # gh repo unarchive
 
 Source: https://cli.github.com/manual/gh_repo_unarchive
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo unarchive`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help repo unarchive`.
 
 ## Summary
 
@@ -22,10 +22,10 @@ USAGE
   gh repo unarchive [<repository>] [flags]
 
 FLAGS
-  -y, --yes   Skip the confirmation prompt
+  -y, --yes[=true|false]   Skip the confirmation prompt
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

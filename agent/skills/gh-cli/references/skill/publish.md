@@ -1,7 +1,7 @@
 # gh skill publish
 
 Source: https://cli.github.com/manual/gh_skill_publish
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help skill publish`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help skill publish`.
 
 ## Summary
 
@@ -48,12 +48,12 @@ USAGE
   gh skill publish [<directory>] [flags]
 
 FLAGS
-  --dry-run      Validate without publishing
-  --fix          Auto-fix issues where possible without publishing (e.g. strip install metadata)
-  --tag string   Version tag for the release (e.g. v1.0.0)
+  --dry-run[=true|false]   Validate without publishing
+  --fix[=true|false]       Auto-fix issues where possible without publishing (e.g. strip install metadata)
+  --tag string             Version tag for the release (e.g. v1.0.0)
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Validate and publish interactively

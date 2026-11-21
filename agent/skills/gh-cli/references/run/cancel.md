@@ -1,7 +1,7 @@
 # gh run cancel
 
 Source: https://cli.github.com/manual/gh_run_cancel
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help run cancel`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help run cancel`.
 
 ## Summary
 
@@ -20,10 +20,10 @@ USAGE
   gh run cancel [<run-id>] [flags]
 
 FLAGS
-  --force   Force cancel a workflow run
+  --force[=true|false]   Force cancel a workflow run
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 LEARN MORE

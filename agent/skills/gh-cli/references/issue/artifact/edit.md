@@ -1,7 +1,7 @@
 # gh issue artifact edit
 
 Source: https://cli.github.com/manual/gh_issue_artifact_edit
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help issue artifact edit`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help issue artifact edit`.
 
 ## Summary
 
@@ -37,7 +37,7 @@ FLAGS
       --restore-version number   Restore the version with this number from the edit history
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

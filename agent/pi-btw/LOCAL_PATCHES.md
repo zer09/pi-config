@@ -1,6 +1,10 @@
 # Local pi-btw patches
 
-The only maintained helper is `reapply-model-runtime-patch-0.8.1.mjs`. Run `port-0.8.1.test.mjs` with `PI_BTW_0_8_1_TARBALL`, `PI_BTW_HOST_ROOT` (the isolated Pi 1.5.2 package), and a disposable `TMPDIR`. It checks cancellation against stock and repaired code, exact output, refusals and repeated application. Past helpers and their upgrade tests are available at `d752800`.
+The only maintained helper is `reapply-model-runtime-patch-0.8.1.mjs`. Run `port-0.8.1.test.mjs` with `PI_BTW_0_8_1_TARBALL`, `PI_BTW_HOST_ROOT` (the isolated Pi 1.6.0 package), and a disposable `TMPDIR`. It checks cancellation against stock and repaired code, exact output, refusals and repeated application. Past helpers and their upgrade tests are available at `d752800`.
+
+## Pi 1.6.0: installed bytes verified
+
+The installed 0.8.1 package is the exact patched build (`extensions/btw.ts` `7ad87e46…`, other seven files stock). Settings still pin 0.8.1, so Pi 1.6.0 does not reinstall it. On Pi 1.6.0 the port suite passes 6/6: stock still ignores cancellation, and the patched entry passes the exact signal and cancels while credential synchronization is pending. Child defaults stay empty. See the [post-upgrade record](../../docs/changelogs/pi-1.6.0-post-upgrade-compatibility-and-skills.md).
 
 ## Pi 1.5.2 installed
 

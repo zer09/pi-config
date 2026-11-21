@@ -1,7 +1,7 @@
 # gh attestation download
 
 Source: https://cli.github.com/manual/gh_attestation_download
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help attestation download`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help attestation download`.
 
 ## Summary
 
@@ -56,7 +56,7 @@ FLAGS
   -R, --repo string             Repository name in the format <owner>/<repo>
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Download attestations for a local artifact linked with an organization

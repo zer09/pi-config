@@ -1,7 +1,7 @@
 # gh pr update-branch
 
 Source: https://cli.github.com/manual/gh_pr_update-branch
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help pr update-branch`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help pr update-branch`.
 
 ## Summary
 
@@ -27,10 +27,10 @@ USAGE
   gh pr update-branch [<number> | <url> | <branch>] [flags]
 
 FLAGS
-  --rebase   Update PR branch by rebasing on top of latest base branch
+  --rebase[=true|false]   Update PR branch by rebasing on top of latest base branch
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

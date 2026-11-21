@@ -1,7 +1,7 @@
 # gh gist edit
 
 Source: https://cli.github.com/manual/gh_gist_edit
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help gist edit`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help gist edit`.
 
 ## Summary
 
@@ -26,7 +26,7 @@ FLAGS
   -r, --remove string     Remove a file from the gist
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Select a gist to edit interactively

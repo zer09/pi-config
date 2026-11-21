@@ -1,7 +1,7 @@
 # gh pr view
 
 Source: https://cli.github.com/manual/gh_pr_view
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help pr view`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help pr view`.
 
 ## Summary
 
@@ -24,20 +24,24 @@ and reviews. When output is piped or redirected, only comments and reviews are p
 
 With `--web` flag, open the pull request in a web browser instead.
 
+This command shows a snapshot. To wait for a pull request on `github.com` to be reviewed, merged, or closed,
+use `gh event listen` instead of polling.
+Changes made before the listener starts are not reported, so read the pull request once it is listening.
+
 For more information about output formatting flags, see `gh help formatting`.
 
 USAGE
   gh pr view [<number> | <url> | <branch>] [flags]
 
 FLAGS
-  -c, --comments          View pull request comments
-  -q, --jq expression     Filter JSON output using a jq expression
-      --json fields       Output JSON with the specified fields
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
-  -w, --web               Open a pull request in the browser
+  -c, --comments[=true|false]   View pull request comments
+  -q, --jq expression           Filter JSON output using a jq expression
+      --json fields             Output JSON with the specified fields
+  -t, --template string         Format JSON output using a Go template; see "gh help formatting"
+  -w, --web[=true|false]        Open a pull request in the browser
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 JSON FIELDS

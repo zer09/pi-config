@@ -1,7 +1,7 @@
 # gh
 
 Source: https://cli.github.com/manual/gh
-Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help` with isolated configuration and no extensions.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help` with isolated configuration and no extensions.
 
 ## Summary
 
@@ -32,6 +32,7 @@ Work seamlessly with GitHub from the command line.
 - [`completion`](completion.md) - Generate shell completion scripts
 - [`config`](config.md) - Manage configuration for gh
 - [`copilot`](copilot.md) - Run the GitHub Copilot CLI (preview)
+- [`event`](event.md) - Listen to GitHub events (preview)
 - [`extension`](extension.md) - Manage gh extensions
 - [`gpg-key`](gpg-key.md) - Manage GPG keys
 - [`label`](label.md) - Manage labels
@@ -93,6 +94,7 @@ ADDITIONAL COMMANDS
   completion:    Generate shell completion scripts
   config:        Manage configuration for gh
   copilot:       Run the GitHub Copilot CLI (preview)
+  event:         Listen to GitHub events (preview)
   extension:     Manage gh extensions
   gpg-key:       Manage GPG keys
   label:         Manage labels
@@ -116,8 +118,8 @@ HELP TOPICS
   telemetry:     Information about telemetry in gh
 
 FLAGS
-  --help      Show help for command
-  --version   Show gh version
+  --help[=true|false]      Show help for command
+  --version[=true|false]   Show gh version
 
 EXAMPLES
   $ gh issue create

@@ -1,7 +1,7 @@
 # gh ruleset check
 
 Source: https://cli.github.com/manual/gh_ruleset_check
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help ruleset check`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help ruleset check`.
 
 ## Summary
 
@@ -29,11 +29,11 @@ USAGE
   gh ruleset check [<branch>] [flags]
 
 FLAGS
-      --default   Check rules on default branch
-  -w, --web       Open the branch rules page in a web browser
+      --default[=true|false]   Check rules on default branch
+  -w, --web[=true|false]       Open the branch rules page in a web browser
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

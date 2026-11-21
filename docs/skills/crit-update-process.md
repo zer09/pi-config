@@ -1,8 +1,26 @@
 # Updating Crit skills
 
+## Installation method (since 2026-11-21)
+
+Crit is installed with Go, one of upstream's documented methods, pinned to a release tag:
+
+```bash
+GOBIN="$HOME/.local/bin" go install github.com/tomasz-tomczyk/crit/cmd/crit@v0.24.0
+```
+
+`GOBIN` must stay `~/.local/bin`: `/usr/bin/crit` is CRIU's unrelated `crit` and precedes `~/go/bin` on `PATH`, so a default `go install` would be shadowed. A `go install` build prints `crit dev` as its version; check the module version with `go version -m ~/.local/bin/crit`. Homebrew is the other official option but its formula lagged at 0.23.3. The earlier hand-copied binary and a stale `~/go/bin/crit` 0.23.2 were removed. The binary-download and copy steps below are historical.
+
 ## Pi 1.5.2 installation
 
 The prepared official Crit 0.23.2 binary is now installed at its existing user-local path and passes a network-denied native version check. System CRIU remains untouched. No product, share, login or foreground review action ran. See the [installation record](../changelogs/pi-1.5.2-full-setup-installation.md); older preparation facts below remain historical.
+
+## Pi 1.6.0 maintenance: v0.24.0 candidate prepared, not installed
+
+Official [v0.24.0](https://github.com/tomasz-tomczyk/crit/releases/tag/v0.24.0), published `2026-11-20T12:47:20Z`, resolves directly to commit `f28f95bea6aa3a37e1a05ca0293a35a474ce93a3` (`immutable: false`). Reviewed release notes for v0.23.3 and v0.24.0 and the source diff from `4458cce`. `crit-linux-amd64` (24899849 bytes) has SHA-256 `f58dbcc865a0c310845faeb88bde11f8d90b5ca811ac7d9f5384c9e51e3b0499`, and `checksums.txt` has `42463a4abbcb22a4937118726ea8c5067d3f55cab9008f479fb86e1d89df5def`. Both match GitHub's digests, and the binary matches the manifest. The candidate is staged under the private RUN prefix only. The live `~/.local/bin/crit` remains v0.23.2.
+
+Early dispatch is unchanged in [cli_dispatch.go:228-259](https://github.com/tomasz-tomczyk/crit/blob/f28f95bea6aa3a37e1a05ca0293a35a474ce93a3/cmd/crit/cli_dispatch.go#L228-L259): root `--help`/`--version` and immediate subcommand `--help` return before product handlers. Network-denied `--version`, root help and eleven subcommand help checks pass. Compared with v0.23.2, help differs only for `pull`/`push` (`--viewed`), `pr`/`mr` (the number is now optional and defaults to the current branch's PR/MR), and `preview` (Excalidraw). The new `languages` and `remote_images` config keys add settings and change no credential, keyring or cache format. Remote images are now blocked by default. Hosted defaults stay the same.
+
+Adopted: the GitHub-only, opt-in `--viewed` flag for `pull`/`push` in the CLI reference, plus a root gate note that `push --viewed` changes PR viewed state and needs its own request. Upstream Pi `crit-cli` (blob `c88983fcef2d767ef17a902ab24d04b156639b7a`) now uses author `Pi`, matching the local overlay. Upstream `crit` (`317158a…`) and `crit-story` (`038d204…`) are unchanged, so the local `crit` root stays unchanged and explicit-only. Rejected: Excalidraw/language/UI features and bare `--pr`/`--mr` inference as maintenance guidance. Interactive `$crit` still passes the user's explicit arguments through.
 
 Purpose: keep the local `crit` and `crit-cli` skills aligned with the verified Crit candidate and deployed baseline while preserving Pi review-loop behavior, hosted-service safety, and OpenAI skill-creator conventions.
 

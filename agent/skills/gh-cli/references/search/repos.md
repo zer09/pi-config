@@ -1,7 +1,7 @@
 # gh search repos
 
 Source: https://cli.github.com/manual/gh_search_repos
-Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help search repos`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help search repos`.
 
 ## Summary
 
@@ -30,7 +30,7 @@ USAGE
   gh search repos [<query>] [flags]
 
 FLAGS
-      --archived                    Filter based on the repository archived state {true|false}
+      --archived[=true|false]       Filter based on the repository archived state {true|false}
       --created date                Filter based on created at date
       --followers number            Filter based on number of followers
       --forks number                Filter on number of forks
@@ -53,10 +53,10 @@ FLAGS
       --topic strings               Filter on topic
       --updated date                Filter on last updated at date
       --visibility strings          Filter based on visibility: {public|private|internal}
-  -w, --web                         Open the search query in the web browser
+  -w, --web[=true|false]            Open the search query in the web browser
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 JSON FIELDS
   createdAt, defaultBranch, description, forksCount, fullName, hasDownloads,

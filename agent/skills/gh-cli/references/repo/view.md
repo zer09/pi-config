@@ -1,7 +1,7 @@
 # gh repo view
 
 Source: https://cli.github.com/manual/gh_repo_view
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo view`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help repo view`.
 
 ## Summary
 
@@ -28,14 +28,14 @@ USAGE
   gh repo view [<repository>] [flags]
 
 FLAGS
-  -b, --branch string     View a specific branch of the repository
-  -q, --jq expression     Filter JSON output using a jq expression
-      --json fields       Output JSON with the specified fields
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
-  -w, --web               Open a repository in the browser
+  -b, --branch string      View a specific branch of the repository
+  -q, --jq expression      Filter JSON output using a jq expression
+      --json fields        Output JSON with the specified fields
+  -t, --template string    Format JSON output using a Go template; see "gh help formatting"
+  -w, --web[=true|false]   Open a repository in the browser
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 JSON FIELDS
   archivedAt, assignableUsers, codeOfConduct, contactLinks, createdAt,

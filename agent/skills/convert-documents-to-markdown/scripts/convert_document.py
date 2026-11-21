@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-PACKAGE = "@firecrawl/anydoc@0.2.4"
+PACKAGE = "@firecrawl/anydoc@0.2.5"
 OFFICIAL_URL = "https://api.firecrawl.dev"
 LOCAL_TIMEOUT = 120
 HOSTED_TIMEOUT = 360

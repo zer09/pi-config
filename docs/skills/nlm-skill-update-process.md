@@ -6,7 +6,21 @@ Keep `agent/skills/nlm-skill` aligned with the published NotebookLM CLI and MCP 
 
 Apply [local skill invariants](local-skill-update-invariants.md) and the [slimming process](skill-slimming-process.md) before and after a sync. Classification remains `make it slim`; the installed-skill decision did not change. Upstream is input, not permission to replace local behavior.
 
-## Current 0.16.2 preparation
+## Pi 1.6.0 recheck: 0.16.5
+
+Rechecked on 2026-11-21 in a separate maintenance worktree. The uv-owned installation already reports `notebooklm-mcp-cli 0.16.5`, the latest stable release; no install or upgrade is needed.
+
+| Item | Exact current provenance |
+| --- | --- |
+| Release | [Official v0.16.5](https://github.com/jacob-bd/gemini-notebook-mcp-cli/releases/tag/v0.16.5), annotated tag `ede25c33e384b7576477729df967148ab7d7590c`, commit `3850c2b9a24834487b91bd3eb1751e018342e1c2`; v0.16.3 has release notes in `docs/releases/` but no GitHub release object |
+| Wheel | `notebooklm_mcp_cli-0.16.5-py3-none-any.whl`, SHA-256 `3c33cac11a47f59179ab170e6e06135b3aaf44c5153b5a469b6bd11157aee94f` |
+| Sdist | `notebooklm_mcp_cli-0.16.5.tar.gz`, SHA-256 `ec845d537d310e9d4865467dd11ea64a55b3569b867355f370b582abe910ad1c` |
+
+Both archives match PyPI digests; all 145 wheel `RECORD` hashes verify; all 145 non-RECORD wheel files match the installed distribution byte for byte, and all 141 packaged `notebooklm_tools` files match the tag source. The 0.16.2...0.16.5 diff changes manual-login cookie parsing (Copy-as-cURL `-b`/`--cookie`, `.google.com` preference in `login --file` imports), the Typer 0.29 storage-choice prompt, and a service-layer import boundary. Packaged `SKILL.md`/`AGENTS_SECTION.md` change only their version strings. No command, option, write default, credential-storage format, batch or pipeline behavior changed; the stricter local restrictions stay. Only the reference version markers moved to 0.16.5.
+
+A private wheel-pinned `uv tool install` candidate under the run directory rendered all 215 Typer command/group help schemas without callbacks, and the version callback reported 0.16.5 with only `check_for_updates` mocked, inside bwrap with network denial, an empty HOME and no user state. The focused 14-test contract suite passes against the 0.16.5 source. No login, profile, notebook, MCP server or browser action ran.
+
+## Historical 0.16.2 preparation
 
 Reviewed on 2026-11-13 in a separate maintenance worktree, not deployed. The installed/latest distribution is already `notebooklm-mcp-cli 0.16.2`; no install, upgrade, uninstall, sync, profile/auth operation, MCP server, browser, or product call ran. Keep uv ownership, the existing receipt requirement, both executable names, UI metadata, MCP dependency `notebooklm-mcp`, and classification `make it slim` unchanged.
 
@@ -102,10 +116,10 @@ Compared exact released `SKILL.md`, `AGENTS_SECTION.md`, and all six runtime ref
 
 1. Read the [maintenance README](README.md), local invariants, slimming process, and this document. Load `skill-creator`, `gh-cli`, and `uv`.
 2. Inspect repository status and the tool's symlink/uv receipt without invoking `nlm`. Preserve user changes and unrelated tools. Record non-secret preservation checks without reading browser state or exposing account details.
-3. Resolve the requested release through authenticated `gh` with native `bash`, an explicit repository working directory, and bounded output. For the current release, use `gh api repos/jacob-bd/gemini-notebook-mcp-cli/git/ref/tags/v0.16.2`. Fetch source by the resolved commit, not unreleased `main`.
+3. Resolve the requested release through authenticated `gh` with native `bash`, an explicit repository working directory, and bounded output. For the current release, use `gh api repos/jacob-bd/gemini-notebook-mcp-cli/git/ref/tags/v0.16.5`. Fetch source by the resolved commit, not unreleased `main`.
 4. Verify distribution name, exact version, Python requirements, entry points, published archive hashes, wheel `RECORD`, and source blob identity. If a real rename requires removal or risks other executables/state, stop for a decision before destructive changes.
-5. Inspect the Python entry point, imported modules, root callback, and exit/update hooks before running any version/help check. In 0.16.2, `--version` calls `cli.utils.check_for_updates`, which can contact PyPI and create a cache. `cli_main` can inspect storage notices after successful exit and check updates in its final TTY hook. None is an inherently offline check; do not invoke the wrapper just to render help.
-6. If persistent installation is explicitly authorized, use uv's existing distribution mechanism with an exact requirement. The approved form is `uv --no-config tool install 'notebooklm-mcp-cli==0.16.2' --python <existing-interpreter> --default-index https://pypi.org/simple --no-build`. Do not use `--force`, uninstall, `upgrade --all`, or run setup as part of the upgrade. Compare installed package bytes with the verified wheel afterward.
+5. Inspect the Python entry point, imported modules, root callback, and exit/update hooks before running any version/help check. In 0.16.2 through 0.16.5, `--version` calls `cli.utils.check_for_updates`, which can contact PyPI and create a cache. `cli_main` can inspect storage notices after successful exit and check updates in its final TTY hook. None is an inherently offline check; do not invoke the wrapper just to render help.
+6. If persistent installation is explicitly authorized, use uv's existing distribution mechanism with an exact requirement. The approved form is `uv --no-config tool install 'notebooklm-mcp-cli==0.16.5' --python <existing-interpreter> --default-index https://pypi.org/simple --no-build`. Do not use `--force`, uninstall, `upgrade --all`, or run setup as part of the upgrade. Compare installed package bytes with the verified wheel afterward.
 7. Use a network-isolated sandbox for installed help/version inspection. Give it an empty HOME/config/data directory, cleared environment, read-only package/runtime mounts, and bytecode/cache paths outside the repository. Do not mount user credentials or browser state. Mock the version update checker; ignore its "latest version" message as evidence when offline.
 8. Render installed command help from Typer command schemas without invoking product callbacks. Use the command's own context class; modern Typer may not share the separately installed Click classes. Source/mock checks are the fallback when isolation is unavailable.
 9. Compare exact released skill files and relevant runtime source with local references. Adapt only applicable changes. Keep root frontmatter to `name` and `description`; track version/SHA here and in the AGENTS marker, not extra root metadata.

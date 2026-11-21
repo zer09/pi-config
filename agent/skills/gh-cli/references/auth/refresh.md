@@ -1,7 +1,7 @@
 # gh auth refresh
 
 Source: https://cli.github.com/manual/gh_auth_refresh
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help auth refresh`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help auth refresh`.
 
 ## Summary
 
@@ -49,16 +49,16 @@ USAGE
   gh auth refresh [flags]
 
 FLAGS
-  -c, --clipboard               Copy one-time OAuth device code to clipboard
-      --expiring                Prefer expiring credentials that gh refreshes automatically, if the host supports them
-  -h, --hostname string         The GitHub host to use for authentication
-      --insecure-storage        Save authentication credentials in plain text instead of credential store
-  -r, --remove-scopes strings   Authentication scopes to remove from gh
-      --reset-scopes            Reset authentication scopes to the default minimum set of scopes
-  -s, --scopes strings          Additional authentication scopes for gh to have
+  -c, --clipboard[=true|false]          Copy one-time OAuth device code to clipboard
+      --expiring[=true|false]           Prefer expiring credentials that gh refreshes automatically, if the host supports them
+  -h, --hostname string                 The GitHub host to use for authentication
+      --insecure-storage[=true|false]   Save authentication credentials in plain text instead of credential store
+  -r, --remove-scopes strings           Authentication scopes to remove from gh
+      --reset-scopes[=true|false]       Reset authentication scopes to the default minimum set of scopes
+  -s, --scopes strings                  Additional authentication scopes for gh to have
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Open a browser to add write:org and read:public_key scopes

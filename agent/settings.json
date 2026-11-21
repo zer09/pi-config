@@ -18,7 +18,9 @@
     "-extensions/codegraph/index.ts",
     "-extensions/context-mode/src/index.ts"
   ],
-  "prompts": ["-prompts/codegraph-upgrade.md"],
+  "prompts": [
+    "-prompts/codegraph-upgrade.md"
+  ],
   "enabledModels": [
     "openai-codex/gpt-6.2-sol",
     "openai-codex/gpt-6.2-astra",
@@ -30,5 +32,9 @@
   "defaultThinkingLevel": "xhigh",
   "cacheWarming": "off",
   "theme": "dark",
-  "transport": "websocket-cached"
+  "transport": "websocket-cached",
+  "extensionChangelogVersions": {
+    "{\"source\":\"npm:pi-blackhole@0.5.19\",\"scope\":\"user\"}": "0.5.19",
+    "{\"source\":\"npm:pi-browser-harness@0.19.2\",\"scope\":\"user\"}": "0.19.2"
+  }
 }

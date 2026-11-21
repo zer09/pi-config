@@ -1,7 +1,7 @@
 # gh extension search
 
 Source: https://cli.github.com/manual/gh_extension_search
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help extension search`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help extension search`.
 
 ## Summary
 
@@ -49,18 +49,18 @@ USAGE
   gh extension search [<query>] [flags]
 
 FLAGS
-  -q, --jq expression     Filter JSON output using a jq expression
-      --json fields       Output JSON with the specified fields
-      --license strings   Filter based on license type
-  -L, --limit int         Maximum number of extensions to fetch (default 30)
-      --order string      Order of repositories returned, ignored unless '--sort' flag is specified: {asc|desc} (default "desc")
-      --owner strings     Filter on owner
-      --sort string       Sort fetched repositories: {forks|help-wanted-issues|stars|updated} (default "best-match")
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
-  -w, --web               Open the search query in the web browser
+  -q, --jq expression      Filter JSON output using a jq expression
+      --json fields        Output JSON with the specified fields
+      --license strings    Filter based on license type
+  -L, --limit int          Maximum number of extensions to fetch (default 30)
+      --order string       Order of repositories returned, ignored unless '--sort' flag is specified: {asc|desc} (default "desc")
+      --owner strings      Filter on owner
+      --sort string        Sort fetched repositories: {forks|help-wanted-issues|stars|updated} (default "best-match")
+  -t, --template string    Format JSON output using a Go template; see "gh help formatting"
+  -w, --web[=true|false]   Open the search query in the web browser
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 JSON FIELDS
   createdAt, defaultBranch, description, forksCount, fullName, hasDownloads,

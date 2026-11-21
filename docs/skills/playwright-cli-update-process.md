@@ -3,7 +3,7 @@
 ## Source and ownership
 
 - Runtime destination: `agent/skills/playwright-cli/` only. Do not install another copy under `.agents/skills/` or `~/.agents/skills/`.
-- Upstream input: the skill bundled with global `@playwright/cli@0.1.24`, maintained in [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli).
+- Upstream input: the skill bundled with global `@playwright/cli@0.1.25`, maintained in [microsoft/playwright-cli](https://github.com/microsoft/playwright-cli).
 - Bundled source path: `$(npm root -g)/@playwright/cli/skills/playwright-cli/`.
 - Supporting sources: the same package's `package.json`, `README.md`, exact registry metadata, verified archives, installed help, and exact dependency source. The earlier [0.1.22 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.22) remain historical input, not evidence for 0.1.24.
 - Classification: `make it slim`, unchanged. The 0.1.24 upstream root has 493 lines; its root plus ten references total 2,249 lines. The local root remains an unchanged 42-line router.
@@ -19,9 +19,17 @@ upstream="$package_dir/skills/playwright-cli"
 node -p 'require(process.argv[1]).version' "$package_dir/package.json"
 ```
 
-Confirm that the source package and executable belong to the intended installation. Inspect startup before executing help/version, using the isolation described below. `@playwright/cli` and the project's Playwright test runner have separate versions. CLI 0.1.24 pins Playwright and Playwright Core to `1.66.0-alpha-1794252756000`. That alpha is part of the stable CLI distribution, not permission to substitute another dependency or download a browser. Do not assume project support for `--debug=cli`, installed matching browser binaries, or a matching container image.
+Confirm that the source package and executable belong to the intended installation. Inspect startup before executing help/version, using the isolation described below. `@playwright/cli` and the project's Playwright test runner have separate versions. CLI 0.1.25 pins Playwright and Playwright Core to `1.66.0-alpha-2026-11-18`. That alpha is part of the stable CLI distribution, not permission to substitute another dependency or download a browser. Do not assume project support for `--debug=cli`, installed matching browser binaries, or a matching container image.
 
-## Prepared 0.1.24 alignment, not deployed
+## Pi 1.6.0 check: installed 0.1.25
+
+The npm-global CLI was already upgraded outside maintenance to `@playwright/cli@0.1.25`, the latest stable [release](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.25) (tag and registry gitHead `c872a33cec77fa03c28fa7c6d1ad99d15d04ce42`). It pins Playwright and Core exactly to `1.66.0-alpha-2026-11-18` (gitHead `8124fc39233c4c349b9dbebd4abc4103738eae81`). Private candidates under the maintenance run's `cli/playwright` match registry SHA-512 integrity for all three packages: CLI `sha512-v1qjq3/ssK2lf9z/+Cu0gHGXm2uDgAQwq5fWPCBM1SxkJqcB0FOyvbbsTrpPn4j4WJey8bLTYT4tEB8o4FbwBw==`, Playwright `sha512-otQ+PFujQwUSpcLjoZ1zocwpEEF/5WhsBKaOuZeRhJ3ifjyRJJskKeosaw55WYdJzwlmfugK7OMX/tey1ExhWQ==`, Core `sha512-VQ60tKPjqhf/3tHJGKuQ8Qn6e28Ziorhpmh4DGBZThgQp5geZeyKmuoJF2o/OwQBs5K7LNkhxNbOclBoAicqPg==`. The global-layout copy is byte-identical to the installed tree. All three require Node `>=20`; no lifecycle scripts beyond the CLI's `scripts.test`. No install command is needed.
+
+Version, root help and the same 32 referenced command-help forms ran under Bubblewrap network denial with hidden live HOME. Root and 30 command pages are byte-identical to 0.1.24; all 32 match the released `help.json`. Only `attach` (new `--session-color`, `--no-tab-group` for `--extension`) and `detach` (new `--close-tabs` for extension sessions) changed. Existing local `attach <test-session> --session=...` and `detach` examples are unaffected. Upstream's skill now promotes attaching to the user's everyday browser profile through the extension; hold it, because user-browser and profile access stay with Browser Harness. Upstream 0.1.25 also requires a full `ws://`/`wss://` path for `--endpoint` and adds `run-code` input validation; no local example uses `--endpoint`. Source note: the new `session-color` branch shares an `else if` chain with `--cdp`/`--endpoint`, so combining them would drop the endpoint argument; another reason not to adopt extension options here.
+
+Local changes are limited to the version facts in the openSUSE and run-code references; globals are rechecked by the existing contract. The contract file replaces the old CLI/dependency versions without relaxing assertions. Before that edit, 0.1.25 failed only the CLI version comparison; afterwards all eight tests and Ruff pass. Browser launch, extension attach and library compatibility remain unexercised.
+
+## Prepared 0.1.24 alignment, not deployed (historical)
 
 S7 verifies the already-installed CLI under the active nvm npm-global prefix, using Node `v26.13.1`. The executable resolves to that prefix's `lib/node_modules/@playwright/cli/playwright-cli.js`; no global installation or project dependency change occurs. A private archive-derived copy and provenance live under the maintenance run's `reports/s7/`, outside skill discovery. All 192 installed package files match archive bytes and modes. Internal dependency resolution stays inside the private copy.
 

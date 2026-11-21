@@ -1,7 +1,7 @@
 # gh project link
 
 Source: https://cli.github.com/manual/gh_project_link
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project link`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help project link`.
 
 ## Summary
 
@@ -25,7 +25,7 @@ FLAGS
   -T, --team string    The team to be linked to this project
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Link monalisa's project 1 to her repository "my_repo"

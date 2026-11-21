@@ -1,7 +1,7 @@
 # gh pr review
 
 Source: https://cli.github.com/manual/gh_pr_review
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help pr review`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help pr review`.
 
 ## Summary
 
@@ -23,14 +23,14 @@ USAGE
   gh pr review [<number> | <url> | <branch>] [flags]
 
 FLAGS
-  -a, --approve           Approve pull request
-  -b, --body string       Specify the body of a review
-  -F, --body-file file    Read body text from file (use "-" to read from standard input)
-  -c, --comment           Comment on a pull request
-  -r, --request-changes   Request changes on a pull request
+  -a, --approve[=true|false]           Approve pull request
+  -b, --body string                    Specify the body of a review
+  -F, --body-file file                 Read body text from file (use "-" to read from standard input)
+  -c, --comment[=true|false]           Comment on a pull request
+  -r, --request-changes[=true|false]   Request changes on a pull request
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

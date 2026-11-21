@@ -1,5 +1,9 @@
 # Changelog
 
+## Pi 1.6.0 post-upgrade repairs installed
+
+The user upgraded Pi core to 1.6.0 and pinned Blackhole 0.5.19, Harness 0.19.2 and Bridge 0.13.0. The package cache still held the earlier repaired installs, and Pi 1.6.0 would have replaced them with stock packages on the next fresh online start. Ported the three Blackhole helpers to 0.5.19 and the Harness recipe-snapshot helper to 0.19.2; upstream still lacks every repair. BTW 0.8.1 stays installed and verified. Stock Bridge 0.13.0 needs no repair. Rebound the patch, delegated oracle and smoke tests to Pi 1.6.0 and added an aborted-batch monitor regression. Updated skills and prepared gh 2.105.0 and crit 0.24.0 candidates. On user approval, the verified package set replaced `agent/npm` and gh 2.105.0 and crit 0.24.0 replaced their `~/.local/bin` binaries. The CLIs later moved to package managers (zypper for gh, `go install` for crit, posthog-pp-cli and klaviyo-pp-cli), Klaviyo 2026.11.7 was installed with a client profile, and all backups were deleted at the user's request. See the [post-upgrade record](changelogs/pi-1.6.0-post-upgrade-compatibility-and-skills.md).
+
 ## Windows Chrome from Pi in WSL
 
 Documented the [Windows Chrome setup](windows-chrome-from-wsl.md) for Browser Harness 0.19.1. The user confirmed that `/browser-setup` opened its GitHub test tab in the dedicated Windows Chrome window. This checks the connection, not CPU or memory use. No Pi package or tracked launcher change was needed.

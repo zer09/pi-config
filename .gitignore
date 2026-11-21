@@ -19,13 +19,13 @@ agent/pi-blackhole/**
 !agent/pi-blackhole/pi-blackhole-config.json
 !agent/pi-blackhole/LOCAL_PATCHES.md
 !agent/pi-blackhole/context-projection.fixture.mjs
-!agent/pi-blackhole/reapply-compact-after-percent-patch-0.5.18.mjs
-!agent/pi-blackhole/reapply-nullable-provider-headers-patch-0.5.18.mjs
-!agent/pi-blackhole/reapply-context-edit-compaction-patch-0.5.18.mjs
-!agent/pi-blackhole/port-0.5.18.test.mjs
-!agent/pi-blackhole/port-0.5.18-behavior.test.mjs
-!agent/pi-blackhole/port-0.5.18-workers.test.mjs
-!agent/pi-blackhole/port-0.5.18-context.test.mjs
+!agent/pi-blackhole/reapply-compact-after-percent-patch-0.5.19.mjs
+!agent/pi-blackhole/reapply-nullable-provider-headers-patch-0.5.19.mjs
+!agent/pi-blackhole/reapply-context-edit-compaction-patch-0.5.19.mjs
+!agent/pi-blackhole/port-0.5.19.test.mjs
+!agent/pi-blackhole/port-0.5.19-behavior.test.mjs
+!agent/pi-blackhole/port-0.5.19-workers.test.mjs
+!agent/pi-blackhole/port-0.5.19-context.test.mjs
 !agent/pi-blackhole/CONTEXT_EDIT_PATCH.md
 
 # Local pi-btw package patch documentation, helper, and regression test

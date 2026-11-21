@@ -1,7 +1,7 @@
 # gh release create
 
 Source: https://cli.github.com/manual/gh_release_create
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help release create`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help release create`.
 
 ## Summary
 
@@ -64,22 +64,22 @@ ALIASES
   gh release new
 
 FLAGS
-      --discussion-category string   Start a discussion in the specified category
-  -d, --draft                        Save the release as a draft instead of publishing it
-      --fail-on-no-commits           Fail if there are no commits since the last release (no impact on the first release)
-      --generate-notes               Automatically generate title and notes for the release via GitHub Release Notes API
-      --latest                       Mark this release as "Latest" (default [automatic based on date and version]). --latest=false to explicitly NOT set as latest
-  -n, --notes string                 Release notes
-  -F, --notes-file file              Read release notes from file (use "-" to read from standard input)
-      --notes-from-tag               Fetch notes from the tag annotation or message of commit associated with tag
-      --notes-start-tag string       Tag to use as the starting point for generating release notes
-  -p, --prerelease                   Mark the release as a prerelease
-      --target branch                Target branch or full commit SHA (default [main branch])
-  -t, --title string                 Release title
-      --verify-tag                   Abort in case the git tag doesn't already exist in the remote repository
+      --discussion-category string        Start a discussion in the specified category
+  -d, --draft[=true|false]                Save the release as a draft instead of publishing it
+      --fail-on-no-commits[=true|false]   Fail if there are no commits since the last release (no impact on the first release)
+      --generate-notes[=true|false]       Automatically generate title and notes for the release via GitHub Release Notes API
+      --latest[=true|false]               Mark this release as "Latest" (default [automatic based on date and version]). --latest=false to explicitly NOT set as latest
+  -n, --notes string                      Release notes
+  -F, --notes-file file                   Read release notes from file (use "-" to read from standard input)
+      --notes-from-tag[=true|false]       Fetch notes from the tag annotation or message of commit associated with tag
+      --notes-start-tag string            Tag to use as the starting point for generating release notes
+  -p, --prerelease[=true|false]           Mark the release as a prerelease
+      --target branch                     Target branch or full commit SHA (default [main branch])
+  -t, --title string                      Release title
+      --verify-tag[=true|false]           Abort in case the git tag doesn't already exist in the remote repository
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

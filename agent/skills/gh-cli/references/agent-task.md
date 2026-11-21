@@ -1,7 +1,7 @@
 # gh agent-task
 
 Source: https://cli.github.com/manual/gh_agent-task
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help agent-task`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help agent-task`.
 
 ## Summary
 
@@ -32,7 +32,7 @@ AVAILABLE COMMANDS
   view:          View an agent task session (preview)
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 ARGUMENTS
   A task can be identified as argument in any of the following formats:

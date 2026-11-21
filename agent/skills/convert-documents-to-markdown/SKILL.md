@@ -5,7 +5,7 @@ description: "Convert Word (.doc, .docx), PowerPoint (.ppt, .pptx), Excel (.xls,
 
 # Convert Documents to Markdown
 
-Use the bundled [conversion wrapper](scripts/convert_document.py) with uv, Python >=3.9, Node >=20, and npx. It invokes the tested `@firecrawl/anydoc@0.2.4` CLI. Use `--no-project` to avoid discovering or syncing the caller's Python project. Process one document per command; preserve the original. Resolve `<skill-dir>` to this skill's directory.
+Use the bundled [conversion wrapper](scripts/convert_document.py) with uv, Python >=3.9, Node >=20, and npx. It invokes the tested `@firecrawl/anydoc@0.2.5` CLI. Use `--no-project` to avoid discovering or syncing the caller's Python project. Process one document per command; preserve the original. Resolve `<skill-dir>` to this skill's directory.
 
 ## Convert
 

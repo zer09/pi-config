@@ -1,7 +1,7 @@
 # gh workflow view
 
 Source: https://cli.github.com/manual/gh_workflow_view
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help workflow view`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help workflow view`.
 
 ## Summary
 
@@ -20,12 +20,12 @@ USAGE
   gh workflow view [<workflow-id> | <workflow-name> | <filename>] [flags]
 
 FLAGS
-  -r, --ref string   The branch or tag name which contains the version of the workflow file you'd like to view
-  -w, --web          Open workflow in the browser
-  -y, --yaml         View the workflow yaml file
+  -r, --ref string          The branch or tag name which contains the version of the workflow file you'd like to view
+  -w, --web[=true|false]    Open workflow in the browser
+  -y, --yaml[=true|false]   View the workflow yaml file
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

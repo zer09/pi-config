@@ -1,7 +1,7 @@
 # gh gist delete
 
 Source: https://cli.github.com/manual/gh_gist_delete
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help gist delete`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help gist delete`.
 
 ## Summary
 
@@ -25,10 +25,10 @@ USAGE
   gh gist delete {<id> | <url>} [flags]
 
 FLAGS
-  --yes   Confirm deletion without prompting
+  --yes[=true|false]   Confirm deletion without prompting
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Delete a gist interactively

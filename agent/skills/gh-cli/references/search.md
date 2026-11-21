@@ -1,7 +1,7 @@
 # gh search
 
 Source: https://cli.github.com/manual/gh_search
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help search`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help search`.
 
 ## Summary
 
@@ -56,7 +56,7 @@ AVAILABLE COMMANDS
   repos:         Search for repositories
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

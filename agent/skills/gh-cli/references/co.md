@@ -1,7 +1,7 @@
 # gh co
 
 Source: https://cli.github.com/manual/gh_co
-Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help co`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help co`.
 
 ## Summary
 
@@ -23,14 +23,14 @@ ALIASES
   gh pr co
 
 FLAGS
-  -b, --branch string        Local branch name to use (default [the name of the head branch])
-      --detach               Checkout PR with a detached HEAD
-  -f, --force                Reset the existing local branch to the latest state of the pull request
-      --recurse-submodules   Update all submodules after checkout
-      --worktree path        Check out the pull request into a worktree at the given path
+  -b, --branch string                     Local branch name to use (default [the name of the head branch])
+      --detach[=true|false]               Checkout PR with a detached HEAD
+  -f, --force[=true|false]                Reset the existing local branch to the latest state of the pull request
+      --recurse-submodules[=true|false]   Update all submodules after checkout
+      --worktree path                     Check out the pull request into a worktree at the given path
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

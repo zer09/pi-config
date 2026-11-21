@@ -61,6 +61,20 @@ Before running the CLI, inspect the launcher, installer, and packaged executable
 
 Keep isolation mandatory when startup safety cannot be established. If isolation is unavailable, stop CLI execution and report the verification limit instead of using the user's environment.
 
+## Pi 1.6.0 recheck: ntn 0.23.31
+
+Rechecked on 2026-11-21. The Bun-global installation already holds `ntn@0.23.31`, the npm `latest`; no install or upgrade is needed. Both upstream skill sources above are unchanged.
+
+| Published input | Verified value |
+| --- | --- |
+| npm archive | https://registry.npmjs.org/ntn/-/ntn-0.23.31.tgz |
+| SHA-512 integrity | `sha512-on+q3N+63ur3IufBL4n6DmgpQ4AeTHjoY2JGdHIoumQ3QqypHyNsjXEz9BK5rMcVNQbBtTlbsarB6YTWJsM36w==` |
+| SHA-1 / archive SHA-256 | `45e3270807b756aef716a7a701136c023642aa37` / `e5b3ac8c1d6eb19537cc0c0d46c0d071ce591c97d2a04445137740f4c96aa7ab` |
+| Linux x64 native SHA-256 | `a9492714ddcf1615c49d8f0b0250f469918929d6ff5cd32945cdf221cd5f2e27` |
+| Declared npm build commit | `42539d2f8d208f9e34163772b24d4efe9c019a62`; not independently source-verified |
+
+The private extraction matches the published integrity, and all ten installed package files match it byte for byte. No lifecycle script ran. The same twelve version/static-help forms ran for the retained 0.23.29 extraction and the 0.23.31 candidate under bwrap with network denial, hidden user HOME and read-only package mounts. All exited 0 and wrote nothing; only `--version` output differs. The root's reviewed-version note moves to `0.23.31`; gates, workflows, description and metadata are unchanged.
+
 ## S5 preparation: ntn 0.23.29 and selective workflow comparison
 
 Status: **prepared in a separate worktree, not deployed**. The installed/latest version captured on November 12, 2026 is already `0.23.29`; retain the Bun-global owner and existing launcher path. Do not run a global upgrade, installer, or lifecycle script for this preparation. The historical deployment records above and below remain historical facts.

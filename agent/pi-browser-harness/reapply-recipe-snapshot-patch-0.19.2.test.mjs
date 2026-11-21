@@ -7,9 +7,9 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 import test from "node:test";
 import vm from "node:vm";
-import { reapplyRecipeSnapshotPatch as apply } from "./reapply-recipe-snapshot-patch-0.19.1.mjs";
+import { reapplyRecipeSnapshotPatch as apply } from "./reapply-recipe-snapshot-patch-0.19.2.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
-const integrity = "sha512-Uztbfgcuo6meeXamMcA9OB9JQD7se/Scn14rEgf0z3T4tupgpMlek9mVDad5DsQ0jy+vQaz5DgKxX/hmp0UDMQ==";
+const integrity = "sha512-WKMR65ovAwT3d18tyHi0yLlB2jpQ5H542gNoLN02IXrvXhDBqqtXrAIFqoJJfoGp6QPql6FqsLK+itYgKl/l9A==";
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 function snapshot(root) {
   const result = {};
@@ -38,21 +38,21 @@ export function extract(bytes, target) {
     writeFileSync(join(target, rel), tar.subarray(offset + 512, offset + 512 + size));
     offset += 512 + Math.ceil(size / 512) * 512;
   }
-  assert.equal(seen.size, 127);
+  assert.equal(seen.size, 128);
 }
-test("guarded isolated Harness 0.19.1 recipe snapshot repair", async t => {
+test("guarded isolated Harness 0.19.2 recipe snapshot repair", async t => {
   assert.ok(process.env.TMPDIR && isAbsolute(process.env.TMPDIR)); assert.equal(realpathSync(tmpdir()), process.env.TMPDIR);
   const archive = process.env.PI_TEST_HARNESS_TARBALL; assert.ok(archive && isAbsolute(archive));
   const root = mkdtempSync(join(tmpdir(), "harness-snapshot-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const stock = join(root, "stock"); extract(readFileSync(archive), stock);
   const files = Object.entries(snapshot(stock)).filter(([, value]) => !value.startsWith("directory:")).map(([rel]) => rel);
-  assert.equal(files.length, 127);
+  assert.equal(files.length, 128);
   const clone = (from = stock) => { const target = join(mkdtempSync(join(root, "case-")), "package"); cpSync(from, target, { recursive: true }); return target; };
-  const source = readFileSync(join(here, "reapply-recipe-snapshot-patch-0.19.1.mjs"), "utf8");
+  const source = readFileSync(join(here, "reapply-recipe-snapshot-patch-0.19.2.mjs"), "utf8");
   const edits = vm.runInNewContext(source.slice(source.indexOf("const edits ="), source.indexOf("const sha256")) + "\nedits");
   let repaired;
-  await t.test("SRI, all 127 files, exact four-source delta, reinstall and bytes/mtime idempotence", () => {
+  await t.test("SRI, all 128 files, exact four-source delta, reinstall and bytes/mtime idempotence", () => {
     repaired = clone(); const before = snapshot(repaired); assert.match(apply(repaired), /^patched:/);
     const after = snapshot(repaired);
     assert.deepEqual(Object.keys(after).filter(rel => before[rel] !== after[rel]).sort(), Object.keys(edits).sort());
@@ -71,7 +71,7 @@ test("guarded isolated Harness 0.19.1 recipe snapshot repair", async t => {
     assert.throws(() => extract(bytes, target)); assert.deepEqual(snapshot(target), before);
   });
   await t.test("name, version, full inventory and every source/file drift or omission refuse", () => {
-    for (const [before, after] of [['"0.19.1"', '"0.13.0"'], ['"pi-browser-harness"', '"other-package"']]) reject(target => {
+    for (const [before, after] of [['"0.19.2"', '"0.13.0"'], ['"pi-browser-harness"', '"other-package"']]) reject(target => {
       const path = join(target, "package.json"); writeFileSync(path, readFileSync(path, "utf8").replace(before, after));
     });
     reject(target => writeFileSync(join(target, "package.json"), "{malformed"));

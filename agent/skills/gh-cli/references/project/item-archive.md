@@ -1,7 +1,7 @@
 # gh project item-archive
 
 Source: https://cli.github.com/manual/gh_project_item-archive
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project item-archive`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help project item-archive`.
 
 ## Summary
 
@@ -22,15 +22,15 @@ USAGE
   gh project item-archive [<number>] [flags]
 
 FLAGS
-      --format string     Output format: {json}
-      --id string         ID of the item to archive
-  -q, --jq expression     Filter JSON output using a jq expression
-      --owner string      Login of the owner. Use "@me" for the current user.
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
-      --undo              Unarchive an item
+      --format string       Output format: {json}
+      --id string           ID of the item to archive
+  -q, --jq expression       Filter JSON output using a jq expression
+      --owner string        Login of the owner. Use "@me" for the current user.
+  -t, --template string     Format JSON output using a Go template; see "gh help formatting"
+      --undo[=true|false]   Unarchive an item
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Archive an item in the current user's project "1"

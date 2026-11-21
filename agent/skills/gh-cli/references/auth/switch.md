@@ -1,7 +1,7 @@
 # gh auth switch
 
 Source: https://cli.github.com/manual/gh_auth_switch
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help auth switch`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help auth switch`.
 
 ## Summary
 
@@ -34,7 +34,7 @@ FLAGS
   -u, --user string       The account to switch to
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Select what host and account to switch to via a prompt

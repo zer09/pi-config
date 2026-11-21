@@ -1,6 +1,6 @@
 # Gemini Notebook (formerly Google NotebookLM) CLI - Command Reference
 
-Runtime command guidance for `nlm 0.16.2`. Use installed command help for options not listed here.
+Runtime command guidance for `nlm 0.16.5`. Use installed command help for options not listed here.
 
 Apply the [root authorization rules](../SKILL.md#safety-and-authorization) before executing examples. Reads do not authorize writes. Setup, auth recovery, exports, uploads, and configuration each retain their own scope; delete always needs explicit target confirmation. Batch and pipeline generation must not bypass Studio confirmation.
 
@@ -1106,7 +1106,7 @@ Run `nlm <family> <command> --help` for selector and profile options.
 
 ## Setup, Skill, and Diagnostics
 
-The distribution remains `notebooklm-mcp-cli` at 0.16.2, with executables `nlm` and `notebooklm-mcp`. New MCP connections use `gemini-notebook-mcp`. An old connection name is not a package rename or permission to replace a working configuration.
+The distribution remains `notebooklm-mcp-cli` at 0.16.5, with executables `nlm` and `notebooklm-mcp`. New MCP connections use `gemini-notebook-mcp`. An old connection name is not a package rename or permission to replace a working configuration.
 
 ```bash
 nlm setup                      # Interactive wizard for a human in a terminal

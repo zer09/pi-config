@@ -15,7 +15,7 @@ Reading a review does not authorize changing it. Classify the requested action b
 | `crit comment`, including replies | Mutates local review state. Require the user to request that comment write or reply. |
 | Resolution with `--resolve` or JSON `resolve` | Mutates local review state. Never resolve without an explicit user request, even after fixing the issue. |
 | `crit pull` | Reads GitHub/GitLab but updates the local review file. Require a user request for that sync and its PR/MR and local review target. |
-| `crit push` | Posts to GitHub/GitLab. Require explicit user instruction for that exact hosted action, PR/MR target, and review event. |
+| `crit push` | Posts to GitHub/GitLab. Require explicit user instruction for that exact hosted action, PR/MR target, and review event; `--viewed` also changes GitHub viewed marks and needs its own request. |
 | `crit share` | Publishes files and included comments. Require explicit user instruction for that publication, exact files/comments, destination, and visibility. |
 | `crit unpublish` | Deletes remote shared state. Require explicit user instruction to unpublish the exact shared review/files at the intended destination. |
 

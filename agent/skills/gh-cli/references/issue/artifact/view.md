@@ -1,7 +1,7 @@
 # gh issue artifact view
 
 Source: https://cli.github.com/manual/gh_issue_artifact_view
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help issue artifact view`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help issue artifact view`.
 
 ## Summary
 
@@ -31,14 +31,14 @@ USAGE
   gh issue artifact view {<issue> <artifact-number> | <artifact-url>} [flags]
 
 FLAGS
-  -q, --jq expression     Filter JSON output using a jq expression
-      --json fields       Output JSON with the specified fields
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
-      --version number    Show the version with this number from the edit history
-  -w, --web               Open a document's page on GitHub, or a link's URL
+  -q, --jq expression      Filter JSON output using a jq expression
+      --json fields        Output JSON with the specified fields
+  -t, --template string    Format JSON output using a Go template; see "gh help formatting"
+      --version number     Show the version with this number from the edit history
+  -w, --web[=true|false]   Open a document's page on GitHub, or a link's URL
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 JSON FIELDS

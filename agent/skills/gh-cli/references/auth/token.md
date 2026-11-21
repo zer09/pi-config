@@ -1,7 +1,7 @@
 # gh auth token
 
 Source: https://cli.github.com/manual/gh_auth_token
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help auth token`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help auth token`.
 
 ## Summary
 
@@ -28,12 +28,12 @@ USAGE
   gh auth token [flags]
 
 FLAGS
-  -h, --hostname string   The hostname of the GitHub instance authenticated with
-      --no-refresh        Do not automatically refresh an expired token
-  -u, --user string       The account to output the token for
+  -h, --hostname string           The hostname of the GitHub instance authenticated with
+      --no-refresh[=true|false]   Do not automatically refresh an expired token
+  -u, --user string               The account to output the token for
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

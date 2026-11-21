@@ -11,6 +11,8 @@ Use the local `klaviyo-pp-cli` as a direct REST API adapter for one Klaviyo acco
 
 Treat Klaviyo as a hosted service that is read-only by default. Use only the existing `KLAVIYO_API_KEY` environment variable. Never inspect, print, persist, copy, or pass its value as an argument. Never run `auth set-token`.
 
+The CLI refuses data commands without a tenant-gated client profile. The `klaviyo` profile stores only the reference `env:KLAVIYO_API_KEY` and the expected account identity. Pass `--client-profile klaviyo` on every command. Before each command, the CLI confirms the account through `GET /api/accounts`, so the key needs Accounts read access. Do not run `client add`, `client delete`, `client migrate` or `client set-default` unless the user asks; `set-default` changes a default shared by every Printing Press CLI.
+
 ## Preflight
 
 Run the bundled [preflight](scripts/preflight.sh) before authenticated access. Resolve the helper from this skill's directory, not the project directory:
@@ -19,21 +21,21 @@ Run the bundled [preflight](scripts/preflight.sh) before authenticated access. R
 sh ./scripts/preflight.sh
 ```
 
-Stop if the CLI or key is missing. Stop if `KLAVIYO_BASE_URL` is set, and do not print its value. Trust the installed command's `--help` over generated documentation.
+Stop if the CLI, key or `klaviyo` client profile is missing. Stop if `KLAVIYO_BASE_URL` is set, and do not print its value. Stop if `PRINTING_PRESS_CLIENT_PROFILE` selects another profile. Trust the installed command's `--help` over generated documentation.
 
 ## Read workflow
 
 1. Inspect `<command> --help` before use.
 2. Use these flags explicitly on every normal API read:
    ```text
-   --json --compact --no-input --no-color --data-source live --no-cache
+   --client-profile klaviyo --json --compact --no-input --no-color --data-source live --no-cache
    ```
 3. Request one bounded page unless the user needs more. Do not use `--all` by default.
 4. Use API sparse-field flags and `--select` whenever practical.
 5. Capture sensitive responses in restrictive temporary files when parsing is needed. Delete each file immediately.
 6. Return only requested fields or aggregates. Summarize instead of dumping account, profile, event, subscription, address, phone, or email data.
 
-Never use `--agent` as a generic shortcut. It includes `--yes`, which is unsafe to copy into write commands.
+Use the explicit flags above instead of `--agent`, so copied commands stay reviewable. Keep output on stdout: never use `--deliver` (its `webhook:` and `spacefast:` sinks send output off this machine), and do not use `--audit-dir`, `--home` or `--config` overrides.
 
 ## Mutation workflow
 
@@ -49,13 +51,13 @@ Do not mutate Klaviyo unless the latest user request authorizes the exact target
 
 Never automatically replay a write after an ambiguous transport or 5xx failure. The write may have succeeded; inspect the target state before any separately authorized retry.
 
-Always ask for final confirmation immediately before sending or scheduling a campaign, cancelling a send, bulk subscription changes, suppression changes, profile merges or deletes, privacy deletion jobs, destructive resource deletion, making a flow live, broad imports, bulk jobs, or webhook delivery to a new endpoint. Warn that bulk unsubscribe operations can globally unsubscribe profiles outside a specified list. Also ask when scope, audience, consent, or reversibility is unclear. Never infer consent, subscription status, audience, or destructive identifiers.
+Always ask for final confirmation immediately before sending or scheduling a campaign, sending test previews (`campaigns test-send` emails real addresses), creating an A/B test (`campaigns ab-test create`), publishing or unpublishing a form, inserting a flow step with `--apply`, cancelling a send, bulk subscription changes, suppression changes, profile merges or deletes, privacy deletion jobs, destructive resource deletion, making a flow live, broad imports, bulk jobs, or webhook delivery to a new endpoint. Warn that bulk unsubscribe operations can globally unsubscribe profiles outside a specified list. Also ask when scope, audience, consent, or reversibility is unclear. Never infer consent, subscription status, audience, or destructive identifiers.
 
 ## Cache and local-data boundary
 
 Normal reads require both `--data-source live` and `--no-cache`. The first prevents automatic SQLite write-through. The second prevents the separate JSON response cache.
 
-Do not run `sync`, local `search`, local analytics, or `--data-source auto` unless the user separately requests local storage and accepts the customer-data privacy implications.
+Do not run `sync`, local `search`, local analytics, `teach`, `recall`, `learnings`, `playbook`, or `--data-source auto` unless the user separately requests local storage and accepts the customer-data privacy implications. The CLI also keeps a local command log of argument types, not values, under `~/.local/state/klaviyo-pp-cli/learn/`.
 
 ## UI fallback
 

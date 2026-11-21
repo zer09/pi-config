@@ -1,7 +1,7 @@
 # gh issue delete
 
 Source: https://cli.github.com/manual/gh_issue_delete
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue delete`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help issue delete`.
 
 ## Summary
 
@@ -20,10 +20,10 @@ USAGE
   gh issue delete {<number> | <url>} [flags]
 
 FLAGS
-  --yes   Confirm deletion without prompting
+  --yes[=true|false]   Confirm deletion without prompting
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 LEARN MORE

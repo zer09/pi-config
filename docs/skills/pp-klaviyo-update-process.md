@@ -19,6 +19,28 @@ Use this Skill Maintenance Doc for the local `pp-klaviyo` skill, which wraps the
 
 Treat upstream as input, not final truth. Local Pi secret handling, customer-data controls, mutation gates, compactness, and installed-binary behavior win.
 
+## 2026.11.7 installed on 2026-11-21
+
+The user chose to keep `KLAVIYO_API_KEY` as the only credential, gate every new write command per request, stay CLI-only with no MCP, and allow one read-only live check. 2026.11.7 remains the latest Klaviyo release (no later Klaviyo commits on `main` through 2026-11-20).
+
+- **Build:** ledger commit `1d0f487fb308e46275a10cb714de6061f8e3c258` (stamps 2026.11.7 on source `33f9f600…`, PR 2459: `campaigns ab-test create` and `results`). All 90 `go.sum` entries pass `go mod verify`. `go build -trimpath`, `go vet` and `go test ./...` pass offline with Go 1.26.11. Binary SHA-256 `4b077b944af29ed61fe6c7ded4e0c6b37c62c5f1cf84e71f144333c1bda86261`. No prebuilt upstream binary exists.
+- **Client profile required:** every command except `--help`, `--version` and `agent-context` refuses to run without a tenant-gated client profile, including `--dry-run` and local HTML QA. A profile can reference `env:KLAVIYO_API_KEY`, so the key stays in the environment. `client add` writes only the reference and the expected identity to `~/.config/printing-press/clients/<name>/profile.toml` (mode 600).
+- **Identity gate:** before each command the CLI calls `GET /api/accounts` and compares the account ID and organization name. The original key returned HTTP 403 `permission_denied` on that endpoint. The user replaced it with a read-only key that includes Accounts read access.
+- **Expected identity:** account ID `WikR2W` (the public API key / site ID), organization `Switchboard`, supplied by the user.
+- **Skill changes prepared:** `--client-profile klaviyo` on every command; the preflight asks the CLI's own offline `client show klaviyo --json --select sources.klaviyo` for the parsed Klaviyo source and accepts only the three keys `client add` writes (`credential_ref = env:KLAVIYO_API_KEY`, `expected_account_id`, `expected_org_name`), so any extra setting that could change the key, such as an additional credential, fails; it also rejects a different `PRINTING_PRESS_CLIENT_PROFILE`; new campaign model and examples; report inputs; final confirmation for `campaigns test-send`, `campaigns ab-test create`, `forms publish/unpublish` and `flows insert-step --apply`; `--deliver`, `--audit-dir`, `--home` and `--config` forbidden; learning commands treated as local storage; no `client set-default`, because that default is shared by every Printing Press CLI.
+
+Installation as executed: the 2026.9.3 binary moved to `~/.cli-rollback-klaviyo-2026.9.3/` (deleted later the same day at the user's request), then, at the user's request for the latest version:
+
+```bash
+GOFLAGS=-trimpath GOBIN=~/.local/bin go install \
+  github.com/mvanhorn/printing-press-library/library/marketing/klaviyo/cmd/klaviyo-pp-cli@latest
+klaviyo-pp-cli client add klaviyo --credential-ref env:KLAVIYO_API_KEY \
+  --expected-account-id WikR2W --expected-org-name 'Switchboard'
+klaviyo-pp-cli --client-profile klaviyo whoami
+```
+
+`@latest` resolved to `main` at `d86680f` (2026-11-20), whose Klaviyo source is identical to the reviewed release `1d0f487`; the binary reports 2026.11.7. `whoami` returned gate `verified` with matching `WikR2W` / `Switchboard`, and the skill preflight passes. The updated skill files are live. The user separately installed the official Klaviyo CLI (`klaviyo`, `github.com/klaviyo/klaviyo-cli` v0.6.0) in `~/go/bin`; Pi does not use it.
+
 ## Pi 1.5.2 preparation: retain 2026.9.3, hold 2026.11.7
 
 The existing user-local binary still reports 2026.9.3 and remains unchanged. Its private byte-identical copy passes version, root/representative help and Go build-info checks; the existing preflight regression passes without real credentials. The binary records Go 1.26.8 but omits VCS revision, so these checks are not exact build-source attestation or live API/cache acceptance.
@@ -95,6 +117,7 @@ The API revision is compiled into the binary. On every upgrade, compare the gene
 ```bash
 sh -n agent/skills/pp-klaviyo/scripts/preflight.sh
 uv run python -B agent/skills/pp-klaviyo/scripts/test_preflight.py -v
+PP_KLAVIYO_TEST_CLI="$(command -v klaviyo-pp-cli)" uv run python -B agent/skills/pp-klaviyo/scripts/test_preflight.py -v
 uv run --with pyyaml python agent/skills/skill-creator/scripts/quick_validate.py agent/skills/pp-klaviyo
 for skill_dir in agent/skills/*; do
   test -f "$skill_dir/SKILL.md" || continue
@@ -102,6 +125,6 @@ for skill_dir in agent/skills/*; do
 done
 ```
 
-The preflight regression covers missing CLI, missing/empty key, set/empty base URL, success, and version-command failure without inherited credentials or real CLI calls. Retain it to protect the requirement that `KLAVIYO_BASE_URL` be absent, not merely empty. Resolve the runtime helper relative to the skill directory, not a hardcoded installation path.
+The preflight regression covers missing CLI, missing/empty key, set/empty base URL, a conflicting client-profile selector, missing/other/unselected references, extra or duplicate keys, a missing identity value, success, and version-command failure with a fake CLI and no inherited credentials. With `PP_KLAVIYO_TEST_CLI` set, it also runs the real CLI offline against crafted profiles: double quotes and a table-header comment pass; another reference, a reference in another table, an additional credential, a base-URL override, and a reference only inside a multiline string fail. Retain it to protect the requirement that `KLAVIYO_BASE_URL` be absent, not merely empty. Resolve the runtime helper relative to the skill directory, not a hardcoded installation path.
 
 Check Python syntax without generating bytecode. Exercise HTML QA with synthetic local files and no `--campaign-id`; check unsubscribe findings and exit behavior. Then verify all Local Skills have valid `agents/openai.yaml`, changed Markdown links resolve, no changed file contains secrets or literal user-specific home paths, diffs are clean, and no runtime artifact remains in skill folders. Offline validation does not authorize product API calls. Only with separate authenticated-read authorization may installation verification use a bounded `accounts get`; never retain or print its raw response.

@@ -1,7 +1,7 @@
 # gh config
 
 Source: https://cli.github.com/manual/gh_config
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help config`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help config`.
 
 ## Summary
 
@@ -47,7 +47,7 @@ AVAILABLE COMMANDS
   set:           Update configuration with a value for the given key
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

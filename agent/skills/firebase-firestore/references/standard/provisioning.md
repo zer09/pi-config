@@ -88,7 +88,7 @@ start:
 
 Deploy only with explicit authorization for the exact rule/index action and target project/database. Confirm the existing database, edition, access mode, and selected resources. If the target is missing, stop; create it through the preceding creation gate only if separately authorized with the exact project, database ID, edition, access mode, and location. Do not use deployment to create it implicitly. Service enablement also needs separate exact authorization. Local changes do not require deployment to be complete.
 
-Use a reviewed config containing only the authorized database and resource files, with an explicit `database` value. Set `<single-database-config>` to that file; preserve the original multi-database config. In CLI 15.32.0, `firestore:rules` and `firestore:indexes` can select every configured database, and preparation can create the first config entry before database filtering. A `--only` selector alone is not sufficient isolation.
+Use a reviewed config containing only the authorized database and resource files, with an explicit `database` value. Set `<single-database-config>` to that file; preserve the original multi-database config. In CLI 15.32.0 through 15.37.0, `firestore:rules` and `firestore:indexes` can select every configured database, and preparation can create the first config entry before database filtering. A `--only` selector alone is not sufficient isolation. CLI 15.37.0 `--dry-run` skips that creation but still ensures the Firestore API is enabled first, so it is not a non-mutating preflight.
 
 ```bash
 # Rules and indexes, only if both are authorized

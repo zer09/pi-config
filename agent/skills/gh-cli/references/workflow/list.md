@@ -1,7 +1,7 @@
 # gh workflow list
 
 Source: https://cli.github.com/manual/gh_workflow_list
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help workflow list`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help workflow list`.
 
 ## Summary
 
@@ -25,14 +25,14 @@ ALIASES
   gh workflow ls
 
 FLAGS
-  -a, --all               Include disabled workflows
-  -q, --jq expression     Filter JSON output using a jq expression
-      --json fields       Output JSON with the specified fields
-  -L, --limit int         Maximum number of workflows to fetch (default 50)
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
+  -a, --all[=true|false]   Include disabled workflows
+  -q, --jq expression      Filter JSON output using a jq expression
+      --json fields        Output JSON with the specified fields
+  -L, --limit int          Maximum number of workflows to fetch (default 50)
+  -t, --template string    Format JSON output using a Go template; see "gh help formatting"
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 JSON FIELDS

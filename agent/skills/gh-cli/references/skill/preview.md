@@ -1,7 +1,7 @@
 # gh skill preview
 
 Source: https://cli.github.com/manual/gh_skill_preview
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help skill preview`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help skill preview`.
 
 ## Summary
 
@@ -43,10 +43,10 @@ ALIASES
   gh skill show, gh skills show
 
 FLAGS
-  --allow-hidden-dirs   Include skills in hidden directories (e.g. .claude/skills/, .agents/skills/)
+  --allow-hidden-dirs[=true|false]   Include skills in hidden directories (e.g. .claude/skills/, .agents/skills/)
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Preview a specific skill

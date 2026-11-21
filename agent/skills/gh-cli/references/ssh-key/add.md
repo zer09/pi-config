@@ -1,7 +1,7 @@
 # gh ssh-key add
 
 Source: https://cli.github.com/manual/gh_ssh-key_add
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help ssh-key add`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help ssh-key add`.
 
 ## Summary
 
@@ -24,7 +24,7 @@ FLAGS
       --type string    Type of the ssh key: {authentication|signing} (default "authentication")
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

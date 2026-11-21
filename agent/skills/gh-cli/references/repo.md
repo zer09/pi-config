@@ -1,7 +1,7 @@
 # gh repo
 
 Source: https://cli.github.com/manual/gh_repo
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help repo`.
 
 ## Summary
 
@@ -59,7 +59,7 @@ TARGETED COMMANDS
   view:          View a repository
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 ARGUMENTS
   A repository can be supplied as an argument in any of the following formats:

@@ -26,7 +26,7 @@ async function runFixtures(patched, stock, root) {
   // Resolve the import-only public root export, not a private runtime subpath.
   const piPath = join(piRoot, JSON.parse(read(piRoot, "package.json")).exports["."].import);
   const pi = await import(pathToFileURL(piPath).href);
-  assert.equal(pi.VERSION, "1.5.2");
+  assert.equal(pi.VERSION, "1.6.0");
   const { createJiti } = require("jiti");
   const jiti = createJiti(import.meta.url, { fsCache: false, moduleCache: false, alias: JSON.parse(aliases) });
   const original = await jiti.import(join(stock, hookPath));

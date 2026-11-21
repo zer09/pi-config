@@ -1,10 +1,14 @@
 # Maintenance TODOs
 
+## Pi 1.6.0 installed; remaining limits
+
+The repaired package set and gh 2.105.0/crit 0.24.0 were installed on 2026-11-21; see the [post-upgrade record](changelogs/pi-1.6.0-post-upgrade-compatibility-and-skills.md). Pi has since started fresh with the repaired packages unchanged, and Klaviyo 2026.11.7 is installed with a verified `klaviyo` client profile. Still unverified live: real provider requests, Browser Harness against a real browser including Windows Chrome from WSL, and visual TUI behavior.
+
 ## Pi 1.5.2 installed; remaining limits
 
 The [Pi installation record](changelogs/pi-1.5.2-full-setup-installation.md) and [extension installation record](changelogs/three-extension-upgrade-installation.md) document the installed files and checks. The installed runtime is Pi 1.5.2 with Blackhole 0.5.18, BTW 0.8.1, Harness 0.19.1 and stock Bridge 0.12.0. The user completed a full Pi restart on 2026-11-15; the restarted process, installed extension versions and new Browser Harness tools were checked. Bridge's ordering repair stays retired. Source changes remain unstaged; defaults, accounts and private data are preserved.
 
-Real-account generation, visual/Windows/browser/cloud acceptance and the documented Harness/Firebase limits remain unverified. Klaviyo 2026.11.7 remains held. Outpour is active and Impeccable excluded. This TODO authorizes no additional install, hosted issue/PR, login or product action. The earlier [preparation record](changelogs/pi-1.5.2-full-setup-maintenance-preparation.md) remains historical.
+Real-account generation, visual/Windows/browser/cloud acceptance and the documented Harness/Firebase limits remain unverified. Klaviyo 2026.11.7 is installed with the `klaviyo` client profile. Outpour is active and Impeccable excluded. This TODO authorizes no additional install, hosted issue/PR, login or product action. The earlier [preparation record](changelogs/pi-1.5.2-full-setup-maintenance-preparation.md) remains historical.
 
 ## Historical 2026-09-27 package review
 

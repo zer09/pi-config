@@ -7,13 +7,13 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { gunzipSync } from "node:zlib";
-import { reapplyCompactAfterPercentPatch } from "./reapply-compact-after-percent-patch-0.5.18.mjs";
-import { reapplyNullableProviderHeadersPatch } from "./reapply-nullable-provider-headers-patch-0.5.18.mjs";
-import { reapplyContextEditCompactionPatch } from "./reapply-context-edit-compaction-patch-0.5.18.mjs";
+import { reapplyCompactAfterPercentPatch } from "./reapply-compact-after-percent-patch-0.5.19.mjs";
+import { reapplyNullableProviderHeadersPatch } from "./reapply-nullable-provider-headers-patch-0.5.19.mjs";
+import { reapplyContextEditCompactionPatch } from "./reapply-context-edit-compaction-patch-0.5.19.mjs";
 
 // Supply an explicit disposable TMPDIR and separately acquired, SRI-pinned archive.
 // No installation, provider, or live package access occurs in this focused gate.
-const integrity = "sha512-+jvRzBfwmhzWgPEh/wpJO+9Iroouv6LL+0O02VcvlIWhBcnLUXCshJ50N0Oi0dAudj7ILbGL/5G8tdrc/rqDxA==";
+const integrity = "sha512-higTGzS5JBkSRCcj+30ZHvR8xyaRWGZnENv6Q6l9JVml4bk36lFmGvsyNlLGYxbj62nBVR1dLLNIoo6g9ShXBg==";
 const here = dirname(fileURLToPath(import.meta.url));
 const helpers = [reapplyCompactAfterPercentPatch, reapplyNullableProviderHeadersPatch, reapplyContextEditCompactionPatch];
 const names = ["compact-after-percent", "nullable-provider-headers", "context-edit-compaction"];
@@ -64,17 +64,17 @@ function edits(version, name, value = "patches") {
   return JSON.parse(JSON.stringify(vm.runInNewContext(source.slice(start, source.indexOf("function sha256")) + `\n${value}`)));
 }
 
-test("focused isolated pi-blackhole@0.5.18 complete three-helper gate", async (t) => {
+test("focused isolated pi-blackhole@0.5.19 complete three-helper gate", async (t) => {
   assert.ok(process.env.TMPDIR && isAbsolute(process.env.TMPDIR), "set an explicit disposable TMPDIR");
   assert.equal(realpathSync(tmpdir()), realpathSync(process.env.TMPDIR));
-  const tarball = process.env.PI_BLACKHOLE_0_5_18_TARBALL;
-  assert.ok(tarball && isAbsolute(tarball), "set PI_BLACKHOLE_0_5_18_TARBALL");
-  const root = mkdtempSync(join(realpathSync(tmpdir()), "blackhole-0.5.18-port-"));
+  const tarball = process.env.PI_BLACKHOLE_0_5_19_TARBALL;
+  assert.ok(tarball && isAbsolute(tarball), "set PI_BLACKHOLE_0_5_19_TARBALL");
+  const root = mkdtempSync(join(realpathSync(tmpdir()), "blackhole-0.5.19-port-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const stock = join(root, "stock");
   extract(readFileSync(tarball), stock);
   const manifest = JSON.parse(readFileSync(join(stock, "package.json")));
-  assert.equal(manifest.version, "0.5.18");
+  assert.equal(manifest.version, "0.5.19");
   assert.deepEqual(manifest.pi.extensions, ["./dist/index.js"]);
   const clone = (from) => {
     const target = join(mkdtempSync(join(root, "case-")), "package");
@@ -102,7 +102,7 @@ test("focused isolated pi-blackhole@0.5.18 complete three-helper gate", async (t
     // Pin the accepted output, independently of any helper's source or prior port.
     const files = Object.entries(bytes(target)).filter(([, digest]) => digest !== "directory").sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
     assert.equal(files.length, 147);
-    assert.equal(hash(JSON.stringify(files)), "94240a11a1ac5c5a7c0fc69c7c4ccf3d0fef48ec28ced64d6f592f54c8665ea9");
+    assert.equal(hash(JSON.stringify(files)), "a78ea6b206254f8b31ae50a69ee45c54585ef890d4cb31c2ac51842673db7fea");
   });
   await t.test("bad SRI refuses extraction without writes", () => {
     const target = join(root, "bad-sri");
@@ -131,7 +131,7 @@ test("focused isolated pi-blackhole@0.5.18 complete three-helper gate", async (t
       };
       reject((target) => {
         const path = join(target, "package.json");
-        writeFileSync(path, readFileSync(path, "utf8").replace('"version": "0.5.18"', '"version": "0.5.15"'));
+        writeFileSync(path, readFileSync(path, "utf8").replace('"version": "0.5.19"', '"version": "0.5.15"'));
       });
       reject((target) => chmodSync(join(target, affected[i].at(-1)), 0o444), /EACCES/);
       const temp = process.env.TMPDIR;
@@ -146,7 +146,7 @@ test("focused isolated pi-blackhole@0.5.18 complete three-helper gate", async (t
         const path = join(target, "package.json");
         writeFileSync(path, readFileSync(path, "utf8").replace('"name": "pi-blackhole"', '"name": "not-blackhole"'));
       });
-      const prerequisites = edits("0.5.18", names[i], i === 0 ? "unchangedFiles" : "prerequisites");
+      const prerequisites = edits("0.5.19", names[i], i === 0 ? "unchangedFiles" : "prerequisites");
       for (const [rel] of prerequisites) reject((target) => {
         const path = join(target, rel);
         writeFileSync(path, readFileSync(path, "utf8") + "\n");
@@ -161,14 +161,14 @@ test("focused isolated pi-blackhole@0.5.18 complete three-helper gate", async (t
       reject((target) => {
         const rel = affected[i][0];
         let source = readFileSync(join(target, rel), "utf8");
-        const spec = edits("0.5.18", names[i]);
+        const spec = edits("0.5.19", names[i]);
         const [oldText, newText] = i === 2 ? spec[0] : spec[0].edits[0];
         source = source.replace(oldText, newText);
         writeFileSync(join(target, rel), source);
       });
       for (const [rel] of prerequisites) reject((target) => rmSync(join(target, rel)), /ENOENT/);
       if (i === 2) {
-        for (const [oldText, newText] of edits("0.5.18", names[i])) {
+        for (const [oldText, newText] of edits("0.5.19", names[i])) {
           reject((target) => {
             const path = join(target, affected[i][0]);
             writeFileSync(path, readFileSync(path, "utf8").replace(oldText, newText));

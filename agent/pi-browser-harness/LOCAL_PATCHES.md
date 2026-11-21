@@ -1,6 +1,21 @@
 # Browser Harness local repair
 
-Only the `0.19.1` recipe snapshot helper is maintained. The historical `0.13.0` registration helper and tests mentioned below remain at revision `d752800`; upstream supplies that repair. Do not reapply it.
+Only the `0.19.2` recipe snapshot helper is maintained. The 0.19.1 helper and tests are retrievable with `git show afe1086:<path>`. The historical `0.13.0` registration helper and tests mentioned below remain at revision `d752800`; upstream supplies that repair. Do not reapply it.
+
+## 0.19.2 with recipe snapshot repair installed on Pi 1.6.0
+
+Installed on 2026-11-21 from the verified candidate graph, and unchanged after a fresh Pi start. The backup of the previous cache was later deleted at the user's request. Before this, the cache held repaired 0.19.1 (`bdbd6888…`) while settings already pinned 0.19.2. See the [post-upgrade record](../../docs/changelogs/pi-1.6.0-post-upgrade-compatibility-and-skills.md).
+
+Registry artifact: gitHead `f71c690c6087a156fea2ac4fcb1030dd5eb8ed4a`, SRI `sha512-WKMR65ovAwT3d18tyHi0yLlB2jpQ5H542gNoLN02IXrvXhDBqqtXrAIFqoJJfoGp6QPql6FqsLK+itYgKl/l9A==`. 0.19.2 changes only `browser_run_script` abort handling (`src/domains/js.ts`, new `src/util/revocable.ts`). The four recipe sources are byte-identical to 0.19.1, and stock 0.19.2 still lets all three routes replay a parsed replacement under the original approval.
+
+The helper is unchanged apart from version, file count and stock identity.
+
+| Complete package identity | SHA-256 |
+| --- | --- |
+| Stock 0.19.2, 128 sorted `[relativePath, sha256]` pairs | `40bb363679f11bb767bcf88b5b0afda1884be7c2a14446dac2965ba9df9da22a` |
+| Exact repaired 0.19.2 | `f6922a55860d243be1888d4d94c799042180a95159973a074ef2c19cc69fa41f` |
+
+The repair delta equals the installed 0.19.1 repair. On Pi 1.6.0 the helper guards pass 7/7 and the recipe snapshot suite passes 18/18 with zero browser calls on rejection; stock reproduces the defect. Run them with `PI_TEST_HARNESS_TARBALL`, then `PI_TEST_NODE_MODULES` (Harness plus Pi 1.6.0 and its `@mariozechner` aliases), `PI_TEST_HARNESS_ROOT`, `PI_TEST_PUBLISHED_HARNESS` and `PI_TEST_HARNESS_IDENTITY`. `skills: []`, consent rules and the Windows Chrome setup are unchanged. No browser or daemon ran.
 
 ## 0.19.1 with recipe snapshot repair installed on Pi 1.5.2
 

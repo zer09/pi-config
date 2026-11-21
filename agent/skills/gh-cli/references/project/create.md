@@ -1,7 +1,7 @@
 # gh project create
 
 Source: https://cli.github.com/manual/gh_project_create
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project create`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help project create`.
 
 ## Summary
 
@@ -29,7 +29,7 @@ FLAGS
       --title string      Title for the project
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Create a new project owned by login monalisa

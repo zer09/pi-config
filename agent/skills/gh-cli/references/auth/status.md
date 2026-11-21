@@ -1,7 +1,7 @@
 # gh auth status
 
 Source: https://cli.github.com/manual/gh_auth_status
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help auth status`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help auth status`.
 
 ## Summary
 
@@ -33,16 +33,16 @@ USAGE
   gh auth status [flags]
 
 FLAGS
-  -a, --active            Display the active account only
-  -h, --hostname string   Check only a specific hostname's auth status
-      --jq expression     Filter JSON output using a jq expression
-      --json fields       Output JSON with the specified fields
-      --no-refresh        Do not automatically refresh expired tokens
-  -t, --show-token        Display the auth token
-      --template string   Format JSON output using a Go template; see "gh help formatting"
+  -a, --active[=true|false]       Display the active account only
+  -h, --hostname string           Check only a specific hostname's auth status
+      --jq expression             Filter JSON output using a jq expression
+      --json fields               Output JSON with the specified fields
+      --no-refresh[=true|false]   Do not automatically refresh expired tokens
+  -t, --show-token[=true|false]   Display the auth token
+      --template string           Format JSON output using a Go template; see "gh help formatting"
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 JSON FIELDS
   hosts

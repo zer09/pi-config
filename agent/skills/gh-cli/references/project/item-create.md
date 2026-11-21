@@ -1,7 +1,7 @@
 # gh project item-create
 
 Source: https://cli.github.com/manual/gh_project_item-create
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project item-create`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help project item-create`.
 
 ## Summary
 
@@ -30,7 +30,7 @@ FLAGS
       --title string      Title for the draft issue
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Create a draft issue in the current user's project "1"

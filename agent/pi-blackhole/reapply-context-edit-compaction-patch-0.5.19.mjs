@@ -6,19 +6,19 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Isolated preparation only. Apply the accepted percentage and header helpers first.
-// Usage: node reapply-context-edit-compaction-patch-0.5.18.mjs "$TMPDIR/isolated-package"
+// Usage: node reapply-context-edit-compaction-patch-0.5.19.mjs "$TMPDIR/isolated-package"
 // No default target, live install, dependency loading, or subprocesses.
 const rel = "src/hooks/before-compact.ts";
-const stockHash = "ca72b2d0b2f4c27054d527a8988330041801d2584817e809c598e3a14942b8e9";
-const patchedHash = "446ba33a5d11b6a7627a965b03657e518c71a5c18a43f4b5f6d52244e0a873ca";
+const stockHash = "004bc2517c10a313565aeaf7e0f7b3c06667f38cda2fb0d40f51be4e23524a41";
+const patchedHash = "4dd21fd89c984a0af16b1073c39233fee60782612e127c3389d04527b7c92640";
 const patches = [
   [
     'import { convertToLlm, estimateTokens } from "@earendil-works/pi-coding-agent";',
     'import { buildSessionProjection, convertToLlm, estimateTokens } from "@earendil-works/pi-coding-agent";',
   ],
   [
-    'import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";',
-    'import type { ExtensionAPI, SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";',
+    'import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";',
+    'import type { ExtensionAPI, ExtensionContext, SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";',
   ],
   [
     '  entry: { id: string; type: string };\n  message: { role: string; content: unknown };',
@@ -75,10 +75,10 @@ export type OwnCutCancelReason =`,
   ],
   [
     `            index < branchEntries.indexOf(messages[cut]) &&
-            isSourceEntry(entry),
+            isProviderConversationEntry(entry),
         )?.id ?? messages[cut].id,`,
     `            index < branchEntries.indexOf(messages[cut].entry) &&
-            isSourceEntry(entry) &&
+            isProviderConversationEntry(entry) &&
             (entry.type !== "message" || messages.some((message) => message.entry === entry)),
         )?.id ?? messages[cut].entry.id,`,
   ],
@@ -175,16 +175,16 @@ export type OwnCutCancelReason =`,
 
 // Pin both complete prerequisites, including their unchanged entry/trigger guards.
 const prerequisites = [
-  ["package.json", "62931e2eeb93c4a20fb2cda099bc8243ea8302742384db3e5d173ddaeba7ec43"],
-  ["src/core/unified-config.ts", "ea3f59304c952413699501dd213a6eb4fbcd399f2174bd0768969b83a21743e8"],
+  ["package.json", "28ceecff6d948f4b275dc060490bbf1e96779ad3ce72bd524d1e275ec790151d"],
+  ["src/core/unified-config.ts", "391940aa5dac66fce9a316b6a2478146af2bd81a0302b0c55d370539c46cd527"],
   ["src/om/model-budget.ts", "1e57492d628669ea602b822388b3486a27b11a0cb549eba6efaf8cdc54eb8cac"],
   ["src/commands/memory.ts", "992d30725b044b4021d2589fd29767bdff4ef1abeb6a81d325e91e87e4b409f6"],
   ["index.ts", "fd386003c4f88da2ca25c0de97042294ed4b8b6621cf3ce550180b58621b0637"],
-  ["src/om/compaction-trigger.ts", "9de44d4d59eab66746f8ea5f406cf60aa9c35ddfd9e3a0da91c7bb7e8d32c64c"],
-  ["src/om/runtime.ts", "35afd3017ee4438386ab607bb1c054281061ed8899ea8e81b0d1ad9d43379184"],
+  ["src/om/compaction-trigger.ts", "e5259536c5409465da11b04a98ce81d2c76a6095acb6591f4dfeb56ff954025a"],
+  ["src/om/runtime.ts", "a12eb371dd322a9959359d48fc1fabe844e5d3cf2fd9717f74e7b71da5d854bf"],
   ["src/om/provider-stream.ts", "a8ac21e75f7ab08d77acbde8ed431bed0ad2a7dad3deee90119709f9fc6ed0c3"],
   ["src/om/agents/observer/agent.ts", "52040416b3d459a18e1298b108a2eb2e257f5471ae56e2f154dfba3a5f408ae5"],
-  ["src/om/agents/reflector/agent.ts", "6c718611adc60b9e92f5e6a4d831e617997b119b7d9dd7bf0e7e82b359ff9cd0"],
+  ["src/om/agents/reflector/agent.ts", "b79b149ed91d6f6837dbb6ce29ed24b550645f5439770daa0d6ed7e8ea07c077"],
   ["src/om/agents/dropper/agent.ts", "8beab0c5cc7c134c8c17af2a983f9b39b4ae3d832b73989b99a10fe93d1f7dec"],
 ];
 
@@ -211,7 +211,7 @@ function replaceUnique(content, oldText, newText, count = 1) {
 }
 export function reapplyContextEditCompactionPatch(target) {
   if (typeof target !== "string" || target.trim() === "") {
-    throw new Error("Supply an explicit isolated pi-blackhole@0.5.18 package directory under the OS temp directory.");
+    throw new Error("Supply an explicit isolated pi-blackhole@0.5.19 package directory under the OS temp directory.");
   }
   if (!process.env.TMPDIR || !isAbsolute(process.env.TMPDIR) || realpathSync(process.env.TMPDIR) !== process.env.TMPDIR) {
     throw new Error("Supply an explicit canonical TMPDIR for disposable extractions.");
@@ -228,11 +228,11 @@ export function reapplyContextEditCompactionPatch(target) {
   }
   const manifest = readIsolatedFile(root, "package.json");
   const pkg = JSON.parse(manifest);
-  if (pkg.name !== "pi-blackhole" || pkg.version !== "0.5.18") {
-    throw new Error("Expected exactly pi-blackhole@0.5.18; no files changed.");
+  if (pkg.name !== "pi-blackhole" || pkg.version !== "0.5.19") {
+    throw new Error("Expected exactly pi-blackhole@0.5.19; no files changed.");
   }
   if (!Array.isArray(pkg.pi?.extensions) || pkg.pi.extensions.length !== 1 || pkg.pi.extensions[0] !== "./index.ts") {
-    throw new Error("Apply the accepted 0.5.18 percentage candidate first (pi.extensions must be ['./index.ts']); no files changed.");
+    throw new Error("Apply the accepted 0.5.19 percentage candidate first (pi.extensions must be ['./index.ts']); no files changed.");
   }
   // Preflight all prerequisites and hook bytes before the only write.
   for (const [file, expected] of prerequisites) {
@@ -251,7 +251,7 @@ export function reapplyContextEditCompactionPatch(target) {
   if (sha256(patched) !== patchedHash || (!stock && patched !== source)) {
     throw new Error(`Mixed or drifted patch state: ${rel}`);
   }
-  if (!stock) return `already patched: isolated pi-blackhole@0.5.18 ${rel}`;
+  if (!stock) return `already patched: isolated pi-blackhole@0.5.19 ${rel}`;
   const path = join(root, rel), fd = openSync(path, "r+");
   try {
     const actual = fstatSync(fd), current = lstatSync(path);
@@ -263,9 +263,9 @@ export function reapplyContextEditCompactionPatch(target) {
   } finally {
     closeSync(fd);
   }
-  return `patched: isolated pi-blackhole@0.5.18 context-edit compaction candidate (${rel})`;
+  return `patched: isolated pi-blackhole@0.5.19 context-edit compaction candidate (${rel})`;
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (process.argv.length !== 3) throw new Error("Usage: helper $TMPDIR/isolated-pi-blackhole-0.5.18-package");
+  if (process.argv.length !== 3) throw new Error("Usage: helper $TMPDIR/isolated-pi-blackhole-0.5.19-package");
   console.log(reapplyContextEditCompactionPatch(process.argv[2]));
 }

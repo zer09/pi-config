@@ -1,7 +1,7 @@
 # gh skill
 
 Source: https://cli.github.com/manual/gh_skill
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help skill`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help skill`.
 
 ## Summary
 
@@ -40,7 +40,7 @@ AVAILABLE COMMANDS
   update:        Update installed skills to their latest versions (preview)
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Search for skills

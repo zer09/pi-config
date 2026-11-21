@@ -1,7 +1,7 @@
 # gh agent-task view
 
 Source: https://cli.github.com/manual/gh_agent-task_view
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help agent-task view`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help agent-task view`.
 
 ## Summary
 
@@ -22,16 +22,16 @@ USAGE
   gh agent-task view [<session-id> | <pr-number> | <pr-url> | <pr-branch>] [flags]
 
 FLAGS
-      --follow                   Follow agent session logs
+      --follow[=true|false]      Follow agent session logs
   -q, --jq expression            Filter JSON output using a jq expression
       --json fields              Output JSON with the specified fields
-      --log                      Show agent session logs
+      --log[=true|false]         Show agent session logs
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
   -t, --template string          Format JSON output using a Go template; see "gh help formatting"
-  -w, --web                      Open agent task in the browser
+  -w, --web[=true|false]         Open agent task in the browser
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 JSON FIELDS
   completedAt, createdAt, id, name, pullRequestNumber, pullRequestState,

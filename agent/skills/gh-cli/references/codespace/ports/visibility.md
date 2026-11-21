@@ -1,7 +1,7 @@
 # gh codespace ports visibility
 
 Source: https://cli.github.com/manual/gh_codespace_ports_visibility
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help codespace ports visibility`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help codespace ports visibility`.
 
 ## Summary
 
@@ -21,7 +21,7 @@ USAGE
 
 INHERITED FLAGS
   -c, --codespace string    Name of the codespace
-      --help                Show help for command
+      --help[=true|false]   Show help for command
   -R, --repo string         Filter codespace selection by repository name (user/repo)
       --repo-owner string   Filter codespace selection by repository owner (username or org)
 

@@ -1,7 +1,7 @@
 # gh search code
 
 Source: https://cli.github.com/manual/gh_search_code
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help search code`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help search code`.
 
 ## Summary
 
@@ -42,10 +42,10 @@ FLAGS
   -R, --repo OWNER/REPO    Filter on repository, in OWNER/REPO format
       --size string        Filter on size range, in kilobytes
   -t, --template string    Format JSON output using a Go template; see "gh help formatting"
-  -w, --web                Open the search query in the web browser
+  -w, --web[=true|false]   Open the search query in the web browser
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 JSON FIELDS
   path, repository, sha, textMatches, url

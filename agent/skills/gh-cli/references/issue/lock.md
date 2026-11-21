@@ -1,7 +1,7 @@
 # gh issue lock
 
 Source: https://cli.github.com/manual/gh_issue_lock
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue lock`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help issue lock`.
 
 ## Summary
 
@@ -23,7 +23,7 @@ FLAGS
   -r, --reason string   Optional reason for locking conversation (off_topic, resolved, spam, too_heated).
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 LEARN MORE

@@ -1,7 +1,7 @@
 # gh repo fork
 
 Source: https://cli.github.com/manual/gh_repo_fork
-Generated from: `gh version 2.96.0 (2026-07-08)` via `gh help repo fork`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help repo fork`.
 
 ## Summary
 
@@ -32,15 +32,15 @@ USAGE
   gh repo fork [<repository>] [-- <gitflags>...] [flags]
 
 FLAGS
-  --clone                 Clone the fork
-  --default-branch-only   Only include the default branch in the fork
-  --fork-name string      Rename the forked repository
-  --org string            Create the fork in an organization
-  --remote                Add a git remote for the fork
-  --remote-name string    Specify the name for the new remote (default "origin")
+  --clone[=true|false]                 Clone the fork
+  --default-branch-only[=true|false]   Only include the default branch in the fork
+  --fork-name string                   Rename the forked repository
+  --org string                         Create the fork in an organization
+  --remote[=true|false]                Add a git remote for the fork
+  --remote-name string                 Specify the name for the new remote (default "origin")
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Fork a repository

@@ -1,7 +1,7 @@
 # gh pr comment
 
 Source: https://cli.github.com/manual/gh_pr_comment
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help pr comment`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help pr comment`.
 
 ## Summary
 
@@ -36,18 +36,18 @@ USAGE
   gh pr comment [<number> | <url> | <branch>] [flags]
 
 FLAGS
-      --attach file      Attach an image or video file, in '<file>#<image alt text>' format
-  -b, --body text        The comment body text
-  -F, --body-file file   Read body text from file (use "-" to read from standard input)
-      --create-if-none   Create a new comment if no comments are found. Can be used only with --edit-last
-      --delete-last      Delete the last comment of the current user
-      --edit-last        Edit the last comment of the current user
-  -e, --editor           Skip prompts and open the text editor to write the body in
-  -w, --web              Open the web browser to write the comment
-      --yes              Skip the delete confirmation prompt when --delete-last is provided
+      --attach file                   Attach an image or video file, in '<file>#<image alt text>' format
+  -b, --body text                     The comment body text
+  -F, --body-file file                Read body text from file (use "-" to read from standard input)
+      --create-if-none[=true|false]   Create a new comment if no comments are found. Can be used only with --edit-last
+      --delete-last[=true|false]      Delete the last comment of the current user
+      --edit-last[=true|false]        Edit the last comment of the current user
+  -e, --editor[=true|false]           Skip prompts and open the text editor to write the body in
+  -w, --web[=true|false]              Open the web browser to write the comment
+      --yes[=true|false]              Skip the delete confirmation prompt when --delete-last is provided
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

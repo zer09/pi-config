@@ -1,11 +1,11 @@
 # gh ruleset
 
 Source: https://cli.github.com/manual/gh_ruleset
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help ruleset`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help ruleset`.
 
 ## Summary
 
-Repository rulesets are a way to define a set of rules that apply to a repository.
+Repository rulesets are a way to define a set of rules that apply to a repository. These commands allow you to view information about them.
 
 ## Subcommands
 
@@ -35,7 +35,7 @@ FLAGS
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   $ gh ruleset list

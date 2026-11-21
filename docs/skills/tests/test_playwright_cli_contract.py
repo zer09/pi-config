@@ -18,7 +18,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 SKILL = REPO / "agent/skills/playwright-cli"
 PACKAGE = None
-VERSION = "1.66.0-alpha-1794252756000"
+VERSION = "1.66.0-alpha-2026-11-18"
 
 
 def shell_commands(block):
@@ -94,7 +94,7 @@ class PlaywrightSkillContract(unittest.TestCase):
     def test_exact_package_and_dependency_versions(self):
         package = json.loads((PACKAGE / "package.json").read_text())
         self.assertEqual(package["name"], "@playwright/cli")
-        self.assertEqual(package["version"], "0.1.24")
+        self.assertEqual(package["version"], "0.1.25")
         self.assertEqual(package["dependencies"], {"playwright": VERSION, "playwright-core": VERSION})
         for name in ("playwright", "playwright-core"):
             dependency = json.loads((PACKAGE / "node_modules" / name / "package.json").read_text())

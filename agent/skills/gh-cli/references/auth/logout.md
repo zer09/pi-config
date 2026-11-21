@@ -1,7 +1,7 @@
 # gh auth logout
 
 Source: https://cli.github.com/manual/gh_auth_logout
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help auth logout`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help auth logout`.
 
 ## Summary
 
@@ -44,7 +44,7 @@ FLAGS
   -u, --user string       The account to log out of
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Select what host and account to log out of via a prompt

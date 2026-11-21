@@ -1,7 +1,7 @@
 # gh agent-task create
 
 Source: https://cli.github.com/manual/gh_agent-task_create
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help agent-task create`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help agent-task create`.
 
 ## Summary
 
@@ -22,12 +22,12 @@ USAGE
 FLAGS
   -b, --base string              Base branch for the pull request (use default branch if not provided)
   -a, --custom-agent string      Use a custom agent for the task. e.g., use 'my-agent' for the 'my-agent.md' agent
-      --follow                   Follow agent session logs
+      --follow[=true|false]      Follow agent session logs
   -F, --from-file file           Read task description from file (use "-" to read from standard input)
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Create a task from an inline description

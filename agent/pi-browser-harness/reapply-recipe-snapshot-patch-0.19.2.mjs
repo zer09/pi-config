@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Identity covers all 127 files from the registry-SRI-verified 0.19.1 archive.
-const stockIdentity = "78b72214d79ae3880f36a5a220c94e445154ab7d9ead11d5c3089c7f30dbaa7e";
+// Identity covers all 128 files from the registry-SRI-verified 0.19.2 archive.
+const stockIdentity = "40bb363679f11bb767bcf88b5b0afda1884be7c2a14446dac2965ba9df9da22a";
 const sourceHashes = {
   "src/recipes/store.ts": "ee5f37cb5648121df44fa0036e67db45e6d62e9632652c3d3397f17dc706df9e",
   "src/recipes/trust.ts": "fde538decb812a308a93793a2cb30b803bd7a090cc3b6a2f9e412240f27e6dba",
@@ -63,7 +63,7 @@ function replaceUnique(content, before, after) {
   return content.replace(before, after);
 }
 export function reapplyRecipeSnapshotPatch(target) {
-  if (typeof target !== "string" || !target.trim()) throw new Error("Supply an explicit isolated pi-browser-harness@0.19.1 directory under canonical disposable TMPDIR.");
+  if (typeof target !== "string" || !target.trim()) throw new Error("Supply an explicit isolated pi-browser-harness@0.19.2 directory under canonical disposable TMPDIR.");
   const root = resolve(target), repository = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), "../..")), temp = process.env.TMPDIR;
   if (!temp || !isAbsolute(temp) || resolve(temp) !== temp || realpathSync(temp) !== temp || tmpdir() !== temp ||
       target !== root || realpathSync(root) !== root || !lstatSync(root).isDirectory() || !isWithin(temp, root) ||
@@ -71,7 +71,7 @@ export function reapplyRecipeSnapshotPatch(target) {
     throw new Error("Refusing a non-isolated target; use a canonical extracted package under explicit disposable TMPDIR.");
   }
   const pkg = JSON.parse(readIsolatedFile(root, "package.json"));
-  if (pkg.name !== "pi-browser-harness" || pkg.version !== "0.19.1") throw new Error("Expected exactly pi-browser-harness@0.19.1; no files changed.");
+  if (pkg.name !== "pi-browser-harness" || pkg.version !== "0.19.2") throw new Error("Expected exactly pi-browser-harness@0.19.2; no files changed.");
   const originals = {}, patched = {}, states = [];
   for (const [rel, changes] of Object.entries(edits)) {
     const current = readIsolatedFile(root, rel).toString("utf8"), stock = sha256(current) === sourceHashes[rel];
@@ -100,14 +100,14 @@ export function reapplyRecipeSnapshotPatch(target) {
     if (a > b) return 1;
     return 0;
   });
-  if (entries.length !== 127 || sha256(JSON.stringify(entries)) !== stockIdentity) throw new Error("Drifted complete 127-file artifact identity; no files changed.");
-  if (!states[0]) return "already patched: isolated pi-browser-harness@0.19.1";
+  if (entries.length !== 128 || sha256(JSON.stringify(entries)) !== stockIdentity) throw new Error("Drifted complete 128-file artifact identity; no files changed.");
+  if (!states[0]) return "already patched: isolated pi-browser-harness@0.19.2";
   // Check every destination before the first write, including late failures.
   for (const rel of Object.keys(edits)) accessSync(join(root, rel), constants.W_OK);
   for (const [rel, text] of Object.entries(patched)) writeFileSync(join(root, rel), text);
-  return "patched: isolated pi-browser-harness@0.19.1 exact-byte recipe snapshot";
+  return "patched: isolated pi-browser-harness@0.19.2 exact-byte recipe snapshot";
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (process.argv.length !== 3) throw new Error("Usage: helper $TMPDIR/isolated-pi-browser-harness-0.19.1-package");
+  if (process.argv.length !== 3) throw new Error("Usage: helper $TMPDIR/isolated-pi-browser-harness-0.19.2-package");
   console.log(reapplyRecipeSnapshotPatch(process.argv[2]));
 }

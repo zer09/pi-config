@@ -1,7 +1,7 @@
 # gh repo deploy-key delete
 
 Source: https://cli.github.com/manual/gh_repo_deploy-key_delete
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo deploy-key delete`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help repo deploy-key delete`.
 
 ## Summary
 
@@ -20,7 +20,7 @@ USAGE
   gh repo deploy-key delete <key-id> [flags]
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 LEARN MORE

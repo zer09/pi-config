@@ -1,7 +1,7 @@
 # gh config set
 
 Source: https://cli.github.com/manual/gh_config_set
-Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help config set`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help config set`.
 
 ## Summary
 
@@ -23,7 +23,7 @@ FLAGS
   -h, --host string   Set per-host setting
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   $ gh config set editor vim

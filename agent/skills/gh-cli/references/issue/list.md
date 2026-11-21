@@ -1,7 +1,7 @@
 # gh issue list
 
 Source: https://cli.github.com/manual/gh_issue_list
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue list`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help issue list`.
 
 ## Summary
 
@@ -45,10 +45,10 @@ FLAGS
   -s, --state string       Filter by state: {open|closed|all} (default "open")
   -t, --template string    Format JSON output using a Go template; see "gh help formatting"
       --type name          Filter by issue type name
-  -w, --web                List issues in the web browser
+  -w, --web[=true|false]   List issues in the web browser
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 JSON FIELDS

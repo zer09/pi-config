@@ -1,7 +1,7 @@
 # gh issue view
 
 Source: https://cli.github.com/manual/gh_issue_view
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help issue view`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help issue view`.
 
 ## Summary
 
@@ -27,14 +27,14 @@ USAGE
   gh issue view {<number> | <url>} [flags]
 
 FLAGS
-  -c, --comments          View issue comments
-  -q, --jq expression     Filter JSON output using a jq expression
-      --json fields       Output JSON with the specified fields
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
-  -w, --web               Open an issue in the browser
+  -c, --comments[=true|false]   View issue comments
+  -q, --jq expression           Filter JSON output using a jq expression
+      --json fields             Output JSON with the specified fields
+  -t, --template string         Format JSON output using a Go template; see "gh help formatting"
+  -w, --web[=true|false]        Open an issue in the browser
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 JSON FIELDS

@@ -70,7 +70,7 @@ function errorText(error: unknown): string {
  * extension-error channel, which this entry cannot undo.
  *
  * This entry limits what the bridge registers in Pi. It does not sandbox the
- * bridge: stock 0.12 uses user-only Claude Code settings, but user hooks,
+ * bridge: stock 0.12 and 0.13 use user-only Claude Code settings, but user hooks,
  * inherited environment, and retained Claude transcripts are not sandboxed.
  * ADR 0010 still limits these routes to trusted repositories.
  *
@@ -96,7 +96,7 @@ export async function activateBridge(
 	const pending: PendingRegistration[] = [];
 	const api = new Proxy({} as ExtensionAPI, {
 		get(_target, key) {
-			// Bridge 0.12 checks for the retired AskClaude tool; never expose host tools.
+			// Bridge 0.12 and 0.13 check for the retired AskClaude tool; never expose host tools.
 			if (key === "getAllTools") return () => [];
 			if (!FORWARDED_APIS.has(key)) return () => {};
 			return (...args: unknown[]) => {

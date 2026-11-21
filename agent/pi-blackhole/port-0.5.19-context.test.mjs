@@ -19,20 +19,20 @@ const deps = join(runtime, "node_modules");
 const alias = {};
 for (const name of ["pi-ai", "pi-coding-agent", "pi-agent-core", "pi-tui"]) {
   const dir = join(deps, "@earendil-works", name);
-  assert.equal(JSON.parse(readFileSync(join(dir, "package.json"))).version, "1.5.2");
+  assert.equal(JSON.parse(readFileSync(join(dir, "package.json"))).version, "1.6.0");
   alias[`@earendil-works/${name}`] = join(dir, "dist/index.js");
 }
 alias.typebox = join(deps, "typebox/build/index.mjs");
 const pi = await import(pathToFileURL(alias["@earendil-works/pi-coding-agent"]));
 const { prepareCompaction } = await import(pathToFileURL(join(deps, "@earendil-works/pi-coding-agent/dist/core/compaction/compaction.js")));
-assert.equal(pi.VERSION, "1.5.2");
+assert.equal(pi.VERSION, "1.6.0");
 const { createJiti } = await import(pathToFileURL(join(deps, "jiti/lib/jiti.mjs")));
 const modules = {};
 for (const [kind, root] of Object.entries({ stock, patched })) {
   const jiti = createJiti(import.meta.url, { alias, fsCache: false, moduleCache: true });
   modules[kind] = await jiti.import(join(root, "src/hooks/before-compact.ts"));
 }
-const state = mkdtempSync(join(tmpdir(), "context-0.5.18-"));
+const state = mkdtempSync(join(tmpdir(), "context-0.5.19-"));
 const timestamp = "2026-01-01T00:00:00.000Z";
 const usage = { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 const message = (id, role, content = id) => ({ type: "message", id, timestamp, message: {
@@ -66,7 +66,7 @@ function projectedBranch(branch) {
   }));
 }
 
-test("existing context fixture mode, bound to exact Pi 1.5.2 and the minimal split-turn policy", () => {
+test("existing context fixture mode, bound to exact Pi 1.6.0 and the minimal split-turn policy", () => {
   const fixture = join(here, "context-projection.fixture.mjs");
   const result = spawnSync(process.execPath, [fixture, patched, stock, state, runtime, JSON.stringify(alias)], { cwd: state, env: { ...process.env, HOME: state, PI_CODING_AGENT_DIR: join(state, "agent"), PI_BLACKHOLE_PACKAGE_ROOT: patched }, encoding: "utf8", timeout: 120000 });
   console.log(result.stdout);
@@ -200,7 +200,7 @@ test("pressure estimation and bridged candidate reconstruction use the projected
 
 test("native summary hooks with stock Bridge stay Blackhole-owned with zero SDK calls", async () => {
   const bridgeRoot = join(deps, "pi-claude-bridge");
-  assert.equal(JSON.parse(readFileSync(join(bridgeRoot, "package.json"))).version, "0.12.0");
+  assert.equal(JSON.parse(readFileSync(join(bridgeRoot, "package.json"))).version, "0.13.0");
   const extensionAI = join(deps, "@earendil-works/pi-coding-agent/dist/core/extensions/pi-ai-extension-view.js");
   const bridgeAlias = { ...alias, "@earendil-works/pi-ai": extensionAI, "@earendil-works/pi-ai/compat": extensionAI };
   const jiti = createJiti(import.meta.url, { alias: bridgeAlias, fsCache: false, moduleCache: true });

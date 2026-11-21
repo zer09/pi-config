@@ -1,7 +1,7 @@
 # gh codespace ports forward
 
 Source: https://cli.github.com/manual/gh_codespace_ports_forward
-Generated from: `gh version 2.101.0 (2026-09-15)` via `gh help codespace ports forward`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help codespace ports forward`.
 
 ## Summary
 
@@ -24,11 +24,11 @@ USAGE
   gh codespace ports forward <remote-port>:<local-port>... [flags]
 
 FLAGS
-  --all-interfaces   Listen on all network interfaces
+  --all-interfaces[=true|false]   Listen on all network interfaces
 
 INHERITED FLAGS
   -c, --codespace string    Name of the codespace
-      --help                Show help for command
+      --help[=true|false]   Show help for command
   -R, --repo string         Filter codespace selection by repository name (user/repo)
       --repo-owner string   Filter codespace selection by repository owner (username or org)
 

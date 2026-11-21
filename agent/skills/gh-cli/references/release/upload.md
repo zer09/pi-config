@@ -1,7 +1,7 @@
 # gh release upload
 
 Source: https://cli.github.com/manual/gh_release_upload
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help release upload`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help release upload`.
 
 ## Summary
 
@@ -27,10 +27,10 @@ USAGE
   gh release upload <tag> <files>... [flags]
 
 FLAGS
-  --clobber   Delete and re-upload existing assets of the same name
+  --clobber[=true|false]   Delete and re-upload existing assets of the same name
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 LEARN MORE

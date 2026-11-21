@@ -1,7 +1,7 @@
 # gh issue transfer
 
 Source: https://cli.github.com/manual/gh_issue_transfer
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue transfer`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help issue transfer`.
 
 ## Summary
 
@@ -20,7 +20,7 @@ USAGE
   gh issue transfer {<number> | <url>} <destination-repo> [flags]
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 LEARN MORE

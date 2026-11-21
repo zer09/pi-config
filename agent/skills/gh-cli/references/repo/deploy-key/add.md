@@ -1,7 +1,7 @@
 # gh repo deploy-key add
 
 Source: https://cli.github.com/manual/gh_repo_deploy-key_add
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo deploy-key add`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help repo deploy-key add`.
 
 ## Summary
 
@@ -25,11 +25,11 @@ USAGE
   gh repo deploy-key add <key-file> [flags]
 
 FLAGS
-  -w, --allow-write    Allow write access for the key
-  -t, --title string   Title of the new key
+  -w, --allow-write[=true|false]   Allow write access for the key
+  -t, --title string               Title of the new key
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

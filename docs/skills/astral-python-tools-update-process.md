@@ -11,7 +11,11 @@ Before and after syncing upstream, apply `local-skill-update-invariants.md`. Ups
 - Canonical upstream repository: https://github.com/astral-sh/agent-plugins (verified redirect from `astral-sh/claude-code-plugins`).
 - Current upstream commit compared: `855418fb9ebfada49a8345a5c3ada9db2cdc2419` on `main`.
 - Prior comparison: `f3ce88a7ba830f53afd6d944c1d0278ed318e142`.
-- Current installed/latest captured CLIs reviewed: `uv`/`uvx 0.13.7`, `ruff 0.17.4`, and `ty 0.0.101`. The older versions below are historical, not downgrade targets.
+- Current installed/latest captured CLIs reviewed: `uv`/`uvx 0.13.9`, `ruff 0.17.6`, and `ty 0.0.107` (Pi 1.6.0 post-upgrade check, 2026-11-21). The older versions below are historical, not downgrade targets.
+
+## Pi 1.6.0 post-upgrade check
+
+Source unchanged at `855418fb`. The existing owners (Cargo for uv/uvx, uv tool for Ruff/ty) already hold the latest stable releases, so no install is needed. Official release notes for uv 0.13.8-0.13.9, Ruff 0.17.5-0.17.6, and ty 0.0.102-0.0.107 were reviewed. Network-denied help, `ty explain rule`, and fixture checks confirm every referenced flag and rule name. The only referenced-contract change is ty 0.0.105's split of `missing-module-member` out of `import-not-found`; the ty root now notes rule splits. Other ty renames (for example the `invalid-return-type` split and `call-non-callable` to `not-callable`) and uv 0.13.9's compacted lockfile markers touch no skill example; existing sync/lockfile mutation gates cover lockfile rewrites. Descriptions, metadata and classification are unchanged.
 
 | Local skill | Upstream path |
 | --- | --- |

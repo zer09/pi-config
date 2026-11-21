@@ -1,7 +1,7 @@
 # gh issue artifact
 
 Source: https://cli.github.com/manual/gh_issue_artifact
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help issue artifact`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help issue artifact`.
 
 ## Summary
 
@@ -37,7 +37,7 @@ AVAILABLE COMMANDS
   view:          View an issue artifact (preview)
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 LEARN MORE

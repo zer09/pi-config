@@ -35,7 +35,7 @@ Alternatively, edit the requested local `firebase.json` and `apphosting.yaml` fi
 
 ### `apphosting:rollouts:list` availability
 
-In CLI 15.36.0 this command is registered only under the `internaltesting` experiment. Stock `firebase apphosting:rollouts:list --help` falls back to root help with exit 0, which does not prove command availability. Do not enable experiments to bypass this limit.
+In CLI 15.36.0 and 15.37.0 this command is registered only under the `internaltesting` experiment. Stock `firebase apphosting:rollouts:list --help` falls back to root help with exit 0, which does not prove command availability. Do not enable experiments to bypass this limit.
 
 ## Secrets Management
 

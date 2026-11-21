@@ -1,7 +1,7 @@
 # gh attestation trusted-root
 
 Source: https://cli.github.com/manual/gh_attestation_trusted-root
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help attestation trusted-root`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help attestation trusted-root`.
 
 ## Summary
 
@@ -36,13 +36,13 @@ USAGE
   gh attestation trusted-root [--tuf-url <url> --tuf-root <file-path>] [--verify-only] [flags]
 
 FLAGS
-  --hostname string   Configure host to use
-  --tuf-root string   Path to the TUF root.json file on disk
-  --tuf-url string    URL to the TUF repository mirror
-  --verify-only       Don't output trusted_root.jsonl contents
+  --hostname string            Configure host to use
+  --tuf-root string            Path to the TUF root.json file on disk
+  --tuf-url string             URL to the TUF repository mirror
+  --verify-only[=true|false]   Don't output trusted_root.jsonl contents
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Get a trusted_root.jsonl for both Sigstore Public Good and GitHub's instance

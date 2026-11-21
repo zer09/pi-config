@@ -18,7 +18,7 @@ for (const root of [...Object.values(roots), runtime]) {
 const deps = join(runtime, "node_modules"), alias = {};
 for (const name of ["pi-ai", "pi-coding-agent", "pi-agent-core", "pi-tui"]) {
   const dir = join(deps, "@earendil-works", name);
-  assert.equal(JSON.parse(readFileSync(join(dir, "package.json"))).version, "1.5.2");
+  assert.equal(JSON.parse(readFileSync(join(dir, "package.json"))).version, "1.6.0");
   alias[`@earendil-works/${name}`] = join(dir, "dist/index.js");
 }
 alias["@earendil-works/pi-ai/compat"] = join(deps, "@earendil-works/pi-ai/dist/compat.js");
@@ -26,7 +26,7 @@ alias.typebox = join(deps, "typebox/build/index.mjs");
 const { createJiti } = await import(pathToFileURL(join(deps, "jiti/lib/jiti.mjs")));
 const modules = {};
 for (const [kind, root] of Object.entries(roots)) {
-  assert.equal(JSON.parse(readFileSync(join(root, "package.json"))).version, "0.5.18");
+  assert.equal(JSON.parse(readFileSync(join(root, "package.json"))).version, "0.5.19");
   const jiti = createJiti(import.meta.url, { alias, fsCache: false, moduleCache: true });
   modules[kind] = {
     budget: await jiti.import(join(root, "src/om/model-budget.ts")),

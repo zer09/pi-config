@@ -1,7 +1,7 @@
 # gh alias set
 
 Source: https://cli.github.com/manual/gh_alias_set
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help alias set`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help alias set`.
 
 ## Summary
 
@@ -33,11 +33,11 @@ USAGE
   gh alias set <alias> <expansion> [flags]
 
 FLAGS
-      --clobber   Overwrite existing aliases of the same name
-  -s, --shell     Declare an alias to be passed through a shell interpreter
+      --clobber[=true|false]   Overwrite existing aliases of the same name
+  -s, --shell[=true|false]     Declare an alias to be passed through a shell interpreter
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Note: Command Prompt on Windows requires using double quotes for arguments

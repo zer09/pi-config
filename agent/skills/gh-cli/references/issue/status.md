@@ -1,7 +1,7 @@
 # gh issue status
 
 Source: https://cli.github.com/manual/gh_issue_status
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help issue status`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help issue status`.
 
 ## Summary
 
@@ -27,7 +27,7 @@ FLAGS
   -t, --template string   Format JSON output using a Go template; see "gh help formatting"
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 JSON FIELDS

@@ -1,7 +1,7 @@
 # gh auth setup-git
 
 Source: https://cli.github.com/manual/gh_auth_setup-git
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help auth setup-git`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help auth setup-git`.
 
 ## Summary
 
@@ -29,11 +29,11 @@ USAGE
   gh auth setup-git [flags]
 
 FLAGS
-  -f, --force --hostname   Force setup even if the host is not known. Must be used in conjunction with --hostname
-  -h, --hostname string    The hostname to configure git for
+  -f, --force[=true|false]   Force setup even if the host is not known. Must be used in conjunction with --hostname
+  -h, --hostname string      The hostname to configure git for
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Configure git to use GitHub CLI as the credential helper for all authenticated hosts

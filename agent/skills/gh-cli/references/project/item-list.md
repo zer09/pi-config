@@ -1,7 +1,7 @@
 # gh project item-list
 
 Source: https://cli.github.com/manual/gh_project_item-list
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help project item-list`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help project item-list`.
 
 ## Summary
 
@@ -36,7 +36,7 @@ FLAGS
   -t, --template string        Format JSON output using a Go template; see "gh help formatting"
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # List the items in the current users's project "1"

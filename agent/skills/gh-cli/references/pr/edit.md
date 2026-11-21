@@ -1,7 +1,7 @@
 # gh pr edit
 
 Source: https://cli.github.com/manual/gh_pr_edit
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help pr edit`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help pr edit`.
 
 ## Summary
 
@@ -52,24 +52,24 @@ USAGE
   gh pr edit [<number> | <url> | <branch>] [flags]
 
 FLAGS
-      --add-assignee login      Add assigned users by their login. Use "@me" to assign yourself, or "@copilot" to assign Copilot.
-      --add-label name          Add labels by name
-      --add-project title       Add the pull request to projects by title
-      --add-reviewer login      Add or re-request reviewers by their login. Use "@copilot" to request review from Copilot.
-      --attach file             Attach an image or video file, in '<file>#<image alt text>' format
-  -B, --base branch             Change the base branch for this pull request
-  -b, --body string             Set the new body.
-  -F, --body-file file          Read body text from file (use "-" to read from standard input)
-  -m, --milestone name          Edit the milestone the pull request belongs to by name
-      --remove-assignee login   Remove assigned users by their login. Use "@me" to unassign yourself, or "@copilot" to unassign Copilot.
-      --remove-label name       Remove labels by name
-      --remove-milestone        Remove the milestone association from the pull request
-      --remove-project title    Remove the pull request from projects by title
-      --remove-reviewer login   Remove reviewers by their login. Use "@copilot" to remove review request from Copilot.
-  -t, --title string            Set the new title.
+      --add-assignee login              Add assigned users by their login. Use "@me" to assign yourself, or "@copilot" to assign Copilot.
+      --add-label name                  Add labels by name
+      --add-project title               Add the pull request to projects by title
+      --add-reviewer login              Add or re-request reviewers by their login. Use "@copilot" to request review from Copilot.
+      --attach file                     Attach an image or video file, in '<file>#<image alt text>' format
+  -B, --base branch                     Change the base branch for this pull request
+  -b, --body string                     Set the new body.
+  -F, --body-file file                  Read body text from file (use "-" to read from standard input)
+  -m, --milestone name                  Edit the milestone the pull request belongs to by name
+      --remove-assignee login           Remove assigned users by their login. Use "@me" to unassign yourself, or "@copilot" to unassign Copilot.
+      --remove-label name               Remove labels by name
+      --remove-milestone[=true|false]   Remove the milestone association from the pull request
+      --remove-project title            Remove the pull request from projects by title
+      --remove-reviewer login           Remove reviewers by their login. Use "@copilot" to remove review request from Copilot.
+  -t, --title string                    Set the new title.
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

@@ -1,7 +1,7 @@
 # gh run download
 
 Source: https://cli.github.com/manual/gh_run_download
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help run download`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help run download`.
 
 ## Summary
 
@@ -34,7 +34,7 @@ FLAGS
   -p, --pattern stringArray   Download artifacts that match a glob pattern
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

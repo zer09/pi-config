@@ -1,7 +1,7 @@
 # gh skill install
 
 Source: https://cli.github.com/manual/gh_skill_install
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help skill install`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help skill install`.
 
 ## Summary
 
@@ -135,18 +135,18 @@ ALIASES
   gh skill add, gh skills add
 
 FLAGS
-      --agent string        Target agent (see supported values above)
-      --all                 Install all skills without prompting for skill selection
-      --allow-hidden-dirs   Include skills in hidden directories (e.g. .claude/skills/, .agents/skills/)
-      --dir string          Install to a custom directory (overrides --agent and --scope)
-  -f, --force               Overwrite existing skills without prompting
-      --from-local          Treat the argument as a local directory path instead of a repository
-      --pin string          Pin to a specific git tag or commit SHA
-      --scope string        Installation scope: {project|user} (default "project")
-      --upstream            Install from the upstream source when a re-published skill is detected
+      --agent string                     Target agent (see supported values above)
+      --all[=true|false]                 Install all skills without prompting for skill selection
+      --allow-hidden-dirs[=true|false]   Include skills in hidden directories (e.g. .claude/skills/, .agents/skills/)
+      --dir string                       Install to a custom directory (overrides --agent and --scope)
+  -f, --force[=true|false]               Overwrite existing skills without prompting
+      --from-local[=true|false]          Treat the argument as a local directory path instead of a repository
+      --pin string                       Pin to a specific git tag or commit SHA
+      --scope string                     Installation scope: {project|user} (default "project")
+      --upstream[=true|false]            Install from the upstream source when a re-published skill is detected
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Interactive: choose repo, skill, and agent

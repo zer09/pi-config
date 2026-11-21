@@ -1,7 +1,7 @@
 # gh discussion view
 
 Source: https://cli.github.com/manual/gh_discussion_view
-Generated from: `gh version 2.103.3 (2026-10-26)` via `gh help discussion view`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help discussion view`.
 
 ## Summary
 
@@ -36,17 +36,17 @@ USAGE
 
 FLAGS
       --after string             Cursor for the next page
-  -c, --comments                 View discussion comments
+  -c, --comments[=true|false]    View discussion comments
   -q, --jq expression            Filter JSON output using a jq expression
       --json fields              Output JSON with the specified fields
   -L, --limit int                Maximum number of comments or replies to fetch (default 30)
       --order string             Order of comments or replies: {oldest|newest} (default "newest")
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
   -t, --template string          Format JSON output using a Go template; see "gh help formatting"
-  -w, --web                      Open a discussion in the browser
+  -w, --web[=true|false]         Open a discussion in the browser
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 JSON FIELDS
   answerChosenAt, answerChosenBy, answered, author, body, category, closed,

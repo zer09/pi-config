@@ -1,7 +1,7 @@
 # gh project view
 
 Source: https://cli.github.com/manual/gh_project_view
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project view`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help project view`.
 
 ## Summary
 
@@ -22,14 +22,14 @@ USAGE
   gh project view [<number>] [flags]
 
 FLAGS
-      --format string     Output format: {json}
-  -q, --jq expression     Filter JSON output using a jq expression
-      --owner string      Login of the owner. Use "@me" for the current user.
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
-  -w, --web               Open a project in the browser
+      --format string      Output format: {json}
+  -q, --jq expression      Filter JSON output using a jq expression
+      --owner string       Login of the owner. Use "@me" for the current user.
+  -t, --template string    Format JSON output using a Go template; see "gh help formatting"
+  -w, --web[=true|false]   Open a project in the browser
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # View the current user's project "1"

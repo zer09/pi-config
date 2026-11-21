@@ -19,14 +19,14 @@ assert.equal(process.env.PI_CACHE_WARMING, "off");
 assert.notEqual(fs.readlinkSync("/proc/self/ns/net"), process.env.PI_TEST_PARENT_NET_NS);
 assert.equal(fs.existsSync("/home/gc/.pi"), false);
 for (const root of [process.env.HOME, process.env.PI_CODING_AGENT_DIR, process.env.CLAUDE_CONFIG_DIR]) assert.ok(root.startsWith(out + "/"));
-assert.equal(JSON.parse(fs.readFileSync(join(target, "package.json"))).version, "0.19.1");
+assert.equal(JSON.parse(fs.readFileSync(join(target, "package.json"))).version, "0.19.2");
 for (const scope of ["@earendil-works", "@mariozechner"]) for (const name of ["pi-coding-agent", "pi-ai", "pi-agent-core", "pi-tui"]) {
-  assert.equal(JSON.parse(fs.readFileSync(join(modules, scope, name, "package.json"))).version, "1.5.2");
+  assert.equal(JSON.parse(fs.readFileSync(join(modules, scope, name, "package.json"))).version, "1.6.0");
 }
 export const packageIdentity = process.env.PI_TEST_HARNESS_IDENTITY ?? "stock";
 assert.ok(["stock", "repaired"].includes(packageIdentity));
-const stockIdentity = "78b72214d79ae3880f36a5a220c94e445154ab7d9ead11d5c3089c7f30dbaa7e";
-const repairedIdentity = "bdbd68882202b36e31459d3eef0de5431300e505f8904f48dfebc675ba6e0748";
+const stockIdentity = "40bb363679f11bb767bcf88b5b0afda1884be7c2a14446dac2965ba9df9da22a";
+const repairedIdentity = "f6922a55860d243be1888d4d94c799042180a95159973a074ef2c19cc69fa41f";
 function artifactIdentity(root) {
   const rows = [];
   function visit(rel = "") {
@@ -41,7 +41,7 @@ function artifactIdentity(root) {
     }
   }
   visit(); rows.sort(([a], [b]) => { if (a < b) return -1; if (a > b) return 1; return 0; });
-  assert.equal(rows.length, 127);
+  assert.equal(rows.length, 128);
   return createHash("sha256").update(JSON.stringify(rows)).digest("hex");
 }
 assert.equal(artifactIdentity(published), stockIdentity, "Verified complete stock control required");

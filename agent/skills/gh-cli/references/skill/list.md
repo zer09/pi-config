@@ -1,7 +1,7 @@
 # gh skill list
 
 Source: https://cli.github.com/manual/gh_skill_list
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help skill list`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help skill list`.
 
 ## Summary
 
@@ -40,7 +40,7 @@ FLAGS
   -t, --template string   Format JSON output using a Go template; see "gh help formatting"
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 JSON FIELDS
   agentHosts, path, pinned, scope, skillName, sourceURL, version

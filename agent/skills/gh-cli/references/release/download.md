@@ -1,7 +1,7 @@
 # gh release download
 
 Source: https://cli.github.com/manual/gh_release_download
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help release download`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help release download`.
 
 ## Summary
 
@@ -25,16 +25,16 @@ USAGE
   gh release download [<tag>] [flags]
 
 FLAGS
-      --allow-escape-sequences   Allow printing terminal escape sequences when writing an asset to standard output
-  -A, --archive format           Download the source code archive in the specified format (zip or tar.gz)
-      --clobber                  Overwrite existing files of the same name
-  -D, --dir directory            The directory to download files into (default ".")
-  -O, --output file              The file to write a single asset to (use "-" to write to standard output)
-  -p, --pattern stringArray      Download only assets that match a glob pattern
-      --skip-existing            Skip downloading when files of the same name exist
+      --allow-escape-sequences[=true|false]   Allow printing terminal escape sequences when writing an asset to standard output
+  -A, --archive format                        Download the source code archive in the specified format (zip or tar.gz)
+      --clobber[=true|false]                  Overwrite existing files of the same name
+  -D, --dir directory                         The directory to download files into (default ".")
+  -O, --output file                           The file to write a single asset to (use "-" to write to standard output)
+  -p, --pattern stringArray                   Download only assets that match a glob pattern
+      --skip-existing[=true|false]            Skip downloading when files of the same name exist
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

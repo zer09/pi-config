@@ -27,30 +27,28 @@ The tracked config root is `agent/`, which maps to the local Pi agent config dir
 
 ## Current settings snapshot
 
-**Pi 1.5.2 is installed and verified.** See the [installation record](docs/changelogs/pi-1.5.2-full-setup-installation.md) for actual software, checks, remaining limits and rollback evidence. The [preparation record](docs/changelogs/pi-1.5.2-full-setup-maintenance-preparation.md) remains historical.
+**Pi 1.6.0 core and the repaired package set are installed.** The user upgraded the core; on 2026-11-21 the verified candidate graph replaced `agent/npm`: repaired Blackhole 0.5.19, repaired Harness 0.19.2, patched BTW 0.8.1 and stock Bridge 0.13.0. See the [post-upgrade record](docs/changelogs/pi-1.6.0-post-upgrade-compatibility-and-skills.md). Pi installs a mismatched exact pin as a **stock** package at startup, so change a pin only together with its verified repaired package. Earlier installation records remain historical.
 
-Blackhole 0.5.18, Harness 0.19.1 and stock Bridge 0.12.0 are [installed and verified](docs/changelogs/three-extension-upgrade-installation.md). Installation used normal-user file operations with a retained rollback copy, without sudo. Restart existing Pi sessions fully to activate the upgraded extensions.
-
-`agent/settings.json` is the main tracked settings file. The snapshot below describes the installed selection; defaults and accounts remain unchanged.
+`agent/settings.json` is the main tracked settings file. The snapshot below describes the pinned selection; accounts remain unchanged.
 
 Current defaults:
 
 | Setting                | Value                       |
 | ---------------------- | --------------------------- |
-| Default provider       | Unchanged; see `agent/settings.json`. |
-| Default model          | Unchanged; see `agent/settings.json`. |
-| Default thinking level | `max`                       |
+| Default provider       | `openai-codex`              |
+| Default model          | `gpt-6.2-sol` (GPT-6.2 Astra also enabled) |
+| Default thinking level | `xhigh`                     |
 | Theme                  | `dark` saved baseline; startup wrapper uses write-free `--use-theme` selection |
 | Transport              | `websocket-cached`          |
 
 The existing `enabledModels` selection and provider/account aliases remain authoritative in `agent/settings.json`. TUI mode remains `regular`; cache warming remains `off`.
 
-Installed package pins:
+Package pins:
 
-- `npm:pi-blackhole@0.5.18`
+- `npm:pi-blackhole@0.5.19`
 - `npm:pi-btw@0.8.1`
-- object-form `npm:pi-browser-harness@0.19.1` with `skills: []`
-- `npm:pi-claude-bridge@0.12.0`
+- object-form `npm:pi-browser-harness@0.19.2` with `skills: []`
+- `npm:pi-claude-bridge@0.13.0`
 
 Cursor is not configured. OpenAI Codex account aliases are configured separately under `agent/extensions/openai-codex-aliases/`; the canonical provider and every alias keep independent stored credentials. Cache warming is explicitly `off` to avoid automatic provider requests.
 
@@ -109,7 +107,7 @@ Local extensions live under `agent/extensions/`.
 
 Do not re-enable these resources, load them explicitly through CLI `-e` entries, alter child profiles to restore them, or bypass retirement with their CLIs. Use targeted native file reads and bounded shell searches/history/diagnostics instead. Preserve authenticated `gh` and the full unfiltered native Linear CLI exception. Sources, the prompt, installed dependencies, indexes, state, and caches remain retained; this retirement removes none of them.
 
-Normal loading exclusions and model instructions are not an OS security boundary. Shell access can still execute programs; no absolute shell prevention is claimed. The Pi 1.5.2 installation verifies fresh synthetic parent/child processes and keeps these resources excluded. The instance that requested installation still uses Pi 1.4.0 in memory and requires a full restart to activate 1.5.2. The installer does not reload resources or start a new interactive process.
+Normal loading exclusions and model instructions are not an OS security boundary. Shell access can still execute programs; no absolute shell prevention is claimed. Fresh synthetic Pi 1.6.0 parent discovery and RPC checks keep these resources excluded. A Pi process started before an upgrade keeps its old modules in memory until it fully restarts.
 
 Delegated implementation follows one small, independently reviewable increment per fresh delegate, with code and regression tests together. The parent checks and reviews each increment before assigning the next, then reviews the integrated task. Children use small edit-and-check steps and existing patterns. These are model instructions, not runtime size limits; routing, supervision, fallback, and report parsing are unchanged. See [ADR 0019](docs/adr/0019-delegated-incremental-implementation.md).
 
@@ -217,13 +215,13 @@ Active patch notes currently cover:
 - Pi 0.84.1+ nullable provider-header preservation for Blackhole workers
 - Pi 0.87.1 active `context_edit` projection for fresh Blackhole compaction input
 
-`pi-blackhole@0.5.18` retains the three guarded repairs and existing compaction/budget/quiet settings. Raw recall, history and prior summaries remain unchanged. Its 64 focused checks and actual installed SDK/RPC acceptance pass. The inherited ignored pre-compaction-message setting remains documented; no fourth repair is added. Earlier public-provider and OM-auth repairs stay retired.
+`pi-blackhole@0.5.19` still needs all three guarded repairs; the helpers are ported to 0.5.19 and the repaired package is installed. Compaction/budget/quiet settings are unchanged. Raw recall, history and prior summaries remain unchanged. 0.5.19 now honors the config file's `showPreCompactionMessage`; no fourth repair is added. Earlier public-provider and OM-auth repairs stay retired.
 
-Installed `pi-btw@0.8.1` retains only cancellation-aware runtime credential propagation. Its version-specific helper targets verified disposable TMPDIR source, never live `node_modules`. Existing child-context, restore, retry and restart checks pass; optional SSH remains inactive.
+Installed `pi-btw@0.8.1` retains only cancellation-aware runtime credential propagation and is verified on Pi 1.6.0. Its version-specific helper targets verified disposable TMPDIR source, never live `node_modules`. Optional SSH remains inactive.
 
-`pi-browser-harness@0.19.1` has 43 tools and a guarded recipe-snapshot repair. Upstream supplies per-receiving-API registration, so the old registration repair is retired. The installation checks still report three upstream type diagnostics and did not test a live browser. For the separately confirmed Windows connection, see [Use Windows Chrome from Pi in WSL](docs/windows-chrome-from-wsl.md).
+`pi-browser-harness@0.19.2` still needs the guarded recipe-snapshot repair; the helper is rebased to 0.19.2 and the repaired package is installed. Upstream supplies per-receiving-API registration, so the old registration repair is retired. No live browser was tested. For the separately confirmed Windows connection, see [Use Windows Chrome from Pi in WSL](docs/windows-chrome-from-wsl.md).
 
-`pi-claude-bridge@0.12.0` is stock with SDK/Linux 0.3.321 and cc-session-io 0.4.1. Its old prompt-ordering repair remains retired; do not reapply a historical helper. User-only Claude settings, accepted billing-guard removal and session retention are documented in the installation record. Trusted-repository delegation remains required.
+`pi-claude-bridge@0.13.0` is installed stock. It removes AskClaude and forwards Pi's whole system prompt as the Claude Code preset's append. Its old prompt-ordering repair remains retired; do not reapply a historical helper. User-only Claude settings remain. Trusted-repository delegation remains required.
 
 Package reinstalls can overwrite Blackhole, BTW and Harness repairs. Review their `LOCAL_PATCHES.md` records, prepare verified private repaired copies, and recheck every sibling after a transaction. These preparation notes authorize no live helper or deployment.
 
@@ -231,7 +229,9 @@ Package reinstalls can overwrite Blackhole, BTW and Harness repairs. Review thei
 
 From the repository root, run `node --test agent/tests/retired-*.test.mjs` for local discovery and an offline smoke test of the configured npm packages. The smoke test uses a disposable session to check reload, tree navigation and resume. It checks package identities and expected tools, not an exact tool count. It needs the installed packages, Node and Linux bubblewrap. Extension-owned suites stay with their extensions; the delegated loop discovers `tests/*.test.ts` through its `npm test` script.
 
-Use the five current patch helpers only on disposable, verified package extractions. On upgrade, test the required behavior against the **unmodified** package first. If upstream now provides it, retire the helper and keep the relevant behavior check. Otherwise port the helper, verify the repaired bytes and rerun its behavior, refusal and repeated-application checks before copying anything. The most recent [installation record](docs/changelogs/three-extension-upgrade-installation.md) identifies the reviewed package versions.
+Use the five current patch helpers only on disposable, verified package extractions. On upgrade, test the required behavior against the **unmodified** package first. If upstream now provides it, retire the helper and keep the relevant behavior check. Otherwise port the helper, verify the repaired bytes and rerun its behavior, refusal and repeated-application checks before copying anything. The [Pi 1.6.0 post-upgrade record](docs/changelogs/pi-1.6.0-post-upgrade-compatibility-and-skills.md) identifies the reviewed package versions and candidate identities.
+
+Because Pi installs a mismatched exact pin automatically at startup, change a package pin in `agent/settings.json` only together with installing its verified repaired candidate. Otherwise the next fresh start installs the stock package.
 
 [`agent/upgrade-checks/`](agent/upgrade-checks/README.md) holds checks for specific Pi upgrade environments, not everyday tests. Superseded patch scripts and older port tests remain in Git: `git show d752800:<old-path>` retrieves a file without restoring it into the live agent directory.
 

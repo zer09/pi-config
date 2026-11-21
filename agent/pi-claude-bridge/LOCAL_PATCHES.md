@@ -2,6 +2,18 @@
 
 No patch helper is maintained for the installed Bridge. Retrieve the retired helpers and their tests from `d752800` only to reproduce an older upgrade. The separate provider-only entry still has its own tests under `../extensions/delegated-pi-loop/tests/`.
 
+## Stock 0.13.0 installed on Pi 1.6.0
+
+Installed on 2026-11-21 from the verified candidate graph, and unchanged after a fresh Pi start. The backup of the previous cache was later deleted at the user's request. Stock 0.13.0 (gitHead `5ea9bb88bd54395c1fe38cc95ec2ce1dbdcf15cc`, SRI `sha512-n/psYcPhGvieyXBjdY/AYNM2GDJqIdWeKYY880F3Y6HVfP/NG9ZJk6lGxIZbNbqyofo2+6VPKP3HIpzNorQqsA==`) needs no local repair:
+
+- It uses the same Pi APIs as 0.12.0, so the provider-only entry still forwards only `on` and `registerProvider` and returns no host tools.
+- AskClaude is removed from the package; `askClaude.enabled: false` produces no warning.
+- Claude Code still uses only user setting sources. The project `.pi/claude-bridge.json` refusal in the delegated entry stays.
+- Pi's whole system prompt is now forwarded as the `claude_code` preset's append (`provider.systemPromptPreset`, default on). Prompt capture and per-section projection are gone.
+- Dependency pins are unchanged (SDK 0.3.321, MCP SDK ^1.29.0, cc-session-io ^0.4.1).
+
+The provider-only wrapper tests, Blackhole summary ownership with Bridge present, and RPC registration pass on Pi 1.6.0. No real Claude request ran. See the [post-upgrade record](../../docs/changelogs/pi-1.6.0-post-upgrade-compatibility-and-skills.md).
+
 ## Stock 0.12.0 installed on Pi 1.5.2
 
 The installed cache contains stock Bridge 0.12.0, SDK/Linux 0.3.321 and cc-session-io 0.4.1. Actual installed-file SDK and bundled/unbundled RPC checks pass, with no real Claude request. The ordering repair stays retired and AskClaude stays absent. Existing Pi sessions need a full manual restart. See the [installation record](../../docs/changelogs/three-extension-upgrade-installation.md). Preparation sections below are historical.

@@ -2,7 +2,7 @@
 
 Use this index when the command family, exact flags, or output fields are not obvious. Each command reference was generated from local `gh help` output and includes the manual URL, summary, subcommand links, and full help text.
 
-Verified against the prepared `gh version 2.103.3 (2026-10-26)` candidate: 236 command/alias pages, eight help topics, and [root help](gh.md). Unchanged pages retain their earlier generator attribution after a complete normalized help comparison.
+Verified against the prepared `gh version 2.105.0 (2026-11-17)` candidate: 243 command/alias pages, eight help topics, and [root help](gh.md). Unchanged pages retain their earlier generator attribution after a complete normalized help comparison.
 
 Runtime route: identify the repository as `OWNER/REPO`; convert obvious GitHub HTTPS or SSH URLs directly to the matching `gh` command; use `../scripts/normalize_github_url.py` only when conversion is unclear, the URL is complex, or deterministic JSON output is useful. Keep read-only command output bounded with filters or temp files when output may be large.
 
@@ -14,7 +14,7 @@ Runtime route: identify the repository as `OWNER/REPO`; convert obvious GitHub H
 - Nested subcommand: `gh repo deploy-key add` -> `repo/deploy-key/add.md`.
 - Help topic: `gh help formatting` -> `help/formatting.md`.
 
-Before running writes such as create, edit, delete, comment, review, merge, release upload, secret set, workflow run, discussion edits, or project item edits, confirm the user explicitly requested that exact GitHub mutation.
+Before running writes such as create, edit, delete, comment, review, merge, release upload, secret set, workflow run, discussion edits, project item edits, or event subscription create/delete, confirm the user explicitly requested that exact GitHub mutation. `gh event listen` (preview) creates or reuses a server-side subscription that lasts 24 hours and counts against a per-account limit, so treat it as a write. To wait for a PR without that approval, use reads with a deadline: the `github_ci_wait` tool for known workflow runs (default 30-minute timeout), `timeout 30m gh pr checks --watch --interval 30` (`--interval` only sets the polling frequency; `timeout` ends the wait), or a few spaced `gh pr view` calls. Attaching to an existing subscription with `gh event listen --subscription <id> --timeout <duration>` is also allowed. Run `gh event listen` without `--subscription` only when the user explicitly authorizes creating a subscription, and always pass `--timeout`. Never add `gh repo delete --accept-cascading-deletion-of-private-forks` unless the user explicitly accepted deleting the private forks too.
 
 ## Common routes
 
@@ -67,6 +67,7 @@ Before running writes such as create, edit, delete, comment, review, merge, rele
 - [`completion`](completion.md) - Generate shell completion scripts
 - [`config`](config.md) - clear-cache, get, list, set.
 - [`copilot`](copilot.md) - Run the GitHub Copilot CLI (preview)
+- [`event`](event.md) - listen, subscription, subscription create, subscription delete, subscription list, subscription view.
 - [`extension`](extension.md) - browse, create, exec, install, list, remove, search, upgrade.
 - [`gpg-key`](gpg-key.md) - add, delete, list.
 - [`label`](label.md) - clone, create, delete, edit, list.

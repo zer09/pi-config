@@ -1,7 +1,7 @@
 # gh gist create
 
 Source: https://cli.github.com/manual/gh_gist_create
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help gist create`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help gist create`.
 
 ## Summary
 
@@ -29,13 +29,13 @@ ALIASES
   gh gist new
 
 FLAGS
-  -d, --desc string       A description for this gist
-  -f, --filename string   Provide a filename to be used when reading from standard input
-  -p, --public            List the gist publicly (default "secret")
-  -w, --web               Open the web browser with created gist
+  -d, --desc string           A description for this gist
+  -f, --filename string       Provide a filename to be used when reading from standard input
+  -p, --public[=true|false]   List the gist publicly (default "secret")
+  -w, --web[=true|false]      Open the web browser with created gist
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Publish file 'hello.py' as a public gist

@@ -1,7 +1,7 @@
 # gh run view
 
 Source: https://cli.github.com/manual/gh_run_view
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help run view`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help run view`.
 
 ## Summary
 
@@ -27,25 +27,31 @@ Additionally, due to similar platform constraints, some log lines may not be
 associated with a specific step within a job. In these cases, the step name will
 appear as `UNKNOWN STEP` in the log output.
 
+This command shows a snapshot. To wait for the workflow runs of a pull request on `github.com` to
+finish, use `gh event listen` with the
+`com.github.pull_request.check_suite.status.changed.v1` event instead of polling this command. Each
+check suite, such as a workflow run, sends its own event when it completes. Changes made before the listener
+starts are not reported, so read the checks once it is listening.
+
 For more information about output formatting flags, see `gh help formatting`.
 
 USAGE
   gh run view [<run-id>] [flags]
 
 FLAGS
-  -a, --attempt uint      The attempt number of the workflow run
-      --exit-status       Exit with non-zero status if run failed
-  -j, --job string        View a specific job ID from a run
-  -q, --jq expression     Filter JSON output using a jq expression
-      --json fields       Output JSON with the specified fields
-      --log               View full log for either a run or specific job
-      --log-failed        View the log for any failed steps in a run or specific job
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
-  -v, --verbose           Show job steps
-  -w, --web               Open run in the browser
+  -a, --attempt uint               The attempt number of the workflow run
+      --exit-status[=true|false]   Exit with non-zero status if run failed
+  -j, --job string                 View a specific job ID from a run
+  -q, --jq expression              Filter JSON output using a jq expression
+      --json fields                Output JSON with the specified fields
+      --log[=true|false]           View full log for either a run or specific job
+      --log-failed[=true|false]    View the log for any failed steps in a run or specific job
+  -t, --template string            Format JSON output using a Go template; see "gh help formatting"
+  -v, --verbose[=true|false]       Show job steps
+  -w, --web[=true|false]           Open run in the browser
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 JSON FIELDS

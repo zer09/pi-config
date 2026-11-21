@@ -1,7 +1,7 @@
 # gh project
 
 Source: https://cli.github.com/manual/gh_project
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help project`.
 
 ## Summary
 
@@ -64,7 +64,7 @@ AVAILABLE COMMANDS
   view:          View a project
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   $ gh project create --owner monalisa --title "Roadmap"

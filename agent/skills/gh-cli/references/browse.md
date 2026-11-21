@@ -1,7 +1,7 @@
 # gh browse
 
 Source: https://cli.github.com/manual/gh_browse
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help browse`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help browse`.
 
 ## Summary
 
@@ -27,19 +27,19 @@ USAGE
   gh browse [<number> | <path> | <commit-sha>] [flags]
 
 FLAGS
-  -a, --actions                  Open repository actions
-      --blame                    Open blame view for a file
-  -b, --branch string            Select another branch by passing in the branch name
-  -c, --commit string[="last"]   Select another commit by passing in the commit SHA, default is the last commit
-  -n, --no-browser               Print destination URL instead of opening the browser
-  -p, --projects                 Open repository projects
-  -r, --releases                 Open repository releases
-  -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
-  -s, --settings                 Open repository settings
-  -w, --wiki                     Open repository wiki
+  -a, --actions[=true|false]      Open repository actions
+      --blame[=true|false]        Open blame view for a file
+  -b, --branch string             Select another branch by passing in the branch name
+  -c, --commit string[="last"]    Select another commit by passing in the commit SHA, default is the last commit
+  -n, --no-browser[=true|false]   Print destination URL instead of opening the browser
+  -p, --projects[=true|false]     Open repository projects
+  -r, --releases[=true|false]     Open repository releases
+  -R, --repo [HOST/]OWNER/REPO    Select another repository using the [HOST/]OWNER/REPO format
+  -s, --settings[=true|false]     Open repository settings
+  -w, --wiki[=true|false]         Open repository wiki
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 ARGUMENTS
   A browser location can be specified using arguments in the following format:

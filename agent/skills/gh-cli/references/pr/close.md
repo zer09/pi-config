@@ -1,7 +1,7 @@
 # gh pr close
 
 Source: https://cli.github.com/manual/gh_pr_close
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help pr close`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help pr close`.
 
 ## Summary
 
@@ -20,11 +20,11 @@ USAGE
   gh pr close {<number> | <url> | <branch>} [flags]
 
 FLAGS
-  -c, --comment string   Leave a closing comment
-  -d, --delete-branch    Delete the local and remote branch after close
+  -c, --comment string               Leave a closing comment
+  -d, --delete-branch[=true|false]   Delete the local and remote branch after close
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 LEARN MORE

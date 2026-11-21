@@ -1,7 +1,7 @@
 # gh alias import
 
 Source: https://cli.github.com/manual/gh_alias_import
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help alias import`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help alias import`.
 
 ## Summary
 
@@ -37,10 +37,10 @@ USAGE
   gh alias import [<filename> | -] [flags]
 
 FLAGS
-  --clobber   Overwrite existing aliases of the same name
+  --clobber[=true|false]   Overwrite existing aliases of the same name
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Import aliases from a file

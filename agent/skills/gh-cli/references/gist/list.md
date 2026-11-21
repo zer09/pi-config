@@ -1,7 +1,7 @@
 # gh gist list
 
 Source: https://cli.github.com/manual/gh_gist_list
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help gist list`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help gist list`.
 
 ## Summary
 
@@ -39,14 +39,14 @@ ALIASES
   gh gist ls
 
 FLAGS
-      --filter expression   Filter gists using a regular expression
-      --include-content     Include gists' file content when filtering
-  -L, --limit int           Maximum number of gists to fetch (default 10)
-      --public              Show only public gists
-      --secret              Show only secret gists
+      --filter expression              Filter gists using a regular expression
+      --include-content[=true|false]   Include gists' file content when filtering
+  -L, --limit int                      Maximum number of gists to fetch (default 10)
+      --public[=true|false]            Show only public gists
+      --secret[=true|false]            Show only secret gists
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # List all secret gists from your user account

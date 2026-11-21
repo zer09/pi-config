@@ -1,7 +1,7 @@
 # gh repo autolink create
 
 Source: https://cli.github.com/manual/gh_repo_autolink_create
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo autolink create`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help repo autolink create`.
 
 ## Summary
 
@@ -38,10 +38,10 @@ ALIASES
   gh repo autolink new
 
 FLAGS
-  -n, --numeric   Mark autolink as numeric
+  -n, --numeric[=true|false]   Mark autolink as numeric
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

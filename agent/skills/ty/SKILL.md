@@ -46,7 +46,7 @@ ty check --ignore import-not-found
 ty explain rule import-not-found
 ```
 
-Use `ty explain rule <rule-name>` for the local rule description and history. Keep severity overrides scoped to the requested check, not blanket rule suppression.
+Use `ty explain rule <rule-name>` for the local rule description and history. Keep severity overrides scoped to the requested check, not blanket rule suppression. Rule names still split and rename between releases (for example, `missing-module-member` for absent names in `from ... import ...` is no longer covered by `import-not-found`), so take rule names from the diagnostic or local help.
 
 ## Config shape
 

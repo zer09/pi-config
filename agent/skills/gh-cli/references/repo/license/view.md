@@ -1,7 +1,7 @@
 # gh repo license view
 
 Source: https://cli.github.com/manual/gh_repo_license_view
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo license view`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help repo license view`.
 
 ## Summary
 
@@ -23,10 +23,10 @@ USAGE
   gh repo license view {<license-key> | <spdx-id>} [flags]
 
 FLAGS
-  -w, --web   Open https://choosealicense.com/ in the browser
+  -w, --web[=true|false]   Open https://choosealicense.com/ in the browser
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # View the MIT license from SPDX ID

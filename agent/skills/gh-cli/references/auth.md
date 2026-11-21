@@ -1,7 +1,7 @@
 # gh auth
 
 Source: https://cli.github.com/manual/gh_auth
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help auth`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help auth`.
 
 ## Summary
 
@@ -35,7 +35,7 @@ AVAILABLE COMMANDS
   token:         Print the authentication token gh uses for a hostname and account
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

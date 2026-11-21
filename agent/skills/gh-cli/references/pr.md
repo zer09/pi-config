@@ -1,7 +1,7 @@
 # gh pr
 
 Source: https://cli.github.com/manual/gh_pr
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help pr`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help pr`.
 
 ## Summary
 
@@ -33,6 +33,10 @@ Work with GitHub pull requests.
 ```text
 Work with GitHub pull requests.
 
+To wait for a pull request on `github.com` to be reviewed, merged, or closed, use `gh event listen` instead of polling.
+Changes made before the listener starts are not reported, so read the pull request once it is listening.
+
+
 USAGE
   gh pr <command> [flags]
 
@@ -62,7 +66,7 @@ FLAGS
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 ARGUMENTS
   A pull request can be supplied as argument in any of the following formats:

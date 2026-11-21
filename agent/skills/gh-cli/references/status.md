@@ -1,7 +1,7 @@
 # gh status
 
 Source: https://cli.github.com/manual/gh_status
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help status`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help status`.
 
 ## Summary
 
@@ -31,7 +31,7 @@ FLAGS
   -o, --org string        Report status within an organization
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   $ gh status -e cli/cli -e cli/go-gh # Exclude multiple repositories

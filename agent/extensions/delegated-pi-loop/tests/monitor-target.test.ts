@@ -13,13 +13,13 @@ import { loadTargetSessionManager } from "./pi-session-projection.fixture.ts";
 
 // These tests must use the selected installation, never a local or live fallback.
 const root = process.env.PI_SESSION_PROJECTION_PACKAGE_ROOT;
-assert.ok(root && path.isAbsolute(root), "select an isolated exact Pi 1.5.2 package");
+assert.ok(root && path.isAbsolute(root), "select an isolated exact Pi 1.6.0 package");
 await loadTargetSessionManager(root);
 const require = createRequire(path.join(root, "package.json"));
 for (const name of ["pi-agent-core", "pi-ai", "pi-tui"]) {
   const manifest = JSON.parse(readFileSync(path.join(root, "..", name, "package.json"), "utf8"));
   assert.equal(manifest.name, `@earendil-works/${name}`);
-  assert.equal(manifest.version, "1.5.2");
+  assert.equal(manifest.version, "1.6.0");
 }
 const pi: typeof import("@earendil-works/pi-coding-agent") = await import(pathToFileURL(path.join(root, "dist/index.js")).href);
 const ai: typeof import("@earendil-works/pi-ai") = await import(pathToFileURL(path.join(root, "../pi-ai/dist/index.js")).href);
@@ -237,6 +237,51 @@ for (const { label, raw, stopReason, callCount } of rejections
     assert.equal(retained.agentSummary.distinct.size, 0);
   });
 }
+
+// Pi 1.6.0 gives calls that never started in a cancelled batch an "Operation
+// aborted" result. That result must not look like a tool that actually ran.
+test("aborted results for unstarted batch calls never count as execution or completion", async () => {
+  const faux = ai.createFauxCore({ provider: "aborted-batch-offline", tokensPerSecond: 0 });
+  faux.setResponses([ai.fauxAssistantMessage([
+    { type: "text", text: completed },
+    call("first", '{"value":"one"}'),
+    call("second", '{"value":"two"}'),
+  ], { stopReason: "toolUse" })]);
+  const controller = new AbortController();
+  let mutations = 0;
+  let now = 0;
+  const monitor = new PiRpcMonitor(0, "2026-01-01T00:00:00.000Z", () => now);
+  monitor.acceptPrompt(1);
+  const ends: Record<string, unknown>[] = [];
+  await runAgentLoop([{ role: "user", content: "assignment", timestamp: 0 }], {
+    messages: [], tools: [{
+      name: "write", label: "fixture write", description: "Record a fake mutation",
+      parameters: Type.Object({ value: Type.String() }), executionMode: "sequential",
+      async execute() {
+        mutations += 1;
+        controller.abort();
+        return { content: [{ type: "text", text: "recorded" }], details: undefined };
+      },
+    }],
+  }, {
+    model: faux.getModel(), convertToLlm: (messages: unknown[]) => messages,
+    finishTurn: () => ({ action: "end" }),
+  }, (event: Record<string, unknown>) => {
+    const wire = JSON.parse(JSON.stringify(toJsonEvent(event))) as Record<string, unknown>;
+    now += 100;
+    monitor.recordValidRpc();
+    monitor.consumeEvent(1, wire);
+    if (wire.type === "tool_execution_end") ends.push(wire);
+  }, controller.signal, faux.streamSimple);
+  assert.equal(mutations, 1, "only the first call runs");
+  assert.equal(ends.length, 2);
+  const skipped = ends.find((event) => event.toolCallId === "second")!;
+  assert.equal(skipped.isError, true);
+  assert.match(JSON.stringify(skipped.result), /Operation aborted/);
+  assert.equal(Object.hasOwn(skipped, "durationMs"), false);
+  assert.equal(monitor.snapshot().toolExecutionCount, 1, "the aborted placeholder is not tool execution");
+  assert.notEqual(monitor.classifyRound(1, true), "completed");
+});
 
 for (const { label, raw, stopReason } of rejections.filter(({ label }) => label !== "parser-toolUse" && label !== "parser-length")) {
   test(`target corrected continuation can execute and settle after ${label} rejection`, async (t) => {

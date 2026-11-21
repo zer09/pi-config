@@ -1,7 +1,7 @@
 # gh repo set-default
 
 Source: https://cli.github.com/manual/gh_repo_set-default
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help repo set-default`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help repo set-default`.
 
 ## Summary
 
@@ -30,11 +30,11 @@ USAGE
   gh repo set-default [<repository>] [flags]
 
 FLAGS
-  -u, --unset   Unset the current default repository
-  -v, --view    View the current default repository
+  -u, --unset[=true|false]   Unset the current default repository
+  -v, --view[=true|false]    View the current default repository
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Interactively select a default repository

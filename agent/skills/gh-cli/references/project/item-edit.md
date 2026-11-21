@@ -1,7 +1,7 @@
 # gh project item-edit
 
 Source: https://cli.github.com/manual/gh_project_item-edit
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help project item-edit`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help project item-edit`.
 
 ## Summary
 
@@ -39,7 +39,7 @@ USAGE
 
 FLAGS
       --body string                      Body of the draft issue item
-      --clear                            Remove field value
+      --clear[=true|false]               Remove field value
       --date string                      Date value for the field (YYYY-MM-DD)
       --field string                     Name of the field to update
       --field-id string                  ID of the field to update
@@ -58,7 +58,7 @@ FLAGS
       --value --field                    Value to set on the field named by --field
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Set the "Status" field to "In Progress" for an issue on monalisa's project 1

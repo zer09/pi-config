@@ -1,7 +1,7 @@
 # gh repo clone
 
 Source: https://cli.github.com/manual/gh_repo_clone
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help repo clone`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help repo clone`.
 
 ## Summary
 
@@ -37,11 +37,11 @@ USAGE
   gh repo clone <repository> [<directory>] [-- <gitflags>...]
 
 FLAGS
-      --no-upstream                   Do not add an upstream remote when cloning a fork
+      --no-upstream[=true|false]      Do not add an upstream remote when cloning a fork
   -u, --upstream-remote-name string   Upstream remote name when cloning a fork (default "upstream")
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Clone a repository from a specific org

@@ -1,7 +1,7 @@
 # gh repo sync
 
 Source: https://cli.github.com/manual/gh_repo_sync
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help repo sync`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help repo sync`.
 
 ## Summary
 
@@ -30,12 +30,12 @@ USAGE
   gh repo sync [<destination-repository>] [flags]
 
 FLAGS
-  -b, --branch string   Branch to sync (default [default branch])
-      --force           Hard reset the branch of the destination repository to match the source repository
-  -s, --source string   Source repository
+  -b, --branch string        Branch to sync (default [default branch])
+      --force[=true|false]   Hard reset the branch of the destination repository to match the source repository
+  -s, --source string        Source repository
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Sync local repository from remote parent

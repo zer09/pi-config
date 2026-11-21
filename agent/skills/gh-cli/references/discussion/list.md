@@ -1,7 +1,7 @@
 # gh discussion list
 
 Source: https://cli.github.com/manual/gh_discussion_list
-Generated from: `gh version 2.97.0 (2026-07-31)` via `gh help discussion list`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help discussion list`.
 
 ## Summary
 
@@ -27,7 +27,7 @@ ALIASES
 
 FLAGS
       --after string             Cursor for the next page of results
-      --answered                 Filter by answered state
+      --answered[=true|false]    Filter by answered state
   -A, --author string            Filter by author
   -c, --category string          Filter by category name or slug
   -q, --jq expression            Filter JSON output using a jq expression
@@ -40,10 +40,10 @@ FLAGS
       --sort string              Sort by field: {created|updated} (default "updated")
   -s, --state string             Filter by state: {open|closed|all} (default "open")
   -t, --template string          Format JSON output using a Go template; see "gh help formatting"
-  -w, --web                      List discussions in the web browser
+  -w, --web[=true|false]         List discussions in the web browser
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 JSON FIELDS
   answerChosenAt, answerChosenBy, answered, author, body, category, closed,

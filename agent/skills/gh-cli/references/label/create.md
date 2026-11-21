@@ -1,7 +1,7 @@
 # gh label create
 
 Source: https://cli.github.com/manual/gh_label_create
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help label create`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help label create`.
 
 ## Summary
 
@@ -28,10 +28,10 @@ USAGE
 FLAGS
   -c, --color string         Color of the label
   -d, --description string   Description of the label
-  -f, --force                Update the label color and description if label already exists
+  -f, --force[=true|false]   Update the label color and description if label already exists
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

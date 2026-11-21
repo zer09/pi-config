@@ -1,7 +1,7 @@
 # gh run watch
 
 Source: https://cli.github.com/manual/gh_run_watch
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help run watch`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help run watch`.
 
 ## Summary
 
@@ -22,17 +22,23 @@ show the relevant/failed steps.
 This command does not support authenticating via fine grained PATs
 as it is not currently possible to create a PAT with the `checks:read` permission.
 
+This command polls the run. To wait for the workflow runs of a pull request on `github.com` to
+finish without polling, use `gh event listen` with the
+`com.github.pull_request.check_suite.status.changed.v1` event instead. Each check suite, such as a
+workflow run, sends its own event when it completes. Changes made before the listener starts are not
+reported, so read the checks once it is listening.
+
 
 USAGE
   gh run watch <run-id> [flags]
 
 FLAGS
-      --compact        Show only relevant/failed steps
-      --exit-status    Exit with non-zero status if run fails
-  -i, --interval int   Refresh interval in seconds (default 3)
+      --compact[=true|false]       Show only relevant/failed steps
+      --exit-status[=true|false]   Exit with non-zero status if run fails
+  -i, --interval int               Refresh interval in seconds (default 3)
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

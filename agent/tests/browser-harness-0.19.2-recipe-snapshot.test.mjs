@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { syncBuiltinESMExports } from "node:module";
 import { join } from "node:path";
 import test from "node:test";
-import { isolatedJiti, target, fixture, execute, ok, out } from "./browser-harness-0.19.1-fixture.mjs";
+import { isolatedJiti, target, fixture, execute, ok, out } from "./browser-harness-0.19.2-fixture.mjs";
 
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 const originalRead = fsp.readFile, originalRename = fsp.rename;

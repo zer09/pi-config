@@ -1,7 +1,7 @@
 # gh release delete-asset
 
 Source: https://cli.github.com/manual/gh_release_delete-asset
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help release delete-asset`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help release delete-asset`.
 
 ## Summary
 
@@ -20,10 +20,10 @@ USAGE
   gh release delete-asset <tag> <asset-name> [flags]
 
 FLAGS
-  -y, --yes   Skip the confirmation prompt
+  -y, --yes[=true|false]   Skip the confirmation prompt
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 LEARN MORE

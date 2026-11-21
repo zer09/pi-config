@@ -23,7 +23,7 @@ const ts = require("typescript");
 assert.equal(ts.version, "6.0.3");
 const manifest = JSON.parse(readFileSync(join(hostRoot, "package.json")));
 assert.equal(manifest.name, "@earendil-works/pi-coding-agent");
-assert.equal(manifest.version, "1.5.2");
+assert.equal(manifest.version, "1.6.0");
 const pi = await import(join(hostRoot, "dist/index.js"));
 const ai = await import(join(hostRoot, "../../@earendil-works/pi-ai/dist/index.js"));
 const stockCall = "await modelRuntime.setRuntimeApiKey(model.provider, auth.apiKey);";

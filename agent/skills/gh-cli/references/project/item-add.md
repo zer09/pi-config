@@ -1,7 +1,7 @@
 # gh project item-add
 
 Source: https://cli.github.com/manual/gh_project_item-add
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project item-add`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help project item-add`.
 
 ## Summary
 
@@ -29,7 +29,7 @@ FLAGS
       --url string        URL of the issue or pull request to add to the project
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Add an item to monalisa's project "1"

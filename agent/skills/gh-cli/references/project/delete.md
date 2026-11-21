@@ -1,7 +1,7 @@
 # gh project delete
 
 Source: https://cli.github.com/manual/gh_project_delete
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project delete`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help project delete`.
 
 ## Summary
 
@@ -28,7 +28,7 @@ FLAGS
   -t, --template string   Format JSON output using a Go template; see "gh help formatting"
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Delete the current user's project "1"

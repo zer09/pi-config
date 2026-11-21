@@ -1,7 +1,7 @@
 # gh workflow run
 
 Source: https://cli.github.com/manual/gh_workflow_run
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help workflow run`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help workflow run`.
 
 ## Summary
 
@@ -33,12 +33,12 @@ USAGE
 
 FLAGS
   -F, --field key=value       Add a string parameter in key=value format, respecting @ syntax (see "gh help api").
-      --json                  Read workflow inputs as JSON via STDIN
+      --json[=true|false]     Read workflow inputs as JSON via STDIN
   -f, --raw-field key=value   Add a string parameter in key=value format
   -r, --ref string            Branch or tag name which contains the version of the workflow file you'd like to run
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

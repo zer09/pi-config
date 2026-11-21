@@ -1,7 +1,7 @@
 # gh config clear-cache
 
 Source: https://cli.github.com/manual/gh_config_clear-cache
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help config clear-cache`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help config clear-cache`.
 
 ## Summary
 
@@ -20,7 +20,7 @@ USAGE
   gh config clear-cache [flags]
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Clear the cli cache

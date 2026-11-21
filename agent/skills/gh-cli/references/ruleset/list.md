@@ -1,7 +1,7 @@
 # gh ruleset list
 
 Source: https://cli.github.com/manual/gh_ruleset_list
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help ruleset list`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help ruleset list`.
 
 ## Summary
 
@@ -33,13 +33,13 @@ ALIASES
   gh rs ls, gh ruleset ls
 
 FLAGS
-  -L, --limit int    Maximum number of rulesets to list (default 30)
-  -o, --org string   List organization-wide rulesets for the provided organization
-  -p, --parents      Whether to include rulesets configured at higher levels that also apply (default true)
-  -w, --web          Open the list of rulesets in the web browser
+  -L, --limit int              Maximum number of rulesets to list (default 30)
+  -o, --org string             List organization-wide rulesets for the provided organization
+  -p, --parents[=true|false]   Whether to include rulesets configured at higher levels that also apply (default true)
+  -w, --web[=true|false]       Open the list of rulesets in the web browser
 
 INHERITED FLAGS
-      --help                     Show help for command
+      --help[=true|false]        Show help for command
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 EXAMPLES

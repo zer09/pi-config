@@ -5,14 +5,14 @@ import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Candidate only. First apply reapply-compact-after-percent-patch-0.5.18.mjs.
-// Usage: node reapply-nullable-provider-headers-patch-0.5.18.mjs "$TMPDIR/isolated-package"
+// Candidate only. First apply reapply-compact-after-percent-patch-0.5.19.mjs.
+// Usage: node reapply-nullable-provider-headers-patch-0.5.19.mjs "$TMPDIR/isolated-package"
 // No default target, live install, dependency loading, or subprocesses.
-// Fingerprints come from the registry-SRI-verified pi-blackhole@0.5.18 tarball.
+// Fingerprints come from the registry-SRI-verified pi-blackhole@0.5.19 tarball.
 const patches = [
   {
     rel: "src/om/runtime.ts",
-    sha256: "007b13cb234c18a01fa78c99b3c403e28a9a5aee03e7c1a02707e3668bc3f162",
+    sha256: "80b6a19213c8d6a4e150ec1615b6cb68533861fadffe979497e6daf299607783",
     edits: [
       [
         `import type { AuthResult } from "@earendil-works/pi-ai";`,
@@ -50,7 +50,7 @@ const patches = [
   },
   ...[
     ["observer", "b7da719bd2c43253fdbca56cf78e013776b63f28599ff91c6516e1c496d0196e"],
-    ["reflector", "0a9baca0adadcf8dbacde4b68ac5f7797f2f45c5c1860b2494b1c9149a7bd3ae"],
+    ["reflector", "13007bb9e79348789c7ca5be226e2c7a84f57727d50534809c2fcae674f9b7ec"],
     ["dropper", "1413d112c78b180de002596395ef44e3c1cb2d550b44c035cc28f0626bbc2ff3"],
   ].map(([stage, sha256]) => ({
     rel: `src/om/agents/${stage}/agent.ts`,
@@ -67,12 +67,12 @@ const patches = [
 
 // Require the complete accepted percentage candidate, not just a manually changed entrypoint.
 const prerequisites = [
-  ["package.json", "62931e2eeb93c4a20fb2cda099bc8243ea8302742384db3e5d173ddaeba7ec43"],
-  ["src/core/unified-config.ts", "ea3f59304c952413699501dd213a6eb4fbcd399f2174bd0768969b83a21743e8"],
+  ["package.json", "28ceecff6d948f4b275dc060490bbf1e96779ad3ce72bd524d1e275ec790151d"],
+  ["src/core/unified-config.ts", "391940aa5dac66fce9a316b6a2478146af2bd81a0302b0c55d370539c46cd527"],
   ["src/om/model-budget.ts", "1e57492d628669ea602b822388b3486a27b11a0cb549eba6efaf8cdc54eb8cac"],
   ["src/commands/memory.ts", "992d30725b044b4021d2589fd29767bdff4ef1abeb6a81d325e91e87e4b409f6"],
   ["index.ts", "fd386003c4f88da2ca25c0de97042294ed4b8b6621cf3ce550180b58621b0637"],
-  ["src/om/compaction-trigger.ts", "9de44d4d59eab66746f8ea5f406cf60aa9c35ddfd9e3a0da91c7bb7e8d32c64c"],
+  ["src/om/compaction-trigger.ts", "e5259536c5409465da11b04a98ce81d2c76a6095acb6591f4dfeb56ff954025a"],
 ];
 
 function sha256(content) {
@@ -121,7 +121,7 @@ function planPatch(patch, content) {
 
 export function reapplyNullableProviderHeadersPatch(target) {
   if (typeof target !== "string" || target.trim() === "") {
-    throw new Error("Supply an explicit isolated pi-blackhole@0.5.18 package directory under the OS temp directory.");
+    throw new Error("Supply an explicit isolated pi-blackhole@0.5.19 package directory under the OS temp directory.");
   }
   if (!process.env.TMPDIR || !isAbsolute(process.env.TMPDIR) || realpathSync(process.env.TMPDIR) !== process.env.TMPDIR) {
     throw new Error("Supply an explicit canonical TMPDIR for disposable extractions.");
@@ -139,11 +139,11 @@ export function reapplyNullableProviderHeadersPatch(target) {
 
   const manifest = readIsolatedFile(root, "package.json");
   const pkg = JSON.parse(manifest);
-  if (pkg.name !== "pi-blackhole" || pkg.version !== "0.5.18") {
-    throw new Error("Expected exactly pi-blackhole@0.5.18; no files changed.");
+  if (pkg.name !== "pi-blackhole" || pkg.version !== "0.5.19") {
+    throw new Error("Expected exactly pi-blackhole@0.5.19; no files changed.");
   }
   if (!Array.isArray(pkg.pi?.extensions) || pkg.pi.extensions.length !== 1 || pkg.pi.extensions[0] !== "./index.ts") {
-    throw new Error("Apply the accepted 0.5.18 percentage candidate first (pi.extensions must be ['./index.ts']); no files changed.");
+    throw new Error("Apply the accepted 0.5.19 percentage candidate first (pi.extensions must be ['./index.ts']); no files changed.");
   }
 
   // Preflight all prerequisites, affected files, and anchors before ANY write.
@@ -156,7 +156,7 @@ export function reapplyNullableProviderHeadersPatch(target) {
   if (new Set(plans.map((plan) => plan.stock)).size !== 1) {
     throw new Error("Mixed stock and patched files; no files changed.");
   }
-  if (!plans[0].stock) return "already patched: isolated pi-blackhole@0.5.18 nullable ProviderHeaders";
+  if (!plans[0].stock) return "already patched: isolated pi-blackhole@0.5.19 nullable ProviderHeaders";
 
   // Preflight writable destinations without truncating any source.
   const opened = [];
@@ -178,10 +178,10 @@ export function reapplyNullableProviderHeadersPatch(target) {
   } finally {
     for (const { fd } of opened) closeSync(fd);
   }
-  return "patched: isolated pi-blackhole@0.5.18 nullable ProviderHeaders candidate";
+  return "patched: isolated pi-blackhole@0.5.19 nullable ProviderHeaders candidate";
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (process.argv.length !== 3) throw new Error("Usage: helper $TMPDIR/isolated-pi-blackhole-0.5.18-package");
+  if (process.argv.length !== 3) throw new Error("Usage: helper $TMPDIR/isolated-pi-blackhole-0.5.19-package");
   console.log(reapplyNullableProviderHeadersPatch(process.argv[2]));
 }

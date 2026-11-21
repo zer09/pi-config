@@ -1,7 +1,7 @@
 # gh repo create
 
 Source: https://cli.github.com/manual/gh_repo_create
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help repo create`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help repo create`.
 
 ## Summary
 
@@ -43,26 +43,26 @@ ALIASES
   gh repo new
 
 FLAGS
-      --add-readme             Add a README file to the new repository
-  -c, --clone                  Clone the new repository to the current directory
-  -d, --description string     Description of the repository
-      --disable-issues         Disable issues in the new repository
-      --disable-wiki           Disable wiki in the new repository
-  -g, --gitignore string       Specify a gitignore template for the repository
-  -h, --homepage URL           Repository home page URL
-      --include-all-branches   Include all branches from template repository
-      --internal               Make the new repository internal
-  -l, --license string         Specify an Open Source License for the repository
-      --private                Make the new repository private
-      --public                 Make the new repository public
-      --push                   Push local commits to the new repository
-  -r, --remote string          Specify remote name for the new repository
-  -s, --source string          Specify path to local repository to use as source
-  -t, --team name              The name of the organization team to be granted access
-  -p, --template repository    Make the new repository based on a template repository
+      --add-readme[=true|false]             Add a README file to the new repository
+  -c, --clone[=true|false]                  Clone the new repository to the current directory
+  -d, --description string                  Description of the repository
+      --disable-issues[=true|false]         Disable issues in the new repository
+      --disable-wiki[=true|false]           Disable wiki in the new repository
+  -g, --gitignore string                    Specify a gitignore template for the repository
+  -h, --homepage URL                        Repository home page URL
+      --include-all-branches[=true|false]   Include all branches from template repository
+      --internal[=true|false]               Make the new repository internal
+  -l, --license string                      Specify an Open Source License for the repository
+      --private[=true|false]                Make the new repository private
+      --public[=true|false]                 Make the new repository public
+      --push[=true|false]                   Push local commits to the new repository
+  -r, --remote string                       Specify remote name for the new repository
+  -s, --source string                       Specify path to local repository to use as source
+  -t, --team name                           The name of the organization team to be granted access
+  -p, --template repository                 Make the new repository based on a template repository
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Create a repository interactively

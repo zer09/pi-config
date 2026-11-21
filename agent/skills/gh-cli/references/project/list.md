@@ -1,7 +1,7 @@
 # gh project list
 
 Source: https://cli.github.com/manual/gh_project_list
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project list`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help project list`.
 
 ## Summary
 
@@ -25,16 +25,16 @@ ALIASES
   gh project ls
 
 FLAGS
-      --closed            Include closed projects
-      --format string     Output format: {json}
-  -q, --jq expression     Filter JSON output using a jq expression
-  -L, --limit int         Maximum number of projects to fetch (default 30)
-      --owner string      Login of the owner
-  -t, --template string   Format JSON output using a Go template; see "gh help formatting"
-  -w, --web               Open projects list in the browser
+      --closed[=true|false]   Include closed projects
+      --format string         Output format: {json}
+  -q, --jq expression         Filter JSON output using a jq expression
+  -L, --limit int             Maximum number of projects to fetch (default 30)
+      --owner string          Login of the owner
+  -t, --template string       Format JSON output using a Go template; see "gh help formatting"
+  -w, --web[=true|false]      Open projects list in the browser
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # List the current user's projects

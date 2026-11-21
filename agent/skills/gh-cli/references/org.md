@@ -1,7 +1,7 @@
 # gh org
 
 Source: https://cli.github.com/manual/gh_org
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help org`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help org`.
 
 ## Summary
 
@@ -23,7 +23,7 @@ GENERAL COMMANDS
   list:          List organizations for the authenticated user.
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   $ gh org list

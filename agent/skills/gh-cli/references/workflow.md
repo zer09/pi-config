@@ -1,7 +1,7 @@
 # gh workflow
 
 Source: https://cli.github.com/manual/gh_workflow
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help workflow`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help workflow`.
 
 ## Summary
 
@@ -34,7 +34,7 @@ FLAGS
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 LEARN MORE
   Use `gh <command> <subcommand> --help` for more information about a command.

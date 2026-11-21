@@ -1,7 +1,7 @@
 # gh discussion comment
 
 Source: https://cli.github.com/manual/gh_discussion_comment
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help discussion comment`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help discussion comment`.
 
 ## Summary
 
@@ -36,13 +36,13 @@ USAGE
 FLAGS
   -b, --body string              Comment body text
   -F, --body-file string         Read body text from file (use "-" to read from standard input)
-      --delete                   Delete the specified comment
-      --edit                     Edit the specified comment
+      --delete[=true|false]      Delete the specified comment
+      --edit[=true|false]        Edit the specified comment
   -R, --repo [HOST/]OWNER/REPO   Select another repository using the [HOST/]OWNER/REPO format
-      --yes                      Skip the delete confirmation prompt
+      --yes[=true|false]         Skip the delete confirmation prompt
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Add a top-level comment to discussion #123

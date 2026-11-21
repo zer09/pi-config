@@ -1,7 +1,7 @@
 # gh project copy
 
 Source: https://cli.github.com/manual/gh_project_copy
-Generated from: `gh version 2.95.0 (2026-06-20)` via `gh help project copy`.
+Generated from: `gh version 2.105.0 (2026-11-17)` via `gh help project copy`.
 
 ## Summary
 
@@ -22,7 +22,7 @@ USAGE
   gh project copy [<number>] [flags]
 
 FLAGS
-      --drafts                Include draft issues when copying
+      --drafts[=true|false]   Include draft issues when copying
       --format string         Output format: {json}
   -q, --jq expression         Filter JSON output using a jq expression
       --source-owner string   Login of the source owner. Use "@me" for the current user.
@@ -31,7 +31,7 @@ FLAGS
       --title string          Title for the new project
 
 INHERITED FLAGS
-  --help   Show help for command
+  --help[=true|false]   Show help for command
 
 EXAMPLES
   # Copy project "1" owned by monalisa to github

@@ -139,7 +139,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package-dir", type=Path, required=True)
     parser.add_argument("--help-dir", type=Path, required=True)
-    parser.add_argument("--expected-version", choices=("15.32.0", "15.36.0"), default="15.32.0")
+    parser.add_argument("--expected-version", choices=("15.32.0", "15.36.0", "15.37.0"), default="15.32.0")
     args, remaining = parser.parse_known_args()
     EXPECTED_VERSION = args.expected_version
     PACKAGE = args.package_dir.resolve(strict=True)
