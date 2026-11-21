@@ -2,13 +2,13 @@
   "lastChangelogVersion": "1.6.0",
   "tuiMode": "regular",
   "packages": [
-    "npm:pi-blackhole@0.5.18",
+    "npm:pi-blackhole@0.5.19",
     "npm:pi-btw@0.8.1",
     {
-      "source": "npm:pi-browser-harness@0.19.1",
+      "source": "npm:pi-browser-harness@0.19.2",
       "skills": []
     },
-    "npm:pi-claude-bridge@0.12.0"
+    "npm:pi-claude-bridge@0.13.0"
   ],
   "extensions": [
     "-builtin:mcp",
