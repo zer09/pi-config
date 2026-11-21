@@ -11,6 +11,7 @@ agent/mcp-cache.json
 agent/mcp-npx-cache.json
 agent/run-history.jsonl
 agent/browser-harness/
+agent/browser-harness.json
 agent/claude-bridge/sessions/
 
 # Pi blackhole runtime queue; keep config and update helper files tracked
