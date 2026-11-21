@@ -485,7 +485,7 @@ if (args.includes("--list-models")) {
   const provider = args[args.indexOf("--provider") + 1];
   const model = args[args.indexOf("--model") + 1];
   const route = provider + "/" + model;
-  if (supervisionLog) appendFileSync("supervision-routes.jsonl", route + "\\n");
+  if (supervisionLog) appendFileSync(${JSON.stringify(path.join(root, "supervision-routes.jsonl"))}, route + "\\n");
   const behavior = behaviors[route] ?? "complete";
   const emit = (event) => console.log(JSON.stringify(event));
   let buffer = "";
@@ -1022,7 +1022,7 @@ if (args.includes("--list-models")) {
   }
   setInterval(() => {}, 1000);
 } else {
-  appendFileSync("supervision-routes.jsonl", provider + "/" + model + "\\n");
+  appendFileSync(${JSON.stringify(path.join(root, "supervision-routes.jsonl"))}, provider + "/" + model + "\\n");
   const emit = (event) => console.log(JSON.stringify(event));
   let buffer = "";
   process.stdin.on("data", (chunk) => {
